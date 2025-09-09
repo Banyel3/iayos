@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { link } from "fs";
 import Link from "next/link";
+import "./button.css";
 
 type ButtonProps = {
   label: string;
@@ -17,9 +18,10 @@ export function ButtonComp({ label, variant = "primary", link }: ButtonProps) {
         <Button
           className={`w-full rounded-2xl ${
             isPrimary
-              ? "bg-yellow-300 hover:bg-yellow-400 text-black"
-              : "bg-gray-100 hover:bg-gray-300 text-black"
+              ? "text-white"
+              : "bg-gray-100 hover:bg-gray-300 border border-solid border-black text-black"
           }`}
+          style={isPrimary ? { background: "var(--primary-gradient)" } : {}}
           size="lg"
         >
           {label}

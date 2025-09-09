@@ -1,27 +1,35 @@
-import React from "react";
-import { ButtonComp } from "../components/button/yellow_button";
+"use client";
+
+import React, { useEffect } from "react";
+import { ButtonComp } from "../components/button/onboard_button";
+import { useRouter } from "next/navigation";
 // MOBILE FIRST ALWAYS
 const onboard = () => {
   return (
     <div className="flex justify-center items-center min-h-screen">
-      <div className="mx-auto w-[390px] min-h-screen flex flex-col justify-around">
-        <img src="/globe.svg" alt="" />
+      <div className="mx-auto max-w-[390px] min-h-screen flex flex-col justify-around">
+        <div>
+          <header className="px-4 font-bold text-2xl">iAyos</header>
+          <header className="px-4 text-sm">May sira? May iAyos.</header>
+        </div>
+        <img src="/onboard_stockimg.svg" alt="" />
         <div>
           <header className="p-4 text-center space-y-2">
-            <h1 className="font-bold text-[22px] text-sm/snug">
-              Find the right people for the job
+            <h1 className="font-light text-[18px] text-sm/snug">
+              What are you looking for?
             </h1>
-            <p className="text-gray-500 text-[14px] text-sm/relaxed">
-              Connect with skilled professionals for all your home service needs
-            </p>
           </header>
           <main className="p-4 text-black space-y-4">
             <ButtonComp
-              label="Get Started"
+              label="I'm looking for a worker"
               variant="primary"
-              link="/auth/login"
+              link="/onboard/workers"
             />
-            <ButtonComp label="Browse Services" variant="secondary" link="/" />
+            <ButtonComp
+              label="I'm looking for a job"
+              variant="secondary"
+              link="/"
+            />
           </main>
         </div>
       </div>
