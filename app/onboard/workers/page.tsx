@@ -22,7 +22,11 @@ const TempWorkers = () => {
             />
           </div>
           <br />
-          <div className="self-center w-70 h-45 border border-solid border-gray-200"></div>
+          <br />
+          <div
+            className="self-center w-80 h-45 border border-solid border-gray-200"
+            style={{ background: "var(--primary-gradient)" }}
+          ></div>
         </div>
       </div>
     </div>
