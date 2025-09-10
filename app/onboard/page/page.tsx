@@ -25,11 +25,25 @@ const onboard = () => {
             Connect with skilled workers for all your <br />
             home service needs
           </p>
+        </div>
+        <div>
+          <header className="p-4 text-center space-y-2">
+            <h1 className="font-light text-[18px] text-sm/snug">
+              What are you looking for?
+            </h1>
+          </header>
           <main className="p-4 text-black space-y-4">
             <ButtonComp
-              label="Get Started"
+              label="I'm looking for a worker"
               variant="primary"
-              link="/onboard/page"
+              link="/onboard/workers"
+              role="worker"
+            />
+            <ButtonComp
+              label="I'm looking for a job"
+              variant="secondary"
+              link="/"
+              role="client"
             />
           </main>
         </div>

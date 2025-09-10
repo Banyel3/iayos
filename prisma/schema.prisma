@@ -40,8 +40,8 @@ model Profile{
   username String
   contactNum String
   profileType profileType? 
-  worker Worker_Profile?
 
+  worker Worker_Profile?
   accounts Accounts @relation(fields: [accountID], references: [accountID])
 }
 
@@ -53,9 +53,8 @@ enum availabilityStatus{
 
 model Worker_Profile{
   profileID Int @id
-  portfolioImages String
+  profileImg String?
   hourlyRate Decimal @db.Decimal(10,2)
-  experienceYears Int
   verifiedSkills Json
   responseTimeAvg Decimal @db.Decimal(5,2)
   completionRate Decimal @db.Decimal(5,2)
@@ -66,4 +65,24 @@ model Worker_Profile{
   availabilityStatus availabilityStatus @default(OFFLINE)
 
   profile Profile? @relation(fields: [profileID], references: [profileID])
+  freelancer_specialization Freelancer_Specialization[]
+}
+
+model Freelancer_Specialization{
+  workerID Int 
+  specializationID Int
+  experienceYears Int
+  certification String
+
+  worker_profile Worker_Profile @relation(fields: [workerID], references: [profileID])
+  specialization Specialization @relation(fields: [specializationID], references: [specializationID])
+
+   @@id([workerID, specializationID])
+}
+
+model Specialization{
+  specializationID Int @id @unique @default(autoincrement())
+  specializationName String
+
+  freelancer_specialization Freelancer_Specialization[]
 }
