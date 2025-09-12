@@ -9,11 +9,8 @@ const onboard = () => {
     <div className="flex justify-center items-center min-h-screen">
       <div className="mx-auto max-w-[390px] min-h-screen flex flex-col justify-around ">
         <div>
-          <header className="px-4 font-bold text-2xl font-[Fredoka]">
-            iAyos
-          </header>
-          <header className="px-4 text-sm font-[Fredoka]">
-            May sira? May iAyos.
+          <header className="px-4 font-bold text-2xl text-center font-[Fredoka]">
+            Who's in the iAyos Community
           </header>
         </div>
         <div>

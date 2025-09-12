@@ -1,15 +1,37 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Search } from "lucide-react";
 import { ButtonComp } from "@/components/ui/button/onboard_button";
+import { fa } from "zod/locales";
 
 const TempWorkers = () => {
   const [Query, setQuery] = useState("");
+  const debouncedQuery = useDebounce(Query, 500);
+
+  useEffect(() => {
+    if (debouncedQuery.length >= 2) {
+      handleSearch(debouncedQuery);
+    } else {
+      setResults([]);
+    }
+  }, [debouncedQuery]);
+
   const [results, setResults] = useState<any[]>([]);
 
-  async function handleSearch(value: string) {
-    setQuery(value);
+  const [hasSearched, setHasSearched] = useState(false);
+  // Sets 500ms delay after keyboard stroke
+  function useDebounce<T>(value: T, delay = 500) {
+    const [debouncedValue, setDebouncedValue] = useState(value);
 
+    useEffect(() => {
+      const handler = setTimeout(() => setDebouncedValue(value), delay);
+      return () => clearTimeout(handler);
+    }, [value, delay]);
+
+    return debouncedValue;
+  }
+
+  async function handleSearch(value: string) {
     if (value.length < 2) {
       setResults([]);
       return;
@@ -17,7 +39,8 @@ const TempWorkers = () => {
 
     const res = await fetch(`/api/search?q=${value}`);
     const data = await res.json();
-    setResults(data.results);
+    setResults(data.results || []);
+    setHasSearched(true);
   }
 
   return (
@@ -34,13 +57,14 @@ const TempWorkers = () => {
               id=""
               placeholder="cleaner, seamstress, etc"
               value={Query}
-              onChange={(e) => handleSearch(e.target.value)}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSearch(Query)}
             />
           </div>
           <br />
           <br />
 
-          {Query && (
+          {hasSearched && Query !== "" && (
             <p>
               {results.length} results found under "{Query}"
             </p>
