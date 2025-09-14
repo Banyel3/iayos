@@ -89,7 +89,15 @@ export const useSwipeGesture = ({
       element.removeEventListener("touchmove", handleTouchMove);
       element.removeEventListener("touchend", handleTouchEnd);
     };
-  }, [onSwipeRight, minSwipeDistance, maxVerticalDistance, isTransitioning]);
+  }, [
+    onSwipeRight,
+    minSwipeDistance,
+    maxVerticalDistance,
+    isTransitioning,
+    handleTouchEnd,
+    handleTouchMove,
+    handleTouchStart,
+  ]);
 
   return {
     translateX,

@@ -1,0 +1,87 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Accounts {
+  accountID  Int       @id @default(autoincrement())
+  email      String    @unique
+  password   String //hashed
+  isVerified Boolean
+  createdAt  DateTime
+  status     String
+  profile    Profile[]
+}
+
+enum profileType {
+  WORKER
+  CLIENT
+  BOTH
+}
+
+model Profile {
+  profileID   Int          @id @default(autoincrement())
+  accountID   Int          @unique
+  firstName   String
+  lastName    String
+  username    String
+  contactNum  String
+  profileType profileType?
+
+  worker   Worker_Profile?
+  accounts Accounts        @relation(fields: [accountID], references: [accountID])
+}
+
+enum availabilityStatus {
+  AVAILABLE
+  BUSY
+  OFFLINE
+}
+
+model Worker_Profile {
+  profileID          Int                @id
+  profileImg         String?
+  hourlyRate         Decimal            @db.Decimal(10, 2)
+  verifiedSkills     Json
+  responseTimeAvg    Decimal            @db.Decimal(5, 2)
+  completionRate     Decimal            @db.Decimal(5, 2)
+  bio                String
+  totalEarningGross  Decimal            @db.Decimal(10, 2)
+  withholdingBalance Decimal            @db.Decimal(10, 2)
+  description        String
+  availabilityStatus availabilityStatus @default(OFFLINE)
+
+  profile                   Profile?                    @relation(fields: [profileID], references: [profileID])
+  freelancer_specialization Freelancer_Specialization[]
+}
+
+model Freelancer_Specialization {
+  workerID         Int
+  specializationID Int
+  experienceYears  Int
+  certification    String
+
+  worker_profile Worker_Profile @relation(fields: [workerID], references: [profileID])
+  specialization Specialization @relation(fields: [specializationID], references: [specializationID])
+
+  @@id([workerID, specializationID])
+}
+
+model Specialization {
+  specializationID   Int    @id @unique @default(autoincrement())
+  specializationName String
+
+  freelancer_specialization Freelancer_Specialization[]
+}

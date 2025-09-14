@@ -5,8 +5,9 @@ import { ButtonComp } from "@/components/ui/button/onboard_button";
 import { PageIndicator } from "@/components/ui/page-indicator";
 import { useSwipeGesture } from "@/lib/hooks/useSwipeGesture";
 import { useRouter } from "next/navigation";
+import img from "next/image";
 
-const TempWorkers = () => {
+const ClientView = () => {
   //re-routing logic
   const router = useRouter();
 
@@ -37,7 +38,18 @@ const TempWorkers = () => {
     }
   }, [debouncedQuery]);
 
-  const [results, setResults] = useState<any[]>([]);
+  interface Worker {
+    profileID: string;
+    profile: {
+      firstName: string;
+      lastName: string;
+    };
+    rating: number;
+    location: string;
+    profileImg?: string;
+    hourlyRate?: number;
+  }
+  const [results, setResults] = useState<Worker[]>([]);
 
   const [hasSearched, setHasSearched] = useState(false);
   // Sets 500ms delay after keyboard stroke
@@ -90,11 +102,10 @@ const TempWorkers = () => {
           </div>
           <br />
           <br />
-
           {hasSearched && Query !== "" ? (
             <>
               <p>
-                {results.length} results found under "{Query}"
+                {results.length} results found under {Query}
               </p>
 
               <div className="flex justify-center gap-2">
@@ -104,8 +115,8 @@ const TempWorkers = () => {
                     className="flex flex-col items-center"
                   >
                     <img
-                      src={worker.profileImg}
-                      alt={worker.firstName}
+                      src={worker.profileImg ?? "/default-avatar.jpg"}
+                      alt={worker.profile.firstName}
                       className="w-16 h-16 rounded-full object-cover"
                     />
                     <p className="text-sm">
@@ -122,6 +133,7 @@ const TempWorkers = () => {
                   <img
                     src={"/worker1.jpg"}
                     className="w-16 h-16 rounded-full object-cover"
+                    alt="worker1"
                   />
                   <p className="text-sm">Carpenter</p>
                 </div>
@@ -130,6 +142,7 @@ const TempWorkers = () => {
                   <img
                     src={"/worker2.jpg"}
                     className="w-16 h-16 rounded-full object-cover"
+                    alt="worker2"
                   />
                   <p className="text-sm">Plumber</p>
                 </div>
@@ -137,13 +150,13 @@ const TempWorkers = () => {
                   <img
                     src={"/worker3.jpg"}
                     className="w-16 h-16 rounded-full object-cover"
+                    alt="worker3"
                   />
                   <p className="text-sm">Grass Cutterist</p>
                 </div>
               </div>
             </>
           )}
-
           <br />
           <br />
           <ButtonComp
@@ -158,4 +171,4 @@ const TempWorkers = () => {
   );
 };
 
-export default TempWorkers;
+export default ClientView;

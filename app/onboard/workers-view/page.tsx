@@ -22,8 +22,18 @@ const TempWorkers = () => {
       router.replace("/auth/login");
     }
   }, [router]);
-
-  const [results, setResults] = useState<any[]>([]);
+  interface Worker {
+    profileID: string;
+    profile: {
+      firstName: string;
+      lastName: string;
+    };
+    rating: number;
+    location: string;
+    profileImg?: string;
+    hourlyRate?: number;
+  }
+  const [results, setResults] = useState<Worker[]>([]);
 
   useEffect(() => {
     async function fetchAllWorkers() {
@@ -49,7 +59,6 @@ const TempWorkers = () => {
           <div className="relative w-full mt-4"></div>
           <br />
           <br />
-
           {results && results.length > 0 ? (
             <div className="flex flex-col justify-center gap-2">
               <div className="flex justify-center gap-2">
@@ -84,7 +93,7 @@ const TempWorkers = () => {
                   >
                     <img
                       src={worker.profileImg}
-                      alt={worker.firstName}
+                      alt={worker.profile.firstName}
                       className="w-16 h-16 rounded-full object-cover"
                     />
                     <p className="text-sm">
@@ -122,7 +131,6 @@ const TempWorkers = () => {
               </div>
             </>
           )}
-
           <br />
           <br />
           <ButtonComp

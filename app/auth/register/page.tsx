@@ -3,11 +3,12 @@
 import React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
-import { email, z } from "zod";
+import { z } from "zod";
 import { Button } from "@/components/ui/form_button";
 import { useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 import {
   Form,
   FormControl,
@@ -17,6 +18,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+
 const formSchema = z.object({
   lastName: z
     .string()
@@ -25,7 +27,7 @@ const formSchema = z.object({
     .string()
     .regex(/^[a-z, A-Z]+$/, "Name must consist of only letters"),
   contactNum: z.string().max(11, "Invalid Mobile Number"),
-  email: z.email(),
+  email: z.string().email("Invalid email address"),
   password: z
     .string()
     .min(8, "Password must be at least 8 characters")
@@ -42,26 +44,29 @@ function onSubmit(values: z.infer<typeof formSchema>) {
   console.log(values);
 }
 
-const Register = () => {
-  // dynamic role handling for auth features
+// Create a separate component that uses useSearchParams
+function RegisterContent() {
   const searchParams = useSearchParams();
-
-  //either "worker" or "client"
   const role = searchParams.get("role");
+  console.log(role);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
       localStorage.setItem("hasSeenOnboard", "true");
     }
   }, []);
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       lastName: "",
       firstName: "",
       email: "",
+      contactNum: "",
+      password: "",
     },
   });
+
   return (
     <div className="flex justify-center items-center min-h-screen">
       <div className="mx-8 my-15 w-[390px] min-h-screen flex flex-col items-center">
@@ -140,11 +145,7 @@ const Register = () => {
                     Password<span className="text-red-600 ">*</span>
                   </FormLabel>
                   <FormControl>
-                    <Input
-                      type="password" // <-- this masks the input
-                      placeholder="Password"
-                      {...field}
-                    />
+                    <Input type="password" placeholder="Password" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -164,6 +165,15 @@ const Register = () => {
         </p>
       </div>
     </div>
+  );
+}
+
+// Main component that wraps with Suspense
+const Register = () => {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <RegisterContent />
+    </Suspense>
   );
 };
 

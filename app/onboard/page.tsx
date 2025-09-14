@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React from "react";
 import { ButtonComp } from "@/components/ui/button/onboard_button";
 import { PageIndicator } from "@/components/ui/page-indicator";
 import { useSwipeGesture } from "@/lib/hooks/useSwipeGesture";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 // MOBILE FIRST ALWAYS
-const onboard = () => {
+const WorkerView = () => {
   const router = useRouter();
 
   // Add swipe gesture for forward navigation with smooth animations
@@ -35,7 +36,7 @@ const onboard = () => {
             </header>
           </div>
           <div>
-            <img src="/onboard_stockimg.svg" alt="" />
+            <img src="/onboard_stockimage.svg" alt="" />
             <h1 className="p-4 text-[34px] leading-[100%] font-[700] font-[Inter] text-center">
               Find the right people for the job
             </h1>
@@ -59,4 +60,4 @@ const onboard = () => {
   );
 };
 
-export default onboard;
+export default WorkerView;

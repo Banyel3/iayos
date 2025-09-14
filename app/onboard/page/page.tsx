@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React from "react";
 import { ButtonComp } from "@/components/ui/button/onboard_button";
 import { PageIndicator } from "@/components/ui/page-indicator";
 import { useSwipeGesture } from "@/lib/hooks/useSwipeGesture";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 // MOBILE FIRST ALWAYS
-const onboard = () => {
+const Onboard = () => {
   const router = useRouter();
 
   // Add swipe gestures for navigation with smooth animations
@@ -28,7 +29,7 @@ const onboard = () => {
         <div className="flex flex-col justify-around flex-1">
           <div>
             <header className="px-4 font-bold text-2xl text-center font-[Fredoka]">
-              Who's in the iAyos Community
+              who&apos;s in the iAyos Community
             </header>
           </div>
           <div>
@@ -72,4 +73,4 @@ const onboard = () => {
   );
 };
 
-export default onboard;
+export default Onboard;
