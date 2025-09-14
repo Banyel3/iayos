@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/form_button";
 import { useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 import {
   Form,
   FormControl,
@@ -47,6 +48,7 @@ const Register = () => {
   const searchParams = useSearchParams();
 
   //either "worker" or "client"
+
   const role = searchParams.get("role");
   console.log(role);
   useEffect(() => {
@@ -63,107 +65,109 @@ const Register = () => {
     },
   });
   return (
-    <div className="flex justify-center items-center min-h-screen">
-      <div className="mx-8 my-15 w-[390px] min-h-screen flex flex-col items-center">
-        <h3 className="font-[Inter] text-xl font-[400]">Create an account</h3>
-        <br />
-        <br />
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-            <FormField
-              control={form.control}
-              name="lastName"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>
-                    Last Name<span className="text-red-600 ">*</span>
-                  </FormLabel>
-                  <FormControl>
-                    <Input placeholder="Last Name" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="firstName"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>
-                    First Name<span className="text-red-600 ">*</span>
-                  </FormLabel>
-                  <FormControl>
-                    <Input placeholder="First Name" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="contactNum"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>
-                    Contact Number
-                    <span className="text-red-600 ">*</span>
-                  </FormLabel>
-                  <FormControl>
-                    <Input placeholder="Contact Number" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="email"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>
-                    Email Address<span className="text-red-600 ">*</span>
-                  </FormLabel>
-                  <FormControl>
-                    <Input placeholder="Email Address" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="password"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>
-                    Password<span className="text-red-600 ">*</span>
-                  </FormLabel>
-                  <FormControl>
-                    <Input
-                      type="password" // <-- this masks the input
-                      placeholder="Password"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+    <Suspense fallback={<div>Loading...</div>}>
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="mx-8 my-15 w-[390px] min-h-screen flex flex-col items-center">
+          <h3 className="font-[Inter] text-xl font-[400]">Create an account</h3>
+          <br />
+          <br />
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+              <FormField
+                control={form.control}
+                name="lastName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      Last Name<span className="text-red-600 ">*</span>
+                    </FormLabel>
+                    <FormControl>
+                      <Input placeholder="Last Name" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="firstName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      First Name<span className="text-red-600 ">*</span>
+                    </FormLabel>
+                    <FormControl>
+                      <Input placeholder="First Name" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="contactNum"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      Contact Number
+                      <span className="text-red-600 ">*</span>
+                    </FormLabel>
+                    <FormControl>
+                      <Input placeholder="Contact Number" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      Email Address<span className="text-red-600 ">*</span>
+                    </FormLabel>
+                    <FormControl>
+                      <Input placeholder="Email Address" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      Password<span className="text-red-600 ">*</span>
+                    </FormLabel>
+                    <FormControl>
+                      <Input
+                        type="password" // <-- this masks the input
+                        placeholder="Password"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-            <Button type="submit" className="self-center">
-              Create an account to hire now →
-            </Button>
-          </form>
-        </Form>
-        <p>
-          Already have an account?{" "}
-          <Link href="/auth/login" className="text-blue-500">
-            Log in
-          </Link>
-        </p>
+              <Button type="submit" className="self-center">
+                Create an account to hire now →
+              </Button>
+            </form>
+          </Form>
+          <p>
+            Already have an account?{" "}
+            <Link href="/auth/login" className="text-blue-500">
+              Log in
+            </Link>
+          </p>
+        </div>
       </div>
-    </div>
+    </Suspense>
   );
 };
 
