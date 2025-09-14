@@ -1,10 +1,13 @@
 "use client";
-import { Contact } from "lucide-react";
+
 import React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { email, z } from "zod";
 import { Button } from "@/components/ui/form_button";
+import { useEffect } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   Form,
   FormControl,
@@ -40,6 +43,17 @@ function onSubmit(values: z.infer<typeof formSchema>) {
 }
 
 const Register = () => {
+  // dynamic role handling for auth features
+  const searchParams = useSearchParams();
+
+  //either "worker" or "client"
+  const role = searchParams.get("role");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("hasSeenOnboard", "true");
+    }
+  }, []);
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -50,7 +64,7 @@ const Register = () => {
   });
   return (
     <div className="flex justify-center items-center min-h-screen">
-      <div className="mx-8 w-[390px] min-h-screen flex flex-col justify-center items-center">
+      <div className="mx-8 my-15 w-[390px] min-h-screen flex flex-col items-center">
         <h3 className="font-[Inter] text-xl font-[400]">Create an account</h3>
         <br />
         <br />
@@ -142,6 +156,12 @@ const Register = () => {
             </Button>
           </form>
         </Form>
+        <p>
+          Already have an account?{" "}
+          <Link href="/auth/login" className="text-blue-500">
+            Log in
+          </Link>
+        </p>
       </div>
     </div>
   );

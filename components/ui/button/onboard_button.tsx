@@ -7,29 +7,28 @@ type ButtonProps = {
   label: string;
   variant?: "primary" | "secondary" | "black";
   link: string;
-  role?: string;
+  style?: string;
 };
 
-export function ButtonComp({ label, variant, link }: ButtonProps) {
+export function ButtonComp({ label, variant, link, style }: ButtonProps) {
   const isPrimary = variant === "primary";
+  const isSecondary = variant === "secondary";
   const isBlack = variant === "black";
 
   return (
     <div className="w-full">
       <Link href={link} className="w-full">
         <Button
-          className={`w-full rounded-2xl ${
-            isPrimary
-              ? "text-white"
-              : "bg-gray-100 hover:bg-gray-300 border border-solid border-black text-black"
-          }
+          className={`w-full rounded-4xl ${style} ${
+            isPrimary ? "text-white bg-blue-300 hover:bg-blue-500" : ""
+          } ${isBlack ? "text-white bg-black hover:bg-gray-800" : ""}
           ${
-            isBlack
-              ? "text-white bg-black"
-              : "bg-gray-100 hover:bg-gray-300 border border-solid border-black text-black"
+            isSecondary
+              ? "text-black bg-white border border-solid border-black hover:bg-gray-200"
+              : ""
           }
           `}
-          style={isPrimary ? { background: "var(--primary-gradient)" } : {}}
+          // style={isPrimary ? { background: "var(--primary-gradient)" } : {}}
           size="lg"
         >
           {label}

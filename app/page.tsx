@@ -13,7 +13,6 @@ export default function Home() {
       router.replace("/auth/login");
     } else {
       // First time → mark as seen and go to onboard
-      localStorage.setItem("hasSeenOnboard", "true");
       router.replace("/onboard");
     }
   }, [router]);
