@@ -18,6 +18,9 @@ const eslintConfig = [
       "out/**",
       "build/**",
       "next-env.d.ts",
+      "lib/generated/prisma/**",
+      "**/*-edge.js",
+      "**/wasm*.js",
     ],
   },
 ];

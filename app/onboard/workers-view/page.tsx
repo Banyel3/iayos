@@ -22,8 +22,18 @@ const TempWorkers = () => {
       router.replace("/auth/login");
     }
   }, [router]);
-
-  const [results, setResults] = useState<any[]>([]);
+  interface Worker {
+    profileID: string;
+    profile: {
+      firstName: string;
+      lastName: string;
+    };
+    rating: number;
+    location: string;
+    profileImg?: string;
+    hourlyRate?: number;
+  }
+  const [results, setResults] = useState<Worker[]>([]);
 
   useEffect(() => {
     async function fetchAllWorkers() {
@@ -49,80 +59,78 @@ const TempWorkers = () => {
           <div className="relative w-full mt-4"></div>
           <br />
           <br />
-
-          {results && results.length > 0 ? (
-            <div className="flex flex-col justify-center gap-2">
-              <div className="flex justify-center gap-2">
-                <div className="flex flex-col items-center">
-                  <img
-                    src={"/worker1.jpg"}
-                    className="w-16 h-16 rounded-full object-cover"
-                  />
-                  <p className="text-sm">John Batumbakal</p>
-                </div>
-
-                <div className="flex flex-col items-center">
-                  <img
-                    src={"/worker2.jpg"}
-                    className="w-16 h-16 rounded-full object-cover"
-                  />
-                  <p className="text-sm">John Montefalco</p>
-                </div>
-                <div className="flex flex-col items-center">
-                  <img
-                    src={"/worker3.jpg"}
-                    className="w-16 h-16 rounded-full object-cover"
-                  />
-                  <p className="text-sm">John Paul</p>
-                </div>
+          {results && results.length > 0} : (
+          <div className="flex flex-col justify-center gap-2">
+            <div className="flex justify-center gap-2">
+              <div className="flex flex-col items-center">
+                <img
+                  src={"/worker1.jpg"}
+                  className="w-16 h-16 rounded-full object-cover"
+                />
+                <p className="text-sm">John Batumbakal</p>
               </div>
-              <div className="flex justify-center gap-2">
-                {results.map((worker) => (
-                  <div
-                    key={worker.profileID}
-                    className="flex flex-col items-center"
-                  >
-                    <img
-                      src={worker.profileImg}
-                      alt={worker.firstName}
-                      className="w-16 h-16 rounded-full object-cover"
-                    />
-                    <p className="text-sm">
-                      {worker.profile.firstName} {worker.profile.lastName}
-                    </p>
-                  </div>
-                ))}
+
+              <div className="flex flex-col items-center">
+                <img
+                  src={"/worker2.jpg"}
+                  className="w-16 h-16 rounded-full object-cover"
+                />
+                <p className="text-sm">John Montefalco</p>
+              </div>
+              <div className="flex flex-col items-center">
+                <img
+                  src={"/worker3.jpg"}
+                  className="w-16 h-16 rounded-full object-cover"
+                />
+                <p className="text-sm">John Paul</p>
               </div>
             </div>
+            <div className="flex justify-center gap-2">
+              {results.map((worker) => (
+                <div
+                  key={worker.profileID}
+                  className="flex flex-col items-center"
+                >
+                  <img
+                    src={worker.profileImg}
+                    alt={worker.profile.firstName}
+                    className="w-16 h-16 rounded-full object-cover"
+                  />
+                  <p className="text-sm">
+                    {worker.profile.firstName} {worker.profile.lastName}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
           ) : (
-            <>
-              <div className="flex justify-center gap-2">
-                <div className="flex flex-col items-center">
-                  <img
-                    src={"/worker1.jpg"}
-                    className="w-16 h-16 rounded-full object-cover"
-                  />
-                  <p className="text-sm">John Doe</p>
-                </div>
-
-                <div className="flex flex-col items-center">
-                  <img
-                    src={"/worker2.jpg"}
-                    className="w-16 h-16 rounded-full object-cover"
-                  />
-                  <p className="text-sm">John Doe</p>
-                </div>
-                <div className="flex flex-col items-center">
-                  <img
-                    src={"/worker3.jpg"}
-                    className="w-16 h-16 rounded-full object-cover"
-                  />
-                  <p className="text-sm">John Doe</p>
-                </div>
+          <>
+            <div className="flex justify-center gap-2">
+              <div className="flex flex-col items-center">
+                <img
+                  src={"/worker1.jpg"}
+                  className="w-16 h-16 rounded-full object-cover"
+                />
+                <p className="text-sm">John Doe</p>
               </div>
-            </>
-          )}
 
+              <div className="flex flex-col items-center">
+                <img
+                  src={"/worker2.jpg"}
+                  className="w-16 h-16 rounded-full object-cover"
+                />
+                <p className="text-sm">John Doe</p>
+              </div>
+              <div className="flex flex-col items-center">
+                <img
+                  src={"/worker3.jpg"}
+                  className="w-16 h-16 rounded-full object-cover"
+                />
+                <p className="text-sm">John Doe</p>
+              </div>
+            </div>
+          </>
+          )
           <br />
           <br />
           <ButtonComp

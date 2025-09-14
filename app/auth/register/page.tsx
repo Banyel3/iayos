@@ -3,7 +3,7 @@
 import React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
-import { email, z } from "zod";
+import { z } from "zod";
 import { Button } from "@/components/ui/form_button";
 import { useEffect } from "react";
 import Link from "next/link";
@@ -48,7 +48,7 @@ const Register = () => {
 
   //either "worker" or "client"
   const role = searchParams.get("role");
-
+  console.log(role);
   useEffect(() => {
     if (typeof window !== "undefined") {
       localStorage.setItem("hasSeenOnboard", "true");

@@ -2,10 +2,9 @@
 
 import React from "react";
 import Link from "next/link";
-import { Contact } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
-import { email, z } from "zod";
+import { z } from "zod";
 import { Button } from "@/components/ui/form_button";
 import { useEffect } from "react";
 import {
