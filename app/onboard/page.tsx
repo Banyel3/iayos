@@ -36,7 +36,7 @@ const WorkerView = () => {
             </header>
           </div>
           <div>
-            <img src="/onboard_stockimage.svg" alt="" />
+            <img src="/onboard_stockimg.svg" alt="" />
             <h1 className="p-4 text-[34px] leading-[100%] font-[700] font-[Inter] text-center">
               Find the right people for the job
             </h1>
