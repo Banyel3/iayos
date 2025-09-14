@@ -7,6 +7,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "@/components/ui/form_button";
 import { useEffect } from "react";
+import { Suspense } from "react";
 import {
   Form,
   FormControl,
@@ -16,8 +17,9 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+
 const formSchema = z.object({
-  email: z.email(),
+  email: z.string().email("Invalid email address"),
   password: z
     .string()
     .min(8, "Password must be at least 8 characters")
@@ -30,8 +32,8 @@ const formSchema = z.object({
 });
 
 function onSubmit(values: z.infer<typeof formSchema>) {
-  console.log("GOOD");
-  console.log(values);
+  console.log("Login values:", values);
+  // Add your login logic here
 }
 
 const Login = () => {
@@ -40,31 +42,43 @@ const Login = () => {
       localStorage.setItem("hasSeenOnboard", "true");
     }
   }, []);
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       email: "",
+      password: "", // Added missing default value
     },
   });
+
   return (
-    <>
+    <Suspense fallback={<div>Loading...</div>}>
       <div className="flex justify-center items-center min-h-screen">
         <div className="mx-8 my-15 w-[390px] min-h-screen flex flex-col items-center">
-          <h3 className="font-[Inter] text-xl font-[400]">Create an account</h3>
+          <h3 className="font-[Inter] text-xl font-[400]">
+            Login to your account
+          </h3>
           <br />
           <br />
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+            <form
+              onSubmit={form.handleSubmit(onSubmit)}
+              className="space-y-8 w-full"
+            >
               <FormField
                 control={form.control}
                 name="email"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>
-                      Email Address<span className="text-red-600 ">*</span>
+                      Email Address<span className="text-red-600">*</span>
                     </FormLabel>
                     <FormControl>
-                      <Input placeholder="Email Address" {...field} />
+                      <Input
+                        placeholder="Email Address"
+                        type="email"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -76,11 +90,11 @@ const Login = () => {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>
-                      Password<span className="text-red-600 ">*</span>
+                      Password<span className="text-red-600">*</span>
                     </FormLabel>
                     <FormControl>
                       <Input
-                        type="password" // <-- this masks the input
+                        type="password"
                         placeholder="Password"
                         {...field}
                       />
@@ -90,19 +104,23 @@ const Login = () => {
                 )}
               />
 
-              <Button type="submit" className="self-center">
-                Create an account to hire now →
+              <Button type="submit" className="self-center w-full">
+                Login to your account →
               </Button>
             </form>
           </Form>
-          <p>
-            <Link href="/auth/register" className="text-blue-500">
-              Register an Account Now
+          <p className="mt-4">
+            Don't have an account?{" "}
+            <Link
+              href="/auth/register"
+              className="text-blue-500 hover:underline"
+            >
+              Register now
             </Link>
           </p>
         </div>
       </div>
-    </>
+    </Suspense>
   );
 };
 
