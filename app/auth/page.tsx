@@ -10,9 +10,10 @@ export default function Home() {
 
     if (hasSeenOnboard) {
       // Already visited before → go to login
-      router.replace("/auth/login");
+      router.replace("/auth/register");
     } else {
       // First time → mark as seen and go to onboard
+      localStorage.setItem("hasSeenOnboard", "true");
       router.replace("/onboard");
     }
   }, [router]);

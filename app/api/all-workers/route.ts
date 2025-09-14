@@ -1,0 +1,32 @@
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+
+export async function GET(req: Request) {
+  try {
+    const Jobresults = await prisma.worker_Profile.findMany({
+      where: {},
+      skip: 0,
+      take: 20,
+      select: {
+        profileID: true,
+        profile: { select: { firstName: true, lastName: true } },
+        bio: true,
+        description: true,
+        verifiedSkills: true,
+        profileImg: true,
+        freelancer_specialization: { select: { specialization: true } },
+      },
+    });
+
+    return NextResponse.json({
+      count: Jobresults.length,
+      results: Jobresults,
+    });
+  } catch (error) {
+    console.error("❌ Search error:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
