@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const Jobresults = await prisma.worker_Profile.findMany({
       select: {
@@ -24,7 +24,7 @@ export async function GET() {
   } catch (error) {
     console.error("❌ Search error:", error);
     return NextResponse.json(
-      { error: "Internal serv er error" },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }
