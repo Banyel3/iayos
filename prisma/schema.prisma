@@ -22,7 +22,8 @@ model Accounts{
   email String @unique
   password String //hashed
   isVerified Boolean
-  createdAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
   status String
   profile Profile[]
 }
