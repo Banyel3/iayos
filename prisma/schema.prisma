@@ -5,85 +5,83 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-  provider = "prisma-client-js"
-  output   = "../lib/generated/prisma"
+  provider      = "prisma-client-js"
+  output        = "../lib/generated/prisma"
   binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
 
-
-model Accounts{
-  accountID Int @id @default(autoincrement())
-  email String @unique
-  password String //hashed
+model Accounts {
+  accountID  Int       @id @default(autoincrement())
+  email      String    @unique
+  password   String //hashed
   isVerified Boolean
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  status String
-  profile Profile[]
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @default(now()) @updatedAt
+  status     String
+  profile    Profile[]
 }
 
-enum profileType{
+enum profileType {
   WORKER
   CLIENT
   BOTH
 }
 
-model Profile{
-  profileID Int @id @default(autoincrement())
-  accountID Int @unique
-  firstName String
-  lastName String
-  username String
-  contactNum String
-  profileType profileType? 
+model Profile {
+  profileID   Int          @id @default(autoincrement())
+  accountID   Int          @unique
+  profileImg  String?
+  firstName   String
+  lastName    String
+  contactNum  String
+  profileType profileType?
 
-  worker Worker_Profile?
-  accounts Accounts @relation(fields: [accountID], references: [accountID])
+  worker   Worker_Profile?
+  accounts Accounts        @relation(fields: [accountID], references: [accountID])
 }
 
-enum availabilityStatus{
+enum availabilityStatus {
   AVAILABLE
   BUSY
   OFFLINE
 }
 
-model Worker_Profile{
-  profileID Int @id
-  profileImg String?
-  hourlyRate Decimal @db.Decimal(10,2)
-  verifiedSkills Json
-  responseTimeAvg Decimal @db.Decimal(5,2)
-  completionRate Decimal @db.Decimal(5,2)
-  bio String
-  totalEarningGross Decimal @db.Decimal(10,2)
-  withholdingBalance Decimal @db.Decimal(10,2)
-  description String
+model Worker_Profile {
+  profileID          Int                @id
+  hourlyRate         Decimal            @db.Decimal(10, 2)
+  verifiedSkills     Json
+  responseTimeAvg    Decimal            @db.Decimal(5, 2)
+  completionRate     Decimal            @db.Decimal(5, 2)
+  bio                String
+  totalEarningGross  Decimal            @db.Decimal(10, 2)
+  withholdingBalance Decimal            @db.Decimal(10, 2)
+  description        String
   availabilityStatus availabilityStatus @default(OFFLINE)
 
-  profile Profile? @relation(fields: [profileID], references: [profileID])
+  profile                   Profile?                    @relation(fields: [profileID], references: [profileID])
   freelancer_specialization Freelancer_Specialization[]
 }
 
-model Freelancer_Specialization{
-  workerID Int 
+model Freelancer_Specialization {
+  workerID         Int
   specializationID Int
-  experienceYears Int
-  certification String
+  experienceYears  Int
+  certification    String
 
   worker_profile Worker_Profile @relation(fields: [workerID], references: [profileID])
   specialization Specialization @relation(fields: [specializationID], references: [specializationID])
 
-   @@id([workerID, specializationID])
+  @@id([workerID, specializationID])
 }
 
-model Specialization{
-  specializationID Int @id @unique @default(autoincrement())
+model Specialization {
+  specializationID   Int    @id @unique @default(autoincrement())
   specializationName String
 
   freelancer_specialization Freelancer_Specialization[]

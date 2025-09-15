@@ -21,7 +21,8 @@ model Accounts {
   email      String    @unique
   password   String //hashed
   isVerified Boolean
-  createdAt  DateTime
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @default(now()) @updatedAt
   status     String
   profile    Profile[]
 }
@@ -35,9 +36,9 @@ enum profileType {
 model Profile {
   profileID   Int          @id @default(autoincrement())
   accountID   Int          @unique
+  profileImg  String?
   firstName   String
   lastName    String
-  username    String
   contactNum  String
   profileType profileType?
 
@@ -53,7 +54,6 @@ enum availabilityStatus {
 
 model Worker_Profile {
   profileID          Int                @id
-  profileImg         String?
   hourlyRate         Decimal            @db.Decimal(10, 2)
   verifiedSkills     Json
   responseTimeAvg    Decimal            @db.Decimal(5, 2)

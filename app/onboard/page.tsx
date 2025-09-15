@@ -1,16 +1,17 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
 import { ButtonComp } from "@/components/ui/button/onboard_button";
 import { PageIndicator } from "@/components/ui/page-indicator";
 import { useSwipeGesture } from "@/lib/hooks/useSwipeGesture";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import { getUserSession} from "@/lib/session";
+
 // MOBILE FIRST ALWAYS
 const WorkerView = () => {
   const router = useRouter();
 
-  // Add swipe gesture for forward navigation with smooth animations
   const { translateX, isTransitioning } = useSwipeGesture({
     onSwipeLeft: () => {
       router.push("/onboard/page");
