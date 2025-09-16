@@ -32,11 +32,12 @@ export async function GET(req: Request) {
       take: 20,
       select: {
         profileID: true,
-        profile: { select: { firstName: true, lastName: true } },
+        profile: {
+          select: { firstName: true, lastName: true, profileImg: true },
+        },
         bio: true,
         description: true,
         verifiedSkills: true,
-        profileImg: true,
         freelancer_specialization: { select: { specialization: true } },
       },
     });

@@ -5,10 +5,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "@/components/ui/form_button";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
+import Image from "next/image";
 import {
   Form,
   FormControl,
@@ -18,15 +19,20 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { signIn } from "next-auth/react";
+import { useRouter } from "next/navigation";
 
 const formSchema = z.object({
   lastName: z
     .string()
-    .regex(/^[a-z, A-Z]+$/, "Name must consist of only letters"),
+    .regex(/^[A-Za-z]+$/, "Name must consist of only letters"),
+
   firstName: z
     .string()
-    .regex(/^[a-z, A-Z]+$/, "Name must consist of only letters"),
+    .regex(/^[A-Za-z]+$/, "Name must consist of only letters"),
+
   contactNum: z.string().max(11, "Invalid Mobile Number"),
+
   email: z.string().email("Invalid email address"),
   password: z
     .string()
@@ -38,11 +44,6 @@ const formSchema = z.object({
       "Password must contain at least one special character"
     ),
 });
-
-function onSubmit(values: z.infer<typeof formSchema>) {
-  console.log("GOOD");
-  console.log(values);
-}
 
 // Create a separate component that uses useSearchParams
 function RegisterContent() {
@@ -67,6 +68,33 @@ function RegisterContent() {
     },
   });
 
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    setIsLoading(true);
+    try {
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(values),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error?.[0]?.message || "Registration failed");
+        {
+          error && <p className="text-red-500 text-sm mt-2">{error}</p>;
+        }
+      } else {
+        // ✅ Registration success → redirect to login
+        router.push("/login");
+      }
+    } catch (err) {
+      setError("Something went wrong. Try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
   return (
     <div className="flex justify-center items-center min-h-screen">
       <div className="mx-8 my-15 w-[390px] min-h-screen flex flex-col items-center">
@@ -152,17 +180,47 @@ function RegisterContent() {
               )}
             />
 
-            <Button type="submit" className="self-center">
-              Create an account to hire now →
+            <Button type="submit" className="self-center" disabled={isLoading}>
+              {isLoading
+                ? "creating account..."
+                : "Create an account to hire now →"}
             </Button>
           </form>
         </Form>
-        <p>
-          Already have an account?{" "}
-          <Link href="/auth/login" className="text-blue-500">
-            Log in
-          </Link>
-        </p>
+
+        {/* Divider */}
+        <div className="flex items-center w-full my-6">
+          <div className="flex-1 border-t border-gray-300"></div>
+          <span className="px-3 text-sm text-gray-500">OR</span>
+          <div className="flex-1 border-t border-gray-300"></div>
+        </div>
+
+        {/* Google Sign In Button */}
+        <button
+          onClick={() => signIn("google")}
+          className="flex items-center justify-center w-full border border-gray-300 rounded-lg px-4 py-3 bg-white hover:bg-gray-50 transition-colors duration-200 shadow-sm"
+        >
+          <Image
+            src="/google-logo.svg"
+            alt="Google logo"
+            width={18}
+            height={18}
+            className="mr-3"
+          />
+          <span className="text-gray-700 font-medium">Sign in with Google</span>
+        </button>
+
+        <div className="mt-6">
+          <p className="text-center text-sm text-gray-600">
+            Already have an account?{" "}
+            <Link
+              href="/auth/login"
+              className="text-blue-500 hover:text-blue-600 font-medium"
+            >
+              Log in
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   );

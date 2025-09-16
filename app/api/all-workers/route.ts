@@ -6,11 +6,12 @@ export async function GET() {
     const Jobresults = await prisma.worker_Profile.findMany({
       select: {
         profileID: true,
-        profile: { select: { firstName: true, lastName: true } },
+        profile: {
+          select: { firstName: true, lastName: true, profileImg: true },
+        },
         bio: true,
         description: true,
         verifiedSkills: true,
-        profileImg: true,
         freelancer_specialization: { select: { specialization: true } },
       },
       skip: 0,
