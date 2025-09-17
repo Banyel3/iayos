@@ -1,7 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import bcrypt from "bcrypt";
-
+import crypto from "crypto";
+import { sendEmail } from "../send/route";
+import { generateVerificationEmailHTML } from "@/components/auth/verification/verification_email";
 // Zod schema
 const registerSchema = z.object({
   email: z.string().email(),
@@ -39,6 +41,15 @@ export async function POST(req: Request) {
     // Hash password
     const hashedPass = await bcrypt.hash(password, 10);
 
+    const verifyToken = crypto.randomBytes(20).toString("hex");
+
+    const hashedVerifyToken = crypto
+      .createHash("sha256")
+      .update(verifyToken)
+      .digest("hex");
+
+    const verifyTokenExpire = new Date(Date.now() + 30 * 60 * 1000);
+
     // Create user and profile
     const registerUser = await prisma.accounts.create({
       data: {
@@ -46,6 +57,8 @@ export async function POST(req: Request) {
         password: hashedPass,
         isVerified: false,
         status: "ACTIVE",
+        verifyToken: hashedVerifyToken,
+        verifyTokenExpire: verifyTokenExpire,
         profile: {
           create: {
             firstName,
@@ -57,6 +70,13 @@ export async function POST(req: Request) {
       include: { profile: true }, // return profile data too
     });
 
+    // 🔧 FIX: Point to frontend verification page instead of API endpoint
+    const verifyLink = `${process.env.NEXTAUTH_URL}/auth/verify-email?verifyToken=${verifyToken}&id=${registerUser.accountID}`;
+
+    const template = generateVerificationEmailHTML({
+      verificationLink: verifyLink,
+    });
+    await sendEmail(registerUser?.email, "Email Verification", template);
     return new Response(JSON.stringify(registerUser), { status: 201 });
   } catch (err: any) {
     console.error("Registration error:", err);

@@ -51,7 +51,7 @@ interface GoogleProfile {
 export const authOptions: NextAuthOptions = {
   // 🔒 SECURITY: Secret key for signing JWT tokens (REQUIRED FOR PRODUCTION)
   secret: process.env.NEXTAUTH_SECRET,
-  
+
   // Use JWT tokens instead of database sessions for better performance
   session: {
     strategy: "jwt",
@@ -91,12 +91,23 @@ export const authOptions: NextAuthOptions = {
         // Look up user in database by email, include their profile data
         const user = await prisma.accounts.findUnique({
           where: { email: credentials?.email },
-          include: { profile: true },
+          select: {
+            email: true,
+            accountID: true,
+            password: true,
+            isVerified: true,
+            profile: true,
+          },
         });
 
         // If no user found with this email, reject login
         if (!user) throw new Error("User not found");
 
+        if (!user.isVerified) {
+          throw new Error(
+            "Check email for verification Link and Verify Email first"
+          );
+        }
         // If user has no password (Google-only account), reject credential login
         if (!user.password)
           throw new Error(

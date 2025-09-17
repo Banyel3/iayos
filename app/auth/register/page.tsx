@@ -87,7 +87,7 @@ function RegisterContent() {
         }
       } else {
         // ✅ Registration success → redirect to login
-        router.push("/login");
+        router.push("/onboard");
       }
     } catch (err) {
       setError("Something went wrong. Try again.");

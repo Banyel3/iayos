@@ -6,10 +6,19 @@ import { PageIndicator } from "@/components/ui/page-indicator";
 import { useSwipeGesture } from "@/lib/hooks/useSwipeGesture";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import { useEffect } from "react";
 // MOBILE FIRST ALWAYS
 const Onboard = () => {
   const router = useRouter();
 
+  useEffect(() => {
+    const hasSeenOnboard = localStorage.getItem("hasSeenOnboard");
+
+    if (hasSeenOnboard) {
+      // Already visited before → go to login
+      router.replace("/auth/login");
+    }
+  }, [router]);
   // Add swipe gestures for navigation with smooth animations
   const { translateX, isTransitioning } = useSwipeGesture({
     onSwipeRight: () => {

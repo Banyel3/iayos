@@ -22,6 +22,7 @@ const TempWorkers = () => {
       router.replace("/auth/login");
     }
   }, [router]);
+
   interface Worker {
     profileID: string;
     profile: {

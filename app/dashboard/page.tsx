@@ -13,8 +13,12 @@ const TempDashboard = () => {
       <h1>Temporary Dashboard</h1>
       <p>Email: {session.user?.email}</p>
       <p>Name: {session.user?.name}</p>
-      {session.user?.image && <img src={session.user.image} alt="Profile" width={50} />}
-      <button onClick={() => signOut({ callbackUrl: "/" })}>Sign Out</button>
+      {session.user?.image && (
+        <img src={session.user.image} alt="Profile" width={50} />
+      )}
+      <button onClick={() => signOut({ callbackUrl: "/onboard" })}>
+        Sign Out
+      </button>
     </div>
   );
 };

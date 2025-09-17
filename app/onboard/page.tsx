@@ -6,11 +6,20 @@ import { PageIndicator } from "@/components/ui/page-indicator";
 import { useSwipeGesture } from "@/lib/hooks/useSwipeGesture";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { getUserSession} from "@/lib/session";
+import { getUserSession } from "@/lib/session";
 
 // MOBILE FIRST ALWAYS
 const WorkerView = () => {
   const router = useRouter();
+
+  useEffect(() => {
+    const hasSeenOnboard = localStorage.getItem("hasSeenOnboard");
+
+    if (hasSeenOnboard) {
+      // Already visited before → go to login
+      router.replace("/auth/login");
+    }
+  }, [router]);
 
   const { translateX, isTransitioning } = useSwipeGesture({
     onSwipeLeft: () => {
