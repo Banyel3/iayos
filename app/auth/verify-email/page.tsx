@@ -63,10 +63,10 @@ const VerifyEmail = () => {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-screen bg-gray-50">
-        <div className="flex flex-col items-center space-y-4">
-          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-          <h1 className="text-xl font-semibold text-gray-700">
+      <div className="min-h-screen bg-gray-50" style={{ paddingTop: "20vh" }}>
+        <div className="text-center max-w-md mx-auto px-4">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-4" />
+          <h1 className="text-xl font-semibold text-gray-700 mb-2">
             Verifying your email address...
           </h1>
           <p className="text-gray-500">
@@ -78,8 +78,8 @@ const VerifyEmail = () => {
   }
 
   return (
-    <div className="flex justify-center items-center min-h-screen bg-gray-50">
-      <div className="w-full max-w-md mx-4">
+    <div className="min-h-screen bg-gray-50" style={{ paddingTop: "20vh" }}>
+      <div className="w-full max-w-md mx-auto px-4">
         {verified && (
           <Alert variant="default" className="border-green-200 bg-green-50">
             <SquareCheckBig className="h-4 w-4 text-green-600" />

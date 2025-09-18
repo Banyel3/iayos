@@ -19,6 +19,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { EmailVerificationAlert } from "@/components/ui/email-verification-alert";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { redirect } from "next/navigation";
@@ -49,14 +50,10 @@ const formSchema = z.object({
 // Create a separate component that uses useSearchParams
 function RegisterContent() {
   const searchParams = useSearchParams();
-  const type = searchParams.get("type");
   const typeParam = searchParams.get("type")?.trim().toUpperCase() || null;
   const profileType =
     typeParam === "WORKER" || typeParam === "CLIENT" ? typeParam : null;
 
-  if (!profileType) {
-    redirect("/auth/select-type");
-  }
   useEffect(() => {
     if (typeof window !== "undefined") {
       localStorage.setItem("hasSeenOnboard", "true");
@@ -76,14 +73,20 @@ function RegisterContent() {
 
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [showEmailAlert, setShowEmailAlert] = useState(false);
+  const [userEmail, setUserEmail] = useState("");
   const router = useRouter();
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setIsLoading(true);
     try {
+      const payload = {
+        ...values,
+        profileType, // ✅ attach profile type from query param
+      };
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(values),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -92,8 +95,11 @@ function RegisterContent() {
           error && <p className="text-red-500 text-sm mt-2">{error}</p>;
         }
       } else {
-        // ✅ Registration success → redirect to login
-        router.push("/onboard");
+        // ✅ Registration success → show email verification alert
+        setUserEmail(values.email);
+        setShowEmailAlert(true);
+        // Clear any existing errors
+        setError("");
       }
     } catch (err) {
       setError("Something went wrong. Try again.");
@@ -101,134 +107,158 @@ function RegisterContent() {
       setIsLoading(false);
     }
   };
+
+  const handleCloseAlert = () => {
+    setShowEmailAlert(false);
+    // Navigate to onboard page after user acknowledges the email alert
+    router.push("/onboard");
+  };
+
   return (
-    <div className="flex justify-center items-center min-h-screen">
-      <div className="mx-8 my-15 w-[390px] min-h-screen flex flex-col items-center">
-        <h3 className="font-[Inter] text-xl font-[400]">Create an account</h3>
-        <br />
-        <br />
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-            <FormField
-              control={form.control}
-              name="lastName"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>
-                    Last Name<span className="text-red-600 ">*</span>
-                  </FormLabel>
-                  <FormControl>
-                    <Input placeholder="Last Name" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="firstName"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>
-                    First Name<span className="text-red-600 ">*</span>
-                  </FormLabel>
-                  <FormControl>
-                    <Input placeholder="First Name" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="contactNum"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>
-                    Contact Number
-                    <span className="text-red-600 ">*</span>
-                  </FormLabel>
-                  <FormControl>
-                    <Input placeholder="Contact Number" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="email"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>
-                    Email Address<span className="text-red-600 ">*</span>
-                  </FormLabel>
-                  <FormControl>
-                    <Input placeholder="Email Address" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="password"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>
-                    Password<span className="text-red-600 ">*</span>
-                  </FormLabel>
-                  <FormControl>
-                    <Input type="password" placeholder="Password" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+    <>
+      <EmailVerificationAlert
+        isVisible={showEmailAlert}
+        onClose={handleCloseAlert}
+        email={userEmail}
+      />
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="mx-8 my-15 w-[390px] min-h-screen flex flex-col items-center">
+          <h3 className="font-[Inter] text-xl font-[400]">Create an account</h3>
+          <br />
+          <br />
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+              <FormField
+                control={form.control}
+                name="lastName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      Last Name<span className="text-red-600 ">*</span>
+                    </FormLabel>
+                    <FormControl>
+                      <Input placeholder="Last Name" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="firstName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      First Name<span className="text-red-600 ">*</span>
+                    </FormLabel>
+                    <FormControl>
+                      <Input placeholder="First Name" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="contactNum"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      Contact Number
+                      <span className="text-red-600 ">*</span>
+                    </FormLabel>
+                    <FormControl>
+                      <Input placeholder="Contact Number" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      Email Address<span className="text-red-600 ">*</span>
+                    </FormLabel>
+                    <FormControl>
+                      <Input placeholder="Email Address" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      Password<span className="text-red-600 ">*</span>
+                    </FormLabel>
+                    <FormControl>
+                      <Input
+                        type="password"
+                        placeholder="Password"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-            <Button type="submit" className="self-center" disabled={isLoading}>
-              {isLoading
-                ? "creating account..."
-                : "Create an account to hire now →"}
-            </Button>
-          </form>
-        </Form>
+              <Button
+                type="submit"
+                className="self-center"
+                disabled={isLoading}
+              >
+                {isLoading
+                  ? "creating account..."
+                  : "Create an account to hire now →"}
+              </Button>
+            </form>
+          </Form>
 
-        {/* Divider */}
-        <div className="flex items-center w-full my-6">
-          <div className="flex-1 border-t border-gray-300"></div>
-          <span className="px-3 text-sm text-gray-500">OR</span>
-          <div className="flex-1 border-t border-gray-300"></div>
-        </div>
+          {/* Divider */}
+          <div className="flex items-center w-full my-6">
+            <div className="flex-1 border-t border-gray-300"></div>
+            <span className="px-3 text-sm text-gray-500">OR</span>
+            <div className="flex-1 border-t border-gray-300"></div>
+          </div>
 
-        {/* Google Sign In Button */}
-        <button
-          onClick={() => signIn("google")}
-          className="flex items-center justify-center w-full border border-gray-300 rounded-lg px-4 py-3 bg-white hover:bg-gray-50 transition-colors duration-200 shadow-sm"
-        >
-          <Image
-            src="/google-logo.svg"
-            alt="Google logo"
-            width={18}
-            height={18}
-            className="mr-3"
-          />
-          <span className="text-gray-700 font-medium">Sign in with Google</span>
-        </button>
+          {/* Google Sign In Button */}
+          <button
+            onClick={() => signIn("google")}
+            className="flex items-center justify-center w-full border border-gray-300 rounded-lg px-4 py-3 bg-white hover:bg-gray-50 transition-colors duration-200 shadow-sm"
+          >
+            <Image
+              src="/google-logo.svg"
+              alt="Google logo"
+              width={18}
+              height={18}
+              className="mr-3"
+            />
+            <span className="text-gray-700 font-medium">
+              Sign in with Google
+            </span>
+          </button>
 
-        <div className="mt-6">
-          <p className="text-center text-sm text-gray-600">
-            Already have an account?{" "}
-            <Link
-              href="/auth/login"
-              className="text-blue-500 hover:text-blue-600 font-medium"
-            >
-              Log in
-            </Link>
-          </p>
+          <div className="mt-6">
+            <p className="text-center text-sm text-gray-600">
+              Already have an account?{" "}
+              <Link
+                href="/auth/login"
+                className="text-blue-500 hover:text-blue-600 font-medium"
+              >
+                Log in
+              </Link>
+            </p>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
 
