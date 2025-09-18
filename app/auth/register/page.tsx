@@ -21,6 +21,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { redirect } from "next/navigation";
 
 const formSchema = z.object({
   lastName: z
@@ -48,9 +49,14 @@ const formSchema = z.object({
 // Create a separate component that uses useSearchParams
 function RegisterContent() {
   const searchParams = useSearchParams();
-  const role = searchParams.get("role");
-  console.log(role);
+  const type = searchParams.get("type");
+  const typeParam = searchParams.get("type")?.trim().toUpperCase() || null;
+  const profileType =
+    typeParam === "WORKER" || typeParam === "CLIENT" ? typeParam : null;
 
+  if (!profileType) {
+    redirect("/auth/select-type");
+  }
   useEffect(() => {
     if (typeof window !== "undefined") {
       localStorage.setItem("hasSeenOnboard", "true");

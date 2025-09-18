@@ -26,7 +26,11 @@ model Accounts {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @default(now()) @updatedAt
   status     String
+  defaultProfile Int
   profile    Profile[]
+
+  defaultProfile Profile @relation(fields: [defaultProfile], references: [profileID])
+
 }
 
 enum profileType {
@@ -45,6 +49,8 @@ model Profile {
   profileType profileType?
 
   worker   Worker_Profile?
+  defaultProfile Accounts @relation(name: "defaultProfile", fields: [profileID], references: [defaultProfile])
+
   accounts Accounts        @relation(fields: [accountID], references: [accountID])
 }
 

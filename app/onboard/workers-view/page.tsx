@@ -137,7 +137,7 @@ const TempWorkers = () => {
           <ButtonComp
             label="Create your account and be part of the worker community."
             variant="black"
-            link={`/auth/register?role=worker`}
+            link={`/auth/register?type=worker`}
           ></ButtonComp>
         </div>
         <PageIndicator currentPage={3} totalPages={3} />

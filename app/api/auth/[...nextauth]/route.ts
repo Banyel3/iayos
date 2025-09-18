@@ -25,6 +25,7 @@ import { NextAuthOptions } from "next-auth";
 import { Prisma } from "@/lib/generated/prisma/wasm";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcrypt";
+import { useEffect } from "react";
 
 // Environment variables for Google OAuth
 // These must be set in your .env.local file
@@ -96,9 +97,20 @@ export const authOptions: NextAuthOptions = {
             accountID: true,
             password: true,
             isVerified: true,
-            profile: true,
+            profile: {
+              select: {
+                firstName: true,
+                lastName: true,
+                profileType: true,
+              },
+            },
           },
         });
+
+        const profiles = user?.profile ?? [];
+
+        const clientProfile = profiles.find((p) => p.profileType === "CLIENT");
+        const workerProfile = profiles.find((p) => p.profileType === "WORKER");
 
         // If no user found with this email, reject login
         if (!user) throw new Error("User not found");

@@ -162,7 +162,7 @@ const ClientView = () => {
           <ButtonComp
             label="Create an account to hire now"
             variant="black"
-            link={`/auth/register?role=client`}
+            link={`/auth/register?type=client`}
           ></ButtonComp>
         </div>
         <PageIndicator currentPage={3} totalPages={3} />
