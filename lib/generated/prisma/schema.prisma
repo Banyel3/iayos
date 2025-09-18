@@ -37,7 +37,7 @@ model Profile {
   accountID   Int
   profileImg  String?
   firstName   String
-  lastName    String
+  lastName    String?
   contactNum  String
   profileType String?
 

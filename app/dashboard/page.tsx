@@ -72,10 +72,16 @@ const TempDashboard = () => {
       });
       if (!res.ok) {
         throw new Error("An Error Occured");
+      } else {
+        // Simulate API call delay
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        if (selectedType === "WORKER") {
+          router.push("/dashboard/worker");
+        }
+        if (selectedType === "CLIENT") {
+          router.push("/dashboard/client");
+        }
       }
-      // Simulate API call delay
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      await signIn("google", { redirect: false });
     } catch (error) {
       console.error("Error updating profile type:", error);
       setIsSubmitting(false);
@@ -270,10 +276,6 @@ const TempDashboard = () => {
   );
 };
 
-const TempDashboardWrapper = () => (
-  <SessionProvider>
-    <TempDashboard />
-  </SessionProvider>
-);
+const TempDashboardWrapper = () => <TempDashboard />;
 
 export default TempDashboardWrapper;

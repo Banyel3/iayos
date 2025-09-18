@@ -163,7 +163,7 @@ export const authOptions: NextAuthOptions = {
      * Always sends to dashboard regardless of login method
      */
     async redirect({ url, baseUrl }) {
-      return `${baseUrl}/${url}`;
+      return `${baseUrl}/dashboard`;
     },
 
     async jwt({ token, user, account }) {
@@ -268,7 +268,7 @@ export const authOptions: NextAuthOptions = {
           } as Prisma.ProfileUncheckedCreateInput,
           update: {
             firstName: googleProfile.given_name, // Update name from Google
-            lastName: googleProfile.family_name, // Update name from Google
+            lastName: googleProfile.family_name || "", // Update name from Google
             profileImg: googleProfile.picture, // Update profile picture
           },
         });

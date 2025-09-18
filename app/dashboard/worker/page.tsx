@@ -3,7 +3,7 @@ import React from "react";
 import { SessionProvider, useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 
-const ClientDash = () => {
+const WorkerDash = () => {
   const { data: session, status } = useSession();
   const router = useRouter();
 
@@ -30,7 +30,7 @@ const ClientDash = () => {
   return (
     <>
       {" "}
-      <div>ClientDash</div>
+      <div>WorkerDash</div>
       <button
         onClick={() => signOut({ callbackUrl: "/onboard" })}
         className="text-gray-400 text-sm underline hover:text-gray-600 transition-colors"
@@ -41,4 +41,4 @@ const ClientDash = () => {
   );
 };
 
-export default ClientDash;
+export default WorkerDash;
