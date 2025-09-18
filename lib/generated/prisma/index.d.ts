@@ -43,16 +43,7 @@ export type Specialization = $Result.DefaultSelection<Prisma.$SpecializationPayl
  * Enums
  */
 export namespace $Enums {
-  export const profileType: {
-  WORKER: 'WORKER',
-  CLIENT: 'CLIENT',
-  BOTH: 'BOTH'
-};
-
-export type profileType = (typeof profileType)[keyof typeof profileType]
-
-
-export const availabilityStatus: {
+  export const availabilityStatus: {
   AVAILABLE: 'AVAILABLE',
   BUSY: 'BUSY',
   OFFLINE: 'OFFLINE'
@@ -61,10 +52,6 @@ export const availabilityStatus: {
 export type availabilityStatus = (typeof availabilityStatus)[keyof typeof availabilityStatus]
 
 }
-
-export type profileType = $Enums.profileType
-
-export const profileType: typeof $Enums.profileType
 
 export type availabilityStatus = $Enums.availabilityStatus
 
@@ -1278,6 +1265,37 @@ export namespace Prisma {
 
 
   /**
+   * Count Type ProfileCountOutputType
+   */
+
+  export type ProfileCountOutputType = {
+    defaultProfile: number
+  }
+
+  export type ProfileCountOutputTypeSelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    defaultProfile?: boolean | ProfileCountOutputTypeCountDefaultProfileArgs
+  }
+
+  // Custom InputTypes
+  /**
+   * ProfileCountOutputType without action
+   */
+  export type ProfileCountOutputTypeDefaultArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ProfileCountOutputType
+     */
+    select?: ProfileCountOutputTypeSelect<ExtArgs> | null
+  }
+
+  /**
+   * ProfileCountOutputType without action
+   */
+  export type ProfileCountOutputTypeCountDefaultProfileArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    where?: AccountsWhereInput
+  }
+
+
+  /**
    * Count Type Worker_ProfileCountOutputType
    */
 
@@ -1357,10 +1375,12 @@ export namespace Prisma {
 
   export type AccountsAvgAggregateOutputType = {
     accountID: number | null
+    defaultProfileId: number | null
   }
 
   export type AccountsSumAggregateOutputType = {
     accountID: number | null
+    defaultProfileId: number | null
   }
 
   export type AccountsMinAggregateOutputType = {
@@ -1373,6 +1393,7 @@ export namespace Prisma {
     createdAt: Date | null
     updatedAt: Date | null
     status: string | null
+    defaultProfileId: number | null
   }
 
   export type AccountsMaxAggregateOutputType = {
@@ -1385,6 +1406,7 @@ export namespace Prisma {
     createdAt: Date | null
     updatedAt: Date | null
     status: string | null
+    defaultProfileId: number | null
   }
 
   export type AccountsCountAggregateOutputType = {
@@ -1397,16 +1419,19 @@ export namespace Prisma {
     createdAt: number
     updatedAt: number
     status: number
+    defaultProfileId: number
     _all: number
   }
 
 
   export type AccountsAvgAggregateInputType = {
     accountID?: true
+    defaultProfileId?: true
   }
 
   export type AccountsSumAggregateInputType = {
     accountID?: true
+    defaultProfileId?: true
   }
 
   export type AccountsMinAggregateInputType = {
@@ -1419,6 +1444,7 @@ export namespace Prisma {
     createdAt?: true
     updatedAt?: true
     status?: true
+    defaultProfileId?: true
   }
 
   export type AccountsMaxAggregateInputType = {
@@ -1431,6 +1457,7 @@ export namespace Prisma {
     createdAt?: true
     updatedAt?: true
     status?: true
+    defaultProfileId?: true
   }
 
   export type AccountsCountAggregateInputType = {
@@ -1443,6 +1470,7 @@ export namespace Prisma {
     createdAt?: true
     updatedAt?: true
     status?: true
+    defaultProfileId?: true
     _all?: true
   }
 
@@ -1542,6 +1570,7 @@ export namespace Prisma {
     createdAt: Date
     updatedAt: Date
     status: string
+    defaultProfileId: number | null
     _count: AccountsCountAggregateOutputType | null
     _avg: AccountsAvgAggregateOutputType | null
     _sum: AccountsSumAggregateOutputType | null
@@ -1573,7 +1602,9 @@ export namespace Prisma {
     createdAt?: boolean
     updatedAt?: boolean
     status?: boolean
+    defaultProfileId?: boolean
     profile?: boolean | Accounts$profileArgs<ExtArgs>
+    defaultProfile?: boolean | Accounts$defaultProfileArgs<ExtArgs>
     _count?: boolean | AccountsCountOutputTypeDefaultArgs<ExtArgs>
   }, ExtArgs["result"]["accounts"]>
 
@@ -1587,6 +1618,8 @@ export namespace Prisma {
     createdAt?: boolean
     updatedAt?: boolean
     status?: boolean
+    defaultProfileId?: boolean
+    defaultProfile?: boolean | Accounts$defaultProfileArgs<ExtArgs>
   }, ExtArgs["result"]["accounts"]>
 
   export type AccountsSelectUpdateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
@@ -1599,6 +1632,8 @@ export namespace Prisma {
     createdAt?: boolean
     updatedAt?: boolean
     status?: boolean
+    defaultProfileId?: boolean
+    defaultProfile?: boolean | Accounts$defaultProfileArgs<ExtArgs>
   }, ExtArgs["result"]["accounts"]>
 
   export type AccountsSelectScalar = {
@@ -1611,20 +1646,27 @@ export namespace Prisma {
     createdAt?: boolean
     updatedAt?: boolean
     status?: boolean
+    defaultProfileId?: boolean
   }
 
-  export type AccountsOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"accountID" | "email" | "password" | "isVerified" | "verifyToken" | "verifyTokenExpire" | "createdAt" | "updatedAt" | "status", ExtArgs["result"]["accounts"]>
+  export type AccountsOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"accountID" | "email" | "password" | "isVerified" | "verifyToken" | "verifyTokenExpire" | "createdAt" | "updatedAt" | "status" | "defaultProfileId", ExtArgs["result"]["accounts"]>
   export type AccountsInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     profile?: boolean | Accounts$profileArgs<ExtArgs>
+    defaultProfile?: boolean | Accounts$defaultProfileArgs<ExtArgs>
     _count?: boolean | AccountsCountOutputTypeDefaultArgs<ExtArgs>
   }
-  export type AccountsIncludeCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {}
-  export type AccountsIncludeUpdateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {}
+  export type AccountsIncludeCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    defaultProfile?: boolean | Accounts$defaultProfileArgs<ExtArgs>
+  }
+  export type AccountsIncludeUpdateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    defaultProfile?: boolean | Accounts$defaultProfileArgs<ExtArgs>
+  }
 
   export type $AccountsPayload<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     name: "Accounts"
     objects: {
       profile: Prisma.$ProfilePayload<ExtArgs>[]
+      defaultProfile: Prisma.$ProfilePayload<ExtArgs> | null
     }
     scalars: $Extensions.GetPayloadResult<{
       accountID: number
@@ -1636,6 +1678,7 @@ export namespace Prisma {
       createdAt: Date
       updatedAt: Date
       status: string
+      defaultProfileId: number | null
     }, ExtArgs["result"]["accounts"]>
     composites: {}
   }
@@ -2031,6 +2074,7 @@ export namespace Prisma {
   export interface Prisma__AccountsClient<T, Null = never, ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
     readonly [Symbol.toStringTag]: "PrismaPromise"
     profile<T extends Accounts$profileArgs<ExtArgs> = {}>(args?: Subset<T, Accounts$profileArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$ProfilePayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+    defaultProfile<T extends Accounts$defaultProfileArgs<ExtArgs> = {}>(args?: Subset<T, Accounts$defaultProfileArgs<ExtArgs>>): Prisma__ProfileClient<$Result.GetResult<Prisma.$ProfilePayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
     /**
      * Attaches callbacks for the resolution and/or rejection of the Promise.
      * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -2069,6 +2113,7 @@ export namespace Prisma {
     readonly createdAt: FieldRef<"Accounts", 'DateTime'>
     readonly updatedAt: FieldRef<"Accounts", 'DateTime'>
     readonly status: FieldRef<"Accounts", 'String'>
+    readonly defaultProfileId: FieldRef<"Accounts", 'Int'>
   }
     
 
@@ -2318,6 +2363,10 @@ export namespace Prisma {
      */
     data: AccountsCreateManyInput | AccountsCreateManyInput[]
     skipDuplicates?: boolean
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: AccountsIncludeCreateManyAndReturn<ExtArgs> | null
   }
 
   /**
@@ -2388,6 +2437,10 @@ export namespace Prisma {
      * Limit how many Accounts to update.
      */
     limit?: number
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: AccountsIncludeUpdateManyAndReturn<ExtArgs> | null
   }
 
   /**
@@ -2481,6 +2534,25 @@ export namespace Prisma {
   }
 
   /**
+   * Accounts.defaultProfile
+   */
+  export type Accounts$defaultProfileArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the Profile
+     */
+    select?: ProfileSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the Profile
+     */
+    omit?: ProfileOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: ProfileInclude<ExtArgs> | null
+    where?: ProfileWhereInput
+  }
+
+  /**
    * Accounts without action
    */
   export type AccountsDefaultArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
@@ -2528,7 +2600,7 @@ export namespace Prisma {
     firstName: string | null
     lastName: string | null
     contactNum: string | null
-    profileType: $Enums.profileType | null
+    profileType: string | null
   }
 
   export type ProfileMaxAggregateOutputType = {
@@ -2538,7 +2610,7 @@ export namespace Prisma {
     firstName: string | null
     lastName: string | null
     contactNum: string | null
-    profileType: $Enums.profileType | null
+    profileType: string | null
   }
 
   export type ProfileCountAggregateOutputType = {
@@ -2687,7 +2759,7 @@ export namespace Prisma {
     firstName: string
     lastName: string
     contactNum: string
-    profileType: $Enums.profileType | null
+    profileType: string | null
     _count: ProfileCountAggregateOutputType | null
     _avg: ProfileAvgAggregateOutputType | null
     _sum: ProfileSumAggregateOutputType | null
@@ -2719,6 +2791,8 @@ export namespace Prisma {
     profileType?: boolean
     worker?: boolean | Profile$workerArgs<ExtArgs>
     accounts?: boolean | AccountsDefaultArgs<ExtArgs>
+    defaultProfile?: boolean | Profile$defaultProfileArgs<ExtArgs>
+    _count?: boolean | ProfileCountOutputTypeDefaultArgs<ExtArgs>
   }, ExtArgs["result"]["profile"]>
 
   export type ProfileSelectCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
@@ -2757,6 +2831,8 @@ export namespace Prisma {
   export type ProfileInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     worker?: boolean | Profile$workerArgs<ExtArgs>
     accounts?: boolean | AccountsDefaultArgs<ExtArgs>
+    defaultProfile?: boolean | Profile$defaultProfileArgs<ExtArgs>
+    _count?: boolean | ProfileCountOutputTypeDefaultArgs<ExtArgs>
   }
   export type ProfileIncludeCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     accounts?: boolean | AccountsDefaultArgs<ExtArgs>
@@ -2770,6 +2846,7 @@ export namespace Prisma {
     objects: {
       worker: Prisma.$Worker_ProfilePayload<ExtArgs> | null
       accounts: Prisma.$AccountsPayload<ExtArgs>
+      defaultProfile: Prisma.$AccountsPayload<ExtArgs>[]
     }
     scalars: $Extensions.GetPayloadResult<{
       profileID: number
@@ -2778,7 +2855,7 @@ export namespace Prisma {
       firstName: string
       lastName: string
       contactNum: string
-      profileType: $Enums.profileType | null
+      profileType: string | null
     }, ExtArgs["result"]["profile"]>
     composites: {}
   }
@@ -3175,6 +3252,7 @@ export namespace Prisma {
     readonly [Symbol.toStringTag]: "PrismaPromise"
     worker<T extends Profile$workerArgs<ExtArgs> = {}>(args?: Subset<T, Profile$workerArgs<ExtArgs>>): Prisma__Worker_ProfileClient<$Result.GetResult<Prisma.$Worker_ProfilePayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
     accounts<T extends AccountsDefaultArgs<ExtArgs> = {}>(args?: Subset<T, AccountsDefaultArgs<ExtArgs>>): Prisma__AccountsClient<$Result.GetResult<Prisma.$AccountsPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
+    defaultProfile<T extends Profile$defaultProfileArgs<ExtArgs> = {}>(args?: Subset<T, Profile$defaultProfileArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$AccountsPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
     /**
      * Attaches callbacks for the resolution and/or rejection of the Promise.
      * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -3210,7 +3288,7 @@ export namespace Prisma {
     readonly firstName: FieldRef<"Profile", 'String'>
     readonly lastName: FieldRef<"Profile", 'String'>
     readonly contactNum: FieldRef<"Profile", 'String'>
-    readonly profileType: FieldRef<"Profile", 'profileType'>
+    readonly profileType: FieldRef<"Profile", 'String'>
   }
     
 
@@ -3623,6 +3701,30 @@ export namespace Prisma {
      */
     include?: Worker_ProfileInclude<ExtArgs> | null
     where?: Worker_ProfileWhereInput
+  }
+
+  /**
+   * Profile.defaultProfile
+   */
+  export type Profile$defaultProfileArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the Accounts
+     */
+    select?: AccountsSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the Accounts
+     */
+    omit?: AccountsOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: AccountsInclude<ExtArgs> | null
+    where?: AccountsWhereInput
+    orderBy?: AccountsOrderByWithRelationInput | AccountsOrderByWithRelationInput[]
+    cursor?: AccountsWhereUniqueInput
+    take?: number
+    skip?: number
+    distinct?: AccountsScalarFieldEnum | AccountsScalarFieldEnum[]
   }
 
   /**
@@ -7049,7 +7151,8 @@ export namespace Prisma {
     verifyTokenExpire: 'verifyTokenExpire',
     createdAt: 'createdAt',
     updatedAt: 'updatedAt',
-    status: 'status'
+    status: 'status',
+    defaultProfileId: 'defaultProfileId'
   };
 
   export type AccountsScalarFieldEnum = (typeof AccountsScalarFieldEnum)[keyof typeof AccountsScalarFieldEnum]
@@ -7197,20 +7300,6 @@ export namespace Prisma {
 
 
   /**
-   * Reference to a field of type 'profileType'
-   */
-  export type EnumprofileTypeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'profileType'>
-    
-
-
-  /**
-   * Reference to a field of type 'profileType[]'
-   */
-  export type ListEnumprofileTypeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'profileType[]'>
-    
-
-
-  /**
    * Reference to a field of type 'Decimal'
    */
   export type DecimalFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Decimal'>
@@ -7282,7 +7371,9 @@ export namespace Prisma {
     createdAt?: DateTimeFilter<"Accounts"> | Date | string
     updatedAt?: DateTimeFilter<"Accounts"> | Date | string
     status?: StringFilter<"Accounts"> | string
+    defaultProfileId?: IntNullableFilter<"Accounts"> | number | null
     profile?: ProfileListRelationFilter
+    defaultProfile?: XOR<ProfileNullableScalarRelationFilter, ProfileWhereInput> | null
   }
 
   export type AccountsOrderByWithRelationInput = {
@@ -7295,7 +7386,9 @@ export namespace Prisma {
     createdAt?: SortOrder
     updatedAt?: SortOrder
     status?: SortOrder
+    defaultProfileId?: SortOrderInput | SortOrder
     profile?: ProfileOrderByRelationAggregateInput
+    defaultProfile?: ProfileOrderByWithRelationInput
   }
 
   export type AccountsWhereUniqueInput = Prisma.AtLeast<{
@@ -7311,7 +7404,9 @@ export namespace Prisma {
     createdAt?: DateTimeFilter<"Accounts"> | Date | string
     updatedAt?: DateTimeFilter<"Accounts"> | Date | string
     status?: StringFilter<"Accounts"> | string
+    defaultProfileId?: IntNullableFilter<"Accounts"> | number | null
     profile?: ProfileListRelationFilter
+    defaultProfile?: XOR<ProfileNullableScalarRelationFilter, ProfileWhereInput> | null
   }, "accountID" | "email">
 
   export type AccountsOrderByWithAggregationInput = {
@@ -7324,6 +7419,7 @@ export namespace Prisma {
     createdAt?: SortOrder
     updatedAt?: SortOrder
     status?: SortOrder
+    defaultProfileId?: SortOrderInput | SortOrder
     _count?: AccountsCountOrderByAggregateInput
     _avg?: AccountsAvgOrderByAggregateInput
     _max?: AccountsMaxOrderByAggregateInput
@@ -7344,6 +7440,7 @@ export namespace Prisma {
     createdAt?: DateTimeWithAggregatesFilter<"Accounts"> | Date | string
     updatedAt?: DateTimeWithAggregatesFilter<"Accounts"> | Date | string
     status?: StringWithAggregatesFilter<"Accounts"> | string
+    defaultProfileId?: IntNullableWithAggregatesFilter<"Accounts"> | number | null
   }
 
   export type ProfileWhereInput = {
@@ -7356,9 +7453,10 @@ export namespace Prisma {
     firstName?: StringFilter<"Profile"> | string
     lastName?: StringFilter<"Profile"> | string
     contactNum?: StringFilter<"Profile"> | string
-    profileType?: EnumprofileTypeNullableFilter<"Profile"> | $Enums.profileType | null
+    profileType?: StringNullableFilter<"Profile"> | string | null
     worker?: XOR<Worker_ProfileNullableScalarRelationFilter, Worker_ProfileWhereInput> | null
     accounts?: XOR<AccountsScalarRelationFilter, AccountsWhereInput>
+    defaultProfile?: AccountsListRelationFilter
   }
 
   export type ProfileOrderByWithRelationInput = {
@@ -7371,22 +7469,25 @@ export namespace Prisma {
     profileType?: SortOrderInput | SortOrder
     worker?: Worker_ProfileOrderByWithRelationInput
     accounts?: AccountsOrderByWithRelationInput
+    defaultProfile?: AccountsOrderByRelationAggregateInput
   }
 
   export type ProfileWhereUniqueInput = Prisma.AtLeast<{
     profileID?: number
-    accountID?: number
+    accountID_profileType?: ProfileAccountIDProfileTypeCompoundUniqueInput
     AND?: ProfileWhereInput | ProfileWhereInput[]
     OR?: ProfileWhereInput[]
     NOT?: ProfileWhereInput | ProfileWhereInput[]
+    accountID?: IntFilter<"Profile"> | number
     profileImg?: StringNullableFilter<"Profile"> | string | null
     firstName?: StringFilter<"Profile"> | string
     lastName?: StringFilter<"Profile"> | string
     contactNum?: StringFilter<"Profile"> | string
-    profileType?: EnumprofileTypeNullableFilter<"Profile"> | $Enums.profileType | null
+    profileType?: StringNullableFilter<"Profile"> | string | null
     worker?: XOR<Worker_ProfileNullableScalarRelationFilter, Worker_ProfileWhereInput> | null
     accounts?: XOR<AccountsScalarRelationFilter, AccountsWhereInput>
-  }, "profileID" | "accountID">
+    defaultProfile?: AccountsListRelationFilter
+  }, "profileID" | "accountID_profileType">
 
   export type ProfileOrderByWithAggregationInput = {
     profileID?: SortOrder
@@ -7413,7 +7514,7 @@ export namespace Prisma {
     firstName?: StringWithAggregatesFilter<"Profile"> | string
     lastName?: StringWithAggregatesFilter<"Profile"> | string
     contactNum?: StringWithAggregatesFilter<"Profile"> | string
-    profileType?: EnumprofileTypeNullableWithAggregatesFilter<"Profile"> | $Enums.profileType | null
+    profileType?: StringNullableWithAggregatesFilter<"Profile"> | string | null
   }
 
   export type Worker_ProfileWhereInput = {
@@ -7609,6 +7710,7 @@ export namespace Prisma {
     updatedAt?: Date | string
     status: string
     profile?: ProfileCreateNestedManyWithoutAccountsInput
+    defaultProfile?: ProfileCreateNestedOneWithoutDefaultProfileInput
   }
 
   export type AccountsUncheckedCreateInput = {
@@ -7621,6 +7723,7 @@ export namespace Prisma {
     createdAt?: Date | string
     updatedAt?: Date | string
     status: string
+    defaultProfileId?: number | null
     profile?: ProfileUncheckedCreateNestedManyWithoutAccountsInput
   }
 
@@ -7634,6 +7737,7 @@ export namespace Prisma {
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     status?: StringFieldUpdateOperationsInput | string
     profile?: ProfileUpdateManyWithoutAccountsNestedInput
+    defaultProfile?: ProfileUpdateOneWithoutDefaultProfileNestedInput
   }
 
   export type AccountsUncheckedUpdateInput = {
@@ -7646,6 +7750,7 @@ export namespace Prisma {
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     status?: StringFieldUpdateOperationsInput | string
+    defaultProfileId?: NullableIntFieldUpdateOperationsInput | number | null
     profile?: ProfileUncheckedUpdateManyWithoutAccountsNestedInput
   }
 
@@ -7659,6 +7764,7 @@ export namespace Prisma {
     createdAt?: Date | string
     updatedAt?: Date | string
     status: string
+    defaultProfileId?: number | null
   }
 
   export type AccountsUpdateManyMutationInput = {
@@ -7682,6 +7788,7 @@ export namespace Prisma {
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     status?: StringFieldUpdateOperationsInput | string
+    defaultProfileId?: NullableIntFieldUpdateOperationsInput | number | null
   }
 
   export type ProfileCreateInput = {
@@ -7689,9 +7796,10 @@ export namespace Prisma {
     firstName: string
     lastName: string
     contactNum: string
-    profileType?: $Enums.profileType | null
+    profileType?: string | null
     worker?: Worker_ProfileCreateNestedOneWithoutProfileInput
     accounts: AccountsCreateNestedOneWithoutProfileInput
+    defaultProfile?: AccountsCreateNestedManyWithoutDefaultProfileInput
   }
 
   export type ProfileUncheckedCreateInput = {
@@ -7701,8 +7809,9 @@ export namespace Prisma {
     firstName: string
     lastName: string
     contactNum: string
-    profileType?: $Enums.profileType | null
+    profileType?: string | null
     worker?: Worker_ProfileUncheckedCreateNestedOneWithoutProfileInput
+    defaultProfile?: AccountsUncheckedCreateNestedManyWithoutDefaultProfileInput
   }
 
   export type ProfileUpdateInput = {
@@ -7710,9 +7819,10 @@ export namespace Prisma {
     firstName?: StringFieldUpdateOperationsInput | string
     lastName?: StringFieldUpdateOperationsInput | string
     contactNum?: StringFieldUpdateOperationsInput | string
-    profileType?: NullableEnumprofileTypeFieldUpdateOperationsInput | $Enums.profileType | null
+    profileType?: NullableStringFieldUpdateOperationsInput | string | null
     worker?: Worker_ProfileUpdateOneWithoutProfileNestedInput
     accounts?: AccountsUpdateOneRequiredWithoutProfileNestedInput
+    defaultProfile?: AccountsUpdateManyWithoutDefaultProfileNestedInput
   }
 
   export type ProfileUncheckedUpdateInput = {
@@ -7722,8 +7832,9 @@ export namespace Prisma {
     firstName?: StringFieldUpdateOperationsInput | string
     lastName?: StringFieldUpdateOperationsInput | string
     contactNum?: StringFieldUpdateOperationsInput | string
-    profileType?: NullableEnumprofileTypeFieldUpdateOperationsInput | $Enums.profileType | null
+    profileType?: NullableStringFieldUpdateOperationsInput | string | null
     worker?: Worker_ProfileUncheckedUpdateOneWithoutProfileNestedInput
+    defaultProfile?: AccountsUncheckedUpdateManyWithoutDefaultProfileNestedInput
   }
 
   export type ProfileCreateManyInput = {
@@ -7733,7 +7844,7 @@ export namespace Prisma {
     firstName: string
     lastName: string
     contactNum: string
-    profileType?: $Enums.profileType | null
+    profileType?: string | null
   }
 
   export type ProfileUpdateManyMutationInput = {
@@ -7741,7 +7852,7 @@ export namespace Prisma {
     firstName?: StringFieldUpdateOperationsInput | string
     lastName?: StringFieldUpdateOperationsInput | string
     contactNum?: StringFieldUpdateOperationsInput | string
-    profileType?: NullableEnumprofileTypeFieldUpdateOperationsInput | $Enums.profileType | null
+    profileType?: NullableStringFieldUpdateOperationsInput | string | null
   }
 
   export type ProfileUncheckedUpdateManyInput = {
@@ -7751,7 +7862,7 @@ export namespace Prisma {
     firstName?: StringFieldUpdateOperationsInput | string
     lastName?: StringFieldUpdateOperationsInput | string
     contactNum?: StringFieldUpdateOperationsInput | string
-    profileType?: NullableEnumprofileTypeFieldUpdateOperationsInput | $Enums.profileType | null
+    profileType?: NullableStringFieldUpdateOperationsInput | string | null
   }
 
   export type Worker_ProfileCreateInput = {
@@ -7999,10 +8110,26 @@ export namespace Prisma {
     not?: NestedDateTimeFilter<$PrismaModel> | Date | string
   }
 
+  export type IntNullableFilter<$PrismaModel = never> = {
+    equals?: number | IntFieldRefInput<$PrismaModel> | null
+    in?: number[] | ListIntFieldRefInput<$PrismaModel> | null
+    notIn?: number[] | ListIntFieldRefInput<$PrismaModel> | null
+    lt?: number | IntFieldRefInput<$PrismaModel>
+    lte?: number | IntFieldRefInput<$PrismaModel>
+    gt?: number | IntFieldRefInput<$PrismaModel>
+    gte?: number | IntFieldRefInput<$PrismaModel>
+    not?: NestedIntNullableFilter<$PrismaModel> | number | null
+  }
+
   export type ProfileListRelationFilter = {
     every?: ProfileWhereInput
     some?: ProfileWhereInput
     none?: ProfileWhereInput
+  }
+
+  export type ProfileNullableScalarRelationFilter = {
+    is?: ProfileWhereInput | null
+    isNot?: ProfileWhereInput | null
   }
 
   export type SortOrderInput = {
@@ -8024,10 +8151,12 @@ export namespace Prisma {
     createdAt?: SortOrder
     updatedAt?: SortOrder
     status?: SortOrder
+    defaultProfileId?: SortOrder
   }
 
   export type AccountsAvgOrderByAggregateInput = {
     accountID?: SortOrder
+    defaultProfileId?: SortOrder
   }
 
   export type AccountsMaxOrderByAggregateInput = {
@@ -8040,6 +8169,7 @@ export namespace Prisma {
     createdAt?: SortOrder
     updatedAt?: SortOrder
     status?: SortOrder
+    defaultProfileId?: SortOrder
   }
 
   export type AccountsMinOrderByAggregateInput = {
@@ -8052,10 +8182,12 @@ export namespace Prisma {
     createdAt?: SortOrder
     updatedAt?: SortOrder
     status?: SortOrder
+    defaultProfileId?: SortOrder
   }
 
   export type AccountsSumOrderByAggregateInput = {
     accountID?: SortOrder
+    defaultProfileId?: SortOrder
   }
 
   export type IntWithAggregatesFilter<$PrismaModel = never> = {
@@ -8146,11 +8278,20 @@ export namespace Prisma {
     _max?: NestedDateTimeFilter<$PrismaModel>
   }
 
-  export type EnumprofileTypeNullableFilter<$PrismaModel = never> = {
-    equals?: $Enums.profileType | EnumprofileTypeFieldRefInput<$PrismaModel> | null
-    in?: $Enums.profileType[] | ListEnumprofileTypeFieldRefInput<$PrismaModel> | null
-    notIn?: $Enums.profileType[] | ListEnumprofileTypeFieldRefInput<$PrismaModel> | null
-    not?: NestedEnumprofileTypeNullableFilter<$PrismaModel> | $Enums.profileType | null
+  export type IntNullableWithAggregatesFilter<$PrismaModel = never> = {
+    equals?: number | IntFieldRefInput<$PrismaModel> | null
+    in?: number[] | ListIntFieldRefInput<$PrismaModel> | null
+    notIn?: number[] | ListIntFieldRefInput<$PrismaModel> | null
+    lt?: number | IntFieldRefInput<$PrismaModel>
+    lte?: number | IntFieldRefInput<$PrismaModel>
+    gt?: number | IntFieldRefInput<$PrismaModel>
+    gte?: number | IntFieldRefInput<$PrismaModel>
+    not?: NestedIntNullableWithAggregatesFilter<$PrismaModel> | number | null
+    _count?: NestedIntNullableFilter<$PrismaModel>
+    _avg?: NestedFloatNullableFilter<$PrismaModel>
+    _sum?: NestedIntNullableFilter<$PrismaModel>
+    _min?: NestedIntNullableFilter<$PrismaModel>
+    _max?: NestedIntNullableFilter<$PrismaModel>
   }
 
   export type Worker_ProfileNullableScalarRelationFilter = {
@@ -8161,6 +8302,21 @@ export namespace Prisma {
   export type AccountsScalarRelationFilter = {
     is?: AccountsWhereInput
     isNot?: AccountsWhereInput
+  }
+
+  export type AccountsListRelationFilter = {
+    every?: AccountsWhereInput
+    some?: AccountsWhereInput
+    none?: AccountsWhereInput
+  }
+
+  export type AccountsOrderByRelationAggregateInput = {
+    _count?: SortOrder
+  }
+
+  export type ProfileAccountIDProfileTypeCompoundUniqueInput = {
+    accountID: number
+    profileType: string
   }
 
   export type ProfileCountOrderByAggregateInput = {
@@ -8203,16 +8359,6 @@ export namespace Prisma {
     accountID?: SortOrder
   }
 
-  export type EnumprofileTypeNullableWithAggregatesFilter<$PrismaModel = never> = {
-    equals?: $Enums.profileType | EnumprofileTypeFieldRefInput<$PrismaModel> | null
-    in?: $Enums.profileType[] | ListEnumprofileTypeFieldRefInput<$PrismaModel> | null
-    notIn?: $Enums.profileType[] | ListEnumprofileTypeFieldRefInput<$PrismaModel> | null
-    not?: NestedEnumprofileTypeNullableWithAggregatesFilter<$PrismaModel> | $Enums.profileType | null
-    _count?: NestedIntNullableFilter<$PrismaModel>
-    _min?: NestedEnumprofileTypeNullableFilter<$PrismaModel>
-    _max?: NestedEnumprofileTypeNullableFilter<$PrismaModel>
-  }
-
   export type DecimalFilter<$PrismaModel = never> = {
     equals?: Decimal | DecimalJsLike | number | string | DecimalFieldRefInput<$PrismaModel>
     in?: Decimal[] | DecimalJsLike[] | number[] | string[] | ListDecimalFieldRefInput<$PrismaModel>
@@ -8252,11 +8398,6 @@ export namespace Prisma {
     in?: $Enums.availabilityStatus[] | ListEnumavailabilityStatusFieldRefInput<$PrismaModel>
     notIn?: $Enums.availabilityStatus[] | ListEnumavailabilityStatusFieldRefInput<$PrismaModel>
     not?: NestedEnumavailabilityStatusFilter<$PrismaModel> | $Enums.availabilityStatus
-  }
-
-  export type ProfileNullableScalarRelationFilter = {
-    is?: ProfileWhereInput | null
-    isNot?: ProfileWhereInput | null
   }
 
   export type Freelancer_SpecializationListRelationFilter = {
@@ -8454,6 +8595,12 @@ export namespace Prisma {
     connect?: ProfileWhereUniqueInput | ProfileWhereUniqueInput[]
   }
 
+  export type ProfileCreateNestedOneWithoutDefaultProfileInput = {
+    create?: XOR<ProfileCreateWithoutDefaultProfileInput, ProfileUncheckedCreateWithoutDefaultProfileInput>
+    connectOrCreate?: ProfileCreateOrConnectWithoutDefaultProfileInput
+    connect?: ProfileWhereUniqueInput
+  }
+
   export type ProfileUncheckedCreateNestedManyWithoutAccountsInput = {
     create?: XOR<ProfileCreateWithoutAccountsInput, ProfileUncheckedCreateWithoutAccountsInput> | ProfileCreateWithoutAccountsInput[] | ProfileUncheckedCreateWithoutAccountsInput[]
     connectOrCreate?: ProfileCreateOrConnectWithoutAccountsInput | ProfileCreateOrConnectWithoutAccountsInput[]
@@ -8495,8 +8642,26 @@ export namespace Prisma {
     deleteMany?: ProfileScalarWhereInput | ProfileScalarWhereInput[]
   }
 
+  export type ProfileUpdateOneWithoutDefaultProfileNestedInput = {
+    create?: XOR<ProfileCreateWithoutDefaultProfileInput, ProfileUncheckedCreateWithoutDefaultProfileInput>
+    connectOrCreate?: ProfileCreateOrConnectWithoutDefaultProfileInput
+    upsert?: ProfileUpsertWithoutDefaultProfileInput
+    disconnect?: ProfileWhereInput | boolean
+    delete?: ProfileWhereInput | boolean
+    connect?: ProfileWhereUniqueInput
+    update?: XOR<XOR<ProfileUpdateToOneWithWhereWithoutDefaultProfileInput, ProfileUpdateWithoutDefaultProfileInput>, ProfileUncheckedUpdateWithoutDefaultProfileInput>
+  }
+
   export type IntFieldUpdateOperationsInput = {
     set?: number
+    increment?: number
+    decrement?: number
+    multiply?: number
+    divide?: number
+  }
+
+  export type NullableIntFieldUpdateOperationsInput = {
+    set?: number | null
     increment?: number
     decrement?: number
     multiply?: number
@@ -8529,14 +8694,24 @@ export namespace Prisma {
     connect?: AccountsWhereUniqueInput
   }
 
+  export type AccountsCreateNestedManyWithoutDefaultProfileInput = {
+    create?: XOR<AccountsCreateWithoutDefaultProfileInput, AccountsUncheckedCreateWithoutDefaultProfileInput> | AccountsCreateWithoutDefaultProfileInput[] | AccountsUncheckedCreateWithoutDefaultProfileInput[]
+    connectOrCreate?: AccountsCreateOrConnectWithoutDefaultProfileInput | AccountsCreateOrConnectWithoutDefaultProfileInput[]
+    createMany?: AccountsCreateManyDefaultProfileInputEnvelope
+    connect?: AccountsWhereUniqueInput | AccountsWhereUniqueInput[]
+  }
+
   export type Worker_ProfileUncheckedCreateNestedOneWithoutProfileInput = {
     create?: XOR<Worker_ProfileCreateWithoutProfileInput, Worker_ProfileUncheckedCreateWithoutProfileInput>
     connectOrCreate?: Worker_ProfileCreateOrConnectWithoutProfileInput
     connect?: Worker_ProfileWhereUniqueInput
   }
 
-  export type NullableEnumprofileTypeFieldUpdateOperationsInput = {
-    set?: $Enums.profileType | null
+  export type AccountsUncheckedCreateNestedManyWithoutDefaultProfileInput = {
+    create?: XOR<AccountsCreateWithoutDefaultProfileInput, AccountsUncheckedCreateWithoutDefaultProfileInput> | AccountsCreateWithoutDefaultProfileInput[] | AccountsUncheckedCreateWithoutDefaultProfileInput[]
+    connectOrCreate?: AccountsCreateOrConnectWithoutDefaultProfileInput | AccountsCreateOrConnectWithoutDefaultProfileInput[]
+    createMany?: AccountsCreateManyDefaultProfileInputEnvelope
+    connect?: AccountsWhereUniqueInput | AccountsWhereUniqueInput[]
   }
 
   export type Worker_ProfileUpdateOneWithoutProfileNestedInput = {
@@ -8557,6 +8732,20 @@ export namespace Prisma {
     update?: XOR<XOR<AccountsUpdateToOneWithWhereWithoutProfileInput, AccountsUpdateWithoutProfileInput>, AccountsUncheckedUpdateWithoutProfileInput>
   }
 
+  export type AccountsUpdateManyWithoutDefaultProfileNestedInput = {
+    create?: XOR<AccountsCreateWithoutDefaultProfileInput, AccountsUncheckedCreateWithoutDefaultProfileInput> | AccountsCreateWithoutDefaultProfileInput[] | AccountsUncheckedCreateWithoutDefaultProfileInput[]
+    connectOrCreate?: AccountsCreateOrConnectWithoutDefaultProfileInput | AccountsCreateOrConnectWithoutDefaultProfileInput[]
+    upsert?: AccountsUpsertWithWhereUniqueWithoutDefaultProfileInput | AccountsUpsertWithWhereUniqueWithoutDefaultProfileInput[]
+    createMany?: AccountsCreateManyDefaultProfileInputEnvelope
+    set?: AccountsWhereUniqueInput | AccountsWhereUniqueInput[]
+    disconnect?: AccountsWhereUniqueInput | AccountsWhereUniqueInput[]
+    delete?: AccountsWhereUniqueInput | AccountsWhereUniqueInput[]
+    connect?: AccountsWhereUniqueInput | AccountsWhereUniqueInput[]
+    update?: AccountsUpdateWithWhereUniqueWithoutDefaultProfileInput | AccountsUpdateWithWhereUniqueWithoutDefaultProfileInput[]
+    updateMany?: AccountsUpdateManyWithWhereWithoutDefaultProfileInput | AccountsUpdateManyWithWhereWithoutDefaultProfileInput[]
+    deleteMany?: AccountsScalarWhereInput | AccountsScalarWhereInput[]
+  }
+
   export type Worker_ProfileUncheckedUpdateOneWithoutProfileNestedInput = {
     create?: XOR<Worker_ProfileCreateWithoutProfileInput, Worker_ProfileUncheckedCreateWithoutProfileInput>
     connectOrCreate?: Worker_ProfileCreateOrConnectWithoutProfileInput
@@ -8565,6 +8754,20 @@ export namespace Prisma {
     delete?: Worker_ProfileWhereInput | boolean
     connect?: Worker_ProfileWhereUniqueInput
     update?: XOR<XOR<Worker_ProfileUpdateToOneWithWhereWithoutProfileInput, Worker_ProfileUpdateWithoutProfileInput>, Worker_ProfileUncheckedUpdateWithoutProfileInput>
+  }
+
+  export type AccountsUncheckedUpdateManyWithoutDefaultProfileNestedInput = {
+    create?: XOR<AccountsCreateWithoutDefaultProfileInput, AccountsUncheckedCreateWithoutDefaultProfileInput> | AccountsCreateWithoutDefaultProfileInput[] | AccountsUncheckedCreateWithoutDefaultProfileInput[]
+    connectOrCreate?: AccountsCreateOrConnectWithoutDefaultProfileInput | AccountsCreateOrConnectWithoutDefaultProfileInput[]
+    upsert?: AccountsUpsertWithWhereUniqueWithoutDefaultProfileInput | AccountsUpsertWithWhereUniqueWithoutDefaultProfileInput[]
+    createMany?: AccountsCreateManyDefaultProfileInputEnvelope
+    set?: AccountsWhereUniqueInput | AccountsWhereUniqueInput[]
+    disconnect?: AccountsWhereUniqueInput | AccountsWhereUniqueInput[]
+    delete?: AccountsWhereUniqueInput | AccountsWhereUniqueInput[]
+    connect?: AccountsWhereUniqueInput | AccountsWhereUniqueInput[]
+    update?: AccountsUpdateWithWhereUniqueWithoutDefaultProfileInput | AccountsUpdateWithWhereUniqueWithoutDefaultProfileInput[]
+    updateMany?: AccountsUpdateManyWithWhereWithoutDefaultProfileInput | AccountsUpdateManyWithWhereWithoutDefaultProfileInput[]
+    deleteMany?: AccountsScalarWhereInput | AccountsScalarWhereInput[]
   }
 
   export type ProfileCreateNestedOneWithoutWorkerInput = {
@@ -8773,6 +8976,17 @@ export namespace Prisma {
     not?: NestedDateTimeFilter<$PrismaModel> | Date | string
   }
 
+  export type NestedIntNullableFilter<$PrismaModel = never> = {
+    equals?: number | IntFieldRefInput<$PrismaModel> | null
+    in?: number[] | ListIntFieldRefInput<$PrismaModel> | null
+    notIn?: number[] | ListIntFieldRefInput<$PrismaModel> | null
+    lt?: number | IntFieldRefInput<$PrismaModel>
+    lte?: number | IntFieldRefInput<$PrismaModel>
+    gt?: number | IntFieldRefInput<$PrismaModel>
+    gte?: number | IntFieldRefInput<$PrismaModel>
+    not?: NestedIntNullableFilter<$PrismaModel> | number | null
+  }
+
   export type NestedIntWithAggregatesFilter<$PrismaModel = never> = {
     equals?: number | IntFieldRefInput<$PrismaModel>
     in?: number[] | ListIntFieldRefInput<$PrismaModel>
@@ -8834,17 +9048,6 @@ export namespace Prisma {
     _max?: NestedStringNullableFilter<$PrismaModel>
   }
 
-  export type NestedIntNullableFilter<$PrismaModel = never> = {
-    equals?: number | IntFieldRefInput<$PrismaModel> | null
-    in?: number[] | ListIntFieldRefInput<$PrismaModel> | null
-    notIn?: number[] | ListIntFieldRefInput<$PrismaModel> | null
-    lt?: number | IntFieldRefInput<$PrismaModel>
-    lte?: number | IntFieldRefInput<$PrismaModel>
-    gt?: number | IntFieldRefInput<$PrismaModel>
-    gte?: number | IntFieldRefInput<$PrismaModel>
-    not?: NestedIntNullableFilter<$PrismaModel> | number | null
-  }
-
   export type NestedBoolWithAggregatesFilter<$PrismaModel = never> = {
     equals?: boolean | BooleanFieldRefInput<$PrismaModel>
     not?: NestedBoolWithAggregatesFilter<$PrismaModel> | boolean
@@ -8881,21 +9084,31 @@ export namespace Prisma {
     _max?: NestedDateTimeFilter<$PrismaModel>
   }
 
-  export type NestedEnumprofileTypeNullableFilter<$PrismaModel = never> = {
-    equals?: $Enums.profileType | EnumprofileTypeFieldRefInput<$PrismaModel> | null
-    in?: $Enums.profileType[] | ListEnumprofileTypeFieldRefInput<$PrismaModel> | null
-    notIn?: $Enums.profileType[] | ListEnumprofileTypeFieldRefInput<$PrismaModel> | null
-    not?: NestedEnumprofileTypeNullableFilter<$PrismaModel> | $Enums.profileType | null
+  export type NestedIntNullableWithAggregatesFilter<$PrismaModel = never> = {
+    equals?: number | IntFieldRefInput<$PrismaModel> | null
+    in?: number[] | ListIntFieldRefInput<$PrismaModel> | null
+    notIn?: number[] | ListIntFieldRefInput<$PrismaModel> | null
+    lt?: number | IntFieldRefInput<$PrismaModel>
+    lte?: number | IntFieldRefInput<$PrismaModel>
+    gt?: number | IntFieldRefInput<$PrismaModel>
+    gte?: number | IntFieldRefInput<$PrismaModel>
+    not?: NestedIntNullableWithAggregatesFilter<$PrismaModel> | number | null
+    _count?: NestedIntNullableFilter<$PrismaModel>
+    _avg?: NestedFloatNullableFilter<$PrismaModel>
+    _sum?: NestedIntNullableFilter<$PrismaModel>
+    _min?: NestedIntNullableFilter<$PrismaModel>
+    _max?: NestedIntNullableFilter<$PrismaModel>
   }
 
-  export type NestedEnumprofileTypeNullableWithAggregatesFilter<$PrismaModel = never> = {
-    equals?: $Enums.profileType | EnumprofileTypeFieldRefInput<$PrismaModel> | null
-    in?: $Enums.profileType[] | ListEnumprofileTypeFieldRefInput<$PrismaModel> | null
-    notIn?: $Enums.profileType[] | ListEnumprofileTypeFieldRefInput<$PrismaModel> | null
-    not?: NestedEnumprofileTypeNullableWithAggregatesFilter<$PrismaModel> | $Enums.profileType | null
-    _count?: NestedIntNullableFilter<$PrismaModel>
-    _min?: NestedEnumprofileTypeNullableFilter<$PrismaModel>
-    _max?: NestedEnumprofileTypeNullableFilter<$PrismaModel>
+  export type NestedFloatNullableFilter<$PrismaModel = never> = {
+    equals?: number | FloatFieldRefInput<$PrismaModel> | null
+    in?: number[] | ListFloatFieldRefInput<$PrismaModel> | null
+    notIn?: number[] | ListFloatFieldRefInput<$PrismaModel> | null
+    lt?: number | FloatFieldRefInput<$PrismaModel>
+    lte?: number | FloatFieldRefInput<$PrismaModel>
+    gt?: number | FloatFieldRefInput<$PrismaModel>
+    gte?: number | FloatFieldRefInput<$PrismaModel>
+    not?: NestedFloatNullableFilter<$PrismaModel> | number | null
   }
 
   export type NestedDecimalFilter<$PrismaModel = never> = {
@@ -8970,8 +9183,9 @@ export namespace Prisma {
     firstName: string
     lastName: string
     contactNum: string
-    profileType?: $Enums.profileType | null
+    profileType?: string | null
     worker?: Worker_ProfileCreateNestedOneWithoutProfileInput
+    defaultProfile?: AccountsCreateNestedManyWithoutDefaultProfileInput
   }
 
   export type ProfileUncheckedCreateWithoutAccountsInput = {
@@ -8980,8 +9194,9 @@ export namespace Prisma {
     firstName: string
     lastName: string
     contactNum: string
-    profileType?: $Enums.profileType | null
+    profileType?: string | null
     worker?: Worker_ProfileUncheckedCreateNestedOneWithoutProfileInput
+    defaultProfile?: AccountsUncheckedCreateNestedManyWithoutDefaultProfileInput
   }
 
   export type ProfileCreateOrConnectWithoutAccountsInput = {
@@ -8992,6 +9207,32 @@ export namespace Prisma {
   export type ProfileCreateManyAccountsInputEnvelope = {
     data: ProfileCreateManyAccountsInput | ProfileCreateManyAccountsInput[]
     skipDuplicates?: boolean
+  }
+
+  export type ProfileCreateWithoutDefaultProfileInput = {
+    profileImg?: string | null
+    firstName: string
+    lastName: string
+    contactNum: string
+    profileType?: string | null
+    worker?: Worker_ProfileCreateNestedOneWithoutProfileInput
+    accounts: AccountsCreateNestedOneWithoutProfileInput
+  }
+
+  export type ProfileUncheckedCreateWithoutDefaultProfileInput = {
+    profileID?: number
+    accountID: number
+    profileImg?: string | null
+    firstName: string
+    lastName: string
+    contactNum: string
+    profileType?: string | null
+    worker?: Worker_ProfileUncheckedCreateNestedOneWithoutProfileInput
+  }
+
+  export type ProfileCreateOrConnectWithoutDefaultProfileInput = {
+    where: ProfileWhereUniqueInput
+    create: XOR<ProfileCreateWithoutDefaultProfileInput, ProfileUncheckedCreateWithoutDefaultProfileInput>
   }
 
   export type ProfileUpsertWithWhereUniqueWithoutAccountsInput = {
@@ -9020,7 +9261,39 @@ export namespace Prisma {
     firstName?: StringFilter<"Profile"> | string
     lastName?: StringFilter<"Profile"> | string
     contactNum?: StringFilter<"Profile"> | string
-    profileType?: EnumprofileTypeNullableFilter<"Profile"> | $Enums.profileType | null
+    profileType?: StringNullableFilter<"Profile"> | string | null
+  }
+
+  export type ProfileUpsertWithoutDefaultProfileInput = {
+    update: XOR<ProfileUpdateWithoutDefaultProfileInput, ProfileUncheckedUpdateWithoutDefaultProfileInput>
+    create: XOR<ProfileCreateWithoutDefaultProfileInput, ProfileUncheckedCreateWithoutDefaultProfileInput>
+    where?: ProfileWhereInput
+  }
+
+  export type ProfileUpdateToOneWithWhereWithoutDefaultProfileInput = {
+    where?: ProfileWhereInput
+    data: XOR<ProfileUpdateWithoutDefaultProfileInput, ProfileUncheckedUpdateWithoutDefaultProfileInput>
+  }
+
+  export type ProfileUpdateWithoutDefaultProfileInput = {
+    profileImg?: NullableStringFieldUpdateOperationsInput | string | null
+    firstName?: StringFieldUpdateOperationsInput | string
+    lastName?: StringFieldUpdateOperationsInput | string
+    contactNum?: StringFieldUpdateOperationsInput | string
+    profileType?: NullableStringFieldUpdateOperationsInput | string | null
+    worker?: Worker_ProfileUpdateOneWithoutProfileNestedInput
+    accounts?: AccountsUpdateOneRequiredWithoutProfileNestedInput
+  }
+
+  export type ProfileUncheckedUpdateWithoutDefaultProfileInput = {
+    profileID?: IntFieldUpdateOperationsInput | number
+    accountID?: IntFieldUpdateOperationsInput | number
+    profileImg?: NullableStringFieldUpdateOperationsInput | string | null
+    firstName?: StringFieldUpdateOperationsInput | string
+    lastName?: StringFieldUpdateOperationsInput | string
+    contactNum?: StringFieldUpdateOperationsInput | string
+    profileType?: NullableStringFieldUpdateOperationsInput | string | null
+    worker?: Worker_ProfileUncheckedUpdateOneWithoutProfileNestedInput
   }
 
   export type Worker_ProfileCreateWithoutProfileInput = {
@@ -9063,6 +9336,7 @@ export namespace Prisma {
     createdAt?: Date | string
     updatedAt?: Date | string
     status: string
+    defaultProfile?: ProfileCreateNestedOneWithoutDefaultProfileInput
   }
 
   export type AccountsUncheckedCreateWithoutProfileInput = {
@@ -9075,11 +9349,47 @@ export namespace Prisma {
     createdAt?: Date | string
     updatedAt?: Date | string
     status: string
+    defaultProfileId?: number | null
   }
 
   export type AccountsCreateOrConnectWithoutProfileInput = {
     where: AccountsWhereUniqueInput
     create: XOR<AccountsCreateWithoutProfileInput, AccountsUncheckedCreateWithoutProfileInput>
+  }
+
+  export type AccountsCreateWithoutDefaultProfileInput = {
+    email: string
+    password?: string | null
+    isVerified?: boolean
+    verifyToken?: string | null
+    verifyTokenExpire?: Date | string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    status: string
+    profile?: ProfileCreateNestedManyWithoutAccountsInput
+  }
+
+  export type AccountsUncheckedCreateWithoutDefaultProfileInput = {
+    accountID?: number
+    email: string
+    password?: string | null
+    isVerified?: boolean
+    verifyToken?: string | null
+    verifyTokenExpire?: Date | string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    status: string
+    profile?: ProfileUncheckedCreateNestedManyWithoutAccountsInput
+  }
+
+  export type AccountsCreateOrConnectWithoutDefaultProfileInput = {
+    where: AccountsWhereUniqueInput
+    create: XOR<AccountsCreateWithoutDefaultProfileInput, AccountsUncheckedCreateWithoutDefaultProfileInput>
+  }
+
+  export type AccountsCreateManyDefaultProfileInputEnvelope = {
+    data: AccountsCreateManyDefaultProfileInput | AccountsCreateManyDefaultProfileInput[]
+    skipDuplicates?: boolean
   }
 
   export type Worker_ProfileUpsertWithoutProfileInput = {
@@ -9139,6 +9449,7 @@ export namespace Prisma {
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     status?: StringFieldUpdateOperationsInput | string
+    defaultProfile?: ProfileUpdateOneWithoutDefaultProfileNestedInput
   }
 
   export type AccountsUncheckedUpdateWithoutProfileInput = {
@@ -9151,6 +9462,39 @@ export namespace Prisma {
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     status?: StringFieldUpdateOperationsInput | string
+    defaultProfileId?: NullableIntFieldUpdateOperationsInput | number | null
+  }
+
+  export type AccountsUpsertWithWhereUniqueWithoutDefaultProfileInput = {
+    where: AccountsWhereUniqueInput
+    update: XOR<AccountsUpdateWithoutDefaultProfileInput, AccountsUncheckedUpdateWithoutDefaultProfileInput>
+    create: XOR<AccountsCreateWithoutDefaultProfileInput, AccountsUncheckedCreateWithoutDefaultProfileInput>
+  }
+
+  export type AccountsUpdateWithWhereUniqueWithoutDefaultProfileInput = {
+    where: AccountsWhereUniqueInput
+    data: XOR<AccountsUpdateWithoutDefaultProfileInput, AccountsUncheckedUpdateWithoutDefaultProfileInput>
+  }
+
+  export type AccountsUpdateManyWithWhereWithoutDefaultProfileInput = {
+    where: AccountsScalarWhereInput
+    data: XOR<AccountsUpdateManyMutationInput, AccountsUncheckedUpdateManyWithoutDefaultProfileInput>
+  }
+
+  export type AccountsScalarWhereInput = {
+    AND?: AccountsScalarWhereInput | AccountsScalarWhereInput[]
+    OR?: AccountsScalarWhereInput[]
+    NOT?: AccountsScalarWhereInput | AccountsScalarWhereInput[]
+    accountID?: IntFilter<"Accounts"> | number
+    email?: StringFilter<"Accounts"> | string
+    password?: StringNullableFilter<"Accounts"> | string | null
+    isVerified?: BoolFilter<"Accounts"> | boolean
+    verifyToken?: StringNullableFilter<"Accounts"> | string | null
+    verifyTokenExpire?: DateTimeNullableFilter<"Accounts"> | Date | string | null
+    createdAt?: DateTimeFilter<"Accounts"> | Date | string
+    updatedAt?: DateTimeFilter<"Accounts"> | Date | string
+    status?: StringFilter<"Accounts"> | string
+    defaultProfileId?: IntNullableFilter<"Accounts"> | number | null
   }
 
   export type ProfileCreateWithoutWorkerInput = {
@@ -9158,8 +9502,9 @@ export namespace Prisma {
     firstName: string
     lastName: string
     contactNum: string
-    profileType?: $Enums.profileType | null
+    profileType?: string | null
     accounts: AccountsCreateNestedOneWithoutProfileInput
+    defaultProfile?: AccountsCreateNestedManyWithoutDefaultProfileInput
   }
 
   export type ProfileUncheckedCreateWithoutWorkerInput = {
@@ -9169,7 +9514,8 @@ export namespace Prisma {
     firstName: string
     lastName: string
     contactNum: string
-    profileType?: $Enums.profileType | null
+    profileType?: string | null
+    defaultProfile?: AccountsUncheckedCreateNestedManyWithoutDefaultProfileInput
   }
 
   export type ProfileCreateOrConnectWithoutWorkerInput = {
@@ -9215,8 +9561,9 @@ export namespace Prisma {
     firstName?: StringFieldUpdateOperationsInput | string
     lastName?: StringFieldUpdateOperationsInput | string
     contactNum?: StringFieldUpdateOperationsInput | string
-    profileType?: NullableEnumprofileTypeFieldUpdateOperationsInput | $Enums.profileType | null
+    profileType?: NullableStringFieldUpdateOperationsInput | string | null
     accounts?: AccountsUpdateOneRequiredWithoutProfileNestedInput
+    defaultProfile?: AccountsUpdateManyWithoutDefaultProfileNestedInput
   }
 
   export type ProfileUncheckedUpdateWithoutWorkerInput = {
@@ -9226,7 +9573,8 @@ export namespace Prisma {
     firstName?: StringFieldUpdateOperationsInput | string
     lastName?: StringFieldUpdateOperationsInput | string
     contactNum?: StringFieldUpdateOperationsInput | string
-    profileType?: NullableEnumprofileTypeFieldUpdateOperationsInput | $Enums.profileType | null
+    profileType?: NullableStringFieldUpdateOperationsInput | string | null
+    defaultProfile?: AccountsUncheckedUpdateManyWithoutDefaultProfileNestedInput
   }
 
   export type Freelancer_SpecializationUpsertWithWhereUniqueWithoutWorker_profileInput = {
@@ -9401,7 +9749,7 @@ export namespace Prisma {
     firstName: string
     lastName: string
     contactNum: string
-    profileType?: $Enums.profileType | null
+    profileType?: string | null
   }
 
   export type ProfileUpdateWithoutAccountsInput = {
@@ -9409,8 +9757,9 @@ export namespace Prisma {
     firstName?: StringFieldUpdateOperationsInput | string
     lastName?: StringFieldUpdateOperationsInput | string
     contactNum?: StringFieldUpdateOperationsInput | string
-    profileType?: NullableEnumprofileTypeFieldUpdateOperationsInput | $Enums.profileType | null
+    profileType?: NullableStringFieldUpdateOperationsInput | string | null
     worker?: Worker_ProfileUpdateOneWithoutProfileNestedInput
+    defaultProfile?: AccountsUpdateManyWithoutDefaultProfileNestedInput
   }
 
   export type ProfileUncheckedUpdateWithoutAccountsInput = {
@@ -9419,8 +9768,9 @@ export namespace Prisma {
     firstName?: StringFieldUpdateOperationsInput | string
     lastName?: StringFieldUpdateOperationsInput | string
     contactNum?: StringFieldUpdateOperationsInput | string
-    profileType?: NullableEnumprofileTypeFieldUpdateOperationsInput | $Enums.profileType | null
+    profileType?: NullableStringFieldUpdateOperationsInput | string | null
     worker?: Worker_ProfileUncheckedUpdateOneWithoutProfileNestedInput
+    defaultProfile?: AccountsUncheckedUpdateManyWithoutDefaultProfileNestedInput
   }
 
   export type ProfileUncheckedUpdateManyWithoutAccountsInput = {
@@ -9429,7 +9779,56 @@ export namespace Prisma {
     firstName?: StringFieldUpdateOperationsInput | string
     lastName?: StringFieldUpdateOperationsInput | string
     contactNum?: StringFieldUpdateOperationsInput | string
-    profileType?: NullableEnumprofileTypeFieldUpdateOperationsInput | $Enums.profileType | null
+    profileType?: NullableStringFieldUpdateOperationsInput | string | null
+  }
+
+  export type AccountsCreateManyDefaultProfileInput = {
+    accountID?: number
+    email: string
+    password?: string | null
+    isVerified?: boolean
+    verifyToken?: string | null
+    verifyTokenExpire?: Date | string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    status: string
+  }
+
+  export type AccountsUpdateWithoutDefaultProfileInput = {
+    email?: StringFieldUpdateOperationsInput | string
+    password?: NullableStringFieldUpdateOperationsInput | string | null
+    isVerified?: BoolFieldUpdateOperationsInput | boolean
+    verifyToken?: NullableStringFieldUpdateOperationsInput | string | null
+    verifyTokenExpire?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    status?: StringFieldUpdateOperationsInput | string
+    profile?: ProfileUpdateManyWithoutAccountsNestedInput
+  }
+
+  export type AccountsUncheckedUpdateWithoutDefaultProfileInput = {
+    accountID?: IntFieldUpdateOperationsInput | number
+    email?: StringFieldUpdateOperationsInput | string
+    password?: NullableStringFieldUpdateOperationsInput | string | null
+    isVerified?: BoolFieldUpdateOperationsInput | boolean
+    verifyToken?: NullableStringFieldUpdateOperationsInput | string | null
+    verifyTokenExpire?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    status?: StringFieldUpdateOperationsInput | string
+    profile?: ProfileUncheckedUpdateManyWithoutAccountsNestedInput
+  }
+
+  export type AccountsUncheckedUpdateManyWithoutDefaultProfileInput = {
+    accountID?: IntFieldUpdateOperationsInput | number
+    email?: StringFieldUpdateOperationsInput | string
+    password?: NullableStringFieldUpdateOperationsInput | string | null
+    isVerified?: BoolFieldUpdateOperationsInput | boolean
+    verifyToken?: NullableStringFieldUpdateOperationsInput | string | null
+    verifyTokenExpire?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    status?: StringFieldUpdateOperationsInput | string
   }
 
   export type Freelancer_SpecializationCreateManyWorker_profileInput = {

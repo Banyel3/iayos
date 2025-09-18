@@ -25,7 +25,6 @@ import { NextAuthOptions } from "next-auth";
 import { Prisma } from "@/lib/generated/prisma/wasm";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcrypt";
-import { useEffect } from "react";
 
 // Environment variables for Google OAuth
 // These must be set in your .env.local file
@@ -109,12 +108,8 @@ export const authOptions: NextAuthOptions = {
 
         const profiles = user?.profile ?? [];
 
-        const clientProfile = profiles.find((p) => p.profileType === "CLIENT");
-        const workerProfile = profiles.find((p) => p.profileType === "WORKER");
-
         // If no user found with this email, reject login
         if (!user) throw new Error("User not found");
-
         if (!user.isVerified) {
           throw new Error(
             "Check email for verification Link and Verify Email first"
@@ -132,13 +127,23 @@ export const authOptions: NextAuthOptions = {
         if (!isValid) {
           throw new Error("Invalid password");
         } else {
-          // Return user data if password is valid
-          // This data becomes available in session
+          const clientProfile = profiles.find(
+            (p) => p.profileType === "CLIENT"
+          );
+          const workerProfile = profiles.find(
+            (p) => p.profileType === "WORKER"
+          );
+          const bothProfile = profiles.find((p) => p.profileType === "BOTH");
+
           return {
             id: user.accountID.toString(),
             email: user.email,
-            // 🔧 FIX: Safely access first profile in array
             name: user.profile?.[0]?.firstName || "User",
+            profileType: clientProfile
+              ? "CLIENT"
+              : workerProfile
+              ? "WORKER"
+              : null, // fallback if somehow no profile
           };
         }
       },
@@ -158,9 +163,51 @@ export const authOptions: NextAuthOptions = {
      * Always sends to dashboard regardless of login method
      */
     async redirect({ url, baseUrl }) {
-      return `${baseUrl}/dashboard`;
+      return `${baseUrl}/${url}`;
     },
 
+    async jwt({ token, user, account }) {
+      // On initial sign in, add user data to token
+      if (user) {
+        token.email = user.email;
+        token.name = user.name;
+        token.profileType = (user as any).profileType; // Add profileType to token
+      }
+
+      // For Google OAuth users, we need to fetch profileType from database
+      if (account?.provider === "google" && !token.profileType) {
+        try {
+          const userWithProfile = await prisma.accounts.findUnique({
+            where: { email: token.email as string },
+            include: {
+              profile: {
+                select: {
+                  profileType: true,
+                },
+              },
+            },
+          });
+
+          // Set profileType from database or null if not found
+          token.profileType =
+            userWithProfile?.profile?.[0]?.profileType || null;
+        } catch (error) {
+          console.error("Error fetching profileType for Google user:", error);
+          token.profileType = null;
+        }
+      }
+
+      return token;
+    },
+
+    async session({ session, token }) {
+      if (token && session.user) {
+        session.user.email = token.email as string;
+        session.user.name = token.name as string;
+        session.user.profileType = token.profileType as string | null; // Add profileType to session
+      }
+      return session;
+    },
     /**
      * SIGN-IN CALLBACK
      * Runs after successful authentication but before session creation
@@ -172,6 +219,7 @@ export const authOptions: NextAuthOptions = {
        * Only runs when user signs in with Google
        * Creates or updates user account and profile in database
        */
+
       if (account?.provider === "google") {
         const googleProfile = profile as GoogleProfile;
 
@@ -204,13 +252,19 @@ export const authOptions: NextAuthOptions = {
          * Store user's name, profile picture, etc. from Google
          */
         await prisma.profile.upsert({
-          where: { accountID: accountRecord.accountID },
+          where: {
+            accountID_profileType: {
+              accountID: accountRecord.accountID,
+              profileType: "",
+            },
+          },
           create: {
             accountID: accountRecord.accountID,
             firstName: googleProfile.given_name, // From Google profile
             lastName: googleProfile.family_name, // From Google profile
             contactNum: "", // Empty, user can add later
             profileImg: googleProfile.picture, // Google profile picture URL
+            profileType: "",
           } as Prisma.ProfileUncheckedCreateInput,
           update: {
             firstName: googleProfile.given_name, // Update name from Google

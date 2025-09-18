@@ -27,25 +27,25 @@ model Accounts {
   updatedAt         DateTime  @default(now()) @updatedAt
   status            String
   profile           Profile[]
-}
 
-enum profileType {
-  WORKER
-  CLIENT
-  BOTH
+  defaultProfileId Int?
+  defaultProfile   Profile? @relation("defaultProfile", fields: [defaultProfileId], references: [profileID])
 }
 
 model Profile {
-  profileID   Int          @id @default(autoincrement())
-  accountID   Int          @unique
+  profileID   Int     @id @default(autoincrement())
+  accountID   Int
   profileImg  String?
   firstName   String
   lastName    String
   contactNum  String
-  profileType profileType?
+  profileType String?
 
-  worker   Worker_Profile?
-  accounts Accounts        @relation(fields: [accountID], references: [accountID])
+  worker         Worker_Profile?
+  accounts       Accounts        @relation(fields: [accountID], references: [accountID])
+  defaultProfile Accounts[]      @relation("defaultProfile")
+
+  @@unique([accountID, profileType])
 }
 
 enum availabilityStatus {

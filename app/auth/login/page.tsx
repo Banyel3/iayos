@@ -63,14 +63,13 @@ const Login = () => {
 
     try {
       const res = await signIn("credentials", {
-        redirect: false,
+        redirect: true,
         email: values.email,
         password: values.password,
+        callbackUrl: "/dashboard",
       });
       if (res?.error) {
         setLoginError(res.error); // show error from authorize function
-      } else {
-        // router.push("/dashboard"); // redirect on successful login
       }
     } catch (error) {
       setLoginError("Invalid email or password. Please try again.");
