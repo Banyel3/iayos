@@ -22,7 +22,7 @@ import { Input } from "@/components/ui/input";
 import { EmailVerificationAlert } from "@/components/ui/email-verification-alert";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { redirect } from "next/navigation";
+import Turnstile from "react-turnstile";
 
 const formSchema = z.object({
   lastName: z
@@ -45,6 +45,7 @@ const formSchema = z.object({
       /[^A-Za-z0-9]/,
       "Password must contain at least one special character"
     ),
+  turnstileToken: z.string().min(1, "Captcha required"), // ✅ add this
 });
 
 // Create a separate component that uses useSearchParams
@@ -131,7 +132,7 @@ function RegisterContent() {
               Get started today
             </p>
           </div>
-          
+
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField
@@ -143,7 +144,11 @@ function RegisterContent() {
                       First Name<span className="text-red-500 ml-1">*</span>
                     </FormLabel>
                     <FormControl>
-                      <Input placeholder="First name" className="h-11" {...field} />
+                      <Input
+                        placeholder="First name"
+                        className="h-11"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage className="font-inter text-xs text-red-500" />
                   </FormItem>
@@ -158,7 +163,11 @@ function RegisterContent() {
                       Last Name<span className="text-red-500 ml-1">*</span>
                     </FormLabel>
                     <FormControl>
-                      <Input placeholder="Last name" className="h-11" {...field} />
+                      <Input
+                        placeholder="Last name"
+                        className="h-11"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage className="font-inter text-xs text-red-500" />
                   </FormItem>
@@ -173,7 +182,11 @@ function RegisterContent() {
                       Email<span className="text-red-500 ml-1">*</span>
                     </FormLabel>
                     <FormControl>
-                      <Input placeholder="Email address" className="h-11" {...field} />
+                      <Input
+                        placeholder="Email address"
+                        className="h-11"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage className="font-inter text-xs text-red-500" />
                   </FormItem>
@@ -188,7 +201,11 @@ function RegisterContent() {
                       Phone<span className="text-red-500 ml-1">*</span>
                     </FormLabel>
                     <FormControl>
-                      <Input placeholder="Contact number" className="h-11" {...field} />
+                      <Input
+                        placeholder="Contact number"
+                        className="h-11"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage className="font-inter text-xs text-red-500" />
                   </FormItem>
@@ -213,6 +230,10 @@ function RegisterContent() {
                     <FormMessage className="font-inter text-xs text-red-500" />
                   </FormItem>
                 )}
+              />
+              <Turnstile
+                sitekey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
+                onVerify={(token) => form.setValue("turnstileToken", token)} // Save to form
               />
 
               <Button
@@ -270,9 +291,7 @@ function RegisterContent() {
               height={18}
               className="mr-2"
             />
-            <span className="text-sm">
-              Continue with Google
-            </span>
+            <span className="text-sm">Continue with Google</span>
           </button>
 
           <div className="mt-4 text-center">

@@ -16,7 +16,22 @@ const registerSchema = z.object({
 export async function POST(req: Request) {
   try {
     const body = await req.json();
+    const token = body.turnstileToken;
 
+    const verify = await fetch(
+      "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: `secret=${process.env.TURNSTILE_SECRET_KEY}&response=${token}`,
+      }
+    ).then((res) => res.json());
+
+    if (!verify.success) {
+      return new Response(JSON.stringify({ error: "Captcha failed" }), {
+        status: 400,
+      });
+    }
     // Validate input
     const parsed = registerSchema.safeParse(body);
     if (!parsed.success) {
