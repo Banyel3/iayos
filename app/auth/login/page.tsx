@@ -34,11 +34,6 @@ const formSchema = z.object({
     .min(6, "Password must be at least 6 characters"),
 });
 
-function onSubmit(values: z.infer<typeof formSchema>) {
-  console.log("Login values:", values);
-  // Add your login logic here
-  // Example: authenticate user, handle errors, etc.
-}
 const Login = () => {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);

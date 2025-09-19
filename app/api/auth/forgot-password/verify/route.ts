@@ -1,9 +1,23 @@
 import crypto from "crypto";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { z } from "zod";
+import bcrypt from "bcrypt";
 
-export async function GET(req: Request) {
+const forgotPasswordSchema = z.object({
+  newPassword: z.string(),
+});
+export async function POST(req: Request) {
   try {
+    const body = await req.json();
+
+    const parsed = forgotPasswordSchema.safeParse(body);
+    if (!parsed.success) {
+      return new Response(JSON.stringify({ error: parsed.error }), {
+        status: 400,
+      });
+    }
+    const { newPassword } = parsed.data;
     const { searchParams } = new URL(req.url);
     const verificationToken = searchParams.get("verifyToken") as string;
     const idParam = searchParams.get("id");
@@ -32,7 +46,11 @@ export async function GET(req: Request) {
     }
 
     const user = await prisma.accounts.findFirst({
-      where: { accountID, verifyToken, verifyTokenExpire: { gt: new Date() } },
+      where: {
+        accountID,
+        verifyToken,
+        verifyTokenExpire: { gt: new Date() },
+      },
     });
 
     if (!user) {
@@ -45,11 +63,16 @@ export async function GET(req: Request) {
         }
       );
     }
-
+    const hashedPass = await bcrypt.hash(newPassword, 10);
     if (user) {
       await prisma.accounts.update({
         where: { accountID: user.accountID },
-        data: { isVerified: true, verifyToken: null, verifyTokenExpire: null },
+        data: {
+          password: hashedPass,
+          isVerified: true,
+          verifyToken: null,
+          verifyTokenExpire: null,
+        },
       });
     }
 

@@ -173,37 +173,6 @@ const ForgotPassword = () => {
           </Form>
 
           {/* Info Section */}
-          <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-            <div className="flex items-start">
-              <div className="flex-shrink-0">
-                <svg
-                  className="h-5 w-5 text-blue-600 mt-0.5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-              </div>
-              <div className="ml-3">
-                <h3 className="text-sm font-medium text-blue-800 font-inter">
-                  What happens next?
-                </h3>
-                <div className="mt-1 text-sm text-blue-700 font-inter">
-                  <ul className="list-disc list-inside space-y-1">
-                    <li>We'll send a reset link to your email</li>
-                    <li>The link expires in 15 minutes</li>
-                    <li>Click the link to create a new password</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-          </div>
 
           <div className="mt-6 text-center">
             <p className="text-xs font-inter text-gray-600">

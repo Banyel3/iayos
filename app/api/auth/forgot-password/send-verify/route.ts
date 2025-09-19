@@ -40,17 +40,17 @@ export async function POST(req: Request) {
       throw new Error("No Account Found");
     }
     const forgottenUser = await prisma.accounts.update({
-      where: { email },
+      where: { accountID: userDetails.accountID },
       data: {
         verifyToken: hashedVerifyToken,
         verifyTokenExpire: verifyTokenExpire,
       },
     });
-    const verifyLink = `${process.env.NEXTAUTH_URL}/auth/forgot-password/verify?verifyToken=${verifyToken}&id=${userDetails.accountID}`;
+    const verifyLink = `${process.env.NEXTAUTH_URL}/auth/forgot-password/verified?verifyToken=${verifyToken}&id=${userDetails.accountID}`;
     const template = generatePasswordResetEmailHTML({
       resetLink: verifyLink,
     });
-    await sendEmail(email, "Email Verification", template);
+    await sendEmail(email, "Forgot Password Verification", template);
     return new Response(JSON.stringify("Verification Link Sent"), {
       status: 201,
     });

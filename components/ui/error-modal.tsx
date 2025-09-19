@@ -15,17 +15,17 @@ interface ErrorModalProps {
 
 /**
  * Reusable Error Modal Component
- * 
+ *
  * This modal can be used throughout the application to display error messages
  * in a user-friendly way. It supports different error types and customizable actions.
- * 
+ *
  * SECURITY NOTE: Only pass user-friendly error messages to this component.
  * Never expose raw database errors, stack traces, or technical details.
- * 
+ *
  * Usage:
  * ```tsx
  * const [showError, setShowError] = useState(false);
- * 
+ *
  * <ErrorModal
  *   isOpen={showError}
  *   onClose={() => setShowError(false)}
@@ -106,7 +106,7 @@ export function ErrorModal({
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+        className="fixed inset-0 backdrop-blur-sm bg-white bg-opacity-10 z-50 flex items-center justify-center p-4"
         onClick={onClose}
       >
         {/* Modal */}
@@ -140,7 +140,9 @@ export function ErrorModal({
           <div className="p-6">
             {/* Icon and Title */}
             <div className="flex items-center mb-4">
-              <div className={`w-12 h-12 ${bgColor} rounded-full flex items-center justify-center mr-4`}>
+              <div
+                className={`w-12 h-12 ${bgColor} rounded-full flex items-center justify-center mr-4`}
+              >
                 <svg
                   className={`w-6 h-6 ${textColor}`}
                   fill="none"
@@ -179,14 +181,14 @@ export function ErrorModal({
 
 /**
  * Hook for using error modals throughout the application
- * 
+ *
  * Usage:
  * ```tsx
  * const errorModal = useErrorModal();
- * 
+ *
  * // Show an error
  * errorModal.showError("Database connection failed", "Try Again", () => retryConnection());
- * 
+ *
  * // Show a warning
  * errorModal.showWarning("Session expired", "Login Again", () => router.push("/auth/login"));
  * ```
@@ -256,7 +258,7 @@ export function useErrorModal() {
   };
 
   const close = () => {
-    setModalState(prev => ({ ...prev, isOpen: false }));
+    setModalState((prev) => ({ ...prev, isOpen: false }));
   };
 
   const Modal = () => (
