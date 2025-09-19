@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useSession } from "next-auth/react";
+import { useErrorModal } from "@/components/ui/error-modal";
 
 const formSchema = z.object({
   email: z
@@ -41,8 +42,15 @@ function onSubmit(values: z.infer<typeof formSchema>) {
 const Login = () => {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
-  const [loginError, setLoginError] = useState<string | null>(null);
   const { data: session, status } = useSession();
+  const errorModal = useErrorModal();
+
+  const handleForgotPassword = () => {
+    if (!session) {
+      router.push("/auth/forgot-password");
+    }
+  };
+
   useEffect(() => {
     if (status === "authenticated") {
       router.replace("/dashboard"); // redirect if already logged in
@@ -68,20 +76,50 @@ const Login = () => {
 
   const handleSubmit = async (values: z.infer<typeof formSchema>) => {
     setIsLoading(true);
-    setLoginError(null);
 
     try {
       const res = await signIn("credentials", {
-        redirect: true,
+        redirect: false, // Don't redirect automatically so we can handle errors
         email: values.email,
         password: values.password,
-        callbackUrl: "/dashboard",
       });
+
       if (res?.error) {
-        setLoginError(res.error); // show error from authorize function
+        // Show user-friendly error message based on error type
+        let userMessage =
+          "Unable to sign you in. Please check your credentials and try again.";
+        let errorTitle = "Sign-In Failed";
+
+        // Parse common error types and provide appropriate messages
+        const errorLower = res.error.toLowerCase();
+        if (errorLower.includes("user not found")) {
+          userMessage = "No account found with this email address.";
+          errorTitle = "Account Not Found";
+        } else if (errorLower.includes("invalid password")) {
+          userMessage = "The password you entered is incorrect.";
+          errorTitle = "Incorrect Password";
+        } else if (errorLower.includes("verify")) {
+          userMessage = "Please verify your email address before signing in.";
+          errorTitle = "Email Verification Required";
+        } else if (errorLower.includes("google")) {
+          userMessage =
+            "This account uses Google sign-in. Please use the Google button instead.";
+          errorTitle = "Use Google Sign-In";
+        }
+
+        errorModal.showError(userMessage, "Try Again", undefined, errorTitle);
+      } else if (res?.ok) {
+        // Success - redirect to dashboard
+        router.push("/dashboard");
       }
     } catch (error) {
-      setLoginError("Invalid email or password. Please try again.");
+      // Show generic error modal for network/unexpected errors
+      errorModal.showError(
+        "We're having trouble connecting. Please check your internet connection and try again.",
+        "Try Again",
+        undefined,
+        "Connection Error"
+      );
     } finally {
       setIsLoading(false);
     }
@@ -91,49 +129,45 @@ const Login = () => {
     <>
       {status !== "authenticated" && (
         <Suspense fallback={<div>Loading...</div>}>
-          <div className="flex justify-center items-center min-h-screen">
-            <div className="mx-8 my-15 w-[390px] min-h-screen flex flex-col items-center">
-              <h3 className="font-[Inter] text-xl font-[400]">
-                Login to your account
-              </h3>
-              <br />
-              <br />
+          <div className="flex justify-center items-center min-h-screen max-h-screen overflow-hidden bg-gray-50 p-4">
+            <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl p-6 max-h-[90vh] overflow-y-auto">
+              <div className="text-center mb-6">
+                <h1 className="font-inter text-xl font-semibold text-gray-900 mb-1">
+                  Welcome back
+                </h1>
+                <p className="font-inter text-sm text-gray-600">
+                  Sign in to continue
+                </p>
+              </div>
+
               <Form {...form}>
-                {loginError && (
-                  <div
-                    className="w-full p-3 mb-4 text-sm text-red-700 bg-red-100 border border-red-200 rounded-lg"
-                    role="alert"
-                  >
-                    {loginError}
-                  </div>
-                )}
                 <form
                   onSubmit={form.handleSubmit(handleSubmit)}
-                  className="space-y-6 w-full"
+                  className="space-y-4"
                 >
                   <FormField
                     control={form.control}
                     name="email"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>
-                          Email Address<span className="text-red-600">*</span>
+                        <FormLabel className="font-inter text-sm font-medium text-gray-700">
+                          Email<span className="text-red-500 ml-1">*</span>
                         </FormLabel>
                         <FormControl>
                           <Input
-                            placeholder="Enter your email address"
+                            placeholder="Enter your email"
                             type="email"
                             autoComplete="email"
                             disabled={isLoading}
-                            className={`${
+                            className={`h-11 ${
                               form.formState.errors.email
-                                ? "border-red-500 focus:border-red-500"
+                                ? "border-red-500 focus:border-red-500 focus:ring-red-500/20"
                                 : ""
                             }`}
                             {...field}
                           />
                         </FormControl>
-                        <FormMessage />
+                        <FormMessage className="font-inter text-xs text-red-500" />
                       </FormItem>
                     )}
                   />
@@ -142,8 +176,8 @@ const Login = () => {
                     name="password"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>
-                          Password<span className="text-red-600">*</span>
+                        <FormLabel className="font-inter text-sm font-medium text-gray-700">
+                          Password<span className="text-red-500 ml-1">*</span>
                         </FormLabel>
                         <FormControl>
                           <Input
@@ -151,22 +185,33 @@ const Login = () => {
                             placeholder="Enter your password"
                             autoComplete="current-password"
                             disabled={isLoading}
-                            className={`${
+                            className={`h-11 ${
                               form.formState.errors.password
-                                ? "border-red-500 focus:border-red-500"
+                                ? "border-red-500 focus:border-red-500 focus:ring-red-500/20"
                                 : ""
                             }`}
                             {...field}
                           />
                         </FormControl>
-                        <FormMessage />
+                        <FormMessage className="font-inter text-xs text-red-500" />
                       </FormItem>
                     )}
                   />
 
+                  {/* Forgot Password Link */}
+                  <div className="text-right">
+                    <button
+                      type="button"
+                      onClick={handleForgotPassword}
+                      className="text-sm font-inter text-blue-600 hover:text-blue-700 transition-colors"
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
+
                   <Button
                     type="submit"
-                    className="self-center w-full"
+                    className="w-full h-11 font-inter font-medium mt-6"
                     disabled={isLoading || !form.formState.isValid}
                   >
                     {isLoading ? (
@@ -194,27 +239,53 @@ const Login = () => {
                         Signing in...
                       </span>
                     ) : (
-                      "Login to your account →"
+                      "Sign In"
                     )}
                   </Button>
                 </form>
               </Form>
 
               {/* Divider */}
-              <div className="flex items-center w-full my-6">
-                <div className="flex-1 border-t border-gray-300"></div>
-                <span className="px-3 text-sm text-gray-500">OR</span>
-                <div className="flex-1 border-t border-gray-300"></div>
+              <div className="flex items-center w-full my-4">
+                <div className="flex-1 border-t border-gray-200"></div>
+                <span className="px-3 text-xs font-inter text-gray-500">
+                  or
+                </span>
+                <div className="flex-1 border-t border-gray-200"></div>
               </div>
 
               {/* Google Sign In Button */}
               <button
-                onClick={() => signIn("google", { callbackUrl: `/dashboard` })}
+                onClick={async () => {
+                  try {
+                    const result = await signIn("google", {
+                      redirect: false,
+                    });
+
+                    if (result?.error) {
+                      errorModal.showError(
+                        "We couldn't sign you in with Google. Please try again or use email and password.",
+                        "Try Again",
+                        undefined,
+                        "Google Sign-In Error"
+                      );
+                    } else if (result?.ok) {
+                      router.push("/dashboard");
+                    }
+                  } catch (error) {
+                    errorModal.showError(
+                      "Unable to connect to Google. Please check your internet connection and try again.",
+                      "Try Again",
+                      undefined,
+                      "Connection Error"
+                    );
+                  }
+                }}
                 disabled={isLoading}
-                className={`flex items-center justify-center w-full border border-gray-300 rounded-lg px-4 py-3 bg-white transition-colors duration-200 shadow-sm ${
+                className={`flex items-center justify-center w-full h-11 border border-gray-200 rounded-lg px-4 py-3 bg-white transition-all duration-200 shadow-sm font-inter font-medium text-gray-700 ${
                   isLoading
                     ? "opacity-50 cursor-not-allowed"
-                    : "hover:bg-gray-50"
+                    : "hover:bg-gray-50 hover:border-gray-300 hover:shadow-md"
                 }`}
               >
                 <Image
@@ -222,26 +293,27 @@ const Login = () => {
                   alt="Google logo"
                   width={18}
                   height={18}
-                  className="mr-3"
+                  className="mr-2"
                 />
-                <span className="text-gray-700 font-medium">
-                  Sign in with Google
-                </span>
+                <span className="text-sm">Continue with Google</span>
               </button>
 
-              <div className="mt-6">
-                <p className="text-center text-sm text-gray-600">
-                  Don&apos;t have an account?{" "}
+              <div className="mt-4 text-center">
+                <p className="text-xs font-inter text-gray-600">
+                  Don't have an account?{" "}
                   <Link
                     href="/auth/register"
-                    className="text-blue-500 hover:text-blue-600 font-medium"
+                    className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
                   >
-                    Register now
+                    Sign up
                   </Link>
                 </p>
               </div>
             </div>
           </div>
+
+          {/* Error Modal */}
+          <errorModal.Modal />
         </Suspense>
       )}
     </>

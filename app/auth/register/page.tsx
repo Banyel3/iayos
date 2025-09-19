@@ -121,56 +121,46 @@ function RegisterContent() {
         onClose={handleCloseAlert}
         email={userEmail}
       />
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="mx-8 my-15 w-[390px] min-h-screen flex flex-col items-center">
-          <h3 className="font-[Inter] text-xl font-[400]">Create an account</h3>
-          <br />
-          <br />
+      <div className="flex justify-center items-center min-h-screen max-h-screen overflow-hidden bg-gray-50 p-4">
+        <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl p-6 max-h-[95vh] overflow-y-auto">
+          <div className="text-center mb-6">
+            <h1 className="font-inter text-xl font-semibold text-gray-900 mb-1">
+              Create account
+            </h1>
+            <p className="font-inter text-sm text-gray-600">
+              Get started today
+            </p>
+          </div>
+          
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-              <FormField
-                control={form.control}
-                name="lastName"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>
-                      Last Name<span className="text-red-600 ">*</span>
-                    </FormLabel>
-                    <FormControl>
-                      <Input placeholder="Last Name" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField
                 control={form.control}
                 name="firstName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>
-                      First Name<span className="text-red-600 ">*</span>
+                    <FormLabel className="font-inter text-sm font-medium text-gray-700">
+                      First Name<span className="text-red-500 ml-1">*</span>
                     </FormLabel>
                     <FormControl>
-                      <Input placeholder="First Name" {...field} />
+                      <Input placeholder="First name" className="h-11" {...field} />
                     </FormControl>
-                    <FormMessage />
+                    <FormMessage className="font-inter text-xs text-red-500" />
                   </FormItem>
                 )}
               />
               <FormField
                 control={form.control}
-                name="contactNum"
+                name="lastName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>
-                      Contact Number
-                      <span className="text-red-600 ">*</span>
+                    <FormLabel className="font-inter text-sm font-medium text-gray-700">
+                      Last Name<span className="text-red-500 ml-1">*</span>
                     </FormLabel>
                     <FormControl>
-                      <Input placeholder="Contact Number" {...field} />
+                      <Input placeholder="Last name" className="h-11" {...field} />
                     </FormControl>
-                    <FormMessage />
+                    <FormMessage className="font-inter text-xs text-red-500" />
                   </FormItem>
                 )}
               />
@@ -179,13 +169,28 @@ function RegisterContent() {
                 name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>
-                      Email Address<span className="text-red-600 ">*</span>
+                    <FormLabel className="font-inter text-sm font-medium text-gray-700">
+                      Email<span className="text-red-500 ml-1">*</span>
                     </FormLabel>
                     <FormControl>
-                      <Input placeholder="Email Address" {...field} />
+                      <Input placeholder="Email address" className="h-11" {...field} />
                     </FormControl>
-                    <FormMessage />
+                    <FormMessage className="font-inter text-xs text-red-500" />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="contactNum"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="font-inter text-sm font-medium text-gray-700">
+                      Phone<span className="text-red-500 ml-1">*</span>
+                    </FormLabel>
+                    <FormControl>
+                      <Input placeholder="Contact number" className="h-11" {...field} />
+                    </FormControl>
+                    <FormMessage className="font-inter text-xs text-red-500" />
                   </FormItem>
                 )}
               />
@@ -194,65 +199,90 @@ function RegisterContent() {
                 name="password"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>
-                      Password<span className="text-red-600 ">*</span>
+                    <FormLabel className="font-inter text-sm font-medium text-gray-700">
+                      Password<span className="text-red-500 ml-1">*</span>
                     </FormLabel>
                     <FormControl>
                       <Input
                         type="password"
-                        placeholder="Password"
+                        placeholder="Create password"
+                        className="h-11"
                         {...field}
                       />
                     </FormControl>
-                    <FormMessage />
+                    <FormMessage className="font-inter text-xs text-red-500" />
                   </FormItem>
                 )}
               />
 
               <Button
                 type="submit"
-                className="self-center"
+                className="w-full h-11 font-inter font-medium mt-6"
                 disabled={isLoading}
               >
-                {isLoading
-                  ? "creating account..."
-                  : "Create an account to hire now →"}
+                {isLoading ? (
+                  <span className="flex items-center justify-center">
+                    <svg
+                      className="animate-spin -ml-1 mr-3 h-4 w-4 text-white"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
+                    </svg>
+                    Creating...
+                  </span>
+                ) : (
+                  "Create Account"
+                )}
               </Button>
             </form>
           </Form>
 
           {/* Divider */}
-          <div className="flex items-center w-full my-6">
-            <div className="flex-1 border-t border-gray-300"></div>
-            <span className="px-3 text-sm text-gray-500">OR</span>
-            <div className="flex-1 border-t border-gray-300"></div>
+          <div className="flex items-center w-full my-4">
+            <div className="flex-1 border-t border-gray-200"></div>
+            <span className="px-3 text-xs font-inter text-gray-500">or</span>
+            <div className="flex-1 border-t border-gray-200"></div>
           </div>
 
           {/* Google Sign In Button */}
           <button
             onClick={() => signIn("google")}
-            className="flex items-center justify-center w-full border border-gray-300 rounded-lg px-4 py-3 bg-white hover:bg-gray-50 transition-colors duration-200 shadow-sm"
+            className="flex items-center justify-center w-full h-11 border border-gray-200 rounded-lg px-4 py-3 bg-white hover:bg-gray-50 hover:border-gray-300 hover:shadow-md transition-all duration-200 shadow-sm font-inter font-medium text-gray-700"
           >
             <Image
               src="/google-logo.svg"
               alt="Google logo"
               width={18}
               height={18}
-              className="mr-3"
+              className="mr-2"
             />
-            <span className="text-gray-700 font-medium">
-              Sign in with Google
+            <span className="text-sm">
+              Continue with Google
             </span>
           </button>
 
-          <div className="mt-6">
-            <p className="text-center text-sm text-gray-600">
+          <div className="mt-4 text-center">
+            <p className="text-xs font-inter text-gray-600">
               Already have an account?{" "}
               <Link
                 href="/auth/login"
-                className="text-blue-500 hover:text-blue-600 font-medium"
+                className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
               >
-                Log in
+                Sign in
               </Link>
             </p>
           </div>

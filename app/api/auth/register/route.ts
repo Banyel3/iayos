@@ -4,8 +4,6 @@ import bcrypt from "bcrypt";
 import crypto from "crypto";
 import { sendEmail } from "../send/route";
 import { generateVerificationEmailHTML } from "@/components/auth/verification/verification_email";
-import { redirect } from "next/navigation";
-import { profile } from "console";
 // Zod schema
 const registerSchema = z.object({
   email: z.string().email(),
@@ -80,7 +78,9 @@ export async function POST(req: Request) {
       verificationLink: verifyLink,
     });
     await sendEmail(registerUser?.email, "Email Verification", template);
-    return new Response(JSON.stringify(registerUser), { status: 201 });
+    return new Response(JSON.stringify("Email Verification Sent"), {
+      status: 201,
+    });
   } catch (err: any) {
     console.error("Registration error:", err);
 

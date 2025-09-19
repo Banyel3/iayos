@@ -153,6 +153,7 @@ export const authOptions: NextAuthOptions = {
   // Custom sign-in page instead of NextAuth default
   pages: {
     signIn: "/auth/login",
+    error: "/auth/error", // Custom error page for authentication failures
   },
 
   // Callback functions - these run at specific points in auth flow
@@ -169,6 +170,7 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user, account }) {
       // On initial sign in, add user data to token
       if (user) {
+        token.id = user.id;
         token.email = user.email;
         token.name = user.name;
         token.profileType = (user as any).profileType; // Add profileType to token
@@ -202,6 +204,7 @@ export const authOptions: NextAuthOptions = {
 
     async session({ session, token }) {
       if (token && session.user) {
+        session.user.id = token.id as string;
         session.user.email = token.email as string;
         session.user.name = token.name as string;
         session.user.profileType = token.profileType as string | null; // Add profileType to session

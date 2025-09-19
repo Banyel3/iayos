@@ -381,3 +381,122 @@ export function generateVerificationEmailHTML({
  * @deprecated Use generateVerificationEmailHTML instead
  */
 export const EmailTemplate = generateVerificationEmailHTML;
+
+/**
+ * Forgot Password Email Template Generator
+ *
+ * This TypeScript function generates a complete HTML email template
+ * for password reset purposes. It creates a responsive, styled
+ * HTML email that can be sent via email services when users request
+ * a password reset.
+ *
+ * @param resetLink - The unique password reset URL for the user
+ * @returns Complete HTML string ready to be sent as email content
+ */
+
+interface PasswordResetTemplateProps {
+  resetLink: string;
+}
+
+export function generatePasswordResetEmailHTML({
+  resetLink,
+}: PasswordResetTemplateProps): string {
+  return `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Reset Your Password - iAyos</title>
+    </head>
+    <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f9fafb; width: 100% !important; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%;">
+      <div style="max-width: 390px; width: 100%; margin: 0 auto; padding: 32px; text-align: center;">
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f9fafb;">
+          <tr>
+            <td>
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 390px; margin: 0 auto; background: white; border-radius: 16px; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1); overflow: hidden;">
+                <tr>
+                  <td style="padding: 32px; text-align: center;">
+                    
+                    <!-- Header Section -->
+                    <div style="margin-bottom: 32px;">
+                      <h1 style="font-size: 24px; font-weight: 700; color: #1f2937; margin: 0 0 8px 0;">iAyos</h1>
+                      <p style="font-size: 14px; color: #6b7280; margin: 0;">May sira? May iAyos.</p>
+                    </div>
+
+                    <!-- Icon Section -->
+                    <div style="width: 48px; height: 48px; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); border-radius: 50%; margin: 0 auto 24px auto; display: flex; align-items: center; justify-content: center; font-size: 24px; line-height: 48px;">
+                      🔑
+                    </div>
+
+                    <!-- Main Content -->
+                    <h2 style="font-size: 24px; font-weight: 700; color: #1f2937; margin: 0 0 12px 0; text-align: center;">Reset Your Password</h2>
+                    
+                    <p style="font-size: 16px; color: #4b5563; text-align: center; line-height: 1.625; margin: 0 0 24px 0;">
+                      We received a request to reset your password for your <span style="font-weight: 600; color: #f59e0b;">iAyos</span> account. Click the button below to create a new password.
+                    </p>
+
+                    <!-- Security Notice -->
+                    <div style="background-color: #fef3c7; border-left: 4px solid #fbbf24; padding: 16px; margin-bottom: 24px; text-align: left;">
+                      <p style="font-size: 14px; color: #92400e; margin: 0;">
+                        <span style="font-weight: 600;">🔒 Security Notice:</span> For your protection, this link will expire in 15 minutes. If you didn't request this password reset, you can safely ignore this email.
+                      </p>
+                    </div>
+
+                    <!-- Reset Button -->
+                    <div style="margin-bottom: 24px;">
+                      <a href="${resetLink}" style="display: inline-block; min-width: 200px; background: linear-gradient(135deg, #1f2937 0%, #374151 100%); color: white !important; font-weight: 600; padding: 14px 28px; border-radius: 8px; text-decoration: none; text-align: center; font-size: 16px; box-shadow: 0 4px 12px rgba(31, 41, 55, 0.2);">
+                        Reset My Password
+                      </a>
+                    </div>
+
+                    <!-- Alternative Method -->
+                    <div style="margin-bottom: 32px; width: 100%;">
+                      <p style="font-size: 14px; color: #6b7280; text-align: center; margin: 0 0 12px 0;">
+                        If the button doesn't work, copy and paste this link into your browser:
+                      </p>
+                      <div style="background-color: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; text-align: center; word-break: break-all;">
+                        <span style="font-size: 12px; color: #2563eb;">${resetLink}</span>
+                      </div>
+                    </div>
+
+                    <!-- Help Section -->
+                    <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; width: 100%; margin-bottom: 24px; text-align: left;">
+                      <h3 style="font-size: 14px; font-weight: 600; color: #1f2937; margin: 0 0 8px 0;">Need Help?</h3>
+                      <ul style="list-style: none; font-size: 14px; color: #4b5563; margin: 0; padding: 0;">
+                        <li style="margin-bottom: 4px;">• Password must be at least 6 characters</li>
+                        <li style="margin-bottom: 4px;">• Use a mix of letters, numbers, and symbols</li>
+                        <li style="margin-bottom: 4px;">• Don't use personal information</li>
+                      </ul>
+                    </div>
+
+                    <!-- Footer -->
+                    <div style="margin-top: 32px; padding-top: 24px; border-top: 1px solid #e5e7eb;">
+                      <p style="font-size: 12px; color: #9ca3af; margin: 4px 0;">
+                        This email was sent from iAyos
+                      </p>
+                      <p style="font-size: 12px; color: #9ca3af; margin: 4px 0;">
+                        © 2025 iAyos. All rights reserved.
+                      </p>
+                    </div>
+
+                    <!-- Login Link -->
+                    <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #e5e7eb;">
+                      <p style="font-size: 14px; color: #6b7280; margin: 0;">
+                        Remember your password? 
+                        <a href="/auth/login" style="color: #2563eb; text-decoration: none; font-weight: 600;">
+                          Sign in to your account
+                        </a>
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </div>
+    </body>
+    </html>
+  `;
+}

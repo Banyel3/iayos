@@ -27,56 +27,56 @@ const Onboard = () => {
   });
 
   return (
-    <div className="flex justify-center items-center min-h-screen">
+    <div className="flex justify-center items-center min-h-screen max-h-screen overflow-hidden bg-gray-50 p-4">
       <div
-        className="mx-auto max-w-[390px] min-h-screen flex flex-col justify-between transition-transform duration-300 ease-out"
+        className="w-full max-w-sm h-full flex flex-col transition-transform duration-300 ease-out"
         style={{
           transform: `translateX(${translateX}px)`,
           opacity: isTransitioning ? 0.8 : 1,
         }}
       >
-        <div className="flex flex-col justify-around flex-1">
-          <div>
-            <header className="px-4 font-bold text-2xl text-center font-[Fredoka]">
-              who&apos;s in the iAyos Community
+        <div className="flex flex-col justify-center flex-1 py-8">
+          <div className="text-center px-2 mb-8">
+            <header className="font-bold text-xl font-inter leading-tight">
+              Who's in the iAyos Community
             </header>
           </div>
-          <div>
-            <div className="flex justify-center">
-              <img src="/iayos_stat.svg" alt="" />
+          <div className="text-center px-2">
+            <div className="flex justify-center mb-6">
+              <img src="/iayos_stat.svg" alt="iAyos statistics" className="max-w-full h-auto" />
             </div>
-            <h1 className="p-4 text-[34px] leading-[100%] font-[700] font-[Inter] text-center">
+            <h1 className="text-3xl leading-tight font-bold font-inter mb-6">
               Find the right people for the job
             </h1>
-            <br />
-            <p className="px-4 text-lg text-center">
-              Connect with skilled workers for all your <br />
-              home service needs
+            <p className="text-base text-gray-600 font-inter mb-8">
+              Connect with skilled workers for all your home service needs
             </p>
           </div>
-          <div>
-            <header className="px-4 py-1 text-center space-y-2">
-              <h1 className="font-light text-[18px] text-sm/snug">
+          <div className="px-2">
+            <div className="text-center mb-6">
+              <h2 className="font-medium text-lg font-inter">
                 What are you looking for?
-              </h1>
-            </header>
-            <main className="p-4 text-black space-y-4">
+              </h2>
+            </div>
+            <div className="space-y-4">
               <ButtonComp
                 label="I'm looking for a worker"
                 variant="primary"
                 link="/onboard/clients-view"
-                style="h-12"
+                style="h-12 w-full"
               />
               <ButtonComp
                 label="I'm looking for a job"
                 variant="secondary"
                 link="/onboard/workers-view"
-                style="h-12"
+                style="h-12 w-full"
               />
-            </main>
+            </div>
           </div>
         </div>
-        <PageIndicator currentPage={2} totalPages={3} />
+        <div className="pb-8">
+          <PageIndicator currentPage={2} totalPages={3} />
+        </div>
       </div>
     </div>
   );
