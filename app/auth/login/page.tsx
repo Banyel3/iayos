@@ -22,7 +22,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { useSession } from "next-auth/react";
 import { useErrorModal } from "@/components/ui/error-modal";
-import Turnstile from "react-turnstile";
 
 const formSchema = z.object({
   email: z
@@ -33,7 +32,6 @@ const formSchema = z.object({
     .string()
     .min(1, "Password is required")
     .min(6, "Password must be at least 6 characters"),
-  turnstileToken: z.string().min(1, "Captcha required"),
 });
 
 const Login = () => {
@@ -85,8 +83,6 @@ const Login = () => {
     return () => clearInterval(timer);
   }, []);
 
-  if (status === "loading") return <p>Loading...</p>; // optional
-
   useEffect(() => {
     if (typeof window !== "undefined") {
       localStorage.setItem("hasSeenOnboard", "true");
@@ -102,6 +98,8 @@ const Login = () => {
     },
   });
 
+  if (status === "loading") return <p>Loading...</p>; // optional
+
   const handleSubmit = async (values: z.infer<typeof formSchema>) => {
     setIsLoading(true);
 
@@ -110,7 +108,6 @@ const Login = () => {
         redirect: false, // Don't redirect automatically so we can handle errors
         email: values.email,
         password: values.password,
-        turnstileToken: values.turnstileToken,
       });
 
       if (res?.error) {
@@ -135,7 +132,7 @@ const Login = () => {
           setRateLimitTime(300);
 
           userMessage =
-            "You've made too many login attempts. Please wait before trying again.";
+            "You&apos;ve made too many login attempts. Please wait before trying again.";
           errorTitle = "Too Many Attempts";
         } else if (errorLower.includes("user not found")) {
           userMessage = "No account found with this email address.";
@@ -160,7 +157,7 @@ const Login = () => {
     } catch (error) {
       // Show generic error modal for network/unexpected errors
       errorModal.showError(
-        "We're having trouble connecting. Please check your internet connection and try again.",
+        "We&apos;re having trouble connecting. Please check your internet connection and try again.",
         "Try Again",
         undefined,
         "Connection Error"
@@ -253,10 +250,7 @@ const Login = () => {
                       Forgot password?
                     </button>
                   </div>
-                  <Turnstile
-                    sitekey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
-                    onVerify={(token) => form.setValue("turnstileToken", token)} // Save to form
-                  />
+
                   <Button
                     type="submit"
                     className="w-full h-11 font-inter font-medium mt-6"
@@ -319,7 +313,7 @@ const Login = () => {
 
                     if (result?.error) {
                       errorModal.showError(
-                        "We couldn't sign you in with Google. Please try again or use email and password.",
+                        "We couldn&apos;t sign you in with Google. Please try again or use email and password.",
                         "Try Again",
                         undefined,
                         "Google Sign-In Error"
@@ -355,7 +349,7 @@ const Login = () => {
 
               <div className="mt-4 text-center">
                 <p className="text-xs font-inter text-gray-600">
-                  Don't have an account?{" "}
+                  Don&apos;t have an account?{" "}
                   <Link
                     href="/auth/register"
                     className="text-blue-600 hover:text-blue-700 font-medium transition-colors"

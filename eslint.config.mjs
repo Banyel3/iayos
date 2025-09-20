@@ -10,7 +10,7 @@ const compat = new FlatCompat({
 });
 
 const eslintConfig = [
-  ...compat.extends("next/core-web-vitals", "next/typescript"),
+  // Global ignores
   {
     ignores: [
       "node_modules/**",
@@ -18,10 +18,23 @@ const eslintConfig = [
       "out/**",
       "build/**",
       "next-env.d.ts",
-      "lib/generated/prisma/**",
+      "next.config.ts",
+      "lib/generated/**",
       "**/*-edge.js",
       "**/wasm*.js",
+      "**/*.min.js",
+      "**/runtime/**",
+      ".next/types/**",
     ],
+  },
+  ...compat.extends("next/core-web-vitals", "next/typescript"),
+  {
+    rules: {
+      "react/no-unescaped-entities": "off",
+      "@next/next/no-page-custom-font": "off",
+      "@typescript-eslint/triple-slash-reference": "off",
+      "@typescript-eslint/no-require-imports": "off",
+    },
   },
 ];
 

@@ -1,36 +1,17 @@
 import { NextResponse } from "next/server";
-import nodemailer from "nodemailer";
+import { sendEmail } from "@/lib/email";
 
-export const sendEmail = async (
-  userEmail: string,
-  subject: string,
-  message: string
-) => {
+export async function POST(req: Request) {
   try {
-    const transporter = nodemailer.createTransport({
-      host: "smtp.resend.com",
-      port: 465,
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-    });
-    const mailOptions = {
-      from: process.env.SMTP_EMAIL_FROM,
-      to: userEmail,
-      subject,
-      html: message,
-    };
+    const { to, subject, message } = await req.json();
 
-    await transporter.sendMail(mailOptions);
+    await sendEmail(to, subject, message);
+
+    return NextResponse.json({ success: true });
   } catch (error) {
     return NextResponse.json(
-      {
-        error: "Something went wrong" + error,
-      },
-      {
-        status: 500,
-      }
+      { error: "Something went wrong", details: (error as Error).message },
+      { status: 500 }
     );
   }
-};
+}

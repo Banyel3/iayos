@@ -48,7 +48,7 @@ export function EmailVerificationAlert({
 
           {/* Main message */}
           <p className="text-gray-600 mb-4 leading-relaxed">
-            We've sent a verification link to{" "}
+            We&apos;ve sent a verification link to{" "}
             {email ? (
               <span className="font-medium text-gray-900">{email}</span>
             ) : (
@@ -61,8 +61,8 @@ export function EmailVerificationAlert({
           {/* Additional info */}
           <div className="bg-blue-50 rounded-lg p-3 mb-4">
             <p className="text-xs text-blue-800">
-              <strong>Tip:</strong> Don't forget to check your spam/junk folder
-              if you don't see the email in your inbox.
+              <strong>Tip:</strong> Don&apos;t forget to check your spam/junk
+              folder if you don&apos;t see the email in your inbox.
             </p>
           </div>
 
@@ -76,7 +76,7 @@ export function EmailVerificationAlert({
 
           {/* Resend link */}
           <p className="text-xs text-gray-500 mt-3">
-            Didn't receive the email?{" "}
+            Didn&apos;t receive the email?{" "}
             <button className="text-blue-600 hover:text-blue-700 underline">
               Resend verification email
             </button>
@@ -134,7 +134,7 @@ export function PasswordResetAlert({
 
           {/* Main message */}
           <p className="text-gray-600 mb-4 leading-relaxed font-inter">
-            We've sent a password reset link to{" "}
+            We&apos;ve sent a password reset link to{" "}
             {email ? (
               <span className="font-medium text-gray-900">{email}</span>
             ) : (
@@ -147,16 +147,16 @@ export function PasswordResetAlert({
           <div className="bg-yellow-50 rounded-lg p-3 mb-4 border border-yellow-200">
             <p className="text-xs text-yellow-800 font-inter">
               <strong>🔒 Security Notice:</strong> This link will expire in 15
-              minutes for your protection. If you didn't request this reset, you
-              can safely ignore this email.
+              minutes for your protection. If you didn&apos;t request this
+              reset, you can safely ignore this email.
             </p>
           </div>
 
           {/* Additional info */}
           <div className="bg-blue-50 rounded-lg p-3 mb-4">
             <p className="text-xs text-blue-800 font-inter">
-              <strong>Tip:</strong> Don't forget to check your spam/junk folder
-              if you don't see the email in your inbox.
+              <strong>Tip:</strong> Don&apos;t forget to check your spam/junk
+              folder if you don&apos;t see the email in your inbox.
             </p>
           </div>
 

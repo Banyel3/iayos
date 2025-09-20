@@ -22,7 +22,6 @@ import { Input } from "@/components/ui/input";
 import { EmailVerificationAlert } from "@/components/ui/email-verification-alert";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import Turnstile from "react-turnstile";
 
 const formSchema = z.object({
   lastName: z
@@ -45,7 +44,7 @@ const formSchema = z.object({
       /[^A-Za-z0-9]/,
       "Password must contain at least one special character"
     ),
-  turnstileToken: z.string().min(1, "Captcha required"),
+  // turnstileToken: z.string().min(1, "Captcha required"), // ✅ add this
 });
 
 // Create a separate component that uses useSearchParams
@@ -231,10 +230,10 @@ function RegisterContent() {
                   </FormItem>
                 )}
               />
-              <Turnstile
+              {/* <Turnstile
                 sitekey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
                 onVerify={(token) => form.setValue("turnstileToken", token)} // Save to form
-              />
+              /> */}
 
               <Button
                 type="submit"

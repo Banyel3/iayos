@@ -30,7 +30,7 @@ interface ErrorModalProps {
  *   isOpen={showError}
  *   onClose={() => setShowError(false)}
  *   title="Authentication Error"
- *   message="We're having trouble signing you in. Please try again."
+ *   message="We&apos;re having trouble signing you in. Please try again."
  *   actionText="Try Again"
  *   onAction={() => { setShowError(false); retryAction(); }}
  * />

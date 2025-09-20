@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import bcrypt from "bcrypt";
 import crypto from "crypto";
-import { sendEmail } from "../../send/route";
+import { sendEmail } from "@/lib/email";
 import { generatePasswordResetEmailHTML } from "@/components/auth/verification/verification_email";
 
 const forgotPasswordSchema = z.object({
@@ -54,7 +54,7 @@ export async function POST(req: Request) {
     return new Response(JSON.stringify("Verification Link Sent"), {
       status: 201,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Registration error:", err);
     return new Response(
       JSON.stringify({ error: "Verification Link Not Sent" }),

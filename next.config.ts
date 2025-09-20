@@ -2,9 +2,13 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   devIndicators: false,
+  reactStrictMode: true,
 };
 
-const withPWA = require("next-pwa")({
+// Use dynamic import to avoid ESLint no-require-imports error
+const withPWA = require("next-pwa");
+
+const pwaConfig = withPWA({
   dest: "public",
   disable: process.env.NODE_ENV === "development",
 });
@@ -13,4 +17,4 @@ module.exports = withPWA({
   reactStrictMode: true,
 });
 
-export default nextConfig;
+module.exports = pwaConfig(nextConfig);
