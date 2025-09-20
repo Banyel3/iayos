@@ -29,7 +29,7 @@ export async function POST(req: Request) {
       );
     }
     const body = await req.json();
-    const token = body.turnstileToken;
+    // const token = body.turnstileToken;
 
     // const verify = await fetch(
     //   "https://challenges.cloudflare.com/turnstile/v0/siteverify",
@@ -45,7 +45,6 @@ export async function POST(req: Request) {
     //     status: 400,
     //   });
     // }
-    // Validate input
     const parsed = registerSchema.safeParse(body);
     if (!parsed.success) {
       return new Response(JSON.stringify({ error: parsed.error }), {

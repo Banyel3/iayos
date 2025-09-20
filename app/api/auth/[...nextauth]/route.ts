@@ -80,6 +80,7 @@ export const authOptions: NextAuthOptions = {
       credentials: {
         email: {},
         password: {},
+        turnstilToken: {},
       },
       /**
        * CREDENTIAL VALIDATION FUNCTION
@@ -103,22 +104,6 @@ export const authOptions: NextAuthOptions = {
             }
           )?.body?.ip ||
           "anonymous";
-<<<<<<< Updated upstream
-
-=======
-        // const verify = await fetch(
-        //   "https://challenges.cloudflare.com/turnstile/v0/siteverify",
-        //   {
-        //     method: "POST",
-        //     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        //     body: `secret=${process.env.TURNSTILE_SECRET_KEY}&response=${token}`,
-        //   }
-        // ).then((res) => res.json());
-
-        // if (!verify.success) {
-        //   throw new Error(JSON.stringify({ error: "Captcha failed" }));
-        // }
->>>>>>> Stashed changes
         try {
           await rateLimiter.consume(ip);
         } catch (err) {
@@ -129,6 +114,21 @@ export const authOptions: NextAuthOptions = {
               msBeforeNext: rateLimiterRes.msBeforeNext, // send retry time
             })
           );
+        }
+
+        const verify = await fetch(
+          "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: `secret=${process.env.TURNSTILE_SECRET_KEY}&response=${token}`,
+          }
+        ).then((res) => res.json());
+
+        if (!verify.success) {
+          return new Response(JSON.stringify({ error: "Captcha failed" }), {
+            status: 400,
+          });
         }
         // Look up user in database by email, include their profile data
         const user = await prisma.accounts.findUnique({
