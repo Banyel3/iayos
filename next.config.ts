@@ -13,4 +13,8 @@ const pwaConfig = withPWA({
   disable: process.env.NODE_ENV === "development",
 });
 
+module.exports = withPWA({
+  reactStrictMode: true,
+});
+
 module.exports = pwaConfig(nextConfig);
