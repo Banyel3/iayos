@@ -50,7 +50,7 @@ interface GoogleProfile {
  * NEXTAUTH CONFIGURATION OPTIONS
  * This object configures how authentication works in your app
  */
-export const authOptions: NextAuthOptions = {
+const authOptions: NextAuthOptions = {
   // 🔒 SECURITY: Secret key for signing JWT tokens (REQUIRED FOR PRODUCTION)
   secret: process.env.NEXTAUTH_SECRET,
 
