@@ -25,6 +25,8 @@ import { NextAuthOptions } from "next-auth";
 import { Prisma } from "@/lib/generated/prisma/wasm";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcrypt";
+import { rateLimiter } from "@/lib/rateLimiter";
+import { RateLimiterRes } from "rate-limiter-flexible";
 
 // Environment variables for Google OAuth
 // These must be set in your .env.local file
@@ -84,10 +86,25 @@ export const authOptions: NextAuthOptions = {
        * This function runs when user submits email/password
        * It checks if the user exists and password is correct
        */
-      authorize: async (credentials) => {
+      authorize: async (credentials, req) => {
         // Get the password from form submission
         const inputPassword = credentials!.password;
+        const ip =
+          (req as any)?.headers?.["x-client-ip"] ||
+          (req as any)?.body?.ip ||
+          "anonymous";
 
+        try {
+          await rateLimiter.consume(ip);
+        } catch (err) {
+          const rateLimiterRes = err as RateLimiterRes;
+          throw new Error(
+            JSON.stringify({
+              type: "rate-limit",
+              msBeforeNext: rateLimiterRes.msBeforeNext, // send retry time
+            })
+          );
+        }
         // Look up user in database by email, include their profile data
         const user = await prisma.accounts.findUnique({
           where: { email: credentials?.email },

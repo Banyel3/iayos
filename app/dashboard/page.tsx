@@ -2,8 +2,7 @@
 
 import { SessionProvider, useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { signIn } from "next-auth/react";
+import { useState, useEffect } from "react";
 
 const TempDashboard = () => {
   const { data: session, status } = useSession();
@@ -12,6 +11,37 @@ const TempDashboard = () => {
     null
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [redirectCountdown, setRedirectCountdown] = useState(3);
+
+  // Redirect logic for existing profileType
+  useEffect(() => {
+    if (session?.user?.profileType === "WORKER") {
+      router.replace("/dashboard/worker");
+    }
+    if (session?.user?.profileType === "CLIENT") {
+      router.replace("/dashboard/client");
+    }
+  });
+
+  // Auto-redirect countdown for unauthorized users
+  useEffect(() => {
+    if (status !== "loading" && !session) {
+      let countdown = 3; // change this number for seconds
+      setRedirectCountdown(countdown);
+
+      const interval = setInterval(() => {
+        countdown -= 1;
+        setRedirectCountdown(countdown);
+
+        if (countdown <= 0) {
+          clearInterval(interval);
+          router.push("/auth/login");
+        }
+      }, 1000);
+
+      return () => clearInterval(interval);
+    }
+  }, [session, status, router]);
 
   if (status === "loading") {
     return (
@@ -26,31 +56,70 @@ const TempDashboard = () => {
 
   if (!session) {
     return (
-      <div className="flex justify-center items-center min-h-screen bg-gray-50">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-800 mb-4">
-            Access Denied
-          </h1>
-          <p className="text-gray-600 mb-6">You are not logged in.</p>
-          <button
-            onClick={() => router.push("/auth/login")}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Go to Login
-          </button>
-        </div>
-      </div>
-    );
-  }
+      <>
+        {/* Modal Overlay */}
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full mx-4 relative">
+            {/* Content */}
+            <div className="p-6 text-center">
+              {/* Icon */}
+              <div className="mx-auto flex items-center justify-center w-16 h-16 bg-red-100 rounded-full mb-4">
+                <svg
+                  className="w-8 h-8 text-red-600"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.268 6.5c-.77.833-.192 2.5 1.732 2.5z"
+                  />
+                </svg>
+              </div>
 
-  // Redirect logic for existing profileType
-  if (session.user?.profileType === "WORKER") {
-    router.replace("/dashboard/worker");
-    return null;
-  }
-  if (session.user?.profileType === "CLIENT") {
-    router.replace("/dashboard/client");
-    return null;
+              {/* Title */}
+              <h3 className="text-lg font-semibold text-gray-900 mb-2 font-inter">
+                Access Denied
+              </h3>
+
+              {/* Message */}
+              <p className="text-gray-600 mb-4 font-inter">
+                You are not logged in. Redirecting to login page...
+              </p>
+
+              {/* Countdown */}
+              <div className="bg-blue-50 rounded-lg p-3 mb-4">
+                <p className="text-sm text-blue-800 font-inter">
+                  Redirecting in{" "}
+                  <span className="font-bold text-blue-900">
+                    {redirectCountdown}
+                  </span>{" "}
+                  second{redirectCountdown !== 1 ? "s" : ""}
+                </p>
+              </div>
+
+              {/* Manual redirect button */}
+              <button
+                onClick={() => router.push("/auth/login")}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-4 rounded-lg transition-colors duration-200 font-inter"
+              >
+                Go to Login Now
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Background content (blurred) */}
+        <div className="flex justify-center items-center min-h-screen bg-gray-50 blur-sm">
+          <div className="text-center">
+            <h1 className="text-2xl font-bold text-gray-800 mb-4">Dashboard</h1>
+            <p className="text-gray-600">Loading...</p>
+          </div>
+        </div>
+      </>
+    );
   }
 
   // Handle form submission

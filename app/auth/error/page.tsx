@@ -1,23 +1,9 @@
 "use client";
-import React from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { Button } from "@/components/ui/form_button";
-
-/**
- * Authentication Error Page
- * 
- * This page handles all authentication errors from NextAuth.
- * It displays user-friendly error messages and provides options to retry or go back.
- * 
- * Common error scenarios:
- * - Database connection issues (DATABASE_URL not found)
- * - OAuth provider errors (Google sign-in failures)
- * - Invalid credentials
- * - Network timeouts
- * - Account verification issues
- */
 
 interface ErrorDetails {
   title: string;
@@ -25,11 +11,100 @@ interface ErrorDetails {
   suggestion: string;
   actionText: string;
   actionHref: string;
+  isRateLimit?: boolean;
+}
+
+// Rate limit timer component
+function RateLimitTimer({ onTimerEnd }: { onTimerEnd: () => void }) {
+  const [timeRemaining, setTimeRemaining] = useState<number>(0);
+
+  useEffect(() => {
+    // Check if there's a stored rate limit end time
+    const rateLimitEndTime = localStorage.getItem("rateLimitEndTime");
+
+    if (rateLimitEndTime) {
+      const endTime = parseInt(rateLimitEndTime);
+      const now = Date.now();
+      const remaining = Math.max(0, Math.ceil((endTime - now) / 1000));
+
+      if (remaining > 0) {
+        setTimeRemaining(remaining);
+      } else {
+        // Timer expired, clean up
+        localStorage.removeItem("rateLimitEndTime");
+        onTimerEnd();
+        return;
+      }
+    } else {
+      // Set new rate limit (5 minutes from now based on your rateLimiter config)
+      const endTime = Date.now() + 300 * 1000; // 300 seconds = 5 minutes
+      localStorage.setItem("rateLimitEndTime", endTime.toString());
+      setTimeRemaining(300);
+    }
+
+    const timer = setInterval(() => {
+      setTimeRemaining((prev) => {
+        if (prev <= 1) {
+          localStorage.removeItem("rateLimitEndTime");
+          onTimerEnd();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [onTimerEnd]);
+
+  const formatTime = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${minutes}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  if (timeRemaining === 0) return null;
+
+  return (
+    <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+      <div className="flex items-center justify-center mb-2">
+        <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center mr-3">
+          <svg
+            className="w-4 h-4 text-red-600"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
+          </svg>
+        </div>
+        <div className="text-center">
+          <div className="text-2xl font-bold text-red-700 font-mono">
+            {formatTime(timeRemaining)}
+          </div>
+          <div className="text-sm text-red-600">
+            Time remaining until you can try again
+          </div>
+        </div>
+      </div>
+      <div className="w-full bg-red-200 rounded-full h-2">
+        <div
+          className="bg-red-500 h-2 rounded-full transition-all duration-1000"
+          style={{ width: `${((300 - timeRemaining) / 300) * 100}%` }}
+        ></div>
+      </div>
+    </div>
+  );
 }
 
 function ErrorContent() {
   const searchParams = useSearchParams();
   const error = searchParams.get("error");
+  const [canRetry, setCanRetry] = useState(false);
 
   /**
    * Parse and categorize different types of authentication errors
@@ -51,18 +126,44 @@ function ErrorContent() {
     const decodedError = decodeURIComponent(errorString).toLowerCase();
 
     // Database connection errors
-    if (decodedError.includes("database_url") || decodedError.includes("environment variable not found")) {
+    if (
+      decodedError.includes("database_url") ||
+      decodedError.includes("environment variable not found")
+    ) {
       return {
         title: "Service Temporarily Unavailable",
         message: "Our authentication service is currently experiencing issues.",
-        suggestion: "Please try again in a few minutes. If the problem continues, contact our support team.",
+        suggestion:
+          "Please try again in a few minutes. If the problem continues, contact our support team.",
         actionText: "Try Again",
         actionHref: "/auth/login",
       };
     }
 
+    // ✅ ADD: Rate limiting detection
+    if (
+      decodedError.includes("too many") ||
+      decodedError.includes("rate") ||
+      decodedError.includes("attempts")
+    ) {
+      return {
+        title: "Too Many Attempts",
+        message:
+          "You've made too many login attempts. This is a security measure to protect your account.",
+        suggestion:
+          "Please wait for the timer to complete before trying again.",
+        actionText: "Back to Login",
+        actionHref: "/auth/login",
+        isRateLimit: true,
+      };
+    }
+
     // Prisma/Database query errors
-    if (decodedError.includes("prisma") || decodedError.includes("invocation") || decodedError.includes("query")) {
+    if (
+      decodedError.includes("prisma") ||
+      decodedError.includes("invocation") ||
+      decodedError.includes("query")
+    ) {
       return {
         title: "Service Unavailable",
         message: "We're unable to process your request right now.",
@@ -77,18 +178,24 @@ function ErrorContent() {
       return {
         title: "Sign-In Issue",
         message: "We couldn't complete your sign-in request.",
-        suggestion: "Try using email and password instead, or attempt the same method again.",
+        suggestion:
+          "Try using email and password instead, or attempt the same method again.",
         actionText: "Back to Login",
         actionHref: "/auth/login",
       };
     }
 
     // Verification errors
-    if (decodedError.includes("verify") || decodedError.includes("verification")) {
+    if (
+      decodedError.includes("verify") ||
+      decodedError.includes("verification")
+    ) {
       return {
         title: "Email Verification Required",
-        message: "Your email address needs to be verified before you can sign in.",
-        suggestion: "Please check your email for a verification link, or request a new one.",
+        message:
+          "Your email address needs to be verified before you can sign in.",
+        suggestion:
+          "Please check your email for a verification link, or request a new one.",
         actionText: "Verify Email",
         actionHref: "/auth/verify-email",
       };
@@ -109,7 +216,8 @@ function ErrorContent() {
     return {
       title: "Sign-In Error",
       message: "We encountered an issue while trying to sign you in.",
-      suggestion: "Please try again. If this problem continues, contact our support team.",
+      suggestion:
+        "Please try again. If this problem continues, contact our support team.",
       actionText: "Back to Login",
       actionHref: "/auth/login",
     };
@@ -143,6 +251,11 @@ function ErrorContent() {
           {errorDetails.title}
         </h1>
 
+        {/* Rate Limit Timer */}
+        {errorDetails.isRateLimit && (
+          <RateLimitTimer onTimerEnd={() => setCanRetry(true)} />
+        )}
+
         {/* Error Message */}
         <p className="text-gray-600 text-center mb-4 leading-relaxed">
           {errorDetails.message}
@@ -155,12 +268,18 @@ function ErrorContent() {
 
         {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row gap-4 w-full max-w-sm">
-          <Button asChild className="flex-1">
+          <Button
+            asChild
+            className="flex-1"
+            disabled={errorDetails.isRateLimit && !canRetry}
+          >
             <Link href={errorDetails.actionHref}>
-              {errorDetails.actionText}
+              {errorDetails.isRateLimit && !canRetry
+                ? "Please Wait..."
+                : errorDetails.actionText}
             </Link>
           </Button>
-          
+
           <button
             onClick={() => window.history.back()}
             className="flex-1 px-4 py-3 text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors duration-200"
@@ -189,7 +308,7 @@ function ErrorContent() {
               Error ID (Development Only)
             </summary>
             <div className="mt-2 p-3 bg-gray-100 rounded text-xs font-mono text-gray-700">
-              Error Type: {error ? 'AUTH_ERROR' : 'UNKNOWN_ERROR'}
+              Error Type: {error ? "AUTH_ERROR" : "UNKNOWN_ERROR"}
               <br />
               Timestamp: {new Date().toISOString()}
               <br />
@@ -209,11 +328,13 @@ function ErrorContent() {
  */
 export default function AuthErrorPage() {
   return (
-    <Suspense fallback={
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="text-gray-500">Loading...</div>
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <div className="flex justify-center items-center min-h-screen">
+          <div className="text-gray-500">Loading...</div>
+        </div>
+      }
+    >
       <ErrorContent />
     </Suspense>
   );

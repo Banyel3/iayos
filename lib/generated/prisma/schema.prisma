@@ -38,7 +38,7 @@ model Profile {
   profileImg  String?
   firstName   String
   lastName    String?
-  contactNum  String
+  contactNum  String  @unique
   profileType String?
 
   worker         Worker_Profile?

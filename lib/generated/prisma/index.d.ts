@@ -7474,6 +7474,7 @@ export namespace Prisma {
 
   export type ProfileWhereUniqueInput = Prisma.AtLeast<{
     profileID?: number
+    contactNum?: string
     accountID_profileType?: ProfileAccountIDProfileTypeCompoundUniqueInput
     AND?: ProfileWhereInput | ProfileWhereInput[]
     OR?: ProfileWhereInput[]
@@ -7482,12 +7483,11 @@ export namespace Prisma {
     profileImg?: StringNullableFilter<"Profile"> | string | null
     firstName?: StringFilter<"Profile"> | string
     lastName?: StringNullableFilter<"Profile"> | string | null
-    contactNum?: StringFilter<"Profile"> | string
     profileType?: StringNullableFilter<"Profile"> | string | null
     worker?: XOR<Worker_ProfileNullableScalarRelationFilter, Worker_ProfileWhereInput> | null
     accounts?: XOR<AccountsScalarRelationFilter, AccountsWhereInput>
     defaultProfile?: AccountsListRelationFilter
-  }, "profileID" | "accountID_profileType">
+  }, "profileID" | "contactNum" | "accountID_profileType">
 
   export type ProfileOrderByWithAggregationInput = {
     profileID?: SortOrder

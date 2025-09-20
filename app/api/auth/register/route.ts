@@ -4,6 +4,8 @@ import bcrypt from "bcrypt";
 import crypto from "crypto";
 import { sendEmail } from "../send/route";
 import { generateVerificationEmailHTML } from "@/components/auth/verification/verification_email";
+import { rateLimiter } from "@/lib/rateLimiter";
+import { NextResponse } from "next/server";
 // Zod schema
 const registerSchema = z.object({
   email: z.string().email(),
@@ -15,6 +17,17 @@ const registerSchema = z.object({
 
 export async function POST(req: Request) {
   try {
+    const ip = req.headers.get("x-forwarded-for") || "anonymous";
+
+    // ✅ Handle rate limiting separately
+    try {
+      await rateLimiter.consume(ip);
+    } catch {
+      return NextResponse.json(
+        { success: false, message: "Too many requests. Try again later." },
+        { status: 429 }
+      );
+    }
     const body = await req.json();
     const token = body.turnstileToken;
 
@@ -79,7 +92,7 @@ export async function POST(req: Request) {
             firstName,
             lastName,
             contactNum: contactNum || "",
-            profileType: body.profileTYpe,
+            profileType: body.profileType,
           },
         },
       },

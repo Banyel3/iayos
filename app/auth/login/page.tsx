@@ -37,6 +37,8 @@ const formSchema = z.object({
 const Login = () => {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+  const [isRateLimited, setIsRateLimited] = useState(false);
+  const [rateLimitTime, setRateLimitTime] = useState(0);
   const { data: session, status } = useSession();
   const errorModal = useErrorModal();
 
@@ -51,6 +53,35 @@ const Login = () => {
       router.replace("/dashboard"); // redirect if already logged in
     }
   }, [status, session, router]);
+
+  // Check for existing rate limit on component mount and keep it updated
+  useEffect(() => {
+    const updateRateLimit = () => {
+      const rateLimitEndTime = localStorage.getItem("rateLimitEndTime");
+      if (rateLimitEndTime) {
+        const endTime = parseInt(rateLimitEndTime);
+        const now = Date.now();
+        const remaining = Math.max(0, Math.ceil((endTime - now) / 1000));
+
+        if (remaining > 0) {
+          setIsRateLimited(true);
+          setRateLimitTime(remaining);
+        } else {
+          localStorage.removeItem("rateLimitEndTime");
+          setIsRateLimited(false);
+          setRateLimitTime(0);
+        }
+      }
+    };
+
+    // Check immediately
+    updateRateLimit();
+
+    // Update every second
+    const timer = setInterval(updateRateLimit, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
 
   if (status === "loading") return <p>Loading...</p>; // optional
 
@@ -87,7 +118,23 @@ const Login = () => {
 
         // Parse common error types and provide appropriate messages
         const errorLower = res.error.toLowerCase();
-        if (errorLower.includes("user not found")) {
+
+        // Rate limiting detection
+        if (
+          errorLower.includes("too many") ||
+          errorLower.includes("rate") ||
+          errorLower.includes("attempts")
+        ) {
+          // Set rate limit timer for 5 minutes
+          const endTime = Date.now() + 300 * 1000;
+          localStorage.setItem("rateLimitEndTime", endTime.toString());
+          setIsRateLimited(true);
+          setRateLimitTime(300);
+
+          userMessage =
+            "You've made too many login attempts. Please wait before trying again.";
+          errorTitle = "Too Many Attempts";
+        } else if (errorLower.includes("user not found")) {
           userMessage = "No account found with this email address.";
           errorTitle = "Account Not Found";
         } else if (errorLower.includes("invalid password")) {
@@ -207,7 +254,9 @@ const Login = () => {
                   <Button
                     type="submit"
                     className="w-full h-11 font-inter font-medium mt-6"
-                    disabled={isLoading || !form.formState.isValid}
+                    disabled={
+                      isLoading || !form.formState.isValid || isRateLimited
+                    }
                   >
                     {isLoading ? (
                       <span className="flex items-center justify-center">
@@ -232,6 +281,11 @@ const Login = () => {
                           ></path>
                         </svg>
                         Signing in...
+                      </span>
+                    ) : isRateLimited ? (
+                      <span className="flex items-center justify-center gap-1">
+                        🕐 {Math.floor(rateLimitTime / 60)}:
+                        {(rateLimitTime % 60).toString().padStart(2, "0")}
                       </span>
                     ) : (
                       "Sign In"

@@ -1,6 +1,6 @@
 "use client";
 import React from "react";
-import { SessionProvider, useSession, signOut } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 
 const ClientDash = () => {
