@@ -47,10 +47,11 @@ interface GoogleProfile {
 }
 
 /**
- * NEXTAUTH CONFIGURATION OPTIONS
- * This object configures how authentication works in your app
+ * NEXTAUTH CONFIGURATION AND HANDLER
+ * This creates the NextAuth handler with inline configuration
+ * Only exports the required GET and POST handlers for Next.js App Router
  */
-export const authOptions: NextAuthOptions = {
+const handler = NextAuth({
   // 🔒 SECURITY: Secret key for signing JWT tokens (REQUIRED FOR PRODUCTION)
   secret: process.env.NEXTAUTH_SECRET,
 
@@ -327,13 +328,6 @@ export const authOptions: NextAuthOptions = {
       return true;
     },
   },
-};
-
-/**
- * NEXTAUTH HANDLER EXPORT
- * This creates the actual NextAuth handler function
- * It must be exported as both GET and POST to handle all HTTP methods
- */
-const handler = NextAuth(authOptions);
+});
 
 export { handler as GET, handler as POST };
