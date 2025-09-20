@@ -22,7 +22,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { useSession } from "next-auth/react";
 import { useErrorModal } from "@/components/ui/error-modal";
-import Turnstile from "react-turnstile";
 
 const formSchema = z.object({
   email: z
@@ -33,7 +32,6 @@ const formSchema = z.object({
     .string()
     .min(1, "Password is required")
     .min(6, "Password must be at least 6 characters"),
-  turnstileToken: z.string().min(1, "Captcha required"),
 });
 
 const Login = () => {
@@ -252,10 +250,7 @@ const Login = () => {
                       Forgot password?
                     </button>
                   </div>
-                  <Turnstile
-                    sitekey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
-                    onVerify={(token) => form.setValue("turnstileToken", token)} // Save to form
-                  />
+
                   <Button
                     type="submit"
                     className="w-full h-11 font-inter font-medium mt-6"

@@ -22,7 +22,6 @@ import { Input } from "@/components/ui/input";
 import { EmailVerificationAlert } from "@/components/ui/email-verification-alert";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import Turnstile from "react-turnstile";
 
 const formSchema = z.object({
   lastName: z
