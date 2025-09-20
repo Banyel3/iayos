@@ -43,16 +43,7 @@ export type Specialization = $Result.DefaultSelection<Prisma.$SpecializationPayl
  * Enums
  */
 export namespace $Enums {
-  export const profileType: {
-  WORKER: 'WORKER',
-  CLIENT: 'CLIENT',
-  BOTH: 'BOTH'
-};
-
-export type profileType = (typeof profileType)[keyof typeof profileType]
-
-
-export const availabilityStatus: {
+  export const availabilityStatus: {
   AVAILABLE: 'AVAILABLE',
   BUSY: 'BUSY',
   OFFLINE: 'OFFLINE'
@@ -61,10 +52,6 @@ export const availabilityStatus: {
 export type availabilityStatus = (typeof availabilityStatus)[keyof typeof availabilityStatus]
 
 }
-
-export type profileType = $Enums.profileType
-
-export const profileType: typeof $Enums.profileType
 
 export type availabilityStatus = $Enums.availabilityStatus
 
@@ -1278,6 +1265,37 @@ export namespace Prisma {
 
 
   /**
+   * Count Type ProfileCountOutputType
+   */
+
+  export type ProfileCountOutputType = {
+    defaultProfile: number
+  }
+
+  export type ProfileCountOutputTypeSelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    defaultProfile?: boolean | ProfileCountOutputTypeCountDefaultProfileArgs
+  }
+
+  // Custom InputTypes
+  /**
+   * ProfileCountOutputType without action
+   */
+  export type ProfileCountOutputTypeDefaultArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ProfileCountOutputType
+     */
+    select?: ProfileCountOutputTypeSelect<ExtArgs> | null
+  }
+
+  /**
+   * ProfileCountOutputType without action
+   */
+  export type ProfileCountOutputTypeCountDefaultProfileArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    where?: AccountsWhereInput
+  }
+
+
+  /**
    * Count Type Worker_ProfileCountOutputType
    */
 
@@ -1357,10 +1375,12 @@ export namespace Prisma {
 
   export type AccountsAvgAggregateOutputType = {
     accountID: number | null
+    defaultProfileId: number | null
   }
 
   export type AccountsSumAggregateOutputType = {
     accountID: number | null
+    defaultProfileId: number | null
   }
 
   export type AccountsMinAggregateOutputType = {
@@ -1368,8 +1388,12 @@ export namespace Prisma {
     email: string | null
     password: string | null
     isVerified: boolean | null
+    verifyToken: string | null
+    verifyTokenExpire: Date | null
     createdAt: Date | null
+    updatedAt: Date | null
     status: string | null
+    defaultProfileId: number | null
   }
 
   export type AccountsMaxAggregateOutputType = {
@@ -1377,8 +1401,12 @@ export namespace Prisma {
     email: string | null
     password: string | null
     isVerified: boolean | null
+    verifyToken: string | null
+    verifyTokenExpire: Date | null
     createdAt: Date | null
+    updatedAt: Date | null
     status: string | null
+    defaultProfileId: number | null
   }
 
   export type AccountsCountAggregateOutputType = {
@@ -1386,18 +1414,24 @@ export namespace Prisma {
     email: number
     password: number
     isVerified: number
+    verifyToken: number
+    verifyTokenExpire: number
     createdAt: number
+    updatedAt: number
     status: number
+    defaultProfileId: number
     _all: number
   }
 
 
   export type AccountsAvgAggregateInputType = {
     accountID?: true
+    defaultProfileId?: true
   }
 
   export type AccountsSumAggregateInputType = {
     accountID?: true
+    defaultProfileId?: true
   }
 
   export type AccountsMinAggregateInputType = {
@@ -1405,8 +1439,12 @@ export namespace Prisma {
     email?: true
     password?: true
     isVerified?: true
+    verifyToken?: true
+    verifyTokenExpire?: true
     createdAt?: true
+    updatedAt?: true
     status?: true
+    defaultProfileId?: true
   }
 
   export type AccountsMaxAggregateInputType = {
@@ -1414,8 +1452,12 @@ export namespace Prisma {
     email?: true
     password?: true
     isVerified?: true
+    verifyToken?: true
+    verifyTokenExpire?: true
     createdAt?: true
+    updatedAt?: true
     status?: true
+    defaultProfileId?: true
   }
 
   export type AccountsCountAggregateInputType = {
@@ -1423,8 +1465,12 @@ export namespace Prisma {
     email?: true
     password?: true
     isVerified?: true
+    verifyToken?: true
+    verifyTokenExpire?: true
     createdAt?: true
+    updatedAt?: true
     status?: true
+    defaultProfileId?: true
     _all?: true
   }
 
@@ -1517,10 +1563,14 @@ export namespace Prisma {
   export type AccountsGroupByOutputType = {
     accountID: number
     email: string
-    password: string
+    password: string | null
     isVerified: boolean
+    verifyToken: string | null
+    verifyTokenExpire: Date | null
     createdAt: Date
+    updatedAt: Date
     status: string
+    defaultProfileId: number | null
     _count: AccountsCountAggregateOutputType | null
     _avg: AccountsAvgAggregateOutputType | null
     _sum: AccountsSumAggregateOutputType | null
@@ -1547,9 +1597,14 @@ export namespace Prisma {
     email?: boolean
     password?: boolean
     isVerified?: boolean
+    verifyToken?: boolean
+    verifyTokenExpire?: boolean
     createdAt?: boolean
+    updatedAt?: boolean
     status?: boolean
+    defaultProfileId?: boolean
     profile?: boolean | Accounts$profileArgs<ExtArgs>
+    defaultProfile?: boolean | Accounts$defaultProfileArgs<ExtArgs>
     _count?: boolean | AccountsCountOutputTypeDefaultArgs<ExtArgs>
   }, ExtArgs["result"]["accounts"]>
 
@@ -1558,8 +1613,13 @@ export namespace Prisma {
     email?: boolean
     password?: boolean
     isVerified?: boolean
+    verifyToken?: boolean
+    verifyTokenExpire?: boolean
     createdAt?: boolean
+    updatedAt?: boolean
     status?: boolean
+    defaultProfileId?: boolean
+    defaultProfile?: boolean | Accounts$defaultProfileArgs<ExtArgs>
   }, ExtArgs["result"]["accounts"]>
 
   export type AccountsSelectUpdateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
@@ -1567,8 +1627,13 @@ export namespace Prisma {
     email?: boolean
     password?: boolean
     isVerified?: boolean
+    verifyToken?: boolean
+    verifyTokenExpire?: boolean
     createdAt?: boolean
+    updatedAt?: boolean
     status?: boolean
+    defaultProfileId?: boolean
+    defaultProfile?: boolean | Accounts$defaultProfileArgs<ExtArgs>
   }, ExtArgs["result"]["accounts"]>
 
   export type AccountsSelectScalar = {
@@ -1576,30 +1641,44 @@ export namespace Prisma {
     email?: boolean
     password?: boolean
     isVerified?: boolean
+    verifyToken?: boolean
+    verifyTokenExpire?: boolean
     createdAt?: boolean
+    updatedAt?: boolean
     status?: boolean
+    defaultProfileId?: boolean
   }
 
-  export type AccountsOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"accountID" | "email" | "password" | "isVerified" | "createdAt" | "status", ExtArgs["result"]["accounts"]>
+  export type AccountsOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"accountID" | "email" | "password" | "isVerified" | "verifyToken" | "verifyTokenExpire" | "createdAt" | "updatedAt" | "status" | "defaultProfileId", ExtArgs["result"]["accounts"]>
   export type AccountsInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     profile?: boolean | Accounts$profileArgs<ExtArgs>
+    defaultProfile?: boolean | Accounts$defaultProfileArgs<ExtArgs>
     _count?: boolean | AccountsCountOutputTypeDefaultArgs<ExtArgs>
   }
-  export type AccountsIncludeCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {}
-  export type AccountsIncludeUpdateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {}
+  export type AccountsIncludeCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    defaultProfile?: boolean | Accounts$defaultProfileArgs<ExtArgs>
+  }
+  export type AccountsIncludeUpdateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    defaultProfile?: boolean | Accounts$defaultProfileArgs<ExtArgs>
+  }
 
   export type $AccountsPayload<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     name: "Accounts"
     objects: {
       profile: Prisma.$ProfilePayload<ExtArgs>[]
+      defaultProfile: Prisma.$ProfilePayload<ExtArgs> | null
     }
     scalars: $Extensions.GetPayloadResult<{
       accountID: number
       email: string
-      password: string
+      password: string | null
       isVerified: boolean
+      verifyToken: string | null
+      verifyTokenExpire: Date | null
       createdAt: Date
+      updatedAt: Date
       status: string
+      defaultProfileId: number | null
     }, ExtArgs["result"]["accounts"]>
     composites: {}
   }
@@ -1995,6 +2074,7 @@ export namespace Prisma {
   export interface Prisma__AccountsClient<T, Null = never, ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
     readonly [Symbol.toStringTag]: "PrismaPromise"
     profile<T extends Accounts$profileArgs<ExtArgs> = {}>(args?: Subset<T, Accounts$profileArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$ProfilePayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+    defaultProfile<T extends Accounts$defaultProfileArgs<ExtArgs> = {}>(args?: Subset<T, Accounts$defaultProfileArgs<ExtArgs>>): Prisma__ProfileClient<$Result.GetResult<Prisma.$ProfilePayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
     /**
      * Attaches callbacks for the resolution and/or rejection of the Promise.
      * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -2028,8 +2108,12 @@ export namespace Prisma {
     readonly email: FieldRef<"Accounts", 'String'>
     readonly password: FieldRef<"Accounts", 'String'>
     readonly isVerified: FieldRef<"Accounts", 'Boolean'>
+    readonly verifyToken: FieldRef<"Accounts", 'String'>
+    readonly verifyTokenExpire: FieldRef<"Accounts", 'DateTime'>
     readonly createdAt: FieldRef<"Accounts", 'DateTime'>
+    readonly updatedAt: FieldRef<"Accounts", 'DateTime'>
     readonly status: FieldRef<"Accounts", 'String'>
+    readonly defaultProfileId: FieldRef<"Accounts", 'Int'>
   }
     
 
@@ -2279,6 +2363,10 @@ export namespace Prisma {
      */
     data: AccountsCreateManyInput | AccountsCreateManyInput[]
     skipDuplicates?: boolean
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: AccountsIncludeCreateManyAndReturn<ExtArgs> | null
   }
 
   /**
@@ -2349,6 +2437,10 @@ export namespace Prisma {
      * Limit how many Accounts to update.
      */
     limit?: number
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: AccountsIncludeUpdateManyAndReturn<ExtArgs> | null
   }
 
   /**
@@ -2442,6 +2534,25 @@ export namespace Prisma {
   }
 
   /**
+   * Accounts.defaultProfile
+   */
+  export type Accounts$defaultProfileArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the Profile
+     */
+    select?: ProfileSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the Profile
+     */
+    omit?: ProfileOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: ProfileInclude<ExtArgs> | null
+    where?: ProfileWhereInput
+  }
+
+  /**
    * Accounts without action
    */
   export type AccountsDefaultArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
@@ -2485,29 +2596,29 @@ export namespace Prisma {
   export type ProfileMinAggregateOutputType = {
     profileID: number | null
     accountID: number | null
+    profileImg: string | null
     firstName: string | null
     lastName: string | null
-    username: string | null
     contactNum: string | null
-    profileType: $Enums.profileType | null
+    profileType: string | null
   }
 
   export type ProfileMaxAggregateOutputType = {
     profileID: number | null
     accountID: number | null
+    profileImg: string | null
     firstName: string | null
     lastName: string | null
-    username: string | null
     contactNum: string | null
-    profileType: $Enums.profileType | null
+    profileType: string | null
   }
 
   export type ProfileCountAggregateOutputType = {
     profileID: number
     accountID: number
+    profileImg: number
     firstName: number
     lastName: number
-    username: number
     contactNum: number
     profileType: number
     _all: number
@@ -2527,9 +2638,9 @@ export namespace Prisma {
   export type ProfileMinAggregateInputType = {
     profileID?: true
     accountID?: true
+    profileImg?: true
     firstName?: true
     lastName?: true
-    username?: true
     contactNum?: true
     profileType?: true
   }
@@ -2537,9 +2648,9 @@ export namespace Prisma {
   export type ProfileMaxAggregateInputType = {
     profileID?: true
     accountID?: true
+    profileImg?: true
     firstName?: true
     lastName?: true
-    username?: true
     contactNum?: true
     profileType?: true
   }
@@ -2547,9 +2658,9 @@ export namespace Prisma {
   export type ProfileCountAggregateInputType = {
     profileID?: true
     accountID?: true
+    profileImg?: true
     firstName?: true
     lastName?: true
-    username?: true
     contactNum?: true
     profileType?: true
     _all?: true
@@ -2644,11 +2755,11 @@ export namespace Prisma {
   export type ProfileGroupByOutputType = {
     profileID: number
     accountID: number
+    profileImg: string | null
     firstName: string
-    lastName: string
-    username: string
+    lastName: string | null
     contactNum: string
-    profileType: $Enums.profileType | null
+    profileType: string | null
     _count: ProfileCountAggregateOutputType | null
     _avg: ProfileAvgAggregateOutputType | null
     _sum: ProfileSumAggregateOutputType | null
@@ -2673,21 +2784,23 @@ export namespace Prisma {
   export type ProfileSelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
     profileID?: boolean
     accountID?: boolean
+    profileImg?: boolean
     firstName?: boolean
     lastName?: boolean
-    username?: boolean
     contactNum?: boolean
     profileType?: boolean
     worker?: boolean | Profile$workerArgs<ExtArgs>
     accounts?: boolean | AccountsDefaultArgs<ExtArgs>
+    defaultProfile?: boolean | Profile$defaultProfileArgs<ExtArgs>
+    _count?: boolean | ProfileCountOutputTypeDefaultArgs<ExtArgs>
   }, ExtArgs["result"]["profile"]>
 
   export type ProfileSelectCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
     profileID?: boolean
     accountID?: boolean
+    profileImg?: boolean
     firstName?: boolean
     lastName?: boolean
-    username?: boolean
     contactNum?: boolean
     profileType?: boolean
     accounts?: boolean | AccountsDefaultArgs<ExtArgs>
@@ -2696,9 +2809,9 @@ export namespace Prisma {
   export type ProfileSelectUpdateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
     profileID?: boolean
     accountID?: boolean
+    profileImg?: boolean
     firstName?: boolean
     lastName?: boolean
-    username?: boolean
     contactNum?: boolean
     profileType?: boolean
     accounts?: boolean | AccountsDefaultArgs<ExtArgs>
@@ -2707,17 +2820,19 @@ export namespace Prisma {
   export type ProfileSelectScalar = {
     profileID?: boolean
     accountID?: boolean
+    profileImg?: boolean
     firstName?: boolean
     lastName?: boolean
-    username?: boolean
     contactNum?: boolean
     profileType?: boolean
   }
 
-  export type ProfileOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"profileID" | "accountID" | "firstName" | "lastName" | "username" | "contactNum" | "profileType", ExtArgs["result"]["profile"]>
+  export type ProfileOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"profileID" | "accountID" | "profileImg" | "firstName" | "lastName" | "contactNum" | "profileType", ExtArgs["result"]["profile"]>
   export type ProfileInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     worker?: boolean | Profile$workerArgs<ExtArgs>
     accounts?: boolean | AccountsDefaultArgs<ExtArgs>
+    defaultProfile?: boolean | Profile$defaultProfileArgs<ExtArgs>
+    _count?: boolean | ProfileCountOutputTypeDefaultArgs<ExtArgs>
   }
   export type ProfileIncludeCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     accounts?: boolean | AccountsDefaultArgs<ExtArgs>
@@ -2731,15 +2846,16 @@ export namespace Prisma {
     objects: {
       worker: Prisma.$Worker_ProfilePayload<ExtArgs> | null
       accounts: Prisma.$AccountsPayload<ExtArgs>
+      defaultProfile: Prisma.$AccountsPayload<ExtArgs>[]
     }
     scalars: $Extensions.GetPayloadResult<{
       profileID: number
       accountID: number
+      profileImg: string | null
       firstName: string
-      lastName: string
-      username: string
+      lastName: string | null
       contactNum: string
-      profileType: $Enums.profileType | null
+      profileType: string | null
     }, ExtArgs["result"]["profile"]>
     composites: {}
   }
@@ -3136,6 +3252,7 @@ export namespace Prisma {
     readonly [Symbol.toStringTag]: "PrismaPromise"
     worker<T extends Profile$workerArgs<ExtArgs> = {}>(args?: Subset<T, Profile$workerArgs<ExtArgs>>): Prisma__Worker_ProfileClient<$Result.GetResult<Prisma.$Worker_ProfilePayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
     accounts<T extends AccountsDefaultArgs<ExtArgs> = {}>(args?: Subset<T, AccountsDefaultArgs<ExtArgs>>): Prisma__AccountsClient<$Result.GetResult<Prisma.$AccountsPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
+    defaultProfile<T extends Profile$defaultProfileArgs<ExtArgs> = {}>(args?: Subset<T, Profile$defaultProfileArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$AccountsPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
     /**
      * Attaches callbacks for the resolution and/or rejection of the Promise.
      * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -3167,11 +3284,11 @@ export namespace Prisma {
   interface ProfileFieldRefs {
     readonly profileID: FieldRef<"Profile", 'Int'>
     readonly accountID: FieldRef<"Profile", 'Int'>
+    readonly profileImg: FieldRef<"Profile", 'String'>
     readonly firstName: FieldRef<"Profile", 'String'>
     readonly lastName: FieldRef<"Profile", 'String'>
-    readonly username: FieldRef<"Profile", 'String'>
     readonly contactNum: FieldRef<"Profile", 'String'>
-    readonly profileType: FieldRef<"Profile", 'profileType'>
+    readonly profileType: FieldRef<"Profile", 'String'>
   }
     
 
@@ -3587,6 +3704,30 @@ export namespace Prisma {
   }
 
   /**
+   * Profile.defaultProfile
+   */
+  export type Profile$defaultProfileArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the Accounts
+     */
+    select?: AccountsSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the Accounts
+     */
+    omit?: AccountsOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: AccountsInclude<ExtArgs> | null
+    where?: AccountsWhereInput
+    orderBy?: AccountsOrderByWithRelationInput | AccountsOrderByWithRelationInput[]
+    cursor?: AccountsWhereUniqueInput
+    take?: number
+    skip?: number
+    distinct?: AccountsScalarFieldEnum | AccountsScalarFieldEnum[]
+  }
+
+  /**
    * Profile without action
    */
   export type ProfileDefaultArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
@@ -3637,7 +3778,6 @@ export namespace Prisma {
 
   export type Worker_ProfileMinAggregateOutputType = {
     profileID: number | null
-    profileImg: string | null
     hourlyRate: Decimal | null
     responseTimeAvg: Decimal | null
     completionRate: Decimal | null
@@ -3650,7 +3790,6 @@ export namespace Prisma {
 
   export type Worker_ProfileMaxAggregateOutputType = {
     profileID: number | null
-    profileImg: string | null
     hourlyRate: Decimal | null
     responseTimeAvg: Decimal | null
     completionRate: Decimal | null
@@ -3663,7 +3802,6 @@ export namespace Prisma {
 
   export type Worker_ProfileCountAggregateOutputType = {
     profileID: number
-    profileImg: number
     hourlyRate: number
     verifiedSkills: number
     responseTimeAvg: number
@@ -3697,7 +3835,6 @@ export namespace Prisma {
 
   export type Worker_ProfileMinAggregateInputType = {
     profileID?: true
-    profileImg?: true
     hourlyRate?: true
     responseTimeAvg?: true
     completionRate?: true
@@ -3710,7 +3847,6 @@ export namespace Prisma {
 
   export type Worker_ProfileMaxAggregateInputType = {
     profileID?: true
-    profileImg?: true
     hourlyRate?: true
     responseTimeAvg?: true
     completionRate?: true
@@ -3723,7 +3859,6 @@ export namespace Prisma {
 
   export type Worker_ProfileCountAggregateInputType = {
     profileID?: true
-    profileImg?: true
     hourlyRate?: true
     verifiedSkills?: true
     responseTimeAvg?: true
@@ -3824,7 +3959,6 @@ export namespace Prisma {
 
   export type Worker_ProfileGroupByOutputType = {
     profileID: number
-    profileImg: string | null
     hourlyRate: Decimal
     verifiedSkills: JsonValue
     responseTimeAvg: Decimal
@@ -3857,7 +3991,6 @@ export namespace Prisma {
 
   export type Worker_ProfileSelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
     profileID?: boolean
-    profileImg?: boolean
     hourlyRate?: boolean
     verifiedSkills?: boolean
     responseTimeAvg?: boolean
@@ -3874,7 +4007,6 @@ export namespace Prisma {
 
   export type Worker_ProfileSelectCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
     profileID?: boolean
-    profileImg?: boolean
     hourlyRate?: boolean
     verifiedSkills?: boolean
     responseTimeAvg?: boolean
@@ -3889,7 +4021,6 @@ export namespace Prisma {
 
   export type Worker_ProfileSelectUpdateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
     profileID?: boolean
-    profileImg?: boolean
     hourlyRate?: boolean
     verifiedSkills?: boolean
     responseTimeAvg?: boolean
@@ -3904,7 +4035,6 @@ export namespace Prisma {
 
   export type Worker_ProfileSelectScalar = {
     profileID?: boolean
-    profileImg?: boolean
     hourlyRate?: boolean
     verifiedSkills?: boolean
     responseTimeAvg?: boolean
@@ -3916,7 +4046,7 @@ export namespace Prisma {
     availabilityStatus?: boolean
   }
 
-  export type Worker_ProfileOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"profileID" | "profileImg" | "hourlyRate" | "verifiedSkills" | "responseTimeAvg" | "completionRate" | "bio" | "totalEarningGross" | "withholdingBalance" | "description" | "availabilityStatus", ExtArgs["result"]["worker_Profile"]>
+  export type Worker_ProfileOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"profileID" | "hourlyRate" | "verifiedSkills" | "responseTimeAvg" | "completionRate" | "bio" | "totalEarningGross" | "withholdingBalance" | "description" | "availabilityStatus", ExtArgs["result"]["worker_Profile"]>
   export type Worker_ProfileInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     profile?: boolean | Worker_Profile$profileArgs<ExtArgs>
     freelancer_specialization?: boolean | Worker_Profile$freelancer_specializationArgs<ExtArgs>
@@ -3937,7 +4067,6 @@ export namespace Prisma {
     }
     scalars: $Extensions.GetPayloadResult<{
       profileID: number
-      profileImg: string | null
       hourlyRate: Prisma.Decimal
       verifiedSkills: Prisma.JsonValue
       responseTimeAvg: Prisma.Decimal
@@ -4373,7 +4502,6 @@ export namespace Prisma {
    */
   interface Worker_ProfileFieldRefs {
     readonly profileID: FieldRef<"Worker_Profile", 'Int'>
-    readonly profileImg: FieldRef<"Worker_Profile", 'String'>
     readonly hourlyRate: FieldRef<"Worker_Profile", 'Decimal'>
     readonly verifiedSkills: FieldRef<"Worker_Profile", 'Json'>
     readonly responseTimeAvg: FieldRef<"Worker_Profile", 'Decimal'>
@@ -7019,8 +7147,12 @@ export namespace Prisma {
     email: 'email',
     password: 'password',
     isVerified: 'isVerified',
+    verifyToken: 'verifyToken',
+    verifyTokenExpire: 'verifyTokenExpire',
     createdAt: 'createdAt',
-    status: 'status'
+    updatedAt: 'updatedAt',
+    status: 'status',
+    defaultProfileId: 'defaultProfileId'
   };
 
   export type AccountsScalarFieldEnum = (typeof AccountsScalarFieldEnum)[keyof typeof AccountsScalarFieldEnum]
@@ -7029,9 +7161,9 @@ export namespace Prisma {
   export const ProfileScalarFieldEnum: {
     profileID: 'profileID',
     accountID: 'accountID',
+    profileImg: 'profileImg',
     firstName: 'firstName',
     lastName: 'lastName',
-    username: 'username',
     contactNum: 'contactNum',
     profileType: 'profileType'
   };
@@ -7041,7 +7173,6 @@ export namespace Prisma {
 
   export const Worker_ProfileScalarFieldEnum: {
     profileID: 'profileID',
-    profileImg: 'profileImg',
     hourlyRate: 'hourlyRate',
     verifiedSkills: 'verifiedSkills',
     responseTimeAvg: 'responseTimeAvg',
@@ -7169,20 +7300,6 @@ export namespace Prisma {
 
 
   /**
-   * Reference to a field of type 'profileType'
-   */
-  export type EnumprofileTypeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'profileType'>
-    
-
-
-  /**
-   * Reference to a field of type 'profileType[]'
-   */
-  export type ListEnumprofileTypeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'profileType[]'>
-    
-
-
-  /**
    * Reference to a field of type 'Decimal'
    */
   export type DecimalFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Decimal'>
@@ -7247,21 +7364,31 @@ export namespace Prisma {
     NOT?: AccountsWhereInput | AccountsWhereInput[]
     accountID?: IntFilter<"Accounts"> | number
     email?: StringFilter<"Accounts"> | string
-    password?: StringFilter<"Accounts"> | string
+    password?: StringNullableFilter<"Accounts"> | string | null
     isVerified?: BoolFilter<"Accounts"> | boolean
+    verifyToken?: StringNullableFilter<"Accounts"> | string | null
+    verifyTokenExpire?: DateTimeNullableFilter<"Accounts"> | Date | string | null
     createdAt?: DateTimeFilter<"Accounts"> | Date | string
+    updatedAt?: DateTimeFilter<"Accounts"> | Date | string
     status?: StringFilter<"Accounts"> | string
+    defaultProfileId?: IntNullableFilter<"Accounts"> | number | null
     profile?: ProfileListRelationFilter
+    defaultProfile?: XOR<ProfileNullableScalarRelationFilter, ProfileWhereInput> | null
   }
 
   export type AccountsOrderByWithRelationInput = {
     accountID?: SortOrder
     email?: SortOrder
-    password?: SortOrder
+    password?: SortOrderInput | SortOrder
     isVerified?: SortOrder
+    verifyToken?: SortOrderInput | SortOrder
+    verifyTokenExpire?: SortOrderInput | SortOrder
     createdAt?: SortOrder
+    updatedAt?: SortOrder
     status?: SortOrder
+    defaultProfileId?: SortOrderInput | SortOrder
     profile?: ProfileOrderByRelationAggregateInput
+    defaultProfile?: ProfileOrderByWithRelationInput
   }
 
   export type AccountsWhereUniqueInput = Prisma.AtLeast<{
@@ -7270,20 +7397,29 @@ export namespace Prisma {
     AND?: AccountsWhereInput | AccountsWhereInput[]
     OR?: AccountsWhereInput[]
     NOT?: AccountsWhereInput | AccountsWhereInput[]
-    password?: StringFilter<"Accounts"> | string
+    password?: StringNullableFilter<"Accounts"> | string | null
     isVerified?: BoolFilter<"Accounts"> | boolean
+    verifyToken?: StringNullableFilter<"Accounts"> | string | null
+    verifyTokenExpire?: DateTimeNullableFilter<"Accounts"> | Date | string | null
     createdAt?: DateTimeFilter<"Accounts"> | Date | string
+    updatedAt?: DateTimeFilter<"Accounts"> | Date | string
     status?: StringFilter<"Accounts"> | string
+    defaultProfileId?: IntNullableFilter<"Accounts"> | number | null
     profile?: ProfileListRelationFilter
+    defaultProfile?: XOR<ProfileNullableScalarRelationFilter, ProfileWhereInput> | null
   }, "accountID" | "email">
 
   export type AccountsOrderByWithAggregationInput = {
     accountID?: SortOrder
     email?: SortOrder
-    password?: SortOrder
+    password?: SortOrderInput | SortOrder
     isVerified?: SortOrder
+    verifyToken?: SortOrderInput | SortOrder
+    verifyTokenExpire?: SortOrderInput | SortOrder
     createdAt?: SortOrder
+    updatedAt?: SortOrder
     status?: SortOrder
+    defaultProfileId?: SortOrderInput | SortOrder
     _count?: AccountsCountOrderByAggregateInput
     _avg?: AccountsAvgOrderByAggregateInput
     _max?: AccountsMaxOrderByAggregateInput
@@ -7297,10 +7433,14 @@ export namespace Prisma {
     NOT?: AccountsScalarWhereWithAggregatesInput | AccountsScalarWhereWithAggregatesInput[]
     accountID?: IntWithAggregatesFilter<"Accounts"> | number
     email?: StringWithAggregatesFilter<"Accounts"> | string
-    password?: StringWithAggregatesFilter<"Accounts"> | string
+    password?: StringNullableWithAggregatesFilter<"Accounts"> | string | null
     isVerified?: BoolWithAggregatesFilter<"Accounts"> | boolean
+    verifyToken?: StringNullableWithAggregatesFilter<"Accounts"> | string | null
+    verifyTokenExpire?: DateTimeNullableWithAggregatesFilter<"Accounts"> | Date | string | null
     createdAt?: DateTimeWithAggregatesFilter<"Accounts"> | Date | string
+    updatedAt?: DateTimeWithAggregatesFilter<"Accounts"> | Date | string
     status?: StringWithAggregatesFilter<"Accounts"> | string
+    defaultProfileId?: IntNullableWithAggregatesFilter<"Accounts"> | number | null
   }
 
   export type ProfileWhereInput = {
@@ -7309,48 +7449,52 @@ export namespace Prisma {
     NOT?: ProfileWhereInput | ProfileWhereInput[]
     profileID?: IntFilter<"Profile"> | number
     accountID?: IntFilter<"Profile"> | number
+    profileImg?: StringNullableFilter<"Profile"> | string | null
     firstName?: StringFilter<"Profile"> | string
-    lastName?: StringFilter<"Profile"> | string
-    username?: StringFilter<"Profile"> | string
+    lastName?: StringNullableFilter<"Profile"> | string | null
     contactNum?: StringFilter<"Profile"> | string
-    profileType?: EnumprofileTypeNullableFilter<"Profile"> | $Enums.profileType | null
+    profileType?: StringNullableFilter<"Profile"> | string | null
     worker?: XOR<Worker_ProfileNullableScalarRelationFilter, Worker_ProfileWhereInput> | null
     accounts?: XOR<AccountsScalarRelationFilter, AccountsWhereInput>
+    defaultProfile?: AccountsListRelationFilter
   }
 
   export type ProfileOrderByWithRelationInput = {
     profileID?: SortOrder
     accountID?: SortOrder
+    profileImg?: SortOrderInput | SortOrder
     firstName?: SortOrder
-    lastName?: SortOrder
-    username?: SortOrder
+    lastName?: SortOrderInput | SortOrder
     contactNum?: SortOrder
     profileType?: SortOrderInput | SortOrder
     worker?: Worker_ProfileOrderByWithRelationInput
     accounts?: AccountsOrderByWithRelationInput
+    defaultProfile?: AccountsOrderByRelationAggregateInput
   }
 
   export type ProfileWhereUniqueInput = Prisma.AtLeast<{
     profileID?: number
-    accountID?: number
+    contactNum?: string
+    accountID_profileType?: ProfileAccountIDProfileTypeCompoundUniqueInput
     AND?: ProfileWhereInput | ProfileWhereInput[]
     OR?: ProfileWhereInput[]
     NOT?: ProfileWhereInput | ProfileWhereInput[]
+    accountID?: IntFilter<"Profile"> | number
+    profileImg?: StringNullableFilter<"Profile"> | string | null
     firstName?: StringFilter<"Profile"> | string
-    lastName?: StringFilter<"Profile"> | string
-    username?: StringFilter<"Profile"> | string
-    contactNum?: StringFilter<"Profile"> | string
-    profileType?: EnumprofileTypeNullableFilter<"Profile"> | $Enums.profileType | null
+    lastName?: StringNullableFilter<"Profile"> | string | null
+    profileType?: StringNullableFilter<"Profile"> | string | null
     worker?: XOR<Worker_ProfileNullableScalarRelationFilter, Worker_ProfileWhereInput> | null
     accounts?: XOR<AccountsScalarRelationFilter, AccountsWhereInput>
-  }, "profileID" | "accountID">
+    defaultProfile?: AccountsListRelationFilter
+  }, "profileID" | "contactNum" | "accountID_profileType">
 
   export type ProfileOrderByWithAggregationInput = {
     profileID?: SortOrder
     accountID?: SortOrder
+    profileImg?: SortOrderInput | SortOrder
     firstName?: SortOrder
-    lastName?: SortOrder
-    username?: SortOrder
+    lastName?: SortOrderInput | SortOrder
     contactNum?: SortOrder
     profileType?: SortOrderInput | SortOrder
     _count?: ProfileCountOrderByAggregateInput
@@ -7366,11 +7510,11 @@ export namespace Prisma {
     NOT?: ProfileScalarWhereWithAggregatesInput | ProfileScalarWhereWithAggregatesInput[]
     profileID?: IntWithAggregatesFilter<"Profile"> | number
     accountID?: IntWithAggregatesFilter<"Profile"> | number
+    profileImg?: StringNullableWithAggregatesFilter<"Profile"> | string | null
     firstName?: StringWithAggregatesFilter<"Profile"> | string
-    lastName?: StringWithAggregatesFilter<"Profile"> | string
-    username?: StringWithAggregatesFilter<"Profile"> | string
+    lastName?: StringNullableWithAggregatesFilter<"Profile"> | string | null
     contactNum?: StringWithAggregatesFilter<"Profile"> | string
-    profileType?: EnumprofileTypeNullableWithAggregatesFilter<"Profile"> | $Enums.profileType | null
+    profileType?: StringNullableWithAggregatesFilter<"Profile"> | string | null
   }
 
   export type Worker_ProfileWhereInput = {
@@ -7378,7 +7522,6 @@ export namespace Prisma {
     OR?: Worker_ProfileWhereInput[]
     NOT?: Worker_ProfileWhereInput | Worker_ProfileWhereInput[]
     profileID?: IntFilter<"Worker_Profile"> | number
-    profileImg?: StringNullableFilter<"Worker_Profile"> | string | null
     hourlyRate?: DecimalFilter<"Worker_Profile"> | Decimal | DecimalJsLike | number | string
     verifiedSkills?: JsonFilter<"Worker_Profile">
     responseTimeAvg?: DecimalFilter<"Worker_Profile"> | Decimal | DecimalJsLike | number | string
@@ -7394,7 +7537,6 @@ export namespace Prisma {
 
   export type Worker_ProfileOrderByWithRelationInput = {
     profileID?: SortOrder
-    profileImg?: SortOrderInput | SortOrder
     hourlyRate?: SortOrder
     verifiedSkills?: SortOrder
     responseTimeAvg?: SortOrder
@@ -7413,7 +7555,6 @@ export namespace Prisma {
     AND?: Worker_ProfileWhereInput | Worker_ProfileWhereInput[]
     OR?: Worker_ProfileWhereInput[]
     NOT?: Worker_ProfileWhereInput | Worker_ProfileWhereInput[]
-    profileImg?: StringNullableFilter<"Worker_Profile"> | string | null
     hourlyRate?: DecimalFilter<"Worker_Profile"> | Decimal | DecimalJsLike | number | string
     verifiedSkills?: JsonFilter<"Worker_Profile">
     responseTimeAvg?: DecimalFilter<"Worker_Profile"> | Decimal | DecimalJsLike | number | string
@@ -7429,7 +7570,6 @@ export namespace Prisma {
 
   export type Worker_ProfileOrderByWithAggregationInput = {
     profileID?: SortOrder
-    profileImg?: SortOrderInput | SortOrder
     hourlyRate?: SortOrder
     verifiedSkills?: SortOrder
     responseTimeAvg?: SortOrder
@@ -7451,7 +7591,6 @@ export namespace Prisma {
     OR?: Worker_ProfileScalarWhereWithAggregatesInput[]
     NOT?: Worker_ProfileScalarWhereWithAggregatesInput | Worker_ProfileScalarWhereWithAggregatesInput[]
     profileID?: IntWithAggregatesFilter<"Worker_Profile"> | number
-    profileImg?: StringNullableWithAggregatesFilter<"Worker_Profile"> | string | null
     hourlyRate?: DecimalWithAggregatesFilter<"Worker_Profile"> | Decimal | DecimalJsLike | number | string
     verifiedSkills?: JsonWithAggregatesFilter<"Worker_Profile">
     responseTimeAvg?: DecimalWithAggregatesFilter<"Worker_Profile"> | Decimal | DecimalJsLike | number | string
@@ -7563,140 +7702,170 @@ export namespace Prisma {
 
   export type AccountsCreateInput = {
     email: string
-    password: string
-    isVerified: boolean
-    createdAt: Date | string
+    password?: string | null
+    isVerified?: boolean
+    verifyToken?: string | null
+    verifyTokenExpire?: Date | string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
     status: string
     profile?: ProfileCreateNestedManyWithoutAccountsInput
+    defaultProfile?: ProfileCreateNestedOneWithoutDefaultProfileInput
   }
 
   export type AccountsUncheckedCreateInput = {
     accountID?: number
     email: string
-    password: string
-    isVerified: boolean
-    createdAt: Date | string
+    password?: string | null
+    isVerified?: boolean
+    verifyToken?: string | null
+    verifyTokenExpire?: Date | string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
     status: string
+    defaultProfileId?: number | null
     profile?: ProfileUncheckedCreateNestedManyWithoutAccountsInput
   }
 
   export type AccountsUpdateInput = {
     email?: StringFieldUpdateOperationsInput | string
-    password?: StringFieldUpdateOperationsInput | string
+    password?: NullableStringFieldUpdateOperationsInput | string | null
     isVerified?: BoolFieldUpdateOperationsInput | boolean
+    verifyToken?: NullableStringFieldUpdateOperationsInput | string | null
+    verifyTokenExpire?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     status?: StringFieldUpdateOperationsInput | string
     profile?: ProfileUpdateManyWithoutAccountsNestedInput
+    defaultProfile?: ProfileUpdateOneWithoutDefaultProfileNestedInput
   }
 
   export type AccountsUncheckedUpdateInput = {
     accountID?: IntFieldUpdateOperationsInput | number
     email?: StringFieldUpdateOperationsInput | string
-    password?: StringFieldUpdateOperationsInput | string
+    password?: NullableStringFieldUpdateOperationsInput | string | null
     isVerified?: BoolFieldUpdateOperationsInput | boolean
+    verifyToken?: NullableStringFieldUpdateOperationsInput | string | null
+    verifyTokenExpire?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     status?: StringFieldUpdateOperationsInput | string
+    defaultProfileId?: NullableIntFieldUpdateOperationsInput | number | null
     profile?: ProfileUncheckedUpdateManyWithoutAccountsNestedInput
   }
 
   export type AccountsCreateManyInput = {
     accountID?: number
     email: string
-    password: string
-    isVerified: boolean
-    createdAt: Date | string
+    password?: string | null
+    isVerified?: boolean
+    verifyToken?: string | null
+    verifyTokenExpire?: Date | string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
     status: string
+    defaultProfileId?: number | null
   }
 
   export type AccountsUpdateManyMutationInput = {
     email?: StringFieldUpdateOperationsInput | string
-    password?: StringFieldUpdateOperationsInput | string
+    password?: NullableStringFieldUpdateOperationsInput | string | null
     isVerified?: BoolFieldUpdateOperationsInput | boolean
+    verifyToken?: NullableStringFieldUpdateOperationsInput | string | null
+    verifyTokenExpire?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     status?: StringFieldUpdateOperationsInput | string
   }
 
   export type AccountsUncheckedUpdateManyInput = {
     accountID?: IntFieldUpdateOperationsInput | number
     email?: StringFieldUpdateOperationsInput | string
-    password?: StringFieldUpdateOperationsInput | string
+    password?: NullableStringFieldUpdateOperationsInput | string | null
     isVerified?: BoolFieldUpdateOperationsInput | boolean
+    verifyToken?: NullableStringFieldUpdateOperationsInput | string | null
+    verifyTokenExpire?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     status?: StringFieldUpdateOperationsInput | string
+    defaultProfileId?: NullableIntFieldUpdateOperationsInput | number | null
   }
 
   export type ProfileCreateInput = {
+    profileImg?: string | null
     firstName: string
-    lastName: string
-    username: string
+    lastName?: string | null
     contactNum: string
-    profileType?: $Enums.profileType | null
+    profileType?: string | null
     worker?: Worker_ProfileCreateNestedOneWithoutProfileInput
     accounts: AccountsCreateNestedOneWithoutProfileInput
+    defaultProfile?: AccountsCreateNestedManyWithoutDefaultProfileInput
   }
 
   export type ProfileUncheckedCreateInput = {
     profileID?: number
     accountID: number
+    profileImg?: string | null
     firstName: string
-    lastName: string
-    username: string
+    lastName?: string | null
     contactNum: string
-    profileType?: $Enums.profileType | null
+    profileType?: string | null
     worker?: Worker_ProfileUncheckedCreateNestedOneWithoutProfileInput
+    defaultProfile?: AccountsUncheckedCreateNestedManyWithoutDefaultProfileInput
   }
 
   export type ProfileUpdateInput = {
+    profileImg?: NullableStringFieldUpdateOperationsInput | string | null
     firstName?: StringFieldUpdateOperationsInput | string
-    lastName?: StringFieldUpdateOperationsInput | string
-    username?: StringFieldUpdateOperationsInput | string
+    lastName?: NullableStringFieldUpdateOperationsInput | string | null
     contactNum?: StringFieldUpdateOperationsInput | string
-    profileType?: NullableEnumprofileTypeFieldUpdateOperationsInput | $Enums.profileType | null
+    profileType?: NullableStringFieldUpdateOperationsInput | string | null
     worker?: Worker_ProfileUpdateOneWithoutProfileNestedInput
     accounts?: AccountsUpdateOneRequiredWithoutProfileNestedInput
+    defaultProfile?: AccountsUpdateManyWithoutDefaultProfileNestedInput
   }
 
   export type ProfileUncheckedUpdateInput = {
     profileID?: IntFieldUpdateOperationsInput | number
     accountID?: IntFieldUpdateOperationsInput | number
+    profileImg?: NullableStringFieldUpdateOperationsInput | string | null
     firstName?: StringFieldUpdateOperationsInput | string
-    lastName?: StringFieldUpdateOperationsInput | string
-    username?: StringFieldUpdateOperationsInput | string
+    lastName?: NullableStringFieldUpdateOperationsInput | string | null
     contactNum?: StringFieldUpdateOperationsInput | string
-    profileType?: NullableEnumprofileTypeFieldUpdateOperationsInput | $Enums.profileType | null
+    profileType?: NullableStringFieldUpdateOperationsInput | string | null
     worker?: Worker_ProfileUncheckedUpdateOneWithoutProfileNestedInput
+    defaultProfile?: AccountsUncheckedUpdateManyWithoutDefaultProfileNestedInput
   }
 
   export type ProfileCreateManyInput = {
     profileID?: number
     accountID: number
+    profileImg?: string | null
     firstName: string
-    lastName: string
-    username: string
+    lastName?: string | null
     contactNum: string
-    profileType?: $Enums.profileType | null
+    profileType?: string | null
   }
 
   export type ProfileUpdateManyMutationInput = {
+    profileImg?: NullableStringFieldUpdateOperationsInput | string | null
     firstName?: StringFieldUpdateOperationsInput | string
-    lastName?: StringFieldUpdateOperationsInput | string
-    username?: StringFieldUpdateOperationsInput | string
+    lastName?: NullableStringFieldUpdateOperationsInput | string | null
     contactNum?: StringFieldUpdateOperationsInput | string
-    profileType?: NullableEnumprofileTypeFieldUpdateOperationsInput | $Enums.profileType | null
+    profileType?: NullableStringFieldUpdateOperationsInput | string | null
   }
 
   export type ProfileUncheckedUpdateManyInput = {
     profileID?: IntFieldUpdateOperationsInput | number
     accountID?: IntFieldUpdateOperationsInput | number
+    profileImg?: NullableStringFieldUpdateOperationsInput | string | null
     firstName?: StringFieldUpdateOperationsInput | string
-    lastName?: StringFieldUpdateOperationsInput | string
-    username?: StringFieldUpdateOperationsInput | string
+    lastName?: NullableStringFieldUpdateOperationsInput | string | null
     contactNum?: StringFieldUpdateOperationsInput | string
-    profileType?: NullableEnumprofileTypeFieldUpdateOperationsInput | $Enums.profileType | null
+    profileType?: NullableStringFieldUpdateOperationsInput | string | null
   }
 
   export type Worker_ProfileCreateInput = {
-    profileImg?: string | null
     hourlyRate: Decimal | DecimalJsLike | number | string
     verifiedSkills: JsonNullValueInput | InputJsonValue
     responseTimeAvg: Decimal | DecimalJsLike | number | string
@@ -7712,7 +7881,6 @@ export namespace Prisma {
 
   export type Worker_ProfileUncheckedCreateInput = {
     profileID: number
-    profileImg?: string | null
     hourlyRate: Decimal | DecimalJsLike | number | string
     verifiedSkills: JsonNullValueInput | InputJsonValue
     responseTimeAvg: Decimal | DecimalJsLike | number | string
@@ -7726,7 +7894,6 @@ export namespace Prisma {
   }
 
   export type Worker_ProfileUpdateInput = {
-    profileImg?: NullableStringFieldUpdateOperationsInput | string | null
     hourlyRate?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
     verifiedSkills?: JsonNullValueInput | InputJsonValue
     responseTimeAvg?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
@@ -7742,7 +7909,6 @@ export namespace Prisma {
 
   export type Worker_ProfileUncheckedUpdateInput = {
     profileID?: IntFieldUpdateOperationsInput | number
-    profileImg?: NullableStringFieldUpdateOperationsInput | string | null
     hourlyRate?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
     verifiedSkills?: JsonNullValueInput | InputJsonValue
     responseTimeAvg?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
@@ -7757,7 +7923,6 @@ export namespace Prisma {
 
   export type Worker_ProfileCreateManyInput = {
     profileID: number
-    profileImg?: string | null
     hourlyRate: Decimal | DecimalJsLike | number | string
     verifiedSkills: JsonNullValueInput | InputJsonValue
     responseTimeAvg: Decimal | DecimalJsLike | number | string
@@ -7770,7 +7935,6 @@ export namespace Prisma {
   }
 
   export type Worker_ProfileUpdateManyMutationInput = {
-    profileImg?: NullableStringFieldUpdateOperationsInput | string | null
     hourlyRate?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
     verifiedSkills?: JsonNullValueInput | InputJsonValue
     responseTimeAvg?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
@@ -7784,7 +7948,6 @@ export namespace Prisma {
 
   export type Worker_ProfileUncheckedUpdateManyInput = {
     profileID?: IntFieldUpdateOperationsInput | number
-    profileImg?: NullableStringFieldUpdateOperationsInput | string | null
     hourlyRate?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
     verifiedSkills?: JsonNullValueInput | InputJsonValue
     responseTimeAvg?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
@@ -7905,9 +8068,35 @@ export namespace Prisma {
     not?: NestedStringFilter<$PrismaModel> | string
   }
 
+  export type StringNullableFilter<$PrismaModel = never> = {
+    equals?: string | StringFieldRefInput<$PrismaModel> | null
+    in?: string[] | ListStringFieldRefInput<$PrismaModel> | null
+    notIn?: string[] | ListStringFieldRefInput<$PrismaModel> | null
+    lt?: string | StringFieldRefInput<$PrismaModel>
+    lte?: string | StringFieldRefInput<$PrismaModel>
+    gt?: string | StringFieldRefInput<$PrismaModel>
+    gte?: string | StringFieldRefInput<$PrismaModel>
+    contains?: string | StringFieldRefInput<$PrismaModel>
+    startsWith?: string | StringFieldRefInput<$PrismaModel>
+    endsWith?: string | StringFieldRefInput<$PrismaModel>
+    mode?: QueryMode
+    not?: NestedStringNullableFilter<$PrismaModel> | string | null
+  }
+
   export type BoolFilter<$PrismaModel = never> = {
     equals?: boolean | BooleanFieldRefInput<$PrismaModel>
     not?: NestedBoolFilter<$PrismaModel> | boolean
+  }
+
+  export type DateTimeNullableFilter<$PrismaModel = never> = {
+    equals?: Date | string | DateTimeFieldRefInput<$PrismaModel> | null
+    in?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel> | null
+    notIn?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel> | null
+    lt?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    lte?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    gt?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    gte?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    not?: NestedDateTimeNullableFilter<$PrismaModel> | Date | string | null
   }
 
   export type DateTimeFilter<$PrismaModel = never> = {
@@ -7921,10 +8110,31 @@ export namespace Prisma {
     not?: NestedDateTimeFilter<$PrismaModel> | Date | string
   }
 
+  export type IntNullableFilter<$PrismaModel = never> = {
+    equals?: number | IntFieldRefInput<$PrismaModel> | null
+    in?: number[] | ListIntFieldRefInput<$PrismaModel> | null
+    notIn?: number[] | ListIntFieldRefInput<$PrismaModel> | null
+    lt?: number | IntFieldRefInput<$PrismaModel>
+    lte?: number | IntFieldRefInput<$PrismaModel>
+    gt?: number | IntFieldRefInput<$PrismaModel>
+    gte?: number | IntFieldRefInput<$PrismaModel>
+    not?: NestedIntNullableFilter<$PrismaModel> | number | null
+  }
+
   export type ProfileListRelationFilter = {
     every?: ProfileWhereInput
     some?: ProfileWhereInput
     none?: ProfileWhereInput
+  }
+
+  export type ProfileNullableScalarRelationFilter = {
+    is?: ProfileWhereInput | null
+    isNot?: ProfileWhereInput | null
+  }
+
+  export type SortOrderInput = {
+    sort: SortOrder
+    nulls?: NullsOrder
   }
 
   export type ProfileOrderByRelationAggregateInput = {
@@ -7936,12 +8146,17 @@ export namespace Prisma {
     email?: SortOrder
     password?: SortOrder
     isVerified?: SortOrder
+    verifyToken?: SortOrder
+    verifyTokenExpire?: SortOrder
     createdAt?: SortOrder
+    updatedAt?: SortOrder
     status?: SortOrder
+    defaultProfileId?: SortOrder
   }
 
   export type AccountsAvgOrderByAggregateInput = {
     accountID?: SortOrder
+    defaultProfileId?: SortOrder
   }
 
   export type AccountsMaxOrderByAggregateInput = {
@@ -7949,8 +8164,12 @@ export namespace Prisma {
     email?: SortOrder
     password?: SortOrder
     isVerified?: SortOrder
+    verifyToken?: SortOrder
+    verifyTokenExpire?: SortOrder
     createdAt?: SortOrder
+    updatedAt?: SortOrder
     status?: SortOrder
+    defaultProfileId?: SortOrder
   }
 
   export type AccountsMinOrderByAggregateInput = {
@@ -7958,12 +8177,17 @@ export namespace Prisma {
     email?: SortOrder
     password?: SortOrder
     isVerified?: SortOrder
+    verifyToken?: SortOrder
+    verifyTokenExpire?: SortOrder
     createdAt?: SortOrder
+    updatedAt?: SortOrder
     status?: SortOrder
+    defaultProfileId?: SortOrder
   }
 
   export type AccountsSumOrderByAggregateInput = {
     accountID?: SortOrder
+    defaultProfileId?: SortOrder
   }
 
   export type IntWithAggregatesFilter<$PrismaModel = never> = {
@@ -8000,12 +8224,44 @@ export namespace Prisma {
     _max?: NestedStringFilter<$PrismaModel>
   }
 
+  export type StringNullableWithAggregatesFilter<$PrismaModel = never> = {
+    equals?: string | StringFieldRefInput<$PrismaModel> | null
+    in?: string[] | ListStringFieldRefInput<$PrismaModel> | null
+    notIn?: string[] | ListStringFieldRefInput<$PrismaModel> | null
+    lt?: string | StringFieldRefInput<$PrismaModel>
+    lte?: string | StringFieldRefInput<$PrismaModel>
+    gt?: string | StringFieldRefInput<$PrismaModel>
+    gte?: string | StringFieldRefInput<$PrismaModel>
+    contains?: string | StringFieldRefInput<$PrismaModel>
+    startsWith?: string | StringFieldRefInput<$PrismaModel>
+    endsWith?: string | StringFieldRefInput<$PrismaModel>
+    mode?: QueryMode
+    not?: NestedStringNullableWithAggregatesFilter<$PrismaModel> | string | null
+    _count?: NestedIntNullableFilter<$PrismaModel>
+    _min?: NestedStringNullableFilter<$PrismaModel>
+    _max?: NestedStringNullableFilter<$PrismaModel>
+  }
+
   export type BoolWithAggregatesFilter<$PrismaModel = never> = {
     equals?: boolean | BooleanFieldRefInput<$PrismaModel>
     not?: NestedBoolWithAggregatesFilter<$PrismaModel> | boolean
     _count?: NestedIntFilter<$PrismaModel>
     _min?: NestedBoolFilter<$PrismaModel>
     _max?: NestedBoolFilter<$PrismaModel>
+  }
+
+  export type DateTimeNullableWithAggregatesFilter<$PrismaModel = never> = {
+    equals?: Date | string | DateTimeFieldRefInput<$PrismaModel> | null
+    in?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel> | null
+    notIn?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel> | null
+    lt?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    lte?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    gt?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    gte?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    not?: NestedDateTimeNullableWithAggregatesFilter<$PrismaModel> | Date | string | null
+    _count?: NestedIntNullableFilter<$PrismaModel>
+    _min?: NestedDateTimeNullableFilter<$PrismaModel>
+    _max?: NestedDateTimeNullableFilter<$PrismaModel>
   }
 
   export type DateTimeWithAggregatesFilter<$PrismaModel = never> = {
@@ -8022,11 +8278,20 @@ export namespace Prisma {
     _max?: NestedDateTimeFilter<$PrismaModel>
   }
 
-  export type EnumprofileTypeNullableFilter<$PrismaModel = never> = {
-    equals?: $Enums.profileType | EnumprofileTypeFieldRefInput<$PrismaModel> | null
-    in?: $Enums.profileType[] | ListEnumprofileTypeFieldRefInput<$PrismaModel> | null
-    notIn?: $Enums.profileType[] | ListEnumprofileTypeFieldRefInput<$PrismaModel> | null
-    not?: NestedEnumprofileTypeNullableFilter<$PrismaModel> | $Enums.profileType | null
+  export type IntNullableWithAggregatesFilter<$PrismaModel = never> = {
+    equals?: number | IntFieldRefInput<$PrismaModel> | null
+    in?: number[] | ListIntFieldRefInput<$PrismaModel> | null
+    notIn?: number[] | ListIntFieldRefInput<$PrismaModel> | null
+    lt?: number | IntFieldRefInput<$PrismaModel>
+    lte?: number | IntFieldRefInput<$PrismaModel>
+    gt?: number | IntFieldRefInput<$PrismaModel>
+    gte?: number | IntFieldRefInput<$PrismaModel>
+    not?: NestedIntNullableWithAggregatesFilter<$PrismaModel> | number | null
+    _count?: NestedIntNullableFilter<$PrismaModel>
+    _avg?: NestedFloatNullableFilter<$PrismaModel>
+    _sum?: NestedIntNullableFilter<$PrismaModel>
+    _min?: NestedIntNullableFilter<$PrismaModel>
+    _max?: NestedIntNullableFilter<$PrismaModel>
   }
 
   export type Worker_ProfileNullableScalarRelationFilter = {
@@ -8039,17 +8304,27 @@ export namespace Prisma {
     isNot?: AccountsWhereInput
   }
 
-  export type SortOrderInput = {
-    sort: SortOrder
-    nulls?: NullsOrder
+  export type AccountsListRelationFilter = {
+    every?: AccountsWhereInput
+    some?: AccountsWhereInput
+    none?: AccountsWhereInput
+  }
+
+  export type AccountsOrderByRelationAggregateInput = {
+    _count?: SortOrder
+  }
+
+  export type ProfileAccountIDProfileTypeCompoundUniqueInput = {
+    accountID: number
+    profileType: string
   }
 
   export type ProfileCountOrderByAggregateInput = {
     profileID?: SortOrder
     accountID?: SortOrder
+    profileImg?: SortOrder
     firstName?: SortOrder
     lastName?: SortOrder
-    username?: SortOrder
     contactNum?: SortOrder
     profileType?: SortOrder
   }
@@ -8062,9 +8337,9 @@ export namespace Prisma {
   export type ProfileMaxOrderByAggregateInput = {
     profileID?: SortOrder
     accountID?: SortOrder
+    profileImg?: SortOrder
     firstName?: SortOrder
     lastName?: SortOrder
-    username?: SortOrder
     contactNum?: SortOrder
     profileType?: SortOrder
   }
@@ -8072,9 +8347,9 @@ export namespace Prisma {
   export type ProfileMinOrderByAggregateInput = {
     profileID?: SortOrder
     accountID?: SortOrder
+    profileImg?: SortOrder
     firstName?: SortOrder
     lastName?: SortOrder
-    username?: SortOrder
     contactNum?: SortOrder
     profileType?: SortOrder
   }
@@ -8082,31 +8357,6 @@ export namespace Prisma {
   export type ProfileSumOrderByAggregateInput = {
     profileID?: SortOrder
     accountID?: SortOrder
-  }
-
-  export type EnumprofileTypeNullableWithAggregatesFilter<$PrismaModel = never> = {
-    equals?: $Enums.profileType | EnumprofileTypeFieldRefInput<$PrismaModel> | null
-    in?: $Enums.profileType[] | ListEnumprofileTypeFieldRefInput<$PrismaModel> | null
-    notIn?: $Enums.profileType[] | ListEnumprofileTypeFieldRefInput<$PrismaModel> | null
-    not?: NestedEnumprofileTypeNullableWithAggregatesFilter<$PrismaModel> | $Enums.profileType | null
-    _count?: NestedIntNullableFilter<$PrismaModel>
-    _min?: NestedEnumprofileTypeNullableFilter<$PrismaModel>
-    _max?: NestedEnumprofileTypeNullableFilter<$PrismaModel>
-  }
-
-  export type StringNullableFilter<$PrismaModel = never> = {
-    equals?: string | StringFieldRefInput<$PrismaModel> | null
-    in?: string[] | ListStringFieldRefInput<$PrismaModel> | null
-    notIn?: string[] | ListStringFieldRefInput<$PrismaModel> | null
-    lt?: string | StringFieldRefInput<$PrismaModel>
-    lte?: string | StringFieldRefInput<$PrismaModel>
-    gt?: string | StringFieldRefInput<$PrismaModel>
-    gte?: string | StringFieldRefInput<$PrismaModel>
-    contains?: string | StringFieldRefInput<$PrismaModel>
-    startsWith?: string | StringFieldRefInput<$PrismaModel>
-    endsWith?: string | StringFieldRefInput<$PrismaModel>
-    mode?: QueryMode
-    not?: NestedStringNullableFilter<$PrismaModel> | string | null
   }
 
   export type DecimalFilter<$PrismaModel = never> = {
@@ -8150,11 +8400,6 @@ export namespace Prisma {
     not?: NestedEnumavailabilityStatusFilter<$PrismaModel> | $Enums.availabilityStatus
   }
 
-  export type ProfileNullableScalarRelationFilter = {
-    is?: ProfileWhereInput | null
-    isNot?: ProfileWhereInput | null
-  }
-
   export type Freelancer_SpecializationListRelationFilter = {
     every?: Freelancer_SpecializationWhereInput
     some?: Freelancer_SpecializationWhereInput
@@ -8167,7 +8412,6 @@ export namespace Prisma {
 
   export type Worker_ProfileCountOrderByAggregateInput = {
     profileID?: SortOrder
-    profileImg?: SortOrder
     hourlyRate?: SortOrder
     verifiedSkills?: SortOrder
     responseTimeAvg?: SortOrder
@@ -8190,7 +8434,6 @@ export namespace Prisma {
 
   export type Worker_ProfileMaxOrderByAggregateInput = {
     profileID?: SortOrder
-    profileImg?: SortOrder
     hourlyRate?: SortOrder
     responseTimeAvg?: SortOrder
     completionRate?: SortOrder
@@ -8203,7 +8446,6 @@ export namespace Prisma {
 
   export type Worker_ProfileMinOrderByAggregateInput = {
     profileID?: SortOrder
-    profileImg?: SortOrder
     hourlyRate?: SortOrder
     responseTimeAvg?: SortOrder
     completionRate?: SortOrder
@@ -8221,24 +8463,6 @@ export namespace Prisma {
     completionRate?: SortOrder
     totalEarningGross?: SortOrder
     withholdingBalance?: SortOrder
-  }
-
-  export type StringNullableWithAggregatesFilter<$PrismaModel = never> = {
-    equals?: string | StringFieldRefInput<$PrismaModel> | null
-    in?: string[] | ListStringFieldRefInput<$PrismaModel> | null
-    notIn?: string[] | ListStringFieldRefInput<$PrismaModel> | null
-    lt?: string | StringFieldRefInput<$PrismaModel>
-    lte?: string | StringFieldRefInput<$PrismaModel>
-    gt?: string | StringFieldRefInput<$PrismaModel>
-    gte?: string | StringFieldRefInput<$PrismaModel>
-    contains?: string | StringFieldRefInput<$PrismaModel>
-    startsWith?: string | StringFieldRefInput<$PrismaModel>
-    endsWith?: string | StringFieldRefInput<$PrismaModel>
-    mode?: QueryMode
-    not?: NestedStringNullableWithAggregatesFilter<$PrismaModel> | string | null
-    _count?: NestedIntNullableFilter<$PrismaModel>
-    _min?: NestedStringNullableFilter<$PrismaModel>
-    _max?: NestedStringNullableFilter<$PrismaModel>
   }
 
   export type DecimalWithAggregatesFilter<$PrismaModel = never> = {
@@ -8371,6 +8595,12 @@ export namespace Prisma {
     connect?: ProfileWhereUniqueInput | ProfileWhereUniqueInput[]
   }
 
+  export type ProfileCreateNestedOneWithoutDefaultProfileInput = {
+    create?: XOR<ProfileCreateWithoutDefaultProfileInput, ProfileUncheckedCreateWithoutDefaultProfileInput>
+    connectOrCreate?: ProfileCreateOrConnectWithoutDefaultProfileInput
+    connect?: ProfileWhereUniqueInput
+  }
+
   export type ProfileUncheckedCreateNestedManyWithoutAccountsInput = {
     create?: XOR<ProfileCreateWithoutAccountsInput, ProfileUncheckedCreateWithoutAccountsInput> | ProfileCreateWithoutAccountsInput[] | ProfileUncheckedCreateWithoutAccountsInput[]
     connectOrCreate?: ProfileCreateOrConnectWithoutAccountsInput | ProfileCreateOrConnectWithoutAccountsInput[]
@@ -8382,8 +8612,16 @@ export namespace Prisma {
     set?: string
   }
 
+  export type NullableStringFieldUpdateOperationsInput = {
+    set?: string | null
+  }
+
   export type BoolFieldUpdateOperationsInput = {
     set?: boolean
+  }
+
+  export type NullableDateTimeFieldUpdateOperationsInput = {
+    set?: Date | string | null
   }
 
   export type DateTimeFieldUpdateOperationsInput = {
@@ -8404,8 +8642,26 @@ export namespace Prisma {
     deleteMany?: ProfileScalarWhereInput | ProfileScalarWhereInput[]
   }
 
+  export type ProfileUpdateOneWithoutDefaultProfileNestedInput = {
+    create?: XOR<ProfileCreateWithoutDefaultProfileInput, ProfileUncheckedCreateWithoutDefaultProfileInput>
+    connectOrCreate?: ProfileCreateOrConnectWithoutDefaultProfileInput
+    upsert?: ProfileUpsertWithoutDefaultProfileInput
+    disconnect?: ProfileWhereInput | boolean
+    delete?: ProfileWhereInput | boolean
+    connect?: ProfileWhereUniqueInput
+    update?: XOR<XOR<ProfileUpdateToOneWithWhereWithoutDefaultProfileInput, ProfileUpdateWithoutDefaultProfileInput>, ProfileUncheckedUpdateWithoutDefaultProfileInput>
+  }
+
   export type IntFieldUpdateOperationsInput = {
     set?: number
+    increment?: number
+    decrement?: number
+    multiply?: number
+    divide?: number
+  }
+
+  export type NullableIntFieldUpdateOperationsInput = {
+    set?: number | null
     increment?: number
     decrement?: number
     multiply?: number
@@ -8438,14 +8694,24 @@ export namespace Prisma {
     connect?: AccountsWhereUniqueInput
   }
 
+  export type AccountsCreateNestedManyWithoutDefaultProfileInput = {
+    create?: XOR<AccountsCreateWithoutDefaultProfileInput, AccountsUncheckedCreateWithoutDefaultProfileInput> | AccountsCreateWithoutDefaultProfileInput[] | AccountsUncheckedCreateWithoutDefaultProfileInput[]
+    connectOrCreate?: AccountsCreateOrConnectWithoutDefaultProfileInput | AccountsCreateOrConnectWithoutDefaultProfileInput[]
+    createMany?: AccountsCreateManyDefaultProfileInputEnvelope
+    connect?: AccountsWhereUniqueInput | AccountsWhereUniqueInput[]
+  }
+
   export type Worker_ProfileUncheckedCreateNestedOneWithoutProfileInput = {
     create?: XOR<Worker_ProfileCreateWithoutProfileInput, Worker_ProfileUncheckedCreateWithoutProfileInput>
     connectOrCreate?: Worker_ProfileCreateOrConnectWithoutProfileInput
     connect?: Worker_ProfileWhereUniqueInput
   }
 
-  export type NullableEnumprofileTypeFieldUpdateOperationsInput = {
-    set?: $Enums.profileType | null
+  export type AccountsUncheckedCreateNestedManyWithoutDefaultProfileInput = {
+    create?: XOR<AccountsCreateWithoutDefaultProfileInput, AccountsUncheckedCreateWithoutDefaultProfileInput> | AccountsCreateWithoutDefaultProfileInput[] | AccountsUncheckedCreateWithoutDefaultProfileInput[]
+    connectOrCreate?: AccountsCreateOrConnectWithoutDefaultProfileInput | AccountsCreateOrConnectWithoutDefaultProfileInput[]
+    createMany?: AccountsCreateManyDefaultProfileInputEnvelope
+    connect?: AccountsWhereUniqueInput | AccountsWhereUniqueInput[]
   }
 
   export type Worker_ProfileUpdateOneWithoutProfileNestedInput = {
@@ -8466,6 +8732,20 @@ export namespace Prisma {
     update?: XOR<XOR<AccountsUpdateToOneWithWhereWithoutProfileInput, AccountsUpdateWithoutProfileInput>, AccountsUncheckedUpdateWithoutProfileInput>
   }
 
+  export type AccountsUpdateManyWithoutDefaultProfileNestedInput = {
+    create?: XOR<AccountsCreateWithoutDefaultProfileInput, AccountsUncheckedCreateWithoutDefaultProfileInput> | AccountsCreateWithoutDefaultProfileInput[] | AccountsUncheckedCreateWithoutDefaultProfileInput[]
+    connectOrCreate?: AccountsCreateOrConnectWithoutDefaultProfileInput | AccountsCreateOrConnectWithoutDefaultProfileInput[]
+    upsert?: AccountsUpsertWithWhereUniqueWithoutDefaultProfileInput | AccountsUpsertWithWhereUniqueWithoutDefaultProfileInput[]
+    createMany?: AccountsCreateManyDefaultProfileInputEnvelope
+    set?: AccountsWhereUniqueInput | AccountsWhereUniqueInput[]
+    disconnect?: AccountsWhereUniqueInput | AccountsWhereUniqueInput[]
+    delete?: AccountsWhereUniqueInput | AccountsWhereUniqueInput[]
+    connect?: AccountsWhereUniqueInput | AccountsWhereUniqueInput[]
+    update?: AccountsUpdateWithWhereUniqueWithoutDefaultProfileInput | AccountsUpdateWithWhereUniqueWithoutDefaultProfileInput[]
+    updateMany?: AccountsUpdateManyWithWhereWithoutDefaultProfileInput | AccountsUpdateManyWithWhereWithoutDefaultProfileInput[]
+    deleteMany?: AccountsScalarWhereInput | AccountsScalarWhereInput[]
+  }
+
   export type Worker_ProfileUncheckedUpdateOneWithoutProfileNestedInput = {
     create?: XOR<Worker_ProfileCreateWithoutProfileInput, Worker_ProfileUncheckedCreateWithoutProfileInput>
     connectOrCreate?: Worker_ProfileCreateOrConnectWithoutProfileInput
@@ -8474,6 +8754,20 @@ export namespace Prisma {
     delete?: Worker_ProfileWhereInput | boolean
     connect?: Worker_ProfileWhereUniqueInput
     update?: XOR<XOR<Worker_ProfileUpdateToOneWithWhereWithoutProfileInput, Worker_ProfileUpdateWithoutProfileInput>, Worker_ProfileUncheckedUpdateWithoutProfileInput>
+  }
+
+  export type AccountsUncheckedUpdateManyWithoutDefaultProfileNestedInput = {
+    create?: XOR<AccountsCreateWithoutDefaultProfileInput, AccountsUncheckedCreateWithoutDefaultProfileInput> | AccountsCreateWithoutDefaultProfileInput[] | AccountsUncheckedCreateWithoutDefaultProfileInput[]
+    connectOrCreate?: AccountsCreateOrConnectWithoutDefaultProfileInput | AccountsCreateOrConnectWithoutDefaultProfileInput[]
+    upsert?: AccountsUpsertWithWhereUniqueWithoutDefaultProfileInput | AccountsUpsertWithWhereUniqueWithoutDefaultProfileInput[]
+    createMany?: AccountsCreateManyDefaultProfileInputEnvelope
+    set?: AccountsWhereUniqueInput | AccountsWhereUniqueInput[]
+    disconnect?: AccountsWhereUniqueInput | AccountsWhereUniqueInput[]
+    delete?: AccountsWhereUniqueInput | AccountsWhereUniqueInput[]
+    connect?: AccountsWhereUniqueInput | AccountsWhereUniqueInput[]
+    update?: AccountsUpdateWithWhereUniqueWithoutDefaultProfileInput | AccountsUpdateWithWhereUniqueWithoutDefaultProfileInput[]
+    updateMany?: AccountsUpdateManyWithWhereWithoutDefaultProfileInput | AccountsUpdateManyWithWhereWithoutDefaultProfileInput[]
+    deleteMany?: AccountsScalarWhereInput | AccountsScalarWhereInput[]
   }
 
   export type ProfileCreateNestedOneWithoutWorkerInput = {
@@ -8494,10 +8788,6 @@ export namespace Prisma {
     connectOrCreate?: Freelancer_SpecializationCreateOrConnectWithoutWorker_profileInput | Freelancer_SpecializationCreateOrConnectWithoutWorker_profileInput[]
     createMany?: Freelancer_SpecializationCreateManyWorker_profileInputEnvelope
     connect?: Freelancer_SpecializationWhereUniqueInput | Freelancer_SpecializationWhereUniqueInput[]
-  }
-
-  export type NullableStringFieldUpdateOperationsInput = {
-    set?: string | null
   }
 
   export type DecimalFieldUpdateOperationsInput = {
@@ -8645,9 +8935,34 @@ export namespace Prisma {
     not?: NestedStringFilter<$PrismaModel> | string
   }
 
+  export type NestedStringNullableFilter<$PrismaModel = never> = {
+    equals?: string | StringFieldRefInput<$PrismaModel> | null
+    in?: string[] | ListStringFieldRefInput<$PrismaModel> | null
+    notIn?: string[] | ListStringFieldRefInput<$PrismaModel> | null
+    lt?: string | StringFieldRefInput<$PrismaModel>
+    lte?: string | StringFieldRefInput<$PrismaModel>
+    gt?: string | StringFieldRefInput<$PrismaModel>
+    gte?: string | StringFieldRefInput<$PrismaModel>
+    contains?: string | StringFieldRefInput<$PrismaModel>
+    startsWith?: string | StringFieldRefInput<$PrismaModel>
+    endsWith?: string | StringFieldRefInput<$PrismaModel>
+    not?: NestedStringNullableFilter<$PrismaModel> | string | null
+  }
+
   export type NestedBoolFilter<$PrismaModel = never> = {
     equals?: boolean | BooleanFieldRefInput<$PrismaModel>
     not?: NestedBoolFilter<$PrismaModel> | boolean
+  }
+
+  export type NestedDateTimeNullableFilter<$PrismaModel = never> = {
+    equals?: Date | string | DateTimeFieldRefInput<$PrismaModel> | null
+    in?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel> | null
+    notIn?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel> | null
+    lt?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    lte?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    gt?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    gte?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    not?: NestedDateTimeNullableFilter<$PrismaModel> | Date | string | null
   }
 
   export type NestedDateTimeFilter<$PrismaModel = never> = {
@@ -8659,6 +8974,17 @@ export namespace Prisma {
     gt?: Date | string | DateTimeFieldRefInput<$PrismaModel>
     gte?: Date | string | DateTimeFieldRefInput<$PrismaModel>
     not?: NestedDateTimeFilter<$PrismaModel> | Date | string
+  }
+
+  export type NestedIntNullableFilter<$PrismaModel = never> = {
+    equals?: number | IntFieldRefInput<$PrismaModel> | null
+    in?: number[] | ListIntFieldRefInput<$PrismaModel> | null
+    notIn?: number[] | ListIntFieldRefInput<$PrismaModel> | null
+    lt?: number | IntFieldRefInput<$PrismaModel>
+    lte?: number | IntFieldRefInput<$PrismaModel>
+    gt?: number | IntFieldRefInput<$PrismaModel>
+    gte?: number | IntFieldRefInput<$PrismaModel>
+    not?: NestedIntNullableFilter<$PrismaModel> | number | null
   }
 
   export type NestedIntWithAggregatesFilter<$PrismaModel = never> = {
@@ -8705,12 +9031,43 @@ export namespace Prisma {
     _max?: NestedStringFilter<$PrismaModel>
   }
 
+  export type NestedStringNullableWithAggregatesFilter<$PrismaModel = never> = {
+    equals?: string | StringFieldRefInput<$PrismaModel> | null
+    in?: string[] | ListStringFieldRefInput<$PrismaModel> | null
+    notIn?: string[] | ListStringFieldRefInput<$PrismaModel> | null
+    lt?: string | StringFieldRefInput<$PrismaModel>
+    lte?: string | StringFieldRefInput<$PrismaModel>
+    gt?: string | StringFieldRefInput<$PrismaModel>
+    gte?: string | StringFieldRefInput<$PrismaModel>
+    contains?: string | StringFieldRefInput<$PrismaModel>
+    startsWith?: string | StringFieldRefInput<$PrismaModel>
+    endsWith?: string | StringFieldRefInput<$PrismaModel>
+    not?: NestedStringNullableWithAggregatesFilter<$PrismaModel> | string | null
+    _count?: NestedIntNullableFilter<$PrismaModel>
+    _min?: NestedStringNullableFilter<$PrismaModel>
+    _max?: NestedStringNullableFilter<$PrismaModel>
+  }
+
   export type NestedBoolWithAggregatesFilter<$PrismaModel = never> = {
     equals?: boolean | BooleanFieldRefInput<$PrismaModel>
     not?: NestedBoolWithAggregatesFilter<$PrismaModel> | boolean
     _count?: NestedIntFilter<$PrismaModel>
     _min?: NestedBoolFilter<$PrismaModel>
     _max?: NestedBoolFilter<$PrismaModel>
+  }
+
+  export type NestedDateTimeNullableWithAggregatesFilter<$PrismaModel = never> = {
+    equals?: Date | string | DateTimeFieldRefInput<$PrismaModel> | null
+    in?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel> | null
+    notIn?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel> | null
+    lt?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    lte?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    gt?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    gte?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    not?: NestedDateTimeNullableWithAggregatesFilter<$PrismaModel> | Date | string | null
+    _count?: NestedIntNullableFilter<$PrismaModel>
+    _min?: NestedDateTimeNullableFilter<$PrismaModel>
+    _max?: NestedDateTimeNullableFilter<$PrismaModel>
   }
 
   export type NestedDateTimeWithAggregatesFilter<$PrismaModel = never> = {
@@ -8727,24 +9084,7 @@ export namespace Prisma {
     _max?: NestedDateTimeFilter<$PrismaModel>
   }
 
-  export type NestedEnumprofileTypeNullableFilter<$PrismaModel = never> = {
-    equals?: $Enums.profileType | EnumprofileTypeFieldRefInput<$PrismaModel> | null
-    in?: $Enums.profileType[] | ListEnumprofileTypeFieldRefInput<$PrismaModel> | null
-    notIn?: $Enums.profileType[] | ListEnumprofileTypeFieldRefInput<$PrismaModel> | null
-    not?: NestedEnumprofileTypeNullableFilter<$PrismaModel> | $Enums.profileType | null
-  }
-
-  export type NestedEnumprofileTypeNullableWithAggregatesFilter<$PrismaModel = never> = {
-    equals?: $Enums.profileType | EnumprofileTypeFieldRefInput<$PrismaModel> | null
-    in?: $Enums.profileType[] | ListEnumprofileTypeFieldRefInput<$PrismaModel> | null
-    notIn?: $Enums.profileType[] | ListEnumprofileTypeFieldRefInput<$PrismaModel> | null
-    not?: NestedEnumprofileTypeNullableWithAggregatesFilter<$PrismaModel> | $Enums.profileType | null
-    _count?: NestedIntNullableFilter<$PrismaModel>
-    _min?: NestedEnumprofileTypeNullableFilter<$PrismaModel>
-    _max?: NestedEnumprofileTypeNullableFilter<$PrismaModel>
-  }
-
-  export type NestedIntNullableFilter<$PrismaModel = never> = {
+  export type NestedIntNullableWithAggregatesFilter<$PrismaModel = never> = {
     equals?: number | IntFieldRefInput<$PrismaModel> | null
     in?: number[] | ListIntFieldRefInput<$PrismaModel> | null
     notIn?: number[] | ListIntFieldRefInput<$PrismaModel> | null
@@ -8752,21 +9092,23 @@ export namespace Prisma {
     lte?: number | IntFieldRefInput<$PrismaModel>
     gt?: number | IntFieldRefInput<$PrismaModel>
     gte?: number | IntFieldRefInput<$PrismaModel>
-    not?: NestedIntNullableFilter<$PrismaModel> | number | null
+    not?: NestedIntNullableWithAggregatesFilter<$PrismaModel> | number | null
+    _count?: NestedIntNullableFilter<$PrismaModel>
+    _avg?: NestedFloatNullableFilter<$PrismaModel>
+    _sum?: NestedIntNullableFilter<$PrismaModel>
+    _min?: NestedIntNullableFilter<$PrismaModel>
+    _max?: NestedIntNullableFilter<$PrismaModel>
   }
 
-  export type NestedStringNullableFilter<$PrismaModel = never> = {
-    equals?: string | StringFieldRefInput<$PrismaModel> | null
-    in?: string[] | ListStringFieldRefInput<$PrismaModel> | null
-    notIn?: string[] | ListStringFieldRefInput<$PrismaModel> | null
-    lt?: string | StringFieldRefInput<$PrismaModel>
-    lte?: string | StringFieldRefInput<$PrismaModel>
-    gt?: string | StringFieldRefInput<$PrismaModel>
-    gte?: string | StringFieldRefInput<$PrismaModel>
-    contains?: string | StringFieldRefInput<$PrismaModel>
-    startsWith?: string | StringFieldRefInput<$PrismaModel>
-    endsWith?: string | StringFieldRefInput<$PrismaModel>
-    not?: NestedStringNullableFilter<$PrismaModel> | string | null
+  export type NestedFloatNullableFilter<$PrismaModel = never> = {
+    equals?: number | FloatFieldRefInput<$PrismaModel> | null
+    in?: number[] | ListFloatFieldRefInput<$PrismaModel> | null
+    notIn?: number[] | ListFloatFieldRefInput<$PrismaModel> | null
+    lt?: number | FloatFieldRefInput<$PrismaModel>
+    lte?: number | FloatFieldRefInput<$PrismaModel>
+    gt?: number | FloatFieldRefInput<$PrismaModel>
+    gte?: number | FloatFieldRefInput<$PrismaModel>
+    not?: NestedFloatNullableFilter<$PrismaModel> | number | null
   }
 
   export type NestedDecimalFilter<$PrismaModel = never> = {
@@ -8785,23 +9127,6 @@ export namespace Prisma {
     in?: $Enums.availabilityStatus[] | ListEnumavailabilityStatusFieldRefInput<$PrismaModel>
     notIn?: $Enums.availabilityStatus[] | ListEnumavailabilityStatusFieldRefInput<$PrismaModel>
     not?: NestedEnumavailabilityStatusFilter<$PrismaModel> | $Enums.availabilityStatus
-  }
-
-  export type NestedStringNullableWithAggregatesFilter<$PrismaModel = never> = {
-    equals?: string | StringFieldRefInput<$PrismaModel> | null
-    in?: string[] | ListStringFieldRefInput<$PrismaModel> | null
-    notIn?: string[] | ListStringFieldRefInput<$PrismaModel> | null
-    lt?: string | StringFieldRefInput<$PrismaModel>
-    lte?: string | StringFieldRefInput<$PrismaModel>
-    gt?: string | StringFieldRefInput<$PrismaModel>
-    gte?: string | StringFieldRefInput<$PrismaModel>
-    contains?: string | StringFieldRefInput<$PrismaModel>
-    startsWith?: string | StringFieldRefInput<$PrismaModel>
-    endsWith?: string | StringFieldRefInput<$PrismaModel>
-    not?: NestedStringNullableWithAggregatesFilter<$PrismaModel> | string | null
-    _count?: NestedIntNullableFilter<$PrismaModel>
-    _min?: NestedStringNullableFilter<$PrismaModel>
-    _max?: NestedStringNullableFilter<$PrismaModel>
   }
 
   export type NestedDecimalWithAggregatesFilter<$PrismaModel = never> = {
@@ -8854,22 +9179,24 @@ export namespace Prisma {
   }
 
   export type ProfileCreateWithoutAccountsInput = {
+    profileImg?: string | null
     firstName: string
-    lastName: string
-    username: string
+    lastName?: string | null
     contactNum: string
-    profileType?: $Enums.profileType | null
+    profileType?: string | null
     worker?: Worker_ProfileCreateNestedOneWithoutProfileInput
+    defaultProfile?: AccountsCreateNestedManyWithoutDefaultProfileInput
   }
 
   export type ProfileUncheckedCreateWithoutAccountsInput = {
     profileID?: number
+    profileImg?: string | null
     firstName: string
-    lastName: string
-    username: string
+    lastName?: string | null
     contactNum: string
-    profileType?: $Enums.profileType | null
+    profileType?: string | null
     worker?: Worker_ProfileUncheckedCreateNestedOneWithoutProfileInput
+    defaultProfile?: AccountsUncheckedCreateNestedManyWithoutDefaultProfileInput
   }
 
   export type ProfileCreateOrConnectWithoutAccountsInput = {
@@ -8880,6 +9207,32 @@ export namespace Prisma {
   export type ProfileCreateManyAccountsInputEnvelope = {
     data: ProfileCreateManyAccountsInput | ProfileCreateManyAccountsInput[]
     skipDuplicates?: boolean
+  }
+
+  export type ProfileCreateWithoutDefaultProfileInput = {
+    profileImg?: string | null
+    firstName: string
+    lastName?: string | null
+    contactNum: string
+    profileType?: string | null
+    worker?: Worker_ProfileCreateNestedOneWithoutProfileInput
+    accounts: AccountsCreateNestedOneWithoutProfileInput
+  }
+
+  export type ProfileUncheckedCreateWithoutDefaultProfileInput = {
+    profileID?: number
+    accountID: number
+    profileImg?: string | null
+    firstName: string
+    lastName?: string | null
+    contactNum: string
+    profileType?: string | null
+    worker?: Worker_ProfileUncheckedCreateNestedOneWithoutProfileInput
+  }
+
+  export type ProfileCreateOrConnectWithoutDefaultProfileInput = {
+    where: ProfileWhereUniqueInput
+    create: XOR<ProfileCreateWithoutDefaultProfileInput, ProfileUncheckedCreateWithoutDefaultProfileInput>
   }
 
   export type ProfileUpsertWithWhereUniqueWithoutAccountsInput = {
@@ -8904,15 +9257,46 @@ export namespace Prisma {
     NOT?: ProfileScalarWhereInput | ProfileScalarWhereInput[]
     profileID?: IntFilter<"Profile"> | number
     accountID?: IntFilter<"Profile"> | number
+    profileImg?: StringNullableFilter<"Profile"> | string | null
     firstName?: StringFilter<"Profile"> | string
-    lastName?: StringFilter<"Profile"> | string
-    username?: StringFilter<"Profile"> | string
+    lastName?: StringNullableFilter<"Profile"> | string | null
     contactNum?: StringFilter<"Profile"> | string
-    profileType?: EnumprofileTypeNullableFilter<"Profile"> | $Enums.profileType | null
+    profileType?: StringNullableFilter<"Profile"> | string | null
+  }
+
+  export type ProfileUpsertWithoutDefaultProfileInput = {
+    update: XOR<ProfileUpdateWithoutDefaultProfileInput, ProfileUncheckedUpdateWithoutDefaultProfileInput>
+    create: XOR<ProfileCreateWithoutDefaultProfileInput, ProfileUncheckedCreateWithoutDefaultProfileInput>
+    where?: ProfileWhereInput
+  }
+
+  export type ProfileUpdateToOneWithWhereWithoutDefaultProfileInput = {
+    where?: ProfileWhereInput
+    data: XOR<ProfileUpdateWithoutDefaultProfileInput, ProfileUncheckedUpdateWithoutDefaultProfileInput>
+  }
+
+  export type ProfileUpdateWithoutDefaultProfileInput = {
+    profileImg?: NullableStringFieldUpdateOperationsInput | string | null
+    firstName?: StringFieldUpdateOperationsInput | string
+    lastName?: NullableStringFieldUpdateOperationsInput | string | null
+    contactNum?: StringFieldUpdateOperationsInput | string
+    profileType?: NullableStringFieldUpdateOperationsInput | string | null
+    worker?: Worker_ProfileUpdateOneWithoutProfileNestedInput
+    accounts?: AccountsUpdateOneRequiredWithoutProfileNestedInput
+  }
+
+  export type ProfileUncheckedUpdateWithoutDefaultProfileInput = {
+    profileID?: IntFieldUpdateOperationsInput | number
+    accountID?: IntFieldUpdateOperationsInput | number
+    profileImg?: NullableStringFieldUpdateOperationsInput | string | null
+    firstName?: StringFieldUpdateOperationsInput | string
+    lastName?: NullableStringFieldUpdateOperationsInput | string | null
+    contactNum?: StringFieldUpdateOperationsInput | string
+    profileType?: NullableStringFieldUpdateOperationsInput | string | null
+    worker?: Worker_ProfileUncheckedUpdateOneWithoutProfileNestedInput
   }
 
   export type Worker_ProfileCreateWithoutProfileInput = {
-    profileImg?: string | null
     hourlyRate: Decimal | DecimalJsLike | number | string
     verifiedSkills: JsonNullValueInput | InputJsonValue
     responseTimeAvg: Decimal | DecimalJsLike | number | string
@@ -8926,7 +9310,6 @@ export namespace Prisma {
   }
 
   export type Worker_ProfileUncheckedCreateWithoutProfileInput = {
-    profileImg?: string | null
     hourlyRate: Decimal | DecimalJsLike | number | string
     verifiedSkills: JsonNullValueInput | InputJsonValue
     responseTimeAvg: Decimal | DecimalJsLike | number | string
@@ -8946,24 +9329,67 @@ export namespace Prisma {
 
   export type AccountsCreateWithoutProfileInput = {
     email: string
-    password: string
-    isVerified: boolean
-    createdAt: Date | string
+    password?: string | null
+    isVerified?: boolean
+    verifyToken?: string | null
+    verifyTokenExpire?: Date | string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
     status: string
+    defaultProfile?: ProfileCreateNestedOneWithoutDefaultProfileInput
   }
 
   export type AccountsUncheckedCreateWithoutProfileInput = {
     accountID?: number
     email: string
-    password: string
-    isVerified: boolean
-    createdAt: Date | string
+    password?: string | null
+    isVerified?: boolean
+    verifyToken?: string | null
+    verifyTokenExpire?: Date | string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
     status: string
+    defaultProfileId?: number | null
   }
 
   export type AccountsCreateOrConnectWithoutProfileInput = {
     where: AccountsWhereUniqueInput
     create: XOR<AccountsCreateWithoutProfileInput, AccountsUncheckedCreateWithoutProfileInput>
+  }
+
+  export type AccountsCreateWithoutDefaultProfileInput = {
+    email: string
+    password?: string | null
+    isVerified?: boolean
+    verifyToken?: string | null
+    verifyTokenExpire?: Date | string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    status: string
+    profile?: ProfileCreateNestedManyWithoutAccountsInput
+  }
+
+  export type AccountsUncheckedCreateWithoutDefaultProfileInput = {
+    accountID?: number
+    email: string
+    password?: string | null
+    isVerified?: boolean
+    verifyToken?: string | null
+    verifyTokenExpire?: Date | string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    status: string
+    profile?: ProfileUncheckedCreateNestedManyWithoutAccountsInput
+  }
+
+  export type AccountsCreateOrConnectWithoutDefaultProfileInput = {
+    where: AccountsWhereUniqueInput
+    create: XOR<AccountsCreateWithoutDefaultProfileInput, AccountsUncheckedCreateWithoutDefaultProfileInput>
+  }
+
+  export type AccountsCreateManyDefaultProfileInputEnvelope = {
+    data: AccountsCreateManyDefaultProfileInput | AccountsCreateManyDefaultProfileInput[]
+    skipDuplicates?: boolean
   }
 
   export type Worker_ProfileUpsertWithoutProfileInput = {
@@ -8978,7 +9404,6 @@ export namespace Prisma {
   }
 
   export type Worker_ProfileUpdateWithoutProfileInput = {
-    profileImg?: NullableStringFieldUpdateOperationsInput | string | null
     hourlyRate?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
     verifiedSkills?: JsonNullValueInput | InputJsonValue
     responseTimeAvg?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
@@ -8992,7 +9417,6 @@ export namespace Prisma {
   }
 
   export type Worker_ProfileUncheckedUpdateWithoutProfileInput = {
-    profileImg?: NullableStringFieldUpdateOperationsInput | string | null
     hourlyRate?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
     verifiedSkills?: JsonNullValueInput | InputJsonValue
     responseTimeAvg?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
@@ -9018,38 +9442,80 @@ export namespace Prisma {
 
   export type AccountsUpdateWithoutProfileInput = {
     email?: StringFieldUpdateOperationsInput | string
-    password?: StringFieldUpdateOperationsInput | string
+    password?: NullableStringFieldUpdateOperationsInput | string | null
     isVerified?: BoolFieldUpdateOperationsInput | boolean
+    verifyToken?: NullableStringFieldUpdateOperationsInput | string | null
+    verifyTokenExpire?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     status?: StringFieldUpdateOperationsInput | string
+    defaultProfile?: ProfileUpdateOneWithoutDefaultProfileNestedInput
   }
 
   export type AccountsUncheckedUpdateWithoutProfileInput = {
     accountID?: IntFieldUpdateOperationsInput | number
     email?: StringFieldUpdateOperationsInput | string
-    password?: StringFieldUpdateOperationsInput | string
+    password?: NullableStringFieldUpdateOperationsInput | string | null
     isVerified?: BoolFieldUpdateOperationsInput | boolean
+    verifyToken?: NullableStringFieldUpdateOperationsInput | string | null
+    verifyTokenExpire?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     status?: StringFieldUpdateOperationsInput | string
+    defaultProfileId?: NullableIntFieldUpdateOperationsInput | number | null
+  }
+
+  export type AccountsUpsertWithWhereUniqueWithoutDefaultProfileInput = {
+    where: AccountsWhereUniqueInput
+    update: XOR<AccountsUpdateWithoutDefaultProfileInput, AccountsUncheckedUpdateWithoutDefaultProfileInput>
+    create: XOR<AccountsCreateWithoutDefaultProfileInput, AccountsUncheckedCreateWithoutDefaultProfileInput>
+  }
+
+  export type AccountsUpdateWithWhereUniqueWithoutDefaultProfileInput = {
+    where: AccountsWhereUniqueInput
+    data: XOR<AccountsUpdateWithoutDefaultProfileInput, AccountsUncheckedUpdateWithoutDefaultProfileInput>
+  }
+
+  export type AccountsUpdateManyWithWhereWithoutDefaultProfileInput = {
+    where: AccountsScalarWhereInput
+    data: XOR<AccountsUpdateManyMutationInput, AccountsUncheckedUpdateManyWithoutDefaultProfileInput>
+  }
+
+  export type AccountsScalarWhereInput = {
+    AND?: AccountsScalarWhereInput | AccountsScalarWhereInput[]
+    OR?: AccountsScalarWhereInput[]
+    NOT?: AccountsScalarWhereInput | AccountsScalarWhereInput[]
+    accountID?: IntFilter<"Accounts"> | number
+    email?: StringFilter<"Accounts"> | string
+    password?: StringNullableFilter<"Accounts"> | string | null
+    isVerified?: BoolFilter<"Accounts"> | boolean
+    verifyToken?: StringNullableFilter<"Accounts"> | string | null
+    verifyTokenExpire?: DateTimeNullableFilter<"Accounts"> | Date | string | null
+    createdAt?: DateTimeFilter<"Accounts"> | Date | string
+    updatedAt?: DateTimeFilter<"Accounts"> | Date | string
+    status?: StringFilter<"Accounts"> | string
+    defaultProfileId?: IntNullableFilter<"Accounts"> | number | null
   }
 
   export type ProfileCreateWithoutWorkerInput = {
+    profileImg?: string | null
     firstName: string
-    lastName: string
-    username: string
+    lastName?: string | null
     contactNum: string
-    profileType?: $Enums.profileType | null
+    profileType?: string | null
     accounts: AccountsCreateNestedOneWithoutProfileInput
+    defaultProfile?: AccountsCreateNestedManyWithoutDefaultProfileInput
   }
 
   export type ProfileUncheckedCreateWithoutWorkerInput = {
     profileID?: number
     accountID: number
+    profileImg?: string | null
     firstName: string
-    lastName: string
-    username: string
+    lastName?: string | null
     contactNum: string
-    profileType?: $Enums.profileType | null
+    profileType?: string | null
+    defaultProfile?: AccountsUncheckedCreateNestedManyWithoutDefaultProfileInput
   }
 
   export type ProfileCreateOrConnectWithoutWorkerInput = {
@@ -9091,22 +9557,24 @@ export namespace Prisma {
   }
 
   export type ProfileUpdateWithoutWorkerInput = {
+    profileImg?: NullableStringFieldUpdateOperationsInput | string | null
     firstName?: StringFieldUpdateOperationsInput | string
-    lastName?: StringFieldUpdateOperationsInput | string
-    username?: StringFieldUpdateOperationsInput | string
+    lastName?: NullableStringFieldUpdateOperationsInput | string | null
     contactNum?: StringFieldUpdateOperationsInput | string
-    profileType?: NullableEnumprofileTypeFieldUpdateOperationsInput | $Enums.profileType | null
+    profileType?: NullableStringFieldUpdateOperationsInput | string | null
     accounts?: AccountsUpdateOneRequiredWithoutProfileNestedInput
+    defaultProfile?: AccountsUpdateManyWithoutDefaultProfileNestedInput
   }
 
   export type ProfileUncheckedUpdateWithoutWorkerInput = {
     profileID?: IntFieldUpdateOperationsInput | number
     accountID?: IntFieldUpdateOperationsInput | number
+    profileImg?: NullableStringFieldUpdateOperationsInput | string | null
     firstName?: StringFieldUpdateOperationsInput | string
-    lastName?: StringFieldUpdateOperationsInput | string
-    username?: StringFieldUpdateOperationsInput | string
+    lastName?: NullableStringFieldUpdateOperationsInput | string | null
     contactNum?: StringFieldUpdateOperationsInput | string
-    profileType?: NullableEnumprofileTypeFieldUpdateOperationsInput | $Enums.profileType | null
+    profileType?: NullableStringFieldUpdateOperationsInput | string | null
+    defaultProfile?: AccountsUncheckedUpdateManyWithoutDefaultProfileNestedInput
   }
 
   export type Freelancer_SpecializationUpsertWithWhereUniqueWithoutWorker_profileInput = {
@@ -9136,7 +9604,6 @@ export namespace Prisma {
   }
 
   export type Worker_ProfileCreateWithoutFreelancer_specializationInput = {
-    profileImg?: string | null
     hourlyRate: Decimal | DecimalJsLike | number | string
     verifiedSkills: JsonNullValueInput | InputJsonValue
     responseTimeAvg: Decimal | DecimalJsLike | number | string
@@ -9151,7 +9618,6 @@ export namespace Prisma {
 
   export type Worker_ProfileUncheckedCreateWithoutFreelancer_specializationInput = {
     profileID: number
-    profileImg?: string | null
     hourlyRate: Decimal | DecimalJsLike | number | string
     verifiedSkills: JsonNullValueInput | InputJsonValue
     responseTimeAvg: Decimal | DecimalJsLike | number | string
@@ -9194,7 +9660,6 @@ export namespace Prisma {
   }
 
   export type Worker_ProfileUpdateWithoutFreelancer_specializationInput = {
-    profileImg?: NullableStringFieldUpdateOperationsInput | string | null
     hourlyRate?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
     verifiedSkills?: JsonNullValueInput | InputJsonValue
     responseTimeAvg?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
@@ -9209,7 +9674,6 @@ export namespace Prisma {
 
   export type Worker_ProfileUncheckedUpdateWithoutFreelancer_specializationInput = {
     profileID?: IntFieldUpdateOperationsInput | number
-    profileImg?: NullableStringFieldUpdateOperationsInput | string | null
     hourlyRate?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
     verifiedSkills?: JsonNullValueInput | InputJsonValue
     responseTimeAvg?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
@@ -9281,39 +9745,90 @@ export namespace Prisma {
 
   export type ProfileCreateManyAccountsInput = {
     profileID?: number
+    profileImg?: string | null
     firstName: string
-    lastName: string
-    username: string
+    lastName?: string | null
     contactNum: string
-    profileType?: $Enums.profileType | null
+    profileType?: string | null
   }
 
   export type ProfileUpdateWithoutAccountsInput = {
+    profileImg?: NullableStringFieldUpdateOperationsInput | string | null
     firstName?: StringFieldUpdateOperationsInput | string
-    lastName?: StringFieldUpdateOperationsInput | string
-    username?: StringFieldUpdateOperationsInput | string
+    lastName?: NullableStringFieldUpdateOperationsInput | string | null
     contactNum?: StringFieldUpdateOperationsInput | string
-    profileType?: NullableEnumprofileTypeFieldUpdateOperationsInput | $Enums.profileType | null
+    profileType?: NullableStringFieldUpdateOperationsInput | string | null
     worker?: Worker_ProfileUpdateOneWithoutProfileNestedInput
+    defaultProfile?: AccountsUpdateManyWithoutDefaultProfileNestedInput
   }
 
   export type ProfileUncheckedUpdateWithoutAccountsInput = {
     profileID?: IntFieldUpdateOperationsInput | number
+    profileImg?: NullableStringFieldUpdateOperationsInput | string | null
     firstName?: StringFieldUpdateOperationsInput | string
-    lastName?: StringFieldUpdateOperationsInput | string
-    username?: StringFieldUpdateOperationsInput | string
+    lastName?: NullableStringFieldUpdateOperationsInput | string | null
     contactNum?: StringFieldUpdateOperationsInput | string
-    profileType?: NullableEnumprofileTypeFieldUpdateOperationsInput | $Enums.profileType | null
+    profileType?: NullableStringFieldUpdateOperationsInput | string | null
     worker?: Worker_ProfileUncheckedUpdateOneWithoutProfileNestedInput
+    defaultProfile?: AccountsUncheckedUpdateManyWithoutDefaultProfileNestedInput
   }
 
   export type ProfileUncheckedUpdateManyWithoutAccountsInput = {
     profileID?: IntFieldUpdateOperationsInput | number
+    profileImg?: NullableStringFieldUpdateOperationsInput | string | null
     firstName?: StringFieldUpdateOperationsInput | string
-    lastName?: StringFieldUpdateOperationsInput | string
-    username?: StringFieldUpdateOperationsInput | string
+    lastName?: NullableStringFieldUpdateOperationsInput | string | null
     contactNum?: StringFieldUpdateOperationsInput | string
-    profileType?: NullableEnumprofileTypeFieldUpdateOperationsInput | $Enums.profileType | null
+    profileType?: NullableStringFieldUpdateOperationsInput | string | null
+  }
+
+  export type AccountsCreateManyDefaultProfileInput = {
+    accountID?: number
+    email: string
+    password?: string | null
+    isVerified?: boolean
+    verifyToken?: string | null
+    verifyTokenExpire?: Date | string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    status: string
+  }
+
+  export type AccountsUpdateWithoutDefaultProfileInput = {
+    email?: StringFieldUpdateOperationsInput | string
+    password?: NullableStringFieldUpdateOperationsInput | string | null
+    isVerified?: BoolFieldUpdateOperationsInput | boolean
+    verifyToken?: NullableStringFieldUpdateOperationsInput | string | null
+    verifyTokenExpire?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    status?: StringFieldUpdateOperationsInput | string
+    profile?: ProfileUpdateManyWithoutAccountsNestedInput
+  }
+
+  export type AccountsUncheckedUpdateWithoutDefaultProfileInput = {
+    accountID?: IntFieldUpdateOperationsInput | number
+    email?: StringFieldUpdateOperationsInput | string
+    password?: NullableStringFieldUpdateOperationsInput | string | null
+    isVerified?: BoolFieldUpdateOperationsInput | boolean
+    verifyToken?: NullableStringFieldUpdateOperationsInput | string | null
+    verifyTokenExpire?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    status?: StringFieldUpdateOperationsInput | string
+    profile?: ProfileUncheckedUpdateManyWithoutAccountsNestedInput
+  }
+
+  export type AccountsUncheckedUpdateManyWithoutDefaultProfileInput = {
+    accountID?: IntFieldUpdateOperationsInput | number
+    email?: StringFieldUpdateOperationsInput | string
+    password?: NullableStringFieldUpdateOperationsInput | string | null
+    isVerified?: BoolFieldUpdateOperationsInput | boolean
+    verifyToken?: NullableStringFieldUpdateOperationsInput | string | null
+    verifyTokenExpire?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    status?: StringFieldUpdateOperationsInput | string
   }
 
   export type Freelancer_SpecializationCreateManyWorker_profileInput = {

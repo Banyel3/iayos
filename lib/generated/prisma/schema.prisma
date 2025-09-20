@@ -17,32 +17,35 @@ datasource db {
 }
 
 model Accounts {
-  accountID  Int       @id @default(autoincrement())
-  email      String    @unique
-  password   String //hashed
-  isVerified Boolean
-  createdAt  DateTime
-  status     String
-  profile    Profile[]
-}
+  accountID         Int       @id @default(autoincrement())
+  email             String    @unique
+  password          String? //hashed
+  isVerified        Boolean   @default(false)
+  verifyToken       String?   @default("")
+  verifyTokenExpire DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @default(now()) @updatedAt
+  status            String
+  profile           Profile[]
 
-enum profileType {
-  WORKER
-  CLIENT
-  BOTH
+  defaultProfileId Int?
+  defaultProfile   Profile? @relation("defaultProfile", fields: [defaultProfileId], references: [profileID])
 }
 
 model Profile {
-  profileID   Int          @id @default(autoincrement())
-  accountID   Int          @unique
+  profileID   Int     @id @default(autoincrement())
+  accountID   Int
+  profileImg  String?
   firstName   String
-  lastName    String
-  username    String
-  contactNum  String
-  profileType profileType?
+  lastName    String?
+  contactNum  String  @unique
+  profileType String?
 
-  worker   Worker_Profile?
-  accounts Accounts        @relation(fields: [accountID], references: [accountID])
+  worker         Worker_Profile?
+  accounts       Accounts        @relation(fields: [accountID], references: [accountID])
+  defaultProfile Accounts[]      @relation("defaultProfile")
+
+  @@unique([accountID, profileType])
 }
 
 enum availabilityStatus {
@@ -53,7 +56,6 @@ enum availabilityStatus {
 
 model Worker_Profile {
   profileID          Int                @id
-  profileImg         String?
   hourlyRate         Decimal            @db.Decimal(10, 2)
   verifiedSkills     Json
   responseTimeAvg    Decimal            @db.Decimal(5, 2)
