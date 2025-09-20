@@ -1,13 +1,12 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { CircleX, SquareCheckBig, Loader2, AlertTriangle } from "lucide-react";
 
-const initialized = React.useRef(false);
-
 const VerifyEmail = () => {
+  const initialized = useRef(false);
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [verified, setVerified] = useState(false);

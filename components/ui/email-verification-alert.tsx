@@ -48,7 +48,7 @@ export function EmailVerificationAlert({
 
           {/* Main message */}
           <p className="text-gray-600 mb-4 leading-relaxed">
-            We've sent a verification link to{" "}
+            We&apos;ve sent a verification link to{" "}
             {email ? (
               <span className="font-medium text-gray-900">{email}</span>
             ) : (
@@ -134,7 +134,7 @@ export function PasswordResetAlert({
 
           {/* Main message */}
           <p className="text-gray-600 mb-4 leading-relaxed font-inter">
-            We've sent a password reset link to{" "}
+            We&apos;ve sent a password reset link to{" "}
             {email ? (
               <span className="font-medium text-gray-900">{email}</span>
             ) : (

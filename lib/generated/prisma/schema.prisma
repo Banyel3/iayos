@@ -23,10 +23,11 @@ model Accounts {
   isVerified        Boolean   @default(false)
   verifyToken       String?   @default("")
   verifyTokenExpire DateTime?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @default(now()) @updatedAt
-  status            String
-  profile           Profile[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @default(now()) @updatedAt
+  status    String
+  profile   Profile[]
 
   defaultProfileId Int?
   defaultProfile   Profile? @relation("defaultProfile", fields: [defaultProfileId], references: [profileID])

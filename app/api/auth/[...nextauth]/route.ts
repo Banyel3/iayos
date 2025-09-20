@@ -80,7 +80,6 @@ export const authOptions: NextAuthOptions = {
       credentials: {
         email: {},
         password: {},
-        turnstileToken: {},
       },
       /**
        * CREDENTIAL VALIDATION FUNCTION
@@ -90,23 +89,36 @@ export const authOptions: NextAuthOptions = {
       authorize: async (credentials, req) => {
         // Get the password from form submission
         const inputPassword = credentials!.password;
-        const token = credentials!.turnstileToken;
         const ip =
-          (req as any)?.headers?.["x-client-ip"] ||
-          (req as any)?.body?.ip ||
+          (
+            req as {
+              headers?: { ["x-client-ip"]?: string };
+              body?: { ip?: string };
+            }
+          )?.headers?.["x-client-ip"] ||
+          (
+            req as {
+              headers?: { ["x-client-ip"]?: string };
+              body?: { ip?: string };
+            }
+          )?.body?.ip ||
           "anonymous";
-        const verify = await fetch(
-          "https://challenges.cloudflare.com/turnstile/v0/siteverify",
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: `secret=${process.env.TURNSTILE_SECRET_KEY}&response=${token}`,
-          }
-        ).then((res) => res.json());
+<<<<<<< Updated upstream
 
-        if (!verify.success) {
-          throw new Error(JSON.stringify({ error: "Captcha failed" }));
-        }
+=======
+        // const verify = await fetch(
+        //   "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+        //   {
+        //     method: "POST",
+        //     headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        //     body: `secret=${process.env.TURNSTILE_SECRET_KEY}&response=${token}`,
+        //   }
+        // ).then((res) => res.json());
+
+        // if (!verify.success) {
+        //   throw new Error(JSON.stringify({ error: "Captcha failed" }));
+        // }
+>>>>>>> Stashed changes
         try {
           await rateLimiter.consume(ip);
         } catch (err) {
@@ -203,7 +215,8 @@ export const authOptions: NextAuthOptions = {
         token.id = user.id;
         token.email = user.email;
         token.name = user.name;
-        token.profileType = (user as any).profileType; // Add profileType to token
+        token.profileType =
+          (user as { profileType?: string | null }).profileType || null; // Add profileType to token
       }
 
       // For Google OAuth users, we need to fetch profileType from database

@@ -22,7 +22,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { useSession } from "next-auth/react";
 import { useErrorModal } from "@/components/ui/error-modal";
-import Turnstile from "react-turnstile";
 
 const formSchema = z.object({
   email: z
@@ -33,7 +32,10 @@ const formSchema = z.object({
     .string()
     .min(1, "Password is required")
     .min(6, "Password must be at least 6 characters"),
-  turnstileToken: z.string().min(1, "Captcha required"),
+<<<<<<< Updated upstream
+=======
+  // turnstileToken: z.string().min(1, "Captcha required"),
+>>>>>>> Stashed changes
 });
 
 const Login = () => {
@@ -85,8 +87,6 @@ const Login = () => {
     return () => clearInterval(timer);
   }, []);
 
-  if (status === "loading") return <p>Loading...</p>; // optional
-
   useEffect(() => {
     if (typeof window !== "undefined") {
       localStorage.setItem("hasSeenOnboard", "true");
@@ -102,6 +102,8 @@ const Login = () => {
     },
   });
 
+  if (status === "loading") return <p>Loading...</p>; // optional
+
   const handleSubmit = async (values: z.infer<typeof formSchema>) => {
     setIsLoading(true);
 
@@ -110,7 +112,10 @@ const Login = () => {
         redirect: false, // Don't redirect automatically so we can handle errors
         email: values.email,
         password: values.password,
-        turnstileToken: values.turnstileToken,
+<<<<<<< Updated upstream
+=======
+        // turnstileToken: values.turnstileToken,
+>>>>>>> Stashed changes
       });
 
       if (res?.error) {
@@ -253,10 +258,14 @@ const Login = () => {
                       Forgot password?
                     </button>
                   </div>
-                  <Turnstile
+<<<<<<< Updated upstream
+
+=======
+                  {/* <Turnstile
                     sitekey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
                     onVerify={(token) => form.setValue("turnstileToken", token)} // Save to form
-                  />
+                  /> */}
+>>>>>>> Stashed changes
                   <Button
                     type="submit"
                     className="w-full h-11 font-inter font-medium mt-6"

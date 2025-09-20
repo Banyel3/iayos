@@ -48,8 +48,8 @@ const ForgotPasswordVerified = () => {
   const verificationToken = searchParams.get("verifyToken") as string;
   const idParam = searchParams.get("id");
 
-  if (!verificationToken || !idParam) {
-    useEffect(() => {
+  useEffect(() => {
+    if (!verificationToken || !idParam) {
       setAlertMessage(
         "Invalid verification link. Please request a new password reset."
       );
@@ -61,8 +61,9 @@ const ForgotPasswordVerified = () => {
       }, 3000);
 
       return () => clearTimeout(timer);
-    }, [router]);
-  }
+    }
+  }, [router, verificationToken, idParam]);
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {

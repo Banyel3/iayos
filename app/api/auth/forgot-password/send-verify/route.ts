@@ -54,7 +54,7 @@ export async function POST(req: Request) {
     return new Response(JSON.stringify("Verification Link Sent"), {
       status: 201,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Registration error:", err);
     return new Response(
       JSON.stringify({ error: "Verification Link Not Sent" }),

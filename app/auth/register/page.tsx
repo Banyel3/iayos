@@ -45,7 +45,11 @@ const formSchema = z.object({
       /[^A-Za-z0-9]/,
       "Password must contain at least one special character"
     ),
-  turnstileToken: z.string().min(1, "Captcha required"),
+<<<<<<< Updated upstream
+  turnstileToken: z.string().min(1, "Captcha required"), // ✅ add this
+=======
+  // turnstileToken: z.string().min(1, "Captcha required"),
+>>>>>>> Stashed changes
 });
 
 // Create a separate component that uses useSearchParams
@@ -231,10 +235,10 @@ function RegisterContent() {
                   </FormItem>
                 )}
               />
-              <Turnstile
+              {/* <Turnstile
                 sitekey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
                 onVerify={(token) => form.setValue("turnstileToken", token)} // Save to form
-              />
+              /> */}
 
               <Button
                 type="submit"

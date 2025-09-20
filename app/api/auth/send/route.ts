@@ -34,3 +34,11 @@ export const sendEmail = async (
     );
   }
 };
+
+// Add a default POST handler for the route
+export async function POST() {
+  return NextResponse.json(
+    { message: "This is a utility module for sending emails" },
+    { status: 200 }
+  );
+}

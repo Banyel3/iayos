@@ -31,20 +31,20 @@ export async function POST(req: Request) {
     const body = await req.json();
     const token = body.turnstileToken;
 
-    const verify = await fetch(
-      "https://challenges.cloudflare.com/turnstile/v0/siteverify",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: `secret=${process.env.TURNSTILE_SECRET_KEY}&response=${token}`,
-      }
-    ).then((res) => res.json());
+    // const verify = await fetch(
+    //   "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+    //   {
+    //     method: "POST",
+    //     headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    //     body: `secret=${process.env.TURNSTILE_SECRET_KEY}&response=${token}`,
+    //   }
+    // ).then((res) => res.json());
 
-    if (!verify.success) {
-      return new Response(JSON.stringify({ error: "Captcha failed" }), {
-        status: 400,
-      });
-    }
+    // if (!verify.success) {
+    //   return new Response(JSON.stringify({ error: "Captcha failed" }), {
+    //     status: 400,
+    //   });
+    // }
     // Validate input
     const parsed = registerSchema.safeParse(body);
     if (!parsed.success) {
@@ -109,11 +109,11 @@ export async function POST(req: Request) {
     return new Response(JSON.stringify("Email Verification Sent"), {
       status: 201,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Registration error:", err);
 
     // 🔧 FIX: Better error handling for database constraints
-    if (err?.code === "P2002") {
+    if ((err as { code?: string })?.code === "P2002") {
       return new Response(
         JSON.stringify({ error: "Email already registered" }),
         { status: 409 }
