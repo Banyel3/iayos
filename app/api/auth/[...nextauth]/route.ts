@@ -80,7 +80,7 @@ export const authOptions: NextAuthOptions = {
       credentials: {
         email: {},
         password: {},
-        turnstileToken: {},
+        // turnstileToken: {},
       },
       /**
        * CREDENTIAL VALIDATION FUNCTION
