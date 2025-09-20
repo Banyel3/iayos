@@ -127,7 +127,7 @@ const VerifyEmail = () => {
                   href="/auth/login"
                   className="block text-sm text-red-600 hover:text-red-800 underline"
                 >
-                  • Try signing in if you're already verified
+                  • Try signing in if you&apos;re already verified
                 </a>
               </div>
             </div>
@@ -141,7 +141,8 @@ const VerifyEmail = () => {
               Processing Verification
             </AlertTitle>
             <AlertDescription className="text-yellow-700">
-              We're currently processing your email verification. Please wait...
+              We&apos;re currently processing your email verification. Please
+              wait...
             </AlertDescription>
           </Alert>
         )}

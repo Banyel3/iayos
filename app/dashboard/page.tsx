@@ -192,7 +192,7 @@ const TempDashboard = () => {
               Welcome, {session.user?.name?.split(" ")[0] || "User"}!
             </h1>
             <p className="text-gray-600 text-base leading-[150%]">
-              To get started, please choose how you'll be using iAyos
+              To get started, please choose how you&apos;ll be using iAyos
             </p>
           </div>
 

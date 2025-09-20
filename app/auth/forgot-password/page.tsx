@@ -76,7 +76,7 @@ const ForgotPassword = () => {
     } catch (error) {
       // Placeholder error handling
       errorModal.showError(
-        "We're having trouble processing your request. Please try again.",
+        "We&apos;re having trouble processing your request. Please try again.",
         "Try Again",
         undefined,
         "Request Failed"
@@ -100,7 +100,7 @@ const ForgotPassword = () => {
               Forgot Your Password?
             </h1>
             <p className="font-inter text-sm text-gray-600">
-              Enter your email and we'll send you a reset link
+              Enter your email and we&apos;ll send you a reset link
             </p>
           </div>
 

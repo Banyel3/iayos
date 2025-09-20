@@ -298,7 +298,7 @@ export function generateVerificationEmailHTML({
                     <div class="message-card">
                       <p class="message-text">
                         Thank you for joining <span class="brand-name">iAyos</span>! 
-                        We're excited to have you on board.
+                        We&apos;re excited to have you on board.
                       </p>
                       
                       <p class="message-text">
@@ -339,7 +339,7 @@ export function generateVerificationEmailHTML({
                         Need Help?
                       </h3>
                       <ul class="help-list">
-                        <li>• If you didn't create this account, you can safely ignore this email</li>
+                        <li>• If you didn&apos;t create this account, you can safely ignore this email</li>
                         <li>• Make sure to check your spam/junk folder</li>
                         <li>• Contact support if you continue to have issues</li>
                       </ul>
@@ -439,7 +439,7 @@ export function generatePasswordResetEmailHTML({
                     <!-- Security Notice -->
                     <div style="background-color: #fef3c7; border-left: 4px solid #fbbf24; padding: 16px; margin-bottom: 24px; text-align: left;">
                       <p style="font-size: 14px; color: #92400e; margin: 0;">
-                        <span style="font-weight: 600;">🔒 Security Notice:</span> For your protection, this link will expire in 15 minutes. If you didn't request this password reset, you can safely ignore this email.
+                        <span style="font-weight: 600;">🔒 Security Notice:</span> For your protection, this link will expire in 15 minutes. If you didn&apos;t request this password reset, you can safely ignore this email.
                       </p>
                     </div>
 
@@ -453,7 +453,7 @@ export function generatePasswordResetEmailHTML({
                     <!-- Alternative Method -->
                     <div style="margin-bottom: 32px; width: 100%;">
                       <p style="font-size: 14px; color: #6b7280; text-align: center; margin: 0 0 12px 0;">
-                        If the button doesn't work, copy and paste this link into your browser:
+                        If the button doesn&apos;t work, copy and paste this link into your browser:
                       </p>
                       <div style="background-color: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; text-align: center; word-break: break-all;">
                         <span style="font-size: 12px; color: #2563eb;">${resetLink}</span>
@@ -466,7 +466,7 @@ export function generatePasswordResetEmailHTML({
                       <ul style="list-style: none; font-size: 14px; color: #4b5563; margin: 0; padding: 0;">
                         <li style="margin-bottom: 4px;">• Password must be at least 6 characters</li>
                         <li style="margin-bottom: 4px;">• Use a mix of letters, numbers, and symbols</li>
-                        <li style="margin-bottom: 4px;">• Don't use personal information</li>
+                        <li style="margin-bottom: 4px;">• Don&apos;t use personal information</li>
                       </ul>
                     </div>
 

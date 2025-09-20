@@ -115,7 +115,7 @@ function ErrorContent() {
     if (!errorString) {
       return {
         title: "Authentication Error",
-        message: "We're having trouble signing you in right now.",
+        message: "We&apos;re having trouble signing you in right now.",
         suggestion: "Please try again in a moment.",
         actionText: "Try Again",
         actionHref: "/auth/login",
@@ -149,7 +149,7 @@ function ErrorContent() {
       return {
         title: "Too Many Attempts",
         message:
-          "You've made too many login attempts. This is a security measure to protect your account.",
+          "You&apos;ve made too many login attempts. This is a security measure to protect your account.",
         suggestion:
           "Please wait for the timer to complete before trying again.",
         actionText: "Back to Login",
@@ -166,7 +166,7 @@ function ErrorContent() {
     ) {
       return {
         title: "Service Unavailable",
-        message: "We're unable to process your request right now.",
+        message: "We&apos;re unable to process your request right now.",
         suggestion: "This is a temporary issue. Please try again shortly.",
         actionText: "Retry Login",
         actionHref: "/auth/login",
@@ -177,7 +177,7 @@ function ErrorContent() {
     if (decodedError.includes("oauth") || decodedError.includes("callback")) {
       return {
         title: "Sign-In Issue",
-        message: "We couldn't complete your sign-in request.",
+        message: "We couldn&apos;t complete your sign-in request.",
         suggestion:
           "Try using email and password instead, or attempt the same method again.",
         actionText: "Back to Login",
@@ -205,7 +205,7 @@ function ErrorContent() {
     if (decodedError.includes("network") || decodedError.includes("timeout")) {
       return {
         title: "Connection Issue",
-        message: "We're having trouble connecting to our servers.",
+        message: "We&apos;re having trouble connecting to our servers.",
         suggestion: "Please check your internet connection and try again.",
         actionText: "Try Again",
         actionHref: "/auth/login",

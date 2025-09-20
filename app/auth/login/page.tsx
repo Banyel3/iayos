@@ -135,7 +135,7 @@ const Login = () => {
           setRateLimitTime(300);
 
           userMessage =
-            "You've made too many login attempts. Please wait before trying again.";
+            "You&apos;ve made too many login attempts. Please wait before trying again.";
           errorTitle = "Too Many Attempts";
         } else if (errorLower.includes("user not found")) {
           userMessage = "No account found with this email address.";
@@ -160,7 +160,7 @@ const Login = () => {
     } catch (error) {
       // Show generic error modal for network/unexpected errors
       errorModal.showError(
-        "We're having trouble connecting. Please check your internet connection and try again.",
+        "We&apos;re having trouble connecting. Please check your internet connection and try again.",
         "Try Again",
         undefined,
         "Connection Error"
@@ -319,7 +319,7 @@ const Login = () => {
 
                     if (result?.error) {
                       errorModal.showError(
-                        "We couldn't sign you in with Google. Please try again or use email and password.",
+                        "We couldn&apos;t sign you in with Google. Please try again or use email and password.",
                         "Try Again",
                         undefined,
                         "Google Sign-In Error"
@@ -355,7 +355,7 @@ const Login = () => {
 
               <div className="mt-4 text-center">
                 <p className="text-xs font-inter text-gray-600">
-                  Don't have an account?{" "}
+                  Don&apos;t have an account?{" "}
                   <Link
                     href="/auth/register"
                     className="text-blue-600 hover:text-blue-700 font-medium transition-colors"

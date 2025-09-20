@@ -38,12 +38,16 @@ const Onboard = () => {
         <div className="flex flex-col justify-center flex-1 py-8">
           <div className="text-center px-2 mb-8">
             <header className="font-bold text-xl font-inter leading-tight">
-              Who's in the iAyos Community
+              Who&apos;s in the iAyos Community
             </header>
           </div>
           <div className="text-center px-2">
             <div className="flex justify-center mb-6">
-              <img src="/iayos_stat.svg" alt="iAyos statistics" className="max-w-full h-auto" />
+              <img
+                src="/iayos_stat.svg"
+                alt="iAyos statistics"
+                className="max-w-full h-auto"
+              />
             </div>
             <h1 className="text-3xl leading-tight font-bold font-inter mb-6">
               Find the right people for the job
