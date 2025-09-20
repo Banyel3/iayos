@@ -80,6 +80,7 @@ export const authOptions: NextAuthOptions = {
       credentials: {
         email: {},
         password: {},
+        turnstileToken: {},
       },
       /**
        * CREDENTIAL VALIDATION FUNCTION
@@ -89,11 +90,23 @@ export const authOptions: NextAuthOptions = {
       authorize: async (credentials, req) => {
         // Get the password from form submission
         const inputPassword = credentials!.password;
+        const token = credentials!.turnstileToken;
         const ip =
           (req as any)?.headers?.["x-client-ip"] ||
           (req as any)?.body?.ip ||
           "anonymous";
+        const verify = await fetch(
+          "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: `secret=${process.env.TURNSTILE_SECRET_KEY}&response=${token}`,
+          }
+        ).then((res) => res.json());
 
+        if (!verify.success) {
+          throw new Error(JSON.stringify({ error: "Captcha failed" }));
+        }
         try {
           await rateLimiter.consume(ip);
         } catch (err) {

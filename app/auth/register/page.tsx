@@ -45,7 +45,7 @@ const formSchema = z.object({
       /[^A-Za-z0-9]/,
       "Password must contain at least one special character"
     ),
-  turnstileToken: z.string().min(1, "Captcha required"), // ✅ add this
+  turnstileToken: z.string().min(1, "Captcha required"),
 });
 
 // Create a separate component that uses useSearchParams
