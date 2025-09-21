@@ -38,6 +38,11 @@ export type Freelancer_Specialization = $Result.DefaultSelection<Prisma.$Freelan
  * 
  */
 export type Specialization = $Result.DefaultSelection<Prisma.$SpecializationPayload>
+/**
+ * Model Agency
+ * 
+ */
+export type Agency = $Result.DefaultSelection<Prisma.$AgencyPayload>
 
 /**
  * Enums
@@ -224,6 +229,16 @@ export class PrismaClient<
     * ```
     */
   get specialization(): Prisma.SpecializationDelegate<ExtArgs, ClientOptions>;
+
+  /**
+   * `prisma.agency`: Exposes CRUD operations for the **Agency** model.
+    * Example usage:
+    * ```ts
+    * // Fetch zero or more Agencies
+    * const agencies = await prisma.agency.findMany()
+    * ```
+    */
+  get agency(): Prisma.AgencyDelegate<ExtArgs, ClientOptions>;
 }
 
 export namespace Prisma {
@@ -668,7 +683,8 @@ export namespace Prisma {
     Profile: 'Profile',
     Worker_Profile: 'Worker_Profile',
     Freelancer_Specialization: 'Freelancer_Specialization',
-    Specialization: 'Specialization'
+    Specialization: 'Specialization',
+    Agency: 'Agency'
   };
 
   export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -687,7 +703,7 @@ export namespace Prisma {
       omit: GlobalOmitOptions
     }
     meta: {
-      modelProps: "accounts" | "profile" | "worker_Profile" | "freelancer_Specialization" | "specialization"
+      modelProps: "accounts" | "profile" | "worker_Profile" | "freelancer_Specialization" | "specialization" | "agency"
       txIsolationLevel: Prisma.TransactionIsolationLevel
     }
     model: {
@@ -1061,6 +1077,80 @@ export namespace Prisma {
           }
         }
       }
+      Agency: {
+        payload: Prisma.$AgencyPayload<ExtArgs>
+        fields: Prisma.AgencyFieldRefs
+        operations: {
+          findUnique: {
+            args: Prisma.AgencyFindUniqueArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$AgencyPayload> | null
+          }
+          findUniqueOrThrow: {
+            args: Prisma.AgencyFindUniqueOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$AgencyPayload>
+          }
+          findFirst: {
+            args: Prisma.AgencyFindFirstArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$AgencyPayload> | null
+          }
+          findFirstOrThrow: {
+            args: Prisma.AgencyFindFirstOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$AgencyPayload>
+          }
+          findMany: {
+            args: Prisma.AgencyFindManyArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$AgencyPayload>[]
+          }
+          create: {
+            args: Prisma.AgencyCreateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$AgencyPayload>
+          }
+          createMany: {
+            args: Prisma.AgencyCreateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          createManyAndReturn: {
+            args: Prisma.AgencyCreateManyAndReturnArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$AgencyPayload>[]
+          }
+          delete: {
+            args: Prisma.AgencyDeleteArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$AgencyPayload>
+          }
+          update: {
+            args: Prisma.AgencyUpdateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$AgencyPayload>
+          }
+          deleteMany: {
+            args: Prisma.AgencyDeleteManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          updateMany: {
+            args: Prisma.AgencyUpdateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          updateManyAndReturn: {
+            args: Prisma.AgencyUpdateManyAndReturnArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$AgencyPayload>[]
+          }
+          upsert: {
+            args: Prisma.AgencyUpsertArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$AgencyPayload>
+          }
+          aggregate: {
+            args: Prisma.AgencyAggregateArgs<ExtArgs>
+            result: $Utils.Optional<AggregateAgency>
+          }
+          groupBy: {
+            args: Prisma.AgencyGroupByArgs<ExtArgs>
+            result: $Utils.Optional<AgencyGroupByOutputType>[]
+          }
+          count: {
+            args: Prisma.AgencyCountArgs<ExtArgs>
+            result: $Utils.Optional<AgencyCountAggregateOutputType> | number
+          }
+        }
+      }
     }
   } & {
     other: {
@@ -1158,6 +1248,7 @@ export namespace Prisma {
     worker_Profile?: Worker_ProfileOmit
     freelancer_Specialization?: Freelancer_SpecializationOmit
     specialization?: SpecializationOmit
+    agency?: AgencyOmit
   }
 
   /* Types for Logging */
@@ -1239,10 +1330,12 @@ export namespace Prisma {
 
   export type AccountsCountOutputType = {
     profile: number
+    agency: number
   }
 
   export type AccountsCountOutputTypeSelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     profile?: boolean | AccountsCountOutputTypeCountProfileArgs
+    agency?: boolean | AccountsCountOutputTypeCountAgencyArgs
   }
 
   // Custom InputTypes
@@ -1261,6 +1354,13 @@ export namespace Prisma {
    */
   export type AccountsCountOutputTypeCountProfileArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     where?: ProfileWhereInput
+  }
+
+  /**
+   * AccountsCountOutputType without action
+   */
+  export type AccountsCountOutputTypeCountAgencyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    where?: AgencyWhereInput
   }
 
 
@@ -1604,6 +1704,7 @@ export namespace Prisma {
     status?: boolean
     defaultProfileId?: boolean
     profile?: boolean | Accounts$profileArgs<ExtArgs>
+    agency?: boolean | Accounts$agencyArgs<ExtArgs>
     defaultProfile?: boolean | Accounts$defaultProfileArgs<ExtArgs>
     _count?: boolean | AccountsCountOutputTypeDefaultArgs<ExtArgs>
   }, ExtArgs["result"]["accounts"]>
@@ -1652,6 +1753,7 @@ export namespace Prisma {
   export type AccountsOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"accountID" | "email" | "password" | "isVerified" | "verifyToken" | "verifyTokenExpire" | "createdAt" | "updatedAt" | "status" | "defaultProfileId", ExtArgs["result"]["accounts"]>
   export type AccountsInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     profile?: boolean | Accounts$profileArgs<ExtArgs>
+    agency?: boolean | Accounts$agencyArgs<ExtArgs>
     defaultProfile?: boolean | Accounts$defaultProfileArgs<ExtArgs>
     _count?: boolean | AccountsCountOutputTypeDefaultArgs<ExtArgs>
   }
@@ -1666,6 +1768,7 @@ export namespace Prisma {
     name: "Accounts"
     objects: {
       profile: Prisma.$ProfilePayload<ExtArgs>[]
+      agency: Prisma.$AgencyPayload<ExtArgs>[]
       defaultProfile: Prisma.$ProfilePayload<ExtArgs> | null
     }
     scalars: $Extensions.GetPayloadResult<{
@@ -2074,6 +2177,7 @@ export namespace Prisma {
   export interface Prisma__AccountsClient<T, Null = never, ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
     readonly [Symbol.toStringTag]: "PrismaPromise"
     profile<T extends Accounts$profileArgs<ExtArgs> = {}>(args?: Subset<T, Accounts$profileArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$ProfilePayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+    agency<T extends Accounts$agencyArgs<ExtArgs> = {}>(args?: Subset<T, Accounts$agencyArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$AgencyPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
     defaultProfile<T extends Accounts$defaultProfileArgs<ExtArgs> = {}>(args?: Subset<T, Accounts$defaultProfileArgs<ExtArgs>>): Prisma__ProfileClient<$Result.GetResult<Prisma.$ProfilePayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
     /**
      * Attaches callbacks for the resolution and/or rejection of the Promise.
@@ -2531,6 +2635,30 @@ export namespace Prisma {
     take?: number
     skip?: number
     distinct?: ProfileScalarFieldEnum | ProfileScalarFieldEnum[]
+  }
+
+  /**
+   * Accounts.agency
+   */
+  export type Accounts$agencyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the Agency
+     */
+    select?: AgencySelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the Agency
+     */
+    omit?: AgencyOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: AgencyInclude<ExtArgs> | null
+    where?: AgencyWhereInput
+    orderBy?: AgencyOrderByWithRelationInput | AgencyOrderByWithRelationInput[]
+    cursor?: AgencyWhereUniqueInput
+    take?: number
+    skip?: number
+    distinct?: AgencyScalarFieldEnum | AgencyScalarFieldEnum[]
   }
 
   /**
@@ -3774,29 +3902,20 @@ export namespace Prisma {
   export type Worker_ProfileAvgAggregateOutputType = {
     profileID: number | null
     hourlyRate: Decimal | null
-    responseTimeAvg: Decimal | null
-    completionRate: Decimal | null
     totalEarningGross: Decimal | null
-    withholdingBalance: Decimal | null
   }
 
   export type Worker_ProfileSumAggregateOutputType = {
     profileID: number | null
     hourlyRate: Decimal | null
-    responseTimeAvg: Decimal | null
-    completionRate: Decimal | null
     totalEarningGross: Decimal | null
-    withholdingBalance: Decimal | null
   }
 
   export type Worker_ProfileMinAggregateOutputType = {
     profileID: number | null
     hourlyRate: Decimal | null
-    responseTimeAvg: Decimal | null
-    completionRate: Decimal | null
     bio: string | null
     totalEarningGross: Decimal | null
-    withholdingBalance: Decimal | null
     description: string | null
     availabilityStatus: $Enums.availabilityStatus | null
   }
@@ -3804,11 +3923,8 @@ export namespace Prisma {
   export type Worker_ProfileMaxAggregateOutputType = {
     profileID: number | null
     hourlyRate: Decimal | null
-    responseTimeAvg: Decimal | null
-    completionRate: Decimal | null
     bio: string | null
     totalEarningGross: Decimal | null
-    withholdingBalance: Decimal | null
     description: string | null
     availabilityStatus: $Enums.availabilityStatus | null
   }
@@ -3817,11 +3933,8 @@ export namespace Prisma {
     profileID: number
     hourlyRate: number
     verifiedSkills: number
-    responseTimeAvg: number
-    completionRate: number
     bio: number
     totalEarningGross: number
-    withholdingBalance: number
     description: number
     availabilityStatus: number
     _all: number
@@ -3831,29 +3944,20 @@ export namespace Prisma {
   export type Worker_ProfileAvgAggregateInputType = {
     profileID?: true
     hourlyRate?: true
-    responseTimeAvg?: true
-    completionRate?: true
     totalEarningGross?: true
-    withholdingBalance?: true
   }
 
   export type Worker_ProfileSumAggregateInputType = {
     profileID?: true
     hourlyRate?: true
-    responseTimeAvg?: true
-    completionRate?: true
     totalEarningGross?: true
-    withholdingBalance?: true
   }
 
   export type Worker_ProfileMinAggregateInputType = {
     profileID?: true
     hourlyRate?: true
-    responseTimeAvg?: true
-    completionRate?: true
     bio?: true
     totalEarningGross?: true
-    withholdingBalance?: true
     description?: true
     availabilityStatus?: true
   }
@@ -3861,11 +3965,8 @@ export namespace Prisma {
   export type Worker_ProfileMaxAggregateInputType = {
     profileID?: true
     hourlyRate?: true
-    responseTimeAvg?: true
-    completionRate?: true
     bio?: true
     totalEarningGross?: true
-    withholdingBalance?: true
     description?: true
     availabilityStatus?: true
   }
@@ -3874,11 +3975,8 @@ export namespace Prisma {
     profileID?: true
     hourlyRate?: true
     verifiedSkills?: true
-    responseTimeAvg?: true
-    completionRate?: true
     bio?: true
     totalEarningGross?: true
-    withholdingBalance?: true
     description?: true
     availabilityStatus?: true
     _all?: true
@@ -3974,11 +4072,8 @@ export namespace Prisma {
     profileID: number
     hourlyRate: Decimal
     verifiedSkills: JsonValue
-    responseTimeAvg: Decimal
-    completionRate: Decimal
     bio: string
     totalEarningGross: Decimal
-    withholdingBalance: Decimal
     description: string
     availabilityStatus: $Enums.availabilityStatus
     _count: Worker_ProfileCountAggregateOutputType | null
@@ -4006,11 +4101,8 @@ export namespace Prisma {
     profileID?: boolean
     hourlyRate?: boolean
     verifiedSkills?: boolean
-    responseTimeAvg?: boolean
-    completionRate?: boolean
     bio?: boolean
     totalEarningGross?: boolean
-    withholdingBalance?: boolean
     description?: boolean
     availabilityStatus?: boolean
     profile?: boolean | Worker_Profile$profileArgs<ExtArgs>
@@ -4022,11 +4114,8 @@ export namespace Prisma {
     profileID?: boolean
     hourlyRate?: boolean
     verifiedSkills?: boolean
-    responseTimeAvg?: boolean
-    completionRate?: boolean
     bio?: boolean
     totalEarningGross?: boolean
-    withholdingBalance?: boolean
     description?: boolean
     availabilityStatus?: boolean
     profile?: boolean | Worker_Profile$profileArgs<ExtArgs>
@@ -4036,11 +4125,8 @@ export namespace Prisma {
     profileID?: boolean
     hourlyRate?: boolean
     verifiedSkills?: boolean
-    responseTimeAvg?: boolean
-    completionRate?: boolean
     bio?: boolean
     totalEarningGross?: boolean
-    withholdingBalance?: boolean
     description?: boolean
     availabilityStatus?: boolean
     profile?: boolean | Worker_Profile$profileArgs<ExtArgs>
@@ -4050,16 +4136,13 @@ export namespace Prisma {
     profileID?: boolean
     hourlyRate?: boolean
     verifiedSkills?: boolean
-    responseTimeAvg?: boolean
-    completionRate?: boolean
     bio?: boolean
     totalEarningGross?: boolean
-    withholdingBalance?: boolean
     description?: boolean
     availabilityStatus?: boolean
   }
 
-  export type Worker_ProfileOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"profileID" | "hourlyRate" | "verifiedSkills" | "responseTimeAvg" | "completionRate" | "bio" | "totalEarningGross" | "withholdingBalance" | "description" | "availabilityStatus", ExtArgs["result"]["worker_Profile"]>
+  export type Worker_ProfileOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"profileID" | "hourlyRate" | "verifiedSkills" | "bio" | "totalEarningGross" | "description" | "availabilityStatus", ExtArgs["result"]["worker_Profile"]>
   export type Worker_ProfileInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     profile?: boolean | Worker_Profile$profileArgs<ExtArgs>
     freelancer_specialization?: boolean | Worker_Profile$freelancer_specializationArgs<ExtArgs>
@@ -4082,11 +4165,8 @@ export namespace Prisma {
       profileID: number
       hourlyRate: Prisma.Decimal
       verifiedSkills: Prisma.JsonValue
-      responseTimeAvg: Prisma.Decimal
-      completionRate: Prisma.Decimal
       bio: string
       totalEarningGross: Prisma.Decimal
-      withholdingBalance: Prisma.Decimal
       description: string
       availabilityStatus: $Enums.availabilityStatus
     }, ExtArgs["result"]["worker_Profile"]>
@@ -4517,11 +4597,8 @@ export namespace Prisma {
     readonly profileID: FieldRef<"Worker_Profile", 'Int'>
     readonly hourlyRate: FieldRef<"Worker_Profile", 'Decimal'>
     readonly verifiedSkills: FieldRef<"Worker_Profile", 'Json'>
-    readonly responseTimeAvg: FieldRef<"Worker_Profile", 'Decimal'>
-    readonly completionRate: FieldRef<"Worker_Profile", 'Decimal'>
     readonly bio: FieldRef<"Worker_Profile", 'String'>
     readonly totalEarningGross: FieldRef<"Worker_Profile", 'Decimal'>
-    readonly withholdingBalance: FieldRef<"Worker_Profile", 'Decimal'>
     readonly description: FieldRef<"Worker_Profile", 'String'>
     readonly availabilityStatus: FieldRef<"Worker_Profile", 'availabilityStatus'>
   }
@@ -7142,6 +7219,1154 @@ export namespace Prisma {
 
 
   /**
+   * Model Agency
+   */
+
+  export type AggregateAgency = {
+    _count: AgencyCountAggregateOutputType | null
+    _avg: AgencyAvgAggregateOutputType | null
+    _sum: AgencySumAggregateOutputType | null
+    _min: AgencyMinAggregateOutputType | null
+    _max: AgencyMaxAggregateOutputType | null
+  }
+
+  export type AgencyAvgAggregateOutputType = {
+    agencyID: number | null
+    accountID: number | null
+  }
+
+  export type AgencySumAggregateOutputType = {
+    agencyID: number | null
+    accountID: number | null
+  }
+
+  export type AgencyMinAggregateOutputType = {
+    agencyID: number | null
+    accountID: number | null
+    businessName: string | null
+    businessDesc: string | null
+    isVerified: boolean | null
+    verifyToken: string | null
+    verifyTokenExpire: string | null
+    status: string | null
+    createdAt: Date | null
+  }
+
+  export type AgencyMaxAggregateOutputType = {
+    agencyID: number | null
+    accountID: number | null
+    businessName: string | null
+    businessDesc: string | null
+    isVerified: boolean | null
+    verifyToken: string | null
+    verifyTokenExpire: string | null
+    status: string | null
+    createdAt: Date | null
+  }
+
+  export type AgencyCountAggregateOutputType = {
+    agencyID: number
+    accountID: number
+    businessName: number
+    businessDesc: number
+    isVerified: number
+    verifyToken: number
+    verifyTokenExpire: number
+    status: number
+    createdAt: number
+    _all: number
+  }
+
+
+  export type AgencyAvgAggregateInputType = {
+    agencyID?: true
+    accountID?: true
+  }
+
+  export type AgencySumAggregateInputType = {
+    agencyID?: true
+    accountID?: true
+  }
+
+  export type AgencyMinAggregateInputType = {
+    agencyID?: true
+    accountID?: true
+    businessName?: true
+    businessDesc?: true
+    isVerified?: true
+    verifyToken?: true
+    verifyTokenExpire?: true
+    status?: true
+    createdAt?: true
+  }
+
+  export type AgencyMaxAggregateInputType = {
+    agencyID?: true
+    accountID?: true
+    businessName?: true
+    businessDesc?: true
+    isVerified?: true
+    verifyToken?: true
+    verifyTokenExpire?: true
+    status?: true
+    createdAt?: true
+  }
+
+  export type AgencyCountAggregateInputType = {
+    agencyID?: true
+    accountID?: true
+    businessName?: true
+    businessDesc?: true
+    isVerified?: true
+    verifyToken?: true
+    verifyTokenExpire?: true
+    status?: true
+    createdAt?: true
+    _all?: true
+  }
+
+  export type AgencyAggregateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which Agency to aggregate.
+     */
+    where?: AgencyWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of Agencies to fetch.
+     */
+    orderBy?: AgencyOrderByWithRelationInput | AgencyOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the start position
+     */
+    cursor?: AgencyWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` Agencies from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` Agencies.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Count returned Agencies
+    **/
+    _count?: true | AgencyCountAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to average
+    **/
+    _avg?: AgencyAvgAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to sum
+    **/
+    _sum?: AgencySumAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the minimum value
+    **/
+    _min?: AgencyMinAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the maximum value
+    **/
+    _max?: AgencyMaxAggregateInputType
+  }
+
+  export type GetAgencyAggregateType<T extends AgencyAggregateArgs> = {
+        [P in keyof T & keyof AggregateAgency]: P extends '_count' | 'count'
+      ? T[P] extends true
+        ? number
+        : GetScalarType<T[P], AggregateAgency[P]>
+      : GetScalarType<T[P], AggregateAgency[P]>
+  }
+
+
+
+
+  export type AgencyGroupByArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    where?: AgencyWhereInput
+    orderBy?: AgencyOrderByWithAggregationInput | AgencyOrderByWithAggregationInput[]
+    by: AgencyScalarFieldEnum[] | AgencyScalarFieldEnum
+    having?: AgencyScalarWhereWithAggregatesInput
+    take?: number
+    skip?: number
+    _count?: AgencyCountAggregateInputType | true
+    _avg?: AgencyAvgAggregateInputType
+    _sum?: AgencySumAggregateInputType
+    _min?: AgencyMinAggregateInputType
+    _max?: AgencyMaxAggregateInputType
+  }
+
+  export type AgencyGroupByOutputType = {
+    agencyID: number
+    accountID: number
+    businessName: string
+    businessDesc: string
+    isVerified: boolean
+    verifyToken: string
+    verifyTokenExpire: string
+    status: string
+    createdAt: Date
+    _count: AgencyCountAggregateOutputType | null
+    _avg: AgencyAvgAggregateOutputType | null
+    _sum: AgencySumAggregateOutputType | null
+    _min: AgencyMinAggregateOutputType | null
+    _max: AgencyMaxAggregateOutputType | null
+  }
+
+  type GetAgencyGroupByPayload<T extends AgencyGroupByArgs> = Prisma.PrismaPromise<
+    Array<
+      PickEnumerable<AgencyGroupByOutputType, T['by']> &
+        {
+          [P in ((keyof T) & (keyof AgencyGroupByOutputType))]: P extends '_count'
+            ? T[P] extends boolean
+              ? number
+              : GetScalarType<T[P], AgencyGroupByOutputType[P]>
+            : GetScalarType<T[P], AgencyGroupByOutputType[P]>
+        }
+      >
+    >
+
+
+  export type AgencySelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    agencyID?: boolean
+    accountID?: boolean
+    businessName?: boolean
+    businessDesc?: boolean
+    isVerified?: boolean
+    verifyToken?: boolean
+    verifyTokenExpire?: boolean
+    status?: boolean
+    createdAt?: boolean
+    agency_accounts?: boolean | AccountsDefaultArgs<ExtArgs>
+  }, ExtArgs["result"]["agency"]>
+
+  export type AgencySelectCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    agencyID?: boolean
+    accountID?: boolean
+    businessName?: boolean
+    businessDesc?: boolean
+    isVerified?: boolean
+    verifyToken?: boolean
+    verifyTokenExpire?: boolean
+    status?: boolean
+    createdAt?: boolean
+    agency_accounts?: boolean | AccountsDefaultArgs<ExtArgs>
+  }, ExtArgs["result"]["agency"]>
+
+  export type AgencySelectUpdateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    agencyID?: boolean
+    accountID?: boolean
+    businessName?: boolean
+    businessDesc?: boolean
+    isVerified?: boolean
+    verifyToken?: boolean
+    verifyTokenExpire?: boolean
+    status?: boolean
+    createdAt?: boolean
+    agency_accounts?: boolean | AccountsDefaultArgs<ExtArgs>
+  }, ExtArgs["result"]["agency"]>
+
+  export type AgencySelectScalar = {
+    agencyID?: boolean
+    accountID?: boolean
+    businessName?: boolean
+    businessDesc?: boolean
+    isVerified?: boolean
+    verifyToken?: boolean
+    verifyTokenExpire?: boolean
+    status?: boolean
+    createdAt?: boolean
+  }
+
+  export type AgencyOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"agencyID" | "accountID" | "businessName" | "businessDesc" | "isVerified" | "verifyToken" | "verifyTokenExpire" | "status" | "createdAt", ExtArgs["result"]["agency"]>
+  export type AgencyInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    agency_accounts?: boolean | AccountsDefaultArgs<ExtArgs>
+  }
+  export type AgencyIncludeCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    agency_accounts?: boolean | AccountsDefaultArgs<ExtArgs>
+  }
+  export type AgencyIncludeUpdateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    agency_accounts?: boolean | AccountsDefaultArgs<ExtArgs>
+  }
+
+  export type $AgencyPayload<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    name: "Agency"
+    objects: {
+      agency_accounts: Prisma.$AccountsPayload<ExtArgs>
+    }
+    scalars: $Extensions.GetPayloadResult<{
+      agencyID: number
+      accountID: number
+      businessName: string
+      businessDesc: string
+      isVerified: boolean
+      verifyToken: string
+      verifyTokenExpire: string
+      status: string
+      createdAt: Date
+    }, ExtArgs["result"]["agency"]>
+    composites: {}
+  }
+
+  type AgencyGetPayload<S extends boolean | null | undefined | AgencyDefaultArgs> = $Result.GetResult<Prisma.$AgencyPayload, S>
+
+  type AgencyCountArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> =
+    Omit<AgencyFindManyArgs, 'select' | 'include' | 'distinct' | 'omit'> & {
+      select?: AgencyCountAggregateInputType | true
+    }
+
+  export interface AgencyDelegate<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs, GlobalOmitOptions = {}> {
+    [K: symbol]: { types: Prisma.TypeMap<ExtArgs>['model']['Agency'], meta: { name: 'Agency' } }
+    /**
+     * Find zero or one Agency that matches the filter.
+     * @param {AgencyFindUniqueArgs} args - Arguments to find a Agency
+     * @example
+     * // Get one Agency
+     * const agency = await prisma.agency.findUnique({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUnique<T extends AgencyFindUniqueArgs>(args: SelectSubset<T, AgencyFindUniqueArgs<ExtArgs>>): Prisma__AgencyClient<$Result.GetResult<Prisma.$AgencyPayload<ExtArgs>, T, "findUnique", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Find one Agency that matches the filter or throw an error with `error.code='P2025'`
+     * if no matches were found.
+     * @param {AgencyFindUniqueOrThrowArgs} args - Arguments to find a Agency
+     * @example
+     * // Get one Agency
+     * const agency = await prisma.agency.findUniqueOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUniqueOrThrow<T extends AgencyFindUniqueOrThrowArgs>(args: SelectSubset<T, AgencyFindUniqueOrThrowArgs<ExtArgs>>): Prisma__AgencyClient<$Result.GetResult<Prisma.$AgencyPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Find the first Agency that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {AgencyFindFirstArgs} args - Arguments to find a Agency
+     * @example
+     * // Get one Agency
+     * const agency = await prisma.agency.findFirst({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirst<T extends AgencyFindFirstArgs>(args?: SelectSubset<T, AgencyFindFirstArgs<ExtArgs>>): Prisma__AgencyClient<$Result.GetResult<Prisma.$AgencyPayload<ExtArgs>, T, "findFirst", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Find the first Agency that matches the filter or
+     * throw `PrismaKnownClientError` with `P2025` code if no matches were found.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {AgencyFindFirstOrThrowArgs} args - Arguments to find a Agency
+     * @example
+     * // Get one Agency
+     * const agency = await prisma.agency.findFirstOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirstOrThrow<T extends AgencyFindFirstOrThrowArgs>(args?: SelectSubset<T, AgencyFindFirstOrThrowArgs<ExtArgs>>): Prisma__AgencyClient<$Result.GetResult<Prisma.$AgencyPayload<ExtArgs>, T, "findFirstOrThrow", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Find zero or more Agencies that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {AgencyFindManyArgs} args - Arguments to filter and select certain fields only.
+     * @example
+     * // Get all Agencies
+     * const agencies = await prisma.agency.findMany()
+     * 
+     * // Get first 10 Agencies
+     * const agencies = await prisma.agency.findMany({ take: 10 })
+     * 
+     * // Only select the `agencyID`
+     * const agencyWithAgencyIDOnly = await prisma.agency.findMany({ select: { agencyID: true } })
+     * 
+     */
+    findMany<T extends AgencyFindManyArgs>(args?: SelectSubset<T, AgencyFindManyArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$AgencyPayload<ExtArgs>, T, "findMany", GlobalOmitOptions>>
+
+    /**
+     * Create a Agency.
+     * @param {AgencyCreateArgs} args - Arguments to create a Agency.
+     * @example
+     * // Create one Agency
+     * const Agency = await prisma.agency.create({
+     *   data: {
+     *     // ... data to create a Agency
+     *   }
+     * })
+     * 
+     */
+    create<T extends AgencyCreateArgs>(args: SelectSubset<T, AgencyCreateArgs<ExtArgs>>): Prisma__AgencyClient<$Result.GetResult<Prisma.$AgencyPayload<ExtArgs>, T, "create", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Create many Agencies.
+     * @param {AgencyCreateManyArgs} args - Arguments to create many Agencies.
+     * @example
+     * // Create many Agencies
+     * const agency = await prisma.agency.createMany({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     *     
+     */
+    createMany<T extends AgencyCreateManyArgs>(args?: SelectSubset<T, AgencyCreateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Create many Agencies and returns the data saved in the database.
+     * @param {AgencyCreateManyAndReturnArgs} args - Arguments to create many Agencies.
+     * @example
+     * // Create many Agencies
+     * const agency = await prisma.agency.createManyAndReturn({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * 
+     * // Create many Agencies and only return the `agencyID`
+     * const agencyWithAgencyIDOnly = await prisma.agency.createManyAndReturn({
+     *   select: { agencyID: true },
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * 
+     */
+    createManyAndReturn<T extends AgencyCreateManyAndReturnArgs>(args?: SelectSubset<T, AgencyCreateManyAndReturnArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$AgencyPayload<ExtArgs>, T, "createManyAndReturn", GlobalOmitOptions>>
+
+    /**
+     * Delete a Agency.
+     * @param {AgencyDeleteArgs} args - Arguments to delete one Agency.
+     * @example
+     * // Delete one Agency
+     * const Agency = await prisma.agency.delete({
+     *   where: {
+     *     // ... filter to delete one Agency
+     *   }
+     * })
+     * 
+     */
+    delete<T extends AgencyDeleteArgs>(args: SelectSubset<T, AgencyDeleteArgs<ExtArgs>>): Prisma__AgencyClient<$Result.GetResult<Prisma.$AgencyPayload<ExtArgs>, T, "delete", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Update one Agency.
+     * @param {AgencyUpdateArgs} args - Arguments to update one Agency.
+     * @example
+     * // Update one Agency
+     * const agency = await prisma.agency.update({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    update<T extends AgencyUpdateArgs>(args: SelectSubset<T, AgencyUpdateArgs<ExtArgs>>): Prisma__AgencyClient<$Result.GetResult<Prisma.$AgencyPayload<ExtArgs>, T, "update", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Delete zero or more Agencies.
+     * @param {AgencyDeleteManyArgs} args - Arguments to filter Agencies to delete.
+     * @example
+     * // Delete a few Agencies
+     * const { count } = await prisma.agency.deleteMany({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     * 
+     */
+    deleteMany<T extends AgencyDeleteManyArgs>(args?: SelectSubset<T, AgencyDeleteManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Update zero or more Agencies.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {AgencyUpdateManyArgs} args - Arguments to update one or more rows.
+     * @example
+     * // Update many Agencies
+     * const agency = await prisma.agency.updateMany({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    updateMany<T extends AgencyUpdateManyArgs>(args: SelectSubset<T, AgencyUpdateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Update zero or more Agencies and returns the data updated in the database.
+     * @param {AgencyUpdateManyAndReturnArgs} args - Arguments to update many Agencies.
+     * @example
+     * // Update many Agencies
+     * const agency = await prisma.agency.updateManyAndReturn({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * 
+     * // Update zero or more Agencies and only return the `agencyID`
+     * const agencyWithAgencyIDOnly = await prisma.agency.updateManyAndReturn({
+     *   select: { agencyID: true },
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * 
+     */
+    updateManyAndReturn<T extends AgencyUpdateManyAndReturnArgs>(args: SelectSubset<T, AgencyUpdateManyAndReturnArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$AgencyPayload<ExtArgs>, T, "updateManyAndReturn", GlobalOmitOptions>>
+
+    /**
+     * Create or update one Agency.
+     * @param {AgencyUpsertArgs} args - Arguments to update or create a Agency.
+     * @example
+     * // Update or create a Agency
+     * const agency = await prisma.agency.upsert({
+     *   create: {
+     *     // ... data to create a Agency
+     *   },
+     *   update: {
+     *     // ... in case it already exists, update
+     *   },
+     *   where: {
+     *     // ... the filter for the Agency we want to update
+     *   }
+     * })
+     */
+    upsert<T extends AgencyUpsertArgs>(args: SelectSubset<T, AgencyUpsertArgs<ExtArgs>>): Prisma__AgencyClient<$Result.GetResult<Prisma.$AgencyPayload<ExtArgs>, T, "upsert", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+
+    /**
+     * Count the number of Agencies.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {AgencyCountArgs} args - Arguments to filter Agencies to count.
+     * @example
+     * // Count the number of Agencies
+     * const count = await prisma.agency.count({
+     *   where: {
+     *     // ... the filter for the Agencies we want to count
+     *   }
+     * })
+    **/
+    count<T extends AgencyCountArgs>(
+      args?: Subset<T, AgencyCountArgs>,
+    ): Prisma.PrismaPromise<
+      T extends $Utils.Record<'select', any>
+        ? T['select'] extends true
+          ? number
+          : GetScalarType<T['select'], AgencyCountAggregateOutputType>
+        : number
+    >
+
+    /**
+     * Allows you to perform aggregations operations on a Agency.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {AgencyAggregateArgs} args - Select which aggregations you would like to apply and on what fields.
+     * @example
+     * // Ordered by age ascending
+     * // Where email contains prisma.io
+     * // Limited to the 10 users
+     * const aggregations = await prisma.user.aggregate({
+     *   _avg: {
+     *     age: true,
+     *   },
+     *   where: {
+     *     email: {
+     *       contains: "prisma.io",
+     *     },
+     *   },
+     *   orderBy: {
+     *     age: "asc",
+     *   },
+     *   take: 10,
+     * })
+    **/
+    aggregate<T extends AgencyAggregateArgs>(args: Subset<T, AgencyAggregateArgs>): Prisma.PrismaPromise<GetAgencyAggregateType<T>>
+
+    /**
+     * Group by Agency.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {AgencyGroupByArgs} args - Group by arguments.
+     * @example
+     * // Group by city, order by createdAt, get count
+     * const result = await prisma.user.groupBy({
+     *   by: ['city', 'createdAt'],
+     *   orderBy: {
+     *     createdAt: true
+     *   },
+     *   _count: {
+     *     _all: true
+     *   },
+     * })
+     * 
+    **/
+    groupBy<
+      T extends AgencyGroupByArgs,
+      HasSelectOrTake extends Or<
+        Extends<'skip', Keys<T>>,
+        Extends<'take', Keys<T>>
+      >,
+      OrderByArg extends True extends HasSelectOrTake
+        ? { orderBy: AgencyGroupByArgs['orderBy'] }
+        : { orderBy?: AgencyGroupByArgs['orderBy'] },
+      OrderFields extends ExcludeUnderscoreKeys<Keys<MaybeTupleToUnion<T['orderBy']>>>,
+      ByFields extends MaybeTupleToUnion<T['by']>,
+      ByValid extends Has<ByFields, OrderFields>,
+      HavingFields extends GetHavingFields<T['having']>,
+      HavingValid extends Has<ByFields, HavingFields>,
+      ByEmpty extends T['by'] extends never[] ? True : False,
+      InputErrors extends ByEmpty extends True
+      ? `Error: "by" must not be empty.`
+      : HavingValid extends False
+      ? {
+          [P in HavingFields]: P extends ByFields
+            ? never
+            : P extends string
+            ? `Error: Field "${P}" used in "having" needs to be provided in "by".`
+            : [
+                Error,
+                'Field ',
+                P,
+                ` in "having" needs to be provided in "by"`,
+              ]
+        }[HavingFields]
+      : 'take' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "take", you also need to provide "orderBy"'
+      : 'skip' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "skip", you also need to provide "orderBy"'
+      : ByValid extends True
+      ? {}
+      : {
+          [P in OrderFields]: P extends ByFields
+            ? never
+            : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+        }[OrderFields]
+    >(args: SubsetIntersection<T, AgencyGroupByArgs, OrderByArg> & InputErrors): {} extends InputErrors ? GetAgencyGroupByPayload<T> : Prisma.PrismaPromise<InputErrors>
+  /**
+   * Fields of the Agency model
+   */
+  readonly fields: AgencyFieldRefs;
+  }
+
+  /**
+   * The delegate class that acts as a "Promise-like" for Agency.
+   * Why is this prefixed with `Prisma__`?
+   * Because we want to prevent naming conflicts as mentioned in
+   * https://github.com/prisma/prisma-client-js/issues/707
+   */
+  export interface Prisma__AgencyClient<T, Null = never, ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
+    readonly [Symbol.toStringTag]: "PrismaPromise"
+    agency_accounts<T extends AccountsDefaultArgs<ExtArgs> = {}>(args?: Subset<T, AccountsDefaultArgs<ExtArgs>>): Prisma__AccountsClient<$Result.GetResult<Prisma.$AccountsPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
+    /**
+     * Attaches callbacks for the resolution and/or rejection of the Promise.
+     * @param onfulfilled The callback to execute when the Promise is resolved.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of which ever callback is executed.
+     */
+    then<TResult1 = T, TResult2 = never>(onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | undefined | null, onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null): $Utils.JsPromise<TResult1 | TResult2>
+    /**
+     * Attaches a callback for only the rejection of the Promise.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of the callback.
+     */
+    catch<TResult = never>(onrejected?: ((reason: any) => TResult | PromiseLike<TResult>) | undefined | null): $Utils.JsPromise<T | TResult>
+    /**
+     * Attaches a callback that is invoked when the Promise is settled (fulfilled or rejected). The
+     * resolved value cannot be modified from the callback.
+     * @param onfinally The callback to execute when the Promise is settled (fulfilled or rejected).
+     * @returns A Promise for the completion of the callback.
+     */
+    finally(onfinally?: (() => void) | undefined | null): $Utils.JsPromise<T>
+  }
+
+
+
+
+  /**
+   * Fields of the Agency model
+   */
+  interface AgencyFieldRefs {
+    readonly agencyID: FieldRef<"Agency", 'Int'>
+    readonly accountID: FieldRef<"Agency", 'Int'>
+    readonly businessName: FieldRef<"Agency", 'String'>
+    readonly businessDesc: FieldRef<"Agency", 'String'>
+    readonly isVerified: FieldRef<"Agency", 'Boolean'>
+    readonly verifyToken: FieldRef<"Agency", 'String'>
+    readonly verifyTokenExpire: FieldRef<"Agency", 'String'>
+    readonly status: FieldRef<"Agency", 'String'>
+    readonly createdAt: FieldRef<"Agency", 'DateTime'>
+  }
+    
+
+  // Custom InputTypes
+  /**
+   * Agency findUnique
+   */
+  export type AgencyFindUniqueArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the Agency
+     */
+    select?: AgencySelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the Agency
+     */
+    omit?: AgencyOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: AgencyInclude<ExtArgs> | null
+    /**
+     * Filter, which Agency to fetch.
+     */
+    where: AgencyWhereUniqueInput
+  }
+
+  /**
+   * Agency findUniqueOrThrow
+   */
+  export type AgencyFindUniqueOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the Agency
+     */
+    select?: AgencySelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the Agency
+     */
+    omit?: AgencyOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: AgencyInclude<ExtArgs> | null
+    /**
+     * Filter, which Agency to fetch.
+     */
+    where: AgencyWhereUniqueInput
+  }
+
+  /**
+   * Agency findFirst
+   */
+  export type AgencyFindFirstArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the Agency
+     */
+    select?: AgencySelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the Agency
+     */
+    omit?: AgencyOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: AgencyInclude<ExtArgs> | null
+    /**
+     * Filter, which Agency to fetch.
+     */
+    where?: AgencyWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of Agencies to fetch.
+     */
+    orderBy?: AgencyOrderByWithRelationInput | AgencyOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for Agencies.
+     */
+    cursor?: AgencyWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` Agencies from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` Agencies.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of Agencies.
+     */
+    distinct?: AgencyScalarFieldEnum | AgencyScalarFieldEnum[]
+  }
+
+  /**
+   * Agency findFirstOrThrow
+   */
+  export type AgencyFindFirstOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the Agency
+     */
+    select?: AgencySelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the Agency
+     */
+    omit?: AgencyOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: AgencyInclude<ExtArgs> | null
+    /**
+     * Filter, which Agency to fetch.
+     */
+    where?: AgencyWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of Agencies to fetch.
+     */
+    orderBy?: AgencyOrderByWithRelationInput | AgencyOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for Agencies.
+     */
+    cursor?: AgencyWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` Agencies from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` Agencies.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of Agencies.
+     */
+    distinct?: AgencyScalarFieldEnum | AgencyScalarFieldEnum[]
+  }
+
+  /**
+   * Agency findMany
+   */
+  export type AgencyFindManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the Agency
+     */
+    select?: AgencySelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the Agency
+     */
+    omit?: AgencyOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: AgencyInclude<ExtArgs> | null
+    /**
+     * Filter, which Agencies to fetch.
+     */
+    where?: AgencyWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of Agencies to fetch.
+     */
+    orderBy?: AgencyOrderByWithRelationInput | AgencyOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for listing Agencies.
+     */
+    cursor?: AgencyWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` Agencies from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` Agencies.
+     */
+    skip?: number
+    distinct?: AgencyScalarFieldEnum | AgencyScalarFieldEnum[]
+  }
+
+  /**
+   * Agency create
+   */
+  export type AgencyCreateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the Agency
+     */
+    select?: AgencySelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the Agency
+     */
+    omit?: AgencyOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: AgencyInclude<ExtArgs> | null
+    /**
+     * The data needed to create a Agency.
+     */
+    data: XOR<AgencyCreateInput, AgencyUncheckedCreateInput>
+  }
+
+  /**
+   * Agency createMany
+   */
+  export type AgencyCreateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to create many Agencies.
+     */
+    data: AgencyCreateManyInput | AgencyCreateManyInput[]
+    skipDuplicates?: boolean
+  }
+
+  /**
+   * Agency createManyAndReturn
+   */
+  export type AgencyCreateManyAndReturnArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the Agency
+     */
+    select?: AgencySelectCreateManyAndReturn<ExtArgs> | null
+    /**
+     * Omit specific fields from the Agency
+     */
+    omit?: AgencyOmit<ExtArgs> | null
+    /**
+     * The data used to create many Agencies.
+     */
+    data: AgencyCreateManyInput | AgencyCreateManyInput[]
+    skipDuplicates?: boolean
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: AgencyIncludeCreateManyAndReturn<ExtArgs> | null
+  }
+
+  /**
+   * Agency update
+   */
+  export type AgencyUpdateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the Agency
+     */
+    select?: AgencySelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the Agency
+     */
+    omit?: AgencyOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: AgencyInclude<ExtArgs> | null
+    /**
+     * The data needed to update a Agency.
+     */
+    data: XOR<AgencyUpdateInput, AgencyUncheckedUpdateInput>
+    /**
+     * Choose, which Agency to update.
+     */
+    where: AgencyWhereUniqueInput
+  }
+
+  /**
+   * Agency updateMany
+   */
+  export type AgencyUpdateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to update Agencies.
+     */
+    data: XOR<AgencyUpdateManyMutationInput, AgencyUncheckedUpdateManyInput>
+    /**
+     * Filter which Agencies to update
+     */
+    where?: AgencyWhereInput
+    /**
+     * Limit how many Agencies to update.
+     */
+    limit?: number
+  }
+
+  /**
+   * Agency updateManyAndReturn
+   */
+  export type AgencyUpdateManyAndReturnArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the Agency
+     */
+    select?: AgencySelectUpdateManyAndReturn<ExtArgs> | null
+    /**
+     * Omit specific fields from the Agency
+     */
+    omit?: AgencyOmit<ExtArgs> | null
+    /**
+     * The data used to update Agencies.
+     */
+    data: XOR<AgencyUpdateManyMutationInput, AgencyUncheckedUpdateManyInput>
+    /**
+     * Filter which Agencies to update
+     */
+    where?: AgencyWhereInput
+    /**
+     * Limit how many Agencies to update.
+     */
+    limit?: number
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: AgencyIncludeUpdateManyAndReturn<ExtArgs> | null
+  }
+
+  /**
+   * Agency upsert
+   */
+  export type AgencyUpsertArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the Agency
+     */
+    select?: AgencySelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the Agency
+     */
+    omit?: AgencyOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: AgencyInclude<ExtArgs> | null
+    /**
+     * The filter to search for the Agency to update in case it exists.
+     */
+    where: AgencyWhereUniqueInput
+    /**
+     * In case the Agency found by the `where` argument doesn't exist, create a new Agency with this data.
+     */
+    create: XOR<AgencyCreateInput, AgencyUncheckedCreateInput>
+    /**
+     * In case the Agency was found with the provided `where` argument, update it with this data.
+     */
+    update: XOR<AgencyUpdateInput, AgencyUncheckedUpdateInput>
+  }
+
+  /**
+   * Agency delete
+   */
+  export type AgencyDeleteArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the Agency
+     */
+    select?: AgencySelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the Agency
+     */
+    omit?: AgencyOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: AgencyInclude<ExtArgs> | null
+    /**
+     * Filter which Agency to delete.
+     */
+    where: AgencyWhereUniqueInput
+  }
+
+  /**
+   * Agency deleteMany
+   */
+  export type AgencyDeleteManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which Agencies to delete
+     */
+    where?: AgencyWhereInput
+    /**
+     * Limit how many Agencies to delete.
+     */
+    limit?: number
+  }
+
+  /**
+   * Agency without action
+   */
+  export type AgencyDefaultArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the Agency
+     */
+    select?: AgencySelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the Agency
+     */
+    omit?: AgencyOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: AgencyInclude<ExtArgs> | null
+  }
+
+
+  /**
    * Enums
    */
 
@@ -7189,11 +8414,8 @@ export namespace Prisma {
     profileID: 'profileID',
     hourlyRate: 'hourlyRate',
     verifiedSkills: 'verifiedSkills',
-    responseTimeAvg: 'responseTimeAvg',
-    completionRate: 'completionRate',
     bio: 'bio',
     totalEarningGross: 'totalEarningGross',
-    withholdingBalance: 'withholdingBalance',
     description: 'description',
     availabilityStatus: 'availabilityStatus'
   };
@@ -7217,6 +8439,21 @@ export namespace Prisma {
   };
 
   export type SpecializationScalarFieldEnum = (typeof SpecializationScalarFieldEnum)[keyof typeof SpecializationScalarFieldEnum]
+
+
+  export const AgencyScalarFieldEnum: {
+    agencyID: 'agencyID',
+    accountID: 'accountID',
+    businessName: 'businessName',
+    businessDesc: 'businessDesc',
+    isVerified: 'isVerified',
+    verifyToken: 'verifyToken',
+    verifyTokenExpire: 'verifyTokenExpire',
+    status: 'status',
+    createdAt: 'createdAt'
+  };
+
+  export type AgencyScalarFieldEnum = (typeof AgencyScalarFieldEnum)[keyof typeof AgencyScalarFieldEnum]
 
 
   export const SortOrder: {
@@ -7387,6 +8624,7 @@ export namespace Prisma {
     status?: StringFilter<"Accounts"> | string
     defaultProfileId?: IntNullableFilter<"Accounts"> | number | null
     profile?: ProfileListRelationFilter
+    agency?: AgencyListRelationFilter
     defaultProfile?: XOR<ProfileNullableScalarRelationFilter, ProfileWhereInput> | null
   }
 
@@ -7402,6 +8640,7 @@ export namespace Prisma {
     status?: SortOrder
     defaultProfileId?: SortOrderInput | SortOrder
     profile?: ProfileOrderByRelationAggregateInput
+    agency?: AgencyOrderByRelationAggregateInput
     defaultProfile?: ProfileOrderByWithRelationInput
   }
 
@@ -7420,6 +8659,7 @@ export namespace Prisma {
     status?: StringFilter<"Accounts"> | string
     defaultProfileId?: IntNullableFilter<"Accounts"> | number | null
     profile?: ProfileListRelationFilter
+    agency?: AgencyListRelationFilter
     defaultProfile?: XOR<ProfileNullableScalarRelationFilter, ProfileWhereInput> | null
   }, "accountID" | "email">
 
@@ -7543,11 +8783,8 @@ export namespace Prisma {
     profileID?: IntFilter<"Worker_Profile"> | number
     hourlyRate?: DecimalFilter<"Worker_Profile"> | Decimal | DecimalJsLike | number | string
     verifiedSkills?: JsonFilter<"Worker_Profile">
-    responseTimeAvg?: DecimalFilter<"Worker_Profile"> | Decimal | DecimalJsLike | number | string
-    completionRate?: DecimalFilter<"Worker_Profile"> | Decimal | DecimalJsLike | number | string
     bio?: StringFilter<"Worker_Profile"> | string
     totalEarningGross?: DecimalFilter<"Worker_Profile"> | Decimal | DecimalJsLike | number | string
-    withholdingBalance?: DecimalFilter<"Worker_Profile"> | Decimal | DecimalJsLike | number | string
     description?: StringFilter<"Worker_Profile"> | string
     availabilityStatus?: EnumavailabilityStatusFilter<"Worker_Profile"> | $Enums.availabilityStatus
     profile?: XOR<ProfileNullableScalarRelationFilter, ProfileWhereInput> | null
@@ -7558,11 +8795,8 @@ export namespace Prisma {
     profileID?: SortOrder
     hourlyRate?: SortOrder
     verifiedSkills?: SortOrder
-    responseTimeAvg?: SortOrder
-    completionRate?: SortOrder
     bio?: SortOrder
     totalEarningGross?: SortOrder
-    withholdingBalance?: SortOrder
     description?: SortOrder
     availabilityStatus?: SortOrder
     profile?: ProfileOrderByWithRelationInput
@@ -7576,11 +8810,8 @@ export namespace Prisma {
     NOT?: Worker_ProfileWhereInput | Worker_ProfileWhereInput[]
     hourlyRate?: DecimalFilter<"Worker_Profile"> | Decimal | DecimalJsLike | number | string
     verifiedSkills?: JsonFilter<"Worker_Profile">
-    responseTimeAvg?: DecimalFilter<"Worker_Profile"> | Decimal | DecimalJsLike | number | string
-    completionRate?: DecimalFilter<"Worker_Profile"> | Decimal | DecimalJsLike | number | string
     bio?: StringFilter<"Worker_Profile"> | string
     totalEarningGross?: DecimalFilter<"Worker_Profile"> | Decimal | DecimalJsLike | number | string
-    withholdingBalance?: DecimalFilter<"Worker_Profile"> | Decimal | DecimalJsLike | number | string
     description?: StringFilter<"Worker_Profile"> | string
     availabilityStatus?: EnumavailabilityStatusFilter<"Worker_Profile"> | $Enums.availabilityStatus
     profile?: XOR<ProfileNullableScalarRelationFilter, ProfileWhereInput> | null
@@ -7591,11 +8822,8 @@ export namespace Prisma {
     profileID?: SortOrder
     hourlyRate?: SortOrder
     verifiedSkills?: SortOrder
-    responseTimeAvg?: SortOrder
-    completionRate?: SortOrder
     bio?: SortOrder
     totalEarningGross?: SortOrder
-    withholdingBalance?: SortOrder
     description?: SortOrder
     availabilityStatus?: SortOrder
     _count?: Worker_ProfileCountOrderByAggregateInput
@@ -7612,11 +8840,8 @@ export namespace Prisma {
     profileID?: IntWithAggregatesFilter<"Worker_Profile"> | number
     hourlyRate?: DecimalWithAggregatesFilter<"Worker_Profile"> | Decimal | DecimalJsLike | number | string
     verifiedSkills?: JsonWithAggregatesFilter<"Worker_Profile">
-    responseTimeAvg?: DecimalWithAggregatesFilter<"Worker_Profile"> | Decimal | DecimalJsLike | number | string
-    completionRate?: DecimalWithAggregatesFilter<"Worker_Profile"> | Decimal | DecimalJsLike | number | string
     bio?: StringWithAggregatesFilter<"Worker_Profile"> | string
     totalEarningGross?: DecimalWithAggregatesFilter<"Worker_Profile"> | Decimal | DecimalJsLike | number | string
-    withholdingBalance?: DecimalWithAggregatesFilter<"Worker_Profile"> | Decimal | DecimalJsLike | number | string
     description?: StringWithAggregatesFilter<"Worker_Profile"> | string
     availabilityStatus?: EnumavailabilityStatusWithAggregatesFilter<"Worker_Profile"> | $Enums.availabilityStatus
   }
@@ -7719,6 +8944,83 @@ export namespace Prisma {
     specializationName?: StringWithAggregatesFilter<"Specialization"> | string
   }
 
+  export type AgencyWhereInput = {
+    AND?: AgencyWhereInput | AgencyWhereInput[]
+    OR?: AgencyWhereInput[]
+    NOT?: AgencyWhereInput | AgencyWhereInput[]
+    agencyID?: IntFilter<"Agency"> | number
+    accountID?: IntFilter<"Agency"> | number
+    businessName?: StringFilter<"Agency"> | string
+    businessDesc?: StringFilter<"Agency"> | string
+    isVerified?: BoolFilter<"Agency"> | boolean
+    verifyToken?: StringFilter<"Agency"> | string
+    verifyTokenExpire?: StringFilter<"Agency"> | string
+    status?: StringFilter<"Agency"> | string
+    createdAt?: DateTimeFilter<"Agency"> | Date | string
+    agency_accounts?: XOR<AccountsScalarRelationFilter, AccountsWhereInput>
+  }
+
+  export type AgencyOrderByWithRelationInput = {
+    agencyID?: SortOrder
+    accountID?: SortOrder
+    businessName?: SortOrder
+    businessDesc?: SortOrder
+    isVerified?: SortOrder
+    verifyToken?: SortOrder
+    verifyTokenExpire?: SortOrder
+    status?: SortOrder
+    createdAt?: SortOrder
+    agency_accounts?: AccountsOrderByWithRelationInput
+  }
+
+  export type AgencyWhereUniqueInput = Prisma.AtLeast<{
+    agencyID?: number
+    AND?: AgencyWhereInput | AgencyWhereInput[]
+    OR?: AgencyWhereInput[]
+    NOT?: AgencyWhereInput | AgencyWhereInput[]
+    accountID?: IntFilter<"Agency"> | number
+    businessName?: StringFilter<"Agency"> | string
+    businessDesc?: StringFilter<"Agency"> | string
+    isVerified?: BoolFilter<"Agency"> | boolean
+    verifyToken?: StringFilter<"Agency"> | string
+    verifyTokenExpire?: StringFilter<"Agency"> | string
+    status?: StringFilter<"Agency"> | string
+    createdAt?: DateTimeFilter<"Agency"> | Date | string
+    agency_accounts?: XOR<AccountsScalarRelationFilter, AccountsWhereInput>
+  }, "agencyID" | "agencyID">
+
+  export type AgencyOrderByWithAggregationInput = {
+    agencyID?: SortOrder
+    accountID?: SortOrder
+    businessName?: SortOrder
+    businessDesc?: SortOrder
+    isVerified?: SortOrder
+    verifyToken?: SortOrder
+    verifyTokenExpire?: SortOrder
+    status?: SortOrder
+    createdAt?: SortOrder
+    _count?: AgencyCountOrderByAggregateInput
+    _avg?: AgencyAvgOrderByAggregateInput
+    _max?: AgencyMaxOrderByAggregateInput
+    _min?: AgencyMinOrderByAggregateInput
+    _sum?: AgencySumOrderByAggregateInput
+  }
+
+  export type AgencyScalarWhereWithAggregatesInput = {
+    AND?: AgencyScalarWhereWithAggregatesInput | AgencyScalarWhereWithAggregatesInput[]
+    OR?: AgencyScalarWhereWithAggregatesInput[]
+    NOT?: AgencyScalarWhereWithAggregatesInput | AgencyScalarWhereWithAggregatesInput[]
+    agencyID?: IntWithAggregatesFilter<"Agency"> | number
+    accountID?: IntWithAggregatesFilter<"Agency"> | number
+    businessName?: StringWithAggregatesFilter<"Agency"> | string
+    businessDesc?: StringWithAggregatesFilter<"Agency"> | string
+    isVerified?: BoolWithAggregatesFilter<"Agency"> | boolean
+    verifyToken?: StringWithAggregatesFilter<"Agency"> | string
+    verifyTokenExpire?: StringWithAggregatesFilter<"Agency"> | string
+    status?: StringWithAggregatesFilter<"Agency"> | string
+    createdAt?: DateTimeWithAggregatesFilter<"Agency"> | Date | string
+  }
+
   export type AccountsCreateInput = {
     email: string
     password?: string | null
@@ -7729,6 +9031,7 @@ export namespace Prisma {
     updatedAt?: Date | string
     status: string
     profile?: ProfileCreateNestedManyWithoutAccountsInput
+    agency?: AgencyCreateNestedManyWithoutAgency_accountsInput
     defaultProfile?: ProfileCreateNestedOneWithoutDefaultProfileInput
   }
 
@@ -7744,6 +9047,7 @@ export namespace Prisma {
     status: string
     defaultProfileId?: number | null
     profile?: ProfileUncheckedCreateNestedManyWithoutAccountsInput
+    agency?: AgencyUncheckedCreateNestedManyWithoutAgency_accountsInput
   }
 
   export type AccountsUpdateInput = {
@@ -7756,6 +9060,7 @@ export namespace Prisma {
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     status?: StringFieldUpdateOperationsInput | string
     profile?: ProfileUpdateManyWithoutAccountsNestedInput
+    agency?: AgencyUpdateManyWithoutAgency_accountsNestedInput
     defaultProfile?: ProfileUpdateOneWithoutDefaultProfileNestedInput
   }
 
@@ -7771,6 +9076,7 @@ export namespace Prisma {
     status?: StringFieldUpdateOperationsInput | string
     defaultProfileId?: NullableIntFieldUpdateOperationsInput | number | null
     profile?: ProfileUncheckedUpdateManyWithoutAccountsNestedInput
+    agency?: AgencyUncheckedUpdateManyWithoutAgency_accountsNestedInput
   }
 
   export type AccountsCreateManyInput = {
@@ -7894,11 +9200,8 @@ export namespace Prisma {
   export type Worker_ProfileCreateInput = {
     hourlyRate: Decimal | DecimalJsLike | number | string
     verifiedSkills: JsonNullValueInput | InputJsonValue
-    responseTimeAvg: Decimal | DecimalJsLike | number | string
-    completionRate: Decimal | DecimalJsLike | number | string
     bio: string
     totalEarningGross: Decimal | DecimalJsLike | number | string
-    withholdingBalance: Decimal | DecimalJsLike | number | string
     description: string
     availabilityStatus?: $Enums.availabilityStatus
     profile?: ProfileCreateNestedOneWithoutWorkerInput
@@ -7909,11 +9212,8 @@ export namespace Prisma {
     profileID: number
     hourlyRate: Decimal | DecimalJsLike | number | string
     verifiedSkills: JsonNullValueInput | InputJsonValue
-    responseTimeAvg: Decimal | DecimalJsLike | number | string
-    completionRate: Decimal | DecimalJsLike | number | string
     bio: string
     totalEarningGross: Decimal | DecimalJsLike | number | string
-    withholdingBalance: Decimal | DecimalJsLike | number | string
     description: string
     availabilityStatus?: $Enums.availabilityStatus
     freelancer_specialization?: Freelancer_SpecializationUncheckedCreateNestedManyWithoutWorker_profileInput
@@ -7922,11 +9222,8 @@ export namespace Prisma {
   export type Worker_ProfileUpdateInput = {
     hourlyRate?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
     verifiedSkills?: JsonNullValueInput | InputJsonValue
-    responseTimeAvg?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
-    completionRate?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
     bio?: StringFieldUpdateOperationsInput | string
     totalEarningGross?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
-    withholdingBalance?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
     description?: StringFieldUpdateOperationsInput | string
     availabilityStatus?: EnumavailabilityStatusFieldUpdateOperationsInput | $Enums.availabilityStatus
     profile?: ProfileUpdateOneWithoutWorkerNestedInput
@@ -7937,11 +9234,8 @@ export namespace Prisma {
     profileID?: IntFieldUpdateOperationsInput | number
     hourlyRate?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
     verifiedSkills?: JsonNullValueInput | InputJsonValue
-    responseTimeAvg?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
-    completionRate?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
     bio?: StringFieldUpdateOperationsInput | string
     totalEarningGross?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
-    withholdingBalance?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
     description?: StringFieldUpdateOperationsInput | string
     availabilityStatus?: EnumavailabilityStatusFieldUpdateOperationsInput | $Enums.availabilityStatus
     freelancer_specialization?: Freelancer_SpecializationUncheckedUpdateManyWithoutWorker_profileNestedInput
@@ -7951,11 +9245,8 @@ export namespace Prisma {
     profileID: number
     hourlyRate: Decimal | DecimalJsLike | number | string
     verifiedSkills: JsonNullValueInput | InputJsonValue
-    responseTimeAvg: Decimal | DecimalJsLike | number | string
-    completionRate: Decimal | DecimalJsLike | number | string
     bio: string
     totalEarningGross: Decimal | DecimalJsLike | number | string
-    withholdingBalance: Decimal | DecimalJsLike | number | string
     description: string
     availabilityStatus?: $Enums.availabilityStatus
   }
@@ -7963,11 +9254,8 @@ export namespace Prisma {
   export type Worker_ProfileUpdateManyMutationInput = {
     hourlyRate?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
     verifiedSkills?: JsonNullValueInput | InputJsonValue
-    responseTimeAvg?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
-    completionRate?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
     bio?: StringFieldUpdateOperationsInput | string
     totalEarningGross?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
-    withholdingBalance?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
     description?: StringFieldUpdateOperationsInput | string
     availabilityStatus?: EnumavailabilityStatusFieldUpdateOperationsInput | $Enums.availabilityStatus
   }
@@ -7976,11 +9264,8 @@ export namespace Prisma {
     profileID?: IntFieldUpdateOperationsInput | number
     hourlyRate?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
     verifiedSkills?: JsonNullValueInput | InputJsonValue
-    responseTimeAvg?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
-    completionRate?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
     bio?: StringFieldUpdateOperationsInput | string
     totalEarningGross?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
-    withholdingBalance?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
     description?: StringFieldUpdateOperationsInput | string
     availabilityStatus?: EnumavailabilityStatusFieldUpdateOperationsInput | $Enums.availabilityStatus
   }
@@ -8068,6 +9353,86 @@ export namespace Prisma {
     specializationName?: StringFieldUpdateOperationsInput | string
   }
 
+  export type AgencyCreateInput = {
+    businessName: string
+    businessDesc: string
+    isVerified: boolean
+    verifyToken: string
+    verifyTokenExpire: string
+    status: string
+    createdAt?: Date | string
+    agency_accounts: AccountsCreateNestedOneWithoutAgencyInput
+  }
+
+  export type AgencyUncheckedCreateInput = {
+    agencyID?: number
+    accountID: number
+    businessName: string
+    businessDesc: string
+    isVerified: boolean
+    verifyToken: string
+    verifyTokenExpire: string
+    status: string
+    createdAt?: Date | string
+  }
+
+  export type AgencyUpdateInput = {
+    businessName?: StringFieldUpdateOperationsInput | string
+    businessDesc?: StringFieldUpdateOperationsInput | string
+    isVerified?: BoolFieldUpdateOperationsInput | boolean
+    verifyToken?: StringFieldUpdateOperationsInput | string
+    verifyTokenExpire?: StringFieldUpdateOperationsInput | string
+    status?: StringFieldUpdateOperationsInput | string
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    agency_accounts?: AccountsUpdateOneRequiredWithoutAgencyNestedInput
+  }
+
+  export type AgencyUncheckedUpdateInput = {
+    agencyID?: IntFieldUpdateOperationsInput | number
+    accountID?: IntFieldUpdateOperationsInput | number
+    businessName?: StringFieldUpdateOperationsInput | string
+    businessDesc?: StringFieldUpdateOperationsInput | string
+    isVerified?: BoolFieldUpdateOperationsInput | boolean
+    verifyToken?: StringFieldUpdateOperationsInput | string
+    verifyTokenExpire?: StringFieldUpdateOperationsInput | string
+    status?: StringFieldUpdateOperationsInput | string
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type AgencyCreateManyInput = {
+    agencyID?: number
+    accountID: number
+    businessName: string
+    businessDesc: string
+    isVerified: boolean
+    verifyToken: string
+    verifyTokenExpire: string
+    status: string
+    createdAt?: Date | string
+  }
+
+  export type AgencyUpdateManyMutationInput = {
+    businessName?: StringFieldUpdateOperationsInput | string
+    businessDesc?: StringFieldUpdateOperationsInput | string
+    isVerified?: BoolFieldUpdateOperationsInput | boolean
+    verifyToken?: StringFieldUpdateOperationsInput | string
+    verifyTokenExpire?: StringFieldUpdateOperationsInput | string
+    status?: StringFieldUpdateOperationsInput | string
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type AgencyUncheckedUpdateManyInput = {
+    agencyID?: IntFieldUpdateOperationsInput | number
+    accountID?: IntFieldUpdateOperationsInput | number
+    businessName?: StringFieldUpdateOperationsInput | string
+    businessDesc?: StringFieldUpdateOperationsInput | string
+    isVerified?: BoolFieldUpdateOperationsInput | boolean
+    verifyToken?: StringFieldUpdateOperationsInput | string
+    verifyTokenExpire?: StringFieldUpdateOperationsInput | string
+    status?: StringFieldUpdateOperationsInput | string
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
   export type IntFilter<$PrismaModel = never> = {
     equals?: number | IntFieldRefInput<$PrismaModel>
     in?: number[] | ListIntFieldRefInput<$PrismaModel>
@@ -8153,6 +9518,12 @@ export namespace Prisma {
     none?: ProfileWhereInput
   }
 
+  export type AgencyListRelationFilter = {
+    every?: AgencyWhereInput
+    some?: AgencyWhereInput
+    none?: AgencyWhereInput
+  }
+
   export type ProfileNullableScalarRelationFilter = {
     is?: ProfileWhereInput | null
     isNot?: ProfileWhereInput | null
@@ -8164,6 +9535,10 @@ export namespace Prisma {
   }
 
   export type ProfileOrderByRelationAggregateInput = {
+    _count?: SortOrder
+  }
+
+  export type AgencyOrderByRelationAggregateInput = {
     _count?: SortOrder
   }
 
@@ -8443,11 +9818,8 @@ export namespace Prisma {
     profileID?: SortOrder
     hourlyRate?: SortOrder
     verifiedSkills?: SortOrder
-    responseTimeAvg?: SortOrder
-    completionRate?: SortOrder
     bio?: SortOrder
     totalEarningGross?: SortOrder
-    withholdingBalance?: SortOrder
     description?: SortOrder
     availabilityStatus?: SortOrder
   }
@@ -8455,20 +9827,14 @@ export namespace Prisma {
   export type Worker_ProfileAvgOrderByAggregateInput = {
     profileID?: SortOrder
     hourlyRate?: SortOrder
-    responseTimeAvg?: SortOrder
-    completionRate?: SortOrder
     totalEarningGross?: SortOrder
-    withholdingBalance?: SortOrder
   }
 
   export type Worker_ProfileMaxOrderByAggregateInput = {
     profileID?: SortOrder
     hourlyRate?: SortOrder
-    responseTimeAvg?: SortOrder
-    completionRate?: SortOrder
     bio?: SortOrder
     totalEarningGross?: SortOrder
-    withholdingBalance?: SortOrder
     description?: SortOrder
     availabilityStatus?: SortOrder
   }
@@ -8476,11 +9842,8 @@ export namespace Prisma {
   export type Worker_ProfileMinOrderByAggregateInput = {
     profileID?: SortOrder
     hourlyRate?: SortOrder
-    responseTimeAvg?: SortOrder
-    completionRate?: SortOrder
     bio?: SortOrder
     totalEarningGross?: SortOrder
-    withholdingBalance?: SortOrder
     description?: SortOrder
     availabilityStatus?: SortOrder
   }
@@ -8488,10 +9851,7 @@ export namespace Prisma {
   export type Worker_ProfileSumOrderByAggregateInput = {
     profileID?: SortOrder
     hourlyRate?: SortOrder
-    responseTimeAvg?: SortOrder
-    completionRate?: SortOrder
     totalEarningGross?: SortOrder
-    withholdingBalance?: SortOrder
   }
 
   export type DecimalWithAggregatesFilter<$PrismaModel = never> = {
@@ -8617,11 +9977,64 @@ export namespace Prisma {
     specializationID?: SortOrder
   }
 
+  export type AgencyCountOrderByAggregateInput = {
+    agencyID?: SortOrder
+    accountID?: SortOrder
+    businessName?: SortOrder
+    businessDesc?: SortOrder
+    isVerified?: SortOrder
+    verifyToken?: SortOrder
+    verifyTokenExpire?: SortOrder
+    status?: SortOrder
+    createdAt?: SortOrder
+  }
+
+  export type AgencyAvgOrderByAggregateInput = {
+    agencyID?: SortOrder
+    accountID?: SortOrder
+  }
+
+  export type AgencyMaxOrderByAggregateInput = {
+    agencyID?: SortOrder
+    accountID?: SortOrder
+    businessName?: SortOrder
+    businessDesc?: SortOrder
+    isVerified?: SortOrder
+    verifyToken?: SortOrder
+    verifyTokenExpire?: SortOrder
+    status?: SortOrder
+    createdAt?: SortOrder
+  }
+
+  export type AgencyMinOrderByAggregateInput = {
+    agencyID?: SortOrder
+    accountID?: SortOrder
+    businessName?: SortOrder
+    businessDesc?: SortOrder
+    isVerified?: SortOrder
+    verifyToken?: SortOrder
+    verifyTokenExpire?: SortOrder
+    status?: SortOrder
+    createdAt?: SortOrder
+  }
+
+  export type AgencySumOrderByAggregateInput = {
+    agencyID?: SortOrder
+    accountID?: SortOrder
+  }
+
   export type ProfileCreateNestedManyWithoutAccountsInput = {
     create?: XOR<ProfileCreateWithoutAccountsInput, ProfileUncheckedCreateWithoutAccountsInput> | ProfileCreateWithoutAccountsInput[] | ProfileUncheckedCreateWithoutAccountsInput[]
     connectOrCreate?: ProfileCreateOrConnectWithoutAccountsInput | ProfileCreateOrConnectWithoutAccountsInput[]
     createMany?: ProfileCreateManyAccountsInputEnvelope
     connect?: ProfileWhereUniqueInput | ProfileWhereUniqueInput[]
+  }
+
+  export type AgencyCreateNestedManyWithoutAgency_accountsInput = {
+    create?: XOR<AgencyCreateWithoutAgency_accountsInput, AgencyUncheckedCreateWithoutAgency_accountsInput> | AgencyCreateWithoutAgency_accountsInput[] | AgencyUncheckedCreateWithoutAgency_accountsInput[]
+    connectOrCreate?: AgencyCreateOrConnectWithoutAgency_accountsInput | AgencyCreateOrConnectWithoutAgency_accountsInput[]
+    createMany?: AgencyCreateManyAgency_accountsInputEnvelope
+    connect?: AgencyWhereUniqueInput | AgencyWhereUniqueInput[]
   }
 
   export type ProfileCreateNestedOneWithoutDefaultProfileInput = {
@@ -8635,6 +10048,13 @@ export namespace Prisma {
     connectOrCreate?: ProfileCreateOrConnectWithoutAccountsInput | ProfileCreateOrConnectWithoutAccountsInput[]
     createMany?: ProfileCreateManyAccountsInputEnvelope
     connect?: ProfileWhereUniqueInput | ProfileWhereUniqueInput[]
+  }
+
+  export type AgencyUncheckedCreateNestedManyWithoutAgency_accountsInput = {
+    create?: XOR<AgencyCreateWithoutAgency_accountsInput, AgencyUncheckedCreateWithoutAgency_accountsInput> | AgencyCreateWithoutAgency_accountsInput[] | AgencyUncheckedCreateWithoutAgency_accountsInput[]
+    connectOrCreate?: AgencyCreateOrConnectWithoutAgency_accountsInput | AgencyCreateOrConnectWithoutAgency_accountsInput[]
+    createMany?: AgencyCreateManyAgency_accountsInputEnvelope
+    connect?: AgencyWhereUniqueInput | AgencyWhereUniqueInput[]
   }
 
   export type StringFieldUpdateOperationsInput = {
@@ -8669,6 +10089,20 @@ export namespace Prisma {
     update?: ProfileUpdateWithWhereUniqueWithoutAccountsInput | ProfileUpdateWithWhereUniqueWithoutAccountsInput[]
     updateMany?: ProfileUpdateManyWithWhereWithoutAccountsInput | ProfileUpdateManyWithWhereWithoutAccountsInput[]
     deleteMany?: ProfileScalarWhereInput | ProfileScalarWhereInput[]
+  }
+
+  export type AgencyUpdateManyWithoutAgency_accountsNestedInput = {
+    create?: XOR<AgencyCreateWithoutAgency_accountsInput, AgencyUncheckedCreateWithoutAgency_accountsInput> | AgencyCreateWithoutAgency_accountsInput[] | AgencyUncheckedCreateWithoutAgency_accountsInput[]
+    connectOrCreate?: AgencyCreateOrConnectWithoutAgency_accountsInput | AgencyCreateOrConnectWithoutAgency_accountsInput[]
+    upsert?: AgencyUpsertWithWhereUniqueWithoutAgency_accountsInput | AgencyUpsertWithWhereUniqueWithoutAgency_accountsInput[]
+    createMany?: AgencyCreateManyAgency_accountsInputEnvelope
+    set?: AgencyWhereUniqueInput | AgencyWhereUniqueInput[]
+    disconnect?: AgencyWhereUniqueInput | AgencyWhereUniqueInput[]
+    delete?: AgencyWhereUniqueInput | AgencyWhereUniqueInput[]
+    connect?: AgencyWhereUniqueInput | AgencyWhereUniqueInput[]
+    update?: AgencyUpdateWithWhereUniqueWithoutAgency_accountsInput | AgencyUpdateWithWhereUniqueWithoutAgency_accountsInput[]
+    updateMany?: AgencyUpdateManyWithWhereWithoutAgency_accountsInput | AgencyUpdateManyWithWhereWithoutAgency_accountsInput[]
+    deleteMany?: AgencyScalarWhereInput | AgencyScalarWhereInput[]
   }
 
   export type ProfileUpdateOneWithoutDefaultProfileNestedInput = {
@@ -8709,6 +10143,20 @@ export namespace Prisma {
     update?: ProfileUpdateWithWhereUniqueWithoutAccountsInput | ProfileUpdateWithWhereUniqueWithoutAccountsInput[]
     updateMany?: ProfileUpdateManyWithWhereWithoutAccountsInput | ProfileUpdateManyWithWhereWithoutAccountsInput[]
     deleteMany?: ProfileScalarWhereInput | ProfileScalarWhereInput[]
+  }
+
+  export type AgencyUncheckedUpdateManyWithoutAgency_accountsNestedInput = {
+    create?: XOR<AgencyCreateWithoutAgency_accountsInput, AgencyUncheckedCreateWithoutAgency_accountsInput> | AgencyCreateWithoutAgency_accountsInput[] | AgencyUncheckedCreateWithoutAgency_accountsInput[]
+    connectOrCreate?: AgencyCreateOrConnectWithoutAgency_accountsInput | AgencyCreateOrConnectWithoutAgency_accountsInput[]
+    upsert?: AgencyUpsertWithWhereUniqueWithoutAgency_accountsInput | AgencyUpsertWithWhereUniqueWithoutAgency_accountsInput[]
+    createMany?: AgencyCreateManyAgency_accountsInputEnvelope
+    set?: AgencyWhereUniqueInput | AgencyWhereUniqueInput[]
+    disconnect?: AgencyWhereUniqueInput | AgencyWhereUniqueInput[]
+    delete?: AgencyWhereUniqueInput | AgencyWhereUniqueInput[]
+    connect?: AgencyWhereUniqueInput | AgencyWhereUniqueInput[]
+    update?: AgencyUpdateWithWhereUniqueWithoutAgency_accountsInput | AgencyUpdateWithWhereUniqueWithoutAgency_accountsInput[]
+    updateMany?: AgencyUpdateManyWithWhereWithoutAgency_accountsInput | AgencyUpdateManyWithWhereWithoutAgency_accountsInput[]
+    deleteMany?: AgencyScalarWhereInput | AgencyScalarWhereInput[]
   }
 
   export type Worker_ProfileCreateNestedOneWithoutProfileInput = {
@@ -8937,6 +10385,20 @@ export namespace Prisma {
     update?: Freelancer_SpecializationUpdateWithWhereUniqueWithoutSpecializationInput | Freelancer_SpecializationUpdateWithWhereUniqueWithoutSpecializationInput[]
     updateMany?: Freelancer_SpecializationUpdateManyWithWhereWithoutSpecializationInput | Freelancer_SpecializationUpdateManyWithWhereWithoutSpecializationInput[]
     deleteMany?: Freelancer_SpecializationScalarWhereInput | Freelancer_SpecializationScalarWhereInput[]
+  }
+
+  export type AccountsCreateNestedOneWithoutAgencyInput = {
+    create?: XOR<AccountsCreateWithoutAgencyInput, AccountsUncheckedCreateWithoutAgencyInput>
+    connectOrCreate?: AccountsCreateOrConnectWithoutAgencyInput
+    connect?: AccountsWhereUniqueInput
+  }
+
+  export type AccountsUpdateOneRequiredWithoutAgencyNestedInput = {
+    create?: XOR<AccountsCreateWithoutAgencyInput, AccountsUncheckedCreateWithoutAgencyInput>
+    connectOrCreate?: AccountsCreateOrConnectWithoutAgencyInput
+    upsert?: AccountsUpsertWithoutAgencyInput
+    connect?: AccountsWhereUniqueInput
+    update?: XOR<XOR<AccountsUpdateToOneWithWhereWithoutAgencyInput, AccountsUpdateWithoutAgencyInput>, AccountsUncheckedUpdateWithoutAgencyInput>
   }
 
   export type NestedIntFilter<$PrismaModel = never> = {
@@ -9240,6 +10702,37 @@ export namespace Prisma {
     skipDuplicates?: boolean
   }
 
+  export type AgencyCreateWithoutAgency_accountsInput = {
+    businessName: string
+    businessDesc: string
+    isVerified: boolean
+    verifyToken: string
+    verifyTokenExpire: string
+    status: string
+    createdAt?: Date | string
+  }
+
+  export type AgencyUncheckedCreateWithoutAgency_accountsInput = {
+    agencyID?: number
+    businessName: string
+    businessDesc: string
+    isVerified: boolean
+    verifyToken: string
+    verifyTokenExpire: string
+    status: string
+    createdAt?: Date | string
+  }
+
+  export type AgencyCreateOrConnectWithoutAgency_accountsInput = {
+    where: AgencyWhereUniqueInput
+    create: XOR<AgencyCreateWithoutAgency_accountsInput, AgencyUncheckedCreateWithoutAgency_accountsInput>
+  }
+
+  export type AgencyCreateManyAgency_accountsInputEnvelope = {
+    data: AgencyCreateManyAgency_accountsInput | AgencyCreateManyAgency_accountsInput[]
+    skipDuplicates?: boolean
+  }
+
   export type ProfileCreateWithoutDefaultProfileInput = {
     profileImg?: string | null
     firstName: string
@@ -9298,6 +10791,37 @@ export namespace Prisma {
     profileType?: StringNullableFilter<"Profile"> | string | null
   }
 
+  export type AgencyUpsertWithWhereUniqueWithoutAgency_accountsInput = {
+    where: AgencyWhereUniqueInput
+    update: XOR<AgencyUpdateWithoutAgency_accountsInput, AgencyUncheckedUpdateWithoutAgency_accountsInput>
+    create: XOR<AgencyCreateWithoutAgency_accountsInput, AgencyUncheckedCreateWithoutAgency_accountsInput>
+  }
+
+  export type AgencyUpdateWithWhereUniqueWithoutAgency_accountsInput = {
+    where: AgencyWhereUniqueInput
+    data: XOR<AgencyUpdateWithoutAgency_accountsInput, AgencyUncheckedUpdateWithoutAgency_accountsInput>
+  }
+
+  export type AgencyUpdateManyWithWhereWithoutAgency_accountsInput = {
+    where: AgencyScalarWhereInput
+    data: XOR<AgencyUpdateManyMutationInput, AgencyUncheckedUpdateManyWithoutAgency_accountsInput>
+  }
+
+  export type AgencyScalarWhereInput = {
+    AND?: AgencyScalarWhereInput | AgencyScalarWhereInput[]
+    OR?: AgencyScalarWhereInput[]
+    NOT?: AgencyScalarWhereInput | AgencyScalarWhereInput[]
+    agencyID?: IntFilter<"Agency"> | number
+    accountID?: IntFilter<"Agency"> | number
+    businessName?: StringFilter<"Agency"> | string
+    businessDesc?: StringFilter<"Agency"> | string
+    isVerified?: BoolFilter<"Agency"> | boolean
+    verifyToken?: StringFilter<"Agency"> | string
+    verifyTokenExpire?: StringFilter<"Agency"> | string
+    status?: StringFilter<"Agency"> | string
+    createdAt?: DateTimeFilter<"Agency"> | Date | string
+  }
+
   export type ProfileUpsertWithoutDefaultProfileInput = {
     update: XOR<ProfileUpdateWithoutDefaultProfileInput, ProfileUncheckedUpdateWithoutDefaultProfileInput>
     create: XOR<ProfileCreateWithoutDefaultProfileInput, ProfileUncheckedCreateWithoutDefaultProfileInput>
@@ -9335,11 +10859,8 @@ export namespace Prisma {
   export type Worker_ProfileCreateWithoutProfileInput = {
     hourlyRate: Decimal | DecimalJsLike | number | string
     verifiedSkills: JsonNullValueInput | InputJsonValue
-    responseTimeAvg: Decimal | DecimalJsLike | number | string
-    completionRate: Decimal | DecimalJsLike | number | string
     bio: string
     totalEarningGross: Decimal | DecimalJsLike | number | string
-    withholdingBalance: Decimal | DecimalJsLike | number | string
     description: string
     availabilityStatus?: $Enums.availabilityStatus
     freelancer_specialization?: Freelancer_SpecializationCreateNestedManyWithoutWorker_profileInput
@@ -9348,11 +10869,8 @@ export namespace Prisma {
   export type Worker_ProfileUncheckedCreateWithoutProfileInput = {
     hourlyRate: Decimal | DecimalJsLike | number | string
     verifiedSkills: JsonNullValueInput | InputJsonValue
-    responseTimeAvg: Decimal | DecimalJsLike | number | string
-    completionRate: Decimal | DecimalJsLike | number | string
     bio: string
     totalEarningGross: Decimal | DecimalJsLike | number | string
-    withholdingBalance: Decimal | DecimalJsLike | number | string
     description: string
     availabilityStatus?: $Enums.availabilityStatus
     freelancer_specialization?: Freelancer_SpecializationUncheckedCreateNestedManyWithoutWorker_profileInput
@@ -9372,6 +10890,7 @@ export namespace Prisma {
     createdAt?: Date | string
     updatedAt?: Date | string
     status: string
+    agency?: AgencyCreateNestedManyWithoutAgency_accountsInput
     defaultProfile?: ProfileCreateNestedOneWithoutDefaultProfileInput
   }
 
@@ -9386,6 +10905,7 @@ export namespace Prisma {
     updatedAt?: Date | string
     status: string
     defaultProfileId?: number | null
+    agency?: AgencyUncheckedCreateNestedManyWithoutAgency_accountsInput
   }
 
   export type AccountsCreateOrConnectWithoutProfileInput = {
@@ -9403,6 +10923,7 @@ export namespace Prisma {
     updatedAt?: Date | string
     status: string
     profile?: ProfileCreateNestedManyWithoutAccountsInput
+    agency?: AgencyCreateNestedManyWithoutAgency_accountsInput
   }
 
   export type AccountsUncheckedCreateWithoutDefaultProfileInput = {
@@ -9416,6 +10937,7 @@ export namespace Prisma {
     updatedAt?: Date | string
     status: string
     profile?: ProfileUncheckedCreateNestedManyWithoutAccountsInput
+    agency?: AgencyUncheckedCreateNestedManyWithoutAgency_accountsInput
   }
 
   export type AccountsCreateOrConnectWithoutDefaultProfileInput = {
@@ -9442,11 +10964,8 @@ export namespace Prisma {
   export type Worker_ProfileUpdateWithoutProfileInput = {
     hourlyRate?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
     verifiedSkills?: JsonNullValueInput | InputJsonValue
-    responseTimeAvg?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
-    completionRate?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
     bio?: StringFieldUpdateOperationsInput | string
     totalEarningGross?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
-    withholdingBalance?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
     description?: StringFieldUpdateOperationsInput | string
     availabilityStatus?: EnumavailabilityStatusFieldUpdateOperationsInput | $Enums.availabilityStatus
     freelancer_specialization?: Freelancer_SpecializationUpdateManyWithoutWorker_profileNestedInput
@@ -9455,11 +10974,8 @@ export namespace Prisma {
   export type Worker_ProfileUncheckedUpdateWithoutProfileInput = {
     hourlyRate?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
     verifiedSkills?: JsonNullValueInput | InputJsonValue
-    responseTimeAvg?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
-    completionRate?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
     bio?: StringFieldUpdateOperationsInput | string
     totalEarningGross?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
-    withholdingBalance?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
     description?: StringFieldUpdateOperationsInput | string
     availabilityStatus?: EnumavailabilityStatusFieldUpdateOperationsInput | $Enums.availabilityStatus
     freelancer_specialization?: Freelancer_SpecializationUncheckedUpdateManyWithoutWorker_profileNestedInput
@@ -9485,6 +11001,7 @@ export namespace Prisma {
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     status?: StringFieldUpdateOperationsInput | string
+    agency?: AgencyUpdateManyWithoutAgency_accountsNestedInput
     defaultProfile?: ProfileUpdateOneWithoutDefaultProfileNestedInput
   }
 
@@ -9499,6 +11016,7 @@ export namespace Prisma {
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     status?: StringFieldUpdateOperationsInput | string
     defaultProfileId?: NullableIntFieldUpdateOperationsInput | number | null
+    agency?: AgencyUncheckedUpdateManyWithoutAgency_accountsNestedInput
   }
 
   export type AccountsUpsertWithWhereUniqueWithoutDefaultProfileInput = {
@@ -9646,11 +11164,8 @@ export namespace Prisma {
   export type Worker_ProfileCreateWithoutFreelancer_specializationInput = {
     hourlyRate: Decimal | DecimalJsLike | number | string
     verifiedSkills: JsonNullValueInput | InputJsonValue
-    responseTimeAvg: Decimal | DecimalJsLike | number | string
-    completionRate: Decimal | DecimalJsLike | number | string
     bio: string
     totalEarningGross: Decimal | DecimalJsLike | number | string
-    withholdingBalance: Decimal | DecimalJsLike | number | string
     description: string
     availabilityStatus?: $Enums.availabilityStatus
     profile?: ProfileCreateNestedOneWithoutWorkerInput
@@ -9660,11 +11175,8 @@ export namespace Prisma {
     profileID: number
     hourlyRate: Decimal | DecimalJsLike | number | string
     verifiedSkills: JsonNullValueInput | InputJsonValue
-    responseTimeAvg: Decimal | DecimalJsLike | number | string
-    completionRate: Decimal | DecimalJsLike | number | string
     bio: string
     totalEarningGross: Decimal | DecimalJsLike | number | string
-    withholdingBalance: Decimal | DecimalJsLike | number | string
     description: string
     availabilityStatus?: $Enums.availabilityStatus
   }
@@ -9702,11 +11214,8 @@ export namespace Prisma {
   export type Worker_ProfileUpdateWithoutFreelancer_specializationInput = {
     hourlyRate?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
     verifiedSkills?: JsonNullValueInput | InputJsonValue
-    responseTimeAvg?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
-    completionRate?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
     bio?: StringFieldUpdateOperationsInput | string
     totalEarningGross?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
-    withholdingBalance?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
     description?: StringFieldUpdateOperationsInput | string
     availabilityStatus?: EnumavailabilityStatusFieldUpdateOperationsInput | $Enums.availabilityStatus
     profile?: ProfileUpdateOneWithoutWorkerNestedInput
@@ -9716,11 +11225,8 @@ export namespace Prisma {
     profileID?: IntFieldUpdateOperationsInput | number
     hourlyRate?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
     verifiedSkills?: JsonNullValueInput | InputJsonValue
-    responseTimeAvg?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
-    completionRate?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
     bio?: StringFieldUpdateOperationsInput | string
     totalEarningGross?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
-    withholdingBalance?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
     description?: StringFieldUpdateOperationsInput | string
     availabilityStatus?: EnumavailabilityStatusFieldUpdateOperationsInput | $Enums.availabilityStatus
   }
@@ -9783,6 +11289,76 @@ export namespace Prisma {
     data: XOR<Freelancer_SpecializationUpdateManyMutationInput, Freelancer_SpecializationUncheckedUpdateManyWithoutSpecializationInput>
   }
 
+  export type AccountsCreateWithoutAgencyInput = {
+    email: string
+    password?: string | null
+    isVerified?: boolean
+    verifyToken?: string | null
+    verifyTokenExpire?: Date | string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    status: string
+    profile?: ProfileCreateNestedManyWithoutAccountsInput
+    defaultProfile?: ProfileCreateNestedOneWithoutDefaultProfileInput
+  }
+
+  export type AccountsUncheckedCreateWithoutAgencyInput = {
+    accountID?: number
+    email: string
+    password?: string | null
+    isVerified?: boolean
+    verifyToken?: string | null
+    verifyTokenExpire?: Date | string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    status: string
+    defaultProfileId?: number | null
+    profile?: ProfileUncheckedCreateNestedManyWithoutAccountsInput
+  }
+
+  export type AccountsCreateOrConnectWithoutAgencyInput = {
+    where: AccountsWhereUniqueInput
+    create: XOR<AccountsCreateWithoutAgencyInput, AccountsUncheckedCreateWithoutAgencyInput>
+  }
+
+  export type AccountsUpsertWithoutAgencyInput = {
+    update: XOR<AccountsUpdateWithoutAgencyInput, AccountsUncheckedUpdateWithoutAgencyInput>
+    create: XOR<AccountsCreateWithoutAgencyInput, AccountsUncheckedCreateWithoutAgencyInput>
+    where?: AccountsWhereInput
+  }
+
+  export type AccountsUpdateToOneWithWhereWithoutAgencyInput = {
+    where?: AccountsWhereInput
+    data: XOR<AccountsUpdateWithoutAgencyInput, AccountsUncheckedUpdateWithoutAgencyInput>
+  }
+
+  export type AccountsUpdateWithoutAgencyInput = {
+    email?: StringFieldUpdateOperationsInput | string
+    password?: NullableStringFieldUpdateOperationsInput | string | null
+    isVerified?: BoolFieldUpdateOperationsInput | boolean
+    verifyToken?: NullableStringFieldUpdateOperationsInput | string | null
+    verifyTokenExpire?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    status?: StringFieldUpdateOperationsInput | string
+    profile?: ProfileUpdateManyWithoutAccountsNestedInput
+    defaultProfile?: ProfileUpdateOneWithoutDefaultProfileNestedInput
+  }
+
+  export type AccountsUncheckedUpdateWithoutAgencyInput = {
+    accountID?: IntFieldUpdateOperationsInput | number
+    email?: StringFieldUpdateOperationsInput | string
+    password?: NullableStringFieldUpdateOperationsInput | string | null
+    isVerified?: BoolFieldUpdateOperationsInput | boolean
+    verifyToken?: NullableStringFieldUpdateOperationsInput | string | null
+    verifyTokenExpire?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    status?: StringFieldUpdateOperationsInput | string
+    defaultProfileId?: NullableIntFieldUpdateOperationsInput | number | null
+    profile?: ProfileUncheckedUpdateManyWithoutAccountsNestedInput
+  }
+
   export type ProfileCreateManyAccountsInput = {
     profileID?: number
     profileImg?: string | null
@@ -9791,6 +11367,17 @@ export namespace Prisma {
     contactNum: string
     birthDate: Date | string
     profileType?: string | null
+  }
+
+  export type AgencyCreateManyAgency_accountsInput = {
+    agencyID?: number
+    businessName: string
+    businessDesc: string
+    isVerified: boolean
+    verifyToken: string
+    verifyTokenExpire: string
+    status: string
+    createdAt?: Date | string
   }
 
   export type ProfileUpdateWithoutAccountsInput = {
@@ -9826,6 +11413,38 @@ export namespace Prisma {
     profileType?: NullableStringFieldUpdateOperationsInput | string | null
   }
 
+  export type AgencyUpdateWithoutAgency_accountsInput = {
+    businessName?: StringFieldUpdateOperationsInput | string
+    businessDesc?: StringFieldUpdateOperationsInput | string
+    isVerified?: BoolFieldUpdateOperationsInput | boolean
+    verifyToken?: StringFieldUpdateOperationsInput | string
+    verifyTokenExpire?: StringFieldUpdateOperationsInput | string
+    status?: StringFieldUpdateOperationsInput | string
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type AgencyUncheckedUpdateWithoutAgency_accountsInput = {
+    agencyID?: IntFieldUpdateOperationsInput | number
+    businessName?: StringFieldUpdateOperationsInput | string
+    businessDesc?: StringFieldUpdateOperationsInput | string
+    isVerified?: BoolFieldUpdateOperationsInput | boolean
+    verifyToken?: StringFieldUpdateOperationsInput | string
+    verifyTokenExpire?: StringFieldUpdateOperationsInput | string
+    status?: StringFieldUpdateOperationsInput | string
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type AgencyUncheckedUpdateManyWithoutAgency_accountsInput = {
+    agencyID?: IntFieldUpdateOperationsInput | number
+    businessName?: StringFieldUpdateOperationsInput | string
+    businessDesc?: StringFieldUpdateOperationsInput | string
+    isVerified?: BoolFieldUpdateOperationsInput | boolean
+    verifyToken?: StringFieldUpdateOperationsInput | string
+    verifyTokenExpire?: StringFieldUpdateOperationsInput | string
+    status?: StringFieldUpdateOperationsInput | string
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
   export type AccountsCreateManyDefaultProfileInput = {
     accountID?: number
     email: string
@@ -9848,6 +11467,7 @@ export namespace Prisma {
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     status?: StringFieldUpdateOperationsInput | string
     profile?: ProfileUpdateManyWithoutAccountsNestedInput
+    agency?: AgencyUpdateManyWithoutAgency_accountsNestedInput
   }
 
   export type AccountsUncheckedUpdateWithoutDefaultProfileInput = {
@@ -9861,6 +11481,7 @@ export namespace Prisma {
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     status?: StringFieldUpdateOperationsInput | string
     profile?: ProfileUncheckedUpdateManyWithoutAccountsNestedInput
+    agency?: AgencyUncheckedUpdateManyWithoutAgency_accountsNestedInput
   }
 
   export type AccountsUncheckedUpdateManyWithoutDefaultProfileInput = {

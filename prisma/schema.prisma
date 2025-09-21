@@ -27,6 +27,7 @@ model Accounts {
   updatedAt  DateTime  @default(now()) @updatedAt
   status     String
   profile    Profile[]
+  agency     Agency[]
 
   defaultProfileId Int?
   defaultProfile Profile? @relation("defaultProfile",fields: [defaultProfileId], references: [profileID])
@@ -88,4 +89,20 @@ model Specialization {
   specializationName String
 
   freelancer_specialization Freelancer_Specialization[]
+}
+
+model Agency{
+  agencyID Int @id @unique @default(autoincrement())
+  accountID Int
+  businessName String
+  businessDesc String
+  isVerified Boolean
+  verifyToken String
+  verifyTokenExpire String
+  status String
+  createdAt DateTime @default(now())
+
+   agency_accounts Accounts @relation(fields: [accountID], references: [accountID])
+
+
 }
