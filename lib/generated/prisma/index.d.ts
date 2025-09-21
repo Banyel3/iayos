@@ -2600,6 +2600,7 @@ export namespace Prisma {
     firstName: string | null
     lastName: string | null
     contactNum: string | null
+    birthDate: Date | null
     profileType: string | null
   }
 
@@ -2610,6 +2611,7 @@ export namespace Prisma {
     firstName: string | null
     lastName: string | null
     contactNum: string | null
+    birthDate: Date | null
     profileType: string | null
   }
 
@@ -2620,6 +2622,7 @@ export namespace Prisma {
     firstName: number
     lastName: number
     contactNum: number
+    birthDate: number
     profileType: number
     _all: number
   }
@@ -2642,6 +2645,7 @@ export namespace Prisma {
     firstName?: true
     lastName?: true
     contactNum?: true
+    birthDate?: true
     profileType?: true
   }
 
@@ -2652,6 +2656,7 @@ export namespace Prisma {
     firstName?: true
     lastName?: true
     contactNum?: true
+    birthDate?: true
     profileType?: true
   }
 
@@ -2662,6 +2667,7 @@ export namespace Prisma {
     firstName?: true
     lastName?: true
     contactNum?: true
+    birthDate?: true
     profileType?: true
     _all?: true
   }
@@ -2759,6 +2765,7 @@ export namespace Prisma {
     firstName: string
     lastName: string | null
     contactNum: string
+    birthDate: Date
     profileType: string | null
     _count: ProfileCountAggregateOutputType | null
     _avg: ProfileAvgAggregateOutputType | null
@@ -2788,6 +2795,7 @@ export namespace Prisma {
     firstName?: boolean
     lastName?: boolean
     contactNum?: boolean
+    birthDate?: boolean
     profileType?: boolean
     worker?: boolean | Profile$workerArgs<ExtArgs>
     accounts?: boolean | AccountsDefaultArgs<ExtArgs>
@@ -2802,6 +2810,7 @@ export namespace Prisma {
     firstName?: boolean
     lastName?: boolean
     contactNum?: boolean
+    birthDate?: boolean
     profileType?: boolean
     accounts?: boolean | AccountsDefaultArgs<ExtArgs>
   }, ExtArgs["result"]["profile"]>
@@ -2813,6 +2822,7 @@ export namespace Prisma {
     firstName?: boolean
     lastName?: boolean
     contactNum?: boolean
+    birthDate?: boolean
     profileType?: boolean
     accounts?: boolean | AccountsDefaultArgs<ExtArgs>
   }, ExtArgs["result"]["profile"]>
@@ -2824,10 +2834,11 @@ export namespace Prisma {
     firstName?: boolean
     lastName?: boolean
     contactNum?: boolean
+    birthDate?: boolean
     profileType?: boolean
   }
 
-  export type ProfileOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"profileID" | "accountID" | "profileImg" | "firstName" | "lastName" | "contactNum" | "profileType", ExtArgs["result"]["profile"]>
+  export type ProfileOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"profileID" | "accountID" | "profileImg" | "firstName" | "lastName" | "contactNum" | "birthDate" | "profileType", ExtArgs["result"]["profile"]>
   export type ProfileInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     worker?: boolean | Profile$workerArgs<ExtArgs>
     accounts?: boolean | AccountsDefaultArgs<ExtArgs>
@@ -2855,6 +2866,7 @@ export namespace Prisma {
       firstName: string
       lastName: string | null
       contactNum: string
+      birthDate: Date
       profileType: string | null
     }, ExtArgs["result"]["profile"]>
     composites: {}
@@ -3288,6 +3300,7 @@ export namespace Prisma {
     readonly firstName: FieldRef<"Profile", 'String'>
     readonly lastName: FieldRef<"Profile", 'String'>
     readonly contactNum: FieldRef<"Profile", 'String'>
+    readonly birthDate: FieldRef<"Profile", 'DateTime'>
     readonly profileType: FieldRef<"Profile", 'String'>
   }
     
@@ -7165,6 +7178,7 @@ export namespace Prisma {
     firstName: 'firstName',
     lastName: 'lastName',
     contactNum: 'contactNum',
+    birthDate: 'birthDate',
     profileType: 'profileType'
   };
 
@@ -7453,6 +7467,7 @@ export namespace Prisma {
     firstName?: StringFilter<"Profile"> | string
     lastName?: StringNullableFilter<"Profile"> | string | null
     contactNum?: StringFilter<"Profile"> | string
+    birthDate?: DateTimeFilter<"Profile"> | Date | string
     profileType?: StringNullableFilter<"Profile"> | string | null
     worker?: XOR<Worker_ProfileNullableScalarRelationFilter, Worker_ProfileWhereInput> | null
     accounts?: XOR<AccountsScalarRelationFilter, AccountsWhereInput>
@@ -7466,6 +7481,7 @@ export namespace Prisma {
     firstName?: SortOrder
     lastName?: SortOrderInput | SortOrder
     contactNum?: SortOrder
+    birthDate?: SortOrder
     profileType?: SortOrderInput | SortOrder
     worker?: Worker_ProfileOrderByWithRelationInput
     accounts?: AccountsOrderByWithRelationInput
@@ -7483,6 +7499,7 @@ export namespace Prisma {
     profileImg?: StringNullableFilter<"Profile"> | string | null
     firstName?: StringFilter<"Profile"> | string
     lastName?: StringNullableFilter<"Profile"> | string | null
+    birthDate?: DateTimeFilter<"Profile"> | Date | string
     profileType?: StringNullableFilter<"Profile"> | string | null
     worker?: XOR<Worker_ProfileNullableScalarRelationFilter, Worker_ProfileWhereInput> | null
     accounts?: XOR<AccountsScalarRelationFilter, AccountsWhereInput>
@@ -7496,6 +7513,7 @@ export namespace Prisma {
     firstName?: SortOrder
     lastName?: SortOrderInput | SortOrder
     contactNum?: SortOrder
+    birthDate?: SortOrder
     profileType?: SortOrderInput | SortOrder
     _count?: ProfileCountOrderByAggregateInput
     _avg?: ProfileAvgOrderByAggregateInput
@@ -7514,6 +7532,7 @@ export namespace Prisma {
     firstName?: StringWithAggregatesFilter<"Profile"> | string
     lastName?: StringNullableWithAggregatesFilter<"Profile"> | string | null
     contactNum?: StringWithAggregatesFilter<"Profile"> | string
+    birthDate?: DateTimeWithAggregatesFilter<"Profile"> | Date | string
     profileType?: StringNullableWithAggregatesFilter<"Profile"> | string | null
   }
 
@@ -7796,6 +7815,7 @@ export namespace Prisma {
     firstName: string
     lastName?: string | null
     contactNum: string
+    birthDate: Date | string
     profileType?: string | null
     worker?: Worker_ProfileCreateNestedOneWithoutProfileInput
     accounts: AccountsCreateNestedOneWithoutProfileInput
@@ -7809,6 +7829,7 @@ export namespace Prisma {
     firstName: string
     lastName?: string | null
     contactNum: string
+    birthDate: Date | string
     profileType?: string | null
     worker?: Worker_ProfileUncheckedCreateNestedOneWithoutProfileInput
     defaultProfile?: AccountsUncheckedCreateNestedManyWithoutDefaultProfileInput
@@ -7819,6 +7840,7 @@ export namespace Prisma {
     firstName?: StringFieldUpdateOperationsInput | string
     lastName?: NullableStringFieldUpdateOperationsInput | string | null
     contactNum?: StringFieldUpdateOperationsInput | string
+    birthDate?: DateTimeFieldUpdateOperationsInput | Date | string
     profileType?: NullableStringFieldUpdateOperationsInput | string | null
     worker?: Worker_ProfileUpdateOneWithoutProfileNestedInput
     accounts?: AccountsUpdateOneRequiredWithoutProfileNestedInput
@@ -7832,6 +7854,7 @@ export namespace Prisma {
     firstName?: StringFieldUpdateOperationsInput | string
     lastName?: NullableStringFieldUpdateOperationsInput | string | null
     contactNum?: StringFieldUpdateOperationsInput | string
+    birthDate?: DateTimeFieldUpdateOperationsInput | Date | string
     profileType?: NullableStringFieldUpdateOperationsInput | string | null
     worker?: Worker_ProfileUncheckedUpdateOneWithoutProfileNestedInput
     defaultProfile?: AccountsUncheckedUpdateManyWithoutDefaultProfileNestedInput
@@ -7844,6 +7867,7 @@ export namespace Prisma {
     firstName: string
     lastName?: string | null
     contactNum: string
+    birthDate: Date | string
     profileType?: string | null
   }
 
@@ -7852,6 +7876,7 @@ export namespace Prisma {
     firstName?: StringFieldUpdateOperationsInput | string
     lastName?: NullableStringFieldUpdateOperationsInput | string | null
     contactNum?: StringFieldUpdateOperationsInput | string
+    birthDate?: DateTimeFieldUpdateOperationsInput | Date | string
     profileType?: NullableStringFieldUpdateOperationsInput | string | null
   }
 
@@ -7862,6 +7887,7 @@ export namespace Prisma {
     firstName?: StringFieldUpdateOperationsInput | string
     lastName?: NullableStringFieldUpdateOperationsInput | string | null
     contactNum?: StringFieldUpdateOperationsInput | string
+    birthDate?: DateTimeFieldUpdateOperationsInput | Date | string
     profileType?: NullableStringFieldUpdateOperationsInput | string | null
   }
 
@@ -8326,6 +8352,7 @@ export namespace Prisma {
     firstName?: SortOrder
     lastName?: SortOrder
     contactNum?: SortOrder
+    birthDate?: SortOrder
     profileType?: SortOrder
   }
 
@@ -8341,6 +8368,7 @@ export namespace Prisma {
     firstName?: SortOrder
     lastName?: SortOrder
     contactNum?: SortOrder
+    birthDate?: SortOrder
     profileType?: SortOrder
   }
 
@@ -8351,6 +8379,7 @@ export namespace Prisma {
     firstName?: SortOrder
     lastName?: SortOrder
     contactNum?: SortOrder
+    birthDate?: SortOrder
     profileType?: SortOrder
   }
 
@@ -9183,6 +9212,7 @@ export namespace Prisma {
     firstName: string
     lastName?: string | null
     contactNum: string
+    birthDate: Date | string
     profileType?: string | null
     worker?: Worker_ProfileCreateNestedOneWithoutProfileInput
     defaultProfile?: AccountsCreateNestedManyWithoutDefaultProfileInput
@@ -9194,6 +9224,7 @@ export namespace Prisma {
     firstName: string
     lastName?: string | null
     contactNum: string
+    birthDate: Date | string
     profileType?: string | null
     worker?: Worker_ProfileUncheckedCreateNestedOneWithoutProfileInput
     defaultProfile?: AccountsUncheckedCreateNestedManyWithoutDefaultProfileInput
@@ -9214,6 +9245,7 @@ export namespace Prisma {
     firstName: string
     lastName?: string | null
     contactNum: string
+    birthDate: Date | string
     profileType?: string | null
     worker?: Worker_ProfileCreateNestedOneWithoutProfileInput
     accounts: AccountsCreateNestedOneWithoutProfileInput
@@ -9226,6 +9258,7 @@ export namespace Prisma {
     firstName: string
     lastName?: string | null
     contactNum: string
+    birthDate: Date | string
     profileType?: string | null
     worker?: Worker_ProfileUncheckedCreateNestedOneWithoutProfileInput
   }
@@ -9261,6 +9294,7 @@ export namespace Prisma {
     firstName?: StringFilter<"Profile"> | string
     lastName?: StringNullableFilter<"Profile"> | string | null
     contactNum?: StringFilter<"Profile"> | string
+    birthDate?: DateTimeFilter<"Profile"> | Date | string
     profileType?: StringNullableFilter<"Profile"> | string | null
   }
 
@@ -9280,6 +9314,7 @@ export namespace Prisma {
     firstName?: StringFieldUpdateOperationsInput | string
     lastName?: NullableStringFieldUpdateOperationsInput | string | null
     contactNum?: StringFieldUpdateOperationsInput | string
+    birthDate?: DateTimeFieldUpdateOperationsInput | Date | string
     profileType?: NullableStringFieldUpdateOperationsInput | string | null
     worker?: Worker_ProfileUpdateOneWithoutProfileNestedInput
     accounts?: AccountsUpdateOneRequiredWithoutProfileNestedInput
@@ -9292,6 +9327,7 @@ export namespace Prisma {
     firstName?: StringFieldUpdateOperationsInput | string
     lastName?: NullableStringFieldUpdateOperationsInput | string | null
     contactNum?: StringFieldUpdateOperationsInput | string
+    birthDate?: DateTimeFieldUpdateOperationsInput | Date | string
     profileType?: NullableStringFieldUpdateOperationsInput | string | null
     worker?: Worker_ProfileUncheckedUpdateOneWithoutProfileNestedInput
   }
@@ -9502,6 +9538,7 @@ export namespace Prisma {
     firstName: string
     lastName?: string | null
     contactNum: string
+    birthDate: Date | string
     profileType?: string | null
     accounts: AccountsCreateNestedOneWithoutProfileInput
     defaultProfile?: AccountsCreateNestedManyWithoutDefaultProfileInput
@@ -9514,6 +9551,7 @@ export namespace Prisma {
     firstName: string
     lastName?: string | null
     contactNum: string
+    birthDate: Date | string
     profileType?: string | null
     defaultProfile?: AccountsUncheckedCreateNestedManyWithoutDefaultProfileInput
   }
@@ -9561,6 +9599,7 @@ export namespace Prisma {
     firstName?: StringFieldUpdateOperationsInput | string
     lastName?: NullableStringFieldUpdateOperationsInput | string | null
     contactNum?: StringFieldUpdateOperationsInput | string
+    birthDate?: DateTimeFieldUpdateOperationsInput | Date | string
     profileType?: NullableStringFieldUpdateOperationsInput | string | null
     accounts?: AccountsUpdateOneRequiredWithoutProfileNestedInput
     defaultProfile?: AccountsUpdateManyWithoutDefaultProfileNestedInput
@@ -9573,6 +9612,7 @@ export namespace Prisma {
     firstName?: StringFieldUpdateOperationsInput | string
     lastName?: NullableStringFieldUpdateOperationsInput | string | null
     contactNum?: StringFieldUpdateOperationsInput | string
+    birthDate?: DateTimeFieldUpdateOperationsInput | Date | string
     profileType?: NullableStringFieldUpdateOperationsInput | string | null
     defaultProfile?: AccountsUncheckedUpdateManyWithoutDefaultProfileNestedInput
   }
@@ -9749,6 +9789,7 @@ export namespace Prisma {
     firstName: string
     lastName?: string | null
     contactNum: string
+    birthDate: Date | string
     profileType?: string | null
   }
 
@@ -9757,6 +9798,7 @@ export namespace Prisma {
     firstName?: StringFieldUpdateOperationsInput | string
     lastName?: NullableStringFieldUpdateOperationsInput | string | null
     contactNum?: StringFieldUpdateOperationsInput | string
+    birthDate?: DateTimeFieldUpdateOperationsInput | Date | string
     profileType?: NullableStringFieldUpdateOperationsInput | string | null
     worker?: Worker_ProfileUpdateOneWithoutProfileNestedInput
     defaultProfile?: AccountsUpdateManyWithoutDefaultProfileNestedInput
@@ -9768,6 +9810,7 @@ export namespace Prisma {
     firstName?: StringFieldUpdateOperationsInput | string
     lastName?: NullableStringFieldUpdateOperationsInput | string | null
     contactNum?: StringFieldUpdateOperationsInput | string
+    birthDate?: DateTimeFieldUpdateOperationsInput | Date | string
     profileType?: NullableStringFieldUpdateOperationsInput | string | null
     worker?: Worker_ProfileUncheckedUpdateOneWithoutProfileNestedInput
     defaultProfile?: AccountsUncheckedUpdateManyWithoutDefaultProfileNestedInput
@@ -9779,6 +9822,7 @@ export namespace Prisma {
     firstName?: StringFieldUpdateOperationsInput | string
     lastName?: NullableStringFieldUpdateOperationsInput | string | null
     contactNum?: StringFieldUpdateOperationsInput | string
+    birthDate?: DateTimeFieldUpdateOperationsInput | Date | string
     profileType?: NullableStringFieldUpdateOperationsInput | string | null
   }
 
