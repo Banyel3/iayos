@@ -13,6 +13,24 @@ const registerSchema = z.object({
   firstName: z.string(),
   lastName: z.string(),
   contactNum: z.string().optional(),
+  birthDate: z
+    .string()
+    .min(1, "Date of birth is required")
+    .refine((dateStr) => {
+      const birthDate = new Date(dateStr);
+      const today = new Date();
+      const age = today.getFullYear() - birthDate.getFullYear();
+      const monthDiff = today.getMonth() - birthDate.getMonth();
+
+      // Check if birthday has occurred this year
+      if (
+        monthDiff < 0 ||
+        (monthDiff === 0 && today.getDate() < birthDate.getDate())
+      ) {
+        return age - 1 >= 18;
+      }
+      return age >= 18;
+    }, "You must be at least 18 years old to register"),
 });
 
 export async function POST(req: Request) {
@@ -51,7 +69,8 @@ export async function POST(req: Request) {
         status: 400,
       });
     }
-    const { email, password, firstName, lastName, contactNum } = parsed.data;
+    const { email, password, firstName, lastName, contactNum, birthDate } =
+      parsed.data;
 
     // 🔧 FIX: Check if user already exists
     const existingUser = await prisma.accounts.findUnique({
@@ -91,6 +110,7 @@ export async function POST(req: Request) {
             firstName,
             lastName,
             contactNum: contactNum || "",
+            birthDate: new Date(birthDate),
             profileType: body.profileType,
           },
         },

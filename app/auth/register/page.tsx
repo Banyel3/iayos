@@ -35,6 +35,26 @@ const formSchema = z.object({
   contactNum: z.string().max(11, "Invalid Mobile Number"),
 
   email: z.string().email("Invalid email address"),
+
+  birthDate: z
+    .string()
+    .min(1, "Date of birth is required")
+    .refine((dateStr) => {
+      const birthDate = new Date(dateStr);
+      const today = new Date();
+      const age = today.getFullYear() - birthDate.getFullYear();
+      const monthDiff = today.getMonth() - birthDate.getMonth();
+
+      // Check if birthday has occurred this year
+      if (
+        monthDiff < 0 ||
+        (monthDiff === 0 && today.getDate() < birthDate.getDate())
+      ) {
+        return age - 1 >= 18;
+      }
+      return age >= 18;
+    }, "You must be at least 18 years old to register"),
+
   password: z
     .string()
     .min(8, "Password must be at least 8 characters")
@@ -67,6 +87,7 @@ function RegisterContent() {
       firstName: "",
       email: "",
       contactNum: "",
+      birthDate: "",
       password: "",
     },
   });
@@ -205,6 +226,21 @@ function RegisterContent() {
                         className="h-11"
                         {...field}
                       />
+                    </FormControl>
+                    <FormMessage className="font-inter text-xs text-red-500" />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="birthDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="font-inter text-sm font-medium text-gray-700">
+                      Date of Birth<span className="text-red-500 ml-1">*</span>
+                    </FormLabel>
+                    <FormControl>
+                      <Input type="date" className="h-11" {...field} />
                     </FormControl>
                     <FormMessage className="font-inter text-xs text-red-500" />
                   </FormItem>
