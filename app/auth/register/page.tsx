@@ -69,11 +69,6 @@ const formSchema = z.object({
 
 // Create a separate component that uses useSearchParams
 function RegisterContent() {
-  const searchParams = useSearchParams();
-  const typeParam = searchParams.get("type")?.trim().toUpperCase() || null;
-  const profileType =
-    typeParam === "WORKER" || typeParam === "CLIENT" ? typeParam : null;
-
   useEffect(() => {
     if (typeof window !== "undefined") {
       localStorage.setItem("hasSeenOnboard", "true");
@@ -101,14 +96,10 @@ function RegisterContent() {
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setIsLoading(true);
     try {
-      const payload = {
-        ...values,
-        profileType, // ✅ attach profile type from query param
-      };
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(values),
       });
       const data = await res.json();
       if (!res.ok) {

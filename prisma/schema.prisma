@@ -96,10 +96,6 @@ model Agency{
   accountID Int
   businessName String
   businessDesc String
-  isVerified Boolean
-  verifyToken String
-  verifyTokenExpire String
-  status String
   createdAt DateTime @default(now())
 
    agency_accounts Accounts @relation(fields: [accountID], references: [accountID])

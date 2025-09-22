@@ -84,13 +84,15 @@ export async function POST(req: Request) {
         status: "ACTIVE",
         verifyToken: hashedVerifyToken,
         verifyTokenExpire: verifyTokenExpire,
-        agency: {
-          create: {
-            businessName: businessName,
-          },
-        },
       },
-      include: { profile: true }, // return profile data too
+    });
+
+    await prisma.agency.create({
+      data: {
+        businessName: businessName,
+        businessDesc: "",
+        accountID: registerUser.accountID,
+      },
     });
 
     // 🔧 FIX: Point to frontend verification page instead of API endpoint

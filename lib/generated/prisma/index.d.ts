@@ -7245,10 +7245,6 @@ export namespace Prisma {
     accountID: number | null
     businessName: string | null
     businessDesc: string | null
-    isVerified: boolean | null
-    verifyToken: string | null
-    verifyTokenExpire: string | null
-    status: string | null
     createdAt: Date | null
   }
 
@@ -7257,10 +7253,6 @@ export namespace Prisma {
     accountID: number | null
     businessName: string | null
     businessDesc: string | null
-    isVerified: boolean | null
-    verifyToken: string | null
-    verifyTokenExpire: string | null
-    status: string | null
     createdAt: Date | null
   }
 
@@ -7269,10 +7261,6 @@ export namespace Prisma {
     accountID: number
     businessName: number
     businessDesc: number
-    isVerified: number
-    verifyToken: number
-    verifyTokenExpire: number
-    status: number
     createdAt: number
     _all: number
   }
@@ -7293,10 +7281,6 @@ export namespace Prisma {
     accountID?: true
     businessName?: true
     businessDesc?: true
-    isVerified?: true
-    verifyToken?: true
-    verifyTokenExpire?: true
-    status?: true
     createdAt?: true
   }
 
@@ -7305,10 +7289,6 @@ export namespace Prisma {
     accountID?: true
     businessName?: true
     businessDesc?: true
-    isVerified?: true
-    verifyToken?: true
-    verifyTokenExpire?: true
-    status?: true
     createdAt?: true
   }
 
@@ -7317,10 +7297,6 @@ export namespace Prisma {
     accountID?: true
     businessName?: true
     businessDesc?: true
-    isVerified?: true
-    verifyToken?: true
-    verifyTokenExpire?: true
-    status?: true
     createdAt?: true
     _all?: true
   }
@@ -7416,10 +7392,6 @@ export namespace Prisma {
     accountID: number
     businessName: string
     businessDesc: string
-    isVerified: boolean
-    verifyToken: string
-    verifyTokenExpire: string
-    status: string
     createdAt: Date
     _count: AgencyCountAggregateOutputType | null
     _avg: AgencyAvgAggregateOutputType | null
@@ -7447,10 +7419,6 @@ export namespace Prisma {
     accountID?: boolean
     businessName?: boolean
     businessDesc?: boolean
-    isVerified?: boolean
-    verifyToken?: boolean
-    verifyTokenExpire?: boolean
-    status?: boolean
     createdAt?: boolean
     agency_accounts?: boolean | AccountsDefaultArgs<ExtArgs>
   }, ExtArgs["result"]["agency"]>
@@ -7460,10 +7428,6 @@ export namespace Prisma {
     accountID?: boolean
     businessName?: boolean
     businessDesc?: boolean
-    isVerified?: boolean
-    verifyToken?: boolean
-    verifyTokenExpire?: boolean
-    status?: boolean
     createdAt?: boolean
     agency_accounts?: boolean | AccountsDefaultArgs<ExtArgs>
   }, ExtArgs["result"]["agency"]>
@@ -7473,10 +7437,6 @@ export namespace Prisma {
     accountID?: boolean
     businessName?: boolean
     businessDesc?: boolean
-    isVerified?: boolean
-    verifyToken?: boolean
-    verifyTokenExpire?: boolean
-    status?: boolean
     createdAt?: boolean
     agency_accounts?: boolean | AccountsDefaultArgs<ExtArgs>
   }, ExtArgs["result"]["agency"]>
@@ -7486,14 +7446,10 @@ export namespace Prisma {
     accountID?: boolean
     businessName?: boolean
     businessDesc?: boolean
-    isVerified?: boolean
-    verifyToken?: boolean
-    verifyTokenExpire?: boolean
-    status?: boolean
     createdAt?: boolean
   }
 
-  export type AgencyOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"agencyID" | "accountID" | "businessName" | "businessDesc" | "isVerified" | "verifyToken" | "verifyTokenExpire" | "status" | "createdAt", ExtArgs["result"]["agency"]>
+  export type AgencyOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"agencyID" | "accountID" | "businessName" | "businessDesc" | "createdAt", ExtArgs["result"]["agency"]>
   export type AgencyInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     agency_accounts?: boolean | AccountsDefaultArgs<ExtArgs>
   }
@@ -7514,10 +7470,6 @@ export namespace Prisma {
       accountID: number
       businessName: string
       businessDesc: string
-      isVerified: boolean
-      verifyToken: string
-      verifyTokenExpire: string
-      status: string
       createdAt: Date
     }, ExtArgs["result"]["agency"]>
     composites: {}
@@ -7947,10 +7899,6 @@ export namespace Prisma {
     readonly accountID: FieldRef<"Agency", 'Int'>
     readonly businessName: FieldRef<"Agency", 'String'>
     readonly businessDesc: FieldRef<"Agency", 'String'>
-    readonly isVerified: FieldRef<"Agency", 'Boolean'>
-    readonly verifyToken: FieldRef<"Agency", 'String'>
-    readonly verifyTokenExpire: FieldRef<"Agency", 'String'>
-    readonly status: FieldRef<"Agency", 'String'>
     readonly createdAt: FieldRef<"Agency", 'DateTime'>
   }
     
@@ -8446,10 +8394,6 @@ export namespace Prisma {
     accountID: 'accountID',
     businessName: 'businessName',
     businessDesc: 'businessDesc',
-    isVerified: 'isVerified',
-    verifyToken: 'verifyToken',
-    verifyTokenExpire: 'verifyTokenExpire',
-    status: 'status',
     createdAt: 'createdAt'
   };
 
@@ -8952,10 +8896,6 @@ export namespace Prisma {
     accountID?: IntFilter<"Agency"> | number
     businessName?: StringFilter<"Agency"> | string
     businessDesc?: StringFilter<"Agency"> | string
-    isVerified?: BoolFilter<"Agency"> | boolean
-    verifyToken?: StringFilter<"Agency"> | string
-    verifyTokenExpire?: StringFilter<"Agency"> | string
-    status?: StringFilter<"Agency"> | string
     createdAt?: DateTimeFilter<"Agency"> | Date | string
     agency_accounts?: XOR<AccountsScalarRelationFilter, AccountsWhereInput>
   }
@@ -8965,10 +8905,6 @@ export namespace Prisma {
     accountID?: SortOrder
     businessName?: SortOrder
     businessDesc?: SortOrder
-    isVerified?: SortOrder
-    verifyToken?: SortOrder
-    verifyTokenExpire?: SortOrder
-    status?: SortOrder
     createdAt?: SortOrder
     agency_accounts?: AccountsOrderByWithRelationInput
   }
@@ -8981,10 +8917,6 @@ export namespace Prisma {
     accountID?: IntFilter<"Agency"> | number
     businessName?: StringFilter<"Agency"> | string
     businessDesc?: StringFilter<"Agency"> | string
-    isVerified?: BoolFilter<"Agency"> | boolean
-    verifyToken?: StringFilter<"Agency"> | string
-    verifyTokenExpire?: StringFilter<"Agency"> | string
-    status?: StringFilter<"Agency"> | string
     createdAt?: DateTimeFilter<"Agency"> | Date | string
     agency_accounts?: XOR<AccountsScalarRelationFilter, AccountsWhereInput>
   }, "agencyID" | "agencyID">
@@ -8994,10 +8926,6 @@ export namespace Prisma {
     accountID?: SortOrder
     businessName?: SortOrder
     businessDesc?: SortOrder
-    isVerified?: SortOrder
-    verifyToken?: SortOrder
-    verifyTokenExpire?: SortOrder
-    status?: SortOrder
     createdAt?: SortOrder
     _count?: AgencyCountOrderByAggregateInput
     _avg?: AgencyAvgOrderByAggregateInput
@@ -9014,10 +8942,6 @@ export namespace Prisma {
     accountID?: IntWithAggregatesFilter<"Agency"> | number
     businessName?: StringWithAggregatesFilter<"Agency"> | string
     businessDesc?: StringWithAggregatesFilter<"Agency"> | string
-    isVerified?: BoolWithAggregatesFilter<"Agency"> | boolean
-    verifyToken?: StringWithAggregatesFilter<"Agency"> | string
-    verifyTokenExpire?: StringWithAggregatesFilter<"Agency"> | string
-    status?: StringWithAggregatesFilter<"Agency"> | string
     createdAt?: DateTimeWithAggregatesFilter<"Agency"> | Date | string
   }
 
@@ -9356,10 +9280,6 @@ export namespace Prisma {
   export type AgencyCreateInput = {
     businessName: string
     businessDesc: string
-    isVerified: boolean
-    verifyToken: string
-    verifyTokenExpire: string
-    status: string
     createdAt?: Date | string
     agency_accounts: AccountsCreateNestedOneWithoutAgencyInput
   }
@@ -9369,20 +9289,12 @@ export namespace Prisma {
     accountID: number
     businessName: string
     businessDesc: string
-    isVerified: boolean
-    verifyToken: string
-    verifyTokenExpire: string
-    status: string
     createdAt?: Date | string
   }
 
   export type AgencyUpdateInput = {
     businessName?: StringFieldUpdateOperationsInput | string
     businessDesc?: StringFieldUpdateOperationsInput | string
-    isVerified?: BoolFieldUpdateOperationsInput | boolean
-    verifyToken?: StringFieldUpdateOperationsInput | string
-    verifyTokenExpire?: StringFieldUpdateOperationsInput | string
-    status?: StringFieldUpdateOperationsInput | string
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     agency_accounts?: AccountsUpdateOneRequiredWithoutAgencyNestedInput
   }
@@ -9392,10 +9304,6 @@ export namespace Prisma {
     accountID?: IntFieldUpdateOperationsInput | number
     businessName?: StringFieldUpdateOperationsInput | string
     businessDesc?: StringFieldUpdateOperationsInput | string
-    isVerified?: BoolFieldUpdateOperationsInput | boolean
-    verifyToken?: StringFieldUpdateOperationsInput | string
-    verifyTokenExpire?: StringFieldUpdateOperationsInput | string
-    status?: StringFieldUpdateOperationsInput | string
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
   }
 
@@ -9404,20 +9312,12 @@ export namespace Prisma {
     accountID: number
     businessName: string
     businessDesc: string
-    isVerified: boolean
-    verifyToken: string
-    verifyTokenExpire: string
-    status: string
     createdAt?: Date | string
   }
 
   export type AgencyUpdateManyMutationInput = {
     businessName?: StringFieldUpdateOperationsInput | string
     businessDesc?: StringFieldUpdateOperationsInput | string
-    isVerified?: BoolFieldUpdateOperationsInput | boolean
-    verifyToken?: StringFieldUpdateOperationsInput | string
-    verifyTokenExpire?: StringFieldUpdateOperationsInput | string
-    status?: StringFieldUpdateOperationsInput | string
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
   }
 
@@ -9426,10 +9326,6 @@ export namespace Prisma {
     accountID?: IntFieldUpdateOperationsInput | number
     businessName?: StringFieldUpdateOperationsInput | string
     businessDesc?: StringFieldUpdateOperationsInput | string
-    isVerified?: BoolFieldUpdateOperationsInput | boolean
-    verifyToken?: StringFieldUpdateOperationsInput | string
-    verifyTokenExpire?: StringFieldUpdateOperationsInput | string
-    status?: StringFieldUpdateOperationsInput | string
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
   }
 
@@ -9982,10 +9878,6 @@ export namespace Prisma {
     accountID?: SortOrder
     businessName?: SortOrder
     businessDesc?: SortOrder
-    isVerified?: SortOrder
-    verifyToken?: SortOrder
-    verifyTokenExpire?: SortOrder
-    status?: SortOrder
     createdAt?: SortOrder
   }
 
@@ -9999,10 +9891,6 @@ export namespace Prisma {
     accountID?: SortOrder
     businessName?: SortOrder
     businessDesc?: SortOrder
-    isVerified?: SortOrder
-    verifyToken?: SortOrder
-    verifyTokenExpire?: SortOrder
-    status?: SortOrder
     createdAt?: SortOrder
   }
 
@@ -10011,10 +9899,6 @@ export namespace Prisma {
     accountID?: SortOrder
     businessName?: SortOrder
     businessDesc?: SortOrder
-    isVerified?: SortOrder
-    verifyToken?: SortOrder
-    verifyTokenExpire?: SortOrder
-    status?: SortOrder
     createdAt?: SortOrder
   }
 
@@ -10705,10 +10589,6 @@ export namespace Prisma {
   export type AgencyCreateWithoutAgency_accountsInput = {
     businessName: string
     businessDesc: string
-    isVerified: boolean
-    verifyToken: string
-    verifyTokenExpire: string
-    status: string
     createdAt?: Date | string
   }
 
@@ -10716,10 +10596,6 @@ export namespace Prisma {
     agencyID?: number
     businessName: string
     businessDesc: string
-    isVerified: boolean
-    verifyToken: string
-    verifyTokenExpire: string
-    status: string
     createdAt?: Date | string
   }
 
@@ -10815,10 +10691,6 @@ export namespace Prisma {
     accountID?: IntFilter<"Agency"> | number
     businessName?: StringFilter<"Agency"> | string
     businessDesc?: StringFilter<"Agency"> | string
-    isVerified?: BoolFilter<"Agency"> | boolean
-    verifyToken?: StringFilter<"Agency"> | string
-    verifyTokenExpire?: StringFilter<"Agency"> | string
-    status?: StringFilter<"Agency"> | string
     createdAt?: DateTimeFilter<"Agency"> | Date | string
   }
 
@@ -11373,10 +11245,6 @@ export namespace Prisma {
     agencyID?: number
     businessName: string
     businessDesc: string
-    isVerified: boolean
-    verifyToken: string
-    verifyTokenExpire: string
-    status: string
     createdAt?: Date | string
   }
 
@@ -11416,10 +11284,6 @@ export namespace Prisma {
   export type AgencyUpdateWithoutAgency_accountsInput = {
     businessName?: StringFieldUpdateOperationsInput | string
     businessDesc?: StringFieldUpdateOperationsInput | string
-    isVerified?: BoolFieldUpdateOperationsInput | boolean
-    verifyToken?: StringFieldUpdateOperationsInput | string
-    verifyTokenExpire?: StringFieldUpdateOperationsInput | string
-    status?: StringFieldUpdateOperationsInput | string
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
   }
 
@@ -11427,10 +11291,6 @@ export namespace Prisma {
     agencyID?: IntFieldUpdateOperationsInput | number
     businessName?: StringFieldUpdateOperationsInput | string
     businessDesc?: StringFieldUpdateOperationsInput | string
-    isVerified?: BoolFieldUpdateOperationsInput | boolean
-    verifyToken?: StringFieldUpdateOperationsInput | string
-    verifyTokenExpire?: StringFieldUpdateOperationsInput | string
-    status?: StringFieldUpdateOperationsInput | string
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
   }
 
@@ -11438,10 +11298,6 @@ export namespace Prisma {
     agencyID?: IntFieldUpdateOperationsInput | number
     businessName?: StringFieldUpdateOperationsInput | string
     businessDesc?: StringFieldUpdateOperationsInput | string
-    isVerified?: BoolFieldUpdateOperationsInput | boolean
-    verifyToken?: StringFieldUpdateOperationsInput | string
-    verifyTokenExpire?: StringFieldUpdateOperationsInput | string
-    status?: StringFieldUpdateOperationsInput | string
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
   }
 

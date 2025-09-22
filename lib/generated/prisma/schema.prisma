@@ -89,15 +89,11 @@ model Specialization {
 }
 
 model Agency {
-  agencyID          Int      @id @unique @default(autoincrement())
-  accountID         Int
-  businessName      String
-  businessDesc      String
-  isVerified        Boolean
-  verifyToken       String
-  verifyTokenExpire String
-  status            String
-  createdAt         DateTime @default(now())
+  agencyID     Int      @id @unique @default(autoincrement())
+  accountID    Int
+  businessName String
+  businessDesc String
+  createdAt    DateTime @default(now())
 
   agency_accounts Accounts @relation(fields: [accountID], references: [accountID])
 }

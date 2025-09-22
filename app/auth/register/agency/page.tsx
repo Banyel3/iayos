@@ -56,11 +56,23 @@ const AgencyRegister = () => {
   // Agency form submission handler
   const onAgencySubmit = async (values: z.infer<typeof agencyFormSchema>) => {
     setIsAgencyLoading(true);
+    setAgencyError(""); // Clear previous errors
     try {
-      // Backend handling will be implemented by user
-      console.log("Agency registration:", values);
-      // Placeholder for now
-      setAgencyError("Agency registration will be implemented soon!");
+      const agencyReg = await fetch("/api/auth/register/agency", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(values),
+      });
+
+      const data = await agencyReg.json();
+
+      if (!agencyReg.ok) {
+        // Handle error response
+        setAgencyError(data.error || "Registration failed");
+      } else {
+        // Handle success - redirect to verification page
+        router.push("/auth/verify-email");
+      }
     } catch (err) {
       setAgencyError("Something went wrong. Try again.");
     } finally {
