@@ -54,34 +54,77 @@ const Login = () => {
     }
   }, [status, session, router]);
 
-  // Check for existing rate limit on component mount and keep it updated
-  useEffect(() => {
-    const updateRateLimit = () => {
-      const rateLimitEndTime = localStorage.getItem("rateLimitEndTime");
-      if (rateLimitEndTime) {
-        const endTime = parseInt(rateLimitEndTime);
-        const now = Date.now();
-        const remaining = Math.max(0, Math.ceil((endTime - now) / 1000));
+  // Function to check actual rate limit status from backend
+  const checkRateLimitStatus = async () => {
+    try {
+      const response = await fetch("/api/auth/check-rate-limit");
+      const data = await response.json();
 
-        if (remaining > 0) {
-          setIsRateLimited(true);
-          setRateLimitTime(remaining);
-        } else {
-          localStorage.removeItem("rateLimitEndTime");
-          setIsRateLimited(false);
-          setRateLimitTime(0);
-        }
+      if (data.isRateLimited) {
+        setIsRateLimited(true);
+        setRateLimitTime(data.remainingTime);
+
+        // Sync localStorage with backend time
+        const endTime = Date.now() + data.remainingTime * 1000;
+        localStorage.setItem("rateLimitEndTime", endTime.toString());
+      } else {
+        setIsRateLimited(false);
+        setRateLimitTime(0);
+        localStorage.removeItem("rateLimitEndTime");
       }
-    };
+    } catch (error) {
+      console.error("Failed to check rate limit status:", error);
+      // Fallback to localStorage check
+      checkLocalStorageRateLimit();
+    }
+  };
 
-    // Check immediately
-    updateRateLimit();
+  // Fallback function to check localStorage
+  const checkLocalStorageRateLimit = () => {
+    const rateLimitEndTime = localStorage.getItem("rateLimitEndTime");
+    if (rateLimitEndTime) {
+      const endTime = parseInt(rateLimitEndTime);
+      const now = Date.now();
+      const remaining = Math.max(0, Math.ceil((endTime - now) / 1000));
 
-    // Update every second
-    const timer = setInterval(updateRateLimit, 1000);
+      if (remaining > 0) {
+        setIsRateLimited(true);
+        setRateLimitTime(remaining);
+      } else {
+        localStorage.removeItem("rateLimitEndTime");
+        setIsRateLimited(false);
+        setRateLimitTime(0);
+      }
+    }
+  };
+
+  // Check for existing rate limit on component mount
+  useEffect(() => {
+    // First check backend, then localStorage as fallback
+    checkRateLimitStatus();
+  }, []);
+
+  // Update rate limit timer every second
+  useEffect(() => {
+    if (!isRateLimited) return;
+
+    const timer = setInterval(() => {
+      setRateLimitTime((prev) => {
+        const newTime = Math.max(0, prev - 1);
+
+        if (newTime === 0) {
+          setIsRateLimited(false);
+          localStorage.removeItem("rateLimitEndTime");
+          // Double-check with backend when timer reaches 0
+          checkRateLimitStatus();
+        }
+
+        return newTime;
+      });
+    }, 1000);
 
     return () => clearInterval(timer);
-  }, []);
+  }, [isRateLimited]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -125,11 +168,32 @@ const Login = () => {
           errorLower.includes("rate") ||
           errorLower.includes("attempts")
         ) {
-          // Set rate limit timer for 5 minutes
-          const endTime = Date.now() + 300 * 1000;
+          // Try to extract actual remaining time from NextAuth error
+          let actualRemainingTime = 300; // Default fallback
+
+          try {
+            // NextAuth might pass rate limit info in the error
+            const errorData = JSON.parse(res.error);
+            if (errorData.msBeforeNext) {
+              actualRemainingTime = Math.round(errorData.msBeforeNext / 1000);
+            }
+          } catch {
+            // If parsing fails, check backend for actual remaining time
+            try {
+              const response = await fetch("/api/auth/check-rate-limit");
+              const data = await response.json();
+              if (data.isRateLimited) {
+                actualRemainingTime = data.remainingTime;
+              }
+            } catch {
+              // Keep default value
+            }
+          }
+
+          const endTime = Date.now() + actualRemainingTime * 1000;
           localStorage.setItem("rateLimitEndTime", endTime.toString());
           setIsRateLimited(true);
-          setRateLimitTime(300);
+          setRateLimitTime(actualRemainingTime);
 
           userMessage =
             "You&apos;ve made too many login attempts. Please wait before trying again.";
@@ -151,7 +215,10 @@ const Login = () => {
 
         errorModal.showError(userMessage, "Try Again", undefined, errorTitle);
       } else if (res?.ok) {
-        // Success - redirect to dashboard
+        // Success - clear any existing rate limit and redirect
+        localStorage.removeItem("rateLimitEndTime");
+        setIsRateLimited(false);
+        setRateLimitTime(0);
         router.push("/dashboard");
       }
     } catch (error) {
