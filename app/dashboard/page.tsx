@@ -145,7 +145,7 @@ const TempDashboard = () => {
         // Simulate API call delay
         await new Promise((resolve) => setTimeout(resolve, 1000));
         if (selectedType === "WORKER") {
-          router.push("/dashboard/worker");
+          router.push("/dashboard/worker/profile");
         }
         if (selectedType === "CLIENT") {
           router.push("/dashboard/client");

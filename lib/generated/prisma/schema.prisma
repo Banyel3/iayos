@@ -34,13 +34,13 @@ model Accounts {
 }
 
 model Profile {
-  profileID   Int      @id @default(autoincrement())
+  profileID   Int       @id @default(autoincrement())
   accountID   Int
   profileImg  String?
   firstName   String
   lastName    String?
-  contactNum  String   @unique
-  birthDate   DateTime
+  contactNum  String    @unique
+  birthDate   DateTime?
   profileType String?
 
   worker         Worker_Profile?
