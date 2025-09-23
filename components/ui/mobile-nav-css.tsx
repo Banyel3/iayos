@@ -34,7 +34,7 @@ const navItems: NavItem[] = [
   },
   {
     name: "Profile",
-    href: "/profile",
+    href: "/dashboard/profile",
     icon: "/icons/profile-icon.png",
     activeIcon: "/icons/profile-icon-active.png",
   },

@@ -10,7 +10,7 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-  --font-inter: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-inter: "Inter", ui-sans-serif, system-ui, sans-serif;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -47,21 +47,22 @@
 }
 
 body {
-  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
   margin: 0;
   padding: 0;
 }
 
 /* Custom font utilities */
 .font-inter {
-  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
 }
 
 /* Custom input focus styles */
 .focus-blue-glow:focus {
   outline: none;
   border-color: #3b82f6;
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2), 0 4px 6px -1px rgba(59, 130, 246, 0.1);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2),
+    0 4px 6px -1px rgba(59, 130, 246, 0.1);
 }
 
 :root {
@@ -145,4 +146,21 @@ body {
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* PWA Safe Area Support */
+.safe-area-inset-top {
+  padding-top: max(1rem, env(safe-area-inset-top));
+}
+
+.safe-area-inset-bottom {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
+.safe-area-inset-left {
+  padding-left: max(1rem, env(safe-area-inset-left));
+}
+
+.safe-area-inset-right {
+  padding-right: max(1rem, env(safe-area-inset-right));
 }

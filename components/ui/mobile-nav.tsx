@@ -15,25 +15,25 @@ interface NavItem {
 const navItems: NavItem[] = [
   {
     name: "Home",
-    href: "/",
+    href: "/dashboard/home",
     icon: "/icons/home-icon.png",
     activeIcon: "/icons/home-icon-active.png",
   },
   {
     name: "Search",
-    href: "/search",
+    href: "/dashboard/search",
     icon: "/icons/search-icon.png",
     activeIcon: "/icons/search-icon-active.png",
   },
   {
     name: "Inbox",
-    href: "/inbox",
+    href: "/dashboard/inbox",
     icon: "/icons/message-icon.png",
     activeIcon: "/icons/message-icon-active.png",
   },
   {
     name: "Profile",
-    href: "/profile",
+    href: "/dashboard/profile",
     icon: "/icons/profile-icon.png",
     activeIcon: "/icons/profile-icon-active.png",
   },
@@ -51,7 +51,7 @@ export default function MobileNav() {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50 md:hidden">
-      <div className="flex items-center justify-around px-4 py-2">
+      <div className="flex items-center justify-around px-4 py-0">
         {navItems.map((item) => {
           const active = isActive(item.href);
 
@@ -61,17 +61,21 @@ export default function MobileNav() {
               href={item.href}
               className="flex flex-col items-center justify-center min-w-0 flex-1 py-2 px-1"
             >
-              <div className="w-6 h-6 mb-1 flex items-center justify-center">
+              <div
+                className={`w-8 h-8 mb-1 flex items-center justify-center rounded-full transition-colors duration-200 ${
+                  active ? "bg-blue-100" : "bg-gray-100"
+                }`}
+              >
                 <Image
                   src={active ? item.activeIcon : item.icon}
                   alt={item.name}
-                  width={24}
-                  height={24}
-                  className="w-6 h-6 object-contain"
+                  width={16}
+                  height={16}
+                  className="w-4 h-4 object-contain"
                 />
               </div>
               <span
-                className={`text-xs font-medium transition-colors duration-200 ${
+                className={`text-[8px] font-medium transition-colors duration-200 ${
                   active ? "text-blue-600" : "text-gray-500"
                 }`}
               >

@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useSession } from "next-auth/react";
-import { useErrorModal } from "@/components/ui/error-modal";
+import { useAuthToast } from "@/components/ui/toast";
 
 const formSchema = z.object({
   email: z
@@ -40,7 +40,7 @@ const Login = () => {
   const [isRateLimited, setIsRateLimited] = useState(false);
   const [rateLimitTime, setRateLimitTime] = useState(0);
   const { data: session, status } = useSession();
-  const errorModal = useErrorModal();
+  const { showAuthError } = useAuthToast();
 
   const handleForgotPassword = () => {
     if (!session) {
@@ -213,7 +213,7 @@ const Login = () => {
           errorTitle = "Use Google Sign-In";
         }
 
-        errorModal.showError(userMessage, "Try Again", undefined, errorTitle);
+        showAuthError(userMessage, errorTitle);
       } else if (res?.ok) {
         // Success - clear any existing rate limit and redirect
         localStorage.removeItem("rateLimitEndTime");
@@ -222,11 +222,9 @@ const Login = () => {
         router.push("/dashboard");
       }
     } catch (error) {
-      // Show generic error modal for network/unexpected errors
-      errorModal.showError(
-        "We&apos;re having trouble connecting. Please check your internet connection and try again.",
-        "Try Again",
-        undefined,
+      // Show generic error toast for network/unexpected errors
+      showAuthError(
+        "We're having trouble connecting. Please check your internet connection and try again.",
         "Connection Error"
       );
     } finally {
@@ -379,20 +377,16 @@ const Login = () => {
                     });
 
                     if (result?.error) {
-                      errorModal.showError(
-                        "We couldn&apos;t sign you in with Google. Please try again or use email and password.",
-                        "Try Again",
-                        undefined,
+                      showAuthError(
+                        "We couldn't sign you in with Google. Please try again or use email and password.",
                         "Google Sign-In Error"
                       );
                     } else if (result?.ok) {
                       router.push("/dashboard");
                     }
                   } catch (error) {
-                    errorModal.showError(
+                    showAuthError(
                       "Unable to connect to Google. Please check your internet connection and try again.",
-                      "Try Again",
-                      undefined,
                       "Connection Error"
                     );
                   }
@@ -427,9 +421,6 @@ const Login = () => {
               </div>
             </div>
           </div>
-
-          {/* Error Modal */}
-          <errorModal.Modal />
         </Suspense>
       )}
     </>

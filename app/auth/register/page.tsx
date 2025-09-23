@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { EmailVerificationAlert } from "@/components/ui/email-verification-alert";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { useAuthToast } from "@/components/ui/toast";
 
 const formSchema = z.object({
   lastName: z
@@ -92,6 +93,7 @@ function RegisterContent() {
   const [showEmailAlert, setShowEmailAlert] = useState(false);
   const [userEmail, setUserEmail] = useState("");
   const router = useRouter();
+  const { showAuthError } = useAuthToast();
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setIsLoading(true);
@@ -331,8 +333,29 @@ function RegisterContent() {
 
             {/* Google Sign In Button */}
             <button
-              onClick={() => signIn("google")}
-              className="flex items-center justify-center w-full h-11 border border-gray-200 rounded-lg px-4 py-3 bg-white hover:bg-gray-50 hover:border-gray-300 hover:shadow-md transition-all duration-200 shadow-sm font-inter font-medium text-gray-700"
+              onClick={async () => {
+                try {
+                  const result = await signIn("google", {
+                    redirect: false,
+                  });
+
+                  if (result?.error) {
+                    showAuthError(
+                      "We couldn't sign you up with Google. Please try again or use email registration.",
+                      "Google Sign-Up Error"
+                    );
+                  } else if (result?.ok) {
+                    router.push("/dashboard");
+                  }
+                } catch (error) {
+                  showAuthError(
+                    "Unable to connect to Google. Please check your internet connection and try again.",
+                    "Connection Error"
+                  );
+                }
+              }}
+              disabled={isLoading}
+              className="flex items-center justify-center w-full h-11 border border-gray-200 rounded-lg px-4 py-3 bg-white hover:bg-gray-50 hover:border-gray-300 hover:shadow-md transition-all duration-200 shadow-sm font-inter font-medium text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Image
                 src="/google-logo.svg"
@@ -589,8 +612,29 @@ function RegisterContent() {
 
               {/* Desktop Google Sign In */}
               <button
-                onClick={() => signIn("google")}
-                className="flex items-center justify-center w-full h-12 border border-gray-300 rounded-lg px-4 py-3 bg-white hover:bg-gray-50 hover:border-gray-400 hover:shadow-md transition-all duration-200 shadow-sm font-inter font-medium text-gray-700"
+                onClick={async () => {
+                  try {
+                    const result = await signIn("google", {
+                      redirect: false,
+                    });
+
+                    if (result?.error) {
+                      showAuthError(
+                        "We couldn't sign you up with Google. Please try again or use email registration.",
+                        "Google Sign-Up Error"
+                      );
+                    } else if (result?.ok) {
+                      router.push("/dashboard");
+                    }
+                  } catch (error) {
+                    showAuthError(
+                      "Unable to connect to Google. Please check your internet connection and try again.",
+                      "Connection Error"
+                    );
+                  }
+                }}
+                disabled={isLoading}
+                className="flex items-center justify-center w-full h-12 border border-gray-300 rounded-lg px-4 py-3 bg-white hover:bg-gray-50 hover:border-gray-400 hover:shadow-md transition-all duration-200 shadow-sm font-inter font-medium text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Image
                   src="/google-logo.svg"

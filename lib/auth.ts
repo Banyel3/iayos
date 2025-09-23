@@ -135,7 +135,7 @@ export const authOptions: NextAuthOptions = {
     async redirect({ baseUrl }) {
       return `${baseUrl}/dashboard`;
     },
-    async jwt({ token, user, account }) {
+    async jwt({ token, user, account, trigger }) {
       if (user) {
         token.id = user.id;
         token.email = user.email;
@@ -144,7 +144,11 @@ export const authOptions: NextAuthOptions = {
           (user as { profileType?: string | null }).profileType || null;
       }
 
-      if (account?.provider === "google" && !token.profileType) {
+      // Refresh profileType from database when session is updated or for Google users
+      if (
+        trigger === "update" ||
+        (account?.provider === "google" && !token.profileType)
+      ) {
         try {
           const userWithProfile = await prisma.accounts.findUnique({
             where: { email: token.email as string },
@@ -157,10 +161,17 @@ export const authOptions: NextAuthOptions = {
             },
           });
 
+          // Get the latest profileType, prioritizing non-empty values
+          const profiles = userWithProfile?.profile || [];
+          const profileWithType = profiles.find(
+            (p) => p.profileType && p.profileType !== ""
+          );
           token.profileType =
-            userWithProfile?.profile?.[0]?.profileType || null;
+            profileWithType?.profileType || profiles[0]?.profileType || null;
+
+          console.log("Updated token profileType:", token.profileType);
         } catch (error) {
-          console.error("Error fetching profileType for Google user:", error);
+          console.error("Error fetching profileType:", error);
           token.profileType = null;
         }
       }
@@ -178,47 +189,59 @@ export const authOptions: NextAuthOptions = {
     },
     async signIn({ account, profile }) {
       if (account?.provider === "google") {
-        const googleProfile = profile as GoogleProfile;
+        try {
+          const googleProfile = profile as GoogleProfile;
 
-        if (!profile?.email) {
-          throw new Error("No email found from Google Account");
-        }
+          if (!profile?.email) {
+            console.error(
+              "Google sign-in error: No email found from Google Account"
+            );
+            return false; // Return false instead of throwing to prevent URL redirect
+          }
 
-        const accountRecord = await prisma.accounts.upsert({
-          where: { email: profile.email },
-          create: {
-            email: profile.email,
-            password: null,
-            isVerified: true,
-            status: "ACTIVE",
-          } as Prisma.AccountsUncheckedCreateInput,
-          update: {
-            isVerified: true,
-            status: "ACTIVE",
-          },
-        });
-
-        await prisma.profile.upsert({
-          where: {
-            accountID_profileType: {
-              accountID: accountRecord.accountID,
-              profileType: "",
+          const accountRecord = await prisma.accounts.upsert({
+            where: { email: profile.email },
+            create: {
+              email: profile.email,
+              password: null,
+              isVerified: true,
+              status: "ACTIVE",
+            } as Prisma.AccountsUncheckedCreateInput,
+            update: {
+              isVerified: true,
+              status: "ACTIVE",
             },
-          },
-          create: {
-            accountID: accountRecord.accountID,
-            firstName: googleProfile.given_name,
-            lastName: googleProfile.family_name,
-            contactNum: "",
-            profileImg: googleProfile.picture,
-            profileType: "",
-          } as Prisma.ProfileUncheckedCreateInput,
-          update: {
-            firstName: googleProfile.given_name,
-            lastName: googleProfile.family_name || "",
-            profileImg: googleProfile.picture,
-          },
-        });
+          });
+
+          await prisma.profile.upsert({
+            where: {
+              accountID_profileType: {
+                accountID: accountRecord.accountID,
+                profileType: "",
+              },
+            },
+            create: {
+              accountID: accountRecord.accountID,
+              firstName: googleProfile.given_name,
+              lastName: googleProfile.family_name,
+              contactNum: `google_${accountRecord.accountID}_${Date.now()}`, // Generate unique contactNum for Google users
+              profileImg: googleProfile.picture,
+              profileType: "",
+            } as Prisma.ProfileUncheckedCreateInput,
+            update: {
+              firstName: googleProfile.given_name,
+              lastName: googleProfile.family_name || "",
+              profileImg: googleProfile.picture,
+            },
+          });
+
+          console.log("Google sign-in successful for:", profile.email);
+          return true;
+        } catch (error) {
+          console.error("Google sign-in error:", error);
+          // Return false instead of throwing to prevent error URL redirect
+          return false;
+        }
       }
 
       return true;
