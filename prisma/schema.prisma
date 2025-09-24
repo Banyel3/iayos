@@ -44,7 +44,7 @@ model Profile {
   profileImg  String?
   firstName   String
   lastName    String?
-  contactNum  String   @unique
+  contactNum  String?
   birthDate   DateTime
   profileType String?
 
