@@ -3,7 +3,7 @@ import React from "react";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 
-const ClientDash = () => {
+const WorkerDash = () => {
   const { data: session, status } = useSession();
   const router = useRouter();
 
@@ -41,4 +41,4 @@ const ClientDash = () => {
   );
 };
 
-export default ClientDash;
+export default WorkerDash;

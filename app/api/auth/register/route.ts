@@ -39,7 +39,7 @@ export async function POST(req: Request) {
 
     // ✅ Handle rate limiting separately
     try {
-      await rateLimiter.consume(ip);
+      rateLimiter.consume(ip);
     } catch {
       return NextResponse.json(
         { success: false, message: "Too many requests. Try again later." },
@@ -111,11 +111,9 @@ export async function POST(req: Request) {
             lastName,
             contactNum: contactNum || "",
             birthDate: new Date(birthDate),
-            profileType: body.profileType,
           },
         },
       },
-      include: { profile: true }, // return profile data too
     });
 
     // 🔧 FIX: Point to frontend verification page instead of API endpoint
@@ -124,7 +122,9 @@ export async function POST(req: Request) {
     const template = generateVerificationEmailHTML({
       verificationLink: verifyLink,
     });
-    await sendEmail(registerUser?.email, "Email Verification", template);
+    sendEmail(registerUser?.email, "Email Verification", template).catch(
+      console.error
+    );
     return new Response(JSON.stringify("Email Verification Sent"), {
       status: 201,
     });

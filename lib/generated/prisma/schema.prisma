@@ -27,19 +27,20 @@ model Accounts {
   updatedAt         DateTime  @default(now()) @updatedAt
   status            String
   profile           Profile[]
+  agency            Agency[]
 
   defaultProfileId Int?
   defaultProfile   Profile? @relation("defaultProfile", fields: [defaultProfileId], references: [profileID])
 }
 
 model Profile {
-  profileID   Int      @id @default(autoincrement())
+  profileID   Int       @id @default(autoincrement())
   accountID   Int
   profileImg  String?
   firstName   String
   lastName    String?
-  contactNum  String   @unique
-  birthDate   DateTime
+  contactNum  String    @unique
+  birthDate   DateTime?
   profileType String?
 
   worker         Worker_Profile?
@@ -59,11 +60,8 @@ model Worker_Profile {
   profileID          Int                @id
   hourlyRate         Decimal            @db.Decimal(10, 2)
   verifiedSkills     Json
-  responseTimeAvg    Decimal            @db.Decimal(5, 2)
-  completionRate     Decimal            @db.Decimal(5, 2)
   bio                String
   totalEarningGross  Decimal            @db.Decimal(10, 2)
-  withholdingBalance Decimal            @db.Decimal(10, 2)
   description        String
   availabilityStatus availabilityStatus @default(OFFLINE)
 
@@ -88,4 +86,14 @@ model Specialization {
   specializationName String
 
   freelancer_specialization Freelancer_Specialization[]
+}
+
+model Agency {
+  agencyID     Int      @id @unique @default(autoincrement())
+  accountID    Int
+  businessName String
+  businessDesc String
+  createdAt    DateTime @default(now())
+
+  agency_accounts Accounts @relation(fields: [accountID], references: [accountID])
 }

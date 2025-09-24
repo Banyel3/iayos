@@ -18,7 +18,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { useErrorModal } from "@/components/ui/error-modal";
+import { useAuthToast } from "@/components/ui/toast";
 import { PasswordResetAlert } from "@/components/ui/email-verification-alert";
 
 const formSchema = z.object({
@@ -33,7 +33,7 @@ const ForgotPassword = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [showEmailAlert, setShowEmailAlert] = useState(false);
   const [userEmail, setUserEmail] = useState("");
-  const errorModal = useErrorModal();
+  const { showAuthError } = useAuthToast();
   const router = useRouter();
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -75,10 +75,8 @@ const ForgotPassword = () => {
       }
     } catch (error) {
       // Placeholder error handling
-      errorModal.showError(
-        "We&apos;re having trouble processing your request. Please try again.",
-        "Try Again",
-        undefined,
+      showAuthError(
+        "We're having trouble processing your request. Please try again.",
         "Request Failed"
       );
     } finally {
@@ -187,9 +185,6 @@ const ForgotPassword = () => {
           </div>
         </div>
       </div>
-
-      {/* Error Modal */}
-      <errorModal.Modal />
     </Suspense>
   );
 };

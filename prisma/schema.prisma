@@ -17,37 +17,35 @@ datasource db {
 }
 
 model Accounts {
-  accountID  Int       @id @default(autoincrement())
-  email      String    @unique
-  password   String? //hashed
-  isVerified Boolean @default(false)
-  verifyToken String? @default("")
+  accountID         Int       @id @default(autoincrement())
+  email             String    @unique
+  password          String? //hashed
+  isVerified        Boolean   @default(false)
+  verifyToken       String?   @default("")
   verifyTokenExpire DateTime?
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @default(now()) @updatedAt
-  status     String
-  profile    Profile[]
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @default(now()) @updatedAt
+  status            String
+  profile           Profile[]
+  agency            Agency[]
 
   defaultProfileId Int?
-  defaultProfile Profile? @relation("defaultProfile",fields: [defaultProfileId], references: [profileID])
-
-
+  defaultProfile   Profile? @relation("defaultProfile", fields: [defaultProfileId], references: [profileID])
 }
 
-
 model Profile {
-  profileID   Int          @id @default(autoincrement())
-  accountID   Int         
+  profileID   Int       @id @default(autoincrement())
+  accountID   Int
   profileImg  String?
   firstName   String
   lastName    String?
-  contactNum  String @unique
-  birthDate DateTime
+  contactNum  String    @unique
+  birthDate   DateTime?
   profileType String?
 
-  worker   Worker_Profile?
-  accounts Accounts        @relation(fields: [accountID], references: [accountID])
-  defaultProfile Accounts[] @relation("defaultProfile")
+  worker         Worker_Profile?
+  accounts       Accounts        @relation(fields: [accountID], references: [accountID])
+  defaultProfile Accounts[]      @relation("defaultProfile")
 
   @@unique([accountID, profileType])
 }
@@ -88,4 +86,14 @@ model Specialization {
   specializationName String
 
   freelancer_specialization Freelancer_Specialization[]
+}
+
+model Agency {
+  agencyID     Int      @id @unique @default(autoincrement())
+  accountID    Int
+  businessName String
+  businessDesc String
+  createdAt    DateTime @default(now())
+
+  agency_accounts Accounts @relation(fields: [accountID], references: [accountID])
 }

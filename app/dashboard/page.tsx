@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 
 const TempDashboard = () => {
-  const { data: session, status } = useSession();
+  const { data: session, status, update } = useSession();
   const router = useRouter();
   const [selectedType, setSelectedType] = useState<"WORKER" | "CLIENT" | null>(
     null
@@ -15,13 +15,13 @@ const TempDashboard = () => {
 
   // Redirect logic for existing profileType
   useEffect(() => {
-    if (session?.user?.profileType === "WORKER") {
-      router.replace("/dashboard/worker");
+    if (
+      session?.user?.profileType === "WORKER" ||
+      session?.user?.profileType === "CLIENT"
+    ) {
+      router.replace("/dashboard/profile");
     }
-    if (session?.user?.profileType === "CLIENT") {
-      router.replace("/dashboard/client");
-    }
-  });
+  }, [session?.user?.profileType, router]);
 
   // Auto-redirect countdown for unauthorized users
   useEffect(() => {
@@ -127,6 +127,13 @@ const TempDashboard = () => {
     e.preventDefault();
     if (!selectedType) return;
 
+    // Check if user email exists
+    if (!session?.user?.email) {
+      console.error("No email found in session:", session);
+      setIsSubmitting(false);
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -134,22 +141,28 @@ const TempDashboard = () => {
         selectedType,
         email: session.user.email,
       };
+
+      console.log("Sending request:", values);
+
       const res = await fetch("/api/auth/assign-role", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(values),
       });
+
       if (!res.ok) {
-        throw new Error("An Error Occured");
+        const errorData = await res.json();
+        console.error("API Response Error:", errorData);
+        throw new Error(errorData.error || "An Error Occurred");
       } else {
-        // Simulate API call delay
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        if (selectedType === "WORKER") {
-          router.push("/dashboard/worker");
-        }
-        if (selectedType === "CLIENT") {
-          router.push("/dashboard/client");
-        }
+        console.log("Profile type assigned successfully");
+
+        // Refresh the session to get the updated profileType
+        console.log("Refreshing session...");
+        await update();
+
+        // The useEffect will automatically redirect once the session is updated
+        console.log("Session refreshed, should redirect automatically");
       }
     } catch (error) {
       console.error("Error updating profile type:", error);

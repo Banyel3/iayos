@@ -82,51 +82,56 @@ const VerifyEmail = () => {
       <div className="w-full max-w-md mx-auto px-4">
         {verified && (
           <Alert variant="default" className="border-green-200 bg-green-50">
-            <SquareCheckBig className="h-4 w-4 text-green-600" />
-            <AlertTitle className="text-green-800">
-              Email Verified Successfully!
-            </AlertTitle>
-            <AlertDescription className="text-green-700">
-              Your email has been verified successfully. You can now sign in to
-              your account.
-            </AlertDescription>
-            <div className="mt-4">
-              <a
-                href="/auth/login"
-                className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-green-600 text-white hover:bg-green-700 h-10 px-4 py-2"
-              >
-                Sign In Now
-              </a>
+            <SquareCheckBig className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
+            <div className="flex-1">
+              <AlertTitle className="text-green-800">
+                Email Verified Successfully!
+              </AlertTitle>
+              <AlertDescription className="text-green-700">
+                Your email has been verified successfully. You can now sign in
+                to your account.
+              </AlertDescription>
+              <div className="mt-4">
+                <a
+                  href="/auth/login"
+                  className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-green-600 text-white hover:bg-green-700 h-10 px-4 py-2"
+                >
+                  Sign In Now
+                </a>
+              </div>
             </div>
           </Alert>
         )}
 
         {error && (
           <Alert variant="destructive" className="border-red-200 bg-red-50">
-            <CircleX className="h-4 w-4 text-red-600" />
-            <AlertTitle className="text-red-800">
-              Email Verification Failed
-            </AlertTitle>
-            <AlertDescription className="text-red-700">
-              {errorMessage || "Your verification token is invalid or expired."}
-            </AlertDescription>
-            <div className="mt-4 space-y-2">
-              <p className="text-sm text-red-600">
-                Need help? Try these options:
-              </p>
-              <div className="space-y-1">
-                <a
-                  href="/auth/register"
-                  className="block text-sm text-red-600 hover:text-red-800 underline"
-                >
-                  • Register again to get a new verification email
-                </a>
-                <a
-                  href="/auth/login"
-                  className="block text-sm text-red-600 hover:text-red-800 underline"
-                >
-                  • Try signing in if you&apos;re already verified
-                </a>
+            <CircleX className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
+            <div className="flex-1">
+              <AlertTitle className="text-red-800">
+                Email Verification Failed
+              </AlertTitle>
+              <AlertDescription className="text-red-700">
+                {errorMessage ||
+                  "Your verification token is invalid or expired."}
+              </AlertDescription>
+              <div className="mt-4 space-y-2">
+                <p className="text-sm text-red-600">
+                  Need help? Try these options:
+                </p>
+                <div className="space-y-1">
+                  <a
+                    href="/auth/register"
+                    className="block text-sm text-red-600 hover:text-red-800 underline"
+                  >
+                    • Register again to get a new verification email
+                  </a>
+                  <a
+                    href="/auth/login"
+                    className="block text-sm text-red-600 hover:text-red-800 underline"
+                  >
+                    • Try signing in if you&apos;re already verified
+                  </a>
+                </div>
               </div>
             </div>
           </Alert>
@@ -134,14 +139,16 @@ const VerifyEmail = () => {
 
         {!verified && !error && (
           <Alert variant="default" className="border-yellow-200 bg-yellow-50">
-            <AlertTriangle className="h-4 w-4 text-yellow-600" />
-            <AlertTitle className="text-yellow-800">
-              Processing Verification
-            </AlertTitle>
-            <AlertDescription className="text-yellow-700">
-              We&apos;re currently processing your email verification. Please
-              wait...
-            </AlertDescription>
+            <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+            <div className="flex-1">
+              <AlertTitle className="text-yellow-800">
+                Processing Verification
+              </AlertTitle>
+              <AlertDescription className="text-yellow-700">
+                We&apos;re currently processing your email verification. Please
+                wait...
+              </AlertDescription>
+            </div>
           </Alert>
         )}
       </div>
