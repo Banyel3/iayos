@@ -12,7 +12,6 @@ export async function GET(req: NextRequest) {
     const rateLimiterStatus = await rateLimiter.get(ip);
 
     if (rateLimiterStatus) {
-      const now = new Date();
       const remainingTime = Math.max(
         0,
         Math.round(rateLimiterStatus.msBeforeNext / 1000)

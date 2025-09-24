@@ -15,7 +15,7 @@ const resetPasswordSchema = z.object({
 export async function POST(req: Request) {
   const body = await req.json();
 
-  const { accountID, oldPassword, newPassword } =
+  const { accountID, oldPassword } =
     resetPasswordSchema.parse(body); // ✅ safe + validated
 
   const confirmPass = await prisma.accounts.findFirst({

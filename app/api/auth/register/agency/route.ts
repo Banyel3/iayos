@@ -5,6 +5,14 @@ import crypto from "crypto";
 import { sendEmail } from "@/lib/email";
 import { generateAgencyVerificationEmailHTML } from "@/components/auth/verification/agency_verification_email";
 import { rateLimiter } from "@/lib/rateLimiter";
+
+// Type for rate limiter response
+interface RateLimiterRes {
+  msBeforeNext?: number;
+  remainingPoints?: number;
+  totalHits?: number;
+}
+
 // Remove NextResponse import since we're using Response
 // Zod schema
 const registerSchema = z.object({
@@ -23,7 +31,9 @@ export async function POST(req: Request) {
     // ✅ Handle rate limiting separately
     try {
       await rateLimiter.consume(ip);
-    } catch (rateLimiterRes: any) {
+    } catch (error: unknown) {
+      // Type guard for rate limiter response
+      const rateLimiterRes = error as RateLimiterRes;
       // Get actual remaining time from rate limiter
       const remainingTime = Math.round(
         (rateLimiterRes?.msBeforeNext || 300000) / 1000

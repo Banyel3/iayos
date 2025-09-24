@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
-import bcrypt from "bcrypt";
 import crypto from "crypto";
 import { sendEmail } from "@/lib/email";
 import { generatePasswordResetEmailHTML } from "@/components/auth/verification/verification_email";
@@ -39,7 +38,7 @@ export async function POST(req: Request) {
     if (!userDetails) {
       throw new Error("No Account Found");
     }
-    const forgottenUser = await prisma.accounts.update({
+    await prisma.accounts.update({
       where: { accountID: userDetails.accountID },
       data: {
         verifyToken: hashedVerifyToken,

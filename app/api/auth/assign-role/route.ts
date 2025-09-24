@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { PrismaClientKnownRequestError } from "@prisma/client/runtime/library";
 
 export async function POST(req: Request) {
   try {
@@ -89,28 +90,31 @@ export async function POST(req: Request) {
       status: 200,
       headers: { "Content-Type": "application/json" },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("❌ Error in assign-role route:", error);
 
     // Handle specific Prisma errors
-    if (error?.code === "P2002") {
-      return new Response(
-        JSON.stringify({ error: "Profile type already exists for this user" }),
-        { status: 409 }
-      );
+    if (error instanceof PrismaClientKnownRequestError) {
+      if (error.code === "P2002") {
+        return new Response(
+          JSON.stringify({ error: "Profile type already exists for this user" }),
+          { status: 409 }
+        );
+      }
+
+      if (error.code === "P2025") {
+        return new Response(JSON.stringify({ error: "Profile not found" }), {
+          status: 404,
+        });
+      }
     }
 
-    if (error?.code === "P2025") {
-      return new Response(JSON.stringify({ error: "Profile not found" }), {
-        status: 404,
-      });
-    }
-
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
     return new Response(
       JSON.stringify({
         error: "Internal server error",
         details:
-          process.env.NODE_ENV === "development" ? error?.message : undefined,
+          process.env.NODE_ENV === "development" ? errorMessage : undefined,
       }),
       { status: 500 }
     );
