@@ -1,0 +1,69 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "outputs": [".next/**", "!.next/cache/**", "dist/**"]
+    },
+    "iayos_final#build": {
+      "dependsOn": ["^build"],
+      "inputs": [
+        "src/**/*.{js,ts,jsx,tsx}",
+        "app/**/*.{js,ts,jsx,tsx}",
+        "components/**/*.{js,ts,jsx,tsx}",
+        "lib/**/*.{js,ts,jsx,tsx}",
+        "types/**/*.{js,ts,jsx,tsx}",
+        "public/**",
+        "package.json",
+        "next.config.*",
+        "tailwind.config.*",
+        "tsconfig.json",
+        "prisma/schema.prisma",
+        ".env*",
+        "!**/.next/**",
+        "!**/node_modules/**",
+        "!**/@prisma/client/**",
+        "!**/lib/generated/**"
+      ],
+      "outputs": [".next/**", "!.next/cache/**", "dist/**"],
+      "env": ["NODE_ENV"]
+    },
+    "iayos_final#check-types": {
+      "dependsOn": ["^check-types"],
+      "inputs": [
+        "src/**/*.{js,ts,jsx,tsx}",
+        "app/**/*.{js,ts,jsx,tsx}",
+        "components/**/*.{js,ts,jsx,tsx}",
+        "lib/**/*.{js,ts,jsx,tsx}",
+        "types/**/*.{js,ts,jsx,tsx}",
+        "package.json",
+        "tsconfig.json",
+        "!**/node_modules/**",
+        "!**/lib/generated/**"
+      ],
+      "outputs": []
+    },
+    "backend#build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "outputs": []
+    },
+    "check-types": {
+      "dependsOn": ["^check-types"],
+      "outputs": []
+    },
+    "dev": {
+      "persistent": true,
+      "cache": false
+    },
+    "lint": {
+      "dependsOn": ["^lint"],
+      "outputs": []
+    }
+  },
+  "globalDependencies": ["**/.env*"],
+  "globalEnv": ["NODE_ENV"],
+  "ui": "tui",
+  "cacheDir": ".turbo"
+}

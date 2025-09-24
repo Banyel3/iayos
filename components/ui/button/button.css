@@ -1,8 +1,0 @@
-.primary-gradient {
-  background: var(--primary-gradient);
-}
-
-.primary-gradient:hover {
-  background: var(--primary-gradient);
-  opacity: 0.9;
-}

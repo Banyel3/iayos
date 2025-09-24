@@ -1,0 +1,13 @@
+{
+  "functions": {
+    "app/api/**/*.ts": {
+      "maxDuration": 30
+    }
+  },
+  "build": {
+    "env": {
+      "PRISMA_CLI_QUERY_ENGINE_TYPE": "binary",
+      "PRISMA_CLIENT_ENGINE_TYPE": "binary"
+    }
+  }
+}

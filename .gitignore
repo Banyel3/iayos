@@ -12,7 +12,7 @@
 
 # testing
 /coverage
-
+.turbo
 # next.js
 /.next/
 /out/
@@ -40,5 +40,33 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+
+# Byte-compiled / Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Pipenv virtualenv (if created in project folder)
+.venv/
+
+# Django stuff
+*.sqlite3
+/media/
+*.log
+/staticfiles/
+
+# Environment variables
+.env
+.env.local
+
+# Pytest / coverage
+.coverage
+htmlcov/
+.pytest_cache/
+
+# IDEs
+.vscode/
+.idea/
 
 /lib/generated/prisma

@@ -1,0 +1,7 @@
+{
+  "name": "backend",
+  "scripts": {
+    "dev": "pipenv run python manage.py runserver",
+    "build": "echo 'Backend build completed'"
+  }
+}
