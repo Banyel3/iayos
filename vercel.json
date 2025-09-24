@@ -6,7 +6,8 @@
   },
   "build": {
     "env": {
-      "PRISMA_GENERATE_SKIP_AUTOINSTALL": "true"
+      "PRISMA_CLI_QUERY_ENGINE_TYPE": "binary",
+      "PRISMA_CLIENT_ENGINE_TYPE": "binary"
     }
   }
 }

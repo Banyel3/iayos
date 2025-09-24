@@ -4,10 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "prisma generate && next build",
+    "build": "prisma generate --generator clientProd && next build",
     "start": "next start",
     "lint": "eslint",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate --generator clientProd",
+    "dev:prisma": "prisma generate"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

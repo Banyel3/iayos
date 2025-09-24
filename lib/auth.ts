@@ -1,6 +1,5 @@
 import GoogleProvider from "next-auth/providers/google";
 import { NextAuthOptions } from "next-auth";
-import { Prisma } from "@/lib/generated/prisma/wasm";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcrypt";
 import { rateLimiter } from "@/lib/rateLimiter";
@@ -206,7 +205,7 @@ export const authOptions: NextAuthOptions = {
               password: null,
               isVerified: true,
               status: "ACTIVE",
-            } as Prisma.AccountsUncheckedCreateInput,
+            },
             update: {
               isVerified: true,
               status: "ACTIVE",
@@ -227,7 +226,8 @@ export const authOptions: NextAuthOptions = {
               contactNum: `google_${accountRecord.accountID}_${Date.now()}`, // Generate unique contactNum for Google users
               profileImg: googleProfile.picture,
               profileType: "",
-            } as Prisma.ProfileUncheckedCreateInput,
+              birthDate: new Date("1900-01-01"), // Default birthdate for Google OAuth users
+            },
             update: {
               firstName: googleProfile.given_name,
               lastName: googleProfile.family_name || "",

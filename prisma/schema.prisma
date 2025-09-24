@@ -10,6 +10,11 @@ generator client {
   binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
+generator clientProd {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+}
+
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
@@ -34,13 +39,13 @@ model Accounts {
 }
 
 model Profile {
-  profileID   Int       @id @default(autoincrement())
+  profileID   Int      @id @default(autoincrement())
   accountID   Int
   profileImg  String?
   firstName   String
   lastName    String?
-  contactNum  String    @unique
-  birthDate   DateTime?
+  contactNum  String   @unique
+  birthDate   DateTime
   profileType String?
 
   worker         Worker_Profile?
