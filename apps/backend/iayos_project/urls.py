@@ -17,6 +17,8 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path
 
+from .auth import auth
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('api/auth', auth.urls),
 ]
