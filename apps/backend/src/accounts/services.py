@@ -42,7 +42,7 @@ def create_account(data):
     user.save()
 
     # 4️⃣ Create Profile
-    Profile.objects.create(
+    profile = Profile.objects.create(
         accountFK=user,
         firstName=data.firstName,
         lastName=data.lastName,
@@ -53,6 +53,10 @@ def create_account(data):
     verifyLink = f"http://localhost:3000/auth/verify-email?verifyToken={user.verifyToken}&id={user.accountID}"
     return {
         "accountID": user.accountID,
+        "firstName": profile.firstName,
+        "lastName": profile.lastName,
+        "profileImg": profile.profileImg,
+        "profileType": profile.profileType,
         "verifyLink": verifyLink,
         "verifyLinkExpire": user.verifyTokenExpiry.isoformat(),
         "email": user.email

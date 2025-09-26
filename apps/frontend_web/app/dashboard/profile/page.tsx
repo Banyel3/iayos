@@ -2,9 +2,17 @@
 
 import React, { useState } from "react";
 import Image from "next/image";
-import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
+import { User } from "@/types";
 import MobileNav from "@/components/ui/mobile-nav";
+
+// Extended User interface for profile page
+interface ProfileUser extends User {
+  firstName?: string;
+  lastName?: string;
+  profileType?: "WORKER" | "CLIENT" | null;
+}
 
 // Interfaces for different profile types
 interface WorkerProfile {
@@ -42,7 +50,8 @@ interface ClientProfile {
 }
 
 const ProfilePage = () => {
-  const { user, isAuthenticated, isLoading, logout } = useAuth();
+  const { user: authUser, isAuthenticated, isLoading, logout } = useAuth();
+  const user = authUser as ProfileUser; // Type assertion for this page
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"overview" | "recent">("overview");
   const [isAvailable, setIsAvailable] = useState(true);
@@ -78,7 +87,7 @@ const ProfilePage = () => {
 
   // Mock data for worker profile
   const workerData: WorkerProfile = {
-    name: session.user.name || "John Reyes",
+    name: user?.firstName || "John Reyes",
     isVerified: false,
     avatar: "/worker1.jpg",
     jobTitle: "Appliance Repair Technician",
@@ -97,7 +106,7 @@ const ProfilePage = () => {
 
   // Mock data for client profile
   const clientData: ClientProfile = {
-    name: session.user.name || "Crissy Santos",
+    name: user?.firstName || "Crissy Santos",
     isVerified: false,
     avatar: "/worker2.jpg", // Using available images for now
     location: "Quezon City, Metro Manila",
@@ -200,7 +209,7 @@ const ProfilePage = () => {
               Edit Profile
             </button>
             <button
-              onClick={() => signOut({ callbackUrl: "/auth/login" })}
+              onClick={() => logout()}
               className="w-full bg-red-500 text-white py-2 rounded-lg text-xs font-medium hover:bg-red-600 transition-colors"
             >
               Log Out
@@ -338,7 +347,7 @@ const ProfilePage = () => {
               Edit Profile
             </button>
             <button
-              onClick={() => signOut({ callbackUrl: "/auth/login" })}
+              onClick={() => logout()}
               className="w-full bg-red-500 text-white py-2 rounded-lg text-xs font-medium hover:bg-red-600 transition-colors"
             >
               Log Out

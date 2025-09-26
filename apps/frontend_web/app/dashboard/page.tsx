@@ -3,13 +3,25 @@
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
+import { UserProfileType } from "@/types";
+
+// Temporary User interface extension for this page
+interface DashboardUser {
+  accountID: number;
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  name?: string;
+  image?: string;
+  profileImg?: string;
+  profileType?: UserProfileType;
+}
 
 const TempDashboard = () => {
-  const { user, isAuthenticated, isLoading, logout } = useAuth();
+  const { user: authUser, isAuthenticated, isLoading, logout } = useAuth();
+  const user = authUser as DashboardUser; // Type assertion for this page
   const router = useRouter();
-  const [selectedType, setSelectedType] = useState<"WORKER" | "CLIENT" | null>(
-    null
-  );
+  const [selectedType, setSelectedType] = useState<UserProfileType>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [redirectCountdown, setRedirectCountdown] = useState(3);
 
@@ -172,9 +184,9 @@ const TempDashboard = () => {
           {/* Welcome Message */}
           <div className="text-center mb-8">
             <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              {user?.image ? (
+              {user?.profileImg ? (
                 <img
-                  src={user.image}
+                  src={user.profileImg}
                   alt="Profile"
                   className="w-16 h-16 rounded-full object-cover"
                 />

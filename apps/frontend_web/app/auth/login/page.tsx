@@ -21,6 +21,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/context/AuthContext";
 import { useAuthToast } from "@/components/ui/toast";
+import { LoginFormData } from "@/types";
 
 const formSchema = z.object({
   email: z

@@ -6,24 +6,7 @@ import React, {
   useEffect,
   ReactNode,
 } from "react";
-
-interface AuthContextType {
-  accessToken: string | null;
-  isLoading: boolean;
-  isAuthenticated: boolean;
-  user: User | null;
-  login: (token: string, userData: User) => void;
-  logout: () => void;
-  refreshToken: () => Promise<boolean>;
-}
-
-interface User {
-  accountID: number;
-  email: string;
-  name?: string;
-  image?: string;
-  profileType?: "WORKER" | "CLIENT" | null;
-}
+import { User, AuthContextType } from "@/types";
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 

@@ -2,9 +2,17 @@
 
 import React, { useState } from "react";
 import Image from "next/image";
-import { useSession } from "next-auth/react";
+import { useAuth } from "@/context/AuthContext";
+import { User } from "@/types";
 import { useRouter } from "next/navigation";
 import MobileNav from "@/components/ui/mobile-nav";
+
+// Extended User interface for inbox page
+interface InboxUser extends User {
+  firstName?: string;
+  lastName?: string;
+  profileType?: "WORKER" | "CLIENT" | null;
+}
 
 interface Message {
   id: string;
@@ -17,7 +25,8 @@ interface Message {
 }
 
 const InboxPage = () => {
-  const { data: session, status } = useSession();
+  const { user: authUser, isAuthenticated, isLoading } = useAuth();
+  const user = authUser as InboxUser; // Type assertion for this page
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<
     "all" | "invites" | "applications"
@@ -97,7 +106,7 @@ const InboxPage = () => {
   }
 
   // Authentication check
-  if (!session) {
+  if (!isAuthenticated || !user) {
     return (
       <div className="flex justify-center items-center min-h-screen bg-blue-50">
         <div className="text-center">
