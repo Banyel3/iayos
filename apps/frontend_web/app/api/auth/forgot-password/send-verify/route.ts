@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+// import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import crypto from "crypto";
 import { sendEmail } from "@/lib/email";
@@ -28,28 +28,30 @@ export async function POST(req: Request) {
   const verifyTokenExpire = new Date(Date.now() + 30 * 60 * 1000);
 
   try {
-    const userDetails = await prisma.accounts.findFirst({
-      where: { email },
-      select: {
-        accountID: true,
-      },
-    });
+    // const userDetails = await prisma.accounts.findFirst({
+    //   where: { email },
+    //   select: {
+    //     accountID: true,
+    //   },
+    // });
 
-    if (!userDetails) {
-      throw new Error("No Account Found");
-    }
-    await prisma.accounts.update({
-      where: { accountID: userDetails.accountID },
-      data: {
-        verifyToken: hashedVerifyToken,
-        verifyTokenExpire: verifyTokenExpire,
-      },
-    });
-    const verifyLink = `${process.env.NEXTAUTH_URL}/auth/forgot-password/verified?verifyToken=${verifyToken}&id=${userDetails.accountID}`;
-    const template = generatePasswordResetEmailHTML({
-      resetLink: verifyLink,
-    });
-    await sendEmail(email, "Forgot Password Verification", template);
+    // if (!userDetails) {
+    //   throw new Error("No Account Found");
+    // }
+    // await prisma.accounts.update({
+    //   where: { accountID: userDetails.accountID },
+    //   data: {
+    //     verifyToken: hashedVerifyToken,
+    //     verifyTokenExpire: verifyTokenExpire,
+    //   },
+    // });
+    // const verifyLink = `${process.env.NEXTAUTH_URL}/auth/forgot-password/verified?verifyToken=${verifyToken}&id=${userDetails.accountID}`;
+    // const template = generatePasswordResetEmailHTML({
+    //   resetLink: verifyLink,
+    // });
+    // await sendEmail(email, "Forgot Password Verification", template);
+
+    // TURBO MODE: Prisma commented out for caching
     return new Response(JSON.stringify("Verification Link Sent"), {
       status: 201,
     });

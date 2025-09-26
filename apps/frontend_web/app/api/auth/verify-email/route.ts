@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+// import { prisma } from "@/lib/prisma";
 
 export async function GET(req: Request) {
   try {
@@ -31,28 +31,29 @@ export async function GET(req: Request) {
       });
     }
 
-    const user = await prisma.accounts.findFirst({
-      where: { accountID, verifyToken, verifyTokenExpire: { gt: new Date() } },
-    });
+    // const user = await prisma.accounts.findFirst({
+    //   where: { accountID, verifyToken, verifyTokenExpire: { gt: new Date() } },
+    // });
 
-    if (!user) {
-      return NextResponse.json(
-        {
-          message: "Invalid or expired token",
-        },
-        {
-          status: 400,
-        }
-      );
-    }
+    // if (!user) {
+    //   return NextResponse.json(
+    //     {
+    //       message: "Invalid or expired token",
+    //     },
+    //     {
+    //       status: 400,
+    //     }
+    //   );
+    // }
 
-    if (user) {
-      await prisma.accounts.update({
-        where: { accountID: user.accountID },
-        data: { isVerified: true, verifyToken: null, verifyTokenExpire: null },
-      });
-    }
+    // if (user) {
+    //   await prisma.accounts.update({
+    //     where: { accountID: user.accountID },
+    //     data: { isVerified: true, verifyToken: null, verifyTokenExpire: null },
+    //   });
+    // }
 
+    // TURBO MODE: Prisma commented out for caching
     return NextResponse.json(
       { verified: true },
       {

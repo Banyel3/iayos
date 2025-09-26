@@ -1,11 +1,11 @@
 "use client";
 
-import { SessionProvider, useSession, signOut } from "next-auth/react";
+import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 
 const TempDashboard = () => {
-  const { data: session, status, update } = useSession();
+  const { user, isAuthenticated, isLoading, logout } = useAuth();
   const router = useRouter();
   const [selectedType, setSelectedType] = useState<"WORKER" | "CLIENT" | null>(
     null
@@ -15,17 +15,14 @@ const TempDashboard = () => {
 
   // Redirect logic for existing profileType
   useEffect(() => {
-    if (
-      session?.user?.profileType === "WORKER" ||
-      session?.user?.profileType === "CLIENT"
-    ) {
+    if (user?.profileType === "WORKER" || user?.profileType === "CLIENT") {
       router.replace("/dashboard/profile");
     }
-  }, [session?.user?.profileType, router]);
+  }, [user?.profileType, router]);
 
   // Auto-redirect countdown for unauthorized users
   useEffect(() => {
-    if (status !== "loading" && !session) {
+    if (!isLoading && !isAuthenticated) {
       let countdown = 3; // change this number for seconds
       setRedirectCountdown(countdown);
 
@@ -41,9 +38,9 @@ const TempDashboard = () => {
 
       return () => clearInterval(interval);
     }
-  }, [session, status, router]);
+  }, [user, isAuthenticated, isLoading, router]);
 
-  if (status === "loading") {
+  if (isLoading) {
     return (
       <div className="flex justify-center items-center min-h-screen bg-gray-50">
         <div className="flex flex-col items-center space-y-4">
@@ -54,7 +51,7 @@ const TempDashboard = () => {
     );
   }
 
-  if (!session) {
+  if (!isAuthenticated) {
     return (
       <>
         {/* Modal Overlay */}
@@ -128,8 +125,8 @@ const TempDashboard = () => {
     if (!selectedType) return;
 
     // Check if user email exists
-    if (!session?.user?.email) {
-      console.error("No email found in session:", session);
+    if (!user?.email) {
+      console.error("No email found in user:", user);
       setIsSubmitting(false);
       return;
     }
@@ -139,7 +136,7 @@ const TempDashboard = () => {
     try {
       const values = {
         selectedType,
-        email: session.user.email,
+        email: user.email,
       };
 
       console.log("Sending request:", values);
@@ -157,12 +154,9 @@ const TempDashboard = () => {
       } else {
         console.log("Profile type assigned successfully");
 
-        // Refresh the session to get the updated profileType
-        console.log("Refreshing session...");
-        await update();
-
-        // The useEffect will automatically redirect once the session is updated
-        console.log("Session refreshed, should redirect automatically");
+        // Note: You'll need to implement a way to refresh user data
+        // For now, we'll redirect to profile page
+        router.push("/dashboard/profile");
       }
     } catch (error) {
       console.error("Error updating profile type:", error);
@@ -178,9 +172,9 @@ const TempDashboard = () => {
           {/* Welcome Message */}
           <div className="text-center mb-8">
             <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              {session.user?.image ? (
+              {user?.image ? (
                 <img
-                  src={session.user.image}
+                  src={user.image}
                   alt="Profile"
                   className="w-16 h-16 rounded-full object-cover"
                 />
@@ -202,7 +196,7 @@ const TempDashboard = () => {
             </div>
 
             <h1 className="text-[28px] leading-[120%] font-[700] font-[Inter] text-black mb-2">
-              Welcome, {session.user?.name?.split(" ")[0] || "User"}!
+              Welcome, {user?.firstName?.split(" ")[0] || "User"}!
             </h1>
             <p className="text-gray-600 text-base leading-[150%]">
               To get started, please choose how you&apos;ll be using iAyos
@@ -340,14 +334,14 @@ const TempDashboard = () => {
 
           {/* User Info */}
           <div className="text-center text-sm text-gray-500 mb-4">
-            Signed in as: {session.user?.email}
+            Signed in as: {user?.email}
           </div>
         </div>
 
         {/* Footer */}
         <div className="p-6 text-center">
           <button
-            onClick={() => signOut({ callbackUrl: "/onboard" })}
+            onClick={() => logout()}
             className="text-gray-400 text-sm underline hover:text-gray-600 transition-colors"
           >
             Sign Out
@@ -358,6 +352,4 @@ const TempDashboard = () => {
   );
 };
 
-const TempDashboardWrapper = () => <TempDashboard />;
-
-export default TempDashboardWrapper;
+export default TempDashboard;

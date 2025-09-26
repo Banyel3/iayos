@@ -1,5 +1,5 @@
-import { prisma } from "@/lib/prisma";
-import { PrismaClientKnownRequestError } from "@prisma/client/runtime/library";
+// import { prisma } from "@/lib/prisma";
+// import { PrismaClientKnownRequestError } from "@prisma/client/runtime/library";
 
 export async function POST(req: Request) {
   try {
@@ -13,79 +13,80 @@ export async function POST(req: Request) {
       );
     }
 
-    const account = await prisma.accounts.findUnique({
-      where: {
-        email: body.email,
-      },
-      select: {
-        accountID: true,
-      },
-    });
+    // const account = await prisma.accounts.findUnique({
+    //   where: {
+    //     email: body.email,
+    //   },
+    //   select: {
+    //     accountID: true,
+    //   },
+    // });
 
-    console.log("🔍 Account lookup result:", account);
+    // console.log("🔍 Account lookup result:", account);
 
-    if (!account) {
-      return new Response(JSON.stringify({ error: "Account not found" }), {
-        status: 404,
-      });
-    }
+    // if (!account) {
+    //   return new Response(JSON.stringify({ error: "Account not found" }), {
+    //     status: 404,
+    //   });
+    // }
 
-    // Look for profile that doesn't have a type assigned yet
-    const profile = await prisma.profile.findFirst({
-      where: {
-        accountID: account.accountID,
-        OR: [{ profileType: null }, { profileType: "" }],
-      },
-      select: {
-        profileID: true,
-        profileType: true,
-      },
-    });
+    // // Look for profile that doesn't have a type assigned yet
+    // const profile = await prisma.profile.findFirst({
+    //   where: {
+    //     accountID: account.accountID,
+    //     OR: [{ profileType: null }, { profileType: "" }],
+    //   },
+    //   select: {
+    //     profileID: true,
+    //     profileType: true,
+    //   },
+    // });
 
-    console.log("🔍 Profile lookup result:", profile);
+    // console.log("🔍 Profile lookup result:", profile);
 
-    if (!profile) {
-      // Check if user already has a profile with the selected type
-      const existingProfile = await prisma.profile.findUnique({
-        where: {
-          accountID_profileType: {
-            accountID: account.accountID,
-            profileType: body.selectedType,
-          },
-        },
-      });
+    // if (!profile) {
+    //   // Check if user already has a profile with the selected type
+    //   const existingProfile = await prisma.profile.findUnique({
+    //     where: {
+    //       accountID_profileType: {
+    //         accountID: account.accountID,
+    //         profileType: body.selectedType,
+    //       },
+    //     },
+    //   });
 
-      if (existingProfile) {
-        return new Response(
-          JSON.stringify({ error: "Profile type already assigned" }),
-          { status: 409 }
-        );
-      }
+    //   if (existingProfile) {
+    //     return new Response(
+    //       JSON.stringify({ error: "Profile type already assigned" }),
+    //       { status: 409 }
+    //     );
+    //   }
 
-      return new Response(
-        JSON.stringify({ error: "No available profile found to update" }),
-        { status: 404 }
-      );
-    }
+    //   return new Response(
+    //     JSON.stringify({ error: "No available profile found to update" }),
+    //     { status: 404 }
+    //   );
+    // }
 
-    console.log(
-      "✅ Updating profile:",
-      profile.profileID,
-      "to type:",
-      body.selectedType
-    );
+    // console.log(
+    //   "✅ Updating profile:",
+    //   profile.profileID,
+    //   "to type:",
+    //   body.selectedType
+    // );
 
-    await prisma.profile.update({
-      where: {
-        profileID: profile.profileID,
-      },
-      data: {
-        profileType: body.selectedType,
-      },
-    });
+    // await prisma.profile.update({
+    //   where: {
+    //     profileID: profile.profileID,
+    //   },
+    //   data: {
+    //     profileType: body.selectedType,
+    //   },
+    // });
 
-    console.log("✅ Profile updated successfully");
+    // console.log("✅ Profile updated successfully");
 
+    // TURBO MODE: Prisma commented out for caching
     return new Response(JSON.stringify({ success: true }), {
       status: 200,
       headers: { "Content-Type": "application/json" },
@@ -93,23 +94,25 @@ export async function POST(req: Request) {
   } catch (error: unknown) {
     console.error("❌ Error in assign-role route:", error);
 
-    // Handle specific Prisma errors
-    if (error instanceof PrismaClientKnownRequestError) {
-      if (error.code === "P2002") {
-        return new Response(
-          JSON.stringify({ error: "Profile type already exists for this user" }),
-          { status: 409 }
-        );
-      }
+    // // Handle specific Prisma errors
+    // if (error instanceof PrismaClientKnownRequestError) {
+    //   if (error.code === "P2002") {
+    //     return new Response(
+    //       JSON.stringify({ error: "Profile type already exists for this user" }),
+    //       { status: 409 }
+    //     );
+    //   }
 
-      if (error.code === "P2025") {
-        return new Response(JSON.stringify({ error: "Profile not found" }), {
-          status: 404,
-        });
-      }
-    }
+    //   if (error.code === "P2025") {
+    //     return new Response(JSON.stringify({ error: "Profile not found" }), {
+    //       status: 404,
+    //     });
+    //   }
+    // }
 
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    // TURBO MODE: Prisma error handling commented out for caching
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
     return new Response(
       JSON.stringify({
         error: "Internal server error",

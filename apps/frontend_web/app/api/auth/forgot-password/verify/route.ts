@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+// import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import bcrypt from "bcrypt";
 
@@ -45,36 +45,37 @@ export async function POST(req: Request) {
       });
     }
 
-    const user = await prisma.accounts.findFirst({
-      where: {
-        accountID,
-        verifyToken,
-        verifyTokenExpire: { gt: new Date() },
-      },
-    });
+    // const user = await prisma.accounts.findFirst({
+    //   where: {
+    //     accountID,
+    //     verifyToken,
+    //     verifyTokenExpire: { gt: new Date() },
+    //   },
+    // });
 
-    if (!user) {
-      return NextResponse.json(
-        {
-          message: "Invalid or expired token",
-        },
-        {
-          status: 400,
-        }
-      );
-    }
-    const hashedPass = await bcrypt.hash(newPassword, 10);
-    if (user) {
-      await prisma.accounts.update({
-        where: { accountID: user.accountID },
-        data: {
-          password: hashedPass,
-          isVerified: true,
-          verifyToken: null,
-          verifyTokenExpire: null,
-        },
-      });
-    }
+    // if (!user) {
+    //   return NextResponse.json(
+    //     {
+    //       message: "Invalid or expired token",
+    //     },
+    //     {
+    //       status: 400,
+    //     }
+    //   );
+    // }
+    // const hashedPass = await bcrypt.hash(newPassword, 10);
+    // if (user) {
+    //   await prisma.accounts.update({
+    //     where: { accountID: user.accountID },
+    //     data: {
+    //       password: hashedPass,
+    //       verifyToken: null,
+    //       verifyTokenExpire: null,
+    //     },
+    //   });
+    // }
+
+    // TURBO MODE: Prisma commented out for caching
 
     return NextResponse.json(
       { verified: true },

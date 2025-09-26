@@ -1,29 +1,31 @@
 from ninja import Router, Schema
-from django.contrib.auth import authenticate, login, logout
 from .schemas import createAccountSchema, logInSchema
-from .services import create_account
-from .models import Accounts, Profile
-from django.utils.dateparse import parse_date
+from .services import create_account, login_account
 
 
-router = Router(tags=["authentication"])
+router = Router(tags=["Accounts"])
 
 @router.post("/register")
 def register(request, payload: createAccountSchema):
-    user = Accounts.objects.create_user(
-        email=payload.email,
-        password=payload.password,
-        created_at=payload.createdAt
-    )
-    Profile.objects.create(
-        user=user,
-        first_name=payload.firstName,
-        last_name=payload.lastName,
-        contact_num=payload.contactNum,
-        birth_date=parse_date(payload.birthDate)
-    )
-    return {"message": "User created successfully"}
+    result = create_account(payload)
+    return result
 
-# @router.post("/login")
-# def login(request):
-    
+@router.post("/login")
+def login(request, payload: logInSchema):
+    result = login_account(payload)
+    return result
+
+@router.get("/me")
+def get_current_user(request):
+    # For now, return a placeholder - implement JWT authentication later
+    return {"message": "User profile endpoint - implement JWT authentication"}
+
+@router.post("/logout")
+def logout(request):
+    # Placeholder for logout functionality
+    return {"message": "Logged out successfully"}
+
+@router.post("/refresh")
+def refresh_token(request):
+    # Placeholder for token refresh functionality
+    return {"message": "Token refresh endpoint - implement JWT refresh"}

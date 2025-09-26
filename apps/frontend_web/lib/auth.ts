@@ -4,7 +4,7 @@ import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcrypt";
 import { rateLimiter } from "@/lib/rateLimiter";
 import { RateLimiterRes } from "rate-limiter-flexible";
-import { prisma } from "@/lib/prisma";
+// import { prisma } from "@/lib/prisma";
 
 // Environment variables for Google OAuth
 const GOOGLE_CLIENT_ID = process.env.AUTH_GOOGLE_ID!;
@@ -60,26 +60,28 @@ export const authOptions: NextAuthOptions = {
         (account?.provider === "google" && !token.profileType)
       ) {
         try {
-          const userWithProfile = await prisma.accounts.findUnique({
-            where: { email: token.email as string },
-            include: {
-              profile: {
-                select: {
-                  profileType: true,
-                },
-              },
-            },
-          });
+          // const userWithProfile = await prisma.accounts.findUnique({
+          //   where: { email: token.email as string },
+          //   include: {
+          //     profile: {
+          //       select: {
+          //         profileType: true,
+          //       },
+          //     },
+          //   },
+          // });
 
-          // Get the latest profileType, prioritizing non-empty values
-          const profiles = userWithProfile?.profile || [];
-          const profileWithType = profiles.find(
-            (p) => p.profileType && p.profileType !== ""
-          );
-          token.profileType =
-            profileWithType?.profileType || profiles[0]?.profileType || null;
+          // // Get the latest profileType, prioritizing non-empty values
+          // const profiles = userWithProfile?.profile || [];
+          // const profileWithType = profiles.find(
+          //   (p) => p.profileType && p.profileType !== ""
+          // );
+          // token.profileType =
+          //   profileWithType?.profileType || profiles[0]?.profileType || null;
 
-          console.log("Updated token profileType:", token.profileType);
+          // console.log("Updated token profileType:", token.profileType);
+          // TURBO MODE: Prisma commented out for caching
+          token.profileType = null;
         } catch (error) {
           console.error("Error fetching profileType:", error);
           token.profileType = null;
@@ -109,43 +111,44 @@ export const authOptions: NextAuthOptions = {
             return false; // Return false instead of throwing to prevent URL redirect
           }
 
-          const accountRecord = await prisma.accounts.upsert({
-            where: { email: profile.email },
-            create: {
-              email: profile.email,
-              password: null,
-              isVerified: true,
-              status: "ACTIVE",
-            },
-            update: {
-              isVerified: true,
-              status: "ACTIVE",
-            },
-          });
+          // const accountRecord = await prisma.accounts.upsert({
+          //   where: { email: profile.email },
+          //   create: {
+          //     email: profile.email,
+          //     password: null,
+          //     isVerified: true,
+          //     status: "ACTIVE",
+          //   },
+          //   update: {
+          //     isVerified: true,
+          //     status: "ACTIVE",
+          //   },
+          // });
 
-          await prisma.profile.upsert({
-            where: {
-              accountID_profileType: {
-                accountID: accountRecord.accountID,
-                profileType: "",
-              },
-            },
-            create: {
-              accountID: accountRecord.accountID,
-              firstName: googleProfile.given_name,
-              lastName: googleProfile.family_name,
-              contactNum: `google_${accountRecord.accountID}_${Date.now()}`, // Generate unique contactNum for Google users
-              profileImg: googleProfile.picture,
-              profileType: "",
-              birthDate: new Date("1900-01-01"), // Default birthdate for Google OAuth users
-            },
-            update: {
-              firstName: googleProfile.given_name,
-              lastName: googleProfile.family_name || "",
-              profileImg: googleProfile.picture,
-            },
-          });
+          // await prisma.profile.upsert({
+          //   where: {
+          //     accountID_profileType: {
+          //       accountID: accountRecord.accountID,
+          //       profileType: "",
+          //     },
+          //   },
+          //   create: {
+          //     accountID: accountRecord.accountID,
+          //     firstName: googleProfile.given_name,
+          //     lastName: googleProfile.family_name,
+          //     contactNum: `google_${accountRecord.accountID}_${Date.now()}`, // Generate unique contactNum for Google users
+          //     profileImg: googleProfile.picture,
+          //     profileType: "",
+          //     birthDate: new Date("1900-01-01"), // Default birthdate for Google OAuth users
+          //   },
+          //   update: {
+          //     firstName: googleProfile.given_name,
+          //     lastName: googleProfile.family_name || "",
+          //     profileImg: googleProfile.picture,
+          //   },
+          // });
 
+          // TURBO MODE: Prisma commented out for caching
           console.log("Google sign-in successful for:", profile.email);
           return true;
         } catch (error) {

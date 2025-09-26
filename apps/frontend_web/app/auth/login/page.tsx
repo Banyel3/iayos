@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/form_button";
 import { useEffect, useState } from "react";
 import { Suspense } from "react";
 import Image from "next/image";
-import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import {
   Form,
@@ -20,7 +19,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { useSession } from "next-auth/react";
+import { useAuth } from "@/context/AuthContext";
 import { useAuthToast } from "@/components/ui/toast";
 
 const formSchema = z.object({
@@ -39,20 +38,20 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isRateLimited, setIsRateLimited] = useState(false);
   const [rateLimitTime, setRateLimitTime] = useState(0);
-  const { data: session, status } = useSession();
+  const { isAuthenticated, isLoading: authLoading, login } = useAuth();
   const { showAuthError } = useAuthToast();
 
   const handleForgotPassword = () => {
-    if (!session) {
+    if (!isAuthenticated) {
       router.push("/auth/forgot-password");
     }
   };
 
   useEffect(() => {
-    if (status === "authenticated") {
+    if (!authLoading && isAuthenticated) {
       router.replace("/dashboard"); // redirect if already logged in
     }
-  }, [status, session, router]);
+  }, [authLoading, isAuthenticated, router]);
 
   // Function to check actual rate limit status from backend
   const checkRateLimitStatus = async () => {
@@ -141,54 +140,41 @@ const Login = () => {
     },
   });
 
-  if (status === "loading") return <p>Loading...</p>; // optional
+  if (authLoading) return <p>Loading...</p>; // Show loading while checking auth status
 
   const handleSubmit = async (values: z.infer<typeof formSchema>) => {
     setIsLoading(true);
 
     try {
-      const res = await signIn("credentials", {
-        redirect: false, // Don't redirect automatically so we can handle errors
-        email: values.email,
-        password: values.password,
+      setIsLoading(true);
+
+      const res = await fetch("http://127.0.0.1:8000/api/accounts/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: values.email,
+          password: values.password,
+        }),
+        credentials: "include", // allows sending/receiving cookies
       });
 
-      if (res?.error) {
-        // Show user-friendly error message based on error type
-        let userMessage =
-          "Unable to sign you in. Please check your credentials and try again.";
+      const data = await res.json();
+
+      if (!res.ok) {
+        // Extract backend error message
+        const detail =
+          data.detail ||
+          "Unable to sign you in. Please check your credentials.";
+        let userMessage = detail;
         let errorTitle = "Sign-In Failed";
 
-        // Parse common error types and provide appropriate messages
-        const errorLower = res.error.toLowerCase();
+        const lower = detail.toLowerCase();
 
-        // Rate limiting detection
-        if (
-          errorLower.includes("too many") ||
-          errorLower.includes("rate") ||
-          errorLower.includes("attempts")
-        ) {
-          // Try to extract actual remaining time from NextAuth error
-          let actualRemainingTime = 300; // Default fallback
-
-          try {
-            // NextAuth might pass rate limit info in the error
-            const errorData = JSON.parse(res.error);
-            if (errorData.msBeforeNext) {
-              actualRemainingTime = Math.round(errorData.msBeforeNext / 1000);
-            }
-          } catch {
-            // If parsing fails, check backend for actual remaining time
-            try {
-              const response = await fetch("/api/auth/check-rate-limit");
-              const data = await response.json();
-              if (data.isRateLimited) {
-                actualRemainingTime = data.remainingTime;
-              }
-            } catch {
-              // Keep default value
-            }
-          }
+        if (lower.includes("too many") || lower.includes("rate")) {
+          // Rate limiting
+          const actualRemainingTime = data.msBeforeNext
+            ? Math.round(data.msBeforeNext / 1000)
+            : 300;
 
           const endTime = Date.now() + actualRemainingTime * 1000;
           localStorage.setItem("rateLimitEndTime", endTime.toString());
@@ -196,33 +182,35 @@ const Login = () => {
           setRateLimitTime(actualRemainingTime);
 
           userMessage =
-            "You&apos;ve made too many login attempts. Please wait before trying again.";
+            "Too many login attempts. Please wait before trying again.";
           errorTitle = "Too Many Attempts";
-        } else if (errorLower.includes("user not found")) {
+        } else if (lower.includes("user not found")) {
           userMessage = "No account found with this email address.";
           errorTitle = "Account Not Found";
-        } else if (errorLower.includes("invalid password")) {
+        } else if (lower.includes("invalid password")) {
           userMessage = "The password you entered is incorrect.";
           errorTitle = "Incorrect Password";
-        } else if (errorLower.includes("verify")) {
+        } else if (lower.includes("verify")) {
           userMessage = "Please verify your email address before signing in.";
           errorTitle = "Email Verification Required";
-        } else if (errorLower.includes("google")) {
-          userMessage =
-            "This account uses Google sign-in. Please use the Google button instead.";
-          errorTitle = "Use Google Sign-In";
         }
 
         showAuthError(userMessage, errorTitle);
-      } else if (res?.ok) {
-        // Success - clear any existing rate limit and redirect
-        localStorage.removeItem("rateLimitEndTime");
-        setIsRateLimited(false);
-        setRateLimitTime(0);
-        router.push("/dashboard");
+        return; // stop execution
       }
+
+      // ✅ Success
+      login(data.access, {
+        accountID: data.accountID,
+        email: data.email,
+      });
+      localStorage.removeItem("rateLimitEndTime");
+      setIsRateLimited(false);
+      setRateLimitTime(0);
+      router.push("/dashboard");
     } catch (error) {
-      // Show generic error toast for network/unexpected errors
+      // Network/unexpected errors
+      console.error(error);
       showAuthError(
         "We're having trouble connecting. Please check your internet connection and try again.",
         "Connection Error"
@@ -234,7 +222,7 @@ const Login = () => {
 
   return (
     <>
-      {status !== "authenticated" && (
+      {!isAuthenticated && (
         <Suspense fallback={<div>Loading...</div>}>
           <div className="flex justify-center items-center min-h-screen max-h-screen overflow-hidden bg-gray-50 p-4">
             <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl p-6 max-h-[90vh] overflow-y-auto">
@@ -368,44 +356,21 @@ const Login = () => {
                 <div className="flex-1 border-t border-gray-200"></div>
               </div>
 
-              {/* Google Sign In Button */}
+              {/* Google Sign In Button - Disabled for now */}
               <button
-                onClick={async () => {
-                  try {
-                    const result = await signIn("google", {
-                      redirect: false,
-                    });
-
-                    if (result?.error) {
-                      showAuthError(
-                        "We couldn't sign you in with Google. Please try again or use email and password.",
-                        "Google Sign-In Error"
-                      );
-                    } else if (result?.ok) {
-                      router.push("/dashboard");
-                    }
-                  } catch (error) {
-                    showAuthError(
-                      "Unable to connect to Google. Please check your internet connection and try again.",
-                      "Connection Error"
-                    );
-                  }
-                }}
-                disabled={isLoading}
-                className={`flex items-center justify-center w-full h-11 border border-gray-200 rounded-lg px-4 py-3 bg-white transition-all duration-200 shadow-sm font-inter font-medium text-gray-700 ${
-                  isLoading
-                    ? "opacity-50 cursor-not-allowed"
-                    : "hover:bg-gray-50 hover:border-gray-300 hover:shadow-md"
-                }`}
+                disabled={true}
+                className="flex items-center justify-center w-full h-11 border border-gray-200 rounded-lg px-4 py-3 bg-gray-100 transition-all duration-200 shadow-sm font-inter font-medium text-gray-400 cursor-not-allowed"
               >
                 <Image
                   src="/google-logo.svg"
                   alt="Google logo"
                   width={18}
                   height={18}
-                  className="mr-2"
+                  className="mr-2 opacity-50"
                 />
-                <span className="text-sm">Continue with Google</span>
+                <span className="text-sm">
+                  Continue with Google (Coming Soon)
+                </span>
               </button>
 
               <div className="mt-4 text-center">

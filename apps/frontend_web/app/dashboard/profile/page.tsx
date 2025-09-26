@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import Image from "next/image";
-import { useSession, signOut } from "next-auth/react";
+import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
 import MobileNav from "@/components/ui/mobile-nav";
 
@@ -42,7 +42,7 @@ interface ClientProfile {
 }
 
 const ProfilePage = () => {
-  const { data: session, status } = useSession();
+  const { user, isAuthenticated, isLoading, logout } = useAuth();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"overview" | "recent">("overview");
   const [isAvailable, setIsAvailable] = useState(true);
@@ -57,7 +57,7 @@ const ProfilePage = () => {
   }
 
   // Authentication check
-  if (!session) {
+  if (!isAuthenticated) {
     return (
       <div className="flex justify-center items-center min-h-screen bg-gray-50">
         <div className="text-center">
@@ -137,8 +137,8 @@ const ProfilePage = () => {
     ],
   };
 
-  const isWorker = session.user.profileType === "WORKER";
-  const isClient = session.user.profileType === "CLIENT";
+  const isWorker = user?.profileType === "WORKER";
+  const isClient = user?.profileType === "CLIENT";
 
   // Render worker profile
   const renderWorkerProfile = () => (

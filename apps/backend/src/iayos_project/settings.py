@@ -53,7 +53,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    # 'corsheaders.middleware.CorsMiddleware'
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -61,6 +61,44 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+]
+
+# CORS Settings - Allow frontend during dev
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",   # Next.js dev server
+    "http://127.0.0.1:3000",
+]
+
+# Allow credentials (cookies) to be sent
+CORS_ALLOW_CREDENTIALS = True
+
+# Allow common headers
+CORS_ALLOW_HEADERS = [
+    "accept",
+    "accept-encoding", 
+    "authorization",
+    "content-type",
+    "dnt",
+    "origin",
+    "user-agent",
+    "x-csrftoken",
+    "x-requested-with",
+]
+
+# Allow common methods
+CORS_ALLOW_METHODS = [
+    "DELETE",
+    "GET", 
+    "OPTIONS",
+    "PATCH",
+    "POST",
+    "PUT",
+]
+
+# CSRF Settings - Exempt API endpoints since we're using JWT
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
 ]
 
 ROOT_URLCONF = 'iayos_project.urls'
@@ -93,6 +131,9 @@ DATABASES = {
         ssl_require=True,
     )
 }
+
+AUTH_USER_MODEL = "accounts.Accounts"
+
 
 
 # Password validation
@@ -141,3 +182,7 @@ NINJA_JWT = {
     'ACCESS_TOKEN_LIFTIME': datetime.timedelta(minutes=60),
     'REFRESH_TOKEN_LIFETIME': datetime.timedelta(days=7)
 }
+
+
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
+RESEND_BASE_URL = "https://api.resend.com"

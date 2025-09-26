@@ -22,6 +22,8 @@ import { EmailVerificationAlert } from "@/components/ui/email-verification-alert
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useAuthToast } from "@/components/ui/toast";
+import { sendEmail } from "@/lib/email";
+import { generateVerificationEmailHTML } from "@/components/auth/verification/verification_email";
 
 const formSchema = z.object({
   lastName: z
@@ -114,6 +116,18 @@ function RegisterContent() {
         setShowEmailAlert(true);
         // Clear any existing errors
         setError("");
+        const verify = await fetch("/api/auth/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: data.email,
+            verifyLink: data.verifyLink,
+            verifyLinkExpire: data.verifyLinkExpire,
+          }),
+        });
+        if (!res.ok) {
+          setError(data.error?.[0]?.message || "Registration failed");
+        }
       }
     } catch (err) {
       setError("Something went wrong. Try again.");

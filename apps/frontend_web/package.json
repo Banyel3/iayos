@@ -4,11 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "prisma generate --generator clientProd && next build",
+    "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "postinstall": "prisma generate --generator clientProd",
-    "dev:prisma": "prisma generate",
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
