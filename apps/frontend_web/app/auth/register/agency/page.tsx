@@ -60,8 +60,30 @@ const AgencyRegister = () => {
   // Function to check actual rate limit status from backend
   const checkRateLimitStatus = async () => {
     try {
+      console.log("Checking rate limit status...");
       const response = await fetch("/api/auth/check-rate-limit");
+
+      console.log("Response status:", response.status);
+      console.log("Response headers:", Object.fromEntries(response.headers));
+
+      // Check if response is ok and content-type is JSON
+      if (!response.ok) {
+        const text = await response.text();
+        console.log("Error response body:", text);
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const contentType = response.headers.get("content-type");
+      console.log("Content-Type:", contentType);
+
+      if (!contentType || !contentType.includes("application/json")) {
+        const text = await response.text();
+        console.log("Non-JSON response body:", text);
+        throw new Error("Response is not JSON");
+      }
+
       const data = await response.json();
+      console.log("Rate limit data:", data);
 
       if (data.isRateLimited) {
         setIsRateLimited(true);
