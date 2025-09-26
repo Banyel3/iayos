@@ -53,10 +53,6 @@ def create_account(data):
     verifyLink = f"http://localhost:3000/auth/verify-email?verifyToken={user.verifyToken}&id={user.accountID}"
     return {
         "accountID": user.accountID,
-        "firstName": profile.firstName,
-        "lastName": profile.lastName,
-        "profileImg": profile.profileImg,
-        "profileType": profile.profileType,
         "verifyLink": verifyLink,
         "verifyLinkExpire": user.verifyTokenExpiry.isoformat(),
         "email": user.email
@@ -67,16 +63,30 @@ def login_account(data):
     try:
         user = Accounts.objects.get(email__iexact=data.email)
     except Accounts.DoesNotExist:
-        raise APIException("Invalid email or password", status_code=status.HTTP_401_UNAUTHORIZED)
+        raise APIException("Invalid email or password", status.HTTP_401_UNAUTHORIZED)
 
     if not user.check_password(data.password):
-        raise APIException("Invalid email or password", status_code=status.HTTP_401_UNAUTHORIZED)
+        raise APIException("Invalid email or password", status.HTTP_401_UNAUTHORIZED)
 
-    # 2️⃣ Generate refresh and access tokens (simplified for now)
-    # For now, return a simple response - you'll need to implement JWT properly
+    if not user.isVerified:
+        raise APIException("Please verify your email before logging in", status.HTTP_403_FORBIDDEN)
+    
+    try:
+        profile = Profile.objects.get(accountFK=user)
+    except Profile.DoesNotExist:
+        raise APIException("Profile not found", status.HTTP_404_NOT_FOUND)
+
+    # 3️⃣ Generate JWT tokens
+    refresh = RefreshToken.for_user(user)
+    access = refresh.access_token
+
     return {
         "accountID": user.accountID,
         "email": user.email,
-        "access": f"access_token_for_user_{user.accountID}",  # Replace with actual JWT
-        "refresh": f"refresh_token_for_user_{user.accountID}"  # Replace with actual JWT
+        "firstName": profile.firstName,
+        "lastName": profile.lastName,
+        "profileImg": profile.profileImg,
+        "profileType": profile.profileType,
+        "access": str(access),
+        "refresh": str(refresh),
     }

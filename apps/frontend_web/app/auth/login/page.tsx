@@ -192,7 +192,7 @@ const Login = () => {
           userMessage = "The password you entered is incorrect.";
           errorTitle = "Incorrect Password";
         } else if (lower.includes("verify")) {
-          userMessage = "Please verify your email address before signing in.";
+          userMessage = "Please verify your email address before logging in.";
           errorTitle = "Email Verification Required";
         }
 
