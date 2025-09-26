@@ -1,9 +1,9 @@
-from ninja import Schemas
+from ninja import Schema
 from datetime import datetime
 from pydantic import EmailStr
 
 
-class createAccountSchema(Schemas):
+class createAccountSchema(Schema):
     #profile table
     firstName: str
     lastName: str
@@ -14,6 +14,6 @@ class createAccountSchema(Schemas):
     password: str
     createdAt: datetime
 
-class logInSchema(Schemas):
+class logInSchema(Schema):
     email: EmailStr
     password: str
