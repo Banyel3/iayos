@@ -156,11 +156,14 @@ const AgencyRegister = () => {
     setIsAgencyLoading(true);
     setAgencyError(""); // Clear previous errors
     try {
-      const agencyReg = await fetch("/api/auth/register/agency", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(values),
-      });
+      const agencyReg = await fetch(
+        "http://127.0.0.1:8000/api/accounts/register/agency",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(values),
+        }
+      );
 
       const data = await agencyReg.json();
 
@@ -179,17 +182,33 @@ const AgencyRegister = () => {
           );
         } else {
           // Handle other error responses
-          setAgencyError(data.error || "Registration failed");
+          setAgencyError(data.error?.[0]?.message || "Registration failed");
         }
       } else {
-        // Handle success - clear any existing rate limit and show success message
-        localStorage.removeItem("registerRateLimitEndTime");
         setIsRateLimited(false);
         setRateLimitTime(0);
 
         // Set success state to show success message
         setRegistrationSuccess(true);
         setRegisteredEmail(values.email);
+        // Clear any existing errors
+        setAgencyError("");
+        const verify = await fetch("/api/auth/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: data.email,
+            verifyLink: data.verifyLink,
+            verifyLinkExpire: data.verifyLinkExpire,
+          }),
+        });
+        if (!verify.ok) {
+          const verifyData = await verify.json();
+          setAgencyError(
+            verifyData.error?.[0]?.message ||
+              "Failed to send verification email"
+          );
+        }
       }
     } catch (err) {
       setAgencyError("Something went wrong. Try again.");
