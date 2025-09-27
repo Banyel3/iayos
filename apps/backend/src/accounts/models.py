@@ -44,7 +44,7 @@ class Accounts(AbstractBaseUser, PermissionsMixin):  # <-- include PermissionsMi
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
 
-    verifyToken = models.UUIDField(null=True, blank=True)
+    verifyToken = models.CharField(max_length=255, null=True, blank=True)  # Changed to CharField for hash
     verifyTokenExpiry = models.DateTimeField(null=True, blank=True)
 
     createdAt = models.DateTimeField(auto_now_add=True)
@@ -79,5 +79,7 @@ class Agency(models.Model):  # <- missing models.Model before
     agencyId = models.BigAutoField(primary_key=True)
     accountFK = models.OneToOneField(Accounts, on_delete=models.CASCADE)
     businessName = models.CharField(max_length=50)
+    
     businessDesc = models.CharField(max_length=255)
+
     createdAt = models.DateTimeField(auto_now_add=True)

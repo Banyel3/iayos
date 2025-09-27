@@ -145,6 +145,8 @@ from datetime import timedelta
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=5),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
+    "USER_ID_FIELD": "accountID",  # Use accountID instead of default 'id'
+    "USER_ID_CLAIM": "accountID",
 }
 
 # Password validation
@@ -190,8 +192,9 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
 NINJA_JWT = {
-    'ACCESS_TOKEN_LIFTIME': datetime.timedelta(minutes=60),
-    'REFRESH_TOKEN_LIFETIME': datetime.timedelta(days=7)
+    'USER_ID_FIELD': "accountID",
+    'ACCESS_TOKEN_LIFETIME': datetime.timedelta(minutes=60),
+    'REFRESH_TOKEN_LIFETIME': datetime.timedelta(days=7),
 }
 
 

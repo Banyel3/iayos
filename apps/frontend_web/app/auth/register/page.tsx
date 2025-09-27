@@ -22,8 +22,6 @@ import { EmailVerificationAlert } from "@/components/ui/email-verification-alert
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useAuthToast } from "@/components/ui/toast";
-import { sendEmail } from "@/lib/email";
-import { generateVerificationEmailHTML } from "@/components/auth/verification/verification_email";
 
 const formSchema = z.object({
   lastName: z

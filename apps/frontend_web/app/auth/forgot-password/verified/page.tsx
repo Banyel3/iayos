@@ -81,17 +81,20 @@ const ForgotPasswordVerified = () => {
 
     try {
       const verifyRes = await fetch(
-        `/api/auth/forgot-password/verify?verifyToken=${verificationToken}&id=${idParam}`,
+        `http://127.0.0.1:8000/api/accounts/forgot-password/verify?verifyToken=${verificationToken}&id=${idParam}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(values),
+          credentials: "include",
         }
       );
 
       if (!verifyRes.ok) {
         const errorData = await verifyRes.json();
-        setAlertMessage(errorData?.message || "Failed to update password");
+        setAlertMessage(
+          errorData?.error?.[0]?.message || "Failed to update password"
+        );
         setShowErrorAlert(true);
         return;
       }

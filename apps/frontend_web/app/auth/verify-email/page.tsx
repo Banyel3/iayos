@@ -27,10 +27,11 @@ const VerifyEmail = () => {
 
     try {
       const res = await fetch(
-        `/api/auth/verify-email?verifyToken=${verifyToken}&id=${id}`,
+        `http://127.0.0.1:8000/api/accounts/verify?verifyToken=${verifyToken}&accountID=${id}`,
         {
           method: "GET",
           headers: { "Content-Type": "application/json" },
+          credentials: "include",
         }
       );
 
@@ -42,7 +43,7 @@ const VerifyEmail = () => {
       } else {
         setLoading(false);
         setError(true);
-        setErrorMessage(data.error || "Email verification failed.");
+        setErrorMessage(data.error?.[0]?.message || "Email verification failed.");
       }
     } catch (error) {
       console.error("Verification error:", error);

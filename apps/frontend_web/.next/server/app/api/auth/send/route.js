@@ -1,4 +1,5 @@
 var R=require("../../../../chunks/[turbopack]_runtime.js")("server/app/api/auth/send/route.js")
+R.c("server/chunks/node_modules_@react-email_render_dist_node_index_mjs_d5110413._.js")
 R.c("server/chunks/node_modules_next_700d07fb._.js")
 R.c("server/chunks/node_modules_nodemailer_f0e2e4c8._.js")
 R.c("server/chunks/node_modules_zod_v4_9fe81a10._.js")

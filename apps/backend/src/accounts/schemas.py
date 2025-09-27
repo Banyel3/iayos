@@ -17,3 +17,16 @@ class createAccountSchema(Schema):
 class logInSchema(Schema):
     email: EmailStr
     password: str
+
+class createAgencySchema(Schema):
+    email: EmailStr
+    password: str
+    businessName: str
+    createdAt: Optional[datetime] = datetime.utcnow()
+
+class forgotPasswordSchema(Schema):
+    email: EmailStr
+
+class resetPasswordSchema(Schema):
+    newPassword: str
+    confirmPassword: str

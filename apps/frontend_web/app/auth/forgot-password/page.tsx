@@ -54,20 +54,24 @@ const ForgotPassword = () => {
     setIsLoading(true);
 
     try {
-      const res = await fetch("/api/auth/forgot-password/send-verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(values),
-      });
+      const res = await fetch(
+        "http://127.0.0.1:8000/api/accounts/forgot-password/send-verify",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(values),
+          credentials: "include",
+        }
+      );
       const data = await res.json();
       console.log("Forgot password request for:", values.email);
       if (!res.ok) {
-        setError(data.error?.[0]?.message || "Registration failed");
+        setError(data.error?.[0]?.message || "Password reset request failed");
         {
           error && <p className="text-red-500 text-sm mt-2">{error}</p>;
         }
       } else {
-        // ✅ Registration success → show email verification alert
+        // ✅ Request success → show email verification alert
         setUserEmail(values.email);
         setShowEmailAlert(true);
         // Clear any existing errors

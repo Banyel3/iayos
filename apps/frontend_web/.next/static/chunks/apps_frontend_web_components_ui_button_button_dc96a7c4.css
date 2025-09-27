@@ -1,0 +1,11 @@
+/* [project]/apps/frontend_web/components/ui/button/button.css [app-client] (css) */
+.primary-gradient {
+  background: var(--primary-gradient);
+}
+
+.primary-gradient:hover {
+  background: var(--primary-gradient);
+  opacity: .9;
+}
+
+/*# sourceMappingURL=apps_frontend_web_components_ui_button_button_dc96a7c4.css.map*/
