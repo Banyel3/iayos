@@ -46,6 +46,7 @@ const navigation = [
       { name: "All Users", href: "/admin/users", icon: Users },
       { name: "Workers", href: "/admin/users/workers", icon: UserCheck },
       { name: "Clients", href: "/admin/users/clients", icon: Building2 },
+      { name: "Agency", href: "/admin/users/agency", icon: Building2 },
       {
         name: "Pending Verification",
         href: "/admin/users/pending",
@@ -84,6 +85,12 @@ const navigation = [
       { name: "Disputes", href: "/admin/payments/disputes", icon: Flag },
       { name: "Refunds", href: "/admin/payments/refunds", icon: Archive },
     ],
+  },
+  {
+    name: "Services",
+    href: "/admin/services",
+    icon: Star,
+    count: null,
   },
   {
     name: "Messages",
@@ -144,7 +151,7 @@ export default function Sidebar({ className }: SidebarProps) {
     return pathname.startsWith(href);
   };
 
-  const isChildActive = (parentHref: string, children: any[]) => {
+  const isChildActive = (parentHref: string, children: { name: string; href: string; icon: React.ComponentType }[]) => {
     if (!children) return false;
     return children.some((child) => pathname.startsWith(child.href));
   };
