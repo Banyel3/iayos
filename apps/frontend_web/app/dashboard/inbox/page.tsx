@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import { useAuth } from "@/context/AuthContext";
 import { User } from "@/types";
@@ -9,9 +9,11 @@ import MobileNav from "@/components/ui/mobile-nav";
 
 // Extended User interface for inbox page
 interface InboxUser extends User {
-  firstName?: string;
-  lastName?: string;
-  profileType?: "WORKER" | "CLIENT" | null;
+  profile_data?: {
+    firstName?: string;
+    lastName?: string;
+    profileType?: "WORKER" | "CLIENT" | null;
+  };
 }
 
 interface Message {
@@ -107,22 +109,10 @@ const InboxPage = () => {
 
   // Authentication check
   if (!isAuthenticated || !user) {
-    return (
-      <div className="flex justify-center items-center min-h-screen bg-blue-50">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-800 mb-4">
-            Access Denied
-          </h1>
-          <p className="text-gray-600 mb-6">You are not logged in.</p>
-          <button
-            onClick={() => router.push("/auth/login")}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Go to Login
-          </button>
-        </div>
-      </div>
-    );
+    useEffect(() => {
+      router.push("/auth/login");
+    }, [router]);
+    return null; // Will redirect
   }
 
   return (

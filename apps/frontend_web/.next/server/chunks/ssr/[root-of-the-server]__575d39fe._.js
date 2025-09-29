@@ -14,9 +14,28 @@ __turbopack_context__.s([
     ()=>Providers
 ]);
 var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-jsx-dev-runtime.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react.js [app-ssr] (ecmascript)");
 "use client";
 ;
+;
 function Providers({ children }) {
+    (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useEffect"])(()=>{
+        // Prevent browser alerts from unhandled errors
+        const handleError = (event)=>{
+            console.error("Unhandled error:", event.error);
+            event.preventDefault(); // Prevent default browser alert
+        };
+        const handleUnhandledRejection = (event)=>{
+            console.error("Unhandled promise rejection:", event.reason);
+            event.preventDefault(); // Prevent default browser alert
+        };
+        window.addEventListener("error", handleError);
+        window.addEventListener("unhandledrejection", handleUnhandledRejection);
+        return ()=>{
+            window.removeEventListener("error", handleError);
+            window.removeEventListener("unhandledrejection", handleUnhandledRejection);
+        };
+    }, []);
     return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["Fragment"], {
         children: children
     }, void 0, false);
@@ -265,8 +284,6 @@ __turbopack_context__.s([
     ()=>useAuth,
     "useAuthStatus",
     ()=>useAuthStatus,
-    "useAuthToken",
-    ()=>useAuthToken,
     "useAuthenticatedFetch",
     ()=>useAuthenticatedFetch
 ]);
@@ -276,63 +293,88 @@ var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist
 ;
 ;
 const AuthContext = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["createContext"])(undefined);
-const TOKEN_KEY = "accessToken";
-const getStoredToken = ()=>{
-    if ("TURBOPACK compile-time truthy", 1) return null;
-    //TURBOPACK unreachable
-    ;
-};
-const setStoredToken = (token)=>{
-    if ("TURBOPACK compile-time truthy", 1) return;
-    //TURBOPACK unreachable
-    ;
-};
-const removeStoredToken = ()=>{
-    if ("TURBOPACK compile-time truthy", 1) return;
-    //TURBOPACK unreachable
-    ;
-};
 const AuthProvider = ({ children })=>{
     const [accessToken, setAccessToken] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(null);
     const [user, setUser] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(null);
-    const [isLoading, setIsLoading] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(true);
-    (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useEffect"])(()=>{
-        const initializeAuth = async ()=>{
-            const storedToken = getStoredToken();
-            if (storedToken) {
-                setAccessToken(storedToken);
-                try {
-                    const response = await fetch("http://127.0.0.1:8000/api/accounts/me", {
-                        headers: {
-                            Authorization: `Bearer ${storedToken}`
-                        },
-                        credentials: "include"
-                    });
-                    if (response.ok) {
-                        const userData = await response.json();
-                        setUser(userData);
-                    } else {
-                        const refreshed = await refreshTokenInternal();
-                        if (!refreshed) {
-                            removeStoredToken();
-                            setAccessToken(null);
-                        }
-                    }
-                } catch (error) {
-                    console.error("Auth initialization error:", error);
-                    removeStoredToken();
-                    setAccessToken(null);
+    const [isLoading, setIsLoading] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(false); // Start as false, not loading
+    // Optional: Check auth on mount if user might have existing cookies
+    // Uncomment this if you want to restore auth state on page refresh
+    // useEffect(() => {
+    //   checkAuth();
+    // }, []);
+    const checkAuth = async ()=>{
+        setIsLoading(true);
+        try {
+            console.log("🔄 AuthContext: Checking authentication...");
+            const response = await fetch("http://localhost:8000/api/accounts/me", {
+                credentials: "include",
+                headers: {
+                    Accept: "application/json"
                 }
+            });
+            console.log("📡 AuthContext: Response status:", response.status);
+            if (!response.ok) {
+                console.log("❌ AuthContext: Not authenticated");
+                setAccessToken(null);
+                setUser(null);
+                return false;
             }
+            const userData = await response.json();
+            console.log("✅ AuthContext: Auth successful, user:", userData);
+            setUser(userData);
+            setAccessToken("authenticated");
+            return true;
+        } catch (error) {
+            console.error("💥 AuthContext: Auth check error:", error);
+            setAccessToken(null);
+            setUser(null);
+            return false;
+        } finally{
             setIsLoading(false);
-        };
-        initializeAuth();
-    }, []);
-    const isAuthenticated = Boolean(accessToken && user);
-    const login = (token, userData)=>{
-        setAccessToken(token);
-        setUser(userData);
-        setStoredToken(token);
+        }
+    };
+    const isAuthenticated = Boolean(user);
+    const login = async (email, password)=>{
+        try {
+            console.log("🔄 AuthContext: Attempting login...");
+            const response = await fetch("http://localhost:8000/api/accounts/login", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    email,
+                    password
+                }),
+                credentials: "include"
+            });
+            const data = await response.json();
+            // Check if response has errors
+            if (data.error && data.error.length > 0) {
+                const errorMessage = data.error[0].message;
+                // console.log("❌ AuthContext: Login failed with error:", errorMessage);
+                throw new Error(errorMessage); // Throw specific error message
+            }
+            if (!response.ok) {
+                // console.log("❌ AuthContext: Login failed with status:", response.status);
+                throw new Error(`Login failed with status ${response.status}`);
+            }
+            console.log("✅ AuthContext: Login successful, checking auth...");
+            // Add a small delay to ensure cookies are fully set
+            await new Promise((resolve)=>setTimeout(resolve, 100));
+            // Now check authentication to get real user data
+            const authSuccess = await checkAuth();
+            if (authSuccess) {
+                // console.log("✅ AuthContext: Login and auth check successful");
+                return true;
+            } else {
+                // console.log("❌ AuthContext: Auth check failed after login");
+                throw new Error("Authentication verification failed");
+            }
+        } catch (error) {
+            // console.error("💥 AuthContext: Login error:", error);
+            throw error; // Re-throw the error so caller can handle it
+        }
     };
     const logout = async ()=>{
         try {
@@ -345,19 +387,17 @@ const AuthProvider = ({ children })=>{
         } finally{
             setAccessToken(null);
             setUser(null);
-            removeStoredToken();
         }
     };
     const refreshTokenInternal = async ()=>{
         try {
-            const response = await fetch("http://127.0.0.1:8000/api/accounts/refresh", {
+            const response = await fetch("http://localhost:8000/api/accounts/refresh", {
                 method: "POST",
                 credentials: "include"
             });
             if (response.ok) {
                 const data = await response.json();
-                setAccessToken(data.access);
-                setStoredToken(data.access);
+                setAccessToken("authenticated");
                 if (data.user) {
                     setUser(data.user);
                 }
@@ -365,7 +405,6 @@ const AuthProvider = ({ children })=>{
             }
             return false;
         } catch (error) {
-            console.error("Token refresh failed:", error);
             return false;
         }
     };
@@ -374,7 +413,6 @@ const AuthProvider = ({ children })=>{
         if (!result) {
             setAccessToken(null);
             setUser(null);
-            removeStoredToken();
         }
         return result;
     };
@@ -385,14 +423,15 @@ const AuthProvider = ({ children })=>{
         user,
         login,
         logout,
-        refreshToken
+        refreshToken,
+        checkAuth
     };
     return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(AuthContext.Provider, {
         value: value,
         children: children
     }, void 0, false, {
         fileName: "[project]/apps/frontend_web/context/AuthContext.tsx",
-        lineNumber: 155,
+        lineNumber: 165,
         columnNumber: 10
     }, ("TURBOPACK compile-time value", void 0));
 };
@@ -400,10 +439,6 @@ const useAuth = ()=>{
     const context = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useContext"])(AuthContext);
     if (!context) throw new Error("useAuth must be used within AuthProvider");
     return context;
-};
-const useAuthToken = ()=>{
-    const { accessToken } = useAuth();
-    return accessToken;
 };
 const useAuthStatus = ()=>{
     const { isAuthenticated, isLoading } = useAuth();

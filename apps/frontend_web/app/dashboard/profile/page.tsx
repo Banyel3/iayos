@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
@@ -9,9 +9,11 @@ import MobileNav from "@/components/ui/mobile-nav";
 
 // Extended User interface for profile page
 interface ProfileUser extends User {
-  firstName?: string;
-  lastName?: string;
-  profileType?: "WORKER" | "CLIENT" | null;
+  profile_data?: {
+    firstName?: string;
+    lastName?: string;
+    profileType?: "WORKER" | "CLIENT" | null;
+  };
 }
 
 // Interfaces for different profile types
@@ -67,27 +69,15 @@ const ProfilePage = () => {
 
   // Authentication check
   if (!isAuthenticated) {
-    return (
-      <div className="flex justify-center items-center min-h-screen bg-gray-50">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-800 mb-4">
-            Access Denied
-          </h1>
-          <p className="text-gray-600 mb-6">You are not logged in.</p>
-          <button
-            onClick={() => router.push("/auth/login")}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Go to Login
-          </button>
-        </div>
-      </div>
-    );
+    useEffect(() => {
+      router.push("/auth/login");
+    }, [router]);
+    return null; // Will redirect
   }
 
   // Mock data for worker profile
   const workerData: WorkerProfile = {
-    name: user?.firstName || "John Reyes",
+    name: user?.profile_data?.firstName || "John Reyes",
     isVerified: false,
     avatar: "/worker1.jpg",
     jobTitle: "Appliance Repair Technician",
@@ -106,7 +96,7 @@ const ProfilePage = () => {
 
   // Mock data for client profile
   const clientData: ClientProfile = {
-    name: user?.firstName || "Crissy Santos",
+    name: user?.profile_data?.firstName || "Crissy Santos",
     isVerified: false,
     avatar: "/worker2.jpg", // Using available images for now
     location: "Quezon City, Metro Manila",
@@ -146,8 +136,8 @@ const ProfilePage = () => {
     ],
   };
 
-  const isWorker = user?.profileType === "WORKER";
-  const isClient = user?.profileType === "CLIENT";
+  const isWorker = user?.profile_data?.profileType === "WORKER";
+  const isClient = user?.profile_data?.profileType === "CLIENT";
 
   // Render worker profile
   const renderWorkerProfile = () => (

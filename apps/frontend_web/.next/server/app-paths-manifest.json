@@ -1,6 +1,8 @@
 {
   "/api/auth/check-rate-limit/route": "app/api/auth/check-rate-limit/route.js",
   "/auth/login/page": "app/auth/login/page.js",
-  "/dashboard/page": "app/dashboard/page.js",
-  "/favicon.ico/route": "app/favicon.ico/route.js"
+  "/auth/register/agency/page": "app/auth/register/agency/page.js",
+  "/auth/register/page": "app/auth/register/page.js",
+  "/favicon.ico/route": "app/favicon.ico/route.js",
+  "/page": "app/page.js"
 }

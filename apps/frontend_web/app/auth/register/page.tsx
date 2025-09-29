@@ -96,39 +96,50 @@ function RegisterContent() {
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setIsLoading(true);
+    setError(""); // Clear previous errors
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/accounts/register", {
+      const res = await fetch("http://localhost:8000/api/accounts/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(values), // Remove contactNum conversion
+        credentials: "include",
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        // Handle different error response formats
+        const errorMessage =
+          data.error?.[0]?.message ||
+          data.message ||
+          data.detail ||
+          "Registration failed";
+        setError(errorMessage);
+        return;
+      }
+
+      // Success case
+      setUserEmail(values.email);
+      setShowEmailAlert(true);
+
+      // Send verification email
+      const verifyRes = await fetch("/api/auth/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...values,
-          contactNum: parseInt(values.contactNum),
+          email: data.email,
+          verifyLink: data.verifyLink,
+          verifyLinkExpire: data.verifyLinkExpire,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error?.[0]?.message || "Registration failed");
-      } else {
-        // ✅ Registration success → show email verification alert
-        setUserEmail(values.email);
-        setShowEmailAlert(true);
-        // Clear any existing errors
-        setError("");
-        const verify = await fetch("/api/auth/send", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            email: data.email,
-            verifyLink: data.verifyLink,
-            verifyLinkExpire: data.verifyLinkExpire,
-          }),
-        });
-        if (!res.ok) {
-          setError(data.error?.[0]?.message || "Registration failed");
-        }
+
+      if (!verifyRes.ok) {
+        console.error("Failed to send verification email");
+        // Don't set error here as registration was successful
       }
     } catch (err) {
-      setError("Something went wrong. Try again.");
+      console.error("Registration error:", err);
+      setError("Network error. Please check your connection and try again.");
     } finally {
       setIsLoading(false);
     }

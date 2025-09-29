@@ -157,7 +157,7 @@ const AgencyRegister = () => {
     setAgencyError(""); // Clear previous errors
     try {
       const agencyReg = await fetch(
-        "http://127.0.0.1:8000/api/accounts/register/agency",
+        "http://localhost:8000/api/accounts/register/agency",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -193,21 +193,36 @@ const AgencyRegister = () => {
         setRegisteredEmail(values.email);
         // Clear any existing errors
         setAgencyError("");
-        const verify = await fetch("/api/auth/send", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            email: data.email,
-            verifyLink: data.verifyLink,
-            verifyLinkExpire: data.verifyLinkExpire,
-          }),
-        });
-        if (!verify.ok) {
-          const verifyData = await verify.json();
-          setAgencyError(
-            verifyData.error?.[0]?.message ||
-              "Failed to send verification email"
+
+        // Only call the send endpoint if the backend returned the expected
+        // verification fields. Otherwise surface an error and avoid POSTing
+        // undefined values which trigger zod validation errors in the API.
+        if (!data?.email || !data?.verifyLink || !data?.verifyLinkExpire) {
+          console.error(
+            "Missing fields from agency registration response:",
+            data
           );
+          setAgencyError(
+            "Registration succeeded but verification data is missing."
+          );
+        } else {
+          const verify = await fetch("/api/auth/send", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              email: data.email,
+              verifyLink: data.verifyLink,
+              verifyLinkExpire: data.verifyLinkExpire,
+            }),
+          });
+          if (!verify.ok) {
+            const verifyData = await verify.json().catch(() => ({}));
+            setAgencyError(
+              verifyData.error?.[0]?.message ||
+                verifyData?.message ||
+                "Failed to send verification email"
+            );
+          }
         }
       }
     } catch (err) {

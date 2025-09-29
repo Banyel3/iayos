@@ -9,12 +9,12 @@ import { UserProfileType } from "@/types";
 interface DashboardUser {
   accountID: number;
   email: string;
-  firstName?: string;
-  lastName?: string;
-  name?: string;
-  image?: string;
-  profileImg?: string;
-  profileType?: UserProfileType;
+  profile_data?: {
+    firstName?: string;
+    lastName?: string;
+    profileImg?: string;
+    profileType?: UserProfileType;
+  };
 }
 
 const TempDashboard = () => {
@@ -23,34 +23,23 @@ const TempDashboard = () => {
   const router = useRouter();
   const [selectedType, setSelectedType] = useState<UserProfileType>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [redirectCountdown, setRedirectCountdown] = useState(3);
 
   // Redirect logic for existing profileType
   useEffect(() => {
-    if (user?.profileType === "WORKER" || user?.profileType === "CLIENT") {
+    if (
+      user?.profile_data?.profileType === "WORKER" ||
+      user?.profile_data?.profileType === "CLIENT"
+    ) {
       router.replace("/dashboard/profile");
     }
-  }, [user?.profileType, router]);
+  }, [user?.profile_data?.profileType, router]);
 
-  // Auto-redirect countdown for unauthorized users
+  // Auto-redirect for unauthorized users
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
-      let countdown = 3; // change this number for seconds
-      setRedirectCountdown(countdown);
-
-      const interval = setInterval(() => {
-        countdown -= 1;
-        setRedirectCountdown(countdown);
-
-        if (countdown <= 0) {
-          clearInterval(interval);
-          router.push("/auth/login");
-        }
-      }, 1000);
-
-      return () => clearInterval(interval);
+      router.push("/auth/login");
     }
-  }, [user, isAuthenticated, isLoading, router]);
+  }, [isAuthenticated, isLoading, router]);
 
   if (isLoading) {
     return (
@@ -64,71 +53,7 @@ const TempDashboard = () => {
   }
 
   if (!isAuthenticated) {
-    return (
-      <>
-        {/* Modal Overlay */}
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full mx-4 relative">
-            {/* Content */}
-            <div className="p-6 text-center">
-              {/* Icon */}
-              <div className="mx-auto flex items-center justify-center w-16 h-16 bg-red-100 rounded-full mb-4">
-                <svg
-                  className="w-8 h-8 text-red-600"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.268 6.5c-.77.833-.192 2.5 1.732 2.5z"
-                  />
-                </svg>
-              </div>
-
-              {/* Title */}
-              <h3 className="text-lg font-semibold text-gray-900 mb-2 font-inter">
-                Access Denied
-              </h3>
-
-              {/* Message */}
-              <p className="text-gray-600 mb-4 font-inter">
-                You are not logged in. Redirecting to login page...
-              </p>
-
-              {/* Countdown */}
-              <div className="bg-blue-50 rounded-lg p-3 mb-4">
-                <p className="text-sm text-blue-800 font-inter">
-                  Redirecting in{" "}
-                  <span className="font-bold text-blue-900">
-                    {redirectCountdown}
-                  </span>{" "}
-                  second{redirectCountdown !== 1 ? "s" : ""}
-                </p>
-              </div>
-
-              {/* Manual redirect button */}
-              <button
-                onClick={() => router.push("/auth/login")}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-4 rounded-lg transition-colors duration-200 font-inter"
-              >
-                Go to Login Now
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Background content (blurred) */}
-        <div className="flex justify-center items-center min-h-screen bg-gray-50 blur-sm">
-          <div className="text-center">
-            <h1 className="text-2xl font-bold text-gray-800 mb-4">Dashboard</h1>
-            <p className="text-gray-600">Loading...</p>
-          </div>
-        </div>
-      </>
-    );
+    return null; // Will redirect via useEffect
   }
 
   // Handle form submission
@@ -184,9 +109,9 @@ const TempDashboard = () => {
           {/* Welcome Message */}
           <div className="text-center mb-8">
             <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              {user?.profileImg ? (
+              {user?.profile_data?.profileImg ? (
                 <img
-                  src={user.profileImg}
+                  src={user.profile_data?.profileImg}
                   alt="Profile"
                   className="w-16 h-16 rounded-full object-cover"
                 />
@@ -208,7 +133,7 @@ const TempDashboard = () => {
             </div>
 
             <h1 className="text-[28px] leading-[120%] font-[700] font-[Inter] text-black mb-2">
-              Welcome, {user?.firstName?.split(" ")[0] || "User"}!
+              Welcome, {user?.profile_data?.firstName?.split(" ")[0] || "User"}!
             </h1>
             <p className="text-gray-600 text-base leading-[150%]">
               To get started, please choose how you&apos;ll be using iAyos

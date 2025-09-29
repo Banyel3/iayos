@@ -64,9 +64,19 @@ MIDDLEWARE = [
 ]
 
 # CORS Settings - Allow frontend during dev
+# settings.py
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",   # Next.js dev server
+    "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+]
+
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
 ]
 
 # Allow credentials (cookies) to be sent
@@ -132,22 +142,13 @@ DATABASES = {
     )
 }
 
-AUTH_USER_MODEL = "accounts.Accounts"
-
-REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": (
-        "ninja_jwt.authentication.JWTAuthentication",
-    )
-}
-
 from datetime import timedelta
 
-SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=5),
-    "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
-    "USER_ID_FIELD": "accountID",  # Use accountID instead of default 'id'
-    "USER_ID_CLAIM": "accountID",
-}
+AUTH_USER_MODEL = "accounts.Accounts"
+
+# JWT Settings for custom PyJWT implementation
+JWT_ACCESS_TOKEN_LIFETIME = timedelta(minutes=60)  # 1 hour
+JWT_REFRESH_TOKEN_LIFETIME = timedelta(days=7)     # 7 days
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
@@ -191,11 +192,11 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
-NINJA_JWT = {
-    'USER_ID_FIELD': "accountID",
-    'ACCESS_TOKEN_LIFETIME': datetime.timedelta(minutes=60),
-    'REFRESH_TOKEN_LIFETIME': datetime.timedelta(days=7),
-}
+# Add these to your settings.py
+SESSION_COOKIE_SECURE = False  # For development
+CSRF_COOKIE_SECURE = False     # For development
+SESSION_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SAMESITE = 'Lax'
 
 
 RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
