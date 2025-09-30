@@ -355,6 +355,7 @@ const AuthContext = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project
 const AuthProvider = (param)=>{
     let { children } = param;
     _s();
+    const router = useROuter();
     const [accessToken, setAccessToken] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])(null);
     const [user, setUser] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])(null);
     const [isLoading, setIsLoading] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])(false); // Start as false, not loading
@@ -381,6 +382,16 @@ const AuthProvider = (param)=>{
                 return false;
             }
             const userData = await response.json();
+            (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useEffect"])({
+                "AuthProvider.checkAuth.useEffect": ()=>{
+                    if ((userData === null || userData === void 0 ? void 0 : userData.role) === "ADMIN") {
+                        router.replace("/admin/dashboard");
+                    }
+                }
+            }["AuthProvider.checkAuth.useEffect"], [
+                user === null || user === void 0 ? void 0 : user.role,
+                router
+            ]);
             console.log("✅ AuthContext: Auth successful, user:", userData);
             setUser(userData);
             setAccessToken("authenticated");
@@ -492,11 +503,11 @@ const AuthProvider = (param)=>{
         children: children
     }, void 0, false, {
         fileName: "[project]/apps/frontend_web/context/AuthContext.tsx",
-        lineNumber: 165,
+        lineNumber: 172,
         columnNumber: 10
     }, ("TURBOPACK compile-time value", void 0));
 };
-_s(AuthProvider, "TXCsI94Vt3pxYY9wOO372mtlJSw=");
+_s(AuthProvider, "uK0sxnnGBpZG4wOssLaLqmTHUP8=", true);
 _c = AuthProvider;
 const useAuth = ()=>{
     _s1();

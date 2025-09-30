@@ -159,6 +159,15 @@ const Login = () => {
 
   if (authLoading) return null; // Don't show loading text, just wait for auth check
 
+  const handleGoogle = async () => {
+    try {
+      const googleLogin = await fetch(
+        "http://localhost:8000/accounts/api/google/login"
+      );
+    } catch (error) {
+      console.error("Login error:", error);
+    }
+  };
   const handleSubmit = async (values: z.infer<typeof formSchema>) => {
     setIsLoading(true);
 
@@ -169,6 +178,7 @@ const Login = () => {
       localStorage.removeItem("rateLimitEndTime");
       setIsRateLimited(false);
       setRateLimitTime(0);
+
       router.push("/dashboard");
     } catch (error) {
       console.error("Login error:", error);
@@ -365,21 +375,19 @@ const Login = () => {
                 </div>
 
                 {/* Google Sign In Button */}
-                <button
-                  disabled
-                  className="flex items-center justify-center w-full h-11 border border-gray-200 rounded-lg px-4 py-3 bg-gray-100 transition-all duration-200 shadow-sm font-inter font-medium text-gray-400 cursor-not-allowed"
+                <a
+                  href="http://localhost:8000/api/accounts/auth/google/login"
+                  className="flex items-center justify-center w-full h-11 border border-gray-200 rounded-lg px-4 py-3 bg-gray-100 transition-all duration-200 font-inter font-medium"
                 >
                   <Image
                     src="/google-logo.svg"
                     alt="Google logo"
                     width={18}
                     height={18}
-                    className="mr-2 opacity-50"
+                    className="mr-2"
                   />
-                  <span className="text-sm">
-                    Continue with Google (Coming Soon)
-                  </span>
-                </button>
+                  <span className="text-sm">Continue with Google</span>
+                </a>
 
                 <div className="mt-4 text-center">
                   <p className="text-xs font-inter text-gray-600">
@@ -585,6 +593,31 @@ const Login = () => {
                       </Button>
                     </form>
                   </Form>
+
+                  {/* Divider */}
+                  <div className="flex items-center w-full my-4">
+                    <div className="flex-1 border-t border-gray-200"></div>
+                    <span className="px-3 text-xs font-inter text-gray-500">
+                      or
+                    </span>
+                    <div className="flex-1 border-t border-gray-200"></div>
+                  </div>
+
+                  {/* Google Sign In Button (Desktop) */}
+                  <a
+                    href="http://localhost:8000/api/accounts/auth/google/login"
+                    className="flex items-center justify-center w-full h-12 border border-gray-200 rounded-lg px-4 py-3 bg-gray-100 transition-all duration-200 font-inter font-medium"
+                    aria-label="Continue with Google"
+                  >
+                    <Image
+                      src="/google-logo.svg"
+                      alt="Google logo"
+                      width={18}
+                      height={18}
+                      className="mr-2"
+                    />
+                    <span className="text-sm">Continue with Google</span>
+                  </a>
 
                   <div className="mt-6 text-center">
                     <p className="text-sm font-inter text-gray-600">

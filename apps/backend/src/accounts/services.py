@@ -1,5 +1,6 @@
 # services.py
-from .models import Accounts, Profile, Agency, WorkerProfile, workerSpecialization, ClientProfile, InterestedJobs
+from .models import Accounts, Profile, Agency
+from adminpanel.models import SystemRoles
 from django.utils.dateparse import parse_date
 from django.utils import timezone
 from datetime import timedelta, date
@@ -8,6 +9,7 @@ from django.conf import settings
 import uuid
 import jwt
 import hashlib
+from datetime import datetime, timedelta, timezone
 
 
 def create_account_individ(data):
@@ -109,20 +111,22 @@ def login_account(data):
 
     if not user.isVerified:
         raise ValueError("Please verify your email before logging in")
+    
+    return generateCookie(user)
 
-    # Create JWT tokens using PyJWT
+def generateCookie(user):    
     access_payload = {
         'user_id': user.accountID,
         'email': user.email,
-        'exp': timezone.now() + timedelta(minutes=60),  # 1 hour
-        'iat': timezone.now(),
+        'exp': datetime.now(tz=timezone.utc) + timedelta(minutes=60),
+        'iat': datetime.now(tz=timezone.utc),
     }
 
     refresh_payload = {
         'user_id': user.accountID,
         'email': user.email,
-        'exp': timezone.now() + timedelta(days=7),  # 7 days
-        'iat': timezone.now(),
+        'exp': datetime.now(tz=timezone.utc) + timedelta(minutes=60),
+        'iat': datetime.now(tz=timezone.utc),
     }
 
     access_token = jwt.encode(access_payload, settings.SECRET_KEY, algorithm='HS256')
@@ -284,16 +288,16 @@ def refresh_token(expired_token):
 
 
 def fetch_currentUser(accountID):
-    from django.core.exceptions import ObjectDoesNotExist
-
     try:
-        # Get the account
         account = Accounts.objects.get(accountID=accountID)
-        
-        # Try to get profile, but it might not exist for new users
+
+        # Check if a SystemRole exists for this account
+        role_obj = SystemRoles.objects.filter(accountID=account).first()
+        user_role = role_obj.systemRole if role_obj else None
+
         try:
             profile = Profile.objects.select_related("accountFK").get(accountFK=account)
-            
+
             profile_data = {
                 "firstName": profile.firstName,
                 "lastName": profile.lastName,
@@ -301,29 +305,18 @@ def fetch_currentUser(accountID):
                 "profileType": profile.profileType,
             }
 
-            user_data = {}
-            skill_categories = []
-
-            if profile.profileType == "WORKER":
-                # ... your existing WORKER logic
-                pass
-            elif profile.profileType == "CLIENT":
-                # ... your existing CLIENT logic  
-                pass
-
             return {
                 "accountID": account.accountID,
                 "email": account.email,
+                "role": user_role,  # <-- systemRole from SystemRoles
                 "profile_data": profile_data,
-                "user_data": user_data,
-                "skill_categories": skill_categories
             }
-            
+
         except Profile.DoesNotExist:
-            # Return basic user info if profile doesn't exist yet
             return {
                 "accountID": account.accountID,
                 "email": account.email,
+                "role": user_role,
                 "profile_data": None,
                 "user_data": {},
                 "skill_categories": []

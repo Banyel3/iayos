@@ -15,6 +15,20 @@ function Card({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
+// AdminCard: styled specifically for admin dashboard/cards
+function AdminCard({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="admin-card"
+      className={cn(
+        "p-4 border rounded bg-sky-100 border-blue-400 text-neutral-900",
+        className
+      )}
+      {...props}
+    />
+  );
+}
+
 function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
@@ -66,9 +80,11 @@ function CardAction({ className, ...props }: React.ComponentProps<"div">) {
 
 function CardContent({ className, ...props }: React.ComponentProps<"div">) {
   return (
-    <div data-slot="card-content" className={cn("px-6", className)} {...props}>
-      Putangina
-    </div>
+    <div
+      data-slot="card-content"
+      className={cn("px-6", className)}
+      {...props}
+    ></div>
   );
 }
 
@@ -90,4 +106,5 @@ export {
   CardAction,
   CardDescription,
   CardContent,
+  AdminCard,
 };

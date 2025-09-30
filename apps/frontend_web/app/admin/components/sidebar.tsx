@@ -33,7 +33,7 @@ interface SidebarProps {
 const navigation = [
   {
     name: "Dashboard",
-    href: "/admin",
+    href: "/admin/dashboard",
     icon: Home,
     count: null,
   },
@@ -151,7 +151,10 @@ export default function Sidebar({ className }: SidebarProps) {
     return pathname.startsWith(href);
   };
 
-  const isChildActive = (parentHref: string, children: { name: string; href: string; icon: React.ComponentType }[]) => {
+  const isChildActive = (
+    parentHref: string,
+    children: { name: string; href: string; icon: React.ComponentType }[]
+  ) => {
     if (!children) return false;
     return children.some((child) => pathname.startsWith(child.href));
   };
@@ -168,15 +171,11 @@ export default function Sidebar({ className }: SidebarProps) {
       <div className="flex items-center justify-between p-4 border-b border-sidebar-border">
         {!collapsed && (
           <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">IA</span>
-            </div>
-            <div>
-              <h2 className="text-sidebar-foreground font-semibold text-lg">
-                IAYOS
-              </h2>
-              <p className="text-sidebar-foreground/60 text-xs">Admin Panel</p>
-            </div>
+            {/* Logo Text */}
+            <h2 className="text-2xl py-6 font-bold">
+              <span className="text-blue-600">iAyos</span>{" "}
+              <span className="text-gray-500 font-normal">Admin</span>
+            </h2>
           </div>
         )}
         <button
@@ -191,22 +190,8 @@ export default function Sidebar({ className }: SidebarProps) {
         </button>
       </div>
 
-      {/* Search */}
-      {!collapsed && (
-        <div className="p-4 border-b border-sidebar-border">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-sidebar-foreground/60" />
-            <input
-              type="text"
-              placeholder="Search admin..."
-              className="w-full pl-9 pr-4 py-2 bg-sidebar-accent rounded-lg text-sm text-sidebar-foreground placeholder-sidebar-foreground/60 border-0 focus:outline-none focus:ring-2 focus:ring-sidebar-primary"
-            />
-          </div>
-        </div>
-      )}
-
       {/* Navigation */}
-      <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+      <nav className="flex-1 px-3 py-4 overflow-y-auto">
         {navigation.map((item) => {
           const Icon = item.icon;
           const isItemActive = isActive(item.href);
@@ -220,74 +205,62 @@ export default function Sidebar({ className }: SidebarProps) {
                   <button
                     onClick={() => toggleExpanded(item.name)}
                     className={cn(
-                      "w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
+                      "w-full flex items-center justify-between px-2 py-2 rounded-md text-sm font-medium transition-all duration-200",
                       isItemActive || hasActiveChild
-                        ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                        : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                        ? "bg-blue-50 text-blue-600"
+                        : "text-gray-700 hover:bg-gray-100"
                     )}
                   >
-                    <div className="flex items-center space-x-3">
-                      <Icon className="h-4 w-4 flex-shrink-0" />
-                      {!collapsed && <span>{item.name}</span>}
+                    <div className="flex items-center space-x-2">
+                      <Icon className="h-4 w-4 text-gray-400" />
+                      {!collapsed && (
+                        <span className="font-semibold">{item.name}</span>
+                      )}
                     </div>
                     {!collapsed && (
-                      <div className="flex items-center space-x-2">
-                        {item.count && (
-                          <span className="px-2 py-0.5 bg-red-500 text-white text-xs rounded-full">
-                            {item.count}
-                          </span>
+                      <ChevronRight
+                        className={cn(
+                          "h-4 w-4 text-gray-400 transition-transform",
+                          isExpanded && "rotate-90"
                         )}
-                        <ChevronRight
-                          className={cn(
-                            "h-4 w-4 transition-transform",
-                            isExpanded && "rotate-90"
-                          )}
-                        />
-                      </div>
+                      />
                     )}
                   </button>
                 ) : (
                   <Link
                     href={item.href}
                     className={cn(
-                      "flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group",
+                      "flex items-center px-2 py-2 rounded-md text-sm font-medium transition-all duration-200",
                       isItemActive
-                        ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                        : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                        ? "bg-blue-50 text-blue-600"
+                        : "text-gray-700 hover:bg-gray-100"
                     )}
                   >
-                    <div className="flex items-center space-x-3">
-                      <Icon className="h-4 w-4 flex-shrink-0" />
-                      {!collapsed && <span>{item.name}</span>}
-                    </div>
-                    {!collapsed && item.count && (
-                      <span className="px-2 py-0.5 bg-red-500 text-white text-xs rounded-full">
-                        {item.count}
-                      </span>
-                    )}
+                    <Icon className="h-4 w-4 text-gray-400 mr-2" />
+                    {!collapsed && <span>{item.name}</span>}
                   </Link>
                 )}
               </div>
 
               {/* Submenu */}
               {item.children && isExpanded && !collapsed && (
-                <div className="mt-1 ml-4 space-y-1 border-l border-sidebar-border/50 pl-4">
+                <div className="mt-1 ml-6 space-y-1">
                   {item.children.map((child) => {
-                    const ChildIcon = child.icon;
                     const isChildActiveItem = pathname.startsWith(child.href);
+                    const ChildIcon = child.icon;
 
                     return (
                       <Link
                         key={child.name}
                         href={child.href}
                         className={cn(
-                          "flex items-center space-x-2 px-3 py-2 rounded-lg text-sm transition-all duration-200",
+                          "flex items-center space-x-2 px-2 py-1.5 rounded-md text-sm transition-all duration-200",
                           isChildActiveItem
-                            ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                            : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                            ? "bg-blue-50 text-blue-600 font-medium"
+                            : "text-gray-500 hover:bg-gray-100"
                         )}
                       >
-                        <ChildIcon className="h-3 w-3" />
+                        <ChildIcon className="h-3 w-3 text-gray-400" />
                         <span>{child.name}</span>
                       </Link>
                     );
@@ -299,39 +272,14 @@ export default function Sidebar({ className }: SidebarProps) {
         })}
       </nav>
 
-      {/* Bottom Navigation */}
-      <div className="p-4 border-t border-sidebar-border space-y-1">
-        {bottomNavigation.map((item) => {
-          const Icon = item.icon;
-          const isItemActive = isActive(item.href);
-
-          return (
-            <Link
-              key={item.name}
-              href={item.href}
-              className={cn(
-                "flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
-                isItemActive
-                  ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                  : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-              )}
-            >
-              <Icon className="h-4 w-4 flex-shrink-0" />
-              {!collapsed && <span>{item.name}</span>}
-            </Link>
-          );
-        })}
-
-        {/* Logout */}
-        <button
-          className={cn(
-            "w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
-            "text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-900/20"
-          )}
-        >
-          <LogOut className="h-4 w-4 flex-shrink-0" />
-          {!collapsed && <span>Logout</span>}
-        </button>
+      {/* Bottom User Card */}
+      <div className="p-4 border-t border-gray-200">
+        <div className="flex items-center space-x-2 p-2 rounded-md bg-blue-50">
+          <div className="w-8 h-8 rounded-full bg-gray-300" />
+          <div className="text-sm font-medium text-gray-700">
+            Vaniel Cornelio
+          </div>
+        </div>
       </div>
     </div>
   );

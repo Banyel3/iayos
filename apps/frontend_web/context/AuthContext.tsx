@@ -7,10 +7,12 @@ import React, {
   ReactNode,
 } from "react";
 import { User, AuthContextType } from "@/types";
+import { useRouter } from "next/navigation";
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
+  const router = useRouter();
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(false); // Start as false, not loading
@@ -43,6 +45,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
 
       const userData = await response.json();
+      useEffect(() => {
+        if (userData?.role === "ADMIN") {
+          router.replace("/admin/dashboard");
+        }
+      }, [userData?.role, router]);
       console.log("✅ AuthContext: Auth successful, user:", userData);
 
       setUser(userData);

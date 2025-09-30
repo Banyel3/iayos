@@ -1,8 +1,24 @@
 {
+  "/_not-found/page": "app/_not-found/page.js",
+  "/admin/analytics/page": "app/admin/analytics/page.js",
+  "/admin/dashboard/page": "app/admin/dashboard/page.js",
+  "/admin/kyc/pending/page": "app/admin/kyc/pending/page.js",
+  "/admin/messages/page": "app/admin/messages/page.js",
+  "/admin/notifications/page": "app/admin/notifications/page.js",
+  "/admin/payments/transactions/page": "app/admin/payments/transactions/page.js",
+  "/admin/reports/page": "app/admin/reports/page.js",
+  "/admin/reviews/page": "app/admin/reviews/page.js",
+  "/admin/services/page": "app/admin/services/page.js",
+  "/admin/settings/page": "app/admin/settings/page.js",
+  "/admin/support/page": "app/admin/support/page.js",
+  "/admin/users/agency/page": "app/admin/users/agency/page.js",
+  "/admin/users/clients/page": "app/admin/users/clients/page.js",
+  "/admin/users/page": "app/admin/users/page.js",
+  "/admin/users/workers/[id]/page": "app/admin/users/workers/[id]/page.js",
+  "/admin/users/workers/page": "app/admin/users/workers/page.js",
   "/api/auth/check-rate-limit/route": "app/api/auth/check-rate-limit/route.js",
+  "/api/workers/[id]/route": "app/api/workers/[id]/route.js",
   "/auth/login/page": "app/auth/login/page.js",
-  "/auth/register/agency/page": "app/auth/register/agency/page.js",
-  "/auth/register/page": "app/auth/register/page.js",
-  "/favicon.ico/route": "app/favicon.ico/route.js",
-  "/page": "app/page.js"
+  "/dashboard/page": "app/dashboard/page.js",
+  "/favicon.ico/route": "app/favicon.ico/route.js"
 }

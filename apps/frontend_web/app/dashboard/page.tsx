@@ -9,6 +9,7 @@ import { UserProfileType } from "@/types";
 interface DashboardUser {
   accountID: number;
   email: string;
+  role: string;
   profile_data?: {
     firstName?: string;
     lastName?: string;

@@ -9,3 +9,5 @@ python-dotenv
 dj-database-url
 httpx
 rav
+django-allauth
+django-allauth[socialaccount]

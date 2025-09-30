@@ -12,8 +12,6 @@ interface AgencyUser extends User {
 }
 
 const WorkerDash = () => {
-  // Authentication and user state are strictly derived from backend JWT validation via context
-  // Do NOT use localStorage or any client-side fallback for authentication
   const { user: authUser, isAuthenticated, isLoading, logout } = useAuth();
   const user = authUser as AgencyUser;
   const router = useRouter();

@@ -24,6 +24,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Load .env from backend root (one directory above src)
 load_dotenv(BASE_DIR.parent / ".env")
 
+
+load_dotenv(BASE_DIR.parent / ".env.local", override=True)
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
@@ -47,8 +50,13 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'corsheaders',
     'ninja_extra',
+    'allauth',
+    'allauth.account',
+    'allauth.socialaccount',
+    'allauth.socialaccount.providers.google',
     #internal
-    'accounts'
+    'accounts',
+    'adminpanel'
 
 ]
 
@@ -61,7 +69,28 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    "allauth.account.middleware.AccountMiddleware",
 ]
+
+AUTHENTICATION_BACKENDS = [
+    # Needed to login by username in Django admin, regardless of `allauth`
+    'django.contrib.auth.backends.ModelBackend',
+
+    # `allauth` specific authentication methods, such as login by email
+    'allauth.account.auth_backends.AuthenticationBackend',
+]
+
+SOCIALACCOUNT_PROVIDERS = {
+    'google': {
+        # For each OAuth based provider, either add a ``SocialApp``
+        # (``socialaccount`` app) containing the required client
+        # credentials, or list them here:
+        'APP': {
+            'client_id': os.getenv('AUTH_GOOGLE_ID'),
+            'secret': os.getenv('AUTH_GOOGLE_SECRET'),
+        }
+    }
+}
 
 # CORS Settings - Allow frontend during dev
 # settings.py
@@ -201,3 +230,5 @@ CSRF_COOKIE_SAMESITE = 'Lax'
 
 RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
 RESEND_BASE_URL = "https://api.resend.com"
+
+SOCIALACCOUNT_LOGIN_ON_GET = True
