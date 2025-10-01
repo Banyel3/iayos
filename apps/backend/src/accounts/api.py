@@ -1,6 +1,6 @@
 from ninja import Router
-from .schemas import createAccountSchema, logInSchema, createAgencySchema, forgotPasswordSchema, resetPasswordSchema
-from .services import create_account_individ, create_account_agency, login_account, _verify_account, forgot_password_request, reset_password_verify, logout_account, refresh_token, fetch_currentUser, generateCookie
+from .schemas import createAccountSchema, logInSchema, createAgencySchema, forgotPasswordSchema, resetPasswordSchema, assignRoleSchema
+from .services import create_account_individ, create_account_agency, login_account, _verify_account, forgot_password_request, reset_password_verify, logout_account, refresh_token, fetch_currentUser, generateCookie, assign_role
 from ninja.responses import Response
 from .authentication import cookie_auth
 from django.shortcuts import redirect
@@ -55,6 +55,15 @@ def login(request, payload: logInSchema):
     except Exception as e:
         return {"error": [{"message": "Login failed"}]}
 
+@router.post('/assign-role')
+def assignRole(request, payload: assignRoleSchema):
+    try:
+        result = assign_role(payload)
+        return result
+    except ValueError as e:
+        return {"error": [{"message": str(e)}]}
+    except Exception as e:
+        return {"error": [{"message": "Role Assigning Failed"}]}
 @router.post("/logout", auth=cookie_auth)
 def logout(request):
    try:

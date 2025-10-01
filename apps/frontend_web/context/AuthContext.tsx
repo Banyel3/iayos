@@ -17,12 +17,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(false); // Start as false, not loading
 
-  // Optional: Check auth on mount if user might have existing cookies
-  // Uncomment this if you want to restore auth state on page refresh
-  // useEffect(() => {
-  //   checkAuth();
-  // }, []);
-
   const checkAuth = async () => {
     setIsLoading(true);
     try {
@@ -45,11 +39,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
 
       const userData = await response.json();
-      useEffect(() => {
-        if (userData?.role === "ADMIN") {
-          router.replace("/admin/dashboard");
-        }
-      }, [userData?.role, router]);
       console.log("✅ AuthContext: Auth successful, user:", userData);
 
       setUser(userData);
@@ -101,6 +90,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const authSuccess = await checkAuth();
       if (authSuccess) {
         // console.log("✅ AuthContext: Login and auth check successful");
+
+        // Handle admin routing after successful auth
+        if (user?.role === "ADMIN") {
+          router.replace("/admin/dashboard");
+        }
+
         return true;
       } else {
         // console.log("❌ AuthContext: Auth check failed after login");

@@ -76,6 +76,29 @@ const ForgotPassword = () => {
         setShowEmailAlert(true);
         // Clear any existing errors
         setError("");
+        try {
+          const verifyRes = await fetch("/api/auth/send", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              email: data.email,
+              verifyLink: data.verifyLink,
+              verifyLinkExpire: data.verifyLinkExpire,
+            }),
+          });
+
+          if (!verifyRes.ok) {
+            console.error("Failed to send verification email");
+            // Don't set error here as registration was successful
+          }
+        } catch (err) {
+          console.error("Registration error:", err);
+          setError(
+            "Network error. Please check your connection and try again."
+          );
+        } finally {
+          setIsLoading(false);
+        }
       }
     } catch (error) {
       // Placeholder error handling

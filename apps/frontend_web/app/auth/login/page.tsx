@@ -44,6 +44,7 @@ const Login = () => {
     isLoading: authLoading,
     login,
     checkAuth,
+    user,
   } = useAuth();
   const { showAuthError } = useAuthToast();
 
@@ -55,7 +56,7 @@ const Login = () => {
 
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
-      router.replace("/dashboard"); // redirect if already logged in
+      router.replace("/dashboard/profile"); // redirect if already logged in
     }
   }, [authLoading, isAuthenticated, router]);
 
@@ -178,8 +179,6 @@ const Login = () => {
       localStorage.removeItem("rateLimitEndTime");
       setIsRateLimited(false);
       setRateLimitTime(0);
-
-      router.push("/dashboard");
     } catch (error) {
       console.error("Login error:", error);
       const errorMessage =

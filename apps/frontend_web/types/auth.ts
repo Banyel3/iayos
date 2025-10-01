@@ -6,6 +6,7 @@ export type UserProfileType = "WORKER" | "CLIENT" | null;
 export interface User {
   accountID?: number; // Make optional with ?
   email: string;
+  role?: "ADMIN" | "USER"; // Add role property
   profile_data?: {
     firstName?: string;
     lastName?: string;

@@ -26,14 +26,14 @@ const TempDashboard = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Redirect logic for existing profileType
-  useEffect(() => {
-    if (
-      user?.profile_data?.profileType === "WORKER" ||
-      user?.profile_data?.profileType === "CLIENT"
-    ) {
-      router.replace("/dashboard/profile");
-    }
-  }, [user?.profile_data?.profileType, router]);
+  // useEffect(() => {
+  //   if (
+  //     user?.profile_data?.profileType === "WORKER" ||
+  //     user?.profile_data?.profileType === "CLIENT"
+  //   ) {
+  //     router.replace("/dashboard/profile");
+  //   }
+  // }, [user?.profile_data?.profileType, router]);
 
   // Auto-redirect for unauthorized users
   useEffect(() => {
@@ -79,11 +79,14 @@ const TempDashboard = () => {
 
       console.log("Sending request:", values);
 
-      const res = await fetch("/api/auth/assign-role", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(values),
-      });
+      const res = await fetch(
+        "http://localhost:8000/api/accounts/assign-role",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(values),
+        }
+      );
 
       if (!res.ok) {
         const errorData = await res.json();

@@ -9,7 +9,7 @@ from django.conf import settings
 import uuid
 import jwt
 import hashlib
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 
 def create_account_individ(data):
@@ -37,6 +37,8 @@ def create_account_individ(data):
         email=data.email,
         password=data.password,
     )
+
+
     verifyToken = uuid.uuid4()
     strVerifyToken = str(verifyToken)
     hashed_token = hashlib.sha256(strVerifyToken.encode("utf-8")).hexdigest()
@@ -115,18 +117,19 @@ def login_account(data):
     return generateCookie(user)
 
 def generateCookie(user):    
+    now = timezone.now()
     access_payload = {
         'user_id': user.accountID,
         'email': user.email,
-        'exp': datetime.now(tz=timezone.utc) + timedelta(minutes=60),
-        'iat': datetime.now(tz=timezone.utc),
+        'exp': now + timedelta(minutes=60),
+        'iat': now
     }
 
     refresh_payload = {
         'user_id': user.accountID,
         'email': user.email,
-        'exp': datetime.now(tz=timezone.utc) + timedelta(minutes=60),
-        'iat': datetime.now(tz=timezone.utc),
+        'exp': now + timedelta(minutes=60),
+        'iat': now
     }
 
     access_token = jwt.encode(access_payload, settings.SECRET_KEY, algorithm='HS256')
@@ -217,10 +220,10 @@ def forgot_password_request(data):
     resetLink = f"http://localhost:3000/auth/forgot-password/verified?verifyToken={resetToken}&id={user.accountID}"
     
     return {
-        "message": "If an account with that email exists, we've sent password reset instructions.",
-        "email": data.email,
-        "resetLink": resetLink,  # This will be used by email service
-        "resetLinkExpire": user.verifyTokenExpiry.isoformat()
+        "accountID": user.accountID,
+        "verifyLink": resetLink,
+        "verifyLinkExpire": user.verifyTokenExpiry.isoformat(),
+        "email": user.email
     }
 
 def reset_password_verify(verifyToken, userID, data):
@@ -324,3 +327,12 @@ def fetch_currentUser(accountID):
 
     except Accounts.DoesNotExist:
         raise ValueError("User not found")
+
+def assign_role(data):
+    user = Accounts.objects.get(email__iexact=data.email)
+    profile = Profile.objects.get(accountFK=user)
+
+    profile.profileType = data.selectedType
+    profile.save()
+
+    return {"message": "Role Assigned Successfully"}

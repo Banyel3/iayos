@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { User } from "@/types";
 import MobileNav from "@/components/ui/mobile-nav";
+import DesktopNavbar from "@/components/ui/desktop-sidebar";
 
 // Extended User interface for home page
 interface HomeUser extends User {
@@ -274,8 +275,8 @@ const HomePage = () => {
                       job.status === "IN_PROGRESS"
                         ? "bg-blue-100 text-blue-700"
                         : job.status === "PENDING"
-                        ? "bg-yellow-100 text-yellow-700"
-                        : "bg-green-100 text-green-700"
+                          ? "bg-yellow-100 text-yellow-700"
+                          : "bg-green-100 text-green-700"
                     }`}
                   >
                     {job.status.replace("_", " ")}
@@ -347,15 +348,15 @@ const HomePage = () => {
                     activity.type === "PAYMENT_RECEIVED"
                       ? "bg-green-100 text-green-600"
                       : activity.type === "REVIEW_RECEIVED"
-                      ? "bg-yellow-100 text-yellow-600"
-                      : "bg-blue-100 text-blue-600"
+                        ? "bg-yellow-100 text-yellow-600"
+                        : "bg-blue-100 text-blue-600"
                   }`}
                 >
                   {activity.type === "PAYMENT_RECEIVED"
                     ? "💰"
                     : activity.type === "REVIEW_RECEIVED"
-                    ? "⭐"
-                    : "✅"}
+                      ? "⭐"
+                      : "✅"}
                 </div>
                 <div className="flex-1">
                   <h3 className="font-medium text-gray-900 text-sm">
@@ -551,6 +552,372 @@ const HomePage = () => {
     </div>
   );
 
+  // Worker Dashboard - Desktop
+  const renderWorkerDesktopDashboard = () => (
+    <div className="space-y-6">
+      {/* Status Bar */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-100 px-6 py-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <div
+              className={`w-3 h-3 rounded-full ${
+                isAvailable ? "bg-green-500" : "bg-gray-400"
+              }`}
+            ></div>
+            <span
+              className="text-sm font-medium text-gray-700 cursor-pointer"
+              onClick={() => setIsAvailable(!isAvailable)}
+            >
+              {isAvailable ? "Available for Work" : "Currently Unavailable"}
+            </span>
+          </div>
+          <button className="text-blue-500 text-sm font-medium hover:text-blue-600">
+            📍 Set Location
+          </button>
+        </div>
+      </div>
+
+      {/* Welcome Section */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
+        <div className="flex items-center space-x-4">
+          <Image
+            src="/worker1.jpg"
+            alt="Profile"
+            width={64}
+            height={64}
+            className="w-16 h-16 rounded-full object-cover"
+          />
+          <div>
+            <h1 className="text-2xl font-semibold text-gray-900">
+              Welcome back, {user?.profile_data?.firstName || "Worker"}!
+            </h1>
+            <p className="text-gray-600">Ready to start working today?</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Quick Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
+          <div className="text-center">
+            <p className="text-4xl font-bold text-blue-600">12</p>
+            <p className="text-sm text-gray-600 mt-2">Jobs This Month</p>
+          </div>
+        </div>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
+          <div className="text-center">
+            <p className="text-4xl font-bold text-green-600">₱4,850</p>
+            <p className="text-sm text-gray-600 mt-2">Total Earnings</p>
+          </div>
+        </div>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
+          <div className="text-center">
+            <p className="text-4xl font-bold text-yellow-600">4.8</p>
+            <p className="text-sm text-gray-600 mt-2">Rating</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Content Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Active Jobs */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-gray-900">Active Jobs</h2>
+            <button className="text-blue-500 text-sm font-medium hover:text-blue-600">
+              View All
+            </button>
+          </div>
+          <div className="space-y-3">
+            {activeJobs.map((job) => (
+              <div
+                key={job.id}
+                className="bg-white rounded-lg shadow-sm border border-gray-100 p-4"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-medium text-gray-900">{job.title}</h3>
+                  <span
+                    className={`px-3 py-1 rounded-full text-xs font-medium ${
+                      job.status === "IN_PROGRESS"
+                        ? "bg-blue-100 text-blue-700"
+                        : job.status === "PENDING"
+                          ? "bg-yellow-100 text-yellow-700"
+                          : "bg-green-100 text-green-700"
+                    }`}
+                  >
+                    {job.status.replace("_", " ")}
+                  </span>
+                </div>
+                <p className="text-sm text-gray-600 mb-2">
+                  Client: {job.client}
+                </p>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-gray-900">
+                    {job.price}
+                  </span>
+                  <span className="text-sm text-gray-600">
+                    {job.timeRemaining} remaining
+                  </span>
+                </div>
+                {job.status === "IN_PROGRESS" && (
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      className="bg-blue-500 h-2 rounded-full transition-all"
+                      style={{ width: `${job.progress}%` }}
+                    ></div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Recent Activity */}
+        <div className="space-y-4">
+          <h2 className="text-xl font-semibold text-gray-900">
+            Recent Activity
+          </h2>
+          <div className="bg-white rounded-lg shadow-sm border border-gray-100 divide-y divide-gray-100">
+            {recentActivity.map((activity) => (
+              <div key={activity.id} className="p-4">
+                <div className="flex items-start space-x-3">
+                  <div
+                    className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                      activity.type === "PAYMENT_RECEIVED"
+                        ? "bg-green-100 text-green-600"
+                        : activity.type === "REVIEW_RECEIVED"
+                          ? "bg-yellow-100 text-yellow-600"
+                          : "bg-blue-100 text-blue-600"
+                    }`}
+                  >
+                    {activity.type === "PAYMENT_RECEIVED"
+                      ? "💰"
+                      : activity.type === "REVIEW_RECEIVED"
+                        ? "⭐"
+                        : "✅"}
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-medium text-gray-900">
+                      {activity.title}
+                    </h3>
+                    <p className="text-sm text-gray-600">
+                      {activity.description}
+                    </p>
+                    <div className="flex items-center justify-between mt-2">
+                      <span className="text-xs text-gray-500">
+                        {activity.timeAgo}
+                      </span>
+                      {activity.amount && (
+                        <span className="text-sm font-medium text-green-600">
+                          {activity.amount}
+                        </span>
+                      )}
+                      {activity.rating && (
+                        <div className="flex items-center space-x-1">
+                          {[...Array(5)].map((_, i) => (
+                            <span
+                              key={i}
+                              className={`text-xs ${
+                                i < activity.rating!
+                                  ? "text-yellow-400"
+                                  : "text-gray-300"
+                              }`}
+                            >
+                              ⭐
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* My Specializations */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-semibold text-gray-900">
+            My Specializations
+          </h2>
+          <button className="text-blue-500 text-sm font-medium hover:text-blue-600">
+            Edit
+          </button>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {jobSpecializations.slice(0, 4).map((spec) => (
+            <div
+              key={spec.id}
+              className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 cursor-pointer hover:border-blue-300 hover:shadow-md transition-all"
+              onClick={() => setSelectedSpecialization(spec.id)}
+            >
+              <div className="text-center">
+                <div className="text-3xl mb-3">{spec.icon}</div>
+                <h3 className="font-medium text-gray-900 text-sm mb-1">
+                  {spec.name}
+                </h3>
+                <p className="text-xs text-gray-600">{spec.estimatedPrice}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  // Client Dashboard - Desktop
+  const renderClientDesktopDashboard = () => (
+    <div className="space-y-6">
+      {/* Welcome Section */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
+        <div className="flex items-center space-x-4">
+          <Image
+            src="/worker2.jpg"
+            alt="Profile"
+            width={64}
+            height={64}
+            className="w-16 h-16 rounded-full object-cover"
+          />
+          <div>
+            <h1 className="text-2xl font-semibold text-gray-900">
+              Hello, {user?.profile_data?.firstName || "Client"}!
+            </h1>
+            <p className="text-gray-600">What service do you need today?</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Search Bar */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
+        <div className="relative max-w-2xl">
+          <input
+            type="text"
+            placeholder="Search for services..."
+            className="w-full border border-gray-200 rounded-lg px-4 py-3 pl-12 text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+          />
+          <div className="absolute left-4 top-1/2 transform -translate-y-1/2">
+            <svg
+              className="w-5 h-5 text-gray-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              />
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      {/* Quick Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
+          <div className="text-center">
+            <p className="text-4xl font-bold text-blue-600">8</p>
+            <p className="text-sm text-gray-600 mt-2">Jobs Posted</p>
+          </div>
+        </div>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
+          <div className="text-center">
+            <p className="text-4xl font-bold text-green-600">₱3,200</p>
+            <p className="text-sm text-gray-600 mt-2">Total Spent</p>
+          </div>
+        </div>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
+          <div className="text-center">
+            <p className="text-4xl font-bold text-yellow-600">4.9</p>
+            <p className="text-sm text-gray-600 mt-2">Your Rating</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Popular Services */}
+      <div className="space-y-4">
+        <h2 className="text-xl font-semibold text-gray-900">
+          Popular Services
+        </h2>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {jobSpecializations.map((service) => (
+            <div
+              key={service.id}
+              className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 cursor-pointer hover:border-blue-300 hover:shadow-md transition-all"
+              onClick={() =>
+                router.push(`/dashboard/search?service=${service.id}`)
+              }
+            >
+              <div className="text-center">
+                <div className="text-3xl mb-3">{service.icon}</div>
+                <h3 className="font-medium text-gray-900 text-sm mb-2">
+                  {service.name}
+                </h3>
+                <p className="text-xs text-gray-600 mb-3">
+                  {service.description}
+                </p>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-green-600 font-medium">
+                    {service.estimatedPrice}
+                  </span>
+                  <span className="text-gray-500">
+                    {service.workerCount} workers
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Recent Bookings */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-semibold text-gray-900">
+            Recent Bookings
+          </h2>
+          <button className="text-blue-500 text-sm font-medium hover:text-blue-600">
+            View All
+          </button>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-medium text-gray-900">
+                Washing Machine Repair
+              </h3>
+              <span className="px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                Completed
+              </span>
+            </div>
+            <p className="text-sm text-gray-600 mb-2">Worker: John Reyes</p>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-500">2 days ago</span>
+              <span className="text-sm font-medium text-gray-900">₱380</span>
+            </div>
+          </div>
+          <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-medium text-gray-900">Electrical Wiring</h3>
+              <span className="px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                In Progress
+              </span>
+            </div>
+            <p className="text-sm text-gray-600 mb-2">Worker: Maria Garcia</p>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-500">Started 1 hour ago</span>
+              <span className="text-sm font-medium text-gray-900">₱750</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   // Fallback for users without profile type
   const renderDefaultDashboard = () => (
     <div className="min-h-screen bg-gray-50 pb-16 flex items-center justify-center">
@@ -589,12 +956,31 @@ const HomePage = () => {
   );
 
   return (
-    <>
-      {isWorker && renderWorkerDashboard()}
-      {isClient && renderClientDashboard()}
-      {!isWorker && !isClient && renderDefaultDashboard()}
-      <MobileNav />
-    </>
+    <div className="min-h-screen bg-gray-50">
+      {/* Desktop Navbar */}
+      <DesktopNavbar
+        isWorker={isWorker}
+        userName={user?.profile_data?.firstName || "User"}
+        onLogout={logout}
+      />
+
+      {/* Desktop Layout */}
+      <div className="hidden lg:block">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {isWorker && renderWorkerDesktopDashboard()}
+          {isClient && renderClientDesktopDashboard()}
+          {!isWorker && !isClient && renderDefaultDashboard()}
+        </div>
+      </div>
+
+      {/* Mobile Layout */}
+      <div className="lg:hidden">
+        {isWorker && renderWorkerDashboard()}
+        {isClient && renderClientDashboard()}
+        {!isWorker && !isClient && renderDefaultDashboard()}
+        <MobileNav />
+      </div>
+    </div>
   );
 };
 
