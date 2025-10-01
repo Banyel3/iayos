@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
 import { Providers } from "./providers";
 import { ToastProvider } from "@/components/ui/toast";
 import { AuthProvider } from "@/context/AuthContext";
