@@ -11,3 +11,4 @@ httpx
 rav
 django-allauth
 django-allauth[socialaccount]
+supabase
