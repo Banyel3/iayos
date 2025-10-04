@@ -1,17 +1,15 @@
 {
   "/_not-found/page": "app/_not-found/page.js",
   "/api/auth/check-rate-limit/route": "app/api/auth/check-rate-limit/route.js",
-  "/api/auth/send/route": "app/api/auth/send/route.js",
-  "/auth/forgot-password/page": "app/auth/forgot-password/page.js",
   "/auth/login/page": "app/auth/login/page.js",
   "/auth/register/page": "app/auth/register/page.js",
-  "/auth/verify-email/page": "app/auth/verify-email/page.js",
+  "/dashboard/agency/page": "app/dashboard/agency/page.js",
   "/dashboard/home/page": "app/dashboard/home/page.js",
   "/dashboard/inbox/page": "app/dashboard/inbox/page.js",
   "/dashboard/kyc/page": "app/dashboard/kyc/page.js",
   "/dashboard/myRequests/page": "app/dashboard/myRequests/page.js",
-  "/dashboard/page": "app/dashboard/page.js",
+  "/dashboard/profile/edit/page": "app/dashboard/profile/edit/page.js",
   "/dashboard/profile/page": "app/dashboard/profile/page.js",
   "/favicon.ico/route": "app/favicon.ico/route.js",
-  "/onboard/page": "app/onboard/page.js"
+  "/page": "app/page.js"
 }

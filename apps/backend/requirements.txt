@@ -1,5 +1,6 @@
 django
 django-ninja
+django-ninja-extra
 PyJWT
 cryptography
 pydantic[email]

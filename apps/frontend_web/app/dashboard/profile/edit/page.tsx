@@ -12,6 +12,8 @@ interface ProfileData {
   lastName: string;
   profileImg: string;
   profileType: "WORKER" | "CLIENT" | null;
+  contactNum: string | null;
+  birthDate: string | null;
 }
 
 interface UserData {
@@ -52,7 +54,7 @@ const EditProfilePage = () => {
     const fetchUserData = async () => {
       try {
         setIsFetching(true);
-        const response = await fetch("http://localhost:8000/api/me", {
+        const response = await fetch("http://localhost:8000/api/accounts/me", {
           method: "GET",
           credentials: "include",
           headers: {
@@ -71,8 +73,8 @@ const EditProfilePage = () => {
           firstName: data.profile_data?.firstName || "",
           lastName: data.profile_data?.lastName || "",
           email: data.email || "",
-          contactNum: "", // Not in current API response
-          birthDate: "", // Not in current API response
+          contactNum: data.profile_data?.contactNum || "",
+          birthDate: data.profile_data?.birthDate || "", // Not in current API response
           profileImg: data.profile_data?.profileImg || "",
         });
 

@@ -313,6 +313,8 @@ def fetch_currentUser(accountID):
                 "lastName": profile.lastName,
                 "profileImg": profile.profileImg,
                 "profileType": profile.profileType,
+                "contactNum": profile.contactNum,
+                "birthDate": profile.birthDate.isoformat() if profile.birthDate else None,
             }
 
             return {
