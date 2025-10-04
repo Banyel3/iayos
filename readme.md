@@ -77,6 +77,7 @@ python -m venv venv
 ### Add Environment Variables
 
 Get the `.env` file from our group chat and place it inside `apps/backend/`.
+Get the `.env.local` file from our group chat and place it inside `apps/frontend_web/`.
 
 ### Run the Backend
 
