@@ -1,17 +1,20 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { User } from "@/types";
 import MobileNav from "@/components/ui/mobile-nav";
+import DesktopNavbar from "@/components/ui/desktop-sidebar";
 
 // Extended User interface for profile page
 interface ProfileUser extends User {
-  firstName?: string;
-  lastName?: string;
-  profileType?: "WORKER" | "CLIENT" | null;
+  profile_data?: {
+    firstName?: string;
+    lastName?: string;
+    profileType?: "WORKER" | "CLIENT" | null;
+  };
 }
 
 // Interfaces for different profile types
@@ -53,41 +56,41 @@ const ProfilePage = () => {
   const { user: authUser, isAuthenticated, isLoading, logout } = useAuth();
   const user = authUser as ProfileUser; // Type assertion for this page
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<"overview" | "recent">("overview");
+  const [activeTab, setActiveTab] = useState<
+    "overview" | "feedbacks" | "transaction"
+  >("overview");
   const [isAvailable, setIsAvailable] = useState(true);
 
+  // Authentication check and profile type redirect
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.push("/auth/login");
+    }
+
+    // Redirect if user doesn't have a profile type set
+    if (isAuthenticated && !user?.profile_data?.profileType) {
+      router.push("/dashboard");
+    }
+  }, [isAuthenticated, isLoading, router, user?.profile_data?.profileType]);
+
   // Loading state
-  if (status === "loading") {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <p className="text-gray-600">Loading...</p>
-      </div>
-    );
-  }
-
-  // Authentication check
-  if (!isAuthenticated) {
-    return (
-      <div className="flex justify-center items-center min-h-screen bg-gray-50">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-800 mb-4">
-            Access Denied
-          </h1>
-          <p className="text-gray-600 mb-6">You are not logged in.</p>
-          <button
-            onClick={() => router.push("/auth/login")}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Go to Login
-          </button>
+        <div className="flex flex-col items-center space-y-4">
+          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-gray-600">Loading...</p>
         </div>
       </div>
     );
   }
 
+  // Return null while redirecting
+  if (!isAuthenticated || !user?.profile_data?.profileType) return null;
+
   // Mock data for worker profile
   const workerData: WorkerProfile = {
-    name: user?.firstName || "John Reyes",
+    name: user?.profile_data?.firstName || "John Reyes",
     isVerified: false,
     avatar: "/worker1.jpg",
     jobTitle: "Appliance Repair Technician",
@@ -106,7 +109,7 @@ const ProfilePage = () => {
 
   // Mock data for client profile
   const clientData: ClientProfile = {
-    name: user?.firstName || "Crissy Santos",
+    name: user?.profile_data?.firstName || "Crissy Santos",
     isVerified: false,
     avatar: "/worker2.jpg", // Using available images for now
     location: "Quezon City, Metro Manila",
@@ -146,39 +149,40 @@ const ProfilePage = () => {
     ],
   };
 
-  const isWorker = user?.profileType === "WORKER";
-  const isClient = user?.profileType === "CLIENT";
+  const isWorker = user?.profile_data?.profileType === "WORKER";
+  const isClient = user?.profile_data?.profileType === "CLIENT";
 
   // Render worker profile
   const renderWorkerProfile = () => (
     <>
-      {/* Worker-specific header */}
-      <div className="bg-white px-4 py-3 border-b border-gray-200">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <div className="flex items-center space-x-2">
-              <div
-                className={`w-3 h-3 rounded-full ${
-                  isAvailable ? "bg-green-500" : "bg-gray-400"
-                }`}
-              ></div>
-              <span
-                className="text-sm font-medium text-gray-700 cursor-pointer"
-                onClick={() => setIsAvailable(!isAvailable)}
-              >
-                {isAvailable ? "Available" : "Unavailable"}
-              </span>
-            </div>
-          </div>
-          <button className="text-blue-500 text-sm font-medium">
-            📍 Set My Location
+      {/* Header with Log Out button - Outside cards */}
+      <div className="bg-blue-50 px-4 py-3">
+        <div className="flex flex-col items-end space-y-2">
+          <button
+            onClick={() => logout()}
+            className="text-red-500 text-sm font-medium hover:text-red-600"
+          >
+            Log Out
           </button>
+          <div className="flex items-center space-x-2">
+            <div
+              className={`w-3 h-3 rounded-full ${
+                isAvailable ? "bg-green-500" : "bg-gray-400"
+              }`}
+            ></div>
+            <span
+              className="text-sm font-medium text-gray-700 cursor-pointer"
+              onClick={() => setIsAvailable(!isAvailable)}
+            >
+              {isAvailable ? "Available" : "Unavailable"}
+            </span>
+          </div>
         </div>
       </div>
 
-      {/* Worker profile content */}
+      {/* First Card - Profile Info */}
       <div className="bg-white mx-4 mt-4 rounded-lg shadow-sm border border-gray-100">
-        <div className="px-4 pt-5 pb-3">
+        <div className="px-4 pt-5 pb-4">
           {/* Avatar and Basic Info */}
           <div className="flex items-center space-x-3 mb-3">
             <div className="relative">
@@ -194,70 +198,91 @@ const ProfilePage = () => {
               <h1 className="text-base font-semibold text-gray-900 mb-0">
                 {workerData.name}
               </h1>
-              <p className="text-xs text-red-500">
-                {workerData.isVerified ? "Verified" : "Unverified"}
+              <p className="text-xs text-green-500 flex items-center">
+                {workerData.isVerified ? "✓ Verified" : "Unverified"}
               </p>
             </div>
           </div>
 
-          {/* Worker Action Buttons */}
-          <div className="flex flex-col w-full space-y-2 mb-3">
-            <button className="w-full bg-blue-500 text-white py-2 rounded-lg text-xs font-medium hover:bg-blue-600 transition-colors">
-              Verify Now →
-            </button>
-            <button className="w-full bg-gray-100 text-gray-700 py-2 rounded-lg text-xs font-medium hover:bg-gray-200 transition-colors">
-              Edit Profile
-            </button>
-            <button
-              onClick={() => logout()}
-              className="w-full bg-red-500 text-white py-2 rounded-lg text-xs font-medium hover:bg-red-600 transition-colors"
-            >
-              Log Out
+          {/* Wallet Balance */}
+          <div className="bg-gray-50 rounded-lg p-3 mb-3">
+            <p className="text-xs text-gray-600 mb-1">Wallet Balance</p>
+            <p className="text-xl font-bold text-gray-900 mb-2">₱300.00</p>
+            <button className="bg-gray-50 text-blue-500 border border-blue-500 px-3 py-1 rounded-full text-xs font-medium hover:bg-blue-100 transition-colors">
+              Cash Out
             </button>
           </div>
 
-          {/* Tabs */}
-          <div className="flex w-full border-b border-gray-200 mb-4">
-            <button
-              onClick={() => setActiveTab("overview")}
-              className={`flex-1 py-2 text-xs font-medium border-b-2 transition-colors ${
-                activeTab === "overview"
-                  ? "border-blue-500 text-blue-600"
-                  : "border-transparent text-gray-500"
-              }`}
-            >
-              Overview
-            </button>
-            <button
-              onClick={() => setActiveTab("recent")}
-              className={`flex-1 py-2 text-xs font-medium border-b-2 transition-colors ${
-                activeTab === "recent"
-                  ? "border-blue-500 text-blue-600"
-                  : "border-transparent text-gray-500"
-              }`}
-            >
-              Recent Jobs
-            </button>
-          </div>
+          {/* Edit Profile Button */}
+          <button
+            onClick={() => router.push("/dashboard/profile/edit")}
+            className="w-full bg-gray-100 text-gray-700 py-2 rounded-lg text-xs font-medium hover:bg-gray-200 transition-colors"
+          >
+            Edit Profile
+          </button>
+        </div>
+      </div>
 
+      {/* Tabs - Outside card on blue background */}
+      <div className="px-4 mt-4">
+        <div className="flex w-full border-b border-gray-300">
+          <button
+            onClick={() => setActiveTab("overview")}
+            className={`flex-1 py-2 text-xs transition-colors ${
+              activeTab === "overview"
+                ? "font-bold underline text-gray-900"
+                : "font-medium text-gray-600"
+            }`}
+          >
+            Overview
+          </button>
+          <button
+            onClick={() => setActiveTab("feedbacks")}
+            className={`flex-1 py-2 text-xs transition-colors ${
+              activeTab === "feedbacks"
+                ? "font-bold underline text-gray-900"
+                : "font-medium text-gray-600"
+            }`}
+          >
+            Feedbacks
+          </button>
+          <button
+            onClick={() => setActiveTab("transaction")}
+            className={`flex-1 py-2 text-xs transition-colors ${
+              activeTab === "transaction"
+                ? "font-bold underline text-gray-900"
+                : "font-medium text-gray-600"
+            }`}
+          >
+            Transaction
+          </button>
+        </div>
+      </div>
+
+      {/* Second Card - Tab Content */}
+      <div className="bg-white mx-4 mt-4 rounded-lg shadow-sm border border-gray-100">
+        <div className="px-4 py-4">
           {/* Worker Tab Content */}
           {activeTab === "overview" && (
             <div className="space-y-4">
               {/* Job Title and Rate */}
-              <div className="text-center">
+              <div className="text-left">
                 <h2 className="text-sm font-semibold text-gray-900 mb-1">
                   {workerData.jobTitle}
                 </h2>
-                <div className="text-gray-600">
+                <div className="text-gray-600 mb-2">
                   <span className="text-xs">Starting Rate:</span>
-                  <div className="text-base font-bold text-gray-900 mt-1">
+                  <div className="text-lg font-bold text-gray-900">
                     {workerData.startingRate}
                   </div>
+                  <p className="text-xs text-blue-400 cursor-pointer">
+                    *Non Certified Rate
+                  </p>
                 </div>
               </div>
 
               {/* Experience and Ratings */}
-              <div className="flex items-center justify-center space-x-6 text-xs text-gray-600 py-1">
+              <div className="flex items-center space-x-4 text-xs text-gray-600 py-1">
                 <div className="flex items-center space-x-1">
                   <span>📅</span>
                   <span>{workerData.experience}</span>
@@ -276,7 +301,7 @@ const ProfilePage = () => {
                   Certificates
                 </h3>
                 <div className="text-left">
-                  <span className="text-blue-500 text-xs underline cursor-pointer hover:text-blue-600">
+                  <span className="text-blue-400 text-xs underline cursor-pointer hover:text-blue-500">
                     {workerData.certificate}
                   </span>
                 </div>
@@ -287,11 +312,11 @@ const ProfilePage = () => {
                 <h3 className="text-xs font-semibold text-gray-900 mb-2">
                   Skills
                 </h3>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="flex flex-wrap gap-2">
                   {workerData.skills.map((skill, index) => (
                     <div
                       key={index}
-                      className="bg-gray-50 rounded-lg px-2 py-2 text-xs text-gray-700 border border-gray-200 text-center"
+                      className="bg-blue-50 rounded-lg px-3 py-2 text-xs text-blue-700 border border-blue-200"
                     >
                       {skill}
                     </div>
@@ -301,9 +326,15 @@ const ProfilePage = () => {
             </div>
           )}
 
-          {activeTab === "recent" && (
+          {activeTab === "feedbacks" && (
             <div className="text-center py-8 text-gray-500">
-              <p className="text-sm">No recent jobs to display</p>
+              <p className="text-sm">No feedbacks to display</p>
+            </div>
+          )}
+
+          {activeTab === "transaction" && (
+            <div className="text-center py-8 text-gray-500">
+              <p className="text-sm">No transactions to display</p>
             </div>
           )}
         </div>
@@ -343,7 +374,10 @@ const ProfilePage = () => {
             <button className="w-full bg-blue-500 text-white py-2 rounded-lg text-xs font-medium hover:bg-blue-600 transition-colors">
               Verify Now →
             </button>
-            <button className="w-full bg-gray-100 text-gray-700 py-2 rounded-lg text-xs font-medium hover:bg-gray-200 transition-colors">
+            <button
+              onClick={() => router.push("/dashboard/profile/edit")}
+              className="w-full bg-gray-100 text-gray-700 py-2 rounded-lg text-xs font-medium hover:bg-gray-200 transition-colors"
+            >
               Edit Profile
             </button>
             <button
@@ -414,34 +448,289 @@ const ProfilePage = () => {
     </>
   );
   return (
-    <div className="min-h-screen bg-blue-50 pb-20">
-      <br />
-      <br />
-      {isWorker && renderWorkerProfile()}
-      {isClient && renderClientProfile()}
+    <div className="min-h-screen bg-blue-50">
+      {/* Desktop Layout */}
+      <div className="hidden lg:block">
+        {/* Desktop Navbar */}
+        <DesktopNavbar
+          isWorker={isWorker}
+          userName={isWorker ? workerData.name : clientData.name}
+          onLogout={logout}
+          isAvailable={isAvailable}
+          onAvailabilityToggle={() => setIsAvailable(!isAvailable)}
+        />
 
-      {/* Fallback for undefined profile types */}
-      {!isWorker && !isClient && (
-        <div className="flex justify-center items-center min-h-screen bg-blue-50">
-          <div className="text-center">
-            <h1 className="text-2xl font-bold text-gray-800 mb-4">
-              Profile Setup Required
-            </h1>
-            <p className="text-gray-600 mb-6">
-              Please complete your profile setup.
-            </p>
-            <button
-              onClick={() => router.push("/dashboard")}
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              Complete Setup
-            </button>
+        {/* Desktop Content Area */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {/* Availability Toggle Row */}
+          {isWorker && (
+            <div className="mb-6 flex items-center justify-end">
+              <div className="flex items-center space-x-2">
+                <div
+                  className={`w-3 h-3 rounded-full ${
+                    isAvailable ? "bg-green-500" : "bg-gray-400"
+                  }`}
+                ></div>
+                <span
+                  className="text-sm font-medium text-gray-700 cursor-pointer"
+                  onClick={() => setIsAvailable(!isAvailable)}
+                >
+                  {isAvailable ? "Available" : "Unavailable"}
+                </span>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Left Column - Profile Card */}
+            <div className="lg:col-span-1">
+              <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6 sticky top-24">
+                <div className="flex flex-col items-center text-center mb-4">
+                  <Image
+                    src={isWorker ? workerData.avatar : clientData.avatar}
+                    alt={isWorker ? workerData.name : clientData.name}
+                    width={96}
+                    height={96}
+                    className="w-24 h-24 rounded-full object-cover mb-3"
+                  />
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    {isWorker ? workerData.name : clientData.name}
+                  </h2>
+                  <p className="text-sm text-green-500 flex items-center">
+                    {isWorker
+                      ? workerData.isVerified
+                        ? "✓ Verified"
+                        : "Unverified"
+                      : clientData.isVerified
+                        ? "✓ Verified"
+                        : "Unverified"}
+                  </p>
+                </div>
+
+                {isWorker && (
+                  <>
+                    <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                      <p className="text-xs text-gray-600 mb-1">
+                        Wallet Balance
+                      </p>
+                      <p className="text-2xl font-bold text-gray-900 mb-3">
+                        ₱300.00
+                      </p>
+                      <button className="bg-gray-50 text-blue-500 border border-blue-500 px-3 py-1 rounded-full text-xs font-medium hover:bg-blue-100 transition-colors">
+                        Cash Out
+                      </button>
+                    </div>
+                    <button
+                      onClick={() => router.push("/dashboard/profile/edit")}
+                      className="w-full bg-gray-100 text-gray-700 py-2 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
+                    >
+                      Edit Profile
+                    </button>
+                  </>
+                )}
+
+                {isClient && (
+                  <div className="space-y-2">
+                    <button className="w-full bg-blue-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors">
+                      Verify Now →
+                    </button>
+                    <button
+                      onClick={() => router.push("/dashboard/profile/edit")}
+                      className="w-full bg-gray-100 text-gray-700 py-2 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
+                    >
+                      Edit Profile
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Right Column - Content */}
+            <div className="lg:col-span-2">
+              {/* Tabs */}
+              <div className="mb-6">
+                <div className="flex space-x-8 border-b border-gray-300">
+                  <button
+                    onClick={() => setActiveTab("overview")}
+                    className={`pb-3 text-sm transition-colors ${
+                      activeTab === "overview"
+                        ? "font-bold border-b-2 border-gray-900 text-gray-900"
+                        : "font-medium text-gray-600"
+                    }`}
+                  >
+                    Overview
+                  </button>
+                  <button
+                    onClick={() => setActiveTab("feedbacks")}
+                    className={`pb-3 text-sm transition-colors ${
+                      activeTab === "feedbacks"
+                        ? "font-bold border-b-2 border-gray-900 text-gray-900"
+                        : "font-medium text-gray-600"
+                    }`}
+                  >
+                    Feedbacks
+                  </button>
+                  <button
+                    onClick={() => setActiveTab("transaction")}
+                    className={`pb-3 text-sm transition-colors ${
+                      activeTab === "transaction"
+                        ? "font-bold border-b-2 border-gray-900 text-gray-900"
+                        : "font-medium text-gray-600"
+                    }`}
+                  >
+                    Transaction
+                  </button>
+                </div>
+              </div>
+
+              {/* Tab Content */}
+              <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
+                {isWorker && activeTab === "overview" && (
+                  <div className="space-y-6">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                        {workerData.jobTitle}
+                      </h3>
+                      <div className="text-gray-600 mb-3">
+                        <span className="text-sm">Starting Rate:</span>
+                        <div className="text-2xl font-bold text-gray-900">
+                          {workerData.startingRate}
+                        </div>
+                        <p className="text-xs text-blue-400 cursor-pointer">
+                          *Non Certified Rate
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-6 text-sm text-gray-600">
+                      <div className="flex items-center space-x-2">
+                        <span>📅</span>
+                        <span>{workerData.experience}</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <span>⭐</span>
+                        <span>
+                          {workerData.rating} {workerData.ratingsCount}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-900 mb-2">
+                        Certificates
+                      </h4>
+                      <span className="text-blue-400 text-sm underline cursor-pointer hover:text-blue-500">
+                        {workerData.certificate}
+                      </span>
+                    </div>
+
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-900 mb-3">
+                        Skills
+                      </h4>
+                      <div className="flex flex-wrap gap-2">
+                        {workerData.skills.map((skill, index) => (
+                          <div
+                            key={index}
+                            className="bg-blue-50 rounded-lg px-4 py-2 text-sm text-blue-700 border border-blue-200"
+                          >
+                            {skill}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {isClient && activeTab === "overview" && (
+                  <div className="space-y-4">
+                    {clientData.jobHistory.map((job) => (
+                      <div key={job.id} className="bg-blue-50 rounded-lg p-4">
+                        <div className="flex justify-between items-start mb-2">
+                          <span className="text-sm text-gray-500">
+                            {job.timeAgo}
+                          </span>
+                          <span className="text-lg font-bold text-gray-900">
+                            {job.price}
+                          </span>
+                        </div>
+                        <h3 className="text-base font-semibold text-gray-900 mb-1">
+                          {job.title}
+                        </h3>
+                        <p className="text-sm text-gray-600 mb-3">
+                          {job.duration}
+                        </p>
+                        <div className="bg-white rounded-lg p-3">
+                          <div className="flex items-center space-x-1 mb-2">
+                            {[...Array(5)].map((_, i) => (
+                              <span
+                                key={i}
+                                className={`text-sm ${
+                                  i < job.rating
+                                    ? "text-yellow-500"
+                                    : "text-gray-300"
+                                }`}
+                              >
+                                ⭐
+                              </span>
+                            ))}
+                          </div>
+                          <p className="text-sm text-gray-700 italic">
+                            {job.feedback}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {activeTab === "feedbacks" && (
+                  <div className="text-center py-12 text-gray-500">
+                    <p>No feedbacks to display</p>
+                  </div>
+                )}
+
+                {activeTab === "transaction" && (
+                  <div className="text-center py-12 text-gray-500">
+                    <p>No transactions to display</p>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
-      )}
+      </div>
 
-      {/* Mobile Navigation */}
-      <MobileNav />
+      {/* Mobile Layout */}
+      <div className="lg:hidden pb-20">
+        <br />
+        <br />
+        {isWorker && renderWorkerProfile()}
+        {isClient && renderClientProfile()}
+
+        {/* Fallback for undefined profile types */}
+        {!isWorker && !isClient && (
+          <div className="flex justify-center items-center min-h-screen">
+            <div className="text-center">
+              <h1 className="text-2xl font-bold text-gray-800 mb-4">
+                Profile Setup Required
+              </h1>
+              <p className="text-gray-600 mb-6">
+                Please complete your profile setup.
+              </p>
+              <button
+                onClick={() => router.push("/dashboard")}
+                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Complete Setup
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Mobile Navigation */}
+        <MobileNav />
+      </div>
     </div>
   );
 };

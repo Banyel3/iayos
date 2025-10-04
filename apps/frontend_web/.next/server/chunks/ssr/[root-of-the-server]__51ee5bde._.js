@@ -158,8 +158,6 @@ __turbopack_context__.s([
     ()=>useAuth,
     "useAuthStatus",
     ()=>useAuthStatus,
-    "useAuthToken",
-    ()=>useAuthToken,
     "useAuthenticatedFetch",
     ()=>useAuthenticatedFetch
 ]);
@@ -174,9 +172,6 @@ const useAuth = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules
 const useAuthStatus = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$rsc$2f$react$2d$server$2d$dom$2d$turbopack$2d$server$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["registerClientReference"])(function() {
     throw new Error("Attempted to call useAuthStatus() from the server but useAuthStatus is on the client. It's not possible to invoke a client function from the server, it can only be rendered as a Component or passed to props of a Client Component.");
 }, "[project]/apps/frontend_web/context/AuthContext.tsx <module evaluation>", "useAuthStatus");
-const useAuthToken = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$rsc$2f$react$2d$server$2d$dom$2d$turbopack$2d$server$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["registerClientReference"])(function() {
-    throw new Error("Attempted to call useAuthToken() from the server but useAuthToken is on the client. It's not possible to invoke a client function from the server, it can only be rendered as a Component or passed to props of a Client Component.");
-}, "[project]/apps/frontend_web/context/AuthContext.tsx <module evaluation>", "useAuthToken");
 const useAuthenticatedFetch = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$rsc$2f$react$2d$server$2d$dom$2d$turbopack$2d$server$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["registerClientReference"])(function() {
     throw new Error("Attempted to call useAuthenticatedFetch() from the server but useAuthenticatedFetch is on the client. It's not possible to invoke a client function from the server, it can only be rendered as a Component or passed to props of a Client Component.");
 }, "[project]/apps/frontend_web/context/AuthContext.tsx <module evaluation>", "useAuthenticatedFetch");
@@ -192,8 +187,6 @@ __turbopack_context__.s([
     ()=>useAuth,
     "useAuthStatus",
     ()=>useAuthStatus,
-    "useAuthToken",
-    ()=>useAuthToken,
     "useAuthenticatedFetch",
     ()=>useAuthenticatedFetch
 ]);
@@ -208,9 +201,6 @@ const useAuth = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules
 const useAuthStatus = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$rsc$2f$react$2d$server$2d$dom$2d$turbopack$2d$server$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["registerClientReference"])(function() {
     throw new Error("Attempted to call useAuthStatus() from the server but useAuthStatus is on the client. It's not possible to invoke a client function from the server, it can only be rendered as a Component or passed to props of a Client Component.");
 }, "[project]/apps/frontend_web/context/AuthContext.tsx", "useAuthStatus");
-const useAuthToken = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$rsc$2f$react$2d$server$2d$dom$2d$turbopack$2d$server$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["registerClientReference"])(function() {
-    throw new Error("Attempted to call useAuthToken() from the server but useAuthToken is on the client. It's not possible to invoke a client function from the server, it can only be rendered as a Component or passed to props of a Client Component.");
-}, "[project]/apps/frontend_web/context/AuthContext.tsx", "useAuthToken");
 const useAuthenticatedFetch = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$rsc$2f$react$2d$server$2d$dom$2d$turbopack$2d$server$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["registerClientReference"])(function() {
     throw new Error("Attempted to call useAuthenticatedFetch() from the server but useAuthenticatedFetch is on the client. It's not possible to invoke a client function from the server, it can only be rendered as a Component or passed to props of a Client Component.");
 }, "[project]/apps/frontend_web/context/AuthContext.tsx", "useAuthenticatedFetch");

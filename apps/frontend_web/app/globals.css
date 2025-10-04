@@ -61,7 +61,8 @@ body {
 .focus-blue-glow:focus {
   outline: none;
   border-color: #3b82f6;
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2),
+  box-shadow:
+    0 0 0 2px rgba(59, 130, 246, 0.2),
     0 4px 6px -1px rgba(59, 130, 246, 0.1);
 }
 
@@ -146,6 +147,11 @@ body {
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Admin theme: make cards match dashboard stat cards (sky blue background and blue border) */
+.admin-theme [data-slot="card"] {
+  @apply bg-sky-100 border-blue-400;
 }
 
 /* PWA Safe Area Support */

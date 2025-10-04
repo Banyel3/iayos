@@ -7,87 +7,104 @@ import React, {
   ReactNode,
 } from "react";
 import { User, AuthContextType } from "@/types";
+import { useRouter } from "next/navigation";
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const TOKEN_KEY = "accessToken";
-
-const getStoredToken = (): string | null => {
-  if (typeof window === "undefined") return null;
-  try {
-    return localStorage.getItem(TOKEN_KEY);
-  } catch {
-    return null;
-  }
-};
-
-const setStoredToken = (token: string): void => {
-  if (typeof window === "undefined") return;
-  try {
-    localStorage.setItem(TOKEN_KEY, token);
-  } catch (error) {
-    console.warn("Failed to store token:", error);
-  }
-};
-
-const removeStoredToken = (): void => {
-  if (typeof window === "undefined") return;
-  try {
-    localStorage.removeItem(TOKEN_KEY);
-  } catch (error) {
-    console.warn("Failed to remove token:", error);
-  }
-};
-
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
+  const router = useRouter();
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false); // Start as false, not loading
 
-  useEffect(() => {
-    const initializeAuth = async () => {
-      const storedToken = getStoredToken();
-      if (storedToken) {
-        setAccessToken(storedToken);
-        try {
-          const response = await fetch(
-            "http://127.0.0.1:8000/api/accounts/me",
-            {
-              headers: {
-                Authorization: `Bearer ${storedToken}`,
-              },
-              credentials: "include",
-            }
-          );
+  const checkAuth = async () => {
+    setIsLoading(true);
+    try {
+      console.log("🔄 AuthContext: Checking authentication...");
 
-          if (response.ok) {
-            const userData = await response.json();
-            setUser(userData);
-          } else {
-            const refreshed = await refreshTokenInternal();
-            if (!refreshed) {
-              removeStoredToken();
-              setAccessToken(null);
-            }
-          }
-        } catch (error) {
-          console.error("Auth initialization error:", error);
-          removeStoredToken();
-          setAccessToken(null);
-        }
+      const response = await fetch("http://localhost:8000/api/accounts/me", {
+        credentials: "include",
+        headers: {
+          Accept: "application/json",
+        },
+      });
+
+      console.log("📡 AuthContext: Response status:", response.status);
+
+      if (!response.ok) {
+        console.log("❌ AuthContext: Not authenticated");
+        setAccessToken(null);
+        setUser(null);
+        return false;
       }
+
+      const userData = await response.json();
+      console.log("✅ AuthContext: Auth successful, user:", userData);
+
+      setUser(userData);
+      setAccessToken("authenticated");
+      return true;
+    } catch (error) {
+      console.error("💥 AuthContext: Auth check error:", error);
+      setAccessToken(null);
+      setUser(null);
+      return false;
+    } finally {
       setIsLoading(false);
-    };
+    }
+  };
 
-    initializeAuth();
-  }, []);
+  const isAuthenticated = Boolean(user);
 
-  const isAuthenticated = Boolean(accessToken && user);
+  const login = async (email: string, password: string): Promise<boolean> => {
+    try {
+      console.log("🔄 AuthContext: Attempting login...");
 
-  const login = (token: string, userData: User) => {
-    setAccessToken(token);
-    setUser(userData);
-    setStoredToken(token);
+      const response = await fetch("http://localhost:8000/api/accounts/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+        credentials: "include",
+      });
+
+      const data = await response.json();
+
+      // Check if response has errors
+      if (data.error && data.error.length > 0) {
+        const errorMessage = data.error[0].message;
+        // console.log("❌ AuthContext: Login failed with error:", errorMessage);
+        throw new Error(errorMessage); // Throw specific error message
+      }
+
+      if (!response.ok) {
+        // console.log("❌ AuthContext: Login failed with status:", response.status);
+        throw new Error(`Login failed with status ${response.status}`);
+      }
+
+      console.log("✅ AuthContext: Login successful, checking auth...");
+
+      // Add a small delay to ensure cookies are fully set
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Now check authentication to get real user data
+      const authSuccess = await checkAuth();
+      if (authSuccess) {
+        // console.log("✅ AuthContext: Login and auth check successful");
+
+        // Handle admin routing after successful auth
+        if (user?.role === "ADMIN") {
+          router.replace("/admin/dashboard");
+        }
+
+        return true;
+      } else {
+        // console.log("❌ AuthContext: Auth check failed after login");
+        throw new Error("Authentication verification failed");
+      }
+    } catch (error) {
+      // console.error("💥 AuthContext: Login error:", error);
+      throw error; // Re-throw the error so caller can handle it
+    }
   };
 
   const logout = async () => {
@@ -101,33 +118,28 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setAccessToken(null);
       setUser(null);
-      removeStoredToken();
     }
   };
 
   const refreshTokenInternal = async (): Promise<boolean> => {
     try {
       const response = await fetch(
-        "http://127.0.0.1:8000/api/accounts/refresh",
+        "http://localhost:8000/api/accounts/refresh",
         {
           method: "POST",
           credentials: "include",
         }
       );
-
       if (response.ok) {
         const data = await response.json();
-        setAccessToken(data.access);
-        setStoredToken(data.access);
+        setAccessToken("authenticated");
         if (data.user) {
           setUser(data.user);
         }
         return true;
       }
-
       return false;
     } catch (error) {
-      console.error("Token refresh failed:", error);
       return false;
     }
   };
@@ -137,7 +149,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!result) {
       setAccessToken(null);
       setUser(null);
-      removeStoredToken();
     }
     return result;
   };
@@ -150,6 +161,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     login,
     logout,
     refreshToken,
+    checkAuth,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -161,10 +173,7 @@ export const useAuth = (): AuthContextType => {
   return context;
 };
 
-export const useAuthToken = (): string | null => {
-  const { accessToken } = useAuth();
-  return accessToken;
-};
+// Removed useAuthToken since accessToken is not used for auth anymore
 
 export const useAuthStatus = (): {
   isAuthenticated: boolean;

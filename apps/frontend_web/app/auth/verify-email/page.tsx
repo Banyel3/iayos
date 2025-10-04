@@ -27,7 +27,7 @@ const VerifyEmail = () => {
 
     try {
       const res = await fetch(
-        `http://127.0.0.1:8000/api/accounts/verify?verifyToken=${verifyToken}&accountID=${id}`,
+        `http://localhost:8000/api/accounts/verify?verifyToken=${verifyToken}&accountID=${id}`,
         {
           method: "GET",
           headers: { "Content-Type": "application/json" },
@@ -43,7 +43,9 @@ const VerifyEmail = () => {
       } else {
         setLoading(false);
         setError(true);
-        setErrorMessage(data.error?.[0]?.message || "Email verification failed.");
+        setErrorMessage(
+          data.error?.[0]?.message || "Email verification failed."
+        );
       }
     } catch (error) {
       console.error("Verification error:", error);

@@ -18,6 +18,10 @@ class logInSchema(Schema):
     email: EmailStr
     password: str
 
+class assignRoleSchema(Schema):
+    email: EmailStr
+    selectedType: str
+
 class createAgencySchema(Schema):
     email: EmailStr
     password: str

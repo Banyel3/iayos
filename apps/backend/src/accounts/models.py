@@ -75,7 +75,7 @@ class Profile(models.Model):
     accountFK = models.ForeignKey(Accounts, on_delete=models.CASCADE)
 
 
-class Agency(models.Model):  # <- missing models.Model before
+class Agency(models.Model): 
     agencyId = models.BigAutoField(primary_key=True)
     accountFK = models.OneToOneField(Accounts, on_delete=models.CASCADE)
     businessName = models.CharField(max_length=50)
@@ -83,3 +83,43 @@ class Agency(models.Model):  # <- missing models.Model before
     businessDesc = models.CharField(max_length=255)
 
     createdAt = models.DateTimeField(auto_now_add=True)
+
+
+
+
+class WorkerProfile(models.Model):
+    profileID = models.OneToOneField(Profile, on_delete=models.CASCADE)
+    description = models.CharField(max_length=350)
+    workerRating = models.IntegerField(default=0)
+    totalEarningGross = models.DecimalField(max_digits=10, decimal_places=2)
+    class availabilityStatus(models.TextChoices):
+        AVAILABLE = "AVAILABLE", 'available'
+        BUSY = "BUSY", 'busy'
+        OFFLINE = "OFFLINE", "offline"
+
+    availabilityStatus = models.CharField(
+        max_length=10, choices=availabilityStatus.choices, default="OFFLINE", blank=True
+    )
+
+class ClientProfile(models.Model):
+    profileID = models.OneToOneField(Profile, on_delete=models.CASCADE)
+    description = models.CharField(max_length=350)
+    totalJobsPosted = models.IntegerField()
+    clientRating = models.IntegerField(default=0)
+    activeJobsCount = models.IntegerField
+
+
+class Specializations(models.Model):
+    specializationID = models.BigAutoField(primary_key=True)
+    specializationName = models.CharField(max_length=250)
+
+class InterestedJobs(models.Model):
+    clientID = models.ForeignKey(ClientProfile, on_delete=models.CASCADE)
+    specializationID = models.ForeignKey(Specializations, on_delete=models.CASCADE)
+
+
+class workerSpecialization(models.Model):
+    workerID = models.ForeignKey(WorkerProfile, on_delete=models.CASCADE )
+    specializationID = models.ForeignKey(Specializations, on_delete=models.CASCADE)
+    experienceYears = models.IntegerField()
+    certification = models.CharField(max_length=120)

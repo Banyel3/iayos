@@ -1,20 +1,40 @@
-from ninja import Router, Schema
-from .schemas import createAccountSchema, logInSchema, createAgencySchema, forgotPasswordSchema, resetPasswordSchema
-from .services import create_account_individ, create_account_agency, login_account, _verify_account, forgot_password_request, reset_password_verify
-
+from ninja import Router
+from .schemas import createAccountSchema, logInSchema, createAgencySchema, forgotPasswordSchema, resetPasswordSchema, assignRoleSchema
+from .services import create_account_individ, create_account_agency, login_account, _verify_account, forgot_password_request, reset_password_verify, logout_account, refresh_token, fetch_currentUser, generateCookie, assign_role
+from ninja.responses import Response
+from .authentication import cookie_auth
+from django.shortcuts import redirect
+from django.urls import reverse
 
 router = Router(tags=["Accounts"])
 
+#region USER-SIDE ACCOUNTS
+@router.get("/auth/google/login")
+def google_login(request):
+ 
+    return redirect(reverse("google_login"))
+    
+@router.get("/auth/google/callback")
+def google_callback(request):
+    if not request.user.is_authenticated:
+        return {"error": "Authentication failed"}
+    
+    return generateCookie(request.user)
 @router.post("/register")
 def register(request, payload: createAccountSchema):
     try:
         result = create_account_individ(payload)
         return result
     except ValueError as e:
-        return {"error": [{"message": str(e)}]}
+        return Response(
+            {"error": [{"message": str(e)}]}, 
+            status=400
+        )
     except Exception as e:
-        return {"error": [{"message": "Registration failed"}]}
-
+        return Response(
+            {"error": [{"message": "Registration failed"}]}, 
+            status=500
+        )
 @router.post("/register/agency")
 def register_agency(request, payload: createAgencySchema):
     try:
@@ -35,21 +55,43 @@ def login(request, payload: logInSchema):
     except Exception as e:
         return {"error": [{"message": "Login failed"}]}
 
-@router.post("/logout")
+@router.post('/assign-role')
+def assignRole(request, payload: assignRoleSchema):
+    try:
+        result = assign_role(payload)
+        return result
+    except ValueError as e:
+        return {"error": [{"message": str(e)}]}
+    except Exception as e:
+        return {"error": [{"message": "Role Assigning Failed"}]}
+@router.post("/logout", auth=cookie_auth)
 def logout(request):
-    # Placeholder for logout functionality
-    return {"message": "Logged out successfully"}
+   try:
+       result = logout_account
+       return result
+   except ValueError as e:
+        return {"error": [{"message": str(e)}]}
 
-@router.post("/refresh")
-def refresh_token(request):
-    # Placeholder for token refresh functionality
-    return {"message": "Token refresh endpoint - implement JWT refresh"}
+@router.post("/refresh", auth=cookie_auth)
+def refresh(request):
+    try:
+        result = refresh_token(request.COOKIES.get("refresh"))
+        return result
+    except ValueError as e:
+        return {"error": [{"message": str(e)}]}
 
-@router.get("/me")
+@router.get("/me", auth=cookie_auth)
 def get_user_profile(request):
-    # Placeholder for user profile endpoint  
-    return {"message": "User profile endpoint - implement user data fetch"}
+    try:
+        user = request.auth  # This comes from our cookie_auth
+        print(f"✅ /me - Authenticated user: {user.email}")
+        result = fetch_currentUser(user.accountID)
+        return result
+    except Exception as e:
+        print(f"❌ /me error: {str(e)}")
+        return {"error": [{"message": "Failed to fetch user profile"}]}
 
+# Send Email Verification
 @router.get("/verify")
 def verify(request, verifyToken: str, accountID: int):
     try:
@@ -81,3 +123,6 @@ def forgot_password_verify(request, payload: resetPasswordSchema, verifyToken: s
         return {"error": [{"message": str(e)}]}
     except Exception as e:
         return {"error": [{"message": "Password reset failed"}]}
+#endregion
+
+

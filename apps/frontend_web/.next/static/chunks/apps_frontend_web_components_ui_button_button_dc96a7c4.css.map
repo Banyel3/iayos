@@ -1,6 +1,0 @@
-{
-  "version": 3,
-  "sources": [],
-  "sections": [
-    {"offset": {"line": 1, "column": 0}, "map": {"version":3,"sources":["file:///C:/code/iayos/apps/frontend_web/components/ui/button/button.css"],"sourcesContent":[".primary-gradient {\r\n  background: var(--primary-gradient);\r\n}\r\n\r\n.primary-gradient:hover {\r\n  background: var(--primary-gradient);\r\n  opacity: 0.9;\r\n}\r\n"],"names":[],"mappings":"AAAA;;;;AAIA","debugId":null}}]
-}

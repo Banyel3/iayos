@@ -52,6 +52,7 @@ const ForgotPassword = () => {
 
   const handleSubmit = async (values: z.infer<typeof formSchema>) => {
     setIsLoading(true);
+    setError("");
 
     try {
       const res = await fetch(
@@ -63,22 +64,43 @@ const ForgotPassword = () => {
           credentials: "include",
         }
       );
+
       const data = await res.json();
-      console.log("Forgot password request for:", values.email);
+      console.log("Forgot password response:", data);
+
       if (!res.ok) {
-        setError(data.error?.[0]?.message || "Password reset request failed");
-        {
-          error && <p className="text-red-500 text-sm mt-2">{error}</p>;
-        }
-      } else {
-        // ✅ Request success → show email verification alert
-        setUserEmail(values.email);
-        setShowEmailAlert(true);
-        // Clear any existing errors
-        setError("");
+        // ❌ Error response from backend
+        setError(data.error || "Password reset request failed");
+        return;
       }
+
+      // ✅ Success - check if we have the verify link data
+      if (data.verifyLink && data.verifyLinkExpire) {
+        // User exists and we have reset link - send email
+        try {
+          const verifyRes = await fetch("/api/auth/send", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              email: data.email,
+              verifyLink: data.verifyLink,
+              verifyLinkExpire: data.verifyLinkExpire,
+            }),
+          });
+
+          if (!verifyRes.ok) {
+            console.error("Failed to send verification email");
+          }
+        } catch (err) {
+          console.error("Email sending error:", err);
+        }
+      }
+
+      // Always show success message (don't reveal if email exists)
+      setUserEmail(values.email);
+      setShowEmailAlert(true);
     } catch (error) {
-      // Placeholder error handling
+      console.error("Request error:", error);
       showAuthError(
         "We're having trouble processing your request. Please try again.",
         "Request Failed"

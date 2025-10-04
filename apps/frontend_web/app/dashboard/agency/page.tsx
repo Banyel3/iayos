@@ -1,8 +1,9 @@
 "use client";
-import React from "react";
+import React, { useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { User } from "@/types";
 import { useRouter } from "next/navigation";
+import DesktopNavbar from "@/components/ui/desktop-sidebar";
 
 // Extended User interface for agency page
 interface AgencyUser extends User {
@@ -13,40 +14,46 @@ interface AgencyUser extends User {
 
 const WorkerDash = () => {
   const { user: authUser, isAuthenticated, isLoading, logout } = useAuth();
-  const user = authUser as AgencyUser; // Type assertion for this page
+  const user = authUser as AgencyUser;
   const router = useRouter();
+  const [isAvailable, setIsAvailable] = React.useState(true);
 
-  if (isLoading) return <p>Loading...</p>; // optional loading state
+  if (isLoading) return <p>Loading...</p>; // strictly loading from backend validation
 
+  // Authentication check (strictly from backend JWT validation)
   if (!isAuthenticated || !user) {
-    return (
-      <div className="flex justify-center items-center min-h-screen bg-gray-50">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-800 mb-4">
-            Access Denied
+    useEffect(() => {
+      router.push("/auth/login");
+    }, [router]);
+    return null; // Will redirect
+  }
+  return (
+    <div className="min-h-screen bg-blue-50">
+      {/* Desktop Navbar */}
+      <DesktopNavbar
+        isWorker={true}
+        userName={user?.firstName || "Worker"}
+        onLogout={logout}
+        isAvailable={isAvailable}
+        onAvailabilityToggle={() => setIsAvailable(!isAvailable)}
+      />
+
+      {/* Content */}
+      <div className="lg:max-w-7xl lg:mx-auto lg:px-8 lg:py-8">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-8 text-center">
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">
+            Agency Dashboard
           </h1>
-          <p className="text-gray-600 mb-6">You are not logged in.</p>
+          <p className="text-gray-600 mb-6">This feature is coming soon.</p>
           <button
-            onClick={() => router.push("/auth/login")}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            onClick={() => router.push("/dashboard/home")}
+            className="bg-blue-500 text-white px-6 py-2 rounded-lg font-medium hover:bg-blue-600 transition-colors"
           >
-            Go to Login
+            Go to Home
           </button>
         </div>
       </div>
-    );
-  }
-  return (
-    <>
-      {" "}
-      <div>ClientDash</div>
-      <button
-        onClick={() => logout()}
-        className="text-gray-400 text-sm underline hover:text-gray-600 transition-colors"
-      >
-        Sign Out
-      </button>
-    </>
+    </div>
   );
 };
 

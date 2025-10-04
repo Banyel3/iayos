@@ -8,14 +8,44 @@ __turbopack_context__.s([
     ()=>Providers
 ]);
 var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/node_modules/next/dist/compiled/react/jsx-dev-runtime.js [app-client] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/node_modules/next/dist/compiled/react/index.js [app-client] (ecmascript)");
+;
+var _s = __turbopack_context__.k.signature();
 "use client";
 ;
 function Providers(param) {
     let { children } = param;
+    _s();
+    (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useEffect"])({
+        "Providers.useEffect": ()=>{
+            // Prevent browser alerts from unhandled errors
+            const handleError = {
+                "Providers.useEffect.handleError": (event)=>{
+                    console.error("Unhandled error:", event.error);
+                    event.preventDefault(); // Prevent default browser alert
+                }
+            }["Providers.useEffect.handleError"];
+            const handleUnhandledRejection = {
+                "Providers.useEffect.handleUnhandledRejection": (event)=>{
+                    console.error("Unhandled promise rejection:", event.reason);
+                    event.preventDefault(); // Prevent default browser alert
+                }
+            }["Providers.useEffect.handleUnhandledRejection"];
+            window.addEventListener("error", handleError);
+            window.addEventListener("unhandledrejection", handleUnhandledRejection);
+            return ({
+                "Providers.useEffect": ()=>{
+                    window.removeEventListener("error", handleError);
+                    window.removeEventListener("unhandledrejection", handleUnhandledRejection);
+                }
+            })["Providers.useEffect"];
+        }
+    }["Providers.useEffect"], []);
     return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["Fragment"], {
         children: children
     }, void 0, false);
 }
+_s(Providers, "OD7bBpZva5O2jO+Puf00hKivP7c=");
 _c = Providers;
 var _c;
 __turbopack_context__.k.register(_c, "Providers");
@@ -312,93 +342,111 @@ __turbopack_context__.s([
     ()=>useAuth,
     "useAuthStatus",
     ()=>useAuthStatus,
-    "useAuthToken",
-    ()=>useAuthToken,
     "useAuthenticatedFetch",
     ()=>useAuthenticatedFetch
 ]);
 var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/node_modules/next/dist/compiled/react/jsx-dev-runtime.js [app-client] (ecmascript)");
 var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/node_modules/next/dist/compiled/react/index.js [app-client] (ecmascript)");
 ;
-var _s = __turbopack_context__.k.signature(), _s1 = __turbopack_context__.k.signature(), _s2 = __turbopack_context__.k.signature(), _s3 = __turbopack_context__.k.signature(), _s4 = __turbopack_context__.k.signature();
+var _s = __turbopack_context__.k.signature(), _s1 = __turbopack_context__.k.signature(), _s2 = __turbopack_context__.k.signature(), _s3 = __turbopack_context__.k.signature();
 "use client";
 ;
 const AuthContext = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["createContext"])(undefined);
-const TOKEN_KEY = "accessToken";
-const getStoredToken = ()=>{
-    if ("TURBOPACK compile-time falsy", 0) //TURBOPACK unreachable
-    ;
-    try {
-        return localStorage.getItem(TOKEN_KEY);
-    } catch (e) {
-        return null;
-    }
-};
-const setStoredToken = (token)=>{
-    if ("TURBOPACK compile-time falsy", 0) //TURBOPACK unreachable
-    ;
-    try {
-        localStorage.setItem(TOKEN_KEY, token);
-    } catch (error) {
-        console.warn("Failed to store token:", error);
-    }
-};
-const removeStoredToken = ()=>{
-    if ("TURBOPACK compile-time falsy", 0) //TURBOPACK unreachable
-    ;
-    try {
-        localStorage.removeItem(TOKEN_KEY);
-    } catch (error) {
-        console.warn("Failed to remove token:", error);
-    }
-};
 const AuthProvider = (param)=>{
     let { children } = param;
     _s();
+    const router = useROuter();
     const [accessToken, setAccessToken] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])(null);
     const [user, setUser] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])(null);
-    const [isLoading, setIsLoading] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])(true);
-    (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useEffect"])({
-        "AuthProvider.useEffect": ()=>{
-            const initializeAuth = {
-                "AuthProvider.useEffect.initializeAuth": async ()=>{
-                    const storedToken = getStoredToken();
-                    if (storedToken) {
-                        setAccessToken(storedToken);
-                        try {
-                            const response = await fetch("http://127.0.0.1:8000/api/accounts/me", {
-                                headers: {
-                                    Authorization: "Bearer ".concat(storedToken)
-                                },
-                                credentials: "include"
-                            });
-                            if (response.ok) {
-                                const userData = await response.json();
-                                setUser(userData);
-                            } else {
-                                const refreshed = await refreshTokenInternal();
-                                if (!refreshed) {
-                                    removeStoredToken();
-                                    setAccessToken(null);
-                                }
-                            }
-                        } catch (error) {
-                            console.error("Auth initialization error:", error);
-                            removeStoredToken();
-                            setAccessToken(null);
-                        }
-                    }
-                    setIsLoading(false);
+    const [isLoading, setIsLoading] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])(false); // Start as false, not loading
+    // Optional: Check auth on mount if user might have existing cookies
+    // Uncomment this if you want to restore auth state on page refresh
+    // useEffect(() => {
+    //   checkAuth();
+    // }, []);
+    const checkAuth = async ()=>{
+        setIsLoading(true);
+        try {
+            console.log("🔄 AuthContext: Checking authentication...");
+            const response = await fetch("http://localhost:8000/api/accounts/me", {
+                credentials: "include",
+                headers: {
+                    Accept: "application/json"
                 }
-            }["AuthProvider.useEffect.initializeAuth"];
-            initializeAuth();
+            });
+            console.log("📡 AuthContext: Response status:", response.status);
+            if (!response.ok) {
+                console.log("❌ AuthContext: Not authenticated");
+                setAccessToken(null);
+                setUser(null);
+                return false;
+            }
+            const userData = await response.json();
+            (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useEffect"])({
+                "AuthProvider.checkAuth.useEffect": ()=>{
+                    if ((userData === null || userData === void 0 ? void 0 : userData.role) === "ADMIN") {
+                        router.replace("/admin/dashboard");
+                    }
+                }
+            }["AuthProvider.checkAuth.useEffect"], [
+                user === null || user === void 0 ? void 0 : user.role,
+                router
+            ]);
+            console.log("✅ AuthContext: Auth successful, user:", userData);
+            setUser(userData);
+            setAccessToken("authenticated");
+            return true;
+        } catch (error) {
+            console.error("💥 AuthContext: Auth check error:", error);
+            setAccessToken(null);
+            setUser(null);
+            return false;
+        } finally{
+            setIsLoading(false);
         }
-    }["AuthProvider.useEffect"], []);
-    const isAuthenticated = Boolean(accessToken && user);
-    const login = (token, userData)=>{
-        setAccessToken(token);
-        setUser(userData);
-        setStoredToken(token);
+    };
+    const isAuthenticated = Boolean(user);
+    const login = async (email, password)=>{
+        try {
+            console.log("🔄 AuthContext: Attempting login...");
+            const response = await fetch("http://localhost:8000/api/accounts/login", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    email,
+                    password
+                }),
+                credentials: "include"
+            });
+            const data = await response.json();
+            // Check if response has errors
+            if (data.error && data.error.length > 0) {
+                const errorMessage = data.error[0].message;
+                // console.log("❌ AuthContext: Login failed with error:", errorMessage);
+                throw new Error(errorMessage); // Throw specific error message
+            }
+            if (!response.ok) {
+                // console.log("❌ AuthContext: Login failed with status:", response.status);
+                throw new Error("Login failed with status ".concat(response.status));
+            }
+            console.log("✅ AuthContext: Login successful, checking auth...");
+            // Add a small delay to ensure cookies are fully set
+            await new Promise((resolve)=>setTimeout(resolve, 100));
+            // Now check authentication to get real user data
+            const authSuccess = await checkAuth();
+            if (authSuccess) {
+                // console.log("✅ AuthContext: Login and auth check successful");
+                return true;
+            } else {
+                // console.log("❌ AuthContext: Auth check failed after login");
+                throw new Error("Authentication verification failed");
+            }
+        } catch (error) {
+            // console.error("💥 AuthContext: Login error:", error);
+            throw error; // Re-throw the error so caller can handle it
+        }
     };
     const logout = async ()=>{
         try {
@@ -411,19 +459,17 @@ const AuthProvider = (param)=>{
         } finally{
             setAccessToken(null);
             setUser(null);
-            removeStoredToken();
         }
     };
     const refreshTokenInternal = async ()=>{
         try {
-            const response = await fetch("http://127.0.0.1:8000/api/accounts/refresh", {
+            const response = await fetch("http://localhost:8000/api/accounts/refresh", {
                 method: "POST",
                 credentials: "include"
             });
             if (response.ok) {
                 const data = await response.json();
-                setAccessToken(data.access);
-                setStoredToken(data.access);
+                setAccessToken("authenticated");
                 if (data.user) {
                     setUser(data.user);
                 }
@@ -431,7 +477,6 @@ const AuthProvider = (param)=>{
             }
             return false;
         } catch (error) {
-            console.error("Token refresh failed:", error);
             return false;
         }
     };
@@ -440,7 +485,6 @@ const AuthProvider = (param)=>{
         if (!result) {
             setAccessToken(null);
             setUser(null);
-            removeStoredToken();
         }
         return result;
     };
@@ -451,18 +495,19 @@ const AuthProvider = (param)=>{
         user,
         login,
         logout,
-        refreshToken
+        refreshToken,
+        checkAuth
     };
     return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(AuthContext.Provider, {
         value: value,
         children: children
     }, void 0, false, {
         fileName: "[project]/apps/frontend_web/context/AuthContext.tsx",
-        lineNumber: 155,
+        lineNumber: 172,
         columnNumber: 10
     }, ("TURBOPACK compile-time value", void 0));
 };
-_s(AuthProvider, "/FcWx4Rf92WuIG2Y5k8MGAb3bQI=");
+_s(AuthProvider, "uK0sxnnGBpZG4wOssLaLqmTHUP8=", true);
 _c = AuthProvider;
 const useAuth = ()=>{
     _s1();
@@ -471,31 +516,21 @@ const useAuth = ()=>{
     return context;
 };
 _s1(useAuth, "b9L3QQ+jgeyIrH0NfHrJ8nn7VMU=");
-const useAuthToken = ()=>{
-    _s2();
-    const { accessToken } = useAuth();
-    return accessToken;
-};
-_s2(useAuthToken, "H2s6cEd4nl6sbGAI8Q32tb+8gJk=", false, function() {
-    return [
-        useAuth
-    ];
-});
 const useAuthStatus = ()=>{
-    _s3();
+    _s2();
     const { isAuthenticated, isLoading } = useAuth();
     return {
         isAuthenticated,
         isLoading
     };
 };
-_s3(useAuthStatus, "yb/FJYAIXt7wZoU4a4YvGQ4Nlsc=", false, function() {
+_s2(useAuthStatus, "yb/FJYAIXt7wZoU4a4YvGQ4Nlsc=", false, function() {
     return [
         useAuth
     ];
 });
 const useAuthenticatedFetch = ()=>{
-    _s4();
+    _s3();
     const { accessToken, refreshToken } = useAuth();
     const authenticatedFetch = async function(url) {
         let options = arguments.length > 1 && arguments[1] !== void 0 ? arguments[1] : {};
@@ -527,7 +562,7 @@ const useAuthenticatedFetch = ()=>{
     };
     return authenticatedFetch;
 };
-_s4(useAuthenticatedFetch, "aO+MgMBUu//p78+miSacpKyCWZM=", false, function() {
+_s3(useAuthenticatedFetch, "aO+MgMBUu//p78+miSacpKyCWZM=", false, function() {
     return [
         useAuth
     ];

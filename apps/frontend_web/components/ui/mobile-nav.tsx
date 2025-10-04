@@ -20,10 +20,10 @@ const navItems: NavItem[] = [
     activeIcon: "/icons/home-icon-active.png",
   },
   {
-    name: "Search",
-    href: "/dashboard/search",
-    icon: "/icons/search-icon.png",
-    activeIcon: "/icons/search-icon-active.png",
+    name: "My Requests",
+    href: "/dashboard/myRequests",
+    icon: "/icons/requests-icon.png",
+    activeIcon: "/icons/requests-icon-active.png",
   },
   {
     name: "Inbox",
