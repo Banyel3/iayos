@@ -16,6 +16,7 @@ const WorkerDash = () => {
   const { user: authUser, isAuthenticated, isLoading, logout } = useAuth();
   const user = authUser as AgencyUser;
   const router = useRouter();
+  const [isAvailable, setIsAvailable] = React.useState(true);
 
   if (isLoading) return <p>Loading...</p>; // strictly loading from backend validation
 
@@ -27,12 +28,14 @@ const WorkerDash = () => {
     return null; // Will redirect
   }
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-blue-50">
       {/* Desktop Navbar */}
       <DesktopNavbar
         isWorker={true}
         userName={user?.firstName || "Worker"}
         onLogout={logout}
+        isAvailable={isAvailable}
+        onAvailabilityToggle={() => setIsAvailable(!isAvailable)}
       />
 
       {/* Content */}

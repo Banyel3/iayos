@@ -9,7 +9,7 @@ from django.conf import settings
 import uuid
 import jwt
 import hashlib
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 
 def create_account_individ(data):
@@ -213,7 +213,7 @@ def forgot_password_request(data):
     
     # 3️⃣ Update user with reset token
     user.verifyToken = hashed_token  # Reuse verifyToken field for password reset
-    user.verifyTokenExpiry = timezone.now() + timedelta(hours=1)  # 1 hour expiry for password reset
+    user.verifyTokenExpiry = timezone.now() + timedelta(minutes=60)  # 1 hour expiry for password reset
     user.save()
     
     # 4️⃣ Generate reset link
@@ -222,7 +222,7 @@ def forgot_password_request(data):
     return {
         "accountID": user.accountID,
         "verifyLink": resetLink,
-        "verifyLinkExpire": user.verifyTokenExpiry.isoformat(),
+        "verifyLinkExpire": user.verifyTokenExpiry,
         "email": user.email
     }
 

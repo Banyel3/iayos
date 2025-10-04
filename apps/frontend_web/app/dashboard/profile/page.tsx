@@ -61,12 +61,17 @@ const ProfilePage = () => {
   >("overview");
   const [isAvailable, setIsAvailable] = useState(true);
 
-  // Authentication check
+  // Authentication check and profile type redirect
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.push("/auth/login");
     }
-  }, [isAuthenticated, isLoading, router]);
+
+    // Redirect if user doesn't have a profile type set
+    if (isAuthenticated && !user?.profile_data?.profileType) {
+      router.push("/dashboard");
+    }
+  }, [isAuthenticated, isLoading, router, user?.profile_data?.profileType]);
 
   // Loading state
   if (isLoading) {
@@ -81,9 +86,7 @@ const ProfilePage = () => {
   }
 
   // Return null while redirecting
-  if (!isAuthenticated) return null;
-  if (isAuthenticated && !user?.profile_data?.profileType)
-    router.push("/dashboard");
+  if (!isAuthenticated || !user?.profile_data?.profileType) return null;
 
   // Mock data for worker profile
   const workerData: WorkerProfile = {
@@ -211,7 +214,10 @@ const ProfilePage = () => {
           </div>
 
           {/* Edit Profile Button */}
-          <button className="w-full bg-gray-100 text-gray-700 py-2 rounded-lg text-xs font-medium hover:bg-gray-200 transition-colors">
+          <button
+            onClick={() => router.push("/dashboard/profile/edit")}
+            className="w-full bg-gray-100 text-gray-700 py-2 rounded-lg text-xs font-medium hover:bg-gray-200 transition-colors"
+          >
             Edit Profile
           </button>
         </div>
@@ -368,7 +374,10 @@ const ProfilePage = () => {
             <button className="w-full bg-blue-500 text-white py-2 rounded-lg text-xs font-medium hover:bg-blue-600 transition-colors">
               Verify Now →
             </button>
-            <button className="w-full bg-gray-100 text-gray-700 py-2 rounded-lg text-xs font-medium hover:bg-gray-200 transition-colors">
+            <button
+              onClick={() => router.push("/dashboard/profile/edit")}
+              className="w-full bg-gray-100 text-gray-700 py-2 rounded-lg text-xs font-medium hover:bg-gray-200 transition-colors"
+            >
               Edit Profile
             </button>
             <button
@@ -447,6 +456,8 @@ const ProfilePage = () => {
           isWorker={isWorker}
           userName={isWorker ? workerData.name : clientData.name}
           onLogout={logout}
+          isAvailable={isAvailable}
+          onAvailabilityToggle={() => setIsAvailable(!isAvailable)}
         />
 
         {/* Desktop Content Area */}
@@ -509,7 +520,10 @@ const ProfilePage = () => {
                         Cash Out
                       </button>
                     </div>
-                    <button className="w-full bg-gray-100 text-gray-700 py-2 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">
+                    <button
+                      onClick={() => router.push("/dashboard/profile/edit")}
+                      className="w-full bg-gray-100 text-gray-700 py-2 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
+                    >
                       Edit Profile
                     </button>
                   </>
@@ -520,7 +534,10 @@ const ProfilePage = () => {
                     <button className="w-full bg-blue-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors">
                       Verify Now →
                     </button>
-                    <button className="w-full bg-gray-100 text-gray-700 py-2 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">
+                    <button
+                      onClick={() => router.push("/dashboard/profile/edit")}
+                      className="w-full bg-gray-100 text-gray-700 py-2 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
+                    >
                       Edit Profile
                     </button>
                   </div>

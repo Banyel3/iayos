@@ -14,9 +14,8 @@ export default function NotificationsPage() {
   return (
     <div className="flex">
       <Sidebar />
-      <main className="flex-1 p-10">
-        <div className="max-w-[1100px] mx-auto space-y-6">
-          <div className="flex justify-between items-center">
+      <main className="flex-1 p-6 space-y-6">
+        <div className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">
               Notifications Management
@@ -126,7 +125,6 @@ export default function NotificationsPage() {
             ))}
           </CardContent>
         </Card>
-        </div>
       </main>
     </div>
   );

@@ -10,6 +10,8 @@ interface DesktopNavbarProps {
   userName?: string;
   userAvatar?: string;
   onLogout?: () => void;
+  isAvailable?: boolean;
+  onAvailabilityToggle?: () => void;
 }
 
 export const DesktopNavbar: React.FC<DesktopNavbarProps> = ({
@@ -17,6 +19,8 @@ export const DesktopNavbar: React.FC<DesktopNavbarProps> = ({
   userName = "User",
   userAvatar = "/worker1.jpg",
   onLogout,
+  isAvailable = true,
+  onAvailabilityToggle,
 }) => {
   const pathname = usePathname();
   const router = useRouter();
@@ -28,7 +32,7 @@ export const DesktopNavbar: React.FC<DesktopNavbarProps> = ({
       href: "/dashboard/home",
     },
     {
-      label: isWorker ? "My Jobs" : "My Requests",
+      label: isWorker ? "Browse Jobs" : "My Requests",
       href: "/dashboard/myRequests",
     },
     {
@@ -81,7 +85,24 @@ export const DesktopNavbar: React.FC<DesktopNavbarProps> = ({
           </div>
 
           {/* User Menu with Profile Dropdown */}
-          <div className="relative">
+          <div className="relative flex items-center space-x-3">
+            {/* Availability Status - Only for Workers */}
+            {isWorker && (
+              <div className="flex items-center space-x-2">
+                <div
+                  className={`w-3 h-3 rounded-full ${
+                    isAvailable ? "bg-green-500" : "bg-gray-400"
+                  }`}
+                ></div>
+                <span
+                  className="text-sm font-medium text-gray-700 cursor-pointer hover:text-gray-900"
+                  onClick={onAvailabilityToggle}
+                >
+                  {isAvailable ? "Available" : "Unavailable"}
+                </span>
+              </div>
+            )}
+
             <button
               onClick={() => setShowProfileDropdown(!showProfileDropdown)}
               className="flex items-center space-x-2 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors"

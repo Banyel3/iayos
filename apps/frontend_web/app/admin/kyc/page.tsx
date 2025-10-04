@@ -128,9 +128,8 @@ export default function KYCManagementPage() {
   return (
     <div className="flex">
       <Sidebar />
-      <main className="flex-1 p-10">
-        <div className="max-w-[1100px] mx-auto space-y-6">
-          <div className="flex justify-between items-center">
+      <div className="flex-1 p-6 space-y-6">
+        <div className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">
               KYC Management
@@ -376,7 +375,7 @@ export default function KYCManagementPage() {
             </Card>
           ))}
         </div>
-      </main>
+      </div>
     </div>
   );
 }

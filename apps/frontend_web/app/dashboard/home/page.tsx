@@ -70,7 +70,7 @@ const HomePage = () => {
   // Loading state
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center pb-16">
+      <div className="min-h-screen bg-blue-50 flex items-center justify-center pb-16">
         <div className="flex flex-col items-center space-y-4">
           <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
           <p className="text-gray-600">Loading...</p>
@@ -187,29 +187,7 @@ const HomePage = () => {
 
   // Worker Dashboard
   const renderWorkerDashboard = () => (
-    <div className="min-h-screen bg-gray-50 pb-16">
-      {/* Status Header */}
-      <div className="bg-white px-4 py-3 border-b border-gray-200">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <div
-              className={`w-3 h-3 rounded-full ${
-                isAvailable ? "bg-green-500" : "bg-gray-400"
-              }`}
-            ></div>
-            <span
-              className="text-sm font-medium text-gray-700 cursor-pointer"
-              onClick={() => setIsAvailable(!isAvailable)}
-            >
-              {isAvailable ? "Available for Work" : "Currently Unavailable"}
-            </span>
-          </div>
-          <button className="text-blue-500 text-sm font-medium">
-            📍 Set Location
-          </button>
-        </div>
-      </div>
-
+    <div className="min-h-screen bg-blue-50 pb-16">
       {/* Welcome Section */}
       <div className="bg-white mx-4 mt-4 rounded-lg shadow-sm border border-gray-100 p-4">
         <div className="flex items-center space-x-3">
@@ -402,7 +380,7 @@ const HomePage = () => {
 
   // Client Dashboard
   const renderClientDashboard = () => (
-    <div className="min-h-screen bg-gray-50 pb-16">
+    <div className="min-h-screen bg-blue-50 pb-16">
       {/* Welcome Section */}
       <div className="bg-white mx-4 mt-4 rounded-lg shadow-sm border border-gray-100 p-4">
         <div className="flex items-center space-x-3">
@@ -555,28 +533,6 @@ const HomePage = () => {
   // Worker Dashboard - Desktop
   const renderWorkerDesktopDashboard = () => (
     <div className="space-y-6">
-      {/* Status Bar */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-100 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <div
-              className={`w-3 h-3 rounded-full ${
-                isAvailable ? "bg-green-500" : "bg-gray-400"
-              }`}
-            ></div>
-            <span
-              className="text-sm font-medium text-gray-700 cursor-pointer"
-              onClick={() => setIsAvailable(!isAvailable)}
-            >
-              {isAvailable ? "Available for Work" : "Currently Unavailable"}
-            </span>
-          </div>
-          <button className="text-blue-500 text-sm font-medium hover:text-blue-600">
-            📍 Set Location
-          </button>
-        </div>
-      </div>
-
       {/* Welcome Section */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
         <div className="flex items-center space-x-4">
@@ -920,7 +876,7 @@ const HomePage = () => {
 
   // Fallback for users without profile type
   const renderDefaultDashboard = () => (
-    <div className="min-h-screen bg-gray-50 pb-16 flex items-center justify-center">
+    <div className="min-h-screen bg-blue-50 pb-16 flex items-center justify-center">
       <div className="text-center px-4">
         <div className="mb-6">
           <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -956,12 +912,14 @@ const HomePage = () => {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-blue-50">
       {/* Desktop Navbar */}
       <DesktopNavbar
         isWorker={isWorker}
         userName={user?.profile_data?.firstName || "User"}
         onLogout={logout}
+        isAvailable={isAvailable}
+        onAvailabilityToggle={() => setIsAvailable(!isAvailable)}
       />
 
       {/* Desktop Layout */}

@@ -8,11 +8,11 @@
       "static/media/caa3a2e1cccd8315-s.p.853070df.woff2",
       "static/media/797e433ab948586e-s.p.dbea232f.woff2"
     ],
-    "[project]/apps/frontend_web/app/auth/forgot-password/verified/page": [
+    "[project]/apps/frontend_web/app/auth/login/page": [
       "static/media/caa3a2e1cccd8315-s.p.853070df.woff2",
       "static/media/797e433ab948586e-s.p.dbea232f.woff2"
     ],
-    "[project]/apps/frontend_web/app/auth/login/page": [
+    "[project]/apps/frontend_web/app/auth/register/page": [
       "static/media/caa3a2e1cccd8315-s.p.853070df.woff2",
       "static/media/797e433ab948586e-s.p.dbea232f.woff2"
     ],
@@ -29,6 +29,10 @@
       "static/media/797e433ab948586e-s.p.dbea232f.woff2"
     ],
     "[project]/apps/frontend_web/app/dashboard/inbox/page": [
+      "static/media/caa3a2e1cccd8315-s.p.853070df.woff2",
+      "static/media/797e433ab948586e-s.p.dbea232f.woff2"
+    ],
+    "[project]/apps/frontend_web/app/dashboard/kyc/page": [
       "static/media/caa3a2e1cccd8315-s.p.853070df.woff2",
       "static/media/797e433ab948586e-s.p.dbea232f.woff2"
     ],

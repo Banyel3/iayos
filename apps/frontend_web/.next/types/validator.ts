@@ -371,6 +371,15 @@ type RouteHandlerConfig<Route extends AppRouteHandlerRoutes = AppRouteHandlerRou
   type __Unused = __Check
 }
 
+// Validate ../../app/dashboard/kyc/page.tsx
+{
+  type __IsExpected<Specific extends AppPageConfig<"/dashboard/kyc">> = Specific
+  const handler = {} as typeof import("../../app/dashboard/kyc/page.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
 // Validate ../../app/dashboard/myRequests/page.tsx
 {
   type __IsExpected<Specific extends AppPageConfig<"/dashboard/myRequests">> = Specific
@@ -384,6 +393,15 @@ type RouteHandlerConfig<Route extends AppRouteHandlerRoutes = AppRouteHandlerRou
 {
   type __IsExpected<Specific extends AppPageConfig<"/dashboard">> = Specific
   const handler = {} as typeof import("../../app/dashboard/page.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../app/dashboard/profile/edit/page.tsx
+{
+  type __IsExpected<Specific extends AppPageConfig<"/dashboard/profile/edit">> = Specific
+  const handler = {} as typeof import("../../app/dashboard/profile/edit/page.js")
   type __Check = __IsExpected<typeof handler>
   // @ts-ignore
   type __Unused = __Check
