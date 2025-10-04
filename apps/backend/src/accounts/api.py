@@ -26,11 +26,15 @@ def register(request, payload: createAccountSchema):
         result = create_account_individ(payload)
         return result
     except ValueError as e:
+        print(f"❌ ValueError in registration: {str(e)}")  # Add logging
         return Response(
             {"error": [{"message": str(e)}]}, 
             status=400
         )
     except Exception as e:
+        print(f"❌ Exception in registration: {str(e)}")  # Add logging
+        import traceback
+        traceback.print_exc()  # Print full stack trace
         return Response(
             {"error": [{"message": "Registration failed"}]}, 
             status=500

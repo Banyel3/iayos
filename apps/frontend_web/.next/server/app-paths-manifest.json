@@ -6,7 +6,6 @@
   "/auth/login/page": "app/auth/login/page.js",
   "/auth/register/page": "app/auth/register/page.js",
   "/auth/verify-email/page": "app/auth/verify-email/page.js",
-  "/dashboard/agency/page": "app/dashboard/agency/page.js",
   "/dashboard/home/page": "app/dashboard/home/page.js",
   "/dashboard/inbox/page": "app/dashboard/inbox/page.js",
   "/dashboard/kyc/page": "app/dashboard/kyc/page.js",

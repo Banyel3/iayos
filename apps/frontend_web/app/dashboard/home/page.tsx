@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
@@ -8,7 +8,6 @@ import { User } from "@/types";
 import MobileNav from "@/components/ui/mobile-nav";
 import DesktopNavbar from "@/components/ui/desktop-sidebar";
 
-// Extended User interface for home page
 interface HomeUser extends User {
   profile_data?: {
     firstName?: string;
@@ -17,60 +16,67 @@ interface HomeUser extends User {
   };
 }
 
-// Job/Service interfaces
-interface JobSpecialization {
+interface JobPosting {
+  id: string;
+  title: string;
+  category: string;
+  description: string;
+  budget: string;
+  location: string;
+  distance: number;
+  postedBy: {
+    name: string;
+    avatar: string;
+    rating: number;
+  };
+  postedAt: string;
+  urgency: "LOW" | "MEDIUM" | "HIGH";
+}
+
+interface JobCategory {
   id: string;
   name: string;
   description: string;
   icon: string;
-  estimatedPrice: string;
   workerCount: number;
 }
 
-interface ActiveJob {
+interface WorkerListing {
   id: string;
-  title: string;
-  client: string;
-  status: "IN_PROGRESS" | "PENDING" | "COMPLETED";
-  price: string;
-  timeRemaining: string;
-  progress: number;
-}
-
-interface RecentActivity {
-  id: string;
-  type:
-    | "JOB_COMPLETED"
-    | "NEW_BOOKING"
-    | "PAYMENT_RECEIVED"
-    | "REVIEW_RECEIVED";
-  title: string;
-  description: string;
-  timeAgo: string;
-  amount?: string;
-  rating?: number;
+  name: string;
+  avatar: string;
+  rating: number;
+  reviewCount: number;
+  startingPrice: string;
+  experience: string;
+  specialization: string;
+  isVerified: boolean;
+  distance: number;
 }
 
 const HomePage = () => {
-  const { user: authUser, isAuthenticated, isLoading, logout } = useAuth();
+  const { user: authUser, isAuthenticated, isLoading } = useAuth();
   const user = authUser as HomeUser;
   const router = useRouter();
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
   const [isAvailable, setIsAvailable] = useState(true);
-  const [selectedSpecialization, setSelectedSpecialization] = useState<
-    string | null
-  >(null);
 
-  // Authentication check
+  const logout = () => {
+    // Clear auth state and redirect to login
+    localStorage.removeItem("token");
+    router.push("/auth/login");
+  };
+
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.push("/auth/login");
     }
   }, [isAuthenticated, isLoading, router]);
 
-  // Loading state
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-blue-50 flex items-center justify-center pb-16">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center pb-16">
         <div className="flex flex-col items-center space-y-4">
           <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
           <p className="text-gray-600">Loading...</p>
@@ -84,14 +90,102 @@ const HomePage = () => {
   const isWorker = user?.profile_data?.profileType === "WORKER";
   const isClient = user?.profile_data?.profileType === "CLIENT";
 
-  // Mock data for job specializations
-  const jobSpecializations: JobSpecialization[] = [
+  // Mock data for job postings (Worker view) - sorted by distance
+  const jobPostings: JobPosting[] = [
+    {
+      id: "1",
+      title: "Refrigerator Not Cooling",
+      category: "Appliance Repair",
+      description:
+        "My refrigerator stopped cooling. Need urgent repair. It's a Samsung model, about 3 years old.",
+      budget: "₱500-800",
+      location: "Quezon City, Metro Manila",
+      distance: 1.2,
+      postedBy: {
+        name: "Maria Santos",
+        avatar: "/worker2.jpg",
+        rating: 4.8,
+      },
+      postedAt: "2 hours ago",
+      urgency: "HIGH" as const,
+    },
+    {
+      id: "2",
+      title: "Install New Light Fixtures",
+      category: "Electrical Work",
+      description:
+        "Need to install 5 new LED light fixtures in living room and bedrooms.",
+      budget: "₱800-1200",
+      location: "Makati City, Metro Manila",
+      distance: 2.5,
+      postedBy: {
+        name: "Juan Dela Cruz",
+        avatar: "/worker1.jpg",
+        rating: 4.9,
+      },
+      postedAt: "5 hours ago",
+      urgency: "MEDIUM" as const,
+    },
+    {
+      id: "3",
+      title: "Fix Leaking Kitchen Sink",
+      category: "Plumbing",
+      description:
+        "Kitchen sink has been leaking under the cabinet. Water damage starting to show.",
+      budget: "₱300-500",
+      location: "Pasig City, Metro Manila",
+      distance: 3.8,
+      postedBy: {
+        name: "Anna Lopez",
+        avatar: "/worker3.jpg",
+        rating: 5.0,
+      },
+      postedAt: "1 day ago",
+      urgency: "HIGH" as const,
+    },
+    {
+      id: "4",
+      title: "Washing Machine Repair",
+      category: "Appliance Repair",
+      description:
+        "Washing machine not spinning properly. Makes loud noise during wash cycle.",
+      budget: "₱400-600",
+      location: "Manila City, Metro Manila",
+      distance: 4.2,
+      postedBy: {
+        name: "Carlos Reyes",
+        avatar: "/worker1.jpg",
+        rating: 4.7,
+      },
+      postedAt: "3 hours ago",
+      urgency: "MEDIUM" as const,
+    },
+    {
+      id: "5",
+      title: "Deep House Cleaning",
+      category: "Cleaning Services",
+      description:
+        "Need complete house cleaning for 2-bedroom apartment before moving in.",
+      budget: "₱1200-1800",
+      location: "Mandaluyong City, Metro Manila",
+      distance: 5.0,
+      postedBy: {
+        name: "Lisa Cruz",
+        avatar: "/worker2.jpg",
+        rating: 4.6,
+      },
+      postedAt: "6 hours ago",
+      urgency: "LOW" as const,
+    },
+  ].sort((a, b) => a.distance - b.distance);
+
+  // Mock data for job categories (Client view)
+  const jobCategories: JobCategory[] = [
     {
       id: "1",
       name: "Appliance Repair",
       description: "Fix refrigerators, washing machines, and more",
       icon: "🔧",
-      estimatedPrice: "₱300-800",
       workerCount: 45,
     },
     {
@@ -99,7 +193,6 @@ const HomePage = () => {
       name: "Electrical Work",
       description: "Wiring, outlets, and electrical repairs",
       icon: "⚡",
-      estimatedPrice: "₱400-1200",
       workerCount: 32,
     },
     {
@@ -107,7 +200,6 @@ const HomePage = () => {
       name: "Plumbing",
       description: "Pipe repairs, drain cleaning, installations",
       icon: "🚿",
-      estimatedPrice: "₱250-600",
       workerCount: 28,
     },
     {
@@ -115,7 +207,6 @@ const HomePage = () => {
       name: "Carpentry",
       description: "Furniture repair, installations, woodwork",
       icon: "🔨",
-      estimatedPrice: "₱500-1500",
       workerCount: 21,
     },
     {
@@ -123,7 +214,6 @@ const HomePage = () => {
       name: "Cleaning Services",
       description: "House cleaning, deep cleaning, maintenance",
       icon: "🧽",
-      estimatedPrice: "₱200-500",
       workerCount: 67,
     },
     {
@@ -131,752 +221,1115 @@ const HomePage = () => {
       name: "Gardening",
       description: "Lawn care, plant maintenance, landscaping",
       icon: "🌱",
-      estimatedPrice: "₱150-400",
       workerCount: 19,
     },
   ];
 
-  // Mock data for active jobs (Worker view)
-  const activeJobs: ActiveJob[] = [
+  // Mock data for workers under categories (Client view) - sorted by distance
+  const workerListings: WorkerListing[] = [
     {
       id: "1",
-      title: "Refrigerator Repair",
-      client: "Maria Santos",
-      status: "IN_PROGRESS",
-      price: "₱650",
-      timeRemaining: "2h 30m",
-      progress: 65,
+      name: "John Reyes",
+      avatar: "/worker1.jpg",
+      rating: 4.9,
+      reviewCount: 127,
+      startingPrice: "₱380",
+      experience: "5+ years",
+      specialization: "Appliance Repair",
+      isVerified: true,
+      distance: 1.5,
     },
     {
       id: "2",
-      title: "Kitchen Sink Installation",
-      client: "Juan Dela Cruz",
-      status: "PENDING",
-      price: "₱450",
-      timeRemaining: "4h 15m",
-      progress: 0,
-    },
-  ];
-
-  // Mock data for recent activity
-  const recentActivity: RecentActivity[] = [
-    {
-      id: "1",
-      type: "PAYMENT_RECEIVED",
-      title: "Payment Received",
-      description: "From washing machine repair job",
-      timeAgo: "2 hours ago",
-      amount: "₱380",
-    },
-    {
-      id: "2",
-      type: "REVIEW_RECEIVED",
-      title: "New Review",
-      description: "5-star rating from Anna Lopez",
-      timeAgo: "1 day ago",
-      rating: 5,
+      name: "Maria Garcia",
+      avatar: "/worker2.jpg",
+      rating: 4.8,
+      reviewCount: 98,
+      startingPrice: "₱450",
+      experience: "3+ years",
+      specialization: "Electrical Work",
+      isVerified: true,
+      distance: 2.1,
     },
     {
       id: "3",
-      type: "JOB_COMPLETED",
-      title: "Job Completed",
-      description: "Microwave repair for Lisa Cruz",
-      timeAgo: "2 days ago",
+      name: "Carlos Santos",
+      avatar: "/worker3.jpg",
+      rating: 4.7,
+      reviewCount: 84,
+      startingPrice: "₱300",
+      experience: "4+ years",
+      specialization: "Plumbing",
+      isVerified: false,
+      distance: 2.8,
     },
-  ];
+    {
+      id: "4",
+      name: "Anna Lopez",
+      avatar: "/worker1.jpg",
+      rating: 5.0,
+      reviewCount: 156,
+      startingPrice: "₱500",
+      experience: "7+ years",
+      specialization: "Appliance Repair",
+      isVerified: true,
+      distance: 3.2,
+    },
+    {
+      id: "5",
+      name: "Roberto Cruz",
+      avatar: "/worker2.jpg",
+      rating: 4.6,
+      reviewCount: 72,
+      startingPrice: "₱350",
+      experience: "2+ years",
+      specialization: "Cleaning Services",
+      isVerified: false,
+      distance: 4.0,
+    },
+    {
+      id: "6",
+      name: "Luis Fernandez",
+      avatar: "/worker3.jpg",
+      rating: 4.8,
+      reviewCount: 103,
+      startingPrice: "₱420",
+      experience: "6+ years",
+      specialization: "Electrical Work",
+      isVerified: true,
+      distance: 2.3,
+    },
+  ].sort((a, b) => a.distance - b.distance);
 
-  // Worker Dashboard
-  const renderWorkerDashboard = () => (
-    <div className="min-h-screen bg-blue-50 pb-16">
-      {/* Welcome Section */}
-      <div className="bg-white mx-4 mt-4 rounded-lg shadow-sm border border-gray-100 p-4">
-        <div className="flex items-center space-x-3">
-          <Image
-            src="/worker1.jpg"
-            alt="Profile"
-            width={48}
-            height={48}
-            className="w-12 h-12 rounded-full object-cover"
+  // Get urgency color
+  const getUrgencyColor = (urgency: string) => {
+    switch (urgency) {
+      case "HIGH":
+        return "bg-red-100 text-red-700";
+      case "MEDIUM":
+        return "bg-yellow-100 text-yellow-700";
+      case "LOW":
+        return "bg-green-100 text-green-700";
+      default:
+        return "bg-gray-100 text-gray-700";
+    }
+  };
+
+  // Filter workers by selected category
+  const filteredWorkers = selectedCategory
+    ? workerListings.filter(
+        (w) =>
+          w.specialization ===
+          jobCategories.find((c) => c.id === selectedCategory)?.name
+      )
+    : workerListings;
+
+  // Render conditional views based on user type
+  if (isWorker) {
+    // Worker View - Browse Job Postings
+    return (
+      <div className="min-h-screen bg-gray-50">
+        {/* Desktop Navbar */}
+        <div className="hidden lg:block">
+          <DesktopNavbar
+            isWorker={true}
+            userName={
+              `${user?.profile_data?.firstName || ""} ${user?.profile_data?.lastName || ""}`.trim() ||
+              "Worker"
+            }
+            onLogout={logout}
+            isAvailable={isAvailable}
+            onAvailabilityToggle={() => setIsAvailable(!isAvailable)}
           />
-          <div>
-            <h1 className="text-lg font-semibold text-gray-900">
-              Welcome back, {user?.profile_data?.firstName || "Worker"}!
+        </div>
+
+        {/* Mobile View */}
+        <div className="lg:hidden pb-16">
+          <div className="bg-white px-4 py-4 border-b border-gray-100">
+            <h1 className="text-xl font-semibold text-gray-900">
+              Available Jobs
             </h1>
-            <p className="text-sm text-gray-600">
-              Ready to start working today?
+            <p className="text-sm text-gray-600 mt-1">
+              Sorted by closest first
             </p>
           </div>
-        </div>
-      </div>
-
-      {/* Quick Stats */}
-      <div className="mx-4 mt-4 grid grid-cols-3 gap-3">
-        <div className="bg-white rounded-lg p-3 border border-gray-100">
-          <div className="text-center">
-            <p className="text-2xl font-bold text-blue-600">12</p>
-            <p className="text-xs text-gray-600">Jobs This Month</p>
-          </div>
-        </div>
-        <div className="bg-white rounded-lg p-3 border border-gray-100">
-          <div className="text-center">
-            <p className="text-2xl font-bold text-green-600">₱4,850</p>
-            <p className="text-xs text-gray-600">Total Earnings</p>
-          </div>
-        </div>
-        <div className="bg-white rounded-lg p-3 border border-gray-100">
-          <div className="text-center">
-            <p className="text-2xl font-bold text-yellow-600">4.8</p>
-            <p className="text-xs text-gray-600">Rating</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Active Jobs */}
-      {activeJobs.length > 0 && (
-        <div className="mx-4 mt-6">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-semibold text-gray-900">Active Jobs</h2>
-            <button className="text-blue-500 text-sm font-medium">
-              View All
-            </button>
-          </div>
-          <div className="space-y-3">
-            {activeJobs.map((job) => (
-              <div
-                key={job.id}
-                className="bg-white rounded-lg p-4 border border-gray-100"
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-medium text-gray-900">{job.title}</h3>
-                  <span
-                    className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      job.status === "IN_PROGRESS"
-                        ? "bg-blue-100 text-blue-700"
-                        : job.status === "PENDING"
-                          ? "bg-yellow-100 text-yellow-700"
-                          : "bg-green-100 text-green-700"
-                    }`}
-                  >
-                    {job.status.replace("_", " ")}
-                  </span>
-                </div>
-                <p className="text-sm text-gray-600 mb-2">
-                  Client: {job.client}
-                </p>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-gray-900">
-                    {job.price}
-                  </span>
-                  <span className="text-sm text-gray-600">
-                    {job.timeRemaining} remaining
-                  </span>
-                </div>
-                {job.status === "IN_PROGRESS" && (
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className="bg-blue-500 h-2 rounded-full"
-                      style={{ width: `${job.progress}%` }}
-                    ></div>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* My Specializations */}
-      <div className="mx-4 mt-6">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold text-gray-900">
-            My Specializations
-          </h2>
-          <button className="text-blue-500 text-sm font-medium">Edit</button>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          {jobSpecializations.slice(0, 4).map((spec) => (
-            <div
-              key={spec.id}
-              className="bg-white rounded-lg p-3 border border-gray-100 cursor-pointer hover:border-blue-300 transition-colors"
-              onClick={() => setSelectedSpecialization(spec.id)}
-            >
-              <div className="text-center">
-                <div className="text-2xl mb-2">{spec.icon}</div>
-                <h3 className="font-medium text-gray-900 text-sm mb-1">
-                  {spec.name}
-                </h3>
-                <p className="text-xs text-gray-600">{spec.estimatedPrice}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Recent Activity */}
-      <div className="mx-4 mt-6 mb-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-3">
-          Recent Activity
-        </h2>
-        <div className="bg-white rounded-lg border border-gray-100 divide-y divide-gray-100">
-          {recentActivity.map((activity) => (
-            <div key={activity.id} className="p-4">
-              <div className="flex items-start space-x-3">
-                <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${
-                    activity.type === "PAYMENT_RECEIVED"
-                      ? "bg-green-100 text-green-600"
-                      : activity.type === "REVIEW_RECEIVED"
-                        ? "bg-yellow-100 text-yellow-600"
-                        : "bg-blue-100 text-blue-600"
-                  }`}
-                >
-                  {activity.type === "PAYMENT_RECEIVED"
-                    ? "💰"
-                    : activity.type === "REVIEW_RECEIVED"
-                      ? "⭐"
-                      : "✅"}
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-medium text-gray-900 text-sm">
-                    {activity.title}
-                  </h3>
-                  <p className="text-sm text-gray-600">
-                    {activity.description}
-                  </p>
-                  <div className="flex items-center justify-between mt-1">
-                    <span className="text-xs text-gray-500">
-                      {activity.timeAgo}
-                    </span>
-                    {activity.amount && (
-                      <span className="text-sm font-medium text-green-600">
-                        {activity.amount}
-                      </span>
-                    )}
-                    {activity.rating && (
-                      <div className="flex items-center space-x-1">
-                        {[...Array(5)].map((_, i) => (
-                          <span
-                            key={i}
-                            className={`text-xs ${
-                              i < activity.rating!
-                                ? "text-yellow-400"
-                                : "text-gray-300"
-                            }`}
-                          >
-                            ⭐
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-
-  // Client Dashboard
-  const renderClientDashboard = () => (
-    <div className="min-h-screen bg-blue-50 pb-16">
-      {/* Welcome Section */}
-      <div className="bg-white mx-4 mt-4 rounded-lg shadow-sm border border-gray-100 p-4">
-        <div className="flex items-center space-x-3">
-          <Image
-            src="/worker2.jpg"
-            alt="Profile"
-            width={48}
-            height={48}
-            className="w-12 h-12 rounded-full object-cover"
-          />
-          <div>
-            <h1 className="text-lg font-semibold text-gray-900">
-              Hello, {user?.profile_data?.firstName || "Client"}!
-            </h1>
-            <p className="text-sm text-gray-600">
-              What service do you need today?
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Search Bar */}
-      <div className="mx-4 mt-4">
-        <div className="relative">
-          <input
-            type="text"
-            placeholder="Search for services..."
-            className="w-full bg-white border border-gray-200 rounded-lg px-4 py-3 pl-10 text-sm focus:outline-none focus:border-blue-500"
-          />
-          <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
-            <svg
-              className="w-4 h-4 text-gray-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+          <div className="bg-white px-4 py-3 border-b border-gray-100">
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Search for jobs..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 pl-10 text-sm focus:outline-none focus:border-blue-500"
               />
-            </svg>
-          </div>
-        </div>
-      </div>
-
-      {/* Quick Stats */}
-      <div className="mx-4 mt-4 grid grid-cols-3 gap-3">
-        <div className="bg-white rounded-lg p-3 border border-gray-100">
-          <div className="text-center">
-            <p className="text-2xl font-bold text-blue-600">8</p>
-            <p className="text-xs text-gray-600">Jobs Posted</p>
-          </div>
-        </div>
-        <div className="bg-white rounded-lg p-3 border border-gray-100">
-          <div className="text-center">
-            <p className="text-2xl font-bold text-green-600">₱3,200</p>
-            <p className="text-xs text-gray-600">Total Spent</p>
-          </div>
-        </div>
-        <div className="bg-white rounded-lg p-3 border border-gray-100">
-          <div className="text-center">
-            <p className="text-2xl font-bold text-yellow-600">4.9</p>
-            <p className="text-xs text-gray-600">Your Rating</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Popular Services */}
-      <div className="mx-4 mt-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-3">
-          Popular Services
-        </h2>
-        <div className="grid grid-cols-2 gap-3">
-          {jobSpecializations.map((service) => (
-            <div
-              key={service.id}
-              className="bg-white rounded-lg p-4 border border-gray-100 cursor-pointer hover:border-blue-300 transition-colors"
-              onClick={() =>
-                router.push(`/dashboard/search?service=${service.id}`)
-              }
-            >
-              <div className="text-center">
-                <div className="text-3xl mb-2">{service.icon}</div>
-                <h3 className="font-medium text-gray-900 text-sm mb-1">
-                  {service.name}
-                </h3>
-                <p className="text-xs text-gray-600 mb-2">
-                  {service.description}
-                </p>
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-green-600 font-medium">
-                    {service.estimatedPrice}
-                  </span>
-                  <span className="text-gray-500">
-                    {service.workerCount} workers
-                  </span>
-                </div>
+              <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
+                <svg
+                  className="w-4 h-4 text-gray-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                  />
+                </svg>
               </div>
             </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Recent Bookings */}
-      <div className="mx-4 mt-6 mb-6">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold text-gray-900">
-            Recent Bookings
-          </h2>
-          <button className="text-blue-500 text-sm font-medium">
-            View All
-          </button>
-        </div>
-        <div className="bg-white rounded-lg border border-gray-100 divide-y divide-gray-100">
-          <div className="p-4">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="font-medium text-gray-900">
-                Washing Machine Repair
-              </h3>
-              <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
-                Completed
-              </span>
-            </div>
-            <p className="text-sm text-gray-600 mb-2">Worker: John Reyes</p>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-500">2 days ago</span>
-              <span className="text-sm font-medium text-gray-900">₱380</span>
-            </div>
           </div>
-          <div className="p-4">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="font-medium text-gray-900">Electrical Wiring</h3>
-              <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
-                In Progress
-              </span>
-            </div>
-            <p className="text-sm text-gray-600 mb-2">Worker: Maria Garcia</p>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-500">Started 1 hour ago</span>
-              <span className="text-sm font-medium text-gray-900">₱750</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  // Worker Dashboard - Desktop
-  const renderWorkerDesktopDashboard = () => (
-    <div className="space-y-6">
-      {/* Welcome Section */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
-        <div className="flex items-center space-x-4">
-          <Image
-            src="/worker1.jpg"
-            alt="Profile"
-            width={64}
-            height={64}
-            className="w-16 h-16 rounded-full object-cover"
-          />
-          <div>
-            <h1 className="text-2xl font-semibold text-gray-900">
-              Welcome back, {user?.profile_data?.firstName || "Worker"}!
-            </h1>
-            <p className="text-gray-600">Ready to start working today?</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
-          <div className="text-center">
-            <p className="text-4xl font-bold text-blue-600">12</p>
-            <p className="text-sm text-gray-600 mt-2">Jobs This Month</p>
-          </div>
-        </div>
-        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
-          <div className="text-center">
-            <p className="text-4xl font-bold text-green-600">₱4,850</p>
-            <p className="text-sm text-gray-600 mt-2">Total Earnings</p>
-          </div>
-        </div>
-        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
-          <div className="text-center">
-            <p className="text-4xl font-bold text-yellow-600">4.8</p>
-            <p className="text-sm text-gray-600 mt-2">Rating</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Active Jobs */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold text-gray-900">Active Jobs</h2>
-            <button className="text-blue-500 text-sm font-medium hover:text-blue-600">
-              View All
-            </button>
-          </div>
-          <div className="space-y-3">
-            {activeJobs.map((job) => (
+          <div className="px-4 py-4 space-y-3">
+            {jobPostings.map((job) => (
               <div
                 key={job.id}
-                className="bg-white rounded-lg shadow-sm border border-gray-100 p-4"
+                className="bg-white rounded-lg border border-gray-200 overflow-hidden"
               >
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-medium text-gray-900">{job.title}</h3>
-                  <span
-                    className={`px-3 py-1 rounded-full text-xs font-medium ${
-                      job.status === "IN_PROGRESS"
-                        ? "bg-blue-100 text-blue-700"
-                        : job.status === "PENDING"
-                          ? "bg-yellow-100 text-yellow-700"
-                          : "bg-green-100 text-green-700"
-                    }`}
-                  >
-                    {job.status.replace("_", " ")}
-                  </span>
-                </div>
-                <p className="text-sm text-gray-600 mb-2">
-                  Client: {job.client}
-                </p>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-gray-900">
-                    {job.price}
-                  </span>
-                  <span className="text-sm text-gray-600">
-                    {job.timeRemaining} remaining
-                  </span>
-                </div>
-                {job.status === "IN_PROGRESS" && (
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className="bg-blue-500 h-2 rounded-full transition-all"
-                      style={{ width: `${job.progress}%` }}
-                    ></div>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Recent Activity */}
-        <div className="space-y-4">
-          <h2 className="text-xl font-semibold text-gray-900">
-            Recent Activity
-          </h2>
-          <div className="bg-white rounded-lg shadow-sm border border-gray-100 divide-y divide-gray-100">
-            {recentActivity.map((activity) => (
-              <div key={activity.id} className="p-4">
-                <div className="flex items-start space-x-3">
-                  <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                      activity.type === "PAYMENT_RECEIVED"
-                        ? "bg-green-100 text-green-600"
-                        : activity.type === "REVIEW_RECEIVED"
-                          ? "bg-yellow-100 text-yellow-600"
-                          : "bg-blue-100 text-blue-600"
-                    }`}
-                  >
-                    {activity.type === "PAYMENT_RECEIVED"
-                      ? "💰"
-                      : activity.type === "REVIEW_RECEIVED"
-                        ? "⭐"
-                        : "✅"}
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="font-medium text-gray-900">
-                      {activity.title}
-                    </h3>
-                    <p className="text-sm text-gray-600">
-                      {activity.description}
-                    </p>
-                    <div className="flex items-center justify-between mt-2">
-                      <span className="text-xs text-gray-500">
-                        {activity.timeAgo}
-                      </span>
-                      {activity.amount && (
-                        <span className="text-sm font-medium text-green-600">
-                          {activity.amount}
+                <div className="p-4">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-gray-900 mb-1">
+                        {job.title}
+                      </h3>
+                      <div className="flex items-center space-x-2 text-sm text-gray-600">
+                        <span className="flex items-center">
+                          <svg
+                            className="w-4 h-4 mr-1"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.99 1.99 0 013 12V7a2 2 0 012-2z"
+                            />
+                          </svg>
+                          {job.category}
                         </span>
-                      )}
-                      {activity.rating && (
-                        <div className="flex items-center space-x-1">
-                          {[...Array(5)].map((_, i) => (
-                            <span
-                              key={i}
-                              className={`text-xs ${
-                                i < activity.rating!
-                                  ? "text-yellow-400"
-                                  : "text-gray-300"
-                              }`}
-                            >
-                              ⭐
-                            </span>
-                          ))}
+                        <span>•</span>
+                        <span className="flex items-center">
+                          <svg
+                            className="w-4 h-4 mr-1"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                            />
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                            />
+                          </svg>
+                          {job.distance.toFixed(1)} km away
+                        </span>
+                      </div>
+                    </div>
+                    <span
+                      className={`px-2 py-1 rounded-full text-xs font-medium ${getUrgencyColor(job.urgency)}`}
+                    >
+                      {job.urgency}
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-700 mb-3">
+                    {job.description}
+                  </p>
+                  <div className="flex items-center justify-between mb-3 pb-3 border-b border-gray-100">
+                    <div className="flex items-center space-x-2">
+                      <Image
+                        src={job.postedBy.avatar}
+                        alt={job.postedBy.name}
+                        width={32}
+                        height={32}
+                        className="w-8 h-8 rounded-full object-cover"
+                      />
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">
+                          {job.postedBy.name}
+                        </p>
+                        <div className="flex items-center text-xs text-gray-600">
+                          <span className="text-yellow-400 mr-1">⭐</span>
+                          {job.postedBy.rating}
                         </div>
-                      )}
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-500">{job.postedAt}</p>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-gray-500">Budget</p>
+                      <p className="text-lg font-bold text-green-600">
+                        {job.budget}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 text-right">
+                        Location
+                      </p>
+                      <p className="text-sm font-medium text-gray-900">
+                        {job.location}
+                      </p>
                     </div>
                   </div>
                 </div>
+                <div className="p-3 bg-gray-50 border-t border-gray-100 flex space-x-2">
+                  <button className="flex-1 bg-blue-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors">
+                    View Details
+                  </button>
+                  <button className="flex-1 bg-white text-blue-500 border border-blue-500 py-2 rounded-lg text-sm font-medium hover:bg-blue-50 transition-colors">
+                    Send Proposal
+                  </button>
+                </div>
               </div>
             ))}
           </div>
+          <MobileNav />
         </div>
-      </div>
 
-      {/* My Specializations */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-gray-900">
-            My Specializations
-          </h2>
-          <button className="text-blue-500 text-sm font-medium hover:text-blue-600">
-            Edit
-          </button>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {jobSpecializations.slice(0, 4).map((spec) => (
-            <div
-              key={spec.id}
-              className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 cursor-pointer hover:border-blue-300 hover:shadow-md transition-all"
-              onClick={() => setSelectedSpecialization(spec.id)}
-            >
-              <div className="text-center">
-                <div className="text-3xl mb-3">{spec.icon}</div>
-                <h3 className="font-medium text-gray-900 text-sm mb-1">
-                  {spec.name}
-                </h3>
-                <p className="text-xs text-gray-600">{spec.estimatedPrice}</p>
-              </div>
+        {/* Desktop View - Same content but without mobile nav */}
+        <div className="hidden lg:block">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div className="bg-white px-6 py-5 border-b border-gray-100 rounded-t-lg">
+              <h1 className="text-2xl font-semibold text-gray-900">
+                Available Jobs
+              </h1>
+              <p className="text-sm text-gray-600 mt-1">
+                Sorted by closest first
+              </p>
             </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-
-  // Client Dashboard - Desktop
-  const renderClientDesktopDashboard = () => (
-    <div className="space-y-6">
-      {/* Welcome Section */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
-        <div className="flex items-center space-x-4">
-          <Image
-            src="/worker2.jpg"
-            alt="Profile"
-            width={64}
-            height={64}
-            className="w-16 h-16 rounded-full object-cover"
-          />
-          <div>
-            <h1 className="text-2xl font-semibold text-gray-900">
-              Hello, {user?.profile_data?.firstName || "Client"}!
-            </h1>
-            <p className="text-gray-600">What service do you need today?</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Search Bar */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
-        <div className="relative max-w-2xl">
-          <input
-            type="text"
-            placeholder="Search for services..."
-            className="w-full border border-gray-200 rounded-lg px-4 py-3 pl-12 text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-          />
-          <div className="absolute left-4 top-1/2 transform -translate-y-1/2">
-            <svg
-              className="w-5 h-5 text-gray-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-              />
-            </svg>
-          </div>
-        </div>
-      </div>
-
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
-          <div className="text-center">
-            <p className="text-4xl font-bold text-blue-600">8</p>
-            <p className="text-sm text-gray-600 mt-2">Jobs Posted</p>
-          </div>
-        </div>
-        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
-          <div className="text-center">
-            <p className="text-4xl font-bold text-green-600">₱3,200</p>
-            <p className="text-sm text-gray-600 mt-2">Total Spent</p>
-          </div>
-        </div>
-        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
-          <div className="text-center">
-            <p className="text-4xl font-bold text-yellow-600">4.9</p>
-            <p className="text-sm text-gray-600 mt-2">Your Rating</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Popular Services */}
-      <div className="space-y-4">
-        <h2 className="text-xl font-semibold text-gray-900">
-          Popular Services
-        </h2>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {jobSpecializations.map((service) => (
-            <div
-              key={service.id}
-              className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 cursor-pointer hover:border-blue-300 hover:shadow-md transition-all"
-              onClick={() =>
-                router.push(`/dashboard/search?service=${service.id}`)
-              }
-            >
-              <div className="text-center">
-                <div className="text-3xl mb-3">{service.icon}</div>
-                <h3 className="font-medium text-gray-900 text-sm mb-2">
-                  {service.name}
-                </h3>
-                <p className="text-xs text-gray-600 mb-3">
-                  {service.description}
-                </p>
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-green-600 font-medium">
-                    {service.estimatedPrice}
-                  </span>
-                  <span className="text-gray-500">
-                    {service.workerCount} workers
-                  </span>
+            <div className="bg-white px-6 py-4 border-b border-gray-100">
+              <div className="relative max-w-2xl">
+                <input
+                  type="text"
+                  placeholder="Search for jobs..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 pl-12 text-sm focus:outline-none focus:border-blue-500"
+                />
+                <div className="absolute left-4 top-1/2 transform -translate-y-1/2">
+                  <svg
+                    className="w-5 h-5 text-gray-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                    />
+                  </svg>
                 </div>
               </div>
             </div>
-          ))}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6">
+              {jobPostings.map((job) => (
+                <div
+                  key={job.id}
+                  className="bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow"
+                >
+                  <div className="p-6">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-lg text-gray-900 mb-2">
+                          {job.title}
+                        </h3>
+                        <div className="flex items-center space-x-3 text-sm text-gray-600">
+                          <span className="flex items-center">
+                            <svg
+                              className="w-4 h-4 mr-1"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.99 1.99 0 013 12V7a2 2 0 012-2z"
+                              />
+                            </svg>
+                            {job.category}
+                          </span>
+                          <span>•</span>
+                          <span className="flex items-center">
+                            <svg
+                              className="w-4 h-4 mr-1"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                              />
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                              />
+                            </svg>
+                            {job.distance.toFixed(1)} km away
+                          </span>
+                        </div>
+                      </div>
+                      <span
+                        className={`px-3 py-1 rounded-full text-xs font-medium ${getUrgencyColor(job.urgency)}`}
+                      >
+                        {job.urgency}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-700 mb-4">
+                      {job.description}
+                    </p>
+                    <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-100">
+                      <div className="flex items-center space-x-3">
+                        <Image
+                          src={job.postedBy.avatar}
+                          alt={job.postedBy.name}
+                          width={40}
+                          height={40}
+                          className="w-10 h-10 rounded-full object-cover"
+                        />
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">
+                            {job.postedBy.name}
+                          </p>
+                          <div className="flex items-center text-xs text-gray-600">
+                            <span className="text-yellow-400 mr-1">⭐</span>
+                            {job.postedBy.rating}
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-xs text-gray-500">{job.postedAt}</p>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs text-gray-500">Budget</p>
+                        <p className="text-xl font-bold text-green-600">
+                          {job.budget}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 text-right">
+                          Location
+                        </p>
+                        <p className="text-sm font-medium text-gray-900">
+                          {job.location}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="p-4 bg-gray-50 border-t border-gray-100 flex space-x-3">
+                    <button className="flex-1 bg-blue-500 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors">
+                      View Details
+                    </button>
+                    <button className="flex-1 bg-white text-blue-500 border border-blue-500 py-2.5 rounded-lg text-sm font-medium hover:bg-blue-50 transition-colors">
+                      Send Proposal
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
+    );
+  }
 
-      {/* Recent Bookings */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-gray-900">
-            Recent Bookings
-          </h2>
-          <button className="text-blue-500 text-sm font-medium hover:text-blue-600">
-            View All
-          </button>
+  if (isClient) {
+    // Client View - Browse Categories and Workers
+    return (
+      <div className="min-h-screen bg-gray-50">
+        {/* Desktop Navbar */}
+        <div className="hidden lg:block">
+          <DesktopNavbar
+            isWorker={false}
+            userName={
+              `${user?.profile_data?.firstName || ""} ${user?.profile_data?.lastName || ""}`.trim() ||
+              "Client"
+            }
+            onLogout={logout}
+            isAvailable={false}
+            onAvailabilityToggle={() => {}}
+          />
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="font-medium text-gray-900">
-                Washing Machine Repair
-              </h3>
-              <span className="px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
-                Completed
-              </span>
-            </div>
-            <p className="text-sm text-gray-600 mb-2">Worker: John Reyes</p>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-500">2 days ago</span>
-              <span className="text-sm font-medium text-gray-900">₱380</span>
+
+        {/* Mobile View */}
+        <div className="lg:hidden pb-16">
+          <div className="bg-white px-4 py-4 border-b border-gray-100">
+            <h1 className="text-xl font-semibold text-gray-900">
+              Find Workers
+            </h1>
+            <p className="text-sm text-gray-600 mt-1">
+              Browse by category or search
+            </p>
+          </div>
+          <div className="bg-white px-4 py-3 border-b border-gray-100">
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Search for services or workers..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 pl-10 text-sm focus:outline-none focus:border-blue-500"
+              />
+              <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
+                <svg
+                  className="w-4 h-4 text-gray-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                  />
+                </svg>
+              </div>
             </div>
           </div>
-          <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="font-medium text-gray-900">Electrical Wiring</h3>
-              <span className="px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
-                In Progress
-              </span>
+          <div className="px-4 py-4">
+            <h2 className="text-lg font-semibold text-gray-900 mb-3">
+              Service Categories
+            </h2>
+            <div className="grid grid-cols-2 gap-3">
+              {jobCategories.map((category) => (
+                <div
+                  key={category.id}
+                  onClick={() =>
+                    setSelectedCategory(
+                      selectedCategory === category.id ? null : category.id
+                    )
+                  }
+                  className={`bg-white rounded-lg p-4 border-2 cursor-pointer transition-all ${
+                    selectedCategory === category.id
+                      ? "border-blue-500 bg-blue-50"
+                      : "border-gray-200 hover:border-blue-300"
+                  }`}
+                >
+                  <div className="text-center">
+                    <div className="text-3xl mb-2">{category.icon}</div>
+                    <h3 className="font-medium text-gray-900 text-sm mb-1">
+                      {category.name}
+                    </h3>
+                    <p className="text-xs text-gray-600 mb-2">
+                      {category.description}
+                    </p>
+                    <p className="text-xs text-blue-600 font-medium">
+                      {category.workerCount} workers
+                    </p>
+                  </div>
+                </div>
+              ))}
             </div>
-            <p className="text-sm text-gray-600 mb-2">Worker: Maria Garcia</p>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-500">Started 1 hour ago</span>
-              <span className="text-sm font-medium text-gray-900">₱750</span>
+          </div>
+
+          {/* Workers Near You Section - Mobile */}
+          <div className="px-4 pb-4">
+            <h2 className="text-lg font-semibold text-gray-900 mb-3">
+              Workers Near You
+            </h2>
+            <div className="space-y-3">
+              {[...workerListings]
+                .sort((a, b) => a.distance - b.distance)
+                .map((worker) => (
+                  <div
+                    key={worker.id}
+                    className="bg-white rounded-lg border border-gray-200 p-4"
+                  >
+                    <div className="flex items-start space-x-3">
+                      <div className="relative">
+                        <Image
+                          src={worker.avatar}
+                          alt={worker.name}
+                          width={56}
+                          height={56}
+                          className="w-14 h-14 rounded-full object-cover"
+                        />
+                        <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-start justify-between mb-1">
+                          <div>
+                            <div className="flex items-center space-x-1">
+                              <h3 className="font-semibold text-gray-900 text-sm">
+                                {worker.name}
+                              </h3>
+                              {worker.isVerified && (
+                                <svg
+                                  className="w-4 h-4 text-blue-500"
+                                  fill="currentColor"
+                                  viewBox="0 0 20 20"
+                                >
+                                  <path
+                                    fillRule="evenodd"
+                                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                                    clipRule="evenodd"
+                                  />
+                                </svg>
+                              )}
+                            </div>
+                            <p className="text-xs text-gray-600">
+                              {worker.specialization}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-semibold text-gray-900">
+                              {worker.startingPrice}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-3 mb-2">
+                          <span className="flex items-center text-xs text-gray-600">
+                            <span className="text-yellow-400 mr-1">⭐</span>
+                            {worker.rating} ({worker.reviewCount})
+                          </span>
+                          <span className="flex items-center text-xs text-gray-600">
+                            <svg
+                              className="w-3 h-3 mr-1"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                              />
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                              />
+                            </svg>
+                            {worker.distance.toFixed(1)} km
+                          </span>
+                        </div>
+                        <div className="flex space-x-2">
+                          <button className="flex-1 bg-blue-500 text-white py-2 rounded-lg text-xs font-medium">
+                            View Profile
+                          </button>
+                          <button className="flex-1 border border-blue-500 text-blue-500 py-2 rounded-lg text-xs font-medium">
+                            Message
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
             </div>
+          </div>
+
+          {selectedCategory && (
+            <div className="px-4 pb-4">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-lg font-semibold text-gray-900">
+                  {jobCategories.find((c) => c.id === selectedCategory)?.name}{" "}
+                  Workers
+                </h2>
+                <button
+                  onClick={() => setSelectedCategory(null)}
+                  className="text-blue-500 text-sm font-medium"
+                >
+                  Clear
+                </button>
+              </div>
+              <div className="space-y-3">
+                {filteredWorkers.map((worker) => (
+                  <div
+                    key={worker.id}
+                    className="bg-white rounded-lg border border-gray-200 p-4"
+                  >
+                    <div className="flex items-start space-x-3">
+                      <Image
+                        src={worker.avatar}
+                        alt={worker.name}
+                        width={56}
+                        height={56}
+                        className="w-14 h-14 rounded-full object-cover"
+                      />
+                      <div className="flex-1">
+                        <div className="flex items-start justify-between mb-1">
+                          <div>
+                            <div className="flex items-center space-x-2">
+                              <h3 className="font-semibold text-gray-900">
+                                {worker.name}
+                              </h3>
+                              {worker.isVerified && (
+                                <svg
+                                  className="w-4 h-4 text-blue-500"
+                                  fill="currentColor"
+                                  viewBox="0 0 20 20"
+                                >
+                                  <path
+                                    fillRule="evenodd"
+                                    d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                                    clipRule="evenodd"
+                                  />
+                                </svg>
+                              )}
+                            </div>
+                            <p className="text-sm text-gray-600">
+                              {worker.specialization}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-bold text-green-600">
+                              {worker.startingPrice}
+                            </p>
+                            <p className="text-xs text-gray-500">starting</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-4 text-sm text-gray-600 mb-2">
+                          <div className="flex items-center">
+                            <span className="text-yellow-400 mr-1">⭐</span>
+                            <span className="font-medium">{worker.rating}</span>
+                            <span className="ml-1">({worker.reviewCount})</span>
+                          </div>
+                          <span>•</span>
+                          <span>{worker.experience}</span>
+                          <span>•</span>
+                          <span className="flex items-center">
+                            <svg
+                              className="w-3 h-3 mr-1"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                              />
+                            </svg>
+                            {worker.distance.toFixed(1)} km
+                          </span>
+                        </div>
+                        <div className="flex space-x-2">
+                          <button className="flex-1 bg-blue-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors">
+                            View Profile
+                          </button>
+                          <button className="flex-1 bg-white text-blue-500 border border-blue-500 py-2 rounded-lg text-sm font-medium hover:bg-blue-50 transition-colors">
+                            Message
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {!selectedCategory && (
+            <div className="px-4 pb-4">
+              <h2 className="text-lg font-semibold text-gray-900 mb-3">
+                Top Rated Workers Nearby
+              </h2>
+              <div className="space-y-3">
+                {workerListings.slice(0, 5).map((worker) => (
+                  <div
+                    key={worker.id}
+                    className="bg-white rounded-lg border border-gray-200 p-4"
+                  >
+                    <div className="flex items-start space-x-3">
+                      <Image
+                        src={worker.avatar}
+                        alt={worker.name}
+                        width={56}
+                        height={56}
+                        className="w-14 h-14 rounded-full object-cover"
+                      />
+                      <div className="flex-1">
+                        <div className="flex items-start justify-between mb-1">
+                          <div>
+                            <div className="flex items-center space-x-2">
+                              <h3 className="font-semibold text-gray-900">
+                                {worker.name}
+                              </h3>
+                              {worker.isVerified && (
+                                <svg
+                                  className="w-4 h-4 text-blue-500"
+                                  fill="currentColor"
+                                  viewBox="0 0 20 20"
+                                >
+                                  <path
+                                    fillRule="evenodd"
+                                    d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                                    clipRule="evenodd"
+                                  />
+                                </svg>
+                              )}
+                            </div>
+                            <p className="text-sm text-gray-600">
+                              {worker.specialization}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-bold text-green-600">
+                              {worker.startingPrice}
+                            </p>
+                            <p className="text-xs text-gray-500">starting</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-4 text-sm text-gray-600 mb-2">
+                          <div className="flex items-center">
+                            <span className="text-yellow-400 mr-1">⭐</span>
+                            <span className="font-medium">{worker.rating}</span>
+                            <span className="ml-1">({worker.reviewCount})</span>
+                          </div>
+                          <span>•</span>
+                          <span>{worker.experience}</span>
+                          <span>•</span>
+                          <span className="flex items-center">
+                            <svg
+                              className="w-3 h-3 mr-1"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                              />
+                            </svg>
+                            {worker.distance.toFixed(1)} km
+                          </span>
+                        </div>
+                        <div className="flex space-x-2">
+                          <button className="flex-1 bg-blue-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors">
+                            View Profile
+                          </button>
+                          <button className="flex-1 bg-white text-blue-500 border border-blue-500 py-2 rounded-lg text-sm font-medium hover:bg-blue-50 transition-colors">
+                            Message
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          <MobileNav />
+        </div>
+
+        {/* Desktop View - Similar layout but without mobile nav */}
+        <div className="hidden lg:block">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div className="bg-white px-6 py-5 border-b border-gray-100 rounded-t-lg">
+              <h1 className="text-2xl font-semibold text-gray-900">
+                Find Workers
+              </h1>
+              <p className="text-sm text-gray-600 mt-1">
+                Browse by category or search
+              </p>
+            </div>
+            <div className="bg-white px-6 py-4 border-b border-gray-100">
+              <div className="relative max-w-2xl">
+                <input
+                  type="text"
+                  placeholder="Search workers by name or category..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 pl-12 text-sm focus:outline-none focus:border-blue-500"
+                />
+                <div className="absolute left-4 top-1/2 transform -translate-y-1/2">
+                  <svg
+                    className="w-5 h-5 text-gray-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                    />
+                  </svg>
+                </div>
+              </div>
+            </div>
+            {/* Categories Grid */}
+            <div className="bg-white px-6 py-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                Browse by Category
+              </h2>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {jobCategories.map((category) => (
+                  <button
+                    key={category.id}
+                    onClick={() =>
+                      setSelectedCategory(
+                        selectedCategory === category.id ? null : category.id
+                      )
+                    }
+                    className={`p-4 rounded-lg border-2 transition-all ${
+                      selectedCategory === category.id
+                        ? "border-blue-500 bg-blue-50"
+                        : "border-gray-200 bg-white hover:border-blue-300"
+                    }`}
+                  >
+                    <div className="text-3xl mb-2">{category.icon}</div>
+                    <h3 className="font-semibold text-sm text-gray-900 mb-1">
+                      {category.name}
+                    </h3>
+                    <p className="text-xs text-gray-500">
+                      {category.workerCount} workers
+                    </p>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Workers Near You Section */}
+            <div className="bg-white px-6 py-8">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-gray-900">
+                  Workers Near You
+                </h2>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {[...workerListings]
+                  .sort((a, b) => a.distance - b.distance)
+                  .map((worker) => (
+                    <div
+                      key={worker.id}
+                      className="border border-gray-200 rounded-lg overflow-hidden hover:shadow-lg transition-shadow"
+                    >
+                      <div className="p-6">
+                        <div className="flex items-start space-x-4 mb-4">
+                          <div className="relative">
+                            <Image
+                              src={worker.avatar}
+                              alt={worker.name}
+                              width={64}
+                              height={64}
+                              className="w-16 h-16 rounded-full object-cover"
+                            />
+                            <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center space-x-2 mb-1">
+                              <h3 className="font-semibold text-gray-900 truncate">
+                                {worker.name}
+                              </h3>
+                              {worker.isVerified && (
+                                <svg
+                                  className="w-5 h-5 text-blue-500 flex-shrink-0"
+                                  fill="currentColor"
+                                  viewBox="0 0 20 20"
+                                >
+                                  <path
+                                    fillRule="evenodd"
+                                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                                    clipRule="evenodd"
+                                  />
+                                </svg>
+                              )}
+                            </div>
+                            <p className="text-sm text-gray-600 mb-2">
+                              {worker.specialization}
+                            </p>
+                            <div className="flex items-center space-x-1 text-sm">
+                              <span className="text-yellow-400">⭐</span>
+                              <span className="font-medium">
+                                {worker.rating}
+                              </span>
+                              <span className="text-gray-500">
+                                ({worker.reviewCount} reviews)
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between mb-4">
+                          <span className="text-sm text-gray-600 flex items-center">
+                            <svg
+                              className="w-4 h-4 mr-1"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                              />
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                              />
+                            </svg>
+                            {worker.distance.toFixed(1)} km away
+                          </span>
+                          <span className="text-sm font-semibold text-gray-900">
+                            {worker.startingPrice}
+                          </span>
+                        </div>
+                        <div className="flex space-x-2">
+                          <button className="flex-1 bg-blue-500 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors">
+                            View Profile
+                          </button>
+                          <button className="flex-1 bg-white text-blue-500 border border-blue-500 py-2.5 rounded-lg text-sm font-medium hover:bg-blue-50 transition-colors">
+                            Message
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </div>
+
+            {/* Workers Grid */}
+            {selectedCategory && (
+              <div className="bg-white px-6 py-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    {jobCategories.find((c) => c.id === selectedCategory)?.name}{" "}
+                    Workers
+                  </h2>
+                  <button
+                    onClick={() => setSelectedCategory(null)}
+                    className="text-sm text-blue-500 hover:text-blue-700"
+                  >
+                    View All
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {filteredWorkers.map((worker) => (
+                    <div
+                      key={worker.id}
+                      className="border border-gray-200 rounded-lg overflow-hidden hover:shadow-lg transition-shadow"
+                    >
+                      <div className="p-6">
+                        <div className="flex items-start space-x-4 mb-4">
+                          <Image
+                            src={worker.avatar}
+                            alt={worker.name}
+                            width={64}
+                            height={64}
+                            className="w-16 h-16 rounded-full object-cover"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center space-x-2 mb-1">
+                              <h3 className="font-semibold text-gray-900 truncate">
+                                {worker.name}
+                              </h3>
+                              {worker.isVerified && (
+                                <svg
+                                  className="w-5 h-5 text-blue-500 flex-shrink-0"
+                                  fill="currentColor"
+                                  viewBox="0 0 20 20"
+                                >
+                                  <path
+                                    fillRule="evenodd"
+                                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                                    clipRule="evenodd"
+                                  />
+                                </svg>
+                              )}
+                            </div>
+                            <p className="text-sm text-gray-600 mb-2">
+                              {worker.specialization}
+                            </p>
+                            <div className="flex items-center space-x-1 text-sm">
+                              <span className="text-yellow-400">⭐</span>
+                              <span className="font-medium">
+                                {worker.rating}
+                              </span>
+                              <span className="text-gray-500">
+                                ({worker.reviewCount})
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="space-y-2 mb-4">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-600">
+                              Starting Price
+                            </span>
+                            <span className="font-semibold text-green-600">
+                              {worker.startingPrice}
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-600">Experience</span>
+                            <span className="font-medium text-gray-900">
+                              {worker.experience}
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-600">Distance</span>
+                            <span className="font-medium text-gray-900 flex items-center">
+                              <svg
+                                className="w-4 h-4 mr-1 text-gray-400"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                                />
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                                />
+                              </svg>
+                              {worker.distance.toFixed(1)} km
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex space-x-2">
+                          <button className="flex-1 bg-blue-500 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors">
+                            View Profile
+                          </button>
+                          <button className="flex-1 bg-white text-blue-500 border border-blue-500 py-2.5 rounded-lg text-sm font-medium hover:bg-blue-50 transition-colors">
+                            Message
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  }
 
   // Fallback for users without profile type
-  const renderDefaultDashboard = () => (
-    <div className="min-h-screen bg-blue-50 pb-16 flex items-center justify-center">
+  return (
+    <div className="min-h-screen bg-gray-50 pb-16 flex items-center justify-center">
       <div className="text-center px-4">
         <div className="mb-6">
           <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -898,7 +1351,7 @@ const HomePage = () => {
             Complete Your Profile
           </h1>
           <p className="text-gray-600 mb-6">
-            To access your dashboard, please complete your profile setup.
+            To access the home page, please complete your profile setup.
           </p>
           <button
             onClick={() => router.push("/dashboard/profile")}
@@ -908,36 +1361,7 @@ const HomePage = () => {
           </button>
         </div>
       </div>
-    </div>
-  );
-
-  return (
-    <div className="min-h-screen bg-blue-50">
-      {/* Desktop Navbar */}
-      <DesktopNavbar
-        isWorker={isWorker}
-        userName={user?.profile_data?.firstName || "User"}
-        onLogout={logout}
-        isAvailable={isAvailable}
-        onAvailabilityToggle={() => setIsAvailable(!isAvailable)}
-      />
-
-      {/* Desktop Layout */}
-      <div className="hidden lg:block">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {isWorker && renderWorkerDesktopDashboard()}
-          {isClient && renderClientDesktopDashboard()}
-          {!isWorker && !isClient && renderDefaultDashboard()}
-        </div>
-      </div>
-
-      {/* Mobile Layout */}
-      <div className="lg:hidden">
-        {isWorker && renderWorkerDashboard()}
-        {isClient && renderClientDashboard()}
-        {!isWorker && !isClient && renderDefaultDashboard()}
-        <MobileNav />
-      </div>
+      <MobileNav />
     </div>
   );
 };

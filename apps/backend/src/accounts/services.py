@@ -36,6 +36,12 @@ def create_account_individ(data):
     user = Accounts.objects.create_user(
         email=data.email,
         password=data.password,
+        street_address=data.street_address,
+        city=data.city,
+        province=data.province,
+        postal_code=data.postal_code,
+        country=data.country
+        
     )
 
 
@@ -52,6 +58,7 @@ def create_account_individ(data):
     profile = Profile.objects.create(
         accountFK=user,
         firstName=data.firstName,
+        middleName=data.middleName,
         lastName=data.lastName,
         contactNum=data.contactNum,
         birthDate=birth_date,

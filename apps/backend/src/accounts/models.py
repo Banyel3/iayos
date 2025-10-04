@@ -46,6 +46,11 @@ class Accounts(AbstractBaseUser, PermissionsMixin):  # <-- include PermissionsMi
 
     verifyToken = models.CharField(max_length=255, null=True, blank=True)  # Changed to CharField for hash
     verifyTokenExpiry = models.DateTimeField(null=True, blank=True)
+    street_address = models.CharField(max_length=255, default="", blank=True)   # "123 Main St"
+    city = models.CharField(max_length=100, default="", blank=True)             # "Zamboanga City"
+    province = models.CharField(max_length=100, default="", blank=True)         # "Zamboanga del Sur"
+    postal_code = models.CharField(max_length=20, default="", blank=True)       # "7000"
+    country = models.CharField(max_length=100, default="Philippines", blank=True)
 
     createdAt = models.DateTimeField(auto_now_add=True)
     updatedAt = models.DateTimeField(auto_now=True)
@@ -60,6 +65,7 @@ class Profile(models.Model):
     profileID = models.BigAutoField(primary_key=True)
     profileImg = models.CharField(max_length=50)
     firstName = models.CharField(max_length=24)
+    middleName = models.CharField(max_length=24, null=True, blank=True)
     lastName = models.CharField(max_length=24)
     contactNum = models.CharField(max_length=11)
     birthDate = models.DateField()
@@ -79,8 +85,13 @@ class Agency(models.Model):
     agencyId = models.BigAutoField(primary_key=True)
     accountFK = models.OneToOneField(Accounts, on_delete=models.CASCADE)
     businessName = models.CharField(max_length=50)
+    street_address = models.CharField(max_length=255, default="", blank=True)   # "123 Main St"
+    city = models.CharField(max_length=100, default="", blank=True)             # "Zamboanga City"
+    province = models.CharField(max_length=100, default="", blank=True)         # "Zamboanga del Sur"
+    postal_code = models.CharField(max_length=20, default="", blank=True)
+    country = models.CharField(max_length=100, default="Philippines", blank=True)
     
-    businessDesc = models.CharField(max_length=255)
+    businessDesc = models.CharField(max_length=255, default="", blank=True)
 
     createdAt = models.DateTimeField(auto_now_add=True)
 

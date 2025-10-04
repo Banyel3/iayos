@@ -240,6 +240,153 @@ const MyRequestsPage = () => {
     );
   }
 
+  // Verification gate for clients
+  if (isClient) {
+    return (
+      <div className="min-h-screen bg-blue-50">
+        {/* Desktop Navbar */}
+        <DesktopNavbar
+          isWorker={false}
+          userName={user?.profile_data?.firstName || "Client"}
+          onLogout={logout}
+          isAvailable={isAvailable}
+          onAvailabilityToggle={() => setIsAvailable(!isAvailable)}
+        />
+
+        {/* Verification Gate Content */}
+        <div className="lg:max-w-4xl lg:mx-auto lg:px-8 lg:py-16 px-4 py-8">
+          <div className="bg-white rounded-2xl shadow-lg p-8 lg:p-12 text-center border-2 border-blue-100">
+            {/* Icon */}
+            <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <svg
+                className="w-10 h-10 text-blue-600"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+                />
+              </svg>
+            </div>
+
+            {/* Title */}
+            <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-4">
+              Verification Required
+            </h1>
+
+            {/* Description */}
+            <p className="text-gray-600 text-base lg:text-lg mb-2 max-w-2xl mx-auto leading-relaxed">
+              To post job requests and hire workers, you need to complete your
+              identity verification first.
+            </p>
+            <p className="text-gray-500 text-sm lg:text-base mb-8 max-w-xl mx-auto">
+              This helps us ensure a safe and trustworthy platform for both
+              workers and clients.
+            </p>
+
+            {/* Benefits List */}
+            <div className="bg-gray-50 rounded-xl p-6 mb-8 max-w-xl mx-auto">
+              <h3 className="text-sm font-semibold text-gray-700 mb-4 text-left">
+                What you'll get after verification:
+              </h3>
+              <ul className="space-y-3 text-left">
+                <li className="flex items-start">
+                  <svg
+                    className="w-5 h-5 text-green-500 mr-3 mt-0.5 flex-shrink-0"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  <span className="text-gray-700 text-sm">
+                    Post job requests and service needs
+                  </span>
+                </li>
+                <li className="flex items-start">
+                  <svg
+                    className="w-5 h-5 text-green-500 mr-3 mt-0.5 flex-shrink-0"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  <span className="text-gray-700 text-sm">
+                    Connect with verified skilled workers
+                  </span>
+                </li>
+                <li className="flex items-start">
+                  <svg
+                    className="w-5 h-5 text-green-500 mr-3 mt-0.5 flex-shrink-0"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  <span className="text-gray-700 text-sm">
+                    Secure payment transactions
+                  </span>
+                </li>
+                <li className="flex items-start">
+                  <svg
+                    className="w-5 h-5 text-green-500 mr-3 mt-0.5 flex-shrink-0"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  <span className="text-gray-700 text-sm">
+                    Track and manage all your service requests
+                  </span>
+                </li>
+              </ul>
+            </div>
+
+            {/* CTA Button */}
+            <button
+              onClick={() => router.push("/dashboard/kyc")}
+              className="bg-blue-600 text-white px-8 py-3 rounded-lg text-base font-semibold hover:bg-blue-700 shadow-md hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200"
+            >
+              Verify Now
+            </button>
+
+            {/* Back Link */}
+            <button
+              onClick={() => router.push("/dashboard/home")}
+              className="mt-4 text-gray-500 hover:text-gray-700 text-sm font-medium block mx-auto transition-colors"
+            >
+              ← Back to Dashboard
+            </button>
+          </div>
+        </div>
+
+        {/* Mobile Navigation */}
+        <div className="lg:hidden">
+          <MobileNav />
+        </div>
+      </div>
+    );
+  }
+
   // Render for non-clients or incomplete profiles
   if (!isClient) {
     return (
