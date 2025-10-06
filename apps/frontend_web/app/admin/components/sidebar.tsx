@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
   Users,
@@ -24,6 +24,8 @@ import {
   Archive,
   Star,
   Flag,
+  ChevronDown,
+  User,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -134,7 +136,9 @@ const bottomNavigation = [
 export default function Sidebar({ className }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
+  const [showUserMenu, setShowUserMenu] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
 
   const toggleExpanded = (name: string) => {
     setExpandedItems((prev) =>
@@ -157,6 +161,30 @@ export default function Sidebar({ className }: SidebarProps) {
   ) => {
     if (!children) return false;
     return children.some((child) => pathname.startsWith(child.href));
+  };
+
+  const handleLogout = async () => {
+    try {
+      // Clear all cookies
+      document.cookie.split(";").forEach((c) => {
+        document.cookie = c
+          .replace(/^ +/, "")
+          .replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+      });
+
+      // Clear session storage
+      sessionStorage.clear();
+
+      // Clear local storage (optional - uncomment if needed)
+      // localStorage.clear();
+
+      // Redirect to login page
+      router.push("/auth/login");
+    } catch (error) {
+      console.error("Logout error:", error);
+      // Still redirect even if there's an error
+      router.push("/auth/login");
+    }
   };
 
   return (
@@ -273,13 +301,66 @@ export default function Sidebar({ className }: SidebarProps) {
       </nav>
 
       {/* Bottom User Card */}
-      <div className="p-4 border-t border-gray-200">
-        <div className="flex items-center space-x-2 p-2 rounded-md bg-blue-50">
-          <div className="w-8 h-8 rounded-full bg-gray-300" />
-          <div className="text-sm font-medium text-gray-700">
-            Vaniel Cornelio
+      <div className="p-4 border-t border-gray-200 relative">
+        <button
+          onClick={() => setShowUserMenu(!showUserMenu)}
+          className={cn(
+            "w-full flex items-center justify-between p-2 rounded-md transition-all duration-200",
+            showUserMenu ? "bg-blue-50" : "hover:bg-gray-100"
+          )}
+        >
+          <div className="flex items-center space-x-2">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-sm font-semibold">
+              VC
+            </div>
+            {!collapsed && (
+              <div className="text-left">
+                <div className="text-sm font-medium text-gray-700">
+                  Vaniel Cornelio
+                </div>
+                <div className="text-xs text-gray-500">Administrator</div>
+              </div>
+            )}
           </div>
-        </div>
+          {!collapsed && (
+            <ChevronDown
+              className={cn(
+                "h-4 w-4 text-gray-400 transition-transform",
+                showUserMenu && "rotate-180"
+              )}
+            />
+          )}
+        </button>
+
+        {/* Dropdown Menu */}
+        {showUserMenu && !collapsed && (
+          <div className="absolute bottom-full left-4 right-4 mb-2 bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden">
+            <Link
+              href="/admin/profile"
+              className="flex items-center space-x-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              onClick={() => setShowUserMenu(false)}
+            >
+              <User className="h-4 w-4 text-gray-400" />
+              <span>Profile</span>
+            </Link>
+            <Link
+              href="/admin/settings"
+              className="flex items-center space-x-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              onClick={() => setShowUserMenu(false)}
+            >
+              <Settings className="h-4 w-4 text-gray-400" />
+              <span>Settings</span>
+            </Link>
+            <div className="border-t border-gray-200"></div>
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center space-x-2 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
+            >
+              <LogOut className="h-4 w-4" />
+              <span>Logout</span>
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

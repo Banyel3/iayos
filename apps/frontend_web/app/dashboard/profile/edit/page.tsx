@@ -67,7 +67,7 @@ const EditProfilePage = () => {
         }
 
         const data: UserData = await response.json();
-        
+
         // Populate form with fetched data
         setFormData({
           firstName: data.profile_data?.firstName || "",
@@ -137,13 +137,13 @@ const EditProfilePage = () => {
   // Handle save (placeholder - backend not implemented yet)
   const handleSave = async () => {
     setIsSaving(true);
-    
+
     // Simulate save delay
     await new Promise((resolve) => setTimeout(resolve, 1000));
-    
+
     console.log("Form data to save:", formData);
     alert("Profile update functionality will be implemented in the backend");
-    
+
     setIsSaving(false);
     // router.push("/dashboard/profile"); // Uncomment when backend is ready
   };

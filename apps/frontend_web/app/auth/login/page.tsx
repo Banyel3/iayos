@@ -48,17 +48,21 @@ const Login = () => {
   } = useAuth();
   const { showAuthError } = useAuthToast();
 
+  // Initialize form hook at the top (before any returns)
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    mode: "onChange", // Enable real-time validation
+    defaultValues: {
+      email: "",
+      password: "",
+    },
+  });
+
   const handleForgotPassword = () => {
     if (!isAuthenticated) {
       router.push("/auth/forgot-password");
     }
   };
-
-  useEffect(() => {
-    if (!authLoading && isAuthenticated) {
-      router.replace("/dashboard/profile"); // redirect if already logged in
-    }
-  }, [authLoading, isAuthenticated, router]);
 
   // Function to check actual rate limit status from backend
   const checkRateLimitStatus = async () => {
@@ -149,16 +153,45 @@ const Login = () => {
     }
   }, []);
 
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    mode: "onChange", // Enable real-time validation
-    defaultValues: {
-      email: "",
-      password: "",
-    },
-  });
+  // 🔥 FIX: Only redirect if we're SURE user is authenticated AND not loading
+  useEffect(() => {
+    if (!authLoading && isAuthenticated && user) {
+      console.log("✅ User already authenticated, checking role...", user.role);
 
-  if (authLoading) return null; // Don't show loading text, just wait for auth check
+      // Redirect based on user role
+      if (user.role === "ADMIN") {
+        console.log("🔐 Admin user detected, redirecting to admin panel");
+        router.replace("/admin/dashboard");
+      } else {
+        console.log("👤 Regular user, redirecting to dashboard");
+        router.replace("/dashboard/profile");
+      }
+    }
+  }, [authLoading, isAuthenticated, user, router]);
+
+  // 🔥 FIX: Show loading only during initial auth check, not the form
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="flex flex-col items-center space-y-4">
+          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-gray-600">Checking authentication...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 🔥 FIX: Only show login form if NOT authenticated
+  if (isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="flex flex-col items-center space-y-4">
+          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-gray-600">Redirecting to dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   const handleGoogle = async () => {
     try {
@@ -179,6 +212,31 @@ const Login = () => {
       localStorage.removeItem("rateLimitEndTime");
       setIsRateLimited(false);
       setRateLimitTime(0);
+
+      // Fetch fresh user data to get the role
+      const userResponse = await fetch(
+        "http://localhost:8000/api/accounts/me",
+        {
+          credentials: "include",
+        }
+      );
+
+      if (userResponse.ok) {
+        const userData = await userResponse.json();
+        console.log("📋 User data:", userData);
+
+        // Redirect based on user role
+        if (userData.role === "ADMIN") {
+          console.log("🔐 Admin login, redirecting to admin panel");
+          router.push("/admin/dashboard");
+        } else {
+          console.log("👤 User login, redirecting to dashboard");
+          router.push("/dashboard/profile");
+        }
+      } else {
+        // Fallback to regular dashboard if can't fetch user data
+        router.push("/dashboard/profile");
+      }
     } catch (error) {
       console.error("Login error:", error);
       const errorMessage =

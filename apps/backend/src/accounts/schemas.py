@@ -46,3 +46,21 @@ class forgotPasswordSchema(Schema):
 class resetPasswordSchema(Schema):
     newPassword: str
     confirmPassword: str
+
+class KYCUploadSchema(Schema):
+    accountID: int
+    IDType: str
+    clearanceType: str
+
+class KYCUploadResponse(Schema):
+    message: str
+    kyc_id: int
+    file_url: str
+    file_name: str
+
+class KYCStatusResponse(Schema):
+    kyc_id: int
+    status: str
+    notes: Optional[str]
+    reviewed_at: Optional[datetime]
+    files: list

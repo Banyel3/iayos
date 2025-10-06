@@ -1,5 +1,5 @@
 # services.py
-from .models import Accounts, Profile, Agency
+from .models import Accounts, Profile, Agency, kyc, kycFiles
 from adminpanel.models import SystemRoles
 from django.utils.dateparse import parse_date
 from django.utils import timezone
@@ -10,6 +10,8 @@ import uuid
 import jwt
 import hashlib
 from datetime import timedelta
+from iayos_project.utils import upload_kyc_doc
+import os
 
 
 def create_account_individ(data):
@@ -345,3 +347,187 @@ def assign_role(data):
     profile.save()
 
     return {"message": "Role Assigned Successfully"}
+
+def upload_kyc_document(payload, frontID, backID, clearance, selfie):
+    try:
+        user = Accounts.objects.get(accountID=payload.accountID)
+
+        # Define image inputs
+        images = {
+            'FRONTID': frontID,
+            'BACKID': backID,
+            'CLEARANCE': clearance,
+            'SELFIE': selfie
+        }
+
+        allowed_mime_types = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf']
+        max_size = 5 * 1024 * 1024  # 5 MB
+
+        # Validate ID Type
+        if payload.IDType:
+            allowed_id_types = ['PASSPORT', 'NATIONALID', 'UMID', 'PHILHEALTH', 'DRIVERSLICENSE']
+            if payload.IDType.upper() not in allowed_id_types:
+                raise ValueError(f"Invalid ID type. Allowed: {', '.join(allowed_id_types)}")
+
+        # Validate Clearance Type
+        if payload.clearanceType:
+            allowed_clearance_types = ['POLICE', 'NBI']
+            if payload.clearanceType.upper() not in allowed_clearance_types:
+                raise ValueError(f"Invalid clearance type. Allowed: {', '.join(allowed_clearance_types)}")
+
+        # Generate unique filenames per document
+        unique_names = {}
+        for key, file in images.items():
+            if not file:
+                continue
+
+            # Determine type label (for naming)
+            type_label = None
+            if key in ['FRONTID', 'BACKID']:
+                type_label = payload.IDType.lower()
+            elif key == 'CLEARANCE':
+                type_label = payload.clearanceType.lower()
+            else:
+                type_label = key.lower()
+
+            ext = os.path.splitext(file.name)[1]
+            unique_names[key] = f"{key.lower()}_{type_label}_{uuid.uuid4().hex}{ext}"
+
+        # Get or create KYC record
+        kyc_record, created = kyc.objects.get_or_create(
+            accountFK=user,
+            defaults={'kycStatus': 'PENDING', 'notes': ''}
+        )
+
+        # If KYC record already exists, delete old files to avoid duplicates
+        # and reset status to PENDING for re-review
+        if not created:
+            kycFiles.objects.filter(kycID=kyc_record).delete()
+            kyc_record.kycStatus = 'PENDING'
+            kyc_record.notes = 'Re-submitted'
+            kyc_record.save()
+
+        uploaded_files = []
+
+        # Upload each file
+        for key, file in images.items():
+            if not file:
+                continue
+
+            if file.content_type not in allowed_mime_types:
+                raise ValueError(f"{key}: Invalid file type. Allowed: JPEG, PNG, PDF")
+
+            if file.size > max_size:
+                raise ValueError(f"{key}: File too large. Maximum size is 5MB")
+
+            unique_filename = unique_names[key]
+            file_url = upload_kyc_doc(
+                file=file,
+                user_id=user.accountID,
+                file_name=unique_filename
+            )
+
+            # Assign proper ID type or clearance type
+            id_type = None
+            if key in ['FRONTID', 'BACKID']:
+                id_type = payload.IDType.upper()
+            elif key == 'CLEARANCE':
+                id_type = payload.clearanceType.upper()
+
+            kycFiles.objects.create(
+                kycID=kyc_record,
+                idType=id_type,
+                fileURL=file_url,
+                fileName=unique_filename,
+                fileSize=file.size
+            )
+
+            uploaded_files.append({
+                "file_type": key.lower(),
+                "file_url": file_url,
+                "file_name": unique_filename,
+                "file_size": file.size
+            })
+
+        return {
+            "message": "KYC documents uploaded successfully",
+            "kyc_id": kyc_record.kycID,
+            "files": uploaded_files
+        }
+
+    except Accounts.DoesNotExist:
+        raise ValueError("User not found")
+    except ValueError:
+        raise
+    except Exception as e:
+        print(f"KYC upload error: {str(e)}")
+        raise ValueError("Internal server error during upload")
+
+def get_kyc_status(user_id):
+    """
+    Get current KYC status and uploaded documents
+    """
+    try:
+        user = Accounts.objects.get(accountID=user_id)
+
+        try:
+            kyc_record = kyc.objects.get(accountFK=user)
+        except kyc.DoesNotExist:
+            return {
+                "status": "NOT_STARTED",
+                "message": "No KYC submission found"
+            }
+
+        kyc_files = kycFiles.objects.filter(kycID=kyc_record)
+
+        return {
+            "kyc_id": kyc_record.kycID,
+            "status": kyc_record.kycStatus,
+            "notes": kyc_record.notes,
+            "reviewed_at": kyc_record.reviewedAt,
+            "submitted_at": kyc_record.createdAt,
+            "files": [
+                {
+                    "id_type": f.idType,
+                    "file_name": f.fileName,
+                    "file_size": f.fileSize,
+                    "uploaded_at": f.uploadedAt
+                } for f in kyc_files
+            ]
+        }
+
+    except Accounts.DoesNotExist:
+        raise ValueError("User not found")
+    except Exception as e:
+        raise ValueError(f"Failed to fetch KYC status: {str(e)}")
+
+
+def get_pending_kyc_submissions():
+    """
+    Get all pending KYC submissions (for admin)
+    """
+    try:
+        pending_kyc = kyc.objects.filter(kycStatus='PENDING').select_related('accountFK')
+        
+        results = []
+        for kyc_record in pending_kyc:
+            files = kycFiles.objects.filter(kycID=kyc_record)
+            results.append({
+                "kyc_id": kyc_record.kycID,
+                "account_id": kyc_record.accountFK.accountID,
+                "email": kyc_record.accountFK.email,
+                "submitted_at": kyc_record.createdAt,
+                "files_count": files.count(),
+                "files": [
+                    {
+                        "file_type": f.fileType,
+                        "id_type": f.idType,
+                        "file_name": f.fileName
+                    } for f in files
+                ]
+            })
+
+        return {"pending_submissions": results}
+
+    except Exception as e:
+        raise ValueError(f"Failed to fetch pending KYC: {str(e)}")

@@ -12,159 +12,147 @@ import { useRouter } from "next/navigation";
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const router = useRouter();
-  const [accessToken, setAccessToken] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(false); // Start as false, not loading
+  const [isLoading, setIsLoading] = useState(true);
 
-  const checkAuth = async () => {
+  useEffect(() => {
+    const initializeAuth = async () => {
+      // Always verify with server on mount - don't trust cache alone
+      await checkAuthWithServer();
+    };
+
+    initializeAuth();
+  }, []);
+
+  const checkAuthWithServer = async (): Promise<boolean> => {
     setIsLoading(true);
     try {
-      console.log("🔄 AuthContext: Checking authentication...");
-
       const response = await fetch("http://localhost:8000/api/accounts/me", {
-        credentials: "include",
-        headers: {
-          Accept: "application/json",
-        },
+        credentials: "include", // 🔥 HTTP-only cookies sent automatically
       });
 
-      console.log("📡 AuthContext: Response status:", response.status);
+      if (response.ok) {
+        const userData = await response.json();
+        setUser(userData);
 
-      if (!response.ok) {
-        console.log("❌ AuthContext: Not authenticated");
-        setAccessToken(null);
+        // 🔥 Cache user data (not token!) for faster subsequent loads
+        localStorage.setItem(
+          "cached_user",
+          JSON.stringify({
+            user: userData,
+            timestamp: Date.now(),
+          })
+        );
+        return true;
+      } else {
+        // Server says not authenticated - clear everything
         setUser(null);
+        localStorage.removeItem("cached_user");
         return false;
       }
-
-      const userData = await response.json();
-      console.log("✅ AuthContext: Auth successful, user:", userData);
-
-      setUser(userData);
-      setAccessToken("authenticated");
-      return true;
     } catch (error) {
-      console.error("💥 AuthContext: Auth check error:", error);
-      setAccessToken(null);
+      console.error("Auth check failed:", error);
       setUser(null);
+      localStorage.removeItem("cached_user");
       return false;
     } finally {
       setIsLoading(false);
     }
   };
 
-  const isAuthenticated = Boolean(user);
-
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
-      console.log("🔄 AuthContext: Attempting login...");
+      // Clear any existing cached data first
+      localStorage.removeItem("cached_user");
+      setUser(null);
 
       const response = await fetch("http://localhost:8000/api/accounts/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
-        credentials: "include",
+        credentials: "include", // 🔥 Cookies handled automatically
       });
 
-      const data = await response.json();
-
-      // Check if response has errors
-      if (data.error && data.error.length > 0) {
-        const errorMessage = data.error[0].message;
-        // console.log("❌ AuthContext: Login failed with error:", errorMessage);
-        throw new Error(errorMessage); // Throw specific error message
-      }
-
       if (!response.ok) {
-        // console.log("❌ AuthContext: Login failed with status:", response.status);
-        throw new Error(`Login failed with status ${response.status}`);
+        // Login failed - ensure everything is cleared
+        setUser(null);
+        localStorage.removeItem("cached_user");
+        throw new Error("Login failed");
       }
 
-      console.log("✅ AuthContext: Login successful, checking auth...");
-
-      // Add a small delay to ensure cookies are fully set
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      // Now check authentication to get real user data
-      const authSuccess = await checkAuth();
-      if (authSuccess) {
-        // console.log("✅ AuthContext: Login and auth check successful");
-
-        // Handle admin routing after successful auth
-        if (user?.role === "ADMIN") {
-          router.replace("/admin/dashboard");
+      // Login successful - now fetch user data
+      const userDataResponse = await fetch(
+        "http://localhost:8000/api/accounts/me",
+        {
+          credentials: "include",
         }
+      );
+
+      if (userDataResponse.ok) {
+        const userData = await userDataResponse.json();
+        setUser(userData);
+
+        // Cache the user data
+        localStorage.setItem(
+          "cached_user",
+          JSON.stringify({
+            user: userData,
+            timestamp: Date.now(),
+          })
+        );
 
         return true;
       } else {
-        // console.log("❌ AuthContext: Auth check failed after login");
-        throw new Error("Authentication verification failed");
+        // Failed to get user data - clear everything
+        setUser(null);
+        localStorage.removeItem("cached_user");
+        throw new Error("Failed to fetch user data after login");
       }
     } catch (error) {
-      // console.error("💥 AuthContext: Login error:", error);
-      throw error; // Re-throw the error so caller can handle it
+      // Ensure everything is cleared on any error
+      setUser(null);
+      localStorage.removeItem("cached_user");
+      throw error;
     }
   };
 
   const logout = async () => {
     try {
-      await fetch("http://127.0.0.1:8000/api/accounts/logout", {
+      // Clear local state and cache first
+      setUser(null);
+      localStorage.removeItem("cached_user");
+
+      // Call backend to clear cookies
+      await fetch("http://localhost:8000/api/accounts/logout", {
         method: "POST",
         credentials: "include",
       });
+
+      console.log("✅ Logout successful");
     } catch (error) {
-      console.error("Logout error:", error);
-    } finally {
-      setAccessToken(null);
+      console.error("❌ Logout error:", error);
+      // Still clear local state even if backend call fails
       setUser(null);
+      localStorage.removeItem("cached_user");
     }
   };
 
-  const refreshTokenInternal = async (): Promise<boolean> => {
-    try {
-      const response = await fetch(
-        "http://localhost:8000/api/accounts/refresh",
-        {
-          method: "POST",
-          credentials: "include",
-        }
-      );
-      if (response.ok) {
-        const data = await response.json();
-        setAccessToken("authenticated");
-        if (data.user) {
-          setUser(data.user);
-        }
-        return true;
-      }
-      return false;
-    } catch (error) {
-      return false;
-    }
-  };
+  const isAuthenticated = !!user;
 
-  const refreshToken = async (): Promise<boolean> => {
-    const result = await refreshTokenInternal();
-    if (!result) {
-      setAccessToken(null);
-      setUser(null);
-    }
-    return result;
-  };
-
-  const value = {
-    accessToken,
-    isLoading,
-    isAuthenticated,
-    user,
-    login,
-    logout,
-    refreshToken,
-    checkAuth,
-  };
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        isAuthenticated,
+        isLoading,
+        login,
+        logout,
+        checkAuth: checkAuthWithServer,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
 };
 
 export const useAuth = (): AuthContextType => {
@@ -184,35 +172,18 @@ export const useAuthStatus = (): {
 };
 
 export const useAuthenticatedFetch = () => {
-  const { accessToken, refreshToken } = useAuth();
-
   const authenticatedFetch = async (url: string, options: RequestInit = {}) => {
     const headers = {
       ...options.headers,
-      Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json",
     };
 
-    let response = await fetch(url, {
+    // With HTTP-only cookies, credentials are sent automatically
+    const response = await fetch(url, {
       ...options,
       headers,
-      credentials: "include",
+      credentials: "include", // 🔥 Automatically includes HTTP-only cookies
     });
-
-    if (response.status === 401) {
-      const refreshed = await refreshToken();
-      if (refreshed) {
-        response = await fetch(url, {
-          ...options,
-          headers: {
-            ...options.headers,
-            Authorization: `Bearer ${accessToken}`,
-            "Content-Type": "application/json",
-          },
-          credentials: "include",
-        });
-      }
-    }
 
     return response;
   };

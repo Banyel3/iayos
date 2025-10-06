@@ -19,6 +19,7 @@ import {
   Calendar,
 } from "lucide-react";
 import { Sidebar } from "../../components";
+import { useToast } from "@/components/ui/toast";
 
 interface ApprovedKYC {
   id: string;
@@ -79,6 +80,37 @@ export default function ApprovedKYCPage() {
     "all"
   );
   const [reviewerFilter, setReviewerFilter] = useState<string>("all");
+  const { showToast } = useToast();
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Example fetch function for future API integration
+  const fetchApprovedKYC = async () => {
+    setIsLoading(true);
+    try {
+      // API call would go here
+      // const response = await fetch('...');
+      // Handle response
+      showToast({
+        type: "success",
+        title: "Data Loaded",
+        message: "Approved KYC records loaded successfully",
+        duration: 3000,
+      });
+    } catch (error) {
+      console.error("Error fetching approved KYC:", error);
+      showToast({
+        type: "error",
+        title: "Failed to Load Data",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Unable to fetch approved KYC records",
+        duration: 5000,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const filteredRecords = approvedKYC.filter((record) => {
     const matchesSearch =

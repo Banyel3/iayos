@@ -1,6 +1,7 @@
-from ninja import Router
-from .schemas import createAccountSchema, logInSchema, createAgencySchema, forgotPasswordSchema, resetPasswordSchema, assignRoleSchema
-from .services import create_account_individ, create_account_agency, login_account, _verify_account, forgot_password_request, reset_password_verify, logout_account, refresh_token, fetch_currentUser, generateCookie, assign_role
+from ninja import Router, Form, File
+from ninja.files import UploadedFile
+from .schemas import createAccountSchema, logInSchema, createAgencySchema, forgotPasswordSchema, resetPasswordSchema, assignRoleSchema, KYCUploadSchema, KYCStatusResponse, KYCUploadResponse
+from .services import create_account_individ, create_account_agency, login_account, _verify_account, forgot_password_request, reset_password_verify, logout_account, refresh_token, fetch_currentUser, generateCookie, assign_role, upload_kyc_document, get_kyc_status, get_pending_kyc_submissions
 from ninja.responses import Response
 from .authentication import cookie_auth
 from django.shortcuts import redirect
@@ -71,7 +72,7 @@ def assignRole(request, payload: assignRoleSchema):
 @router.post("/logout", auth=cookie_auth)
 def logout(request):
    try:
-       result = logout_account
+       result = logout_account()  # 🔥 FIX: Call the function with ()
        return result
    except ValueError as e:
         return {"error": [{"message": str(e)}]}
@@ -119,7 +120,6 @@ def forgot_password_send_verify(request, payload: forgotPasswordSchema):
 
 @router.post("/forgot-password/verify")
 def forgot_password_verify(request, payload: resetPasswordSchema, verifyToken: str, id: int):
-    """Reset password with verification token"""
     try:
         result = reset_password_verify(verifyToken, id, payload)
         return result
@@ -127,6 +127,30 @@ def forgot_password_verify(request, payload: resetPasswordSchema, verifyToken: s
         return {"error": [{"message": str(e)}]}
     except Exception as e:
         return {"error": [{"message": "Password reset failed"}]}
-#endregion
+    
+@router.post("/upload/kyc")
+def upload_kyc(request):
+    try:
+        accountID = int(request.POST.get("accountID"))
+        IDType = request.POST.get("IDType")
+        clearanceType = request.POST.get("clearanceType")
+        frontID = request.FILES.get("frontID")
+        backID = request.FILES.get("backID")
+        clearance = request.FILES.get("clearance")
+        selfie = request.FILES.get("selfie")
 
-
+        payload = KYCUploadSchema(
+            accountID=accountID,
+            IDType=IDType,
+            clearanceType=clearanceType
+        )
+        result = upload_kyc_document(payload, frontID, backID, clearance, selfie)
+        return result
+    except ValueError as e:
+        print(f"❌ ValueError in KYC upload: {str(e)}")
+        return {"error": [{"message": str(e)}]}
+    except Exception as e:
+        print(f"❌ Exception in KYC upload: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"error": [{"message": "Upload Failed"}]}

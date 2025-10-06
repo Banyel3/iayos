@@ -20,6 +20,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { Sidebar } from "../../components";
+import { useToast } from "@/components/ui/toast";
 
 interface RejectedKYC {
   id: string;
@@ -93,6 +94,37 @@ export default function RejectedKYCPage() {
   const [resubmissionFilter, setResubmissionFilter] = useState<
     "all" | "allowed" | "not_allowed" | "resubmitted"
   >("all");
+  const { showToast } = useToast();
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Example fetch function for future API integration
+  const fetchRejectedKYC = async () => {
+    setIsLoading(true);
+    try {
+      // API call would go here
+      // const response = await fetch('...');
+      // Handle response
+      showToast({
+        type: "success",
+        title: "Data Loaded",
+        message: "Rejected KYC records loaded successfully",
+        duration: 3000,
+      });
+    } catch (error) {
+      console.error("Error fetching rejected KYC:", error);
+      showToast({
+        type: "error",
+        title: "Failed to Load Data",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Unable to fetch rejected KYC records",
+        duration: 5000,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const filteredRecords = rejectedKYC.filter((record) => {
     const matchesSearch =

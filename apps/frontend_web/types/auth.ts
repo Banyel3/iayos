@@ -18,13 +18,11 @@ export interface User {
 }
 
 export interface AuthContextType {
-  accessToken: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
   user: User | null; // User can be null
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
-  refreshToken: () => Promise<boolean>;
   checkAuth: () => Promise<boolean>;
 }
 
