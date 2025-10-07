@@ -1,4 +1,13 @@
 {
-  "/admin/kyc/pending/page": "app/admin/kyc/pending/page.js",
-  "/favicon.ico/route": "app/favicon.ico/route.js"
+  "/_not-found/page": "app/_not-found/page.js",
+  "/api/auth/check-rate-limit/route": "app/api/auth/check-rate-limit/route.js",
+  "/auth/login/page": "app/auth/login/page.js",
+  "/dashboard/agency/page": "app/dashboard/agency/page.js",
+  "/dashboard/home/page": "app/dashboard/home/page.js",
+  "/dashboard/inbox/page": "app/dashboard/inbox/page.js",
+  "/dashboard/kyc/page": "app/dashboard/kyc/page.js",
+  "/dashboard/myRequests/page": "app/dashboard/myRequests/page.js",
+  "/dashboard/profile/page": "app/dashboard/profile/page.js",
+  "/favicon.ico/route": "app/favicon.ico/route.js",
+  "/page": "app/page.js"
 }

@@ -7,6 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 import { User } from "@/types";
 import MobileNav from "@/components/ui/mobile-nav";
 import DesktopNavbar from "@/components/ui/desktop-sidebar";
+import NotificationBell from "@/components/notifications/NotificationBell";
 
 // Extended User interface for requests page
 interface RequestsUser extends User {
@@ -430,6 +431,11 @@ const MyRequestsPage = () => {
 
   return (
     <div className="min-h-screen bg-blue-50">
+      {/* Notification Bell - Mobile Only */}
+      <div className="lg:hidden fixed top-4 right-4 z-50">
+        <NotificationBell />
+      </div>
+
       {/* Desktop Navbar */}
       <DesktopNavbar
         isWorker={false}

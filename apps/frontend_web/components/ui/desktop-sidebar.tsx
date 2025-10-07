@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
+import NotificationBell from "@/components/notifications/NotificationBell";
 
 interface DesktopNavbarProps {
   isWorker?: boolean;
@@ -86,6 +87,9 @@ export const DesktopNavbar: React.FC<DesktopNavbarProps> = ({
 
           {/* User Menu with Profile Dropdown */}
           <div className="relative flex items-center space-x-3">
+            {/* Notification Bell */}
+            <NotificationBell />
+
             {/* Availability Status - Only for Workers */}
             {isWorker && (
               <div className="flex items-center space-x-2">

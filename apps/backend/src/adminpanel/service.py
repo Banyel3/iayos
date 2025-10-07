@@ -4,8 +4,9 @@ from datetime import timedelta
 import hashlib
 import uuid
 
-from accounts.models import Accounts, kyc, kycFiles, Profile
+from accounts.models import Accounts, kyc, kycFiles, Profile, Notification
 from adminpanel.models import SystemRoles, KYCLogs
+
 
 
 def create_admin_account(email: str, password: str, role: str = "ADMIN"):
@@ -279,9 +280,14 @@ def approve_kyc(request):
         kyc_record.kycStatus = "APPROVED"
         kyc_record.reviewedAt = timezone.now()
         
-        # Set reviewedBy to the admin making the request (if authenticated)
+        # Get the authenticated admin user from request.auth (set by CookieJWTAuth)
+        reviewer = None
         if hasattr(request, 'auth') and request.auth:
-            kyc_record.reviewedBy = request.auth
+            reviewer = request.auth
+            kyc_record.reviewedBy = reviewer
+            print(f"👤 Reviewed by admin: {reviewer.email} (ID: {reviewer.accountID})")
+        else:
+            print(f"⚠️  Warning: No authenticated user found in request.auth")
         
         kyc_record.save()
         
@@ -291,7 +297,7 @@ def approve_kyc(request):
         user_account.save()
         
         # Create audit log entry BEFORE deleting the KYC record
-        KYCLogs.objects.create(
+        kyc_log = KYCLogs.objects.create(
             kycID=kyc_record.kycID,
             accountFK=user_account,
             action="APPROVED",
@@ -302,12 +308,22 @@ def approve_kyc(request):
             userAccountID=user_account.accountID,
         )
         
+        # Create notification for the user
+        Notification.objects.create(
+            accountFK=user_account,
+            notificationType="KYC_APPROVED",
+            title="KYC Verification Approved! ✅",
+            message=f"Congratulations! Your KYC verification has been approved. You can now access all features of iAyos.",
+            relatedKYCLogID=kyc_log.kycLogID,
+        )
+        
         print(f"✅ KYC approved successfully!")
         print(f"   - KYC ID: {kyc_id}")
         print(f"   - User: {user_account.email}")
         print(f"   - Account ID: {user_account.accountID}")
         print(f"   - KYCVerified set to: {user_account.KYCVerified}")
         print(f"   - Audit log created")
+        print(f"   - Notification sent to user")
         
         # Delete all KYC files from Supabase storage for privacy
         kyc_files = kycFiles.objects.filter(kycID=kyc_record)
@@ -386,9 +402,14 @@ def reject_kyc(request):
         kyc_record.kycStatus = "Rejected"
         kyc_record.reviewedAt = timezone.now()
         
-        # Set reviewedBy to the admin making the request (if authenticated)
+        # Get the authenticated admin user from request.auth (set by CookieJWTAuth)
+        reviewer = None
         if hasattr(request, 'auth') and request.auth:
-            kyc_record.reviewedBy = request.auth
+            reviewer = request.auth
+            kyc_record.reviewedBy = reviewer
+            print(f"👤 Reviewed by admin: {reviewer.email} (ID: {reviewer.accountID})")
+        else:
+            print(f"⚠️  Warning: No authenticated user found in request.auth")
         
         kyc_record.save()
         
@@ -398,7 +419,7 @@ def reject_kyc(request):
         user_account.save()
         
         # Create audit log entry BEFORE deleting the KYC record
-        KYCLogs.objects.create(
+        kyc_log = KYCLogs.objects.create(
             kycID=kyc_record.kycID,
             accountFK=user_account,
             action="Rejected",
@@ -409,12 +430,22 @@ def reject_kyc(request):
             userAccountID=user_account.accountID,
         )
         
+        # Create notification for the user
+        Notification.objects.create(
+            accountFK=user_account,
+            notificationType="KYC_REJECTED",
+            title="KYC Verification Rejected",
+            message=f"Your KYC verification was not approved. Reason: {reason}. You can resubmit your documents with the correct information.",
+            relatedKYCLogID=kyc_log.kycLogID,
+        )
+        
         print(f"✅ KYC rejected successfully!")
         print(f"   - KYC ID: {kyc_id}")
         print(f"   - User: {user_account.email}")
         print(f"   - Account ID: {user_account.accountID}")
         print(f"   - Reason: {reason}")
         print(f"   - Audit log created")
+        print(f"   - Notification sent to user")
         
         # Delete all KYC files from Supabase storage for privacy
         kyc_files = kycFiles.objects.filter(kycID=kyc_record)
@@ -507,4 +538,75 @@ def fetch_kyc_logs(action_filter=None, limit=100):
         import traceback
         traceback.print_exc()
         raise
+
+
+def get_user_kyc_history(user_account_id):
+    """
+    Get KYC application history for a specific user.
+    
+    Returns user-facing information WITHOUT revealing reviewer details.
+    Shows application history, status, dates, and reasons (if rejected).
+    
+    Args:
+        user_account_id: The account ID of the user
+        
+    Returns:
+        dict with:
+        - hasActiveKYC: boolean - if user has pending KYC
+        - kycHistory: list of past reviews (approved/rejected)
+        - canResubmit: boolean - if user can submit new KYC
+    """
+    try:
+        # Check if user has an active/pending KYC submission
+        active_kyc = kyc.objects.filter(
+            accountFK__accountID=user_account_id,
+            kycStatus="PENDING"
+        ).first()
+        
+        # Get all KYC logs for this user (ordered by most recent first)
+        kyc_logs = KYCLogs.objects.filter(
+            accountFK__accountID=user_account_id
+        ).order_by('-reviewedAt')
+        
+        history = []
+        for log in kyc_logs:
+            history.append({
+                "applicationId": log.kycID,
+                "status": log.action,  # "APPROVED" or "Rejected"
+                "submittedDate": log.createdAt.isoformat(),
+                "reviewedDate": log.reviewedAt.isoformat(),
+                "reason": log.reason if log.action == "Rejected" else None,
+                # DO NOT include reviewer information for user privacy/security
+            })
+        
+        # User can resubmit if:
+        # 1. No active/pending KYC
+        # 2. Last application was rejected (if any history exists)
+        can_resubmit = active_kyc is None
+        
+        # If user has history, only allow resubmit if last one was rejected
+        if history and history[0]["status"] == "APPROVED":
+            can_resubmit = False
+        
+        result = {
+            "hasActiveKYC": active_kyc is not None,
+            "activeKYCId": active_kyc.kycID if active_kyc else None,
+            "kycHistory": history,
+            "canResubmit": can_resubmit,
+            "totalApplications": len(history),
+        }
+        
+        print(f"📋 User KYC History for Account ID {user_account_id}:")
+        print(f"   - Active KYC: {result['hasActiveKYC']}")
+        print(f"   - Total Applications: {result['totalApplications']}")
+        print(f"   - Can Resubmit: {result['canResubmit']}")
+        
+        return result
+        
+    except Exception as e:
+        print(f"❌ Error fetching user KYC history: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise
+
 

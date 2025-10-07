@@ -4,6 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { UserProfileType } from "@/types";
+import NotificationBell from "@/components/notifications/NotificationBell";
 
 // Temporary User interface extension for this page
 interface DashboardUser {
@@ -107,10 +108,15 @@ const TempDashboard = () => {
 
   return (
     <div className="flex justify-center items-center min-h-screen bg-gray-50">
+      {/* Notification Bell - Fixed Top Right */}
+      <div className="fixed top-4 right-4 z-50">
+        <NotificationBell />
+      </div>
+
       <div className="mx-auto max-w-[390px] min-h-screen flex flex-col justify-between">
         {/* Header Section */}
         <div className="flex flex-col justify-center flex-1 px-6">
-          {/* Welcome Message */}
+          {/*Welcome Message */}
           <div className="text-center mb-8">
             <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
               {user?.profile_data?.profileImg ? (

@@ -2,6 +2,7 @@
 "use client";
 
 import { ReactNode, useEffect } from "react";
+import { NotificationProvider } from "@/context/NotificationContext";
 
 export function Providers({ children }: { children: ReactNode }) {
   useEffect(() => {
@@ -28,5 +29,5 @@ export function Providers({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  return <>{children}</>;
+  return <NotificationProvider>{children}</NotificationProvider>;
 }

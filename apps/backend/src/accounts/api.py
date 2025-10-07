@@ -154,3 +154,124 @@ def upload_kyc(request):
         import traceback
         traceback.print_exc()
         return {"error": [{"message": "Upload Failed"}]}
+
+@router.get("/kyc/history", auth=cookie_auth)
+def get_kyc_application_history(request):
+    """
+    Get the authenticated user's KYC application history.
+    
+    Returns:
+    - hasActiveKYC: boolean - if user has pending KYC
+    - activeKYCId: ID of pending KYC (if any)
+    - kycHistory: list of past applications with status, dates, and reasons
+    - canResubmit: boolean - if user can submit new KYC
+    - totalApplications: total number of KYC applications submitted
+    """
+    try:
+        from adminpanel.service import get_user_kyc_history
+        
+        user = request.auth
+        print(f"🔍 Fetching KYC history for user: {user.email} (ID: {user.accountID})")
+        
+        result = get_user_kyc_history(user.accountID)
+        return {"success": True, **result}
+        
+    except Exception as e:
+        print(f"❌ Error fetching KYC history: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": "Failed to fetch KYC history"}
+
+
+@router.get("/notifications", auth=cookie_auth)
+def get_notifications(request, limit: int = 50, unread_only: bool = False):
+    """
+    Get notifications for the authenticated user.
+    
+    Query params:
+    - limit: Maximum number of notifications to return (default 50)
+    - unread_only: If true, only return unread notifications (default false)
+    """
+    try:
+        from .services import get_user_notifications
+        
+        user = request.auth
+        notifications = get_user_notifications(user.accountID, limit, unread_only)
+        
+        return {
+            "success": True,
+            "notifications": notifications,
+            "count": len(notifications)
+        }
+        
+    except Exception as e:
+        print(f"❌ Error fetching notifications: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": "Failed to fetch notifications"}
+
+
+@router.post("/notifications/{notification_id}/mark-read", auth=cookie_auth)
+def mark_notification_read(request, notification_id: int):
+    """
+    Mark a specific notification as read.
+    """
+    try:
+        from .services import mark_notification_as_read
+        
+        user = request.auth
+        mark_notification_as_read(user.accountID, notification_id)
+        
+        return {"success": True, "message": "Notification marked as read"}
+        
+    except ValueError as e:
+        return {"success": False, "error": str(e)}
+    except Exception as e:
+        print(f"❌ Error marking notification as read: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": "Failed to mark notification as read"}
+
+
+@router.post("/notifications/mark-all-read", auth=cookie_auth)
+def mark_all_notifications_read(request):
+    """
+    Mark all notifications as read for the authenticated user.
+    """
+    try:
+        from .services import mark_all_notifications_as_read
+        
+        user = request.auth
+        count = mark_all_notifications_as_read(user.accountID)
+        
+        return {
+            "success": True,
+            "message": f"Marked {count} notifications as read",
+            "count": count
+        }
+        
+    except Exception as e:
+        print(f"❌ Error marking all notifications as read: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": "Failed to mark notifications as read"}
+
+
+@router.get("/notifications/unread-count", auth=cookie_auth)
+def get_unread_count(request):
+    """
+    Get the count of unread notifications for the authenticated user.
+    """
+    try:
+        from .services import get_unread_notification_count
+        
+        user = request.auth
+        count = get_unread_notification_count(user.accountID)
+        
+        return {"success": True, "unreadCount": count}
+        
+    except Exception as e:
+        print(f"❌ Error getting unread count: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": "Failed to get unread count"}

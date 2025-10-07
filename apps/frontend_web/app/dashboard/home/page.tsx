@@ -7,6 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 import { User } from "@/types";
 import MobileNav from "@/components/ui/mobile-nav";
 import DesktopNavbar from "@/components/ui/desktop-sidebar";
+import NotificationBell from "@/components/notifications/NotificationBell";
 
 interface HomeUser extends User {
   profile_data?: {
@@ -329,6 +330,11 @@ const HomePage = () => {
     // Worker View - Browse Job Postings
     return (
       <div className="min-h-screen bg-gray-50">
+        {/* Notification Bell */}
+        <div className="fixed top-4 right-4 z-50">
+          <NotificationBell />
+        </div>
+
         {/* Desktop Navbar */}
         <div className="hidden lg:block">
           <DesktopNavbar
@@ -653,6 +659,11 @@ const HomePage = () => {
     // Client View - Browse Categories and Workers
     return (
       <div className="min-h-screen bg-gray-50">
+        {/* Notification Bell - Mobile Only */}
+        <div className="lg:hidden fixed top-4 right-4 z-50">
+          <NotificationBell />
+        </div>
+
         {/* Desktop Navbar */}
         <div className="hidden lg:block">
           <DesktopNavbar
@@ -1330,6 +1341,11 @@ const HomePage = () => {
   // Fallback for users without profile type
   return (
     <div className="min-h-screen bg-gray-50 pb-16 flex items-center justify-center">
+      {/* Notification Bell - Mobile Only */}
+      <div className="lg:hidden fixed top-4 right-4 z-50">
+        <NotificationBell />
+      </div>
+
       <div className="text-center px-4">
         <div className="mb-6">
           <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">

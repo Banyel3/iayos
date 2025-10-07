@@ -7,6 +7,8 @@ import { useAuth } from "@/context/AuthContext";
 import { User } from "@/types";
 import { Camera } from "react-camera-pro";
 import { useToast } from "@/components/ui/toast";
+import KYCHistory from "./history";
+import NotificationBell from "@/components/notifications/NotificationBell";
 
 interface KYCUser extends User {
   profile_data?: {
@@ -951,6 +953,11 @@ const KYCPage = () => {
 
   return (
     <div className="min-h-screen bg-blue-50 flex flex-col">
+      {/* Notification Bell - Mobile Only */}
+      <div className="lg:hidden fixed top-4 right-4 z-50">
+        <NotificationBell />
+      </div>
+
       {/* Header with Logo */}
       <div className="bg-white border-b border-gray-200 px-4 py-4">
         <div className="max-w-7xl mx-auto">
@@ -961,37 +968,43 @@ const KYCPage = () => {
 
       {/* Main Content */}
       <div className="flex-1 flex items-center justify-center px-4 py-8">
-        <div className="w-full max-w-2xl">
-          {/* Back Button */}
-          <button
-            onClick={handleBack}
-            className="flex items-center text-gray-600 hover:text-gray-900 transition-colors mb-6"
-          >
-            <svg
-              className="w-5 h-5 mr-1"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+        <div className="w-full max-w-4xl space-y-6">
+          {/* KYC History Section */}
+          <KYCHistory />
+
+          {/* KYC Submission Form */}
+          <div className="w-full max-w-2xl mx-auto">
+            {/* Back Button */}
+            <button
+              onClick={handleBack}
+              className="flex items-center text-gray-600 hover:text-gray-900 transition-colors mb-6"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M10 19l-7-7m0 0l7-7m-7 7h18"
-              />
-            </svg>
-            <span className="text-sm font-medium">Back</span>
-          </button>
+              <svg
+                className="w-5 h-5 mr-1"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M10 19l-7-7m0 0l7-7m-7 7h18"
+                />
+              </svg>
+              <span className="text-sm font-medium">Back</span>
+            </button>
 
-          {/* Progress Bar */}
-          {renderProgressBar()}
+            {/* Progress Bar */}
+            {renderProgressBar()}
 
-          {/* Step Content */}
-          <div className="bg-white rounded-2xl shadow-lg p-8 lg:p-12">
-            {currentStep === 1 && renderStep1()}
-            {currentStep === 2 && renderStep2()}
-            {currentStep === 3 && renderStep3()}
-            {currentStep === 4 && renderStep4()}
+            {/* Step Content */}
+            <div className="bg-white rounded-2xl shadow-lg p-8 lg:p-12">
+              {currentStep === 1 && renderStep1()}
+              {currentStep === 2 && renderStep2()}
+              {currentStep === 3 && renderStep3()}
+              {currentStep === 4 && renderStep4()}
+            </div>
           </div>
         </div>
       </div>

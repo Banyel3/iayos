@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import DesktopNavbar from "@/components/ui/desktop-sidebar";
 import MobileNav from "@/components/ui/mobile-nav";
+import NotificationBell from "@/components/notifications/NotificationBell";
 
 interface ProfileData {
   firstName: string;
@@ -171,6 +172,11 @@ const EditProfilePage = () => {
 
   return (
     <div className="min-h-screen bg-blue-50">
+      {/* Notification Bell - Mobile Only */}
+      <div className="lg:hidden fixed top-4 right-4 z-50">
+        <NotificationBell />
+      </div>
+
       {/* Desktop Navbar */}
       <DesktopNavbar
         isWorker={isWorker}

@@ -196,3 +196,47 @@ class kycFiles(models.Model):
     def save(self, *args, **kwargs):
         self.full_clean() 
         super().save(*args, **kwargs)
+
+
+class Notification(models.Model):
+    """
+    User notifications for important events (KYC updates, messages, etc.)
+    """
+    notificationID = models.BigAutoField(primary_key=True)
+    accountFK = models.ForeignKey(
+        Accounts, 
+        on_delete=models.CASCADE, 
+        related_name='notifications'
+    )
+    
+    class NotificationType(models.TextChoices):
+        KYC_APPROVED = "KYC_APPROVED", "KYC Approved"
+        KYC_REJECTED = "KYC_REJECTED", "KYC Rejected"
+        MESSAGE = "MESSAGE", "Message"
+        SYSTEM = "SYSTEM", "System"
+    
+    notificationType = models.CharField(
+        max_length=20,
+        choices=NotificationType.choices,
+        default="SYSTEM"
+    )
+    
+    title = models.CharField(max_length=200)
+    message = models.TextField()
+    isRead = models.BooleanField(default=False)
+    
+    # Optional: Link to related KYC log for context
+    relatedKYCLogID = models.BigIntegerField(null=True, blank=True)
+    
+    createdAt = models.DateTimeField(auto_now_add=True)
+    readAt = models.DateTimeField(null=True, blank=True)
+    
+    class Meta:
+        ordering = ['-createdAt']
+        indexes = [
+            models.Index(fields=['accountFK', '-createdAt']),
+            models.Index(fields=['accountFK', 'isRead']),
+        ]
+    
+    def __str__(self):
+        return f"{self.notificationType} - {self.accountFK.email} - {self.title}"

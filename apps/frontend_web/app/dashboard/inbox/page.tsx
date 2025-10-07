@@ -7,6 +7,7 @@ import { User } from "@/types";
 import { useRouter } from "next/navigation";
 import MobileNav from "@/components/ui/mobile-nav";
 import DesktopNavbar from "@/components/ui/desktop-sidebar";
+import NotificationBell from "@/components/notifications/NotificationBell";
 
 // Extended User interface for inbox page
 interface InboxUser extends User {
@@ -163,6 +164,11 @@ const InboxPage = () => {
 
   return (
     <div className="min-h-screen bg-white">
+      {/* Notification Bell - Mobile Only */}
+      <div className="lg:hidden fixed top-4 right-4 z-50">
+        <NotificationBell />
+      </div>
+
       {/* Desktop Navbar - Sticky */}
       <DesktopNavbar
         isWorker={user?.profile_data?.profileType === "WORKER"}

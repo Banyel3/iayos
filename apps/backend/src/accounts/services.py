@@ -531,3 +531,133 @@ def get_pending_kyc_submissions():
 
     except Exception as e:
         raise ValueError(f"Failed to fetch pending KYC: {str(e)}")
+
+
+def get_user_notifications(user_account_id, limit=50, unread_only=False):
+    """
+    Fetch notifications for a specific user.
+    
+    Args:
+        user_account_id: The account ID of the user
+        limit: Maximum number of notifications to return (default 50)
+        unread_only: If True, only return unread notifications
+        
+    Returns:
+        List of notification dictionaries
+    """
+    from .models import Notification
+    
+    try:
+        queryset = Notification.objects.filter(accountFK__accountID=user_account_id)
+        
+        if unread_only:
+            queryset = queryset.filter(isRead=False)
+        
+        queryset = queryset.order_by('-createdAt')[:limit]
+        
+        notifications = []
+        for notif in queryset:
+            notifications.append({
+                "notificationID": notif.notificationID,
+                "type": notif.notificationType,
+                "title": notif.title,
+                "message": notif.message,
+                "isRead": notif.isRead,
+                "createdAt": notif.createdAt.isoformat(),
+                "readAt": notif.readAt.isoformat() if notif.readAt else None,
+                "relatedKYCLogID": notif.relatedKYCLogID,
+            })
+        
+        return notifications
+        
+    except Exception as e:
+        print(f"❌ Error fetching notifications: {str(e)}")
+        raise
+
+
+def mark_notification_as_read(user_account_id, notification_id):
+    """
+    Mark a specific notification as read.
+    
+    Args:
+        user_account_id: The account ID of the user
+        notification_id: The notification ID to mark as read
+        
+    Returns:
+        Success boolean
+    """
+    from .models import Notification
+    
+    try:
+        notification = Notification.objects.get(
+            notificationID=notification_id,
+            accountFK__accountID=user_account_id
+        )
+        
+        if not notification.isRead:
+            notification.isRead = True
+            notification.readAt = timezone.now()
+            notification.save()
+            print(f"✅ Notification {notification_id} marked as read")
+        
+        return True
+        
+    except Notification.DoesNotExist:
+        raise ValueError("Notification not found")
+    except Exception as e:
+        print(f"❌ Error marking notification as read: {str(e)}")
+        raise
+
+
+def mark_all_notifications_as_read(user_account_id):
+    """
+    Mark all notifications as read for a user.
+    
+    Args:
+        user_account_id: The account ID of the user
+        
+    Returns:
+        Number of notifications marked as read
+    """
+    from .models import Notification
+    
+    try:
+        updated_count = Notification.objects.filter(
+            accountFK__accountID=user_account_id,
+            isRead=False
+        ).update(
+            isRead=True,
+            readAt=timezone.now()
+        )
+        
+        print(f"✅ Marked {updated_count} notifications as read")
+        return updated_count
+        
+    except Exception as e:
+        print(f"❌ Error marking all notifications as read: {str(e)}")
+        raise
+
+
+def get_unread_notification_count(user_account_id):
+    """
+    Get the count of unread notifications for a user.
+    
+    Args:
+        user_account_id: The account ID of the user
+        
+    Returns:
+        Integer count of unread notifications
+    """
+    from .models import Notification
+    
+    try:
+        count = Notification.objects.filter(
+            accountFK__accountID=user_account_id,
+            isRead=False
+        ).count()
+        
+        return count
+        
+    except Exception as e:
+        print(f"❌ Error getting unread notification count: {str(e)}")
+        raise
