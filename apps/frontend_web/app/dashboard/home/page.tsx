@@ -62,6 +62,8 @@ const HomePage = () => {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [isAvailable, setIsAvailable] = useState(true);
+  const [workerListings, setWorkerListings] = useState<WorkerListing[]>([]);
+  const [isLoadingWorkers, setIsLoadingWorkers] = useState(true);
 
   const logout = () => {
     // Clear auth state and redirect to login
@@ -74,6 +76,45 @@ const HomePage = () => {
       router.push("/auth/login");
     }
   }, [isAuthenticated, isLoading, router]);
+
+  // Fetch workers from backend
+  useEffect(() => {
+    const fetchWorkers = async () => {
+      try {
+        setIsLoadingWorkers(true);
+        const response = await fetch(
+          "http://localhost:8000/api/accounts/users/workers",
+          {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+            },
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch workers");
+        }
+
+        const data = await response.json();
+
+        if (data.success && data.workers) {
+          setWorkerListings(data.workers);
+        }
+      } catch (error) {
+        console.error("Error fetching workers:", error);
+        // Optionally set empty array or keep mock data as fallback
+        setWorkerListings([]);
+      } finally {
+        setIsLoadingWorkers(false);
+      }
+    };
+
+    // Only fetch if user is a client
+    if (isAuthenticated && user?.profile_data?.profileType === "CLIENT") {
+      fetchWorkers();
+    }
+  }, [isAuthenticated, user?.profile_data?.profileType]);
 
   if (isLoading) {
     return (
@@ -225,82 +266,6 @@ const HomePage = () => {
       workerCount: 19,
     },
   ];
-
-  // Mock data for workers under categories (Client view) - sorted by distance
-  const workerListings: WorkerListing[] = [
-    {
-      id: "1",
-      name: "John Reyes",
-      avatar: "/worker1.jpg",
-      rating: 4.9,
-      reviewCount: 127,
-      startingPrice: "₱380",
-      experience: "5+ years",
-      specialization: "Appliance Repair",
-      isVerified: true,
-      distance: 1.5,
-    },
-    {
-      id: "2",
-      name: "Maria Garcia",
-      avatar: "/worker2.jpg",
-      rating: 4.8,
-      reviewCount: 98,
-      startingPrice: "₱450",
-      experience: "3+ years",
-      specialization: "Electrical Work",
-      isVerified: true,
-      distance: 2.1,
-    },
-    {
-      id: "3",
-      name: "Carlos Santos",
-      avatar: "/worker3.jpg",
-      rating: 4.7,
-      reviewCount: 84,
-      startingPrice: "₱300",
-      experience: "4+ years",
-      specialization: "Plumbing",
-      isVerified: false,
-      distance: 2.8,
-    },
-    {
-      id: "4",
-      name: "Anna Lopez",
-      avatar: "/worker1.jpg",
-      rating: 5.0,
-      reviewCount: 156,
-      startingPrice: "₱500",
-      experience: "7+ years",
-      specialization: "Appliance Repair",
-      isVerified: true,
-      distance: 3.2,
-    },
-    {
-      id: "5",
-      name: "Roberto Cruz",
-      avatar: "/worker2.jpg",
-      rating: 4.6,
-      reviewCount: 72,
-      startingPrice: "₱350",
-      experience: "2+ years",
-      specialization: "Cleaning Services",
-      isVerified: false,
-      distance: 4.0,
-    },
-    {
-      id: "6",
-      name: "Luis Fernandez",
-      avatar: "/worker3.jpg",
-      rating: 4.8,
-      reviewCount: 103,
-      startingPrice: "₱420",
-      experience: "6+ years",
-      specialization: "Electrical Work",
-      isVerified: true,
-      distance: 2.3,
-    },
-  ].sort((a, b) => a.distance - b.distance);
 
   // Get urgency color
   const getUrgencyColor = (urgency: string) => {
@@ -755,97 +720,109 @@ const HomePage = () => {
             <h2 className="text-lg font-semibold text-gray-900 mb-3">
               Workers Near You
             </h2>
-            <div className="space-y-3">
-              {[...workerListings]
-                .sort((a, b) => a.distance - b.distance)
-                .map((worker) => (
-                  <div
-                    key={worker.id}
-                    className="bg-white rounded-lg border border-gray-200 p-4"
-                  >
-                    <div className="flex items-start space-x-3">
-                      <div className="relative">
-                        <Image
-                          src={worker.avatar}
-                          alt={worker.name}
-                          width={56}
-                          height={56}
-                          className="w-14 h-14 rounded-full object-cover"
-                        />
-                        <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-start justify-between mb-1">
-                          <div>
-                            <div className="flex items-center space-x-1">
-                              <h3 className="font-semibold text-gray-900 text-sm">
-                                {worker.name}
-                              </h3>
-                              {worker.isVerified && (
-                                <svg
-                                  className="w-4 h-4 text-blue-500"
-                                  fill="currentColor"
-                                  viewBox="0 0 20 20"
-                                >
-                                  <path
-                                    fillRule="evenodd"
-                                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                                    clipRule="evenodd"
-                                  />
-                                </svg>
-                              )}
+            {isLoadingWorkers ? (
+              <div className="flex justify-center py-8">
+                <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+              </div>
+            ) : workerListings.length === 0 ? (
+              <div className="bg-white rounded-lg border border-gray-200 p-6 text-center">
+                <p className="text-gray-600">
+                  No workers available at the moment
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {[...workerListings]
+                  .sort((a, b) => a.distance - b.distance)
+                  .map((worker) => (
+                    <div
+                      key={worker.id}
+                      className="bg-white rounded-lg border border-gray-200 p-4"
+                    >
+                      <div className="flex items-start space-x-3">
+                        <div className="relative">
+                          <Image
+                            src={worker.avatar}
+                            alt={worker.name}
+                            width={56}
+                            height={56}
+                            className="w-14 h-14 rounded-full object-cover"
+                          />
+                          <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-start justify-between mb-1">
+                            <div>
+                              <div className="flex items-center space-x-1">
+                                <h3 className="font-semibold text-gray-900 text-sm">
+                                  {worker.name}
+                                </h3>
+                                {worker.isVerified && (
+                                  <svg
+                                    className="w-4 h-4 text-blue-500"
+                                    fill="currentColor"
+                                    viewBox="0 0 20 20"
+                                  >
+                                    <path
+                                      fillRule="evenodd"
+                                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                                      clipRule="evenodd"
+                                    />
+                                  </svg>
+                                )}
+                              </div>
+                              <p className="text-xs text-gray-600">
+                                {worker.specialization}
+                              </p>
                             </div>
-                            <p className="text-xs text-gray-600">
-                              {worker.specialization}
-                            </p>
+                            <div className="text-right">
+                              <p className="text-sm font-semibold text-gray-900">
+                                {worker.startingPrice}
+                              </p>
+                            </div>
                           </div>
-                          <div className="text-right">
-                            <p className="text-sm font-semibold text-gray-900">
-                              {worker.startingPrice}
-                            </p>
+                          <div className="flex items-center space-x-3 mb-2">
+                            <span className="flex items-center text-xs text-gray-600">
+                              <span className="text-yellow-400 mr-1">⭐</span>
+                              {worker.rating} ({worker.reviewCount})
+                            </span>
+                            <span className="flex items-center text-xs text-gray-600">
+                              <svg
+                                className="w-3 h-3 mr-1"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                                />
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                                />
+                              </svg>
+                              {worker.distance.toFixed(1)} km
+                            </span>
                           </div>
-                        </div>
-                        <div className="flex items-center space-x-3 mb-2">
-                          <span className="flex items-center text-xs text-gray-600">
-                            <span className="text-yellow-400 mr-1">⭐</span>
-                            {worker.rating} ({worker.reviewCount})
-                          </span>
-                          <span className="flex items-center text-xs text-gray-600">
-                            <svg
-                              className="w-3 h-3 mr-1"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-                              />
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-                              />
-                            </svg>
-                            {worker.distance.toFixed(1)} km
-                          </span>
-                        </div>
-                        <div className="flex space-x-2">
-                          <button className="flex-1 bg-blue-500 text-white py-2 rounded-lg text-xs font-medium">
-                            View Profile
-                          </button>
-                          <button className="flex-1 border border-blue-500 text-blue-500 py-2 rounded-lg text-xs font-medium">
-                            Message
-                          </button>
+                          <div className="flex space-x-2">
+                            <button className="flex-1 bg-blue-500 text-white py-2 rounded-lg text-xs font-medium">
+                              View Profile
+                            </button>
+                            <button className="flex-1 border border-blue-500 text-blue-500 py-2 rounded-lg text-xs font-medium">
+                              Message
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-            </div>
+                  ))}
+              </div>
+            )}
           </div>
 
           {selectedCategory && (
@@ -1120,98 +1097,110 @@ const HomePage = () => {
                   Workers Near You
                 </h2>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {[...workerListings]
-                  .sort((a, b) => a.distance - b.distance)
-                  .map((worker) => (
-                    <div
-                      key={worker.id}
-                      className="border border-gray-200 rounded-lg overflow-hidden hover:shadow-lg transition-shadow"
-                    >
-                      <div className="p-6">
-                        <div className="flex items-start space-x-4 mb-4">
-                          <div className="relative">
-                            <Image
-                              src={worker.avatar}
-                              alt={worker.name}
-                              width={64}
-                              height={64}
-                              className="w-16 h-16 rounded-full object-cover"
-                            />
-                            <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center space-x-2 mb-1">
-                              <h3 className="font-semibold text-gray-900 truncate">
-                                {worker.name}
-                              </h3>
-                              {worker.isVerified && (
-                                <svg
-                                  className="w-5 h-5 text-blue-500 flex-shrink-0"
-                                  fill="currentColor"
-                                  viewBox="0 0 20 20"
-                                >
-                                  <path
-                                    fillRule="evenodd"
-                                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                                    clipRule="evenodd"
-                                  />
-                                </svg>
-                              )}
-                            </div>
-                            <p className="text-sm text-gray-600 mb-2">
-                              {worker.specialization}
-                            </p>
-                            <div className="flex items-center space-x-1 text-sm">
-                              <span className="text-yellow-400">⭐</span>
-                              <span className="font-medium">
-                                {worker.rating}
-                              </span>
-                              <span className="text-gray-500">
-                                ({worker.reviewCount} reviews)
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center justify-between mb-4">
-                          <span className="text-sm text-gray-600 flex items-center">
-                            <svg
-                              className="w-4 h-4 mr-1"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+              {isLoadingWorkers ? (
+                <div className="flex justify-center py-12">
+                  <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                </div>
+              ) : workerListings.length === 0 ? (
+                <div className="border border-gray-200 rounded-lg p-8 text-center">
+                  <p className="text-gray-600">
+                    No workers available at the moment
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {[...workerListings]
+                    .sort((a, b) => a.distance - b.distance)
+                    .map((worker) => (
+                      <div
+                        key={worker.id}
+                        className="border border-gray-200 rounded-lg overflow-hidden hover:shadow-lg transition-shadow"
+                      >
+                        <div className="p-6">
+                          <div className="flex items-start space-x-4 mb-4">
+                            <div className="relative">
+                              <Image
+                                src={worker.avatar}
+                                alt={worker.name}
+                                width={64}
+                                height={64}
+                                className="w-16 h-16 rounded-full object-cover"
                               />
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-                              />
-                            </svg>
-                            {worker.distance.toFixed(1)} km away
-                          </span>
-                          <span className="text-sm font-semibold text-gray-900">
-                            {worker.startingPrice}
-                          </span>
-                        </div>
-                        <div className="flex space-x-2">
-                          <button className="flex-1 bg-blue-500 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors">
-                            View Profile
-                          </button>
-                          <button className="flex-1 bg-white text-blue-500 border border-blue-500 py-2.5 rounded-lg text-sm font-medium hover:bg-blue-50 transition-colors">
-                            Message
-                          </button>
+                              <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center space-x-2 mb-1">
+                                <h3 className="font-semibold text-gray-900 truncate">
+                                  {worker.name}
+                                </h3>
+                                {worker.isVerified && (
+                                  <svg
+                                    className="w-5 h-5 text-blue-500 flex-shrink-0"
+                                    fill="currentColor"
+                                    viewBox="0 0 20 20"
+                                  >
+                                    <path
+                                      fillRule="evenodd"
+                                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                                      clipRule="evenodd"
+                                    />
+                                  </svg>
+                                )}
+                              </div>
+                              <p className="text-sm text-gray-600 mb-2">
+                                {worker.specialization}
+                              </p>
+                              <div className="flex items-center space-x-1 text-sm">
+                                <span className="text-yellow-400">⭐</span>
+                                <span className="font-medium">
+                                  {worker.rating}
+                                </span>
+                                <span className="text-gray-500">
+                                  ({worker.reviewCount} reviews)
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between mb-4">
+                            <span className="text-sm text-gray-600 flex items-center">
+                              <svg
+                                className="w-4 h-4 mr-1"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                                />
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                                />
+                              </svg>
+                              {worker.distance.toFixed(1)} km away
+                            </span>
+                            <span className="text-sm font-semibold text-gray-900">
+                              {worker.startingPrice}
+                            </span>
+                          </div>
+                          <div className="flex space-x-2">
+                            <button className="flex-1 bg-blue-500 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors">
+                              View Profile
+                            </button>
+                            <button className="flex-1 bg-white text-blue-500 border border-blue-500 py-2.5 rounded-lg text-sm font-medium hover:bg-blue-50 transition-colors">
+                              Message
+                            </button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
-              </div>
+                    ))}
+                </div>
+              )}
             </div>
 
             {/* Workers Grid */}

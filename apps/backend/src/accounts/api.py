@@ -275,3 +275,64 @@ def get_unread_count(request):
         import traceback
         traceback.print_exc()
         return {"success": False, "error": "Failed to get unread count"}
+
+
+#region WORKER ENDPOINTS
+@router.get("/users/workers")
+def get_all_workers_endpoint(request):
+    """
+    Fetch all workers with their profiles and specializations.
+    Public endpoint - no authentication required for browsing workers.
+    """
+    try:
+        from .services import get_all_workers
+        
+        workers = get_all_workers()
+        
+        return {
+            "success": True,
+            "workers": workers,
+            "count": len(workers)
+        }
+        
+    except Exception as e:
+        print(f"❌ Error fetching workers: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"success": False, "error": "Failed to fetch workers"}, 
+            status=500
+        )
+
+
+@router.get("/users/workers/{user_id}")
+def get_worker_by_id_endpoint(request, user_id: int):
+    """
+    Fetch a single worker by their account ID.
+    Public endpoint - no authentication required for viewing worker profiles.
+    """
+    try:
+        from .services import get_worker_by_id
+        
+        worker = get_worker_by_id(user_id)
+        
+        if worker is None:
+            return Response(
+                {"success": False, "error": "Worker not found"}, 
+                status=404
+            )
+        
+        return {
+            "success": True,
+            "worker": worker
+        }
+        
+    except Exception as e:
+        print(f"❌ Error fetching worker {user_id}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"success": False, "error": "Failed to fetch worker"}, 
+            status=500
+        )
+#endregion

@@ -246,9 +246,12 @@ export default function PendingKYCPage() {
           // Calculate days pending
           const submissionDate = new Date(kycRecord.createdAt);
           const today = new Date();
-          const daysPending = Math.floor(
-            (today.getTime() - submissionDate.getTime()) / (1000 * 60 * 60 * 24)
-          );
+          const daysPending = isNaN(submissionDate.getTime())
+            ? 0
+            : Math.floor(
+                (today.getTime() - submissionDate.getTime()) /
+                  (1000 * 60 * 60 * 24)
+              );
 
           // Determine priority based on days pending
           let priority: "high" | "medium" | "low" = "low";
@@ -644,10 +647,12 @@ export default function PendingKYCPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {Math.round(
-                    pendingKYC.reduce((acc, r) => acc + r.daysPending, 0) /
-                      pendingKYC.length
-                  )}
+                  {pendingKYC.length > 0
+                    ? Math.round(
+                        pendingKYC.reduce((acc, r) => acc + r.daysPending, 0) /
+                          pendingKYC.length
+                      )
+                    : 0}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Average wait time
@@ -765,7 +770,7 @@ export default function PendingKYCPage() {
                             Documents
                           </p>
                           <p className="text-lg font-semibold">
-                            {record.documentsCount}
+                            {record.documentsCount || 0}
                           </p>
                         </div>
                         <div className="text-center">
@@ -775,7 +780,7 @@ export default function PendingKYCPage() {
                           <p
                             className={`text-lg font-semibold ${getDaysPendingColor(record.daysPending)}`}
                           >
-                            {record.daysPending}
+                            {record.daysPending || 0}
                           </p>
                         </div>
                         <div className="text-center">

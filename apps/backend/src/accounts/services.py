@@ -661,3 +661,145 @@ def get_unread_notification_count(user_account_id):
     except Exception as e:
         print(f"❌ Error getting unread notification count: {str(e)}")
         raise
+
+
+def get_all_workers():
+    """
+    Fetch all workers with their profiles and specializations.
+    
+    Returns:
+        List of worker dictionaries matching WorkerListing interface
+    """
+    from .models import WorkerProfile, Profile, workerSpecialization, Specializations, Accounts
+    
+    try:
+        # Query all worker profiles with related data
+        worker_profiles = WorkerProfile.objects.select_related(
+            'profileID',
+            'profileID__accountFK'
+        ).all()
+        
+        workers = []
+        
+        for worker_profile in worker_profiles:
+            profile = worker_profile.profileID
+            account = profile.accountFK
+            
+            # Get primary specialization (first one if multiple)
+            worker_spec = workerSpecialization.objects.filter(
+                workerID=worker_profile
+            ).select_related('specializationID').first()
+            
+            specialization_name = "General Worker"
+            experience_years = 0
+            
+            if worker_spec:
+                specialization_name = worker_spec.specializationID.specializationName
+                experience_years = worker_spec.experienceYears
+            
+            # Format experience text
+            if experience_years == 0:
+                experience_text = "New"
+            elif experience_years == 1:
+                experience_text = "1 year"
+            else:
+                experience_text = f"{experience_years}+ years"
+            
+            # Build worker data matching WorkerListing interface
+            worker_data = {
+                "id": str(account.accountID),
+                "name": f"{profile.firstName} {profile.lastName}",
+                "avatar": profile.profileImg if profile.profileImg else "/worker1.jpg",
+                "rating": round(worker_profile.workerRating / 20, 1) if worker_profile.workerRating > 0 else 0.0,  # Convert 0-100 to 0-5 scale
+                "reviewCount": 0,  # TODO: Implement review system
+                "startingPrice": "₱500",  # TODO: Add pricing to WorkerProfile model
+                "experience": experience_text,
+                "specialization": specialization_name,
+                "isVerified": account.KYCVerified,
+                "distance": 5.0  # TODO: Calculate based on location when implemented
+            }
+            
+            workers.append(worker_data)
+        
+        # Sort by distance (currently placeholder values)
+        workers.sort(key=lambda x: x['distance'])
+        
+        print(f"✅ Fetched {len(workers)} workers")
+        return workers
+        
+    except Exception as e:
+        print(f"❌ Error fetching workers: {str(e)}")
+        raise
+
+
+def get_worker_by_id(user_id):
+    """
+    Fetch a single worker by their account ID.
+    
+    Args:
+        user_id: The account ID of the worker
+        
+    Returns:
+        Worker dictionary matching WorkerListing interface, or None if not found
+    """
+    from .models import WorkerProfile, Profile, workerSpecialization, Specializations, Accounts
+    
+    try:
+        # Get the account
+        account = Accounts.objects.get(accountID=user_id)
+        
+        # Get the profile
+        profile = Profile.objects.get(accountFK=account, profileType=Profile.ProfileType.WORKER)
+        
+        # Get the worker profile
+        worker_profile = WorkerProfile.objects.get(profileID=profile)
+        
+        # Get primary specialization
+        worker_spec = workerSpecialization.objects.filter(
+            workerID=worker_profile
+        ).select_related('specializationID').first()
+        
+        specialization_name = "General Worker"
+        experience_years = 0
+        
+        if worker_spec:
+            specialization_name = worker_spec.specializationID.specializationName
+            experience_years = worker_spec.experienceYears
+        
+        # Format experience text
+        if experience_years == 0:
+            experience_text = "New"
+        elif experience_years == 1:
+            experience_text = "1 year"
+        else:
+            experience_text = f"{experience_years}+ years"
+        
+        # Build worker data
+        worker_data = {
+            "id": str(account.accountID),
+            "name": f"{profile.firstName} {profile.lastName}",
+            "avatar": profile.profileImg if profile.profileImg else "/worker1.jpg",
+            "rating": round(worker_profile.workerRating / 20, 1) if worker_profile.workerRating > 0 else 0.0,
+            "reviewCount": 0,  # TODO: Implement review system
+            "startingPrice": "₱500",  # TODO: Add pricing to WorkerProfile model
+            "experience": experience_text,
+            "specialization": specialization_name,
+            "isVerified": account.KYCVerified,
+            "distance": 5.0  # TODO: Calculate based on location when implemented
+        }
+        
+        print(f"✅ Fetched worker {user_id}")
+        return worker_data
+        
+    except Accounts.DoesNotExist:
+        print(f"❌ Account {user_id} not found")
+        return None
+    except Profile.DoesNotExist:
+        print(f"❌ Profile for account {user_id} not found")
+        return None
+    except WorkerProfile.DoesNotExist:
+        print(f"❌ Worker profile for account {user_id} not found")
+        return None
+    except Exception as e:
+        print(f"❌ Error fetching worker {user_id}: {str(e)}")
+        raise

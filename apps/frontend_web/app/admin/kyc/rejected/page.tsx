@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -37,56 +37,8 @@ interface RejectedKYC {
   hasResubmitted: boolean;
 }
 
-const mockRejectedKYC: RejectedKYC[] = [
-  {
-    id: "1",
-    userId: "user_3",
-    userName: "Mike Johnson",
-    userEmail: "mike.johnson@example.com",
-    userType: "worker",
-    submissionDate: "2024-03-10",
-    rejectionDate: "2024-03-12",
-    reviewedBy: "Admin User",
-    documentsCount: 2,
-    rejectionReason:
-      "ID document is not clear, please resubmit with higher quality image",
-    resubmissionAllowed: true,
-    hasResubmitted: false,
-  },
-  {
-    id: "2",
-    userId: "user_8",
-    userName: "David Wilson",
-    userEmail: "david.wilson@example.com",
-    userType: "client",
-    submissionDate: "2024-03-08",
-    rejectionDate: "2024-03-11",
-    reviewedBy: "Sarah Admin",
-    documentsCount: 3,
-    rejectionReason:
-      "Proof of address document is expired. Please provide recent utility bill or bank statement",
-    resubmissionAllowed: true,
-    hasResubmitted: true,
-  },
-  {
-    id: "3",
-    userId: "user_9",
-    userName: "Jennifer Davis",
-    userEmail: "jennifer.davis@example.com",
-    userType: "worker",
-    submissionDate: "2024-03-05",
-    rejectionDate: "2024-03-07",
-    reviewedBy: "Admin User",
-    documentsCount: 4,
-    rejectionReason:
-      "Professional license verification failed. Invalid license number",
-    resubmissionAllowed: false,
-    hasResubmitted: false,
-  },
-];
-
 export default function RejectedKYCPage() {
-  const [rejectedKYC] = useState<RejectedKYC[]>(mockRejectedKYC);
+  const [rejectedKYC, setRejectedKYC] = useState<RejectedKYC[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | "worker" | "client">(
     "all"
@@ -97,19 +49,73 @@ export default function RejectedKYCPage() {
   const { showToast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
 
-  // Example fetch function for future API integration
+  // Fetch rejected KYC logs on component mount
+  useEffect(() => {
+    fetchRejectedKYC();
+  }, []);
+
   const fetchRejectedKYC = async () => {
     setIsLoading(true);
     try {
-      // API call would go here
-      // const response = await fetch('...');
-      // Handle response
-      showToast({
-        type: "success",
-        title: "Data Loaded",
-        message: "Rejected KYC records loaded successfully",
-        duration: 3000,
+      const response = await fetch(
+        "http://localhost:8000/api/adminpanel/kyc/logs?action=Rejected&limit=500",
+        {
+          credentials: "include",
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch rejected KYC records");
+      }
+
+      const data = await response.json();
+      console.log("✅ Fetched rejected KYC response:", data);
+
+      // Handle different response formats
+      let logs = data;
+
+      // If response has an error property
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      // If response is not an array, it might be wrapped
+      if (!Array.isArray(logs)) {
+        // Try to extract array from common wrapper properties
+        if (data.data && Array.isArray(data.data)) {
+          logs = data.data;
+        } else if (data.logs && Array.isArray(data.logs)) {
+          logs = data.logs;
+        } else if (data.results && Array.isArray(data.results)) {
+          logs = data.results;
+        } else {
+          console.warn("⚠️ Response is not an array:", data);
+          logs = [];
+        }
+      }
+
+      console.log("✅ Extracted logs array:", logs);
+
+      // Transform backend data to match frontend interface
+      const transformedData: RejectedKYC[] = logs.map((log: any) => {
+        return {
+          id: log.kycLogID?.toString() || "0",
+          userId: log.userAccountID?.toString() || "0",
+          userName: log.userEmail?.split("@")[0] || "Unknown", // Extract name from email
+          userEmail: log.userEmail || "unknown@email.com",
+          userType: "worker" as "worker" | "client", // Default to worker, can be enhanced
+          submissionDate: log.createdAt || new Date().toISOString(),
+          rejectionDate: log.reviewedAt || new Date().toISOString(),
+          reviewedBy: log.reviewedBy || "System",
+          documentsCount: 0, // Not available in logs
+          rejectionReason: log.reason || "No reason provided",
+          resubmissionAllowed: true, // Default to true
+          hasResubmitted: false, // Would need additional logic to determine
+        };
       });
+
+      setRejectedKYC(transformedData);
+      console.log("✅ Transformed rejected KYC data:", transformedData);
     } catch (error) {
       console.error("Error fetching rejected KYC:", error);
       showToast({
@@ -341,7 +347,7 @@ export default function RejectedKYCPage() {
                           <div>
                             <p className="text-muted-foreground">Documents</p>
                             <p className="font-medium">
-                              {record.documentsCount}
+                              {record.documentsCount || 0}
                             </p>
                           </div>
                           <div>
