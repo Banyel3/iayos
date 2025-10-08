@@ -8,6 +8,7 @@ import { User } from "@/types";
 import MobileNav from "@/components/ui/mobile-nav";
 import DesktopNavbar from "@/components/ui/desktop-sidebar";
 import NotificationBell from "@/components/notifications/NotificationBell";
+import { useWorkerAvailability } from "@/lib/hooks/useWorkerAvailability";
 
 interface HomeUser extends User {
   profile_data?: {
@@ -61,9 +62,15 @@ const HomePage = () => {
   const router = useRouter();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [isAvailable, setIsAvailable] = useState(true);
   const [workerListings, setWorkerListings] = useState<WorkerListing[]>([]);
   const [isLoadingWorkers, setIsLoadingWorkers] = useState(true);
+
+  // Use the worker availability hook
+  const isWorker = user?.profile_data?.profileType === "WORKER";
+  const { isAvailable, handleAvailabilityToggle } = useWorkerAvailability(
+    isWorker,
+    isAuthenticated
+  );
 
   const logout = () => {
     // Clear auth state and redirect to login
@@ -129,7 +136,6 @@ const HomePage = () => {
 
   if (!isAuthenticated) return null;
 
-  const isWorker = user?.profile_data?.profileType === "WORKER";
   const isClient = user?.profile_data?.profileType === "CLIENT";
 
   // Mock data for job postings (Worker view) - sorted by distance
@@ -310,7 +316,7 @@ const HomePage = () => {
             }
             onLogout={logout}
             isAvailable={isAvailable}
-            onAvailabilityToggle={() => setIsAvailable(!isAvailable)}
+            onAvailabilityToggle={handleAvailabilityToggle}
           />
         </div>
 

@@ -8,6 +8,7 @@ import { User } from "@/types";
 import MobileNav from "@/components/ui/mobile-nav";
 import DesktopNavbar from "@/components/ui/desktop-sidebar";
 import NotificationBell from "@/components/notifications/NotificationBell";
+import { useWorkerAvailability } from "@/lib/hooks/useWorkerAvailability";
 
 // Extended User interface for profile page
 interface ProfileUser extends User {
@@ -60,7 +61,13 @@ const ProfilePage = () => {
   const [activeTab, setActiveTab] = useState<
     "overview" | "feedbacks" | "transaction"
   >("overview");
-  const [isAvailable, setIsAvailable] = useState(true);
+
+  // Use the worker availability hook
+  const isWorker = user?.profile_data?.profileType === "WORKER";
+  const { isAvailable, handleAvailabilityToggle } = useWorkerAvailability(
+    isWorker,
+    isAuthenticated
+  );
 
   // Authentication check and profile type redirect
   useEffect(() => {
@@ -150,7 +157,6 @@ const ProfilePage = () => {
     ],
   };
 
-  const isWorker = user?.profile_data?.profileType === "WORKER";
   const isClient = user?.profile_data?.profileType === "CLIENT";
 
   // Render worker profile
@@ -173,7 +179,7 @@ const ProfilePage = () => {
             ></div>
             <span
               className="text-sm font-medium text-gray-700 cursor-pointer"
-              onClick={() => setIsAvailable(!isAvailable)}
+              onClick={handleAvailabilityToggle}
             >
               {isAvailable ? "Available" : "Unavailable"}
             </span>
@@ -463,7 +469,7 @@ const ProfilePage = () => {
           userName={isWorker ? workerData.name : clientData.name}
           onLogout={logout}
           isAvailable={isAvailable}
-          onAvailabilityToggle={() => setIsAvailable(!isAvailable)}
+          onAvailabilityToggle={handleAvailabilityToggle}
         />
 
         {/* Desktop Content Area */}
@@ -479,7 +485,7 @@ const ProfilePage = () => {
                 ></div>
                 <span
                   className="text-sm font-medium text-gray-700 cursor-pointer"
-                  onClick={() => setIsAvailable(!isAvailable)}
+                  onClick={handleAvailabilityToggle}
                 >
                   {isAvailable ? "Available" : "Unavailable"}
                 </span>

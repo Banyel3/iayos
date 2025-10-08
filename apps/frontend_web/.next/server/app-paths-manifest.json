@@ -11,6 +11,7 @@
   "/dashboard/home/page": "app/dashboard/home/page.js",
   "/dashboard/kyc/page": "app/dashboard/kyc/page.js",
   "/dashboard/myRequests/page": "app/dashboard/myRequests/page.js",
+  "/dashboard/profile/edit/page": "app/dashboard/profile/edit/page.js",
   "/dashboard/profile/page": "app/dashboard/profile/page.js",
   "/favicon.ico/route": "app/favicon.ico/route.js",
   "/page": "app/page.js"

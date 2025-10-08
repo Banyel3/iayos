@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import MobileNav from "@/components/ui/mobile-nav";
 import DesktopNavbar from "@/components/ui/desktop-sidebar";
 import NotificationBell from "@/components/notifications/NotificationBell";
+import { useWorkerAvailability } from "@/lib/hooks/useWorkerAvailability";
 
 // Extended User interface for inbox page
 interface InboxUser extends User {
@@ -44,7 +45,13 @@ const InboxPage = () => {
   >("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedChat, setSelectedChat] = useState<Message | null>(null);
-  const [isAvailable, setIsAvailable] = useState(true);
+
+  // Use the worker availability hook
+  const isWorker = user?.profile_data?.profileType === "WORKER";
+  const { isAvailable, handleAvailabilityToggle } = useWorkerAvailability(
+    isWorker,
+    isAuthenticated
+  );
 
   // Authentication check
   useEffect(() => {
@@ -176,7 +183,7 @@ const InboxPage = () => {
         userAvatar="/worker1.jpg"
         onLogout={logout}
         isAvailable={isAvailable}
-        onAvailabilityToggle={() => setIsAvailable(!isAvailable)}
+        onAvailabilityToggle={handleAvailabilityToggle}
       />
 
       {/* Desktop Layout */}

@@ -335,4 +335,64 @@ def get_worker_by_id_endpoint(request, user_id: int):
             {"success": False, "error": "Failed to fetch worker"}, 
             status=500
         )
+
+
+@router.patch("/workers/availability", auth=cookie_auth)
+def update_worker_availability_endpoint(request, is_available: bool):
+    """
+    Update the authenticated worker's availability status.
+    Requires authentication.
+    """
+    try:
+        from .services import update_worker_availability
+        
+        user = request.auth
+        result = update_worker_availability(user.accountID, is_available)
+        
+        return {
+            "success": True,
+            "data": result
+        }
+        
+    except ValueError as e:
+        print(f"❌ ValueError updating availability: {str(e)}")
+        return Response(
+            {"success": False, "error": str(e)}, 
+            status=400
+        )
+    except Exception as e:
+        print(f"❌ Error updating worker availability: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"success": False, "error": "Failed to update availability"}, 
+            status=500
+        )
+
+
+@router.get("/workers/availability", auth=cookie_auth)
+def get_worker_availability_endpoint(request):
+    """
+    Get the authenticated worker's current availability status.
+    Requires authentication.
+    """
+    try:
+        from .services import get_worker_availability
+        
+        user = request.auth
+        result = get_worker_availability(user.accountID)
+        
+        return {
+            "success": True,
+            "data": result
+        }
+        
+    except Exception as e:
+        print(f"❌ Error getting worker availability: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"success": False, "error": "Failed to get availability"}, 
+            status=500
+        )
 #endregion

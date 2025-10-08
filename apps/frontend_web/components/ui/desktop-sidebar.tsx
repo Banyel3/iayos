@@ -100,7 +100,17 @@ export const DesktopNavbar: React.FC<DesktopNavbarProps> = ({
                 ></div>
                 <span
                   className="text-sm font-medium text-gray-700 cursor-pointer hover:text-gray-900"
-                  onClick={onAvailabilityToggle}
+                  onClick={() => {
+                    console.log("🔴 CLICK EVENT FIRED");
+                    console.log("isWorker:", isWorker);
+                    console.log("onAvailabilityToggle:", onAvailabilityToggle);
+                    if (onAvailabilityToggle) {
+                      console.log("🟢 Calling onAvailabilityToggle");
+                      onAvailabilityToggle();
+                    } else {
+                      console.error("❌ onAvailabilityToggle is undefined!");
+                    }
+                  }}
                 >
                   {isAvailable ? "Available" : "Unavailable"}
                 </span>

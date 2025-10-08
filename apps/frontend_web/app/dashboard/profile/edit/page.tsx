@@ -7,6 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 import DesktopNavbar from "@/components/ui/desktop-sidebar";
 import MobileNav from "@/components/ui/mobile-nav";
 import NotificationBell from "@/components/notifications/NotificationBell";
+import { useWorkerAvailability } from "@/lib/hooks/useWorkerAvailability";
 
 interface ProfileData {
   firstName: string;
@@ -27,9 +28,15 @@ interface UserData {
 const EditProfilePage = () => {
   const { user: authUser, isAuthenticated, isLoading, logout } = useAuth();
   const router = useRouter();
-  const [isAvailable, setIsAvailable] = useState(true);
   const [isFetching, setIsFetching] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Use the worker availability hook
+  const isWorker = authUser?.profile_data?.profileType === "WORKER";
+  const { isAvailable, handleAvailabilityToggle } = useWorkerAvailability(
+    isWorker,
+    isAuthenticated
+  );
 
   // Form state
   const [formData, setFormData] = useState({
@@ -168,8 +175,6 @@ const EditProfilePage = () => {
 
   if (!isAuthenticated) return null;
 
-  const isWorker = authUser?.profile_data?.profileType === "WORKER";
-
   return (
     <div className="min-h-screen bg-blue-50">
       {/* Notification Bell - Mobile Only */}
@@ -183,7 +188,7 @@ const EditProfilePage = () => {
         userName={formData.firstName || "User"}
         onLogout={logout}
         isAvailable={isAvailable}
-        onAvailabilityToggle={() => setIsAvailable(!isAvailable)}
+        onAvailabilityToggle={handleAvailabilityToggle}
       />
 
       {/* Desktop Layout */}

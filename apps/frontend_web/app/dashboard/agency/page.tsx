@@ -5,6 +5,7 @@ import { User } from "@/types";
 import { useRouter } from "next/navigation";
 import DesktopNavbar from "@/components/ui/desktop-sidebar";
 import NotificationBell from "@/components/notifications/NotificationBell";
+import { useWorkerAvailability } from "@/lib/hooks/useWorkerAvailability";
 
 // Extended User interface for agency page
 interface AgencyUser extends User {
@@ -17,7 +18,13 @@ const WorkerDash = () => {
   const { user: authUser, isAuthenticated, isLoading, logout } = useAuth();
   const user = authUser as AgencyUser;
   const router = useRouter();
-  const [isAvailable, setIsAvailable] = React.useState(true);
+
+  // Use the worker availability hook
+  const isWorker = true; // This is agency page, always worker
+  const { isAvailable, handleAvailabilityToggle } = useWorkerAvailability(
+    isWorker,
+    isAuthenticated
+  );
 
   if (isLoading) return <p>Loading...</p>; // strictly loading from backend validation
 
@@ -41,7 +48,7 @@ const WorkerDash = () => {
         userName={user?.firstName || "Worker"}
         onLogout={logout}
         isAvailable={isAvailable}
-        onAvailabilityToggle={() => setIsAvailable(!isAvailable)}
+        onAvailabilityToggle={handleAvailabilityToggle}
       />
 
       {/* Content */}

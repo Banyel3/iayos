@@ -8,6 +8,7 @@ import { User } from "@/types";
 import MobileNav from "@/components/ui/mobile-nav";
 import DesktopNavbar from "@/components/ui/desktop-sidebar";
 import NotificationBell from "@/components/notifications/NotificationBell";
+import { useWorkerAvailability } from "@/lib/hooks/useWorkerAvailability";
 
 // Extended User interface for requests page
 interface RequestsUser extends User {
@@ -34,7 +35,13 @@ const MyRequestsPage = () => {
   const [activeTab, setActiveTab] = useState<"myRequests" | "pastRequests">(
     "myRequests"
   );
-  const [isAvailable, setIsAvailable] = useState(true);
+
+  // Use the worker availability hook
+  const isWorker = user?.profile_data?.profileType === "WORKER";
+  const { isAvailable, handleAvailabilityToggle } = useWorkerAvailability(
+    isWorker,
+    isAuthenticated
+  );
 
   // Authentication check
   useEffect(() => {
@@ -57,7 +64,6 @@ const MyRequestsPage = () => {
 
   if (!isAuthenticated) return null;
 
-  const isWorker = user?.profile_data?.profileType === "WORKER";
   const isClient = user?.profile_data?.profileType === "CLIENT";
 
   // Mock data for job requests - simplified to match the design
@@ -104,7 +110,7 @@ const MyRequestsPage = () => {
           userName={user?.profile_data?.firstName || "Worker"}
           onLogout={logout}
           isAvailable={isAvailable}
-          onAvailabilityToggle={() => setIsAvailable(!isAvailable)}
+          onAvailabilityToggle={handleAvailabilityToggle}
         />
 
         {/* Verification Gate Content */}
@@ -251,7 +257,7 @@ const MyRequestsPage = () => {
           userName={user?.profile_data?.firstName || "Client"}
           onLogout={logout}
           isAvailable={isAvailable}
-          onAvailabilityToggle={() => setIsAvailable(!isAvailable)}
+          onAvailabilityToggle={handleAvailabilityToggle}
         />
 
         {/* Verification Gate Content */}
@@ -442,7 +448,7 @@ const MyRequestsPage = () => {
         userName={user?.profile_data?.firstName || "Client"}
         onLogout={logout}
         isAvailable={isAvailable}
-        onAvailabilityToggle={() => setIsAvailable(!isAvailable)}
+        onAvailabilityToggle={handleAvailabilityToggle}
       />
 
       {/* Desktop & Mobile Content */}

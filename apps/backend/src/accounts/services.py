@@ -340,13 +340,64 @@ def fetch_currentUser(accountID):
         raise ValueError("User not found")
 
 def assign_role(data):
-    user = Accounts.objects.get(email__iexact=data.email)
-    profile = Profile.objects.get(accountFK=user)
+    """
+    Assign a role (WORKER or CLIENT) to a user and create the corresponding profile.
+    Creates WorkerProfile for workers or ClientProfile for clients.
+    """
+    from .models import WorkerProfile, ClientProfile
+    
+    try:
+        # Get user and profile
+        user = Accounts.objects.get(email__iexact=data.email)
+        profile = Profile.objects.get(accountFK=user)
 
-    profile.profileType = data.selectedType
-    profile.save()
+        # Update profile type
+        profile.profileType = data.selectedType
+        profile.save()
+        
+        print(f"✅ Assigned role {data.selectedType} to user {user.email}")
 
-    return {"message": "Role Assigned Successfully"}
+        # Create WorkerProfile or ClientProfile based on role
+        if data.selectedType == Profile.ProfileType.WORKER:
+            # Create or update WorkerProfile
+            worker_profile, created = WorkerProfile.objects.get_or_create(
+                profileID=profile,
+                defaults={
+                    'description': '',
+                    'workerRating': 0,
+                    'totalEarningGross': 0.00,
+                    'availabilityStatus': WorkerProfile.availabilityStatus.OFFLINE
+                }
+            )
+            if created:
+                print(f"✅ Created WorkerProfile for user {user.email}")
+            else:
+                print(f"ℹ️ WorkerProfile already exists for user {user.email}")
+                
+        elif data.selectedType == Profile.ProfileType.CLIENT:
+            # Create or update ClientProfile
+            client_profile, created = ClientProfile.objects.get_or_create(
+                profileID=profile,
+                defaults={
+                    'description': '',
+                    'totalJobsPosted': 0,
+                    'clientRating': 0
+                }
+            )
+            if created:
+                print(f"✅ Created ClientProfile for user {user.email}")
+            else:
+                print(f"ℹ️ ClientProfile already exists for user {user.email}")
+
+        return {"message": "Role Assigned Successfully"}
+        
+    except Accounts.DoesNotExist:
+        raise ValueError("User account not found")
+    except Profile.DoesNotExist:
+        raise ValueError("User profile not found")
+    except Exception as e:
+        print(f"❌ Error assigning role: {str(e)}")
+        raise ValueError(f"Failed to assign role: {str(e)}")
 
 def upload_kyc_document(payload, frontID, backID, clearance, selfie):
     try:
@@ -673,10 +724,12 @@ def get_all_workers():
     from .models import WorkerProfile, Profile, workerSpecialization, Specializations, Accounts
     
     try:
-        # Query all worker profiles with related data
+        # Query all worker profiles with related data - ONLY AVAILABLE workers
         worker_profiles = WorkerProfile.objects.select_related(
             'profileID',
             'profileID__accountFK'
+        ).filter(
+            availabilityStatus=WorkerProfile.availabilityStatus.AVAILABLE
         ).all()
         
         workers = []
@@ -802,4 +855,113 @@ def get_worker_by_id(user_id):
         return None
     except Exception as e:
         print(f"❌ Error fetching worker {user_id}: {str(e)}")
+        raise
+
+
+def update_worker_availability(user_id, is_available):
+    """
+    Update a worker's availability status.
+    WorkerProfile should already exist from role selection.
+    
+    Args:
+        user_id: The account ID of the worker
+        is_available: Boolean indicating if worker is available (True) or offline (False)
+        
+    Returns:
+        Dictionary with updated availability status
+    """
+    from .models import WorkerProfile, Profile, Accounts
+    
+    try:
+        # Get the account
+        account = Accounts.objects.get(accountID=user_id)
+        
+        # Get the profile
+        profile = Profile.objects.get(accountFK=account, profileType=Profile.ProfileType.WORKER)
+        
+        # Get or create the worker profile (fallback for legacy users)
+        worker_profile, created = WorkerProfile.objects.get_or_create(
+            profileID=profile,
+            defaults={
+                'description': '',
+                'workerRating': 0,
+                'totalEarningGross': 0.00,
+                'availabilityStatus': WorkerProfile.availabilityStatus.OFFLINE
+            }
+        )
+        
+        if created:
+            print(f"⚠️ Created WorkerProfile for legacy user {user_id} (should have been created during role selection)")
+        
+        # Update availability status
+        if is_available:
+            worker_profile.availabilityStatus = WorkerProfile.availabilityStatus.AVAILABLE
+        else:
+            worker_profile.availabilityStatus = WorkerProfile.availabilityStatus.OFFLINE
+        
+        worker_profile.save()
+        
+        print(f"✅ Updated worker {user_id} availability to {worker_profile.availabilityStatus}")
+        
+        return {
+            "accountID": user_id,
+            "availabilityStatus": worker_profile.availabilityStatus,
+            "isAvailable": is_available
+        }
+        
+    except Accounts.DoesNotExist:
+        print(f"❌ Account {user_id} not found")
+        raise ValueError("Account not found")
+    except Profile.DoesNotExist:
+        print(f"❌ Profile for account {user_id} not found or not a worker")
+        raise ValueError("Worker profile not found")
+    except Exception as e:
+        print(f"❌ Error updating worker availability: {str(e)}")
+        raise
+
+
+def get_worker_availability(user_id):
+    """
+    Get a worker's current availability status.
+    WorkerProfile should already exist from role selection.
+    
+    Args:
+        user_id: The account ID of the worker
+        
+    Returns:
+        Dictionary with availability status
+    """
+    from .models import WorkerProfile, Profile, Accounts
+    
+    try:
+        # Get the account
+        account = Accounts.objects.get(accountID=user_id)
+        
+        # Get the profile
+        profile = Profile.objects.get(accountFK=account, profileType=Profile.ProfileType.WORKER)
+        
+        # Get or create the worker profile (fallback for legacy users)
+        worker_profile, created = WorkerProfile.objects.get_or_create(
+            profileID=profile,
+            defaults={
+                'description': '',
+                'workerRating': 0,
+                'totalEarningGross': 0.00,
+                'availabilityStatus': WorkerProfile.availabilityStatus.OFFLINE
+            }
+        )
+        
+        if created:
+            print(f"⚠️ Created WorkerProfile for legacy user {user_id} (should have been created during role selection)")
+        
+        is_available = worker_profile.availabilityStatus == WorkerProfile.availabilityStatus.AVAILABLE
+        
+        return {
+            "accountID": user_id,
+            "availabilityStatus": worker_profile.availabilityStatus,
+            "isAvailable": is_available
+        }
+        
+    except Exception as e:
+        print(f"❌ Error getting worker availability: {str(e)}")
         raise
