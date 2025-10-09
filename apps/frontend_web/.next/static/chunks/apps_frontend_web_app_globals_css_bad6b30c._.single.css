@@ -215,6 +215,7 @@
     --color-blue-600: #155dfc;
     --color-blue-700: #1447e6;
     --color-blue-800: #193cb8;
+    --color-blue-900: #1c398e;
     --color-indigo-100: #e0e7ff;
     --color-indigo-800: #372aac;
     --color-purple-100: #f3e8ff;
@@ -251,6 +252,7 @@
     --container-2xl: 42rem;
     --container-3xl: 48rem;
     --container-4xl: 56rem;
+    --container-5xl: 64rem;
     --container-7xl: 80rem;
     --text-xs: .75rem;
     --text-xs--line-height: calc(1 / .75);
@@ -327,6 +329,7 @@
       --color-blue-600: color(display-p3 .174493 .358974 .950247);
       --color-blue-700: color(display-p3 .1379 .274983 .867624);
       --color-blue-800: color(display-p3 .134023 .230647 .695537);
+      --color-blue-900: color(display-p3 .136395 .219428 .537145);
       --color-indigo-100: color(display-p3 .883035 .90499 .993138);
       --color-indigo-800: color(display-p3 .207204 .165242 .647584);
       --color-purple-100: color(display-p3 .945034 .910569 .992972);
@@ -395,6 +398,7 @@
       --color-blue-600: lab(44.0605% 29.0279 -86.0352);
       --color-blue-700: lab(36.9089% 35.0961 -85.6872);
       --color-blue-800: lab(30.2514% 27.7854 -70.2699);
+      --color-blue-900: lab(26.1542% 15.7545 -51.5504);
       --color-indigo-100: lab(91.6577% 1.04591 -12.7199);
       --color-indigo-800: lab(26.6645% 37.9804 -68.6402);
       --color-purple-100: lab(93.3333% 6.9744 -9.83434);
@@ -1220,6 +1224,10 @@
     height: calc(var(--spacing) * 24);
   }
 
+  .h-30 {
+    height: calc(var(--spacing) * 30);
+  }
+
   .h-48 {
     height: calc(var(--spacing) * 48);
   }
@@ -1336,6 +1344,10 @@
     width: calc(var(--spacing) * 24);
   }
 
+  .w-30 {
+    width: calc(var(--spacing) * 30);
+  }
+
   .w-48 {
     width: calc(var(--spacing) * 48);
   }
@@ -1366,6 +1378,10 @@
 
   .max-w-4xl {
     max-width: var(--container-4xl);
+  }
+
+  .max-w-5xl {
+    max-width: var(--container-5xl);
   }
 
   .max-w-7xl {
@@ -2389,6 +2405,10 @@
     padding-block: calc(var(--spacing) * 12);
   }
 
+  .py-16 {
+    padding-block: calc(var(--spacing) * 16);
+  }
+
   .pt-2 {
     padding-top: calc(var(--spacing) * 2);
   }
@@ -2636,6 +2656,10 @@
 
   .text-blue-800 {
     color: var(--color-blue-800);
+  }
+
+  .text-blue-900 {
+    color: var(--color-blue-900);
   }
 
   .text-gray-300 {
@@ -3088,6 +3112,12 @@
   @media (hover: hover) {
     .hover\:bg-blue-100:hover {
       background-color: var(--color-blue-100);
+    }
+  }
+
+  @media (hover: hover) {
+    .hover\:bg-blue-200:hover {
+      background-color: var(--color-blue-200);
     }
   }
 

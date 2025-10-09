@@ -14,6 +14,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
     const initializeAuth = async () => {
@@ -129,11 +130,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       });
 
       console.log("✅ Logout successful");
+
+      // Immediately redirect to login page
+      router.push("/auth/login");
     } catch (error) {
       console.error("❌ Logout error:", error);
       // Still clear local state even if backend call fails
       setUser(null);
       localStorage.removeItem("cached_user");
+
+      // Redirect even on error
+      router.push("/auth/login");
     }
   };
 

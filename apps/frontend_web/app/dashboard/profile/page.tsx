@@ -69,7 +69,14 @@ const ProfilePage = () => {
     isAuthenticated
   );
 
-  // Authentication check and profile type redirect
+  // Wallet state
+  const [walletBalance, setWalletBalance] = useState<number>(0);
+  const [isLoadingWallet, setIsLoadingWallet] = useState(false);
+  const [showAddFundsModal, setShowAddFundsModal] = useState(false);
+  const [showCashOutModal, setShowCashOutModal] = useState(false);
+  const [fundAmount, setFundAmount] = useState("");
+  const [withdrawAmount, setWithdrawAmount] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false); // Authentication check and profile type redirect
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.push("/auth/login");
@@ -80,6 +87,134 @@ const ProfilePage = () => {
       router.push("/dashboard");
     }
   }, [isAuthenticated, isLoading, router, user?.profile_data?.profileType]);
+
+  // Fetch wallet balance
+  useEffect(() => {
+    const fetchWalletBalance = async () => {
+      if (!isAuthenticated) return;
+
+      try {
+        setIsLoadingWallet(true);
+        const response = await fetch(
+          "http://localhost:8000/api/accounts/wallet/balance",
+          {
+            method: "GET",
+            credentials: "include",
+            headers: {
+              "Content-Type": "application/json",
+            },
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          setWalletBalance(data.balance || 0);
+        } else {
+          console.error("Failed to fetch wallet balance");
+          setWalletBalance(0);
+        }
+      } catch (error) {
+        console.error("Error fetching wallet balance:", error);
+        setWalletBalance(0);
+      } finally {
+        setIsLoadingWallet(false);
+      }
+    };
+
+    fetchWalletBalance();
+  }, [isAuthenticated]);
+
+  // Handle Add Funds (for clients)
+  const handleAddFunds = async () => {
+    if (!fundAmount || isNaN(Number(fundAmount)) || Number(fundAmount) <= 0) {
+      alert("Please enter a valid amount");
+      return;
+    }
+
+    try {
+      setIsProcessing(true);
+      const response = await fetch(
+        "http://localhost:8000/api/payments/create-deposit",
+        {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ amount: Number(fundAmount) }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (response.ok && data.checkout_url) {
+        // Redirect to PayMongo checkout
+        window.location.href = data.checkout_url;
+      } else {
+        alert(data.error || "Failed to create payment. Please try again.");
+      }
+    } catch (error) {
+      console.error("Error adding funds:", error);
+      alert("An error occurred. Please try again.");
+    } finally {
+      setIsProcessing(false);
+      setShowAddFundsModal(false);
+      setFundAmount("");
+    }
+  };
+
+  // Handle Cash Out (for workers)
+  const handleCashOut = async () => {
+    if (
+      !withdrawAmount ||
+      isNaN(Number(withdrawAmount)) ||
+      Number(withdrawAmount) <= 0
+    ) {
+      alert("Please enter a valid amount");
+      return;
+    }
+
+    if (Number(withdrawAmount) > walletBalance) {
+      alert("Insufficient balance");
+      return;
+    }
+
+    try {
+      setIsProcessing(true);
+      const response = await fetch(
+        "http://localhost:8000/api/payments/request-withdrawal",
+        {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ amount: Number(withdrawAmount) }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (response.ok) {
+        alert(
+          `Withdrawal request submitted successfully! Amount: ₱${withdrawAmount}`
+        );
+        // Update local balance
+        setWalletBalance(
+          data.new_balance || walletBalance - Number(withdrawAmount)
+        );
+      } else {
+        alert(data.error || "Failed to process withdrawal. Please try again.");
+      }
+    } catch (error) {
+      console.error("Error processing withdrawal:", error);
+      alert("An error occurred. Please try again.");
+    } finally {
+      setIsProcessing(false);
+      setShowCashOutModal(false);
+      setWithdrawAmount("");
+    }
+  };
 
   // Loading state
   if (isLoading) {
@@ -214,8 +349,18 @@ const ProfilePage = () => {
           {/* Wallet Balance */}
           <div className="bg-gray-50 rounded-lg p-3 mb-3">
             <p className="text-xs text-gray-600 mb-1">Wallet Balance</p>
-            <p className="text-xl font-bold text-gray-900 mb-2">₱300.00</p>
-            <button className="bg-gray-50 text-blue-500 border border-blue-500 px-3 py-1 rounded-full text-xs font-medium hover:bg-blue-100 transition-colors">
+            {isLoadingWallet ? (
+              <p className="text-xl font-bold text-gray-900 mb-2">Loading...</p>
+            ) : (
+              <p className="text-xl font-bold text-gray-900 mb-2">
+                ₱{walletBalance.toFixed(2)}
+              </p>
+            )}
+            <button
+              onClick={() => setShowCashOutModal(true)}
+              className="bg-gray-50 text-blue-500 border border-blue-500 px-3 py-1 rounded-full text-xs font-medium hover:bg-blue-100 transition-colors"
+              disabled={isLoadingWallet}
+            >
               Cash Out
             </button>
           </div>
@@ -525,10 +670,20 @@ const ProfilePage = () => {
                       <p className="text-xs text-gray-600 mb-1">
                         Wallet Balance
                       </p>
-                      <p className="text-2xl font-bold text-gray-900 mb-3">
-                        ₱300.00
-                      </p>
-                      <button className="bg-gray-50 text-blue-500 border border-blue-500 px-3 py-1 rounded-full text-xs font-medium hover:bg-blue-100 transition-colors">
+                      {isLoadingWallet ? (
+                        <p className="text-2xl font-bold text-gray-900 mb-3">
+                          Loading...
+                        </p>
+                      ) : (
+                        <p className="text-2xl font-bold text-gray-900 mb-3">
+                          ₱{walletBalance.toFixed(2)}
+                        </p>
+                      )}
+                      <button
+                        onClick={() => setShowCashOutModal(true)}
+                        className="bg-gray-50 text-blue-500 border border-blue-500 px-3 py-1 rounded-full text-xs font-medium hover:bg-blue-100 transition-colors"
+                        disabled={isLoadingWallet}
+                      >
                         Cash Out
                       </button>
                     </div>
@@ -542,10 +697,28 @@ const ProfilePage = () => {
                 )}
 
                 {isClient && (
-                  <div className="space-y-2">
-                    <button className="w-full bg-blue-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors">
-                      Verify Now →
-                    </button>
+                  <div className="space-y-3">
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <p className="text-xs text-gray-600 mb-1">
+                        Wallet Balance
+                      </p>
+                      {isLoadingWallet ? (
+                        <p className="text-2xl font-bold text-gray-900 mb-3">
+                          Loading...
+                        </p>
+                      ) : (
+                        <p className="text-2xl font-bold text-gray-900 mb-3">
+                          ₱{walletBalance.toFixed(2)}
+                        </p>
+                      )}
+                      <button
+                        onClick={() => setShowAddFundsModal(true)}
+                        className="bg-blue-500 text-white px-4 py-1.5 rounded-full text-xs font-medium hover:bg-blue-600 transition-colors"
+                        disabled={isLoadingWallet}
+                      >
+                        Add Funds
+                      </button>
+                    </div>
                     <button
                       onClick={() => router.push("/dashboard/profile/edit")}
                       className="w-full bg-gray-100 text-gray-700 py-2 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
@@ -743,6 +916,252 @@ const ProfilePage = () => {
         {/* Mobile Navigation */}
         <MobileNav />
       </div>
+
+      {/* Add Funds Modal (for Clients) */}
+      {showAddFundsModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-900">Add Funds</h2>
+              <button
+                onClick={() => {
+                  setShowAddFundsModal(false);
+                  setFundAmount("");
+                }}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            <div className="mb-4">
+              <p className="text-sm text-gray-600 mb-2">Current Balance</p>
+              <p className="text-2xl font-bold text-gray-900">
+                ₱{walletBalance.toFixed(2)}
+              </p>
+            </div>
+
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Amount to Add (₱)
+              </label>
+              <input
+                type="number"
+                value={fundAmount}
+                onChange={(e) => setFundAmount(e.target.value)}
+                placeholder="Enter amount"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                min="1"
+                step="0.01"
+              />
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  onClick={() => setFundAmount("500")}
+                  className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm hover:bg-gray-200"
+                >
+                  ₱500
+                </button>
+                <button
+                  onClick={() => setFundAmount("1000")}
+                  className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm hover:bg-gray-200"
+                >
+                  ₱1,000
+                </button>
+                <button
+                  onClick={() => setFundAmount("2000")}
+                  className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm hover:bg-gray-200"
+                >
+                  ₱2,000
+                </button>
+                <button
+                  onClick={() => setFundAmount("5000")}
+                  className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm hover:bg-gray-200"
+                >
+                  ₱5,000
+                </button>
+              </div>
+            </div>
+
+            <div className="flex space-x-3">
+              <button
+                onClick={() => {
+                  setShowAddFundsModal(false);
+                  setFundAmount("");
+                }}
+                className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors"
+                disabled={isProcessing}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddFunds}
+                className="flex-1 px-4 py-3 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+                disabled={isProcessing || !fundAmount}
+              >
+                {isProcessing ? "Processing..." : "Continue to Payment"}
+              </button>
+            </div>
+
+            <p className="text-xs text-gray-500 mt-4 text-center">
+              You will be redirected to PayMongo to complete the payment
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Cash Out Modal (for Workers) */}
+      {showCashOutModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-900">Cash Out</h2>
+              <button
+                onClick={() => {
+                  setShowCashOutModal(false);
+                  setWithdrawAmount("");
+                }}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            <div className="mb-4">
+              <p className="text-sm text-gray-600 mb-2">Available Balance</p>
+              <p className="text-2xl font-bold text-gray-900">
+                ₱{walletBalance.toFixed(2)}
+              </p>
+            </div>
+
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Amount to Withdraw (₱)
+              </label>
+              <input
+                type="number"
+                value={withdrawAmount}
+                onChange={(e) => setWithdrawAmount(e.target.value)}
+                placeholder="Enter amount"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                min="1"
+                max={walletBalance}
+                step="0.01"
+              />
+              <div className="mt-3 flex flex-wrap gap-2">
+                {walletBalance >= 500 && (
+                  <button
+                    onClick={() => setWithdrawAmount("500")}
+                    className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm hover:bg-gray-200"
+                  >
+                    ₱500
+                  </button>
+                )}
+                {walletBalance >= 1000 && (
+                  <button
+                    onClick={() => setWithdrawAmount("1000")}
+                    className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm hover:bg-gray-200"
+                  >
+                    ₱1,000
+                  </button>
+                )}
+                {walletBalance >= 2000 && (
+                  <button
+                    onClick={() => setWithdrawAmount("2000")}
+                    className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm hover:bg-gray-200"
+                  >
+                    ₱2,000
+                  </button>
+                )}
+                <button
+                  onClick={() => setWithdrawAmount(walletBalance.toString())}
+                  className="px-3 py-1 bg-blue-100 text-blue-600 rounded-full text-sm hover:bg-blue-200"
+                >
+                  All (₱{walletBalance.toFixed(2)})
+                </button>
+              </div>
+            </div>
+
+            <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <div className="flex items-start">
+                <svg
+                  className="w-5 h-5 text-yellow-600 mr-2 mt-0.5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                  />
+                </svg>
+                <div>
+                  <p className="text-sm font-medium text-yellow-800">
+                    KYC Verification Required
+                  </p>
+                  <p className="text-xs text-yellow-700 mt-1">
+                    For withdrawals, you need to complete KYC verification. This
+                    is currently simulated in sandbox mode.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex space-x-3">
+              <button
+                onClick={() => {
+                  setShowCashOutModal(false);
+                  setWithdrawAmount("");
+                }}
+                className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors"
+                disabled={isProcessing}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCashOut}
+                className="flex-1 px-4 py-3 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+                disabled={
+                  isProcessing ||
+                  !withdrawAmount ||
+                  Number(withdrawAmount) > walletBalance
+                }
+              >
+                {isProcessing ? "Processing..." : "Request Withdrawal"}
+              </button>
+            </div>
+
+            <p className="text-xs text-gray-500 mt-4 text-center">
+              Withdrawal requests are processed within 1-3 business days
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

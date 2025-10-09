@@ -193,8 +193,13 @@ export default function Sidebar({ className }: SidebarProps) {
 
       // Clear session storage
       sessionStorage.clear();
+
+      // Immediately redirect to login page
+      router.push("/auth/login");
     } catch (error) {
       console.error("Logout error:", error);
+      // Redirect even on error
+      router.push("/auth/login");
     }
   };
 

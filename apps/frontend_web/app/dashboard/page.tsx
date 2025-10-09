@@ -20,21 +20,28 @@ interface DashboardUser {
 }
 
 const TempDashboard = () => {
-  const { user: authUser, isAuthenticated, isLoading, logout } = useAuth();
+  const {
+    user: authUser,
+    isAuthenticated,
+    isLoading,
+    logout,
+    checkAuth,
+  } = useAuth();
   const user = authUser as DashboardUser; // Type assertion for this page
   const router = useRouter();
   const [selectedType, setSelectedType] = useState<UserProfileType>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Redirect logic for existing profileType
-  // useEffect(() => {
-  //   if (
-  //     user?.profile_data?.profileType === "WORKER" ||
-  //     user?.profile_data?.profileType === "CLIENT"
-  //   ) {
-  //     router.replace("/dashboard/profile");
-  //   }
-  // }, [user?.profile_data?.profileType, router]);
+  useEffect(() => {
+    if (!isLoading && isAuthenticated && user?.profile_data?.profileType) {
+      if (user.profile_data.profileType === "WORKER") {
+        router.replace("/dashboard/profile");
+      } else if (user.profile_data.profileType === "CLIENT") {
+        router.replace("/dashboard/home");
+      }
+    }
+  }, [user?.profile_data?.profileType, isLoading, isAuthenticated, router]);
 
   // Auto-redirect for unauthorized users
   useEffect(() => {
@@ -96,9 +103,15 @@ const TempDashboard = () => {
       } else {
         console.log("Profile type assigned successfully");
 
-        // Note: You'll need to implement a way to refresh user data
-        // For now, we'll redirect to profile page
-        router.push("/dashboard/profile");
+        // Refresh user data from server to get updated profileType
+        await checkAuth();
+
+        // Redirect based on the selected type
+        if (selectedType === "WORKER") {
+          router.push("/dashboard/profile");
+        } else if (selectedType === "CLIENT") {
+          router.push("/dashboard/home");
+        }
       }
     } catch (error) {
       console.error("Error updating profile type:", error);

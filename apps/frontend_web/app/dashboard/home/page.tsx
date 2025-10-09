@@ -57,7 +57,7 @@ interface WorkerListing {
 }
 
 const HomePage = () => {
-  const { user: authUser, isAuthenticated, isLoading } = useAuth();
+  const { user: authUser, isAuthenticated, isLoading, logout } = useAuth();
   const user = authUser as HomeUser;
   const router = useRouter();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -71,12 +71,6 @@ const HomePage = () => {
     isWorker,
     isAuthenticated
   );
-
-  const logout = () => {
-    // Clear auth state and redirect to login
-    localStorage.removeItem("token");
-    router.push("/auth/login");
-  };
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -96,6 +90,7 @@ const HomePage = () => {
             headers: {
               "Content-Type": "application/json",
             },
+            credentials: "include", // Include cookies for authentication
           }
         );
 
@@ -816,7 +811,12 @@ const HomePage = () => {
                             </span>
                           </div>
                           <div className="flex space-x-2">
-                            <button className="flex-1 bg-blue-500 text-white py-2 rounded-lg text-xs font-medium">
+                            <button
+                              onClick={() =>
+                                router.push(`/dashboard/workers/${worker.id}`)
+                              }
+                              className="flex-1 bg-blue-500 text-white py-2 rounded-lg text-xs font-medium"
+                            >
                               View Profile
                             </button>
                             <button className="flex-1 border border-blue-500 text-blue-500 py-2 rounded-lg text-xs font-medium">
@@ -918,7 +918,12 @@ const HomePage = () => {
                           </span>
                         </div>
                         <div className="flex space-x-2">
-                          <button className="flex-1 bg-blue-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors">
+                          <button
+                            onClick={() =>
+                              router.push(`/dashboard/workers/${worker.id}`)
+                            }
+                            className="flex-1 bg-blue-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors"
+                          >
                             View Profile
                           </button>
                           <button className="flex-1 bg-white text-blue-500 border border-blue-500 py-2 rounded-lg text-sm font-medium hover:bg-blue-50 transition-colors">
@@ -1010,7 +1015,12 @@ const HomePage = () => {
                           </span>
                         </div>
                         <div className="flex space-x-2">
-                          <button className="flex-1 bg-blue-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors">
+                          <button
+                            onClick={() =>
+                              router.push(`/dashboard/workers/${worker.id}`)
+                            }
+                            className="flex-1 bg-blue-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors"
+                          >
                             View Profile
                           </button>
                           <button className="flex-1 bg-white text-blue-500 border border-blue-500 py-2 rounded-lg text-sm font-medium hover:bg-blue-50 transition-colors">
@@ -1195,7 +1205,12 @@ const HomePage = () => {
                             </span>
                           </div>
                           <div className="flex space-x-2">
-                            <button className="flex-1 bg-blue-500 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors">
+                            <button
+                              onClick={() =>
+                                router.push(`/dashboard/workers/${worker.id}`)
+                              }
+                              className="flex-1 bg-blue-500 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors"
+                            >
                               View Profile
                             </button>
                             <button className="flex-1 bg-white text-blue-500 border border-blue-500 py-2.5 rounded-lg text-sm font-medium hover:bg-blue-50 transition-colors">
@@ -1314,7 +1329,12 @@ const HomePage = () => {
                           </div>
                         </div>
                         <div className="flex space-x-2">
-                          <button className="flex-1 bg-blue-500 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors">
+                          <button
+                            onClick={() =>
+                              router.push(`/dashboard/workers/${worker.id}`)
+                            }
+                            className="flex-1 bg-blue-500 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors"
+                          >
                             View Profile
                           </button>
                           <button className="flex-1 bg-white text-blue-500 border border-blue-500 py-2.5 rounded-lg text-sm font-medium hover:bg-blue-50 transition-colors">

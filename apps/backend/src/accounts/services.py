@@ -366,7 +366,7 @@ def assign_role(data):
                     'description': '',
                     'workerRating': 0,
                     'totalEarningGross': 0.00,
-                    'availabilityStatus': WorkerProfile.availabilityStatus.OFFLINE
+                    'availabilityStatus': 'OFFLINE'
                 }
             )
             if created:
@@ -729,7 +729,7 @@ def get_all_workers():
             'profileID',
             'profileID__accountFK'
         ).filter(
-            availabilityStatus=WorkerProfile.availabilityStatus.AVAILABLE
+            availabilityStatus='AVAILABLE'  # Use string value instead of enum
         ).all()
         
         workers = []
@@ -886,7 +886,7 @@ def update_worker_availability(user_id, is_available):
                 'description': '',
                 'workerRating': 0,
                 'totalEarningGross': 0.00,
-                'availabilityStatus': WorkerProfile.availabilityStatus.OFFLINE
+                'availabilityStatus': 'OFFLINE'
             }
         )
         
@@ -895,9 +895,9 @@ def update_worker_availability(user_id, is_available):
         
         # Update availability status
         if is_available:
-            worker_profile.availabilityStatus = WorkerProfile.availabilityStatus.AVAILABLE
+            worker_profile.availabilityStatus = 'AVAILABLE'
         else:
-            worker_profile.availabilityStatus = WorkerProfile.availabilityStatus.OFFLINE
+            worker_profile.availabilityStatus = 'OFFLINE'
         
         worker_profile.save()
         
@@ -947,14 +947,14 @@ def get_worker_availability(user_id):
                 'description': '',
                 'workerRating': 0,
                 'totalEarningGross': 0.00,
-                'availabilityStatus': WorkerProfile.availabilityStatus.OFFLINE
+                'availabilityStatus': 'OFFLINE'
             }
         )
         
         if created:
             print(f"⚠️ Created WorkerProfile for legacy user {user_id} (should have been created during role selection)")
         
-        is_available = worker_profile.availabilityStatus == WorkerProfile.availabilityStatus.AVAILABLE
+        is_available = worker_profile.availabilityStatus == 'AVAILABLE'
         
         return {
             "accountID": user_id,
