@@ -1,7 +1,19 @@
 from ninja import Router, Form, File
 from ninja.files import UploadedFile
-from .schemas import createAccountSchema, logInSchema, createAgencySchema, forgotPasswordSchema, resetPasswordSchema, assignRoleSchema, KYCUploadSchema, KYCStatusResponse, KYCUploadResponse
-from .services import create_account_individ, create_account_agency, login_account, _verify_account, forgot_password_request, reset_password_verify, logout_account, refresh_token, fetch_currentUser, generateCookie, assign_role, upload_kyc_document, get_kyc_status, get_pending_kyc_submissions
+from .schemas import (
+    createAccountSchema, logInSchema, createAgencySchema, 
+    forgotPasswordSchema, resetPasswordSchema, assignRoleSchema, 
+    KYCUploadSchema, KYCStatusResponse, KYCUploadResponse,
+    UpdateLocationSchema, LocationResponseSchema, 
+    ToggleLocationSharingSchema, NearbyWorkersSchema
+)
+from .services import (
+    create_account_individ, create_account_agency, login_account, 
+    _verify_account, forgot_password_request, reset_password_verify, 
+    logout_account, refresh_token, fetch_currentUser, generateCookie, 
+    assign_role, upload_kyc_document, get_kyc_status, get_pending_kyc_submissions,
+    update_user_location, toggle_location_sharing, get_user_location, find_nearby_workers
+)
 from ninja.responses import Response
 from .authentication import cookie_auth
 from django.shortcuts import redirect
@@ -395,4 +407,110 @@ def get_worker_availability_endpoint(request):
             {"success": False, "error": "Failed to get availability"}, 
             status=500
         )
+#endregion
+
+#region LOCATION TRACKING APIs
+
+@router.post("/location/update", auth=cookie_auth, response=LocationResponseSchema)
+def update_location(request, payload: UpdateLocationSchema):
+    """
+    Update user's current GPS location
+    """
+    try:
+        user = request.auth
+        result = update_user_location(
+            account_id=user.accountID,
+            latitude=payload.latitude,
+            longitude=payload.longitude
+        )
+        return result
+        
+    except ValueError as e:
+        return Response(
+            {"error": str(e)},
+            status=400
+        )
+    except Exception as e:
+        print(f"❌ Error updating location: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to update location"},
+            status=500
+        )
+
+
+@router.get("/location/me", auth=cookie_auth, response=LocationResponseSchema)
+def get_my_location(request):
+    """
+    Get current user's location
+    """
+    try:
+        user = request.auth
+        result = get_user_location(account_id=user.accountID)
+        return result
+        
+    except ValueError as e:
+        return Response(
+            {"error": str(e)},
+            status=400
+        )
+    except Exception as e:
+        print(f"❌ Error getting location: {str(e)}")
+        return Response(
+            {"error": "Failed to get location"},
+            status=500
+        )
+
+
+@router.post("/location/toggle-sharing", auth=cookie_auth, response=LocationResponseSchema)
+def toggle_location_sharing_endpoint(request, payload: ToggleLocationSharingSchema):
+    """
+    Enable or disable location sharing
+    """
+    try:
+        user = request.auth
+        result = toggle_location_sharing(
+            account_id=user.accountID,
+            enabled=payload.enabled
+        )
+        return result
+        
+    except ValueError as e:
+        return Response(
+            {"error": str(e)},
+            status=400
+        )
+    except Exception as e:
+        print(f"❌ Error toggling location sharing: {str(e)}")
+        return Response(
+            {"error": "Failed to toggle location sharing"},
+            status=500
+        )
+
+
+@router.post("/location/nearby-workers")
+def get_nearby_workers(request, payload: NearbyWorkersSchema):
+    """
+    Find workers near a specific location
+    Can be used by clients to find workers nearby
+    """
+    try:
+        result = find_nearby_workers(
+            latitude=payload.latitude,
+            longitude=payload.longitude,
+            radius_km=payload.radius_km,
+            specialization_id=payload.specialization_id
+        )
+        return result
+        
+    except Exception as e:
+        print(f"❌ Error finding nearby workers: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to find nearby workers"},
+            status=500
+        )
+
 #endregion

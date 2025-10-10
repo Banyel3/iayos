@@ -9,6 +9,7 @@ import MobileNav from "@/components/ui/mobile-nav";
 import DesktopNavbar from "@/components/ui/desktop-sidebar";
 import NotificationBell from "@/components/notifications/NotificationBell";
 import { useWorkerAvailability } from "@/lib/hooks/useWorkerAvailability";
+import LocationToggle from "@/components/ui/location-toggle";
 
 interface HomeUser extends User {
   profile_data?: {

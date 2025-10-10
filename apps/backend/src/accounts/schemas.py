@@ -64,3 +64,42 @@ class KYCStatusResponse(Schema):
     notes: Optional[str]
     reviewed_at: Optional[datetime]
     files: list
+
+# Location Tracking Schemas
+class UpdateLocationSchema(Schema):
+    """Schema for updating user's GPS location"""
+    latitude: float
+    longitude: float
+
+class LocationResponseSchema(Schema):
+    """Schema for location response"""
+    profile_id: int
+    latitude: Optional[float]
+    longitude: Optional[float]
+    location_updated_at: Optional[datetime]
+    location_sharing_enabled: bool
+    message: str
+
+class ToggleLocationSharingSchema(Schema):
+    """Schema for toggling location sharing"""
+    enabled: bool
+
+class NearbyWorkersSchema(Schema):
+    """Schema for finding nearby workers"""
+    latitude: float
+    longitude: float
+    radius_km: Optional[float] = 10.0  # Default 10km radius
+    specialization_id: Optional[int] = None  # Optional filter by specialization
+
+class WorkerLocationSchema(Schema):
+    """Schema for worker location in search results"""
+    profile_id: int
+    worker_id: int
+    first_name: str
+    last_name: str
+    profile_img: Optional[str]
+    latitude: float
+    longitude: float
+    distance_km: float
+    availability_status: str
+    specializations: list

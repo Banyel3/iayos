@@ -80,6 +80,31 @@ class Profile(models.Model):
         max_length=10, choices=ProfileType.choices, null=True, blank=True
     )
 
+    # GPS Location tracking fields
+    latitude = models.DecimalField(
+        max_digits=10, 
+        decimal_places=8, 
+        null=True, 
+        blank=True,
+        help_text="Current latitude coordinate"
+    )
+    longitude = models.DecimalField(
+        max_digits=11, 
+        decimal_places=8, 
+        null=True, 
+        blank=True,
+        help_text="Current longitude coordinate"
+    )
+    location_updated_at = models.DateTimeField(
+        null=True, 
+        blank=True,
+        help_text="Timestamp of last location update"
+    )
+    location_sharing_enabled = models.BooleanField(
+        default=False,
+        help_text="Whether user has enabled location sharing"
+    )
+
     accountFK = models.ForeignKey(Accounts, on_delete=models.CASCADE)
 
 

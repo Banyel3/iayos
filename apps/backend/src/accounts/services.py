@@ -965,3 +965,211 @@ def get_worker_availability(user_id):
     except Exception as e:
         print(f"❌ Error getting worker availability: {str(e)}")
         raise
+
+
+#region LOCATION TRACKING SERVICES
+
+def update_user_location(account_id: int, latitude: float, longitude: float):
+    """
+    Update user's GPS location
+    """
+    from django.utils import timezone
+    
+    try:
+        # Get the user's profile
+        profile = Profile.objects.filter(accountFK_id=account_id).first()
+        
+        if not profile:
+            raise ValueError("Profile not found")
+        
+        # Update location
+        profile.latitude = latitude
+        profile.longitude = longitude
+        profile.location_updated_at = timezone.now()
+        
+        # Enable location sharing if not already enabled
+        if not profile.location_sharing_enabled:
+            profile.location_sharing_enabled = True
+        
+        profile.save()
+        
+        return {
+            "profile_id": profile.profileID,
+            "latitude": float(profile.latitude),
+            "longitude": float(profile.longitude),
+            "location_updated_at": profile.location_updated_at.isoformat(),
+            "location_sharing_enabled": profile.location_sharing_enabled,
+            "message": "Location updated successfully"
+        }
+        
+    except Profile.DoesNotExist:
+        raise ValueError("Profile not found")
+    except Exception as e:
+        print(f"❌ Error updating location: {str(e)}")
+        raise
+
+
+def toggle_location_sharing(account_id: int, enabled: bool):
+    """
+    Enable or disable location sharing for a user
+    """
+    try:
+        profile = Profile.objects.filter(accountFK_id=account_id).first()
+        
+        if not profile:
+            raise ValueError("Profile not found")
+        
+        profile.location_sharing_enabled = enabled
+        profile.save()
+        
+        return {
+            "profile_id": profile.profileID,
+            "latitude": float(profile.latitude) if profile.latitude else None,
+            "longitude": float(profile.longitude) if profile.longitude else None,
+            "location_updated_at": profile.location_updated_at.isoformat() if profile.location_updated_at else None,
+            "location_sharing_enabled": profile.location_sharing_enabled,
+            "message": f"Location sharing {'enabled' if enabled else 'disabled'} successfully"
+        }
+        
+    except Profile.DoesNotExist:
+        raise ValueError("Profile not found")
+    except Exception as e:
+        print(f"❌ Error toggling location sharing: {str(e)}")
+        raise
+
+
+def get_user_location(account_id: int):
+    """
+    Get user's current location
+    """
+    try:
+        profile = Profile.objects.filter(accountFK_id=account_id).first()
+        
+        if not profile:
+            raise ValueError("Profile not found")
+        
+        return {
+            "profile_id": profile.profileID,
+            "latitude": float(profile.latitude) if profile.latitude else None,
+            "longitude": float(profile.longitude) if profile.longitude else None,
+            "location_updated_at": profile.location_updated_at.isoformat() if profile.location_updated_at else None,
+            "location_sharing_enabled": profile.location_sharing_enabled,
+            "message": "Location retrieved successfully"
+        }
+        
+    except Profile.DoesNotExist:
+        raise ValueError("Profile not found")
+    except Exception as e:
+        print(f"❌ Error getting location: {str(e)}")
+        raise
+
+
+def calculate_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """
+    Calculate distance between two GPS coordinates using Haversine formula
+    Returns distance in kilometers
+    """
+    from math import radians, cos, sin, asin, sqrt
+    
+    # Convert to radians
+    lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
+    
+    # Haversine formula
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+    a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+    c = 2 * asin(sqrt(a))
+    
+    # Radius of Earth in kilometers
+    r = 6371
+    
+    return c * r
+
+
+def find_nearby_workers(latitude: float, longitude: float, radius_km: float = 10.0, specialization_id: int = None):
+    """
+    Find workers near a specific location
+    """
+    from .models import WorkerProfile, workerSpecialization
+    from django.db.models import Q
+    
+    try:
+        # Get all worker profiles with location sharing enabled
+        workers_query = Profile.objects.filter(
+            profileType='WORKER',
+            location_sharing_enabled=True,
+            latitude__isnull=False,
+            longitude__isnull=False
+        ).select_related('accountFK')
+        
+        nearby_workers = []
+        
+        for profile in workers_query:
+            # Calculate distance
+            distance = calculate_distance(
+                latitude, 
+                longitude, 
+                float(profile.latitude), 
+                float(profile.longitude)
+            )
+            
+            # Check if within radius
+            if distance <= radius_km:
+                try:
+                    # Get worker profile
+                    worker_profile = WorkerProfile.objects.get(profileID=profile)
+                    
+                    # Get specializations
+                    specializations_query = workerSpecialization.objects.filter(
+                        workerID=worker_profile
+                    ).select_related('specializationID')
+                    
+                    specializations = [
+                        {
+                            "id": ws.specializationID.specializationID,
+                            "name": ws.specializationID.specializationName,
+                            "experience_years": ws.experienceYears,
+                            "certification": ws.certification
+                        }
+                        for ws in specializations_query
+                    ]
+                    
+                    # Filter by specialization if provided
+                    if specialization_id:
+                        if not any(s['id'] == specialization_id for s in specializations):
+                            continue
+                    
+                    nearby_workers.append({
+                        "profile_id": profile.profileID,
+                        "worker_id": worker_profile.profileID.profileID,
+                        "first_name": profile.firstName,
+                        "last_name": profile.lastName,
+                        "profile_img": profile.profileImg if profile.profileImg else None,
+                        "latitude": float(profile.latitude),
+                        "longitude": float(profile.longitude),
+                        "distance_km": round(distance, 2),
+                        "availability_status": worker_profile.availabilityStatus,
+                        "specializations": specializations
+                    })
+                    
+                except WorkerProfile.DoesNotExist:
+                    continue
+        
+        # Sort by distance
+        nearby_workers.sort(key=lambda x: x['distance_km'])
+        
+        return {
+            "workers": nearby_workers,
+            "count": len(nearby_workers),
+            "search_location": {
+                "latitude": latitude,
+                "longitude": longitude,
+                "radius_km": radius_km
+            }
+        }
+        
+    except Exception as e:
+        print(f"❌ Error finding nearby workers: {str(e)}")
+        raise
+
+#endregion
