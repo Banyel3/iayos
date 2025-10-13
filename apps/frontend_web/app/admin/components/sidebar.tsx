@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/context/AuthContext";
 import {
   Users,
   UserCheck,
@@ -139,6 +140,7 @@ export default function Sidebar({ className }: SidebarProps) {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
+  const { logout } = useAuth();
 
   const toggleExpanded = (name: string) => {
     setExpandedItems((prev) =>
@@ -165,40 +167,11 @@ export default function Sidebar({ className }: SidebarProps) {
 
   const handleLogout = async () => {
     try {
-      // Call backend logout endpoint to invalidate tokens
-      const response = await fetch(
-        "http://localhost:8000/api/accounts/logout",
-        {
-          method: "POST",
-          credentials: "include", // Include cookies in the request
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
-      );
-
-      // Proceed with logout even if backend call fails
-      if (!response.ok) {
-        console.warn(
-          "Backend logout failed, proceeding with client-side cleanup"
-        );
-      }
-
-      // Clear all cookies
-      document.cookie.split(";").forEach((c) => {
-        document.cookie = c
-          .replace(/^ +/, "")
-          .replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
-      });
-
-      // Clear session storage
-      sessionStorage.clear();
-
-      // Immediately redirect to login page
-      router.push("/auth/login");
+      // Use the AuthContext logout function which properly clears state and redirects
+      await logout();
     } catch (error) {
       console.error("Logout error:", error);
-      // Redirect even on error
+      // Fallback: still try to redirect even on error
       router.push("/auth/login");
     }
   };

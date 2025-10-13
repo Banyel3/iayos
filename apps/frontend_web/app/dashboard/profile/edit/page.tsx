@@ -33,10 +33,11 @@ const EditProfilePage = () => {
 
   // Use the worker availability hook
   const isWorker = authUser?.profile_data?.profileType === "WORKER";
-  const { isAvailable, handleAvailabilityToggle } = useWorkerAvailability(
-    isWorker,
-    isAuthenticated
-  );
+  const {
+    isAvailable,
+    isLoading: isLoadingAvailability,
+    handleAvailabilityToggle,
+  } = useWorkerAvailability(isWorker, isAuthenticated);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -188,6 +189,7 @@ const EditProfilePage = () => {
         userName={formData.firstName || "User"}
         onLogout={logout}
         isAvailable={isAvailable}
+        isLoadingAvailability={isLoadingAvailability}
         onAvailabilityToggle={handleAvailabilityToggle}
       />
 

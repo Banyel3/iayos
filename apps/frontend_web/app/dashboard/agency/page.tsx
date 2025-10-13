@@ -21,12 +21,22 @@ const WorkerDash = () => {
 
   // Use the worker availability hook
   const isWorker = true; // This is agency page, always worker
-  const { isAvailable, handleAvailabilityToggle } = useWorkerAvailability(
-    isWorker,
-    isAuthenticated
-  );
+  const {
+    isAvailable,
+    isLoading: isLoadingAvailability,
+    handleAvailabilityToggle,
+  } = useWorkerAvailability(isWorker, isAuthenticated);
 
-  if (isLoading) return <p>Loading...</p>; // strictly loading from backend validation
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="flex flex-col items-center space-y-4">
+          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Authentication check (strictly from backend JWT validation)
   if (!isAuthenticated || !user) {
@@ -48,6 +58,7 @@ const WorkerDash = () => {
         userName={user?.firstName || "Worker"}
         onLogout={logout}
         isAvailable={isAvailable}
+        isLoadingAvailability={isLoadingAvailability}
         onAvailabilityToggle={handleAvailabilityToggle}
       />
 

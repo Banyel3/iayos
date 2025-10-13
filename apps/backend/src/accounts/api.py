@@ -291,15 +291,23 @@ def get_unread_count(request):
 
 #region WORKER ENDPOINTS
 @router.get("/users/workers")
-def get_all_workers_endpoint(request):
+def get_all_workers_endpoint(request, latitude: float = None, longitude: float = None):
     """
     Fetch all workers with their profiles and specializations.
     Public endpoint - no authentication required for browsing workers.
+    
+    Query Parameters:
+        latitude (optional): Client's latitude for distance calculation
+        longitude (optional): Client's longitude for distance calculation
     """
     try:
         from .services import get_all_workers
         
-        workers = get_all_workers()
+        # Pass client location to service function
+        workers = get_all_workers(
+            client_latitude=latitude,
+            client_longitude=longitude
+        )
         
         return {
             "success": True,
@@ -318,15 +326,24 @@ def get_all_workers_endpoint(request):
 
 
 @router.get("/users/workers/{user_id}")
-def get_worker_by_id_endpoint(request, user_id: int):
+def get_worker_by_id_endpoint(request, user_id: int, latitude: float = None, longitude: float = None):
     """
     Fetch a single worker by their account ID.
     Public endpoint - no authentication required for viewing worker profiles.
+    
+    Query Parameters:
+        latitude (optional): Client's latitude for distance calculation
+        longitude (optional): Client's longitude for distance calculation
     """
     try:
         from .services import get_worker_by_id
         
-        worker = get_worker_by_id(user_id)
+        # Pass client location to service function
+        worker = get_worker_by_id(
+            user_id,
+            client_latitude=latitude,
+            client_longitude=longitude
+        )
         
         if worker is None:
             return Response(

@@ -7,6 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 import MobileNav from "@/components/ui/mobile-nav";
 import DesktopNavbar from "@/components/ui/desktop-sidebar";
 import NotificationBell from "@/components/notifications/NotificationBell";
+import KYCVerificationRequired from "@/components/ui/kyc-verification-required";
 
 interface WorkerProfileData {
   id: string;
@@ -18,7 +19,7 @@ interface WorkerProfileData {
   experience: string;
   specialization: string;
   isVerified: boolean;
-  distance: number;
+  distance: number | null; // Can be null if location unavailable
 }
 
 const WorkerProfileViewPage = () => {
@@ -40,16 +41,76 @@ const WorkerProfileViewPage = () => {
         setIsLoadingWorker(true);
         setError(null);
 
-        const response = await fetch(
-          `http://localhost:8000/api/accounts/users/workers/${workerId}`,
-          {
-            method: "GET",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            credentials: "include",
+        // First, try to get the user's location from their profile
+        let userLatitude: number | null = null;
+        let userLongitude: number | null = null;
+
+        try {
+          const locationResponse = await fetch(
+            "http://localhost:8000/api/accounts/location/me",
+            {
+              method: "GET",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              credentials: "include",
+            }
+          );
+
+          if (locationResponse.ok) {
+            const locationData = await locationResponse.json();
+            if (locationData.success && locationData.location) {
+              userLatitude = locationData.location.latitude;
+              userLongitude = locationData.location.longitude;
+              console.log(
+                "✅ Got client location from profile:",
+                userLatitude,
+                userLongitude
+              );
+            }
           }
-        );
+        } catch (locError) {
+          console.log(
+            "Client location not available from profile, will try browser location"
+          );
+        }
+
+        // If no location from profile, try to get from browser
+        if (userLatitude === null || userLongitude === null) {
+          try {
+            const position = await new Promise<GeolocationPosition>(
+              (resolve, reject) => {
+                navigator.geolocation.getCurrentPosition(resolve, reject, {
+                  timeout: 5000,
+                  enableHighAccuracy: false,
+                });
+              }
+            );
+            userLatitude = position.coords.latitude;
+            userLongitude = position.coords.longitude;
+            console.log(
+              "✅ Got client location from browser:",
+              userLatitude,
+              userLongitude
+            );
+          } catch (geoError) {
+            console.log("Browser location not available");
+          }
+        }
+
+        // Build URL with location parameters if available
+        let url = `http://localhost:8000/api/accounts/users/workers/${workerId}`;
+        if (userLatitude !== null && userLongitude !== null) {
+          url += `?latitude=${userLatitude}&longitude=${userLongitude}`;
+        }
+
+        const response = await fetch(url, {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+        });
 
         if (!response.ok) {
           throw new Error("Failed to fetch worker profile");
@@ -93,6 +154,38 @@ const WorkerProfileViewPage = () => {
   }
 
   if (!isAuthenticated) return null;
+
+  // KYC Verification check - only clients can view worker profiles
+  const isClient = user?.profile_data?.profileType === "CLIENT";
+  if (isClient && !user?.kycVerified) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        {/* Notification Bell - Mobile Only */}
+        <div className="lg:hidden fixed top-4 right-4 z-50">
+          <NotificationBell />
+        </div>
+
+        {/* Desktop Navbar */}
+        <div className="hidden lg:block">
+          <DesktopNavbar
+            isWorker={false}
+            userName={user?.profile_data?.firstName || "Client"}
+            onLogout={logout}
+            isAvailable={false}
+            onAvailabilityToggle={() => {}}
+          />
+        </div>
+
+        {/* KYC Verification Required Message */}
+        <KYCVerificationRequired
+          userType="CLIENT"
+          feature="view worker profiles and send messages"
+        />
+
+        <MobileNav isWorker={false} />
+      </div>
+    );
+  }
 
   // Error state
   if (error || !workerData) {
@@ -251,7 +344,9 @@ const WorkerProfileViewPage = () => {
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Distance:</span>
                 <span className="text-sm font-medium text-gray-900">
-                  {workerData.distance.toFixed(1)} km away
+                  {workerData.distance !== null
+                    ? `${workerData.distance.toFixed(1)} km away`
+                    : "Location not shared"}
                 </span>
               </div>
             </div>
@@ -373,7 +468,9 @@ const WorkerProfileViewPage = () => {
                   <div className="flex items-center justify-between py-3 border-t border-b border-gray-200">
                     <span className="text-sm text-gray-600">Distance</span>
                     <span className="text-sm font-medium text-gray-900">
-                      {workerData.distance.toFixed(1)} km away
+                      {workerData.distance !== null
+                        ? `${workerData.distance.toFixed(1)} km away`
+                        : "Location not shared"}
                     </span>
                   </div>
                 </div>

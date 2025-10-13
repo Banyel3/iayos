@@ -13,6 +13,7 @@ interface DesktopNavbarProps {
   userAvatar?: string;
   onLogout?: () => void;
   isAvailable?: boolean;
+  isLoadingAvailability?: boolean;
   onAvailabilityToggle?: () => void;
 }
 
@@ -22,12 +23,13 @@ export const DesktopNavbar: React.FC<DesktopNavbarProps> = ({
   userAvatar = "/worker1.jpg",
   onLogout,
   isAvailable = true,
+  isLoadingAvailability = false,
   onAvailabilityToggle,
 }) => {
   const pathname = usePathname();
   const router = useRouter();
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
-  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [showLocationDropdown, setShowLocationDropdown] = useState(false);
 
   const navigationItems = [
     {
@@ -94,7 +96,7 @@ export const DesktopNavbar: React.FC<DesktopNavbarProps> = ({
 
             {/* Location Toggle Button */}
             <button
-              onClick={() => setShowLocationModal(!showLocationModal)}
+              onClick={() => setShowLocationDropdown(!showLocationDropdown)}
               className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors relative"
               title="Location Settings"
             >
@@ -119,30 +121,59 @@ export const DesktopNavbar: React.FC<DesktopNavbarProps> = ({
               </svg>
             </button>
 
+            {/* Location Dropdown */}
+            {showLocationDropdown && (
+              <div className="absolute right-0 top-full mt-2 w-96 bg-white rounded-lg shadow-xl border border-gray-200 z-50">
+                <LocationToggle
+                  isWorker={isWorker}
+                  onLocationUpdate={(lat, lon) => {
+                    console.log(`📍 Location updated: ${lat}, ${lon}`);
+                  }}
+                />
+              </div>
+            )}
+
             {/* Availability Status - Only for Workers */}
             {isWorker && (
               <div className="flex items-center space-x-2">
-                <div
-                  className={`w-3 h-3 rounded-full ${
-                    isAvailable ? "bg-green-500" : "bg-gray-400"
-                  }`}
-                ></div>
-                <span
-                  className="text-sm font-medium text-gray-700 cursor-pointer hover:text-gray-900"
-                  onClick={() => {
-                    console.log("🔴 CLICK EVENT FIRED");
-                    console.log("isWorker:", isWorker);
-                    console.log("onAvailabilityToggle:", onAvailabilityToggle);
-                    if (onAvailabilityToggle) {
-                      console.log("🟢 Calling onAvailabilityToggle");
-                      onAvailabilityToggle();
-                    } else {
-                      console.error("❌ onAvailabilityToggle is undefined!");
-                    }
-                  }}
-                >
-                  {isAvailable ? "Available" : "Unavailable"}
-                </span>
+                {isLoadingAvailability ? (
+                  // Loading state - prevents flickering
+                  <>
+                    <div className="w-3 h-3 rounded-full bg-gray-300 animate-pulse"></div>
+                    <span className="text-sm font-medium text-gray-400">
+                      Loading...
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <div
+                      className={`w-3 h-3 rounded-full ${
+                        isAvailable ? "bg-green-500" : "bg-gray-400"
+                      }`}
+                    ></div>
+                    <span
+                      className="text-sm font-medium text-gray-700 cursor-pointer hover:text-gray-900"
+                      onClick={() => {
+                        console.log("🔴 CLICK EVENT FIRED");
+                        console.log("isWorker:", isWorker);
+                        console.log(
+                          "onAvailabilityToggle:",
+                          onAvailabilityToggle
+                        );
+                        if (onAvailabilityToggle) {
+                          console.log("🟢 Calling onAvailabilityToggle");
+                          onAvailabilityToggle();
+                        } else {
+                          console.error(
+                            "❌ onAvailabilityToggle is undefined!"
+                          );
+                        }
+                      }}
+                    >
+                      {isAvailable ? "Available" : "Unavailable"}
+                    </span>
+                  </>
+                )}
               </div>
             )}
 
@@ -211,37 +242,6 @@ export const DesktopNavbar: React.FC<DesktopNavbarProps> = ({
           </div>
         </div>
       </div>
-
-      {/* Location Modal */}
-      {showLocationModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 relative">
-            <button
-              onClick={() => setShowLocationModal(false)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
-            >
-              <svg
-                className="w-6 h-6"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            </button>
-            <LocationToggle
-              onLocationUpdate={(lat, lon) => {
-                console.log(`📍 Location updated: ${lat}, ${lon}`);
-              }}
-            />
-          </div>
-        </div>
-      )}
     </nav>
   );
 };

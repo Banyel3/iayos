@@ -9,7 +9,7 @@ import MobileNav from "@/components/ui/mobile-nav";
 import DesktopNavbar from "@/components/ui/desktop-sidebar";
 import NotificationBell from "@/components/notifications/NotificationBell";
 import { useWorkerAvailability } from "@/lib/hooks/useWorkerAvailability";
-import LocationToggle from "@/components/ui/location-toggle";
+import { LocationToggle } from "@/components/ui/location-toggle";
 
 interface HomeUser extends User {
   profile_data?: {
@@ -54,7 +54,7 @@ interface WorkerListing {
   experience: string;
   specialization: string;
   isVerified: boolean;
-  distance: number;
+  distance: number | null; // Can be null if location unavailable
 }
 
 const HomePage = () => {
@@ -68,10 +68,11 @@ const HomePage = () => {
 
   // Use the worker availability hook
   const isWorker = user?.profile_data?.profileType === "WORKER";
-  const { isAvailable, handleAvailabilityToggle } = useWorkerAvailability(
-    isWorker,
-    isAuthenticated
-  );
+  const {
+    isAvailable,
+    isLoading: isLoadingAvailability,
+    handleAvailabilityToggle,
+  } = useWorkerAvailability(isWorker, isAuthenticated);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -84,16 +85,77 @@ const HomePage = () => {
     const fetchWorkers = async () => {
       try {
         setIsLoadingWorkers(true);
-        const response = await fetch(
-          "http://localhost:8000/api/accounts/users/workers",
-          {
-            method: "GET",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            credentials: "include", // Include cookies for authentication
+
+        // First, try to get the user's location from their profile
+        let userLatitude: number | null = null;
+        let userLongitude: number | null = null;
+
+        try {
+          const locationResponse = await fetch(
+            "http://localhost:8000/api/accounts/location/me",
+            {
+              method: "GET",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              credentials: "include",
+            }
+          );
+
+          if (locationResponse.ok) {
+            const locationData = await locationResponse.json();
+            if (locationData.success && locationData.location) {
+              userLatitude = locationData.location.latitude;
+              userLongitude = locationData.location.longitude;
+              console.log(
+                "✅ Got user location from profile:",
+                userLatitude,
+                userLongitude
+              );
+            }
           }
-        );
+        } catch (locError) {
+          console.log(
+            "User location not available from profile, will try browser location"
+          );
+        }
+
+        // If no location from profile, try to get from browser
+        if (userLatitude === null || userLongitude === null) {
+          try {
+            const position = await new Promise<GeolocationPosition>(
+              (resolve, reject) => {
+                navigator.geolocation.getCurrentPosition(resolve, reject, {
+                  timeout: 5000,
+                  enableHighAccuracy: false,
+                });
+              }
+            );
+            userLatitude = position.coords.latitude;
+            userLongitude = position.coords.longitude;
+            console.log(
+              "✅ Got user location from browser:",
+              userLatitude,
+              userLongitude
+            );
+          } catch (geoError) {
+            console.log("Browser location not available");
+          }
+        }
+
+        // Build URL with location parameters if available
+        let url = "http://localhost:8000/api/accounts/users/workers";
+        if (userLatitude !== null && userLongitude !== null) {
+          url += `?latitude=${userLatitude}&longitude=${userLongitude}`;
+        }
+
+        const response = await fetch(url, {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include", // Include cookies for authentication
+        });
 
         if (!response.ok) {
           throw new Error("Failed to fetch workers");
@@ -312,6 +374,7 @@ const HomePage = () => {
             }
             onLogout={logout}
             isAvailable={isAvailable}
+            isLoadingAvailability={isLoadingAvailability}
             onAvailabilityToggle={handleAvailabilityToggle}
           />
         </div>
@@ -464,7 +527,7 @@ const HomePage = () => {
               </div>
             ))}
           </div>
-          <MobileNav />
+          <MobileNav isWorker={isWorker} />
         </div>
 
         {/* Desktop View - Same content but without mobile nav */}
@@ -641,6 +704,7 @@ const HomePage = () => {
             }
             onLogout={logout}
             isAvailable={false}
+            isLoadingAvailability={false}
             onAvailabilityToggle={() => {}}
           />
         </div>
@@ -735,7 +799,13 @@ const HomePage = () => {
             ) : (
               <div className="space-y-3">
                 {[...workerListings]
-                  .sort((a, b) => a.distance - b.distance)
+                  .sort((a, b) => {
+                    // Handle null distances - put them at the end
+                    if (a.distance === null && b.distance === null) return 0;
+                    if (a.distance === null) return 1;
+                    if (b.distance === null) return -1;
+                    return a.distance - b.distance;
+                  })
                   .map((worker) => (
                     <div
                       key={worker.id}
@@ -808,7 +878,9 @@ const HomePage = () => {
                                   d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
                                 />
                               </svg>
-                              {worker.distance.toFixed(1)} km
+                              {worker.distance !== null
+                                ? `${worker.distance.toFixed(1)} km`
+                                : "N/A"}
                             </span>
                           </div>
                           <div className="flex space-x-2">
@@ -915,7 +987,9 @@ const HomePage = () => {
                                 d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
                               />
                             </svg>
-                            {worker.distance.toFixed(1)} km
+                            {worker.distance !== null
+                              ? `${worker.distance.toFixed(1)} km`
+                              : "N/A"}
                           </span>
                         </div>
                         <div className="flex space-x-2">
@@ -1012,7 +1086,9 @@ const HomePage = () => {
                                 d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
                               />
                             </svg>
-                            {worker.distance.toFixed(1)} km
+                            {worker.distance !== null
+                              ? `${worker.distance.toFixed(1)} km`
+                              : "N/A"}
                           </span>
                         </div>
                         <div className="flex space-x-2">
@@ -1035,7 +1111,7 @@ const HomePage = () => {
               </div>
             </div>
           )}
-          <MobileNav />
+          <MobileNav isWorker={isWorker} />
         </div>
 
         {/* Desktop View - Similar layout but without mobile nav */}
@@ -1127,7 +1203,13 @@ const HomePage = () => {
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {[...workerListings]
-                    .sort((a, b) => a.distance - b.distance)
+                    .sort((a, b) => {
+                      // Handle null distances - put them at the end
+                      if (a.distance === null && b.distance === null) return 0;
+                      if (a.distance === null) return 1;
+                      if (b.distance === null) return -1;
+                      return a.distance - b.distance;
+                    })
                     .map((worker) => (
                       <div
                         key={worker.id}
@@ -1199,7 +1281,9 @@ const HomePage = () => {
                                   d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
                                 />
                               </svg>
-                              {worker.distance.toFixed(1)} km away
+                              {worker.distance !== null
+                                ? `${worker.distance.toFixed(1)} km away`
+                                : "N/A"}
                             </span>
                             <span className="text-sm font-semibold text-gray-900">
                               {worker.startingPrice}
@@ -1325,7 +1409,9 @@ const HomePage = () => {
                                   d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
                                 />
                               </svg>
-                              {worker.distance.toFixed(1)} km
+                              {worker.distance !== null
+                                ? `${worker.distance.toFixed(1)} km`
+                                : "N/A"}
                             </span>
                           </div>
                         </div>
@@ -1393,7 +1479,7 @@ const HomePage = () => {
           </button>
         </div>
       </div>
-      <MobileNav />
+      <MobileNav isWorker={isWorker} />
     </div>
   );
 };

@@ -13,6 +13,10 @@ interface NavItem {
   activeIcon: string;
 }
 
+interface MobileNavProps {
+  isWorker?: boolean;
+}
+
 const navItems: NavItem[] = [
   {
     name: "Home",
@@ -40,9 +44,9 @@ const navItems: NavItem[] = [
   },
 ];
 
-export default function MobileNav() {
+export default function MobileNav({ isWorker = false }: MobileNavProps) {
   const pathname = usePathname();
-  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [showLocationDropdown, setShowLocationDropdown] = useState(false);
 
   const isActive = (href: string) => {
     if (href === "/") {
@@ -90,12 +94,16 @@ export default function MobileNav() {
 
           {/* Location Toggle Button */}
           <button
-            onClick={() => setShowLocationModal(true)}
-            className="flex flex-col items-center justify-center min-w-0 flex-1 py-2 px-1"
+            onClick={() => setShowLocationDropdown(!showLocationDropdown)}
+            className="flex flex-col items-center justify-center min-w-0 flex-1 py-2 px-1 relative"
           >
-            <div className="w-8 h-8 mb-1 flex items-center justify-center rounded-full bg-gray-100 transition-colors duration-200">
+            <div
+              className={`w-8 h-8 mb-1 flex items-center justify-center rounded-full transition-colors duration-200 ${
+                showLocationDropdown ? "bg-blue-100" : "bg-gray-100"
+              }`}
+            >
               <svg
-                className="w-4 h-4 text-gray-600"
+                className={`w-4 h-4 ${showLocationDropdown ? "text-blue-600" : "text-gray-600"}`}
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -114,42 +122,41 @@ export default function MobileNav() {
                 />
               </svg>
             </div>
-            <span className="text-[8px] font-medium text-gray-500">
+            <span
+              className={`text-[8px] font-medium transition-colors duration-200 ${
+                showLocationDropdown ? "text-blue-600" : "text-gray-500"
+              }`}
+            >
               Location
             </span>
           </button>
         </div>
       </nav>
 
-      {/* Location Modal */}
-      {showLocationModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 relative">
-            <button
-              onClick={() => setShowLocationModal(false)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
-            >
-              <svg
-                className="w-6 h-6"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            </button>
-            <LocationToggle
-              onLocationUpdate={(lat, lon) => {
-                console.log(`📍 Mobile - Location updated: ${lat}, ${lon}`);
-              }}
-            />
+      {/* Location Slide-up Panel */}
+      {showLocationDropdown && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black bg-opacity-30 z-[55] md:hidden"
+            onClick={() => setShowLocationDropdown(false)}
+          />
+
+          {/* Slide-up Panel */}
+          <div className="fixed bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl z-[60] md:hidden animate-slide-up pb-20">
+            <div className="p-4">
+              {/* Drag Handle */}
+              <div className="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-4"></div>
+
+              <LocationToggle
+                isWorker={isWorker}
+                onLocationUpdate={(lat, lon) => {
+                  console.log(`📍 Mobile - Location updated: ${lat}, ${lon}`);
+                }}
+              />
+            </div>
           </div>
-        </div>
+        </>
       )}
     </>
   );

@@ -9,7 +9,8 @@ export const useWorkerAvailability = (
   isWorker: boolean,
   isAuthenticated: boolean
 ) => {
-  const [isAvailable, setIsAvailable] = useState(false);
+  // Initialize with null to indicate "unknown" state, not false
+  const [isAvailable, setIsAvailable] = useState<boolean | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   // Fetch worker's current availability status on mount
@@ -50,6 +51,12 @@ export const useWorkerAvailability = (
 
   // Handle availability toggle
   const handleAvailabilityToggle = async () => {
+    // Prevent toggle if still loading initial state
+    if (isAvailable === null) {
+      console.warn("⚠️ Cannot toggle while loading initial state");
+      return;
+    }
+
     console.log("🟡 handleAvailabilityToggle CALLED");
     console.log("Current isAvailable:", isAvailable);
 

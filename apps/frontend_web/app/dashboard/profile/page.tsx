@@ -64,10 +64,11 @@ const ProfilePage = () => {
 
   // Use the worker availability hook
   const isWorker = user?.profile_data?.profileType === "WORKER";
-  const { isAvailable, handleAvailabilityToggle } = useWorkerAvailability(
-    isWorker,
-    isAuthenticated
-  );
+  const {
+    isAvailable,
+    isLoading: isLoadingAvailability,
+    handleAvailabilityToggle,
+  } = useWorkerAvailability(isWorker, isAuthenticated);
 
   // Wallet state
   const [walletBalance, setWalletBalance] = useState<number>(0);
@@ -234,7 +235,7 @@ const ProfilePage = () => {
   // Mock data for worker profile
   const workerData: WorkerProfile = {
     name: user?.profile_data?.firstName || "John Reyes",
-    isVerified: false,
+    isVerified: user?.kycVerified || false,
     avatar: "/worker1.jpg",
     jobTitle: "Appliance Repair Technician",
     startingRate: "₱380",
@@ -253,7 +254,7 @@ const ProfilePage = () => {
   // Mock data for client profile
   const clientData: ClientProfile = {
     name: user?.profile_data?.firstName || "Crissy Santos",
-    isVerified: false,
+    isVerified: user?.kycVerified || false,
     avatar: "/worker2.jpg", // Using available images for now
     location: "Quezon City, Metro Manila",
     memberSince: "January 2024",
@@ -340,8 +341,10 @@ const ProfilePage = () => {
               <h1 className="text-base font-semibold text-gray-900 mb-0">
                 {workerData.name}
               </h1>
-              <p className="text-xs text-green-500 flex items-center">
-                {workerData.isVerified ? "✓ Verified" : "Unverified"}
+              <p
+                className={`text-xs flex items-center ${workerData.isVerified ? "text-green-500" : "text-gray-500"}`}
+              >
+                {workerData.isVerified ? "✓ KYC Verified" : "KYC Unverified"}
               </p>
             </div>
           </div>
@@ -515,8 +518,10 @@ const ProfilePage = () => {
               <h1 className="text-base font-semibold text-gray-900 mb-0">
                 {clientData.name}
               </h1>
-              <p className="text-xs text-red-500">
-                {clientData.isVerified ? "Verified" : "Unverified"}
+              <p
+                className={`text-xs ${clientData.isVerified ? "text-green-500" : "text-gray-500"}`}
+              >
+                {clientData.isVerified ? "KYC Verified" : "KYC Unverified"}
               </p>
             </div>
           </div>
@@ -614,6 +619,7 @@ const ProfilePage = () => {
           userName={isWorker ? workerData.name : clientData.name}
           onLogout={logout}
           isAvailable={isAvailable}
+          isLoadingAvailability={isLoadingAvailability}
           onAvailabilityToggle={handleAvailabilityToggle}
         />
 
@@ -653,14 +659,16 @@ const ProfilePage = () => {
                   <h2 className="text-lg font-semibold text-gray-900">
                     {isWorker ? workerData.name : clientData.name}
                   </h2>
-                  <p className="text-sm text-green-500 flex items-center">
+                  <p
+                    className={`text-sm flex items-center ${(isWorker ? workerData.isVerified : clientData.isVerified) ? "text-green-500" : "text-gray-500"}`}
+                  >
                     {isWorker
                       ? workerData.isVerified
-                        ? "✓ Verified"
-                        : "Unverified"
+                        ? "✓ KYC Verified"
+                        : "KYC Unverified"
                       : clientData.isVerified
-                        ? "✓ Verified"
-                        : "Unverified"}
+                        ? "✓ KYC Verified"
+                        : "KYC Unverified"}
                   </p>
                 </div>
 
@@ -914,7 +922,7 @@ const ProfilePage = () => {
         )}
 
         {/* Mobile Navigation */}
-        <MobileNav />
+        <MobileNav isWorker={isWorker} />
       </div>
 
       {/* Add Funds Modal (for Clients) */}

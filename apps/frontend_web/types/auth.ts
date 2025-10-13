@@ -7,6 +7,7 @@ export interface User {
   accountID?: number; // Make optional with ?
   email: string;
   role?: "ADMIN" | "USER"; // Add role property
+  kycVerified?: boolean; // KYC verification status from database
   profile_data?: {
     firstName?: string;
     lastName?: string;

@@ -323,6 +323,7 @@ def fetch_currentUser(accountID):
                 "accountID": account.accountID,
                 "email": account.email,
                 "role": user_role,  # <-- systemRole from SystemRoles
+                "kycVerified": account.KYCVerified,  # <-- KYC verification status from Accounts
                 "profile_data": profile_data,
             }
 
@@ -331,6 +332,7 @@ def fetch_currentUser(accountID):
                 "accountID": account.accountID,
                 "email": account.email,
                 "role": user_role,
+                "kycVerified": account.KYCVerified,  # <-- KYC verification status from Accounts
                 "profile_data": None,
                 "user_data": {},
                 "skill_categories": []
@@ -714,9 +716,13 @@ def get_unread_notification_count(user_account_id):
         raise
 
 
-def get_all_workers():
+def get_all_workers(client_latitude: float = None, client_longitude: float = None):
     """
     Fetch all workers with their profiles and specializations.
+    
+    Args:
+        client_latitude: Optional latitude of the client viewing workers
+        client_longitude: Optional longitude of the client viewing workers
     
     Returns:
         List of worker dictionaries matching WorkerListing interface
@@ -758,6 +764,25 @@ def get_all_workers():
             else:
                 experience_text = f"{experience_years}+ years"
             
+            # Calculate distance if client location is provided
+            distance = None
+            if client_latitude is not None and client_longitude is not None:
+                # Check if worker has location data and has location sharing enabled
+                if (profile.latitude is not None and 
+                    profile.longitude is not None and 
+                    profile.location_sharing_enabled):
+                    distance = calculate_distance(
+                        client_latitude,
+                        client_longitude,
+                        float(profile.latitude),
+                        float(profile.longitude)
+                    )
+                    distance = round(distance, 1)  # Round to 1 decimal place
+            
+            # Use placeholder distance if no location data available
+            if distance is None:
+                distance = 999.9  # High number to sort workers without location data to the end
+            
             # Build worker data matching WorkerListing interface
             worker_data = {
                 "id": str(account.accountID),
@@ -769,15 +794,15 @@ def get_all_workers():
                 "experience": experience_text,
                 "specialization": specialization_name,
                 "isVerified": account.KYCVerified,
-                "distance": 5.0  # TODO: Calculate based on location when implemented
+                "distance": distance
             }
             
             workers.append(worker_data)
         
-        # Sort by distance (currently placeholder values)
+        # Sort by distance
         workers.sort(key=lambda x: x['distance'])
         
-        print(f"✅ Fetched {len(workers)} workers")
+        print(f"✅ Fetched {len(workers)} workers (client location: {client_latitude}, {client_longitude})")
         return workers
         
     except Exception as e:
@@ -785,12 +810,14 @@ def get_all_workers():
         raise
 
 
-def get_worker_by_id(user_id):
+def get_worker_by_id(user_id, client_latitude: float = None, client_longitude: float = None):
     """
     Fetch a single worker by their account ID.
     
     Args:
         user_id: The account ID of the worker
+        client_latitude: Optional latitude of the client viewing the worker
+        client_longitude: Optional longitude of the client viewing the worker
         
     Returns:
         Worker dictionary matching WorkerListing interface, or None if not found
@@ -827,6 +854,25 @@ def get_worker_by_id(user_id):
         else:
             experience_text = f"{experience_years}+ years"
         
+        # Calculate distance if client location is provided
+        distance = None
+        if client_latitude is not None and client_longitude is not None:
+            # Check if worker has location data and has location sharing enabled
+            if (profile.latitude is not None and 
+                profile.longitude is not None and 
+                profile.location_sharing_enabled):
+                distance = calculate_distance(
+                    client_latitude,
+                    client_longitude,
+                    float(profile.latitude),
+                    float(profile.longitude)
+                )
+                distance = round(distance, 1)  # Round to 1 decimal place
+        
+        # Use placeholder distance if no location data available
+        if distance is None:
+            distance = None  # Return None instead of placeholder to indicate no distance available
+        
         # Build worker data
         worker_data = {
             "id": str(account.accountID),
@@ -838,10 +884,10 @@ def get_worker_by_id(user_id):
             "experience": experience_text,
             "specialization": specialization_name,
             "isVerified": account.KYCVerified,
-            "distance": 5.0  # TODO: Calculate based on location when implemented
+            "distance": distance  # Will be None if location unavailable
         }
         
-        print(f"✅ Fetched worker {user_id}")
+        print(f"✅ Fetched worker {user_id} (distance: {distance} km)")
         return worker_data
         
     except Accounts.DoesNotExist:

@@ -48,10 +48,11 @@ const InboxPage = () => {
 
   // Use the worker availability hook
   const isWorker = user?.profile_data?.profileType === "WORKER";
-  const { isAvailable, handleAvailabilityToggle } = useWorkerAvailability(
-    isWorker,
-    isAuthenticated
-  );
+  const {
+    isAvailable,
+    isLoading: isLoadingAvailability,
+    handleAvailabilityToggle,
+  } = useWorkerAvailability(isWorker, isAuthenticated);
 
   // Authentication check
   useEffect(() => {
@@ -183,6 +184,7 @@ const InboxPage = () => {
         userAvatar="/worker1.jpg"
         onLogout={logout}
         isAvailable={isAvailable}
+        isLoadingAvailability={isLoadingAvailability}
         onAvailabilityToggle={handleAvailabilityToggle}
       />
 
