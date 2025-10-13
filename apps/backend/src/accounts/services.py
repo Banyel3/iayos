@@ -1219,3 +1219,69 @@ def find_nearby_workers(latitude: float, longitude: float, radius_km: float = 10
         raise
 
 #endregion
+
+#region PROFILE IMAGE UPLOAD
+
+def upload_profile_image_service(user, profile_image_file):
+    """
+    Upload user profile image to Supabase and update Profile model.
+    
+    Args:
+        user: Authenticated user object (Accounts)
+        profile_image_file: Uploaded image file
+    
+    Returns:
+        dict with success status, image URL, and message
+    """
+    try:
+        from iayos_project.utils import upload_profile_image
+        
+        # Validate file
+        allowed_mime_types = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp']
+        max_size = 5 * 1024 * 1024  # 5 MB
+        
+        if profile_image_file.content_type not in allowed_mime_types:
+            raise ValueError("Invalid file type. Allowed: JPEG, PNG, JPG, WEBP")
+        
+        if profile_image_file.size > max_size:
+            raise ValueError("File too large. Maximum size is 5MB")
+        
+        # Get user's profile
+        try:
+            profile = Profile.objects.get(accountFK=user)
+        except Profile.DoesNotExist:
+            raise ValueError("User profile not found")
+        
+        # Upload to Supabase with structure: user_{userID}/profileImage/avatar.png
+        image_url = upload_profile_image(
+            file=profile_image_file,
+            user_id=user.accountID
+        )
+        
+        if not image_url:
+            raise ValueError("Failed to upload image to storage")
+        
+        # Update profile with new image URL
+        profile.profileImg = image_url
+        profile.save()
+        
+        print(f"✅ Profile image uploaded successfully for user {user.accountID}")
+        print(f"   Image URL: {image_url}")
+        
+        return {
+            "success": True,
+            "message": "Profile image uploaded successfully",
+            "image_url": image_url,
+            "accountID": user.accountID
+        }
+        
+    except ValueError as e:
+        print(f"❌ Validation error: {str(e)}")
+        raise
+    except Exception as e:
+        print(f"❌ Error uploading profile image: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise ValueError("Failed to upload profile image")
+
+#endregion

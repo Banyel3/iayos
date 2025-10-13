@@ -50,6 +50,8 @@ const EditProfilePage = () => {
   });
 
   const [profilePreview, setProfilePreview] = useState<string>("");
+  const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   // Authentication check
   useEffect(() => {
@@ -129,32 +131,94 @@ const EditProfilePage = () => {
       return;
     }
 
+    // Store the file for upload
+    setSelectedImageFile(file);
+
     // Create preview
     const reader = new FileReader();
     reader.onloadend = () => {
       setProfilePreview(reader.result as string);
     };
     reader.readAsDataURL(file);
+  };
 
-    // Store file name or handle upload logic
-    setFormData((prev) => ({
-      ...prev,
-      profileImg: file.name,
-    }));
+  // Upload profile image to backend
+  const uploadProfileImage = async (): Promise<string | null> => {
+    if (!selectedImageFile) return null;
+
+    setIsUploadingImage(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("profile_image", selectedImageFile);
+
+      const response = await fetch(
+        "http://localhost:8000/api/accounts/upload/profile-image",
+        {
+          method: "POST",
+          credentials: "include",
+          body: formData,
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to upload image");
+      }
+
+      const result = await response.json();
+      console.log("✅ Profile image uploaded:", result);
+
+      return result.image_url;
+    } catch (error) {
+      console.error("❌ Error uploading profile image:", error);
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Failed to upload profile image"
+      );
+      return null;
+    } finally {
+      setIsUploadingImage(false);
+    }
   };
 
   // Handle save (placeholder - backend not implemented yet)
   const handleSave = async () => {
     setIsSaving(true);
 
-    // Simulate save delay
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    try {
+      // Upload profile image if a new one was selected
+      if (selectedImageFile) {
+        console.log("📤 Uploading profile image...");
+        const imageUrl = await uploadProfileImage();
 
-    console.log("Form data to save:", formData);
-    alert("Profile update functionality will be implemented in the backend");
+        if (imageUrl) {
+          // Update form data with new image URL
+          setFormData((prev) => ({
+            ...prev,
+            profileImg: imageUrl,
+          }));
+          console.log("✅ Profile image uploaded successfully:", imageUrl);
+          alert("Profile image updated successfully!");
+        } else {
+          alert("Failed to upload profile image");
+          setIsSaving(false);
+          return;
+        }
+      }
 
-    setIsSaving(false);
-    // router.push("/dashboard/profile"); // Uncomment when backend is ready
+      // TODO: Implement other profile field updates when backend is ready
+      console.log("Form data to save:", formData);
+
+      // Redirect to profile page after successful save
+      router.push("/dashboard/profile");
+    } catch (error) {
+      console.error("❌ Error saving profile:", error);
+      alert("Failed to save profile");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // Handle cancel
@@ -372,10 +436,14 @@ const EditProfilePage = () => {
               </button>
               <button
                 onClick={handleSave}
-                disabled={isSaving}
+                disabled={isSaving || isUploadingImage}
                 className="flex-1 bg-blue-500 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-600 transition-colors disabled:bg-blue-300 disabled:cursor-not-allowed"
               >
-                {isSaving ? "Saving..." : "Save Changes"}
+                {isUploadingImage
+                  ? "Uploading Image..."
+                  : isSaving
+                    ? "Saving..."
+                    : "Save Changes"}
               </button>
             </div>
           </div>
@@ -573,10 +641,14 @@ const EditProfilePage = () => {
             <div className="flex flex-col gap-3 mt-6">
               <button
                 onClick={handleSave}
-                disabled={isSaving}
+                disabled={isSaving || isUploadingImage}
                 className="w-full bg-blue-500 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-600 transition-colors disabled:bg-blue-300 disabled:cursor-not-allowed"
               >
-                {isSaving ? "Saving..." : "Save Changes"}
+                {isUploadingImage
+                  ? "Uploading Image..."
+                  : isSaving
+                    ? "Saving..."
+                    : "Save Changes"}
               </button>
               <button
                 onClick={handleCancel}

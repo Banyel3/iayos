@@ -18,13 +18,19 @@ def upload_file(file, bucket: str, path: str, public: bool = True, custom_name: 
         return settings.SUPABASE.storage.from_(bucket).get_public_url(full_path)
     return full_path
 
-def upload_profile_image(file, custom_name, user_id):
+def upload_profile_image(file, user_id, custom_name=None):
+    """
+    Upload user profile image to Supabase storage.
+    Path structure: user_{user_id}/profileImage/avatar.png
+    Bucket: users (public)
+    """
+    filename = custom_name or "avatar.png"
     return upload_file(
         file,
         bucket="users",
-        path=f"user_{user_id}/profile/avatar.png",
+        path=f"user_{user_id}/profileImage/{filename}",
         public=True,
-        custom_name=custom_name
+        custom_name=None  # Use filename directly in path
     )
 
 def upload_job_image(file, user_id, file_name, job_id):

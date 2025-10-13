@@ -531,3 +531,46 @@ def get_nearby_workers(request, payload: NearbyWorkersSchema):
         )
 
 #endregion
+
+#region PROFILE IMAGE UPLOAD
+
+@router.post("/upload/profile-image", auth=cookie_auth)
+def upload_profile_image_endpoint(request, profile_image: UploadedFile = File(...)):
+    """
+    Upload user profile image to Supabase storage.
+    
+    Path structure: users/user_{userID}/profileImage/avatar.png
+    
+    Args:
+        profile_image: Image file (JPEG, PNG, JPG, WEBP, max 5MB)
+    
+    Returns:
+        success: boolean
+        message: string
+        image_url: string (public URL)
+        accountID: int
+    """
+    try:
+        from .services import upload_profile_image_service
+        
+        user = request.auth
+        result = upload_profile_image_service(user, profile_image)
+        
+        return result
+        
+    except ValueError as e:
+        print(f"❌ ValueError in profile image upload: {str(e)}")
+        return Response(
+            {"error": str(e)},
+            status=400
+        )
+    except Exception as e:
+        print(f"❌ Exception in profile image upload: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to upload profile image"},
+            status=500
+        )
+
+#endregion
