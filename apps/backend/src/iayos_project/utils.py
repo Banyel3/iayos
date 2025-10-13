@@ -1,4 +1,4 @@
-from time import time
+import time
 import uuid
 from django.conf import settings
 import os

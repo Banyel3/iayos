@@ -27,6 +27,17 @@ import {
   Flag,
   ChevronDown,
   User,
+  Briefcase,
+  ClipboardList,
+  CheckCircle,
+  XCircle,
+  Clock,
+  DollarSign,
+  AlertTriangle,
+  TrendingUp,
+  FileCheck,
+  UserX,
+  Package,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -46,14 +57,23 @@ const navigation = [
     icon: Users,
     count: null,
     children: [
-      { name: "All Users", href: "/admin/users", icon: Users },
-      { name: "Workers", href: "/admin/users/workers", icon: UserCheck },
-      { name: "Clients", href: "/admin/users/clients", icon: Building2 },
-      { name: "Agency", href: "/admin/users/agency", icon: Building2 },
       {
-        name: "Pending Verification",
-        href: "/admin/users/pending",
-        icon: Shield,
+        name: "Clients",
+        href: "/admin/users/clients",
+        icon: User,
+        description: "Manage client accounts",
+      },
+      {
+        name: "Workers",
+        href: "/admin/users/workers",
+        icon: UserCheck,
+        description: "Manage worker accounts",
+      },
+      {
+        name: "Agencies",
+        href: "/admin/users/agencies",
+        icon: Building2,
+        description: "Manage agency accounts",
       },
     ],
   },
@@ -63,16 +83,63 @@ const navigation = [
     icon: Shield,
     count: 12,
     children: [
-      { name: "Pending Reviews", href: "/admin/kyc/pending", icon: FileText },
-      { name: "Approved", href: "/admin/kyc/approved", icon: UserCheck },
-      { name: "Rejected", href: "/admin/kyc/rejected", icon: Flag },
+      {
+        name: "Pending Reviews",
+        href: "/admin/kyc/pending",
+        icon: Clock,
+        description: "KYC documents awaiting review",
+      },
+      {
+        name: "Approved",
+        href: "/admin/kyc/approved",
+        icon: CheckCircle,
+        description: "Verified accounts",
+      },
+      {
+        name: "Rejected",
+        href: "/admin/kyc/rejected",
+        icon: XCircle,
+        description: "Rejected verifications",
+      },
     ],
   },
   {
-    name: "Analytics",
-    href: "/admin/analytics",
-    icon: BarChart3,
+    name: "Jobs Management",
+    href: "/admin/jobs",
+    icon: Briefcase,
     count: null,
+    children: [
+      {
+        name: "Job Listings",
+        href: "/admin/jobs/listings",
+        icon: ClipboardList,
+        description: "All posted job listings",
+      },
+      {
+        name: "Job Applications",
+        href: "/admin/jobs/applications",
+        icon: FileCheck,
+        description: "Applications and their status",
+      },
+      {
+        name: "Active Jobs",
+        href: "/admin/jobs/active",
+        icon: Clock,
+        description: "Ongoing work",
+      },
+      {
+        name: "Completed Jobs",
+        href: "/admin/jobs/completed",
+        icon: CheckCircle,
+        description: "Finished jobs",
+      },
+      {
+        name: "Job Disputes",
+        href: "/admin/jobs/disputes",
+        icon: AlertTriangle,
+        description: "Issues and conflicts",
+      },
+    ],
   },
   {
     name: "Payments",
@@ -81,19 +148,120 @@ const navigation = [
     count: null,
     children: [
       {
-        name: "Transactions",
+        name: "All Transactions",
         href: "/admin/payments/transactions",
-        icon: CreditCard,
+        icon: DollarSign,
+        description: "Complete transaction history",
       },
-      { name: "Disputes", href: "/admin/payments/disputes", icon: Flag },
-      { name: "Refunds", href: "/admin/payments/refunds", icon: Archive },
+      {
+        name: "Pending Payments",
+        href: "/admin/payments/pending",
+        icon: Clock,
+        description: "Awaiting payment confirmation",
+      },
+      {
+        name: "Completed Payments",
+        href: "/admin/payments/completed",
+        icon: CheckCircle,
+        description: "Successfully processed",
+      },
+      {
+        name: "Disputes",
+        href: "/admin/payments/disputes",
+        icon: Flag,
+        description: "Payment disputes",
+      },
+      {
+        name: "Refunds",
+        href: "/admin/payments/refunds",
+        icon: Archive,
+        description: "Refund requests",
+      },
     ],
   },
   {
-    name: "Services",
-    href: "/admin/services",
+    name: "Analytics",
+    href: "/admin/analytics",
+    icon: BarChart3,
+    count: null,
+    children: [
+      {
+        name: "Overview",
+        href: "/admin/analytics/overview",
+        icon: TrendingUp,
+        description: "Platform statistics",
+      },
+      {
+        name: "User Analytics",
+        href: "/admin/analytics/users",
+        icon: Users,
+        description: "User behavior and trends",
+      },
+      {
+        name: "Job Analytics",
+        href: "/admin/analytics/jobs",
+        icon: Briefcase,
+        description: "Job market insights",
+      },
+      {
+        name: "Revenue Analytics",
+        href: "/admin/analytics/revenue",
+        icon: DollarSign,
+        description: "Financial performance",
+      },
+    ],
+  },
+  {
+    name: "Reports",
+    href: "/admin/reports",
+    icon: FileText,
+    count: null,
+    children: [
+      {
+        name: "User Reports",
+        href: "/admin/reports/users",
+        icon: UserX,
+        description: "Reported users",
+      },
+      {
+        name: "Job Reports",
+        href: "/admin/reports/jobs",
+        icon: Flag,
+        description: "Reported job listings",
+      },
+      {
+        name: "System Reports",
+        href: "/admin/reports/system",
+        icon: FileCheck,
+        description: "System logs and issues",
+      },
+      {
+        name: "Financial Reports",
+        href: "/admin/reports/financial",
+        icon: DollarSign,
+        description: "Financial summaries",
+      },
+    ],
+  },
+  {
+    name: "Reviews & Ratings",
+    href: "/admin/reviews",
     icon: Star,
     count: null,
+    children: [
+      {
+        name: "All Reviews",
+        href: "/admin/reviews/all",
+        icon: Star,
+        description: "All platform reviews",
+      },
+      {
+        name: "Flagged Reviews",
+        href: "/admin/reviews/flagged",
+        icon: Flag,
+        description: "Reviews needing attention",
+      },
+    ],
   },
   {
     name: "Messages",
@@ -102,16 +270,24 @@ const navigation = [
     count: 5,
   },
   {
-    name: "Reports",
-    href: "/admin/reports",
-    icon: FileText,
+    name: "Services",
+    href: "/admin/services",
+    icon: Package,
     count: null,
-  },
-  {
-    name: "Reviews",
-    href: "/admin/reviews",
-    icon: Star,
-    count: null,
+    children: [
+      {
+        name: "Service Categories",
+        href: "/admin/services/categories",
+        icon: Package,
+        description: "Manage service types",
+      },
+      {
+        name: "Service Requests",
+        href: "/admin/services/requests",
+        icon: ClipboardList,
+        description: "New service requests",
+      },
+    ],
   },
   {
     name: "Notifications",
@@ -216,45 +392,71 @@ export default function Sidebar({ className }: SidebarProps) {
           const hasActiveChild = isChildActive(item.href, item.children || []);
 
           return (
-            <div key={item.name}>
+            <div key={item.name} className="mb-1">
               <div className="relative">
                 {item.children ? (
                   <button
                     onClick={() => toggleExpanded(item.name)}
                     className={cn(
-                      "w-full flex items-center justify-between px-2 py-2 rounded-md text-sm font-medium transition-all duration-200",
+                      "w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
                       isItemActive || hasActiveChild
                         ? "bg-blue-50 text-blue-600"
                         : "text-gray-700 hover:bg-gray-100"
                     )}
                   >
-                    <div className="flex items-center space-x-2">
-                      <Icon className="h-4 w-4 text-gray-400" />
+                    <div className="flex items-center space-x-3">
+                      <Icon
+                        className={cn(
+                          "h-4 w-4",
+                          isItemActive || hasActiveChild
+                            ? "text-blue-600"
+                            : "text-gray-400"
+                        )}
+                      />
                       {!collapsed && (
                         <span className="font-semibold">{item.name}</span>
                       )}
                     </div>
                     {!collapsed && (
-                      <ChevronRight
-                        className={cn(
-                          "h-4 w-4 text-gray-400 transition-transform",
-                          isExpanded && "rotate-90"
+                      <div className="flex items-center space-x-2">
+                        {item.count !== null && item.count > 0 && (
+                          <span className="px-2 py-0.5 text-xs font-medium bg-red-500 text-white rounded-full">
+                            {item.count}
+                          </span>
                         )}
-                      />
+                        <ChevronRight
+                          className={cn(
+                            "h-4 w-4 text-gray-400 transition-transform",
+                            isExpanded && "rotate-90"
+                          )}
+                        />
+                      </div>
                     )}
                   </button>
                 ) : (
                   <Link
                     href={item.href}
                     className={cn(
-                      "flex items-center px-2 py-2 rounded-md text-sm font-medium transition-all duration-200",
+                      "flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
                       isItemActive
                         ? "bg-blue-50 text-blue-600"
                         : "text-gray-700 hover:bg-gray-100"
                     )}
                   >
-                    <Icon className="h-4 w-4 text-gray-400 mr-2" />
-                    {!collapsed && <span>{item.name}</span>}
+                    <div className="flex items-center space-x-3">
+                      <Icon
+                        className={cn(
+                          "h-4 w-4",
+                          isItemActive ? "text-blue-600" : "text-gray-400"
+                        )}
+                      />
+                      {!collapsed && <span>{item.name}</span>}
+                    </div>
+                    {!collapsed && item.count !== null && item.count > 0 && (
+                      <span className="px-2 py-0.5 text-xs font-medium bg-red-500 text-white rounded-full">
+                        {item.count}
+                      </span>
+                    )}
                   </Link>
                 )}
               </div>
@@ -271,14 +473,23 @@ export default function Sidebar({ className }: SidebarProps) {
                         key={child.name}
                         href={child.href}
                         className={cn(
-                          "flex items-center space-x-2 px-2 py-1.5 rounded-md text-sm transition-all duration-200",
+                          "group flex items-center space-x-2 px-2 py-2 rounded-md text-sm transition-all duration-200 relative",
                           isChildActiveItem
                             ? "bg-blue-50 text-blue-600 font-medium"
-                            : "text-gray-500 hover:bg-gray-100"
+                            : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
                         )}
+                        title={child.description || child.name}
                       >
-                        <ChildIcon className="h-3 w-3 text-gray-400" />
-                        <span>{child.name}</span>
+                        <ChildIcon
+                          className={cn(
+                            "h-3.5 w-3.5 transition-colors",
+                            isChildActiveItem
+                              ? "text-blue-600"
+                              : "text-gray-400 group-hover:text-gray-600"
+                          )}
+                        />
+                        <span className="flex-1">{child.name}</span>
+                        {/* Optional: Add count badges here if needed */}
                       </Link>
                     );
                   })}

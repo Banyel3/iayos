@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import DesktopNavbar from "@/components/ui/desktop-sidebar";
@@ -251,6 +250,7 @@ const EditProfilePage = () => {
       <DesktopNavbar
         isWorker={isWorker}
         userName={formData.firstName || "User"}
+        userAvatar={authUser?.profile_data?.profileImg || "/worker1.jpg"}
         onLogout={logout}
         isAvailable={isAvailable}
         isLoadingAvailability={isLoadingAvailability}
@@ -279,11 +279,10 @@ const EditProfilePage = () => {
               <div className="flex items-center space-x-4">
                 <div className="relative">
                   {profilePreview ? (
-                    <Image
+                    <img
                       src={profilePreview}
                       alt="Profile Preview"
-                      width={80}
-                      height={80}
+                      crossOrigin="anonymous"
                       className="w-20 h-20 rounded-full object-cover"
                     />
                   ) : (
@@ -492,11 +491,10 @@ const EditProfilePage = () => {
               <div className="flex flex-col items-center space-y-3">
                 <div className="relative">
                   {profilePreview ? (
-                    <Image
+                    <img
                       src={profilePreview}
                       alt="Profile Preview"
-                      width={100}
-                      height={100}
+                      crossOrigin="anonymous"
                       className="w-24 h-24 rounded-full object-cover"
                     />
                   ) : (

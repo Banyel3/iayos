@@ -3,7 +3,6 @@
 import React, { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
 import NotificationBell from "@/components/notifications/NotificationBell";
 import LocationToggle from "@/components/ui/location-toggle";
 
@@ -181,11 +180,10 @@ export const DesktopNavbar: React.FC<DesktopNavbarProps> = ({
               onClick={() => setShowProfileDropdown(!showProfileDropdown)}
               className="flex items-center space-x-2 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors"
             >
-              <Image
+              <img
                 src={userAvatar}
                 alt="Profile"
-                width={32}
-                height={32}
+                crossOrigin="anonymous"
                 className="w-8 h-8 rounded-full object-cover"
               />
               <span>{userName}</span>
@@ -206,7 +204,7 @@ export const DesktopNavbar: React.FC<DesktopNavbarProps> = ({
 
             {/* Dropdown Menu */}
             {showProfileDropdown && (
-              <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+              <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
                 <button
                   onClick={() => {
                     setShowProfileDropdown(false);

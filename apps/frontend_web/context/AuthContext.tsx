@@ -11,9 +11,25 @@ import { useRouter } from "next/navigation";
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// 🔥 Centralized cache clearing function
+const clearAllAuthCaches = () => {
+  const cacheKeys = [
+    "cached_user",
+    "cached_worker_availability",
+    // Add any future cache keys here
+  ];
+
+  cacheKeys.forEach((key) => {
+    localStorage.removeItem(key);
+  });
+
+  console.log("🗑️ Cleared all auth caches:", cacheKeys);
+};
+
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
   const router = useRouter();
 
   useEffect(() => {
@@ -48,13 +64,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       } else {
         // Server says not authenticated - clear everything
         setUser(null);
-        localStorage.removeItem("cached_user");
+        clearAllAuthCaches();
         return false;
       }
     } catch (error) {
       console.error("Auth check failed:", error);
       setUser(null);
-      localStorage.removeItem("cached_user");
+      clearAllAuthCaches();
       return false;
     } finally {
       setIsLoading(false);
@@ -64,7 +80,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
       // Clear any existing cached data first
-      localStorage.removeItem("cached_user");
+      clearAllAuthCaches();
       setUser(null);
 
       const response = await fetch("http://localhost:8000/api/accounts/login", {
@@ -77,7 +93,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (!response.ok) {
         // Login failed - ensure everything is cleared
         setUser(null);
-        localStorage.removeItem("cached_user");
+        clearAllAuthCaches();
         throw new Error("Login failed");
       }
 
@@ -106,13 +122,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       } else {
         // Failed to get user data - clear everything
         setUser(null);
-        localStorage.removeItem("cached_user");
+        clearAllAuthCaches();
         throw new Error("Failed to fetch user data after login");
       }
     } catch (error) {
       // Ensure everything is cleared on any error
       setUser(null);
-      localStorage.removeItem("cached_user");
+      clearAllAuthCaches();
       throw error;
     }
   };
@@ -121,7 +137,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       // Clear local state and cache first
       setUser(null);
-      localStorage.removeItem("cached_user");
+      clearAllAuthCaches();
 
       // Call backend to clear cookies
       await fetch("http://localhost:8000/api/accounts/logout", {
@@ -137,7 +153,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       console.error("❌ Logout error:", error);
       // Still clear local state even if backend call fails
       setUser(null);
-      localStorage.removeItem("cached_user");
+      clearAllAuthCaches();
 
       // Redirect even on error
       router.push("/auth/login");

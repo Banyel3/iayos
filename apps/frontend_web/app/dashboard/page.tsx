@@ -136,6 +136,7 @@ const TempDashboard = () => {
                 <img
                   src={user.profile_data?.profileImg}
                   alt="Profile"
+                  crossOrigin="anonymous"
                   className="w-16 h-16 rounded-full object-cover"
                 />
               ) : (

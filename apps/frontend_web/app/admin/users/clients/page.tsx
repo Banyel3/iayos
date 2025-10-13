@@ -24,14 +24,15 @@ interface Client {
   name: string;
   email: string;
   phone: string;
-  company?: string;
+  accountType: "personal" | "business";
   location: string;
   status: "active" | "inactive" | "suspended";
   verificationStatus: "verified" | "pending" | "rejected";
   joinDate: string;
   totalJobsPosted: number;
   totalSpent: number;
-  averageRating: number;
+  activeJobs: number;
+  preferredCategories: string[];
 }
 
 const mockClients: Client[] = [
@@ -40,28 +41,131 @@ const mockClients: Client[] = [
     name: "Sarah Wilson",
     email: "sarah.wilson@example.com",
     phone: "+1234567890",
-    company: "Software Engineer",
+    accountType: "personal",
     location: "New York, NY",
     status: "active",
     verificationStatus: "verified",
     joinDate: "2024-01-15",
     totalJobsPosted: 15,
     totalSpent: 2450.0,
-    averageRating: 4.7,
+    activeJobs: 3,
+    preferredCategories: ["Home Cleaning", "Plumbing", "Electrical"],
   },
   {
     id: "2",
     name: "David Chen",
     email: "david.chen@example.com",
     phone: "+1234567891",
-    company: "Data Analyst",
+    accountType: "business",
     location: "San Francisco, CA",
     status: "inactive",
     verificationStatus: "verified",
     joinDate: "2024-02-20",
     totalJobsPosted: 8,
     totalSpent: 1200.0,
-    averageRating: 4.5,
+    activeJobs: 0,
+    preferredCategories: ["IT Support", "Electrical"],
+  },
+  {
+    id: "3",
+    name: "Emily Rodriguez",
+    email: "emily.r@techstartup.com",
+    phone: "+1234567892",
+    accountType: "business",
+    location: "Austin, TX",
+    status: "active",
+    verificationStatus: "verified",
+    joinDate: "2024-03-10",
+    totalJobsPosted: 23,
+    totalSpent: 4890.0,
+    activeJobs: 5,
+    preferredCategories: ["Painting", "Carpentry", "Home Cleaning"],
+  },
+  {
+    id: "4",
+    name: "Michael Thompson",
+    email: "m.thompson@gmail.com",
+    phone: "+1234567893",
+    accountType: "personal",
+    location: "Seattle, WA",
+    status: "active",
+    verificationStatus: "verified",
+    joinDate: "2024-04-05",
+    totalJobsPosted: 12,
+    totalSpent: 1850.0,
+    activeJobs: 2,
+    preferredCategories: ["Plumbing", "HVAC"],
+  },
+  {
+    id: "5",
+    name: "Jennifer Lee",
+    email: "jennifer.lee@realestate.com",
+    phone: "+1234567894",
+    accountType: "business",
+    location: "Miami, FL",
+    status: "active",
+    verificationStatus: "verified",
+    joinDate: "2024-01-28",
+    totalJobsPosted: 42,
+    totalSpent: 8720.0,
+    activeJobs: 8,
+    preferredCategories: [
+      "Home Cleaning",
+      "Landscaping",
+      "Painting",
+      "Plumbing",
+    ],
+  },
+  {
+    id: "6",
+    name: "Robert Martinez",
+    email: "robert.m@yahoo.com",
+    phone: "+1234567895",
+    accountType: "personal",
+    location: "Boston, MA",
+    status: "suspended",
+    verificationStatus: "rejected",
+    joinDate: "2024-05-12",
+    totalJobsPosted: 3,
+    totalSpent: 180.0,
+    activeJobs: 0,
+    preferredCategories: ["Electrical"],
+  },
+  {
+    id: "7",
+    name: "Amanda Foster",
+    email: "amanda@designstudio.com",
+    phone: "+1234567896",
+    accountType: "business",
+    location: "Portland, OR",
+    status: "active",
+    verificationStatus: "verified",
+    joinDate: "2024-02-14",
+    totalJobsPosted: 18,
+    totalSpent: 3240.0,
+    activeJobs: 4,
+    preferredCategories: ["Painting", "Carpentry", "Interior Design"],
+  },
+  {
+    id: "8",
+    name: "James Anderson",
+    email: "j.anderson@construction.com",
+    phone: "+1234567897",
+    accountType: "business",
+    location: "Denver, CO",
+    status: "active",
+    verificationStatus: "verified",
+    joinDate: "2024-01-05",
+    totalJobsPosted: 56,
+    totalSpent: 15670.0,
+    activeJobs: 11,
+    preferredCategories: [
+      "Carpentry",
+      "Plumbing",
+      "Electrical",
+      "HVAC",
+      "Roofing",
+    ],
   },
 ];
 
@@ -76,8 +180,7 @@ export default function ClientsPage() {
     const matchesSearch =
       client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       client.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (client.company &&
-        client.company.toLowerCase().includes(searchTerm.toLowerCase()));
+      client.location.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus =
       statusFilter === "all" || client.status === statusFilter;
 
@@ -176,7 +279,7 @@ export default function ClientsPage() {
             <CardHeader>
               <CardTitle>Search & Filter</CardTitle>
               <CardDescription>
-                Find clients by name, email, company, or status
+                Find clients by name, email, location, or status
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -232,13 +335,20 @@ export default function ClientsPage() {
                         Name
                       </th>
                       <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
-                        Job Title
+                        Email
+                      </th>
+
+                      <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
+                        Location
                       </th>
                       <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
-                        Ratings
+                        Jobs Posted
                       </th>
                       <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
-                        Jobs Completed
+                        Active Jobs
+                      </th>
+                      <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
+                        Total Spent
                       </th>
                       <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
                         Status
@@ -255,14 +365,27 @@ export default function ClientsPage() {
                         <td className="px-4 py-2 text-sm font-medium">
                           {client.name}
                         </td>
-                        <td className="px-4 py-2 text-sm">
-                          {client.company || "—"}
+                        <td className="px-4 py-2 text-sm text-gray-600">
+                          {client.email}
                         </td>
-                        <td className="px-4 py-2 text-sm">
-                          {client.averageRating}/5.0
+
+                        <td className="px-4 py-2 text-sm text-gray-600">
+                          {client.location}
                         </td>
                         <td className="px-4 py-2 text-sm">
                           {client.totalJobsPosted}
+                        </td>
+                        <td className="px-4 py-2 text-sm">
+                          {client.activeJobs > 0 ? (
+                            <span className="text-blue-600 font-medium">
+                              {client.activeJobs}
+                            </span>
+                          ) : (
+                            <span className="text-gray-400">0</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2 text-sm font-medium text-green-600">
+                          ${client.totalSpent.toLocaleString()}
                         </td>
                         <td className="px-4 py-2 text-sm">
                           <span

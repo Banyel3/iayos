@@ -12,6 +12,11 @@ interface AgencyUser extends User {
   firstName?: string;
   lastName?: string;
   profileType?: "WORKER" | "CLIENT" | null;
+  profile_data?: {
+    firstName?: string;
+    lastName?: string;
+    profileImg?: string;
+  };
 }
 
 const WorkerDash = () => {
@@ -56,6 +61,7 @@ const WorkerDash = () => {
       <DesktopNavbar
         isWorker={true}
         userName={user?.firstName || "Worker"}
+        userAvatar={user?.profile_data?.profileImg || "/worker1.jpg"}
         onLogout={logout}
         isAvailable={isAvailable}
         isLoadingAvailability={isLoadingAvailability}

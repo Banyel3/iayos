@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { User } from "@/types";
@@ -16,6 +15,7 @@ interface ProfileUser extends User {
     firstName?: string;
     lastName?: string;
     profileType?: "WORKER" | "CLIENT" | null;
+    profileImg?: string;
   };
 }
 
@@ -236,7 +236,7 @@ const ProfilePage = () => {
   const workerData: WorkerProfile = {
     name: user?.profile_data?.firstName || "John Reyes",
     isVerified: user?.kycVerified || false,
-    avatar: "/worker1.jpg",
+    avatar: user?.profile_data?.profileImg || "/worker1.jpg",
     jobTitle: "Appliance Repair Technician",
     startingRate: "₱380",
     experience: "2+ years of experience",
@@ -255,7 +255,7 @@ const ProfilePage = () => {
   const clientData: ClientProfile = {
     name: user?.profile_data?.firstName || "Crissy Santos",
     isVerified: user?.kycVerified || false,
-    avatar: "/worker2.jpg", // Using available images for now
+    avatar: user?.profile_data?.profileImg || "/worker2.jpg", // Using available images for now
     location: "Quezon City, Metro Manila",
     memberSince: "January 2024",
     totalJobs: 3,
@@ -329,11 +329,10 @@ const ProfilePage = () => {
           {/* Avatar and Basic Info */}
           <div className="flex items-center space-x-3 mb-3">
             <div className="relative">
-              <Image
+              <img
                 src={workerData.avatar}
                 alt={workerData.name}
-                width={48}
-                height={48}
+                crossOrigin="anonymous"
                 className="w-12 h-12 rounded-full object-cover"
               />
             </div>
@@ -506,11 +505,10 @@ const ProfilePage = () => {
           {/* Avatar and Basic Info */}
           <div className="flex items-center space-x-3 mb-3">
             <div className="relative">
-              <Image
+              <img
                 src={clientData.avatar}
                 alt={clientData.name}
-                width={48}
-                height={48}
+                crossOrigin="anonymous"
                 className="w-12 h-12 rounded-full object-cover"
               />
             </div>
@@ -617,6 +615,10 @@ const ProfilePage = () => {
         <DesktopNavbar
           isWorker={isWorker}
           userName={isWorker ? workerData.name : clientData.name}
+          userAvatar={
+            user?.profile_data?.profileImg ||
+            (isWorker ? "/worker1.jpg" : "/worker2.jpg")
+          }
           onLogout={logout}
           isAvailable={isAvailable}
           isLoadingAvailability={isLoadingAvailability}
@@ -649,11 +651,10 @@ const ProfilePage = () => {
             <div className="lg:col-span-1">
               <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6 sticky top-24">
                 <div className="flex flex-col items-center text-center mb-4">
-                  <Image
+                  <img
                     src={isWorker ? workerData.avatar : clientData.avatar}
                     alt={isWorker ? workerData.name : clientData.name}
-                    width={96}
-                    height={96}
+                    crossOrigin="anonymous"
                     className="w-24 h-24 rounded-full object-cover mb-3"
                   />
                   <h2 className="text-lg font-semibold text-gray-900">

@@ -16,6 +16,7 @@ interface HomeUser extends User {
     firstName?: string;
     lastName?: string;
     profileType?: "WORKER" | "CLIENT" | null;
+    profileImg?: string;
   };
 }
 
@@ -372,6 +373,7 @@ const HomePage = () => {
               `${user?.profile_data?.firstName || ""} ${user?.profile_data?.lastName || ""}`.trim() ||
               "Worker"
             }
+            userAvatar={user?.profile_data?.profileImg || "/worker1.jpg"}
             onLogout={logout}
             isAvailable={isAvailable}
             isLoadingAvailability={isLoadingAvailability}
@@ -702,6 +704,7 @@ const HomePage = () => {
               `${user?.profile_data?.firstName || ""} ${user?.profile_data?.lastName || ""}`.trim() ||
               "Client"
             }
+            userAvatar={user?.profile_data?.profileImg || "/worker2.jpg"}
             onLogout={logout}
             isAvailable={false}
             isLoadingAvailability={false}

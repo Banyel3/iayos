@@ -65,7 +65,7 @@ class Accounts(AbstractBaseUser, PermissionsMixin):  # <-- include PermissionsMi
 
 class Profile(models.Model):
     profileID = models.BigAutoField(primary_key=True)
-    profileImg = models.CharField(max_length=50)
+    profileImg = models.CharField(max_length=500)  # Increased for Supabase storage URLs
     firstName = models.CharField(max_length=24)
     middleName = models.CharField(max_length=24, null=True, blank=True)
     lastName = models.CharField(max_length=24)

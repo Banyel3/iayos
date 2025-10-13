@@ -16,6 +16,7 @@ interface RequestsUser extends User {
     firstName?: string;
     lastName?: string;
     profileType?: "WORKER" | "CLIENT" | null;
+    profileImg?: string;
   };
 }
 
@@ -198,6 +199,7 @@ const MyRequestsPage = () => {
         <DesktopNavbar
           isWorker={true}
           userName={user?.profile_data?.firstName || "Worker"}
+          userAvatar={user?.profile_data?.profileImg || "/worker1.jpg"}
           onLogout={logout}
           isAvailable={isAvailable}
           isLoadingAvailability={isLoadingAvailability}
@@ -346,6 +348,7 @@ const MyRequestsPage = () => {
         <DesktopNavbar
           isWorker={false}
           userName={user?.profile_data?.firstName || "Client"}
+          userAvatar={user?.profile_data?.profileImg || "/worker2.jpg"}
           onLogout={logout}
           isAvailable={isAvailable}
           isLoadingAvailability={isLoadingAvailability}
@@ -539,6 +542,10 @@ const MyRequestsPage = () => {
         isWorker={isWorker}
         userName={
           user?.profile_data?.firstName || (isWorker ? "Worker" : "Client")
+        }
+        userAvatar={
+          user?.profile_data?.profileImg ||
+          (isWorker ? "/worker1.jpg" : "/worker2.jpg")
         }
         onLogout={logout}
         isAvailable={isAvailable}

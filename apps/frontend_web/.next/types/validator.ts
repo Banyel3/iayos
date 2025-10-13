@@ -65,6 +65,60 @@ type RouteHandlerConfig<Route extends AppRouteHandlerRoutes = AppRouteHandlerRou
   type __Unused = __Check
 }
 
+// Validate ../../app/admin/jobs/active/page.tsx
+{
+  type __IsExpected<Specific extends AppPageConfig<"/admin/jobs/active">> = Specific
+  const handler = {} as typeof import("../../app/admin/jobs/active/page.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../app/admin/jobs/applications/page.tsx
+{
+  type __IsExpected<Specific extends AppPageConfig<"/admin/jobs/applications">> = Specific
+  const handler = {} as typeof import("../../app/admin/jobs/applications/page.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../app/admin/jobs/completed/page.tsx
+{
+  type __IsExpected<Specific extends AppPageConfig<"/admin/jobs/completed">> = Specific
+  const handler = {} as typeof import("../../app/admin/jobs/completed/page.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../app/admin/jobs/disputes/page.tsx
+{
+  type __IsExpected<Specific extends AppPageConfig<"/admin/jobs/disputes">> = Specific
+  const handler = {} as typeof import("../../app/admin/jobs/disputes/page.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../app/admin/jobs/listings/page.tsx
+{
+  type __IsExpected<Specific extends AppPageConfig<"/admin/jobs/listings">> = Specific
+  const handler = {} as typeof import("../../app/admin/jobs/listings/page.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../app/admin/jobs/page.tsx
+{
+  type __IsExpected<Specific extends AppPageConfig<"/admin/jobs">> = Specific
+  const handler = {} as typeof import("../../app/admin/jobs/page.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
 // Validate ../../app/admin/kyc/approved/page.tsx
 {
   type __IsExpected<Specific extends AppPageConfig<"/admin/kyc/approved">> = Specific

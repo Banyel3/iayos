@@ -7,7 +7,6 @@ import { useAuth } from "@/context/AuthContext";
 import MobileNav from "@/components/ui/mobile-nav";
 import DesktopNavbar from "@/components/ui/desktop-sidebar";
 import NotificationBell from "@/components/notifications/NotificationBell";
-import KYCVerificationRequired from "@/components/ui/kyc-verification-required";
 
 interface WorkerProfileData {
   id: string;
@@ -155,38 +154,6 @@ const WorkerProfileViewPage = () => {
 
   if (!isAuthenticated) return null;
 
-  // KYC Verification check - only clients can view worker profiles
-  const isClient = user?.profile_data?.profileType === "CLIENT";
-  if (isClient && !user?.kycVerified) {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        {/* Notification Bell - Mobile Only */}
-        <div className="lg:hidden fixed top-4 right-4 z-50">
-          <NotificationBell />
-        </div>
-
-        {/* Desktop Navbar */}
-        <div className="hidden lg:block">
-          <DesktopNavbar
-            isWorker={false}
-            userName={user?.profile_data?.firstName || "Client"}
-            onLogout={logout}
-            isAvailable={false}
-            onAvailabilityToggle={() => {}}
-          />
-        </div>
-
-        {/* KYC Verification Required Message */}
-        <KYCVerificationRequired
-          userType="CLIENT"
-          feature="view worker profiles and send messages"
-        />
-
-        <MobileNav isWorker={false} />
-      </div>
-    );
-  }
-
   // Error state
   if (error || !workerData) {
     return (
@@ -194,6 +161,7 @@ const WorkerProfileViewPage = () => {
         <DesktopNavbar
           isWorker={false}
           userName={user?.profile_data?.firstName || "User"}
+          userAvatar={user?.profile_data?.profileImg || "/worker2.jpg"}
           onLogout={logout}
           isAvailable={false}
           onAvailabilityToggle={() => {}}
@@ -242,6 +210,7 @@ const WorkerProfileViewPage = () => {
       <DesktopNavbar
         isWorker={false}
         userName={user?.profile_data?.firstName || "User"}
+        userAvatar={user?.profile_data?.profileImg || "/worker2.jpg"}
         onLogout={logout}
         isAvailable={false}
         onAvailabilityToggle={() => {}}

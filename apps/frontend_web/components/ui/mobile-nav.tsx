@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import LocationToggle from "@/components/ui/location-toggle";
@@ -73,11 +72,9 @@ export default function MobileNav({ isWorker = false }: MobileNavProps) {
                     active ? "bg-blue-100" : "bg-gray-100"
                   }`}
                 >
-                  <Image
+                  <img
                     src={active ? item.activeIcon : item.icon}
                     alt={item.name}
-                    width={16}
-                    height={16}
                     className="w-4 h-4 object-contain"
                   />
                 </div>

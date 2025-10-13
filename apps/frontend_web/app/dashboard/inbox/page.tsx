@@ -16,6 +16,7 @@ interface InboxUser extends User {
     firstName?: string;
     lastName?: string;
     profileType?: "WORKER" | "CLIENT" | null;
+    profileImg?: string;
   };
 }
 
@@ -181,7 +182,7 @@ const InboxPage = () => {
       <DesktopNavbar
         isWorker={user?.profile_data?.profileType === "WORKER"}
         userName={user?.profile_data?.firstName || "User"}
-        userAvatar="/worker1.jpg"
+        userAvatar={user?.profile_data?.profileImg || "/worker1.jpg"}
         onLogout={logout}
         isAvailable={isAvailable}
         isLoadingAvailability={isLoadingAvailability}
