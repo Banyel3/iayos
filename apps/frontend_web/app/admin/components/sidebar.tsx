@@ -139,6 +139,12 @@ const navigation = [
         icon: AlertTriangle,
         description: "Issues and conflicts",
       },
+      {
+        name: "Categories & Rates",
+        href: "/admin/jobs/categories",
+        icon: Package,
+        description: "Job categories and minimum rates",
+      },
     ],
   },
   {

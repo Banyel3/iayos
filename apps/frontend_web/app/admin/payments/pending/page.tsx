@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Card,
   CardContent,
@@ -123,6 +124,7 @@ const mockPendingPayments: PendingPayment[] = [
 ];
 
 export default function PendingPaymentsPage() {
+  const router = useRouter();
   const [payments] = useState<PendingPayment[]>(mockPendingPayments);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<
@@ -368,7 +370,13 @@ export default function PendingPaymentsPage() {
                           <CheckCircle className="w-4 h-4 mr-2" />
                           Approve Payment
                         </Button>
-                        <Button variant="outline" size="sm">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            router.push(`/admin/payments/pending/${payment.id}`)
+                          }
+                        >
                           <Eye className="w-4 h-4 mr-2" />
                           View Details
                         </Button>

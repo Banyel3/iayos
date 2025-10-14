@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Card,
   CardContent,
@@ -136,6 +137,7 @@ const mockCompletedPayments: CompletedPayment[] = [
 ];
 
 export default function CompletedPaymentsPage() {
+  const router = useRouter();
   const [payments] = useState<CompletedPayment[]>(mockCompletedPayments);
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -346,7 +348,15 @@ export default function CompletedPaymentsPage() {
                       </div>
 
                       <div className="flex gap-2">
-                        <Button variant="outline" size="sm">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            router.push(
+                              `/admin/payments/completed/${payment.id}`
+                            )
+                          }
+                        >
                           <Eye className="w-4 h-4 mr-2" />
                           View Details
                         </Button>

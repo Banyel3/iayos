@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Star } from "lucide-react";
+import { Star, Loader2 } from "lucide-react";
 
 interface Worker {
   id: string;
@@ -26,6 +26,7 @@ interface Worker {
 
 export default function WorkerDetailPage() {
   const { id } = useParams();
+  const router = useRouter();
   const [worker, setWorker] = useState<Worker | null>(null);
 
   useEffect(() => {
@@ -42,14 +43,24 @@ export default function WorkerDetailPage() {
   }, [id]);
 
   if (!worker) {
-    return <div className="p-6">Loading worker details...</div>;
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading worker details...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="p-6 space-y-6">
       {/* Back Button */}
-      <Button variant="outline" onClick={() => history.back()}>
-        ← Back
+      <Button
+        variant="outline"
+        onClick={() => router.push("/admin/users/workers")}
+      >
+        ← Back to Workers
       </Button>
 
       {/* Worker Header */}
@@ -73,26 +84,49 @@ export default function WorkerDetailPage() {
             </div>
 
             {/* Info Grid */}
-            <div className="grid grid-cols-2 gap-y-2 text-sm">
-              <p>
-                <strong>Ratings:</strong> {worker.rating} ⭐
-              </p>
-              <p>
-                <strong>Total Jobs:</strong> {worker.totalJobs}
-              </p>
-              <p>
-                <strong>Jobs Completed:</strong> {worker.completedJobs}
-              </p>
-              <p>
-                <strong>Experience:</strong> {worker.experience}
-              </p>
-              <p>
-                <strong>Status:</strong> {worker.status}
-              </p>
-              <p>
-                <strong>Joined:</strong>{" "}
-                {new Date(worker.joinDate).toLocaleDateString()}
-              </p>
+            <div className="grid grid-cols-2 gap-y-3 text-sm border-t pt-4">
+              <div>
+                <p className="text-gray-500">Rating</p>
+                <div className="flex items-center gap-1">
+                  <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
+                  <span className="font-semibold">{worker.rating}</span>
+                  <span className="text-xs text-gray-500">
+                    ({worker.reviewCount})
+                  </span>
+                </div>
+              </div>
+              <div>
+                <p className="text-gray-500">Total Jobs</p>
+                <p className="font-semibold">{worker.totalJobs}</p>
+              </div>
+              <div>
+                <p className="text-gray-500">Jobs Completed</p>
+                <p className="font-semibold">{worker.completedJobs}</p>
+              </div>
+              <div>
+                <p className="text-gray-500">Experience</p>
+                <p className="font-semibold">{worker.experience}</p>
+              </div>
+              <div>
+                <p className="text-gray-500">Status</p>
+                <span
+                  className={`px-2 py-1 rounded-full text-xs font-medium ${
+                    worker.status === "verified"
+                      ? "bg-green-100 text-green-800"
+                      : worker.status === "banned"
+                        ? "bg-red-100 text-red-800"
+                        : "bg-yellow-100 text-yellow-800"
+                  }`}
+                >
+                  {worker.status}
+                </span>
+              </div>
+              <div>
+                <p className="text-gray-500">Joined</p>
+                <p className="font-semibold">
+                  {new Date(worker.joinDate).toLocaleDateString()}
+                </p>
+              </div>
             </div>
 
             {/* Skills */}
@@ -139,13 +173,13 @@ export default function WorkerDetailPage() {
         </Card>
 
         {/* Right Side: Status and User Details Panel */}
-        <div className="space-y-4 lg:max-w-xs lg:ml-auto">
+        <div className="space-y-4">
           {/* Status card */}
           <Card>
-            <CardHeader className="px-4 py-3">
+            <CardHeader>
               <CardTitle className="text-sm">Status</CardTitle>
             </CardHeader>
-            <CardContent className="p-4 space-y-3 text-sm">
+            <CardContent className="space-y-3 text-sm">
               <div>
                 {/* Full width bordered status bar */}
                 <div className="w-full border rounded-md bg-white">
@@ -172,11 +206,11 @@ export default function WorkerDetailPage() {
                 <Button variant="outline" className="w-full justify-center">
                   <span className="mr-2">⏸</span>Suspend
                 </Button>
-                <Button variant="outline" className="w-full justify-center">
+                <Button
+                  variant="outline"
+                  className="w-full justify-center col-span-2"
+                >
                   Reset Password
-                </Button>
-                <Button variant="default" className="w-full justify-center">
-                  Edit Profile
                 </Button>
               </div>
             </CardContent>
@@ -184,10 +218,10 @@ export default function WorkerDetailPage() {
 
           {/* User details card */}
           <Card>
-            <CardHeader className="px-4 py-3">
+            <CardHeader>
               <CardTitle className="text-sm">User Details</CardTitle>
             </CardHeader>
-            <CardContent className="p-4">
+            <CardContent>
               {/* Use a description list to align labels and values */}
               <dl className="grid grid-cols-2 gap-y-2 text-sm">
                 <dt className="text-gray-500">User Type</dt>

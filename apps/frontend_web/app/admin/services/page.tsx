@@ -13,7 +13,6 @@ import {
   Users,
   TrendingUp,
   Eye,
-  Edit,
   Trash2,
   MoreVertical,
 } from "lucide-react";
@@ -398,14 +397,6 @@ export default function ServicesPage() {
                   >
                     <Eye className="w-4 h-4" />
                     View
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="flex-1 flex items-center gap-2"
-                  >
-                    <Edit className="w-4 h-4" />
-                    Edit
                   </Button>
                   <Button
                     size="sm"

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Card,
   CardContent,
@@ -102,6 +103,7 @@ const mockAgencies: Agency[] = [
 ];
 
 export default function AgencyPage() {
+  const router = useRouter();
   const [agencies] = useState<Agency[]>(mockAgencies);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<
@@ -361,11 +363,25 @@ export default function AgencyPage() {
                         <p className="text-sm text-muted-foreground">Jobs</p>
                       </div>
                       <div className="flex space-x-2">
-                        <Button variant="outline" size="sm">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            router.push(`/admin/users/agency/${agency.id}`)
+                          }
+                        >
                           <Eye className="w-4 h-4 mr-2" />
                           View Details
                         </Button>
-                        <Button variant="outline" size="sm">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            router.push(
+                              `/admin/users/agency/${agency.id}/workers`
+                            )
+                          }
+                        >
                           <Users className="w-4 h-4 mr-2" />
                           Manage Workers
                         </Button>

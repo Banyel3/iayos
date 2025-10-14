@@ -286,13 +286,6 @@ export default function WorkersPage() {
                             View
                           </Button>
                           <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => console.log("Edit", worker.id)}
-                          >
-                            Edit
-                          </Button>
-                          <Button
                             variant="destructive"
                             size="sm"
                             onClick={() => console.log("Delete", worker.id)}

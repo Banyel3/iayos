@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Card,
   CardContent,
@@ -170,6 +171,7 @@ const mockClients: Client[] = [
 ];
 
 export default function ClientsPage() {
+  const router = useRouter();
   const [clients] = useState<Client[]>(mockClients);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<
@@ -404,16 +406,11 @@ export default function ClientsPage() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => console.log("View", client.id)}
+                            onClick={() =>
+                              router.push(`/admin/users/clients/${client.id}`)
+                            }
                           >
                             View
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => console.log("Edit", client.id)}
-                          >
-                            Edit
                           </Button>
                           <Button
                             variant="destructive"
