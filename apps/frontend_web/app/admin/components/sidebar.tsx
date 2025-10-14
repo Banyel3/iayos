@@ -71,7 +71,7 @@ const navigation = [
       },
       {
         name: "Agencies",
-        href: "/admin/users/agencies",
+        href: "/admin/users/agency",
         icon: Building2,
         description: "Manage agency accounts",
       },

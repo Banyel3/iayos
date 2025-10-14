@@ -291,6 +291,7 @@ def get_unread_count(request):
 
 #region WORKER ENDPOINTS
 @router.get("/users/workers")
+
 def get_all_workers_endpoint(request, latitude: float = None, longitude: float = None):
     """
     Fetch all workers with their profiles and specializations.
