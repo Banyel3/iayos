@@ -1711,10 +1711,6 @@
     place-items: center;
   }
 
-  .items-baseline {
-    align-items: baseline;
-  }
-
   .items-center {
     align-items: center;
   }
@@ -2186,10 +2182,6 @@
     border-color: var(--color-blue-200);
   }
 
-  .border-blue-400 {
-    border-color: var(--color-blue-400);
-  }
-
   .border-blue-500 {
     border-color: var(--color-blue-500);
   }
@@ -2382,10 +2374,6 @@
     background-color: var(--color-orange-100);
   }
 
-  .bg-orange-500 {
-    background-color: var(--color-orange-500);
-  }
-
   .bg-orange-600 {
     background-color: var(--color-orange-600);
   }
@@ -2446,10 +2434,6 @@
 
   .bg-sidebar {
     background-color: var(--sidebar);
-  }
-
-  .bg-sky-100 {
-    background-color: var(--color-sky-100);
   }
 
   .bg-white {
@@ -3146,11 +3130,6 @@
 
   .italic {
     font-style: italic;
-  }
-
-  .line-through {
-    -webkit-text-decoration-line: line-through;
-    text-decoration-line: line-through;
   }
 
   .underline {

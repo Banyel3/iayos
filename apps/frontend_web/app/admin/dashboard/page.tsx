@@ -16,22 +16,33 @@ import {
   Calendar,
 } from "lucide-react";
 import Link from "next/link";
+import {
+  getAdminStats,
+  mockApplications,
+  mockJobListings,
+} from "@/lib/mockData";
 
 export default function AdminDashboardPage() {
-  // Mock statistics data
+  // Get actual statistics from mock data
+  const adminStats = getAdminStats();
+
   const stats = {
-    totalUsers: 1247,
-    totalClients: 542,
-    totalWorkers: 628,
-    totalAgencies: 77,
-    activeJobs: 156,
-    completedJobs: 2341,
-    totalRevenue: 487250,
-    monthlyRevenue: 52430,
-    pendingPayments: 23,
-    pendingKYC: 18,
-    activeUsers: 892,
-    newUsersThisMonth: 127,
+    totalUsers: adminStats.totalUsers,
+    totalClients: adminStats.totalClients,
+    totalWorkers: adminStats.totalWorkers,
+    totalAgencies: adminStats.totalAgencies,
+    activeJobs: adminStats.activeJobs,
+    completedJobs: adminStats.completedJobs,
+    totalRevenue: adminStats.totalRevenue,
+    monthlyRevenue: adminStats.monthlyRevenue,
+    totalJobListings: adminStats.totalJobListings,
+    openJobs: adminStats.openJobs,
+    totalApplications: adminStats.totalApplications,
+    pendingApplications: adminStats.pendingApplications,
+    pendingPayments: 23, // Keep this as is (not in mock data yet)
+    pendingKYC: 18, // Keep this as is (not in mock data yet)
+    activeUsers: adminStats.activeUsers,
+    newUsersThisMonth: 8, // Estimate based on mock data
   };
 
   const recentActivity = [
@@ -73,29 +84,48 @@ export default function AdminDashboardPage() {
   ];
 
   const pendingActions = [
-    { id: 1, action: "KYC Verifications", count: 18, link: "/admin/kyc" },
+    {
+      id: 1,
+      action: "KYC Verifications",
+      count: stats.pendingKYC,
+      link: "/admin/kyc",
+    },
     {
       id: 2,
       action: "Pending Payments",
-      count: 23,
+      count: stats.pendingPayments,
       link: "/admin/payments/pending",
     },
     {
       id: 3,
-      action: "Dispute Resolution",
-      count: 7,
-      link: "/admin/jobs/disputes",
+      action: "Pending Applications",
+      count: adminStats.pendingApplications,
+      link: "/admin/jobs/applications",
     },
     { id: 4, action: "User Reports", count: 12, link: "/admin/reviews" },
   ];
 
-  const topCategories = [
-    { name: "Home Cleaning", jobs: 342, revenue: 45230 },
-    { name: "Plumbing", jobs: 289, revenue: 67840 },
-    { name: "Electrical", jobs: 256, revenue: 89120 },
-    { name: "Carpentry", jobs: 198, revenue: 125400 },
-    { name: "HVAC", jobs: 167, revenue: 52340 },
-  ];
+  // Calculate top categories from actual job listings
+  const categoryStats = mockJobListings.reduce(
+    (acc, job) => {
+      if (!acc[job.category]) {
+        acc[job.category] = { jobs: 0, revenue: 0 };
+      }
+      acc[job.category].jobs += 1;
+      acc[job.category].revenue += job.budget;
+      return acc;
+    },
+    {} as Record<string, { jobs: number; revenue: number }>
+  );
+
+  const topCategories = Object.entries(categoryStats)
+    .map(([name, stats]) => ({
+      name,
+      jobs: stats.jobs,
+      revenue: stats.revenue,
+    }))
+    .sort((a, b) => b.revenue - a.revenue)
+    .slice(0, 5);
 
   return (
     <div className="flex">
