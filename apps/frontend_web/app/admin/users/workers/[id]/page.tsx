@@ -5,7 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Star, Loader2 } from "lucide-react";
+import { Star, Loader2, ExternalLink } from "lucide-react";
+import Link from "next/link";
 
 interface Worker {
   id: string;
@@ -153,17 +154,56 @@ export default function WorkerDetailPage() {
               </TabsList>
               <TabsContent value="jobs" className="mt-4">
                 {/* Example Job Item */}
-                <Card className="p-4">
-                  <p className="text-sm font-semibold">Ceiling Fan Repair</p>
-                  <p className="text-xs text-gray-500">Completed · ₱300</p>
-                  <p className="text-xs mt-2 italic">"my fan is ok na hehe"</p>
-                  <div className="flex items-center mt-1 text-yellow-500">
-                    <Star className="h-4 w-4" /> 5.0
+                <Card className="p-4 hover:shadow-md transition-shadow">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold">
+                          Ceiling Fan Repair
+                        </p>
+                        <Link
+                          href="/admin/jobs/completed/COMP-001"
+                          className="text-blue-600 hover:text-blue-800"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                        </Link>
+                      </div>
+                      <p className="text-xs text-gray-500">Completed · ₱300</p>
+                      <p className="text-xs mt-2 italic">
+                        "my fan is ok na hehe"
+                      </p>
+                      <div className="flex items-center mt-1 text-yellow-500">
+                        <Star className="h-4 w-4" /> 5.0
+                      </div>
+                    </div>
                   </div>
                 </Card>
               </TabsContent>
               <TabsContent value="transactions" className="mt-4">
-                <p>Transactions data here...</p>
+                <Card className="p-4 hover:shadow-md transition-shadow">
+                  <div className="flex justify-between items-center mb-2">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold">
+                          Payment Received
+                        </p>
+                        <Link
+                          href="/admin/jobs/completed/COMP-001"
+                          className="text-blue-600 hover:text-blue-800"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                        </Link>
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        TXN-2024-001234 • Jan 15, 2024
+                      </p>
+                    </div>
+                    <p className="font-semibold text-green-600">₱300.00</p>
+                  </div>
+                  <p className="text-xs text-gray-600">
+                    Payment for Ceiling Fan Repair job
+                  </p>
+                </Card>
               </TabsContent>
               <TabsContent value="disputes" className="mt-4">
                 <p>Disputes data here...</p>

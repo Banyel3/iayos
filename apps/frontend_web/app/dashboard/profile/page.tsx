@@ -928,8 +928,8 @@ const ProfilePage = () => {
 
       {/* Add Funds Modal (for Clients) */}
       {showAddFundsModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl">
+        <div className="fixed inset-0 bg-gray-900/20 backdrop-blur-sm flex items-start justify-center z-50 p-4 pt-8">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full shadow-2xl border border-gray-200">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold text-gray-900">Add Funds</h2>
               <button

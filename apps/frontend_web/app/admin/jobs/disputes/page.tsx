@@ -456,20 +456,9 @@ export default function JobDisputesPage() {
                 }}
               >
                 <CardContent className="p-6">
-                  <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
-                        <AlertTriangle
-                          className={`h-5 w-5 ${
-                            dispute.priority === "critical"
-                              ? "text-red-600"
-                              : dispute.priority === "high"
-                                ? "text-orange-600"
-                                : dispute.priority === "medium"
-                                  ? "text-yellow-600"
-                                  : "text-blue-600"
-                          }`}
-                        />
                         <h3 className="text-lg font-semibold text-gray-900">
                           {dispute.jobTitle}
                         </h3>
@@ -482,186 +471,84 @@ export default function JobDisputesPage() {
                           {dispute.status.replace("_", " ").toUpperCase()}
                         </span>
                         <span
-                          className={`px-2 py-1 text-xs font-bold rounded ${getPriorityColor(
+                          className={`text-xs font-medium ${getPriorityColor(
                             dispute.priority
                           )}`}
                         >
                           {dispute.priority.toUpperCase()} PRIORITY
                         </span>
                       </div>
-                      <div className="flex items-center gap-4 text-sm text-gray-600 mb-3">
-                        <span>
-                          Dispute ID:{" "}
-                          <span className="font-medium">{dispute.id}</span>
-                        </span>
-                        <span>
-                          Job ID:{" "}
+                      <p className="text-gray-600 text-sm mb-4">
+                        {dispute.description}
+                      </p>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                        <div className="flex items-center text-sm text-gray-600">
+                          <AlertTriangle className="h-4 w-4 mr-1 text-red-600" />
+                          <span className="font-medium">{dispute.reason}</span>
+                        </div>
+                        <div className="flex items-center text-sm text-gray-600">
+                          <DollarSign className="h-4 w-4 mr-1" />
+                          <span>
+                            Job: ${dispute.jobAmount} | Disputed: $
+                            <span className="font-bold text-red-600">
+                              {dispute.disputedAmount}
+                            </span>
+                          </span>
+                        </div>
+                        <div className="flex items-center text-sm text-gray-600">
+                          <FileText className="h-4 w-4 mr-1" />
+                          {dispute.evidence.length} evidence items
+                        </div>
+                        <div className="flex items-center text-sm text-gray-600">
+                          <MessageSquare className="h-4 w-4 mr-1" />
+                          {dispute.messages} messages
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4 text-sm">
+                        <span className="text-gray-600">
+                          Client:{" "}
                           <Link
-                            href={`/admin/jobs/listings/${dispute.jobId}`}
-                            className="text-blue-600 hover:underline font-medium"
+                            href={`/admin/users/clients/${dispute.client.id}`}
+                            className="font-medium text-blue-600 hover:underline"
                           >
-                            {dispute.jobId}
+                            {dispute.client.name}
                           </Link>
                         </span>
-                        <span>
-                          Category:{" "}
-                          <span className="font-medium">
-                            {dispute.category}
-                          </span>
+                        <span className="text-gray-600">→</span>
+                        <span className="text-gray-600">
+                          Worker:{" "}
+                          <Link
+                            href={`/admin/users/workers/${dispute.worker.id}`}
+                            className="font-medium text-blue-600 hover:underline"
+                          >
+                            {dispute.worker.name}
+                          </Link>
                         </span>
-                        <span>
+                        <span className="text-gray-600">
                           Disputed by:{" "}
                           <span className="font-medium capitalize">
                             {dispute.disputedBy}
                           </span>
                         </span>
+                        <span className="text-gray-600">
+                          Category:{" "}
+                          <span className="font-medium">
+                            {dispute.category}
+                          </span>
+                        </span>
+                        <span className="text-gray-600">
+                          Opened:{" "}
+                          {new Date(dispute.openedDate).toLocaleDateString()}
+                        </span>
                       </div>
                     </div>
-                  </div>
-
-                  {/* Parties Involved */}
-                  <div className="grid grid-cols-2 gap-4 mb-4 p-4 bg-gray-50 rounded-lg">
-                    <div>
-                      <p className="text-xs text-gray-500 mb-2">Client</p>
-                      <Link
-                        href={`/admin/users/clients/${dispute.client.id}`}
-                        className="flex items-center text-blue-600 hover:underline"
-                      >
-                        <User className="h-4 w-4 mr-2" />
-                        <span className="font-medium">
-                          {dispute.client.name}
-                        </span>
-                      </Link>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500 mb-2">Worker</p>
-                      <Link
-                        href={`/admin/users/workers/${dispute.worker.id}`}
-                        className="flex items-center text-blue-600 hover:underline"
-                      >
-                        <User className="h-4 w-4 mr-2" />
-                        <span className="font-medium">
-                          {dispute.worker.name}
-                        </span>
-                      </Link>
-                    </div>
-                  </div>
-
-                  {/* Dispute Reason */}
-                  <div className="mb-4">
-                    <p className="text-sm font-medium text-gray-700 mb-1">
-                      Reason:{" "}
-                      <span className="text-red-600">{dispute.reason}</span>
-                    </p>
-                    <p className="text-sm text-gray-600 bg-white p-3 rounded border">
-                      {dispute.description}
-                    </p>
-                  </div>
-
-                  {/* Financial Info */}
-                  <div className="flex items-center gap-6 mb-4 p-3 bg-blue-50 rounded-lg">
-                    <div>
-                      <p className="text-xs text-gray-600">Job Amount</p>
-                      <p className="text-lg font-bold text-gray-900">
-                        ${dispute.jobAmount}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-600">Disputed Amount</p>
-                      <p className="text-lg font-bold text-red-600">
-                        ${dispute.disputedAmount}
-                      </p>
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-xs text-gray-600">
-                        Evidence Submitted
-                      </p>
-                      <p className="text-sm font-medium text-gray-900">
-                        {dispute.evidence.length} items
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-600">Messages</p>
-                      <p className="text-sm font-medium text-gray-900 flex items-center">
-                        <MessageSquare className="h-4 w-4 mr-1" />
-                        {dispute.messages}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Evidence */}
-                  <div className="mb-4">
-                    <p className="text-sm font-medium text-gray-700 mb-2">
-                      Evidence:
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {dispute.evidence.map((evidence, index) => (
-                        <span
-                          key={index}
-                          className="px-3 py-1 bg-purple-50 text-purple-700 text-xs rounded-full border border-purple-200"
-                        >
-                          {evidence.type}: {evidence.description}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Resolution (if resolved) */}
-                  {dispute.status === "resolved" && dispute.resolution && (
-                    <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
-                      <div className="flex items-start gap-2">
-                        <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-green-900 mb-1">
-                            Resolution:
-                          </p>
-                          <p className="text-sm text-green-800">
-                            {dispute.resolution}
-                          </p>
-                          {dispute.resolvedDate && (
-                            <p className="text-xs text-green-700 mt-2">
-                              Resolved on:{" "}
-                              {new Date(dispute.resolvedDate).toLocaleString()}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Footer */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4 text-sm text-gray-600">
-                      <span className="flex items-center">
-                        <Calendar className="h-4 w-4 mr-1" />
-                        Opened: {new Date(dispute.openedDate).toLocaleString()}
-                      </span>
-                      {dispute.assignedTo && (
-                        <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
-                          Assigned to: {dispute.assignedTo}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-col gap-2 ml-4">
                       <Link href={`/admin/jobs/disputes/${dispute.id}`}>
                         <Button size="sm" variant="outline">
                           <Eye className="h-4 w-4 mr-2" />
                           View Details
                         </Button>
                       </Link>
-                      <Button size="sm" variant="outline">
-                        <MessageSquare className="h-4 w-4 mr-2" />
-                        Messages ({dispute.messages})
-                      </Button>
-                      <Button size="sm" variant="outline">
-                        <FileText className="h-4 w-4 mr-2" />
-                        Evidence
-                      </Button>
-                      {dispute.status === "open" && (
-                        <Button size="sm" className="bg-blue-600 text-white">
-                          Take Action
-                        </Button>
-                      )}
                     </div>
                   </div>
                 </CardContent>

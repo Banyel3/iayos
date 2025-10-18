@@ -23,27 +23,150 @@ const mockReviews: Review[] = [
     reviewer: { name: "John Doe", type: "Client" },
     reviewee: { name: "Maria Santos", type: "Worker" },
     rating: 5,
-    comment: "Excellent work! Very professional and on time.",
+    comment:
+      "Excellent work! Very professional and on time. Maria fixed our AC unit quickly and efficiently. The cooling is working perfectly now and she even cleaned up after herself. Will definitely hire again!",
     jobTitle: "Air Conditioner Repair",
-    date: "2024-01-15",
+    date: "2024-10-15",
   },
   {
     id: "rev002",
-    reviewer: { name: "Sarah Lee", type: "Worker" },
-    reviewee: { name: "Mike Chen", type: "Client" },
-    rating: 4,
-    comment: "Good communication, payment was prompt.",
-    jobTitle: "Plumbing Installation",
-    date: "2024-01-14",
+    reviewer: { name: "Maria Santos", type: "Worker" },
+    reviewee: { name: "John Doe", type: "Client" },
+    rating: 5,
+    comment:
+      "Great client! Clear instructions, payment was prompt. The work environment was professional and everything was well organized. Highly recommend working with John.",
+    jobTitle: "Air Conditioner Repair",
+    date: "2024-10-15",
   },
   {
     id: "rev003",
-    reviewer: { name: "Anna Cruz", type: "Client" },
-    reviewee: { name: "Tom Wilson", type: "Worker" },
+    reviewer: { name: "Sarah Lee", type: "Client" },
+    reviewee: { name: "James Rodriguez", type: "Worker" },
+    rating: 4,
+    comment:
+      "Good work overall. James arrived on time and completed the plumbing installation. Minor issue with cleanup but the job was done well. Would hire again.",
+    jobTitle: "Plumbing Installation",
+    date: "2024-10-14",
+  },
+  {
+    id: "rev004",
+    reviewer: { name: "James Rodriguez", type: "Worker" },
+    reviewee: { name: "Sarah Lee", type: "Client" },
     rating: 5,
-    comment: "Amazing service! Highly recommended.",
+    comment:
+      "Excellent client! Very understanding and provided all necessary materials. Payment was prompt and communication was clear throughout the project.",
+    jobTitle: "Plumbing Installation",
+    date: "2024-10-14",
+  },
+  {
+    id: "rev005",
+    reviewer: { name: "Michael Chen", type: "Client" },
+    reviewee: { name: "Pedro Alvarez", type: "Worker" },
+    rating: 5,
+    comment:
+      "Amazing service! Pedro did an outstanding job with the electrical wiring. Very knowledgeable, safe practices, and explained everything clearly. Highly recommended!",
     jobTitle: "Electrical Wiring",
-    date: "2024-01-13",
+    date: "2024-10-13",
+  },
+  {
+    id: "rev006",
+    reviewer: { name: "Pedro Alvarez", type: "Worker" },
+    reviewee: { name: "Michael Chen", type: "Client" },
+    rating: 5,
+    comment:
+      "Great experience! Michael was very professional and prepared. All materials were ready and he made the job easy. Would definitely work with him again.",
+    jobTitle: "Electrical Wiring",
+    date: "2024-10-13",
+  },
+  {
+    id: "rev007",
+    reviewer: { name: "Anna Cruz", type: "Client" },
+    reviewee: { name: "Lisa Wong", type: "Worker" },
+    rating: 5,
+    comment:
+      "Lisa did an exceptional job cleaning our office. Very thorough and paid attention to every detail. The space looks brand new! Professional and reliable service.",
+    jobTitle: "Office Deep Cleaning",
+    date: "2024-10-12",
+  },
+  {
+    id: "rev008",
+    reviewer: { name: "Lisa Wong", type: "Worker" },
+    reviewee: { name: "Anna Cruz", type: "Client" },
+    rating: 5,
+    comment:
+      "Wonderful client! Anna was very respectful and appreciative of the work. Clear expectations and prompt payment. Would love to work together again.",
+    jobTitle: "Office Deep Cleaning",
+    date: "2024-10-12",
+  },
+  {
+    id: "rev009",
+    reviewer: { name: "Robert Taylor", type: "Client" },
+    reviewee: { name: "Carlos Mendez", type: "Worker" },
+    rating: 4,
+    comment:
+      "Good carpentry work. Carlos built the custom shelves as requested. Took a bit longer than expected but the quality is solid. Happy with the final result.",
+    jobTitle: "Custom Carpentry",
+    date: "2024-10-11",
+  },
+  {
+    id: "rev010",
+    reviewer: { name: "Carlos Mendez", type: "Worker" },
+    reviewee: { name: "Robert Taylor", type: "Client" },
+    rating: 4,
+    comment:
+      "Decent project. Some miscommunication on measurements but we sorted it out. Client was patient and understanding. Payment was on time.",
+    jobTitle: "Custom Carpentry",
+    date: "2024-10-11",
+  },
+  {
+    id: "rev011",
+    reviewer: { name: "Jennifer Park", type: "Client" },
+    reviewee: { name: "Thomas Lee", type: "Worker" },
+    rating: 5,
+    comment:
+      "Thomas painted our entire house beautifully! The colors are perfect and the finish is flawless. He was clean, punctual, and very professional. Exceeded expectations!",
+    jobTitle: "House Painting",
+    date: "2024-10-10",
+  },
+  {
+    id: "rev012",
+    reviewer: { name: "Thomas Lee", type: "Worker" },
+    reviewee: { name: "Jennifer Park", type: "Client" },
+    rating: 5,
+    comment:
+      "Fantastic client! Jennifer had great taste in colors and was very organized. The house was well-prepared for painting. Smooth project from start to finish.",
+    jobTitle: "House Painting",
+    date: "2024-10-10",
+  },
+  {
+    id: "rev013",
+    reviewer: { name: "David Kim", type: "Client" },
+    reviewee: { name: "Elena Reyes", type: "Worker" },
+    rating: 3,
+    comment:
+      "Decent work but had some communication issues. Elena completed the garden landscaping but not exactly as discussed. Had to request some changes. Final result is okay.",
+    jobTitle: "Garden Landscaping",
+    date: "2024-10-09",
+  },
+  {
+    id: "rev014",
+    reviewer: { name: "Elena Reyes", type: "Worker" },
+    reviewee: { name: "David Kim", type: "Client" },
+    rating: 3,
+    comment:
+      "Project had some challenges. Instructions changed midway through the work which caused delays. Payment was fine but communication could have been better.",
+    jobTitle: "Garden Landscaping",
+    date: "2024-10-09",
+  },
+  {
+    id: "rev015",
+    reviewer: { name: "Amanda Foster", type: "Client" },
+    reviewee: { name: "Ricardo Santos", type: "Worker" },
+    rating: 5,
+    comment:
+      "Ricardo is a master plumber! Fixed our leaking pipes perfectly and even spotted a potential issue we didn't know about. Very honest and skilled. Will call him for all plumbing needs!",
+    jobTitle: "Emergency Plumbing Repair",
+    date: "2024-10-08",
   },
 ];
 

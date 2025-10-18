@@ -13,3 +13,4 @@ rav
 django-allauth
 django-allauth[socialaccount]
 supabase
+xendit-python

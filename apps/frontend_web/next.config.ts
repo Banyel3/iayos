@@ -5,6 +5,15 @@ const nextConfig: NextConfig = {
   devIndicators: false,
   reactStrictMode: true,
   outputFileTracingRoot: path.join(__dirname, "../../"),
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "agtldjbubhrrsxnsdaxc.supabase.co",
+        pathname: "/storage/v1/object/public/**",
+      },
+    ],
+  },
   webpack: (config, { isServer }) => {
     // Exclude TypeScript definition files from processing
     config.module.rules.push({

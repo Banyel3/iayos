@@ -16,7 +16,9 @@ import {
   Globe,
   Briefcase,
   Loader2,
+  ExternalLink,
 } from "lucide-react";
+import Link from "next/link";
 
 interface Agency {
   id: string;
@@ -355,10 +357,23 @@ export default function AgencyDetailPage() {
                   <h4 className="font-semibold mb-3">Recent Job Completions</h4>
                   <div className="space-y-3">
                     {[1, 2, 3].map((i) => (
-                      <div key={i} className="p-3 border rounded">
+                      <div
+                        key={i}
+                        className="p-3 border rounded hover:shadow-md transition-shadow"
+                      >
                         <div className="flex justify-between items-start mb-2">
-                          <div>
-                            <p className="font-medium">Plumbing Repair #{i}</p>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium">
+                                Plumbing Repair #{i}
+                              </p>
+                              <Link
+                                href={`/admin/jobs/completed/COMP-00${i}`}
+                                className="text-blue-600 hover:text-blue-800"
+                              >
+                                <ExternalLink className="h-3 w-3" />
+                              </Link>
+                            </div>
                             <p className="text-xs text-muted-foreground">
                               Completed 2 days ago
                             </p>

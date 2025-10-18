@@ -44,7 +44,22 @@ interface SidebarProps {
   className?: string;
 }
 
-const navigation = [
+interface NavChild {
+  name: string;
+  href: string;
+  icon: any;
+  description: string;
+}
+
+interface NavItem {
+  name: string;
+  href: string;
+  icon: any;
+  count?: number | null;
+  children?: NavChild[];
+}
+
+const navigation: NavItem[] = [
   {
     name: "Dashboard",
     href: "/admin/dashboard",
@@ -52,7 +67,7 @@ const navigation = [
     count: null,
   },
   {
-    name: "Users Management",
+    name: "Users",
     href: "/admin/users",
     icon: Users,
     count: null,
@@ -61,19 +76,19 @@ const navigation = [
         name: "Clients",
         href: "/admin/users/clients",
         icon: User,
-        description: "Manage client accounts",
+        description: "Client accounts & wallets",
       },
       {
         name: "Workers",
         href: "/admin/users/workers",
         icon: UserCheck,
-        description: "Manage worker accounts",
+        description: "Worker accounts & earnings",
       },
       {
         name: "Agencies",
         href: "/admin/users/agency",
         icon: Building2,
-        description: "Manage agency accounts",
+        description: "Agency accounts",
       },
     ],
   },
@@ -81,13 +96,13 @@ const navigation = [
     name: "KYC Management",
     href: "/admin/kyc",
     icon: Shield,
-    count: 12,
+    count: 3,
     children: [
       {
-        name: "Pending Reviews",
+        name: "Pending",
         href: "/admin/kyc/pending",
         icon: Clock,
-        description: "KYC documents awaiting review",
+        description: "Awaiting verification",
       },
       {
         name: "Approved",
@@ -99,12 +114,12 @@ const navigation = [
         name: "Rejected",
         href: "/admin/kyc/rejected",
         icon: XCircle,
-        description: "Rejected verifications",
+        description: "Failed verification",
       },
     ],
   },
   {
-    name: "Jobs Management",
+    name: "Jobs",
     href: "/admin/jobs",
     icon: Briefcase,
     count: null,
@@ -113,19 +128,13 @@ const navigation = [
         name: "Job Listings",
         href: "/admin/jobs/listings",
         icon: ClipboardList,
-        description: "All posted job listings",
-      },
-      {
-        name: "Job Applications",
-        href: "/admin/jobs/applications",
-        icon: FileCheck,
-        description: "Applications and their status",
+        description: "All posted jobs",
       },
       {
         name: "Active Jobs",
         href: "/admin/jobs/active",
         icon: Clock,
-        description: "Ongoing work",
+        description: "Ongoing work & payments",
       },
       {
         name: "Completed Jobs",
@@ -134,7 +143,7 @@ const navigation = [
         description: "Finished jobs",
       },
       {
-        name: "Job Disputes",
+        name: "Disputes",
         href: "/admin/jobs/disputes",
         icon: AlertTriangle,
         description: "Issues and conflicts",
@@ -148,158 +157,10 @@ const navigation = [
     ],
   },
   {
-    name: "Payments",
-    href: "/admin/payments",
-    icon: CreditCard,
-    count: null,
-    children: [
-      {
-        name: "All Transactions",
-        href: "/admin/payments/transactions",
-        icon: DollarSign,
-        description: "Complete transaction history",
-      },
-      {
-        name: "Pending Payments",
-        href: "/admin/payments/pending",
-        icon: Clock,
-        description: "Awaiting payment confirmation",
-      },
-      {
-        name: "Completed Payments",
-        href: "/admin/payments/completed",
-        icon: CheckCircle,
-        description: "Successfully processed",
-      },
-      {
-        name: "Disputes",
-        href: "/admin/payments/disputes",
-        icon: Flag,
-        description: "Payment disputes",
-      },
-      {
-        name: "Refunds",
-        href: "/admin/payments/refunds",
-        icon: Archive,
-        description: "Refund requests",
-      },
-    ],
-  },
-  {
-    name: "Analytics",
-    href: "/admin/analytics",
-    icon: BarChart3,
-    count: null,
-    children: [
-      {
-        name: "Overview",
-        href: "/admin/analytics/overview",
-        icon: TrendingUp,
-        description: "Platform statistics",
-      },
-      {
-        name: "User Analytics",
-        href: "/admin/analytics/users",
-        icon: Users,
-        description: "User behavior and trends",
-      },
-      {
-        name: "Job Analytics",
-        href: "/admin/analytics/jobs",
-        icon: Briefcase,
-        description: "Job market insights",
-      },
-      {
-        name: "Revenue Analytics",
-        href: "/admin/analytics/revenue",
-        icon: DollarSign,
-        description: "Financial performance",
-      },
-    ],
-  },
-  {
-    name: "Reports",
-    href: "/admin/reports",
-    icon: FileText,
-    count: null,
-    children: [
-      {
-        name: "User Reports",
-        href: "/admin/reports/users",
-        icon: UserX,
-        description: "Reported users",
-      },
-      {
-        name: "Job Reports",
-        href: "/admin/reports/jobs",
-        icon: Flag,
-        description: "Reported job listings",
-      },
-      {
-        name: "System Reports",
-        href: "/admin/reports/system",
-        icon: FileCheck,
-        description: "System logs and issues",
-      },
-      {
-        name: "Financial Reports",
-        href: "/admin/reports/financial",
-        icon: DollarSign,
-        description: "Financial summaries",
-      },
-    ],
-  },
-  {
-    name: "Reviews & Ratings",
+    name: "Reviews",
     href: "/admin/reviews",
     icon: Star,
     count: null,
-    children: [
-      {
-        name: "All Reviews",
-        href: "/admin/reviews/all",
-        icon: Star,
-        description: "All platform reviews",
-      },
-      {
-        name: "Flagged Reviews",
-        href: "/admin/reviews/flagged",
-        icon: Flag,
-        description: "Reviews needing attention",
-      },
-    ],
-  },
-  {
-    name: "Messages",
-    href: "/admin/messages",
-    icon: MessageSquare,
-    count: 5,
-  },
-  {
-    name: "Services",
-    href: "/admin/services",
-    icon: Package,
-    count: null,
-    children: [
-      {
-        name: "Service Categories",
-        href: "/admin/services/categories",
-        icon: Package,
-        description: "Manage service types",
-      },
-      {
-        name: "Service Requests",
-        href: "/admin/services/requests",
-        icon: ClipboardList,
-        description: "New service requests",
-      },
-    ],
-  },
-  {
-    name: "Notifications",
-    href: "/admin/notifications",
-    icon: Bell,
-    count: 3,
   },
 ];
 
@@ -425,11 +286,13 @@ export default function Sidebar({ className }: SidebarProps) {
                     </div>
                     {!collapsed && (
                       <div className="flex items-center space-x-2">
-                        {item.count !== null && item.count > 0 && (
-                          <span className="px-2 py-0.5 text-xs font-medium bg-red-500 text-white rounded-full">
-                            {item.count}
-                          </span>
-                        )}
+                        {item.count !== undefined &&
+                          item.count !== null &&
+                          item.count > 0 && (
+                            <span className="px-2 py-0.5 text-xs font-medium bg-red-500 text-white rounded-full">
+                              {item.count}
+                            </span>
+                          )}
                         <ChevronRight
                           className={cn(
                             "h-4 w-4 text-gray-400 transition-transform",
@@ -458,11 +321,14 @@ export default function Sidebar({ className }: SidebarProps) {
                       />
                       {!collapsed && <span>{item.name}</span>}
                     </div>
-                    {!collapsed && item.count !== null && item.count > 0 && (
-                      <span className="px-2 py-0.5 text-xs font-medium bg-red-500 text-white rounded-full">
-                        {item.count}
-                      </span>
-                    )}
+                    {!collapsed &&
+                      item.count !== undefined &&
+                      item.count !== null &&
+                      item.count > 0 && (
+                        <span className="px-2 py-0.5 text-xs font-medium bg-red-500 text-white rounded-full">
+                          {item.count}
+                        </span>
+                      )}
                   </Link>
                 )}
               </div>

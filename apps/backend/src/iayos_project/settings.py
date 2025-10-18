@@ -240,3 +240,11 @@ SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "")
 
 # Create Supabase client as a settings constant
 SUPABASE = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+
+# Xendit Configuration
+XENDIT_API_KEY = os.getenv("XENDIT_API_KEY", "xnd_development_nWEcAWzDMSMcgbDr3BBBzBhqmG1kubqYcksJ8X1l1iZvkk43z7uyDbCegkF3z")
+XENDIT_WEBHOOK_TOKEN = os.getenv("XENDIT_WEBHOOK_TOKEN", "")  # Optional: for webhook verification
+XENDIT_TEST_MODE = True  # Always True for development
+
+# Frontend URL for redirects
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")

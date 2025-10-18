@@ -5,7 +5,14 @@ import { useParams, useRouter } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Building2, Calendar, DollarSign, Loader2 } from "lucide-react";
+import {
+  Building2,
+  Calendar,
+  DollarSign,
+  Loader2,
+  ExternalLink,
+} from "lucide-react";
+import Link from "next/link";
 
 interface Client {
   id: string;
@@ -298,12 +305,20 @@ export default function ClientDetailPage() {
                 <TabsTrigger value="activity">Activity Log</TabsTrigger>
               </TabsList>
               <TabsContent value="jobs" className="mt-4">
-                <Card className="p-4">
+                <Card className="p-4 hover:shadow-md transition-shadow">
                   <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <p className="text-sm font-semibold">
-                        Plumbing Repair Needed
-                      </p>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold">
+                          Plumbing Repair Needed
+                        </p>
+                        <Link
+                          href="/admin/jobs/listings/JOB-001"
+                          className="text-blue-600 hover:text-blue-800"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                        </Link>
+                      </div>
                       <p className="text-xs text-gray-500">Posted 2 days ago</p>
                     </div>
                     <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
@@ -319,10 +334,20 @@ export default function ClientDetailPage() {
                 </Card>
               </TabsContent>
               <TabsContent value="transactions" className="mt-4">
-                <Card className="p-4">
+                <Card className="p-4 hover:shadow-md transition-shadow">
                   <div className="flex justify-between items-center mb-2">
-                    <div>
-                      <p className="text-sm font-semibold">Payment to Worker</p>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold">
+                          Payment to Worker
+                        </p>
+                        <Link
+                          href="/admin/jobs/completed/COMP-001"
+                          className="text-blue-600 hover:text-blue-800"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                        </Link>
+                      </div>
                       <p className="text-xs text-gray-500">
                         TXN-2024-001234 • Jan 15, 2024
                       </p>

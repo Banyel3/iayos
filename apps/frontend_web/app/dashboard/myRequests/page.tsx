@@ -64,6 +64,36 @@ const MyRequestsPage = () => {
     "myRequests" | "pastRequests" | "requests"
   >("myRequests");
   const [selectedJob, setSelectedJob] = useState<JobRequest | null>(null);
+  const [isJobPostModalOpen, setIsJobPostModalOpen] = useState(false);
+  const [materials, setMaterials] = useState<string[]>([]);
+  const [materialInput, setMaterialInput] = useState("");
+
+  // Job categories for the modal
+  const jobCategories = [
+    { id: "1", name: "Plumbing", icon: "🔧" },
+    { id: "2", name: "Electrical", icon: "⚡" },
+    { id: "3", name: "Carpentry", icon: "🔨" },
+    { id: "4", name: "Painting", icon: "🎨" },
+    { id: "5", name: "Cleaning", icon: "🧹" },
+    { id: "6", name: "Gardening", icon: "🌱" },
+    { id: "7", name: "Moving", icon: "📦" },
+    { id: "8", name: "Appliance Repair", icon: "🔌" },
+  ];
+
+  // Handle adding materials
+  const handleAddMaterial = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && materialInput.trim()) {
+      e.preventDefault();
+      if (!materials.includes(materialInput.trim())) {
+        setMaterials([...materials, materialInput.trim()]);
+        setMaterialInput("");
+      }
+    }
+  };
+
+  const handleRemoveMaterial = (material: string) => {
+    setMaterials(materials.filter((m) => m !== material));
+  };
 
   // Use the worker availability hook
   const isWorker = user?.profile_data?.profileType === "WORKER";
@@ -611,7 +641,7 @@ const MyRequestsPage = () => {
                   Active Jobs
                 </h2>
                 <button
-                  onClick={() => router.push("/dashboard/newRequest")}
+                  onClick={() => setIsJobPostModalOpen(true)}
                   className="bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors flex items-center space-x-1"
                 >
                   <span>+</span>
@@ -1385,6 +1415,243 @@ const MyRequestsPage = () => {
       <div className="lg:hidden">
         <MobileNav />
       </div>
+
+      {/* Job Post Modal */}
+      {isJobPostModalOpen && (
+        <div className="fixed inset-0 flex items-start justify-center z-50 p-4 pt-8 overflow-y-auto">
+          {/* Semi-transparent backdrop */}
+          <div
+            className="fixed inset-0 bg-gray-900/20 backdrop-blur-sm"
+            onClick={() => setIsJobPostModalOpen(false)}
+          />
+
+          {/* Modal Content */}
+          <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-2xl mb-8 border border-gray-200">
+            {/* Modal Header */}
+            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between rounded-t-xl z-10">
+              <h2 className="text-xl font-semibold text-gray-900">
+                Post a Job
+              </h2>
+              <button
+                onClick={() => setIsJobPostModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6">
+              <form className="space-y-6">
+                {/* Job Title */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Job Title <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g., Fix Leaking Kitchen Sink"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                {/* Category */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Category <span className="text-red-500">*</span>
+                  </label>
+                  <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="">Select a category</option>
+                    {jobCategories.map((category) => (
+                      <option key={category.id} value={category.id}>
+                        {category.icon} {category.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Description */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Job Description <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    rows={4}
+                    placeholder="Describe the job in detail..."
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Include specific details, requirements, and expectations
+                  </p>
+                </div>
+
+                {/* Budget Amount */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Project Budget (₱) <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="0.00"
+                    min="0"
+                    step="0.01"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Enter your total budget for this project
+                  </p>
+                </div>
+
+                {/* Location */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Job Location <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g., Quezon City, Metro Manila"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Enter the address or area where the job will be performed
+                  </p>
+                </div>
+
+                {/* Duration & Urgency */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Expected Duration
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g., 2-3 hours, 1 day"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Urgency <span className="text-red-500">*</span>
+                    </label>
+                    <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                      <option value="">Select urgency</option>
+                      <option value="low">Low - Flexible timing</option>
+                      <option value="medium">Medium - Within a week</option>
+                      <option value="high">High - ASAP</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Preferred Start Date */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Preferred Start Date
+                  </label>
+                  <input
+                    type="date"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                {/* Materials Needed */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Materials Needed (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={materialInput}
+                    onChange={(e) => setMaterialInput(e.target.value)}
+                    onKeyDown={handleAddMaterial}
+                    placeholder="Type material and press Enter..."
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Press Enter to add each material
+                  </p>
+                  {/* Materials Tags */}
+                  {materials.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      {materials.map((material, index) => (
+                        <div
+                          key={index}
+                          className="bg-blue-50 text-blue-700 px-3 py-1.5 rounded-md text-sm flex items-center space-x-2 border border-blue-200"
+                        >
+                          <span>{material}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveMaterial(material)}
+                            className="text-blue-500 hover:text-blue-700 font-bold"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Photos Upload */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Photos (Optional)
+                  </label>
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors cursor-pointer">
+                    <svg
+                      className="w-12 h-12 text-gray-400 mx-auto mb-3"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                      />
+                    </svg>
+                    <p className="text-sm text-gray-600 mb-1">
+                      Click to upload or drag and drop
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      PNG, JPG, GIF up to 10MB
+                    </p>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex space-x-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setIsJobPostModalOpen(false)}
+                    className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 px-6 py-3 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 transition-colors"
+                  >
+                    Post Job
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

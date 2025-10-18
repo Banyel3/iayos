@@ -8,93 +8,127 @@ import {
   DollarSign,
   TrendingUp,
   UserCheck,
-  Clock,
-  AlertCircle,
-  CheckCircle,
   Building2,
-  FileCheck,
-  Calendar,
+  Sparkles,
+  ArrowUpRight,
+  ArrowDownRight,
+  Minus,
+  FileText,
+  MessageSquare,
 } from "lucide-react";
-import Link from "next/link";
 
 export default function AdminDashboardPage() {
-  // Mock statistics data
+  // Actual statistics data from admin pages
   const stats = {
-    totalUsers: 1247,
-    totalClients: 542,
-    totalWorkers: 628,
-    totalAgencies: 77,
-    activeJobs: 156,
-    completedJobs: 2341,
-    totalRevenue: 487250,
-    monthlyRevenue: 52430,
-    pendingPayments: 23,
-    pendingKYC: 18,
-    activeUsers: 892,
-    newUsersThisMonth: 127,
+    totalUsers: 13, // 8 clients + 2 workers + 3 agencies
+    totalClients: 8,
+    totalWorkers: 2,
+    totalAgencies: 3,
+    activeJobs: 5,
+    completedJobs: 8,
+    totalRevenue: 8223, // Sum of completed jobs: 450+875+1850+550+2200+168+680+1450
+    monthlyRevenue: 8223, // All completed jobs are from recent month
+    pendingPayments: 2, // Jobs with "processing" or "pending" payment status
+    pendingKYC: 3,
+    activeUsers: 11, // Active clients (7) + active workers (2) + active agencies (2)
+    newUsersThisMonth: 3, // Recent additions
   };
 
-  const recentActivity = [
+  const topCategories = [
+    {
+      name: "Carpentry",
+      jobs: 2,
+      revenue: 4400,
+      activeJobs: 1,
+      completedJobs: 2,
+      avgRating: 4.9,
+      growth: "+15%",
+    },
+    {
+      name: "Landscaping",
+      jobs: 1,
+      revenue: 1850,
+      activeJobs: 0,
+      completedJobs: 1,
+      avgRating: 5.0,
+      growth: "+25%",
+    },
+    {
+      name: "Windows & Doors",
+      jobs: 1,
+      revenue: 1450,
+      activeJobs: 0,
+      completedJobs: 1,
+      avgRating: 4.8,
+      growth: "+10%",
+    },
+    {
+      name: "Plumbing",
+      jobs: 1,
+      revenue: 875,
+      activeJobs: 1,
+      completedJobs: 1,
+      avgRating: 4.7,
+      growth: "+30%",
+    },
+    {
+      name: "Tile Work",
+      jobs: 1,
+      revenue: 680,
+      activeJobs: 0,
+      completedJobs: 1,
+      avgRating: 4.9,
+      growth: "+20%",
+    },
+  ];
+
+  // AI-powered prediction data (mock for future feature)
+  const trendingPredictions = [
     {
       id: 1,
-      type: "job_completed",
-      description: "House Cleaning Service completed",
-      user: "Maria Garcia",
-      time: "2 hours ago",
+      category: "Home Cleaning",
+      currentDemand: 1,
+      predictedDemand: 3,
+      trend: "up",
+      confidence: 87,
+      change: "+200%",
     },
     {
       id: 2,
-      type: "payment",
-      description: "Payment of $480 processed",
-      user: "Thomas Garcia",
-      time: "3 hours ago",
+      category: "Plumbing",
+      currentDemand: 1,
+      predictedDemand: 2,
+      trend: "up",
+      confidence: 82,
+      change: "+100%",
     },
     {
       id: 3,
-      type: "new_user",
-      description: "New worker registered",
-      user: "Steven Clark",
-      time: "5 hours ago",
+      category: "HVAC",
+      currentDemand: 1,
+      predictedDemand: 2,
+      trend: "up",
+      confidence: 91,
+      change: "+100%",
     },
     {
       id: 4,
-      type: "kyc_submitted",
-      description: "KYC verification submitted",
-      user: "Jennifer Taylor",
-      time: "6 hours ago",
+      category: "Electrical",
+      currentDemand: 2,
+      predictedDemand: 3,
+      trend: "up",
+      confidence: 78,
+      change: "+50%",
     },
     {
       id: 5,
-      type: "job_posted",
-      description: "New job posted: Electrical Panel Upgrade",
-      user: "William Davis",
-      time: "8 hours ago",
+      category: "Carpentry",
+      currentDemand: 2,
+      predictedDemand: 2,
+      trend: "stable",
+      confidence: 75,
+      change: "0%",
     },
-  ];
-
-  const pendingActions = [
-    { id: 1, action: "KYC Verifications", count: 18, link: "/admin/kyc" },
-    {
-      id: 2,
-      action: "Pending Payments",
-      count: 23,
-      link: "/admin/payments/pending",
-    },
-    {
-      id: 3,
-      action: "Dispute Resolution",
-      count: 7,
-      link: "/admin/jobs/disputes",
-    },
-    { id: 4, action: "User Reports", count: 12, link: "/admin/reviews" },
-  ];
-
-  const topCategories = [
-    { name: "Home Cleaning", jobs: 342, revenue: 45230 },
-    { name: "Plumbing", jobs: 289, revenue: 67840 },
-    { name: "Electrical", jobs: 256, revenue: 89120 },
-    { name: "Carpentry", jobs: 198, revenue: 125400 },
-    { name: "HVAC", jobs: 167, revenue: 52340 },
   ];
 
   return (
@@ -115,7 +149,7 @@ export default function AdminDashboardPage() {
           {/* Main Stats Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
             {/* Total Users */}
-            <Card className="hover:shadow-lg transition-shadow">
+            <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-gray-600">
                   Total Users
@@ -134,7 +168,7 @@ export default function AdminDashboardPage() {
             </Card>
 
             {/* Active Jobs */}
-            <Card className="hover:shadow-lg transition-shadow">
+            <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-gray-600">
                   Active Jobs
@@ -152,7 +186,7 @@ export default function AdminDashboardPage() {
             </Card>
 
             {/* Monthly Revenue */}
-            <Card className="hover:shadow-lg transition-shadow">
+            <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-gray-600">
                   Monthly Revenue
@@ -170,7 +204,7 @@ export default function AdminDashboardPage() {
             </Card>
 
             {/* Active Users */}
-            <Card className="hover:shadow-lg transition-shadow">
+            <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-gray-600">
                   Active Users
@@ -191,169 +225,119 @@ export default function AdminDashboardPage() {
 
           {/* User Breakdown */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-            <Link href="/admin/users/clients">
-              <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium text-gray-600">
-                    Clients
-                  </CardTitle>
-                  <Users className="h-5 w-5 text-blue-500" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-gray-900">
-                    {stats.totalClients}
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Active job posters
-                  </p>
-                </CardContent>
-              </Card>
-            </Link>
-
-            <Link href="/admin/users/workers">
-              <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium text-gray-600">
-                    Workers
-                  </CardTitle>
-                  <Briefcase className="h-5 w-5 text-green-500" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-gray-900">
-                    {stats.totalWorkers}
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Service providers
-                  </p>
-                </CardContent>
-              </Card>
-            </Link>
-
-            <Link href="/admin/users/agency">
-              <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium text-gray-600">
-                    Agencies
-                  </CardTitle>
-                  <Building2 className="h-5 w-5 text-purple-500" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-gray-900">
-                    {stats.totalAgencies}
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1">Service agencies</p>
-                </CardContent>
-              </Card>
-            </Link>
-          </div>
-
-          {/* Pending Actions & Recent Activity */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            {/* Pending Actions */}
             <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <AlertCircle className="h-5 w-5 text-orange-600" />
-                  Pending Actions
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-gray-600">
+                  Clients
                 </CardTitle>
+                <Users className="h-5 w-5 text-blue-500" />
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
-                  {pendingActions.map((item) => (
-                    <Link key={item.id} href={item.link}>
-                      <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer">
-                        <span className="text-sm font-medium text-gray-700">
-                          {item.action}
-                        </span>
-                        <span className="px-3 py-1 bg-orange-100 text-orange-800 text-xs font-bold rounded-full">
-                          {item.count}
-                        </span>
-                      </div>
-                    </Link>
-                  ))}
+                <div className="text-2xl font-bold text-gray-900">
+                  {stats.totalClients}
                 </div>
+                <p className="text-xs text-gray-500 mt-1">Active job posters</p>
               </CardContent>
             </Card>
 
-            {/* Recent Activity */}
             <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Clock className="h-5 w-5 text-blue-600" />
-                  Recent Activity
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-gray-600">
+                  Workers
                 </CardTitle>
+                <Briefcase className="h-5 w-5 text-green-500" />
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {recentActivity.map((activity) => (
-                    <div key={activity.id} className="flex items-start gap-3">
-                      <div
-                        className={`p-2 rounded-full ${
-                          activity.type === "job_completed"
-                            ? "bg-green-100"
-                            : activity.type === "payment"
-                              ? "bg-blue-100"
-                              : activity.type === "new_user"
-                                ? "bg-purple-100"
-                                : "bg-orange-100"
-                        }`}
-                      >
-                        {activity.type === "job_completed" ? (
-                          <CheckCircle className="h-4 w-4 text-green-600" />
-                        ) : activity.type === "payment" ? (
-                          <DollarSign className="h-4 w-4 text-blue-600" />
-                        ) : activity.type === "new_user" ? (
-                          <Users className="h-4 w-4 text-purple-600" />
-                        ) : (
-                          <FileCheck className="h-4 w-4 text-orange-600" />
-                        )}
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-gray-900">
-                          {activity.description}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {activity.user} • {activity.time}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
+                <div className="text-2xl font-bold text-gray-900">
+                  {stats.totalWorkers}
                 </div>
+                <p className="text-xs text-gray-500 mt-1">Service providers</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-gray-600">
+                  Agencies
+                </CardTitle>
+                <Building2 className="h-5 w-5 text-purple-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-gray-900">
+                  {stats.totalAgencies}
+                </div>
+                <p className="text-xs text-gray-500 mt-1">Service agencies</p>
               </CardContent>
             </Card>
           </div>
 
           {/* Top Categories */}
-          <Card>
+          <Card className="mb-6">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <TrendingUp className="h-5 w-5 text-green-600" />
                 Top Service Categories
               </CardTitle>
+              <p className="text-sm text-gray-600 mt-2">
+                Performance metrics and trends across service categories
+              </p>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 {topCategories.map((category, index) => (
                   <div key={category.name}>
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-3">
-                        <span className="text-2xl font-bold text-gray-400">
-                          {index + 1}
-                        </span>
-                        <div>
-                          <p className="font-semibold text-gray-900">
-                            {category.name}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {category.jobs} jobs
-                          </p>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4 flex-1">
+                        <div className="flex items-center justify-center w-12 h-12 rounded-full bg-gradient-to-br from-blue-100 to-purple-100">
+                          <span className="text-xl font-bold text-blue-600">
+                            #{index + 1}
+                          </span>
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-1">
+                            <p className="font-semibold text-gray-900 text-lg">
+                              {category.name}
+                            </p>
+                            <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-bold rounded">
+                              {category.growth}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-4 text-sm text-gray-600">
+                            <span>
+                              <span className="font-medium">
+                                {category.jobs}
+                              </span>{" "}
+                              total jobs
+                            </span>
+                            <span>•</span>
+                            <span>
+                              <span className="font-medium">
+                                {category.activeJobs}
+                              </span>{" "}
+                              active
+                            </span>
+                            <span>•</span>
+                            <span>
+                              <span className="font-medium">
+                                {category.completedJobs}
+                              </span>{" "}
+                              completed
+                            </span>
+                            <span>•</span>
+                            <span className="flex items-center">
+                              ⭐{" "}
+                              <span className="font-medium ml-1">
+                                {category.avgRating}
+                              </span>
+                            </span>
+                          </div>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="font-bold text-green-600">
+                      <div className="text-right ml-6">
+                        <p className="text-2xl font-bold text-green-600">
                           ${category.revenue.toLocaleString()}
                         </p>
-                        <p className="text-xs text-gray-500">revenue</p>
+                        <p className="text-xs text-gray-500">total revenue</p>
                       </div>
                     </div>
                     {index < topCategories.length - 1 && (
@@ -365,45 +349,138 @@ export default function AdminDashboardPage() {
             </CardContent>
           </Card>
 
-          {/* Quick Links */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
-            <Link href="/admin/jobs/listings">
-              <Card className="hover:shadow-lg transition-shadow cursor-pointer text-center">
-                <CardContent className="pt-6">
-                  <Briefcase className="h-8 w-8 mx-auto text-blue-600 mb-2" />
-                  <p className="font-semibold text-gray-900">Job Listings</p>
-                </CardContent>
-              </Card>
-            </Link>
-            <Link href="/admin/payments/pending">
-              <Card className="hover:shadow-lg transition-shadow cursor-pointer text-center">
-                <CardContent className="pt-6">
-                  <DollarSign className="h-8 w-8 mx-auto text-green-600 mb-2" />
-                  <p className="font-semibold text-gray-900">Payments</p>
-                </CardContent>
-              </Card>
-            </Link>
-            <Link href="/admin/kyc">
-              <Card className="hover:shadow-lg transition-shadow cursor-pointer text-center">
-                <CardContent className="pt-6">
-                  <FileCheck className="h-8 w-8 mx-auto text-orange-600 mb-2" />
-                  <p className="font-semibold text-gray-900">
-                    KYC Verification
+          {/* AI-Powered Trending Jobs Prediction */}
+          <Card className="border-2 border-blue-100 bg-gradient-to-br from-blue-50/50 to-purple-50/50">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Sparkles className="h-5 w-5 text-blue-600" />
+                    AI-Powered Job Demand Forecast
+                  </CardTitle>
+                  <p className="text-sm text-gray-600 mt-2">
+                    Machine learning predictions for upcoming job demand trends
+                    over the next 7 days
                   </p>
-                </CardContent>
-              </Card>
-            </Link>
-            <Link href="/admin/reviews">
-              <Card className="hover:shadow-lg transition-shadow cursor-pointer text-center">
-                <CardContent className="pt-6">
-                  <AlertCircle className="h-8 w-8 mx-auto text-red-600 mb-2" />
-                  <p className="font-semibold text-gray-900">
-                    Reviews & Reports
+                </div>
+                <div className="text-right">
+                  <p className="text-xs font-medium text-gray-700">
+                    Next 7 Days
                   </p>
-                </CardContent>
-              </Card>
-            </Link>
-          </div>
+                  <p className="text-xs text-gray-500">Prediction Period</p>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {trendingPredictions.map((prediction) => (
+                  <div
+                    key={prediction.id}
+                    className="flex items-center justify-between p-4 bg-white rounded-lg border border-gray-200 hover:border-blue-300 hover:shadow-md transition-all"
+                  >
+                    <div className="flex items-center gap-4 flex-1">
+                      <div
+                        className={`flex items-center justify-center w-12 h-12 rounded-full ${
+                          prediction.trend === "up"
+                            ? "bg-green-100"
+                            : prediction.trend === "down"
+                              ? "bg-red-100"
+                              : "bg-gray-100"
+                        }`}
+                      >
+                        {prediction.trend === "up" ? (
+                          <ArrowUpRight className="h-6 w-6 text-green-600" />
+                        ) : prediction.trend === "down" ? (
+                          <ArrowDownRight className="h-6 w-6 text-red-600" />
+                        ) : (
+                          <Minus className="h-6 w-6 text-gray-600" />
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-1">
+                          <p className="font-semibold text-gray-900 text-lg">
+                            {prediction.category}
+                          </p>
+                          <span
+                            className={`px-2 py-1 text-xs font-bold rounded ${
+                              prediction.trend === "up"
+                                ? "bg-green-100 text-green-700"
+                                : prediction.trend === "down"
+                                  ? "bg-red-100 text-red-700"
+                                  : "bg-gray-100 text-gray-700"
+                            }`}
+                          >
+                            {prediction.change}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-4 text-sm">
+                          <span className="text-gray-600">
+                            Current:{" "}
+                            <span className="font-medium text-gray-900">
+                              {prediction.currentDemand}
+                            </span>{" "}
+                            jobs
+                          </span>
+                          <span className="text-gray-400">→</span>
+                          <span className="text-gray-600">
+                            Predicted:{" "}
+                            <span className="font-bold text-blue-600">
+                              {prediction.predictedDemand}
+                            </span>{" "}
+                            jobs
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right ml-6">
+                      <div className="flex items-center gap-2 justify-end mb-1">
+                        <div className="w-24 bg-gray-200 rounded-full h-2.5">
+                          <div
+                            className={`h-2.5 rounded-full ${
+                              prediction.confidence >= 85
+                                ? "bg-green-500"
+                                : prediction.confidence >= 75
+                                  ? "bg-blue-500"
+                                  : "bg-yellow-500"
+                            }`}
+                            style={{ width: `${prediction.confidence}%` }}
+                          ></div>
+                        </div>
+                        <span className="text-sm font-bold text-gray-700 w-12">
+                          {prediction.confidence}%
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        {prediction.confidence >= 85
+                          ? "High"
+                          : prediction.confidence >= 75
+                            ? "Good"
+                            : "Moderate"}{" "}
+                        confidence
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-6 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200">
+                <div className="flex items-start gap-3">
+                  <Sparkles className="h-5 w-5 text-blue-600 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-semibold text-blue-900 mb-1">
+                      AI-Powered Insights
+                    </p>
+                    <p className="text-xs text-blue-800 leading-relaxed">
+                      Our machine learning model analyzes historical job
+                      patterns, seasonal trends, market indicators, and
+                      real-time platform activity to predict upcoming demand.
+                      Use these insights to optimize resource allocation and
+                      prepare for high-demand periods.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </main>
     </div>

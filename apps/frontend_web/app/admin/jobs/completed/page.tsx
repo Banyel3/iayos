@@ -9,7 +9,6 @@ import {
   Search,
   Download,
   Eye,
-  DollarSign,
   MapPin,
   Star,
   Calendar,
@@ -45,7 +44,9 @@ interface CompletedJob {
   paymentStatus: "paid" | "pending" | "processing";
   reviewStatus: "completed" | "pending" | "none";
   clientRating?: number;
+  clientReview?: string;
   workerRating?: number;
+  workerReview?: string;
   invoice: string;
 }
 
@@ -77,7 +78,11 @@ const mockCompletedJobs: CompletedJob[] = [
     paymentStatus: "paid",
     reviewStatus: "completed",
     clientRating: 5.0,
+    clientReview:
+      "Excellent work! Carlos was professional, punctual, and did an amazing job on the painting. The walls look perfect and he cleaned up everything afterwards. Highly recommend!",
     workerRating: 4.8,
+    workerReview:
+      "David was a great client to work with. Clear communication, respectful, and the workspace was well-prepared. Would definitely work with him again!",
     invoice: "INV-2024-001",
   },
   {
@@ -107,7 +112,11 @@ const mockCompletedJobs: CompletedJob[] = [
     paymentStatus: "paid",
     reviewStatus: "completed",
     clientRating: 4.9,
+    clientReview:
+      "Robert did an outstanding job with the plumbing installation. Very knowledgeable and explained everything clearly. The bathroom fixtures work perfectly!",
     workerRating: 4.7,
+    workerReview:
+      "Lisa was very accommodating and provided all the necessary materials on time. The project went smoothly thanks to her preparation.",
     invoice: "INV-2024-002",
   },
   {
@@ -137,7 +146,11 @@ const mockCompletedJobs: CompletedJob[] = [
     paymentStatus: "paid",
     reviewStatus: "completed",
     clientRating: 5.0,
+    clientReview:
+      "Miguel transformed our backyard into a beautiful oasis! His attention to detail and creative design ideas were exceptional. The irrigation system works perfectly too!",
     workerRating: 5.0,
+    workerReview:
+      "Nancy was wonderful to work with. She trusted my vision and gave me creative freedom. The project was a joy from start to finish!",
     invoice: "INV-2024-003",
   },
   {
@@ -193,7 +206,11 @@ const mockCompletedJobs: CompletedJob[] = [
     paymentStatus: "paid",
     reviewStatus: "completed",
     clientRating: 4.9,
+    clientReview:
+      "James completed the deck construction ahead of schedule and the quality is top-notch. The staining looks beautiful and he gave great advice on maintenance. Very satisfied!",
     workerRating: 4.8,
+    workerReview:
+      "Patricia was very organized and had all materials ready. She was flexible with timing and very appreciative of the work. Great client!",
     invoice: "INV-2024-005",
   },
   {
@@ -222,7 +239,11 @@ const mockCompletedJobs: CompletedJob[] = [
     paymentStatus: "paid",
     reviewStatus: "completed",
     clientRating: 4.7,
+    clientReview:
+      "Isabella did a thorough deep cleaning of the apartment. Every corner was spotless! She was efficient and very detail-oriented. Would hire again!",
     workerRating: 4.5,
+    workerReview:
+      "Steven was respectful and gave clear instructions. The apartment was in good condition which made the cleaning process smooth.",
     invoice: "INV-2024-006",
   },
   {
@@ -279,7 +300,11 @@ const mockCompletedJobs: CompletedJob[] = [
     paymentStatus: "paid",
     reviewStatus: "completed",
     clientRating: 5.0,
+    clientReview:
+      "Daniel did an amazing job replacing our old windows! The new energy-efficient windows look great and we can already feel the difference in temperature. Professional service from start to finish!",
     workerRating: 4.9,
+    workerReview:
+      "Michelle was very communicative and made sure everything was to her satisfaction. The project space was accessible and she provided refreshments. Excellent experience!",
     invoice: "INV-2024-008",
   },
 ];
@@ -551,22 +576,55 @@ export default function CompletedJobsPage() {
                     </div>
                   </div>
 
-                  {/* Ratings */}
+                  {/* Reviews */}
                   {job.reviewStatus === "completed" && (
-                    <div className="flex gap-6 mb-4 p-3 bg-blue-50 rounded-lg">
-                      <div className="flex items-center">
-                        <Star className="h-4 w-4 text-yellow-500 fill-yellow-500 mr-2" />
-                        <span className="text-sm text-gray-700">
-                          Client Rating:{" "}
-                          <span className="font-bold">{job.clientRating}</span>
-                        </span>
+                    <div className="mb-4 space-y-3">
+                      {/* Client Review */}
+                      <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <User className="h-4 w-4 text-blue-600" />
+                            <span className="text-sm font-semibold text-blue-900">
+                              Client Review
+                            </span>
+                            <span className="text-xs text-gray-500">
+                              by {job.client.name}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
+                            <span className="text-sm font-bold text-gray-900">
+                              {job.clientRating}
+                            </span>
+                          </div>
+                        </div>
+                        <p className="text-sm text-gray-700 italic">
+                          "{job.clientReview}"
+                        </p>
                       </div>
-                      <div className="flex items-center">
-                        <Star className="h-4 w-4 text-yellow-500 fill-yellow-500 mr-2" />
-                        <span className="text-sm text-gray-700">
-                          Worker Rating:{" "}
-                          <span className="font-bold">{job.workerRating}</span>
-                        </span>
+
+                      {/* Worker Review */}
+                      <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <User className="h-4 w-4 text-green-600" />
+                            <span className="text-sm font-semibold text-green-900">
+                              Worker Review
+                            </span>
+                            <span className="text-xs text-gray-500">
+                              by {job.worker.name}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
+                            <span className="text-sm font-bold text-gray-900">
+                              {job.workerRating}
+                            </span>
+                          </div>
+                        </div>
+                        <p className="text-sm text-gray-700 italic">
+                          "{job.workerReview}"
+                        </p>
                       </div>
                     </div>
                   )}
@@ -575,12 +633,7 @@ export default function CompletedJobsPage() {
                   <div className="flex items-center gap-4 mb-4 text-sm">
                     <span className="text-gray-600">
                       Transaction ID:{" "}
-                      <Link
-                        href={`/admin/payments/transactions/${job.transactionId}`}
-                        className="text-blue-600 hover:underline font-medium"
-                      >
-                        {job.transactionId}
-                      </Link>
+                      <span className="font-medium">{job.transactionId}</span>
                     </span>
                     <span className="text-gray-600">
                       Invoice:{" "}
@@ -596,18 +649,12 @@ export default function CompletedJobsPage() {
                         View Details
                       </Button>
                     </Link>
-                    <Link
-                      href={`/admin/payments/transactions/${job.transactionId}`}
-                    >
+                    <Link href={`/admin/jobs/completed/${job.id}/invoice`}>
                       <Button size="sm" variant="outline">
-                        <DollarSign className="h-4 w-4 mr-2" />
-                        View Transaction
+                        <FileText className="h-4 w-4 mr-2" />
+                        View Invoice
                       </Button>
                     </Link>
-                    <Button size="sm" variant="outline">
-                      <FileText className="h-4 w-4 mr-2" />
-                      Download Invoice
-                    </Button>
                     {job.reviewStatus === "completed" && (
                       <Link href={`/admin/reviews?job=${job.id}`}>
                         <Button size="sm" variant="outline">

@@ -30,14 +30,14 @@ interface FlaggedReview {
 const mockFlaggedReviews: FlaggedReview[] = [
   {
     id: "flag001",
-    reviewer: { name: "John Doe", type: "Client" },
+    reviewer: { name: "John Smith", type: "Client" },
     reviewee: { name: "Maria Santos", type: "Worker" },
     rating: 1,
     comment:
-      "This is completely inappropriate content that violates our guidelines.",
+      "This worker was completely unprofessional and used inappropriate language. The work was not done properly and they damaged my property. I would never recommend them to anyone!",
     reason: "Inappropriate Content",
     flaggedBy: "System Auto-detect",
-    date: "2024-01-16",
+    date: "2024-10-16",
     status: "pending",
   },
   {
@@ -45,11 +45,108 @@ const mockFlaggedReviews: FlaggedReview[] = [
     reviewer: { name: "Tom Wilson", type: "Worker" },
     reviewee: { name: "Sarah Lee", type: "Client" },
     rating: 1,
-    comment: "False accusations and defamatory statements.",
+    comment:
+      "This client made false accusations about my work and refused to pay. They are trying to scam workers and should be banned from the platform immediately!",
     reason: "False Information",
     flaggedBy: "User Report",
-    date: "2024-01-15",
+    date: "2024-10-15",
     status: "reviewed",
+  },
+  {
+    id: "flag003",
+    reviewer: { name: "Mike Johnson", type: "Client" },
+    reviewee: { name: "Pedro Alvarez", type: "Worker" },
+    rating: 1,
+    comment:
+      "Terrible experience. This person is a complete fraud and scammer. They took my money and never showed up. Contact info: [PHONE NUMBER] [EMAIL]",
+    reason: "Personal Information Disclosure",
+    flaggedBy: "System Auto-detect",
+    date: "2024-10-14",
+    status: "pending",
+  },
+  {
+    id: "flag004",
+    reviewer: { name: "Anna Martinez", type: "Worker" },
+    reviewee: { name: "Robert Chen", type: "Client" },
+    rating: 1,
+    comment:
+      "This client was extremely rude and discriminatory. Made offensive comments about my background. Hostile work environment. Should not be allowed on platform.",
+    reason: "Harassment/Discrimination",
+    flaggedBy: "User Report",
+    date: "2024-10-13",
+    status: "pending",
+  },
+  {
+    id: "flag005",
+    reviewer: { name: "David Park", type: "Client" },
+    reviewee: { name: "Lisa Wong", type: "Worker" },
+    rating: 1,
+    comment:
+      "Worst service ever! Complete waste of money. They clearly don't know what they're doing. Save yourself the trouble and hire someone else. Incompetent and lazy!",
+    reason: "Abusive Language",
+    flaggedBy: "User Report",
+    date: "2024-10-12",
+    status: "reviewed",
+  },
+  {
+    id: "flag006",
+    reviewer: { name: "James Brown", type: "Worker" },
+    reviewee: { name: "Jennifer Taylor", type: "Client" },
+    rating: 1,
+    comment:
+      "Client violated safety protocols and put me at risk. Dangerous work environment with no proper equipment. This is illegal and the client should face consequences!",
+    reason: "Safety Violation Report",
+    flaggedBy: "System Auto-detect",
+    date: "2024-10-11",
+    status: "pending",
+  },
+  {
+    id: "flag007",
+    reviewer: { name: "Emily Davis", type: "Client" },
+    reviewee: { name: "Carlos Rodriguez", type: "Worker" },
+    rating: 1,
+    comment:
+      "This review is spam. Click here for amazing deals! Visit our website for discount services. Don't use this platform, go to competitor site instead!",
+    reason: "Spam/Advertisement",
+    flaggedBy: "Multiple User Reports",
+    date: "2024-10-10",
+    status: "removed",
+  },
+  {
+    id: "flag008",
+    reviewer: { name: "Michael Lee", type: "Worker" },
+    reviewee: { name: "Amanda Foster", type: "Client" },
+    rating: 1,
+    comment:
+      "Client made threatening statements and created an unsafe situation. I felt physically threatened and had to leave the job site. This behavior is unacceptable!",
+    reason: "Threat/Violence",
+    flaggedBy: "System Auto-detect",
+    date: "2024-10-09",
+    status: "pending",
+  },
+  {
+    id: "flag009",
+    reviewer: { name: "Susan White", type: "Client" },
+    reviewee: { name: "Ricardo Santos", type: "Worker" },
+    rating: 1,
+    comment:
+      "Worker arrived drunk and completely unprofessional. Damaged my property worth thousands of dollars. Criminal behavior! They should be in jail not on this platform!",
+    reason: "Defamatory Content",
+    flaggedBy: "User Report",
+    date: "2024-10-08",
+    status: "reviewed",
+  },
+  {
+    id: "flag010",
+    reviewer: { name: "Thomas Anderson", type: "Worker" },
+    reviewee: { name: "Patricia Moore", type: "Client" },
+    rating: 1,
+    comment:
+      "Fake review - I never worked for this client. Someone is creating false reviews to damage my reputation. This is identity theft and defamation!",
+    reason: "Fraudulent Review",
+    flaggedBy: "User Report",
+    date: "2024-10-07",
+    status: "pending",
   },
 ];
 

@@ -99,25 +99,6 @@ export default function JobCategoriesPage() {
             </Card>
           </div>
 
-          {/* DOLE Reference Info */}
-          <Card className="mb-4 bg-blue-50 border-blue-200">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <Info className="h-4 w-4 text-blue-600" />
-                <div className="flex-1">
-                  <h3 className="font-semibold text-blue-900 text-sm mb-1">
-                    DOLE Minimum Wage (NCR - 2024)
-                  </h3>
-                  <div className="text-xs text-blue-800 flex gap-4">
-                    <span>Non-Agriculture: ₱610/day</span>
-                    <span>Agriculture: ₱573/day</span>
-                    <span>Retail/Service: ₱560/day</span>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
           {/* Categories List */}
           <div className="space-y-3">
             {JOB_CATEGORIES.map((category: JobCategory) => (

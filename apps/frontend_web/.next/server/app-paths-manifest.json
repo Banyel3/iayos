@@ -1,16 +1,11 @@
 {
   "/_not-found/page": "app/_not-found/page.js",
-  "/admin/dashboard/page": "app/admin/dashboard/page.js",
-  "/admin/jobs/active/page": "app/admin/jobs/active/page.js",
-  "/admin/jobs/applications/page": "app/admin/jobs/applications/page.js",
-  "/admin/jobs/categories/page": "app/admin/jobs/categories/page.js",
-  "/admin/jobs/listings/[id]/page": "app/admin/jobs/listings/[id]/page.js",
-  "/admin/jobs/listings/page": "app/admin/jobs/listings/page.js",
-  "/admin/messages/page": "app/admin/messages/page.js",
-  "/admin/payments/transactions/page": "app/admin/payments/transactions/page.js",
-  "/admin/reports/users/page": "app/admin/reports/users/page.js",
-  "/admin/reviews/all/page": "app/admin/reviews/all/page.js",
   "/api/auth/check-rate-limit/route": "app/api/auth/check-rate-limit/route.js",
   "/auth/login/page": "app/auth/login/page.js",
+  "/dashboard/home/page": "app/dashboard/home/page.js",
+  "/dashboard/inbox/page": "app/dashboard/inbox/page.js",
+  "/dashboard/myRequests/page": "app/dashboard/myRequests/page.js",
+  "/dashboard/profile/page": "app/dashboard/profile/page.js",
+  "/dashboard/workers/[id]/page": "app/dashboard/workers/[id]/page.js",
   "/favicon.ico/route": "app/favicon.ico/route.js"
 }
