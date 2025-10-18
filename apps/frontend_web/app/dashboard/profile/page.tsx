@@ -77,7 +77,13 @@ const ProfilePage = () => {
   const [showCashOutModal, setShowCashOutModal] = useState(false);
   const [fundAmount, setFundAmount] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
-  const [isProcessing, setIsProcessing] = useState(false); // Authentication check and profile type redirect
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  // Transaction history
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [isLoadingTransactions, setIsLoadingTransactions] = useState(false);
+
+  // Authentication check and profile type redirect
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.push("/auth/login");
@@ -89,41 +95,101 @@ const ProfilePage = () => {
     }
   }, [isAuthenticated, isLoading, router, user?.profile_data?.profileType]);
 
-  // Fetch wallet balance
+  // Check for payment status in URL params
   useEffect(() => {
-    const fetchWalletBalance = async () => {
-      if (!isAuthenticated) return;
+    if (!isAuthenticated) return;
 
-      try {
-        setIsLoadingWallet(true);
-        const response = await fetch(
-          "http://localhost:8000/api/accounts/wallet/balance",
-          {
-            method: "GET",
-            credentials: "include",
-            headers: {
-              "Content-Type": "application/json",
-            },
-          }
-        );
+    const urlParams = new URLSearchParams(window.location.search);
+    const paymentStatus = urlParams.get("payment");
 
-        if (response.ok) {
-          const data = await response.json();
-          setWalletBalance(data.balance || 0);
-        } else {
-          console.error("Failed to fetch wallet balance");
-          setWalletBalance(0);
+    if (paymentStatus === "success") {
+      alert("Payment completed! Your balance will be updated shortly.");
+      // Refresh balance
+      fetchWalletBalance();
+      // Clear URL params
+      window.history.replaceState({}, "", window.location.pathname);
+    } else if (paymentStatus === "failed") {
+      alert("Payment failed or was cancelled.");
+      // Clear URL params
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, [isAuthenticated]);
+
+  // Fetch wallet balance function (moved outside useEffect so we can call it)
+  const fetchWalletBalance = async () => {
+    if (!isAuthenticated) return;
+
+    try {
+      setIsLoadingWallet(true);
+      const response = await fetch(
+        "http://localhost:8000/api/accounts/wallet/balance",
+        {
+          method: "GET",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
         }
-      } catch (error) {
-        console.error("Error fetching wallet balance:", error);
-        setWalletBalance(0);
-      } finally {
-        setIsLoadingWallet(false);
-      }
-    };
+      );
 
+      if (response.ok) {
+        const data = await response.json();
+        setWalletBalance(data.balance || 0);
+      } else {
+        console.error("Failed to fetch wallet balance");
+        setWalletBalance(0);
+      }
+    } catch (error) {
+      console.error("Error fetching wallet balance:", error);
+      setWalletBalance(0);
+    } finally {
+      setIsLoadingWallet(false);
+    }
+  };
+
+  // Fetch wallet balance on mount
+  useEffect(() => {
     fetchWalletBalance();
   }, [isAuthenticated]);
+
+  // Fetch transactions
+  const fetchTransactions = async () => {
+    if (!isAuthenticated) return;
+
+    try {
+      setIsLoadingTransactions(true);
+      const response = await fetch(
+        "http://localhost:8000/api/accounts/wallet/transactions",
+        {
+          method: "GET",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        setTransactions(data.transactions || []);
+      } else {
+        console.error("Failed to fetch transactions");
+        setTransactions([]);
+      }
+    } catch (error) {
+      console.error("Error fetching transactions:", error);
+      setTransactions([]);
+    } finally {
+      setIsLoadingTransactions(false);
+    }
+  };
+
+  // Fetch transactions when transaction tab is active
+  useEffect(() => {
+    if (activeTab === "transaction" && isAuthenticated) {
+      fetchTransactions();
+    }
+  }, [activeTab, isAuthenticated]);
 
   // Handle Add Funds (for clients)
   const handleAddFunds = async () => {
@@ -135,22 +201,25 @@ const ProfilePage = () => {
     try {
       setIsProcessing(true);
       const response = await fetch(
-        "http://localhost:8000/api/payments/create-deposit",
+        "http://localhost:8000/api/accounts/wallet/deposit",
         {
           method: "POST",
           credentials: "include",
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ amount: Number(fundAmount) }),
+          body: JSON.stringify({
+            amount: Number(fundAmount),
+            payment_method: "GCASH",
+          }),
         }
       );
 
       const data = await response.json();
 
-      if (response.ok && data.checkout_url) {
-        // Redirect to PayMongo checkout
-        window.location.href = data.checkout_url;
+      if (response.ok && data.success && data.payment_url) {
+        // Redirect to Xendit payment page
+        window.location.href = data.payment_url;
       } else {
         alert(data.error || "Failed to create payment. Please try again.");
       }
@@ -487,8 +556,74 @@ const ProfilePage = () => {
           )}
 
           {activeTab === "transaction" && (
-            <div className="text-center py-8 text-gray-500">
-              <p className="text-sm">No transactions to display</p>
+            <div className="space-y-3">
+              {isLoadingTransactions ? (
+                <div className="text-center py-8 text-gray-500">
+                  <p className="text-sm">Loading transactions...</p>
+                </div>
+              ) : transactions.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <p className="text-sm">No transactions yet</p>
+                </div>
+              ) : (
+                transactions.map((transaction) => (
+                  <div
+                    key={transaction.id}
+                    className="bg-white rounded-lg border border-gray-200 p-4"
+                  >
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span
+                            className={`text-sm font-semibold ${
+                              transaction.type === "DEPOSIT"
+                                ? "text-green-600"
+                                : transaction.type === "WITHDRAWAL"
+                                  ? "text-red-600"
+                                  : "text-gray-900"
+                            }`}
+                          >
+                            {transaction.type === "DEPOSIT"
+                              ? "+"
+                              : transaction.type === "WITHDRAWAL"
+                                ? "-"
+                                : ""}
+                            ₱{transaction.amount.toFixed(2)}
+                          </span>
+                          <span
+                            className={`text-xs px-2 py-0.5 rounded-full ${
+                              transaction.status === "COMPLETED"
+                                ? "bg-green-100 text-green-700"
+                                : transaction.status === "PENDING"
+                                  ? "bg-yellow-100 text-yellow-700"
+                                  : "bg-red-100 text-red-700"
+                            }`}
+                          >
+                            {transaction.status}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-600 mb-1">
+                          {transaction.description}
+                        </p>
+                        <p className="text-xs text-gray-400">
+                          {new Date(transaction.created_at).toLocaleString()}
+                        </p>
+                        {transaction.payment_method && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            via {transaction.payment_method}
+                          </p>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-gray-500">Balance After</p>
+                        <p className="text-sm font-medium text-gray-900">
+                          ₱{transaction.balance_after.toFixed(2)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           )}
         </div>
@@ -885,8 +1020,78 @@ const ProfilePage = () => {
                 )}
 
                 {activeTab === "transaction" && (
-                  <div className="text-center py-12 text-gray-500">
-                    <p>No transactions to display</p>
+                  <div className="space-y-3">
+                    {isLoadingTransactions ? (
+                      <div className="text-center py-12 text-gray-500">
+                        <p>Loading transactions...</p>
+                      </div>
+                    ) : transactions.length === 0 ? (
+                      <div className="text-center py-12 text-gray-500">
+                        <p>No transactions yet</p>
+                      </div>
+                    ) : (
+                      transactions.map((transaction) => (
+                        <div
+                          key={transaction.id}
+                          className="bg-white rounded-lg border border-gray-200 p-4"
+                        >
+                          <div className="flex justify-between items-start">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span
+                                  className={`text-base font-semibold ${
+                                    transaction.type === "DEPOSIT"
+                                      ? "text-green-600"
+                                      : transaction.type === "WITHDRAWAL"
+                                        ? "text-red-600"
+                                        : "text-gray-900"
+                                  }`}
+                                >
+                                  {transaction.type === "DEPOSIT"
+                                    ? "+"
+                                    : transaction.type === "WITHDRAWAL"
+                                      ? "-"
+                                      : ""}
+                                  ₱{transaction.amount.toFixed(2)}
+                                </span>
+                                <span
+                                  className={`text-xs px-2 py-0.5 rounded-full ${
+                                    transaction.status === "COMPLETED"
+                                      ? "bg-green-100 text-green-700"
+                                      : transaction.status === "PENDING"
+                                        ? "bg-yellow-100 text-yellow-700"
+                                        : "bg-red-100 text-red-700"
+                                  }`}
+                                >
+                                  {transaction.status}
+                                </span>
+                              </div>
+                              <p className="text-sm text-gray-600 mb-1">
+                                {transaction.description}
+                              </p>
+                              <p className="text-xs text-gray-400">
+                                {new Date(
+                                  transaction.created_at
+                                ).toLocaleString()}
+                              </p>
+                              {transaction.payment_method && (
+                                <p className="text-xs text-gray-500 mt-1">
+                                  via {transaction.payment_method}
+                                </p>
+                              )}
+                            </div>
+                            <div className="text-right">
+                              <p className="text-xs text-gray-500">
+                                Balance After
+                              </p>
+                              <p className="text-base font-medium text-gray-900">
+                                ₱{transaction.balance_after.toFixed(2)}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
                 )}
               </div>
@@ -1024,7 +1229,7 @@ const ProfilePage = () => {
             </div>
 
             <p className="text-xs text-gray-500 mt-4 text-center">
-              You will be redirected to PayMongo to complete the payment
+              You will be redirected to Xendit to complete the payment
             </p>
           </div>
         </div>

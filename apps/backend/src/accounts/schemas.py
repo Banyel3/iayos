@@ -103,3 +103,8 @@ class WorkerLocationSchema(Schema):
     distance_km: float
     availability_status: str
     specializations: list
+
+class DepositFundsSchema(Schema):
+    """Schema for wallet deposit request"""
+    amount: float
+    payment_method: Optional[str] = "GCASH"

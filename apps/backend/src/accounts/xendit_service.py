@@ -1,28 +1,37 @@
 """
 Xendit Payment Gateway Service
-Handles payment processing via Xendit API
+Handles payment processing via Xendit API using direct HTTP requests
 """
 
-import xendit
-from xendit import Invoice, EWallet
+import requests
 from django.conf import settings
 from datetime import datetime, timedelta
 import uuid
 import logging
+import base64
 
 logger = logging.getLogger(__name__)
-
-# Configure Xendit with API key
-xendit.api_key = settings.XENDIT_API_KEY
 
 
 class XenditService:
     """Service for handling Xendit payment operations"""
     
+    BASE_URL = "https://api.xendit.co"
+    
+    @staticmethod
+    def _get_headers():
+        """Get authorization headers for Xendit API"""
+        auth_string = f"{settings.XENDIT_API_KEY}:"
+        encoded = base64.b64encode(auth_string.encode()).decode()
+        return {
+            "Authorization": f"Basic {encoded}",
+            "Content-Type": "application/json"
+        }
+    
     @staticmethod
     def create_gcash_payment(amount: float, user_email: str, user_name: str, transaction_id: int):
         """
-        Create a GCash payment via Xendit Invoice
+        Create a GCash payment via Xendit Invoice API
         
         Args:
             amount: Amount in PHP
@@ -37,9 +46,6 @@ class XenditService:
             # Generate unique external ID
             external_id = f"IAYOS-DEP-{transaction_id}-{uuid.uuid4().hex[:8]}"
             
-            # Calculate expiry (24 hours from now)
-            expiry_time = datetime.now() + timedelta(hours=24)
-            
             # Create invoice with GCash as payment method
             invoice_data = {
                 "external_id": external_id,
@@ -51,7 +57,7 @@ class XenditService:
                 "failure_redirect_url": f"{settings.FRONTEND_URL}/dashboard/profile?payment=failed",
                 "currency": "PHP",
                 "payment_methods": ["GCASH"],  # Only GCash
-                "should_send_email": True,
+                "should_send_email": False,
                 "customer": {
                     "given_names": user_name,
                     "email": user_email,
@@ -66,21 +72,52 @@ class XenditService:
                 ]
             }
             
-            # Create invoice via Xendit API
-            invoice = Invoice.create(**invoice_data)
+            print(f"🔐 Xendit API Request:")
+            print(f"   URL: {XenditService.BASE_URL}/v2/invoices")
+            print(f"   Amount: {amount} PHP")
+            print(f"   External ID: {external_id}")
             
-            logger.info(f"✅ Xendit Invoice created: {invoice['id']} for transaction {transaction_id}")
+            # Make API request to Xendit
+            response = requests.post(
+                f"{XenditService.BASE_URL}/v2/invoices",
+                json=invoice_data,
+                headers=XenditService._get_headers(),
+                timeout=30
+            )
             
+            print(f"📡 Xendit Response: Status {response.status_code}")
+            
+            if response.status_code == 200:
+                invoice = response.json()
+                logger.info(f"✅ Xendit Invoice created: {invoice['id']} for transaction {transaction_id}")
+                
+                return {
+                    "success": True,
+                    "invoice_id": invoice['id'],
+                    "invoice_url": invoice['invoice_url'],
+                    "external_id": external_id,
+                    "expiry_date": invoice['expiry_date'],
+                    "amount": invoice['amount'],
+                    "status": invoice['status']
+                }
+            else:
+                error_data = response.json() if response.text else {}
+                error_message = error_data.get('message', f'HTTP {response.status_code}')
+                logger.error(f"❌ Xendit API Error: {error_message}")
+                print(f"❌ Xendit Response: {response.status_code} - {response.text}")
+                return {
+                    "success": False,
+                    "error": error_message
+                }
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"❌ Xendit API request failed: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return {
-                "success": True,
-                "invoice_id": invoice['id'],
-                "invoice_url": invoice['invoice_url'],
-                "external_id": external_id,
-                "expiry_date": invoice['expiry_date'],
-                "amount": invoice['amount'],
-                "status": invoice['status']
+                "success": False,
+                "error": f"Connection error: {str(e)}"
             }
-            
         except Exception as e:
             logger.error(f"❌ Xendit Invoice creation failed: {str(e)}")
             import traceback
@@ -102,16 +139,28 @@ class XenditService:
             dict: Invoice status details
         """
         try:
-            invoice = Invoice.get(invoice_id=invoice_id)
+            response = requests.get(
+                f"{XenditService.BASE_URL}/v2/invoices/{invoice_id}",
+                headers=XenditService._get_headers(),
+                timeout=30
+            )
             
-            return {
-                "success": True,
-                "status": invoice['status'],
-                "paid_amount": invoice.get('paid_amount', 0),
-                "payment_method": invoice.get('payment_method'),
-                "payment_channel": invoice.get('payment_channel'),
-                "payment_id": invoice.get('payment_id'),
-            }
+            if response.status_code == 200:
+                invoice = response.json()
+                return {
+                    "success": True,
+                    "status": invoice['status'],
+                    "paid_amount": invoice.get('paid_amount', 0),
+                    "payment_method": invoice.get('payment_method'),
+                    "payment_channel": invoice.get('payment_channel'),
+                    "payment_id": invoice.get('payment_id'),
+                }
+            else:
+                logger.error(f"❌ Failed to get invoice status: {response.text}")
+                return {
+                    "success": False,
+                    "error": f"HTTP {response.status_code}"
+                }
             
         except Exception as e:
             logger.error(f"❌ Failed to get invoice status: {str(e)}")

@@ -5,7 +5,8 @@ from .schemas import (
     forgotPasswordSchema, resetPasswordSchema, assignRoleSchema, 
     KYCUploadSchema, KYCStatusResponse, KYCUploadResponse,
     UpdateLocationSchema, LocationResponseSchema, 
-    ToggleLocationSharingSchema, NearbyWorkersSchema
+    ToggleLocationSharingSchema, NearbyWorkersSchema,
+    DepositFundsSchema
 )
 from .services import (
     create_account_individ, create_account_agency, login_account, 
@@ -607,7 +608,7 @@ def get_wallet_balance(request):
 
 
 @router.post("/wallet/deposit", auth=cookie_auth)
-def deposit_funds(request, amount: float, payment_method: str = "GCASH"):
+def deposit_funds(request, data: DepositFundsSchema):
     """
     Create a Xendit payment invoice for wallet deposit
     Returns the payment URL for user to complete payment
@@ -617,6 +618,11 @@ def deposit_funds(request, amount: float, payment_method: str = "GCASH"):
         from .xendit_service import XenditService
         from decimal import Decimal
         from django.utils import timezone
+        
+        amount = data.amount
+        payment_method = data.payment_method
+        
+        print(f"📥 Deposit request received: amount={amount}, payment_method={payment_method}")
         
         if amount <= 0:
             return Response(
@@ -641,14 +647,25 @@ def deposit_funds(request, amount: float, payment_method: str = "GCASH"):
             paymentMethod=Transaction.PaymentMethod.GCASH
         )
         
+        # Get user's profile for name
+        try:
+            from .models import Profile
+            profile = Profile.objects.get(accountFK=request.auth)
+            user_name = f"{profile.firstName} {profile.lastName}"
+        except Profile.DoesNotExist:
+            user_name = request.auth.email.split('@')[0]  # Fallback to email username
+        
         # Create Xendit invoice for GCash payment
-        user_name = f"{request.auth.firstName} {request.auth.lastName}"
+        print(f"🔄 Creating Xendit invoice for {user_name} ({request.auth.email})")
+        
         xendit_result = XenditService.create_gcash_payment(
             amount=amount,
             user_email=request.auth.email,
             user_name=user_name,
             transaction_id=transaction.transactionID
         )
+        
+        print(f"📤 Xendit result: {xendit_result}")
         
         if not xendit_result.get("success"):
             # Failed to create invoice, mark transaction as failed
@@ -679,26 +696,6 @@ def deposit_funds(request, amount: float, payment_method: str = "GCASH"):
             "amount": amount,
             "expiry_date": xendit_result['expiry_date'],
             "message": "Please complete payment via GCash"
-        }
-        wallet.save()
-        
-        # Create transaction record
-        transaction = Transaction.objects.create(
-            walletID=wallet,
-            transactionType="DEPOSIT",
-            amount=Decimal(str(amount)),
-            balanceAfter=wallet.balance,
-            status="COMPLETED",
-            description=f"Deposit via {payment_method}",
-            paymentMethod=payment_method,
-            completedAt=timezone.now()
-        )
-        
-        return {
-            "success": True,
-            "new_balance": float(wallet.balance),
-            "transaction_id": transaction.transactionID,
-            "message": f"Successfully deposited ₱{amount}"
         }
         
     except Exception as e:
@@ -911,6 +908,84 @@ def xendit_webhook(request):
         traceback.print_exc()
         return Response(
             {"error": "Failed to process webhook"},
+            status=500
+        )
+
+
+@router.post("/wallet/simulate-payment/{transaction_id}", auth=cookie_auth)
+def simulate_payment_completion(request, transaction_id: int):
+    """
+    DEVELOPMENT ONLY: Manually complete a payment for testing
+    This simulates what the Xendit webhook would do
+    """
+    try:
+        from .models import Transaction
+        from decimal import Decimal
+        from django.utils import timezone
+        
+        # Get transaction
+        try:
+            transaction = Transaction.objects.get(
+                transactionID=transaction_id,
+                walletID__accountFK=request.auth  # Ensure user owns this transaction
+            )
+        except Transaction.DoesNotExist:
+            return Response(
+                {"error": "Transaction not found"},
+                status=404
+            )
+        
+        # Check if already completed
+        if transaction.status == Transaction.TransactionStatus.COMPLETED:
+            return {
+                "success": False,
+                "message": "Transaction already completed",
+                "balance": float(transaction.walletID.balance)
+            }
+        
+        # Check if pending
+        if transaction.status != Transaction.TransactionStatus.PENDING:
+            return Response(
+                {"error": f"Transaction is {transaction.status}, cannot complete"},
+                status=400
+            )
+        
+        # Complete the payment
+        wallet = transaction.walletID
+        
+        print(f"💰 Simulating payment completion for transaction {transaction_id}")
+        print(f"   Current balance: ₱{wallet.balance}")
+        print(f"   Adding: ₱{transaction.amount}")
+        
+        # Update wallet balance
+        wallet.balance += transaction.amount
+        wallet.save()
+        
+        # Update transaction
+        transaction.status = Transaction.TransactionStatus.COMPLETED
+        transaction.balanceAfter = wallet.balance
+        transaction.xenditPaymentID = "SIMULATED_" + str(transaction_id)
+        transaction.xenditPaymentChannel = "GCASH"
+        transaction.completedAt = timezone.now()
+        transaction.save()
+        
+        print(f"   New balance: ₱{wallet.balance}")
+        print(f"✅ Payment simulation completed!")
+        
+        return {
+            "success": True,
+            "message": "Payment completed successfully (simulated)",
+            "transaction_id": transaction.transactionID,
+            "amount": float(transaction.amount),
+            "new_balance": float(wallet.balance)
+        }
+        
+    except Exception as e:
+        print(f"❌ Error simulating payment: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to simulate payment"},
             status=500
         )
 
