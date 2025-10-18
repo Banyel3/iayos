@@ -16,6 +16,7 @@ import {
   FileText,
   MessageSquare,
 } from "lucide-react";
+<<<<<<< HEAD
 
 export default function AdminDashboardPage() {
   // Actual statistics data from admin pages
@@ -32,6 +33,36 @@ export default function AdminDashboardPage() {
     pendingKYC: 3,
     activeUsers: 11, // Active clients (7) + active workers (2) + active agencies (2)
     newUsersThisMonth: 3, // Recent additions
+=======
+import Link from "next/link";
+import {
+  getAdminStats,
+  mockApplications,
+  mockJobListings,
+} from "@/lib/mockData";
+
+export default function AdminDashboardPage() {
+  // Get actual statistics from mock data
+  const adminStats = getAdminStats();
+
+  const stats = {
+    totalUsers: adminStats.totalUsers,
+    totalClients: adminStats.totalClients,
+    totalWorkers: adminStats.totalWorkers,
+    totalAgencies: adminStats.totalAgencies,
+    activeJobs: adminStats.activeJobs,
+    completedJobs: adminStats.completedJobs,
+    totalRevenue: adminStats.totalRevenue,
+    monthlyRevenue: adminStats.monthlyRevenue,
+    totalJobListings: adminStats.totalJobListings,
+    openJobs: adminStats.openJobs,
+    totalApplications: adminStats.totalApplications,
+    pendingApplications: adminStats.pendingApplications,
+    pendingPayments: 23, // Keep this as is (not in mock data yet)
+    pendingKYC: 18, // Keep this as is (not in mock data yet)
+    activeUsers: adminStats.activeUsers,
+    newUsersThisMonth: 8, // Estimate based on mock data
+>>>>>>> dfd36363bfb9d52430933340af3d1642666429b4
   };
 
   const topCategories = [
@@ -131,6 +162,53 @@ export default function AdminDashboardPage() {
     },
   ];
 
+<<<<<<< HEAD
+=======
+  const pendingActions = [
+    {
+      id: 1,
+      action: "KYC Verifications",
+      count: stats.pendingKYC,
+      link: "/admin/kyc",
+    },
+    {
+      id: 2,
+      action: "Pending Payments",
+      count: stats.pendingPayments,
+      link: "/admin/payments/pending",
+    },
+    {
+      id: 3,
+      action: "Pending Applications",
+      count: adminStats.pendingApplications,
+      link: "/admin/jobs/applications",
+    },
+    { id: 4, action: "User Reports", count: 12, link: "/admin/reviews" },
+  ];
+
+  // Calculate top categories from actual job listings
+  const categoryStats = mockJobListings.reduce(
+    (acc, job) => {
+      if (!acc[job.category]) {
+        acc[job.category] = { jobs: 0, revenue: 0 };
+      }
+      acc[job.category].jobs += 1;
+      acc[job.category].revenue += job.budget;
+      return acc;
+    },
+    {} as Record<string, { jobs: number; revenue: number }>
+  );
+
+  const topCategories = Object.entries(categoryStats)
+    .map(([name, stats]) => ({
+      name,
+      jobs: stats.jobs,
+      revenue: stats.revenue,
+    }))
+    .sort((a, b) => b.revenue - a.revenue)
+    .slice(0, 5);
+
+>>>>>>> dfd36363bfb9d52430933340af3d1642666429b4
   return (
     <div className="flex">
       <Sidebar />

@@ -10,7 +10,7 @@
 !.yarn/releases
 !.yarn/versions
 /apps/backend/venv/
-
+/apps/frontend_web/.next/
 # testing
 /coverage
 .turbo
@@ -72,3 +72,5 @@ htmlcov/
 .idea/
 
 /lib/generated/prisma
+/apps/frontend_web/.next
+/apps/frontend_web/.next
