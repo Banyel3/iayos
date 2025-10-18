@@ -218,18 +218,20 @@ const ProfilePage = () => {
       const data = await response.json();
 
       if (response.ok && data.success && data.payment_url) {
-        // Redirect to Xendit payment page
+        // Funds are added immediately in TEST MODE
+        // Redirect to Xendit page for user experience
+        alert(
+          `✅ ₱${fundAmount} added to your wallet!\nYou'll be redirected to the Xendit payment page.\nYour new balance: ₱${data.new_balance}`
+        );
         window.location.href = data.payment_url;
       } else {
-        alert(data.error || "Failed to create payment. Please try again.");
+        alert(data.error || "Failed to add funds. Please try again.");
       }
     } catch (error) {
       console.error("Error adding funds:", error);
       alert("An error occurred. Please try again.");
     } finally {
       setIsProcessing(false);
-      setShowAddFundsModal(false);
-      setFundAmount("");
     }
   };
 

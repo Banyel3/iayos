@@ -611,10 +611,11 @@ def get_wallet_balance(request):
 def deposit_funds(request, data: DepositFundsSchema):
     """
     Create a Xendit payment invoice for wallet deposit
-    Returns the payment URL for user to complete payment
+    TEST MODE: Transaction auto-approved, funds added immediately
+    Returns payment URL for user to see Xendit page
     """
     try:
-        from .models import Wallet, Transaction
+        from .models import Wallet, Transaction, Profile
         from .xendit_service import XenditService
         from decimal import Decimal
         from django.utils import timezone
@@ -636,28 +637,37 @@ def deposit_funds(request, data: DepositFundsSchema):
             defaults={'balance': 0.00}
         )
         
-        # Create pending transaction first
-        transaction = Transaction.objects.create(
-            walletID=wallet,
-            transactionType=Transaction.TransactionType.DEPOSIT,
-            amount=Decimal(str(amount)),
-            balanceAfter=wallet.balance,  # Will be updated when payment completes
-            status=Transaction.TransactionStatus.PENDING,
-            description=f"GCash Deposit - ₱{amount}",
-            paymentMethod=Transaction.PaymentMethod.GCASH
-        )
-        
         # Get user's profile for name
         try:
-            from .models import Profile
             profile = Profile.objects.get(accountFK=request.auth)
             user_name = f"{profile.firstName} {profile.lastName}"
         except Profile.DoesNotExist:
             user_name = request.auth.email.split('@')[0]  # Fallback to email username
         
-        # Create Xendit invoice for GCash payment
-        print(f"🔄 Creating Xendit invoice for {user_name} ({request.auth.email})")
+        print(f"💰 Processing deposit for {user_name}")
+        print(f"   Current balance: ₱{wallet.balance}")
         
+        # TEST MODE: Add funds immediately and mark as completed
+        wallet.balance += Decimal(str(amount))
+        wallet.save()
+        
+        # Create completed transaction (auto-approved in TEST MODE)
+        transaction = Transaction.objects.create(
+            walletID=wallet,
+            transactionType=Transaction.TransactionType.DEPOSIT,
+            amount=Decimal(str(amount)),
+            balanceAfter=wallet.balance,
+            status=Transaction.TransactionStatus.COMPLETED,
+            description=f"TOP UP via GCASH - ₱{amount}",
+            paymentMethod=Transaction.PaymentMethod.GCASH,
+            completedAt=timezone.now()
+        )
+        
+        print(f"   New balance: ₱{wallet.balance}")
+        print(f"✅ Funds added immediately! Transaction {transaction.transactionID}")
+        
+        # Create Xendit invoice for user experience
+        print(f"🔄 Creating Xendit invoice...")
         xendit_result = XenditService.create_gcash_payment(
             amount=amount,
             user_email=request.auth.email,
@@ -665,14 +675,8 @@ def deposit_funds(request, data: DepositFundsSchema):
             transaction_id=transaction.transactionID
         )
         
-        print(f"📤 Xendit result: {xendit_result}")
-        
         if not xendit_result.get("success"):
-            # Failed to create invoice, mark transaction as failed
-            transaction.status = Transaction.TransactionStatus.FAILED
-            transaction.description = f"Failed: {xendit_result.get('error', 'Unknown error')}"
-            transaction.save()
-            
+            # If Xendit fails, funds are still added but return error
             return Response(
                 {"error": "Failed to create payment invoice", "details": xendit_result.get("error")},
                 status=500
@@ -686,7 +690,7 @@ def deposit_funds(request, data: DepositFundsSchema):
         transaction.xenditPaymentMethod = "EWALLET"
         transaction.save()
         
-        print(f"✅ Payment invoice created for transaction {transaction.transactionID}")
+        print(f"📄 Xendit invoice created: {xendit_result['invoice_id']}")
         
         return {
             "success": True,
@@ -694,8 +698,9 @@ def deposit_funds(request, data: DepositFundsSchema):
             "payment_url": xendit_result['invoice_url'],
             "invoice_id": xendit_result['invoice_id'],
             "amount": amount,
+            "new_balance": float(wallet.balance),
             "expiry_date": xendit_result['expiry_date'],
-            "message": "Please complete payment via GCash"
+            "message": "Funds added and payment invoice created"
         }
         
     except Exception as e:
