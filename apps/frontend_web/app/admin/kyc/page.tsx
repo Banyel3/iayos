@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Card,
@@ -26,7 +26,7 @@ interface KYCRecord {
   userId: string;
   userName: string;
   userEmail: string;
-  userType: "worker" | "client";
+  userType: "worker" | "client" | "agency";
   submissionDate: string;
   status: "pending" | "approved" | "rejected" | "under_review";
   documentsSubmitted: {
@@ -38,68 +38,86 @@ interface KYCRecord {
   reviewDate?: string;
   comments?: string;
 }
-
-const mockKYCRecords: KYCRecord[] = [
-  {
-    id: "1",
-    userId: "user_1",
-    userName: "John Doe",
-    userEmail: "john.doe@example.com",
-    userType: "worker",
-    submissionDate: "2024-03-20",
-    status: "pending",
-    documentsSubmitted: [
-      { name: "ID_Card.pdf", type: "identity", status: "pending" },
-      { name: "Professional_License.pdf", type: "license", status: "pending" },
-      { name: "Bank_Statement.pdf", type: "financial", status: "pending" },
-    ],
-  },
-  {
-    id: "2",
-    userId: "user_2",
-    userName: "Jane Smith",
-    userEmail: "jane.smith@example.com",
-    userType: "client",
-    submissionDate: "2024-03-15",
-    status: "approved",
-    documentsSubmitted: [
-      { name: "Passport.pdf", type: "identity", status: "approved" },
-      { name: "Utility_Bill.pdf", type: "address", status: "approved" },
-    ],
-    reviewedBy: "Admin User",
-    reviewDate: "2024-03-18",
-    comments: "All documents verified successfully",
-  },
-  {
-    id: "3",
-    userId: "user_3",
-    userName: "Mike Johnson",
-    userEmail: "mike.johnson@example.com",
-    userType: "worker",
-    submissionDate: "2024-03-10",
-    status: "rejected",
-    documentsSubmitted: [
-      { name: "ID_Card.pdf", type: "identity", status: "rejected" },
-      { name: "License.pdf", type: "license", status: "approved" },
-    ],
-    reviewedBy: "Admin User",
-    reviewDate: "2024-03-12",
-    comments: "ID document is not clear, please resubmit",
-  },
-];
+// We'll fetch real KYC data from the admin API and merge user KYC + agency KYC
 
 import { Sidebar } from "../components";
 
 export default function KYCManagementPage() {
   const router = useRouter();
-  const [kycRecords] = useState<KYCRecord[]>(mockKYCRecords);
+  const [kycRecords, setKycRecords] = useState<KYCRecord[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<
     "all" | "pending" | "approved" | "rejected" | "under_review"
   >("all");
-  const [typeFilter, setTypeFilter] = useState<"all" | "worker" | "client">(
+  const [typeFilter, setTypeFilter] = useState<"all" | "worker" | "client" | "agency">(
     "all"
   );
+
+  useEffect(() => {
+    // Fetch aggregated KYC data from admin API and merge user & agency entries
+    const fetchKyc = async () => {
+      try {
+        const res = await fetch("/api/adminpanel/kyc/all", { credentials: "include" });
+        if (!res.ok) {
+          console.error("Failed to fetch admin KYC data", await res.text());
+          return;
+        }
+        const data = await res.json();
+
+        const users = data.users || [];
+        const userKyc = data.kyc || [];
+        const userFiles = data.kyc_files || [];
+
+        // Map user KYC to KYCRecord shape
+        const userRecords: KYCRecord[] = userKyc.map((r: any) => {
+          const user = users.find((u: any) => u.accountID === r.accountFK) || {};
+          const files = userFiles.filter((f: any) => f.kycID === r.kycID);
+          return {
+            id: String(r.kycID),
+            userId: String(r.accountFK),
+            userName: user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : user.email || "",
+            userEmail: user.email || "",
+            userType: (user.profileType && user.profileType.toLowerCase()) || "worker",
+            submissionDate: r.createdAt,
+            status: r.kycStatus?.toLowerCase() || "pending",
+            documentsSubmitted: files.map((f: any) => ({ name: f.fileName, type: f.fileType || "document", status: "pending" })),
+            reviewedBy: r.reviewedBy || undefined,
+            reviewDate: r.reviewedAt || undefined,
+            comments: r.notes || undefined,
+          };
+        });
+
+        // Map agency KYC
+        const agencyKyc = data.agency_kyc || [];
+        const agencyFiles = data.agency_kyc_files || [];
+        const agencies = data.agencies || [];
+
+        const agencyRecords: KYCRecord[] = agencyKyc.map((r: any) => {
+          const agency = agencies.find((a: any) => a.accountID === r.accountFK) || {};
+          const files = agencyFiles.filter((f: any) => f.agencyKyc_id === r.agencyKycID || f.agencyKyc === r.agencyKycID || f.agencyKyc_id === r.agencyKycID || f.agencyKyc === r.agencyKycID);
+          return {
+            id: String(r.agencyKycID),
+            userId: String(r.accountFK),
+            userName: agency.businessName || agency.email || "",
+            userEmail: agency.email || "",
+            userType: "agency",
+            submissionDate: r.createdAt,
+            status: r.status?.toLowerCase() || "pending",
+            documentsSubmitted: files.map((f: any) => ({ name: f.fileName, type: f.fileType || "document", status: "pending" })),
+            reviewedBy: r.reviewedBy || undefined,
+            reviewDate: r.reviewedAt || undefined,
+            comments: r.notes || undefined,
+          };
+        });
+
+        setKycRecords([...userRecords, ...agencyRecords]);
+      } catch (err) {
+        console.error("Error fetching admin KYC data", err);
+      }
+    };
+
+    fetchKyc();
+  }, []);
 
   const filteredRecords = kycRecords.filter((record) => {
     const matchesSearch =
@@ -248,13 +266,14 @@ export default function KYCManagementPage() {
               <select
                 value={typeFilter}
                 onChange={(e) =>
-                  setTypeFilter(e.target.value as "all" | "worker" | "client")
+                  setTypeFilter(e.target.value as "all" | "worker" | "client" | "agency")
                 }
                 className="px-3 py-2 border rounded-md"
               >
                 <option value="all">All Types</option>
                 <option value="worker">Workers</option>
                 <option value="client">Clients</option>
+                <option value="agency">Agencies</option>
               </select>
             </div>
           </CardContent>

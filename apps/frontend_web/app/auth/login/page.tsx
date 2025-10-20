@@ -156,10 +156,22 @@ const Login = () => {
   // 🔥 FIX: Only redirect if we're SURE user is authenticated AND not loading
   useEffect(() => {
     if (!authLoading && isAuthenticated && user) {
-      console.log("✅ User already authenticated, checking role...", user.role);
+      // Prefer backend accountType when available (more authoritative)
+      const accountType = (user.accountType || "").toString().toLowerCase();
+      const role = (user.role || "").toString().toUpperCase();
+      console.log(
+        "✅ User already authenticated, accountType:",
+        accountType,
+        "role:",
+        role
+      );
 
-      // Redirect based on user role
-      if (user.role === "ADMIN") {
+      if (accountType === "agency") {
+        console.log(
+          "🏢 Account type 'agency' detected, redirecting to agency dashboard"
+        );
+        router.replace("/agency/dashboard");
+      } else if (role === "ADMIN") {
         console.log("🔐 Admin user detected, redirecting to admin panel");
         router.replace("/admin/dashboard");
       } else {
@@ -225,13 +237,25 @@ const Login = () => {
         const userData = await userResponse.json();
         console.log("📋 User data:", userData);
 
-        // Redirect based on user role
-        if (userData.role === "ADMIN") {
-          console.log("🔐 Admin login, redirecting to admin panel");
-          router.push("/admin/dashboard");
+        // Prefer authoritative accountType from backend (set in /me)
+        const accountType = (userData.accountType || "")
+          .toString()
+          .toLowerCase();
+        if (accountType === "agency") {
+          console.log(
+            "🏢 Account type 'agency' detected, redirecting to agency dashboard"
+          );
+          router.push("/agency/dashboard");
         } else {
-          console.log("👤 User login, redirecting to dashboard");
-          router.push("/dashboard/profile");
+          // Fallback to role-based redirect (role may be ADMIN)
+          const backendRole = (userData.role || "").toString().toUpperCase();
+          if (backendRole === "ADMIN") {
+            console.log("🔐 Admin login, redirecting to admin panel");
+            router.push("/admin/dashboard");
+          } else {
+            console.log("👤 User login, redirecting to dashboard");
+            router.push("/dashboard/profile");
+          }
         }
       } else {
         // Fallback to regular dashboard if can't fetch user data

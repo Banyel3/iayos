@@ -30,9 +30,24 @@ export async function POST(req: Request) {
         template
       );
       console.log("📧 Email sent successfully via Resend API:", emailResult);
+
+      // If result didn't include an id, log and treat as error so we don't return a false success
+      if (!emailResult || !("id" in emailResult)) {
+        console.error("📧 Resend returned no id, raw result:", emailResult);
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Resend returned unexpected response",
+            raw:
+              process.env.NODE_ENV === "development" ? emailResult : undefined,
+          },
+          { status: 502 }
+        );
+      }
+
       return NextResponse.json({
         success: true,
-        messageId: emailResult.id,
+        messageId: (emailResult as any).id,
         method: "resend-api",
       });
     } catch (resendError) {

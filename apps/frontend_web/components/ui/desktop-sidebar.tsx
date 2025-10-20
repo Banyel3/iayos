@@ -49,14 +49,6 @@ export const DesktopNavbar: React.FC<DesktopNavbarProps> = ({
     },
   ];
 
-  // Add agency link only for workers
-  if (isWorker) {
-    navigationItems.splice(3, 0, {
-      label: "Agency",
-      href: "/dashboard/agency",
-    });
-  }
-
   return (
     <nav className="hidden lg:block bg-white border-b border-gray-200 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

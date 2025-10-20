@@ -347,6 +347,31 @@ export const mockAgencies: Agency[] = [
   },
 ];
 
+// Return agency-specific stats for the dashboard
+export const getAgencyStats = (agencyId?: string) => {
+  // Find agency by id, or fallback to the first agency
+  const agency = agencyId
+    ? mockAgencies.find((a) => a.id === agencyId) || mockAgencies[0]
+    : mockAgencies[0];
+
+  // For mock purposes compute active jobs as jobs with status in mockActiveJobs
+  // (this is coarse-grained since mock data doesn't map jobs to agencies)
+  const activeJobs = mockActiveJobs.filter(
+    (j) => j.status === "in_progress"
+  ).length;
+
+  return {
+    agencyId: agency.id,
+    name: agency.name,
+    totalWorkers: agency.totalWorkers,
+    totalJobs: agency.totalJobs,
+    avgRating: agency.avgRating,
+    reviewCount: agency.reviewCount,
+    activeJobs,
+    pendingKYC: agency.verificationStatus === "pending" ? 1 : 0,
+  };
+};
+
 // Mock Job Listings Data
 export const mockJobListings: JobListing[] = [
   {

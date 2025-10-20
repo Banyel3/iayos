@@ -35,6 +35,22 @@ const agencyFormSchema = z.object({
       /[^A-Za-z0-9]/,
       "Password must contain at least one special character"
     ),
+  street_address: z
+    .string()
+    .min(5, "Street address must be at least 5 characters")
+    .max(255, "Street address must be less than 255 characters"),
+  city: z
+    .string()
+    .min(2, "City must be at least 2 characters")
+    .max(100, "City must be less than 100 characters"),
+  province: z
+    .string()
+    .min(2, "Province must be at least 2 characters")
+    .max(100, "Province must be less than 100 characters"),
+  postal_code: z
+    .string()
+    .min(4, "Postal code must be at least 4 characters")
+    .max(20, "Postal code must be less than 20 characters"),
 });
 
 const AgencyRegister = () => {
@@ -47,6 +63,10 @@ const AgencyRegister = () => {
       businessName: "",
       email: "",
       password: "",
+      street_address: "",
+      city: "Zamboanga City",
+      province: "Zamboanga del Sur",
+      postal_code: "7000",
     },
   });
 
@@ -129,6 +149,13 @@ const AgencyRegister = () => {
     checkRateLimitStatus();
   }, []);
 
+  // Ensure readonly fields are properly initialized
+  useEffect(() => {
+    agencyForm.setValue("city", "Zamboanga City");
+    agencyForm.setValue("province", "Zamboanga del Sur");
+    agencyForm.setValue("postal_code", "7000");
+  }, [agencyForm]);
+
   // Update rate limit timer every second
   useEffect(() => {
     if (!isRateLimited) return;
@@ -153,6 +180,30 @@ const AgencyRegister = () => {
 
   // Agency form submission handler
   const onAgencySubmit = async (values: z.infer<typeof agencyFormSchema>) => {
+    // Ensure all fields have valid string values
+    const submissionData = {
+      businessName: values.businessName || "",
+      email: values.email || "",
+      password: values.password || "",
+      street_address: values.street_address || "",
+      city: values.city || "Zamboanga City",
+      province: values.province || "Zamboanga del Sur",
+      postal_code: values.postal_code || "7000",
+    };
+
+    console.log("Form submission data:", submissionData); // Debug log
+
+    // Validate that all required fields are present
+    if (
+      !submissionData.businessName ||
+      !submissionData.email ||
+      !submissionData.password ||
+      !submissionData.street_address
+    ) {
+      setAgencyError("Please fill in all required fields");
+      return;
+    }
+
     setIsAgencyLoading(true);
     setAgencyError(""); // Clear previous errors
     try {
@@ -161,11 +212,25 @@ const AgencyRegister = () => {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(values),
+          body: JSON.stringify(submissionData),
         }
       );
 
-      const data = await agencyReg.json();
+      console.log("API Response status:", agencyReg.status);
+      console.log(
+        "API Response headers:",
+        Object.fromEntries(agencyReg.headers)
+      );
+
+      let data;
+      try {
+        data = await agencyReg.json();
+        console.log("API Response data:", data);
+      } catch (parseError) {
+        console.error("Failed to parse API response as JSON:", parseError);
+        setAgencyError("Server returned invalid response format");
+        return;
+      }
 
       if (!agencyReg.ok) {
         // Handle rate limiting with actual backend timing
@@ -203,26 +268,27 @@ const AgencyRegister = () => {
             data
           );
           setAgencyError(
-            "Registration succeeded but verification data is missing."
+            `Registration succeeded but verification data is missing. Response: ${JSON.stringify(data)}`
           );
-        } else {
-          const verify = await fetch("/api/auth/send", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              email: data.email,
-              verifyLink: data.verifyLink,
-              verifyLinkExpire: data.verifyLinkExpire,
-            }),
-          });
-          if (!verify.ok) {
-            const verifyData = await verify.json().catch(() => ({}));
-            setAgencyError(
-              verifyData.error?.[0]?.message ||
-                verifyData?.message ||
-                "Failed to send verification email"
-            );
-          }
+          return; // Don't proceed with verification email sending
+        }
+
+        const verify = await fetch("/api/auth/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: data.email,
+            verifyLink: data.verifyLink,
+            verifyLinkExpire: data.verifyLinkExpire,
+          }),
+        });
+        if (!verify.ok) {
+          const verifyData = await verify.json().catch(() => ({}));
+          setAgencyError(
+            verifyData.error?.[0]?.message ||
+              verifyData?.message ||
+              "Failed to send verification email"
+          );
         }
       }
     } catch (err) {
@@ -397,117 +463,227 @@ const AgencyRegister = () => {
                   <Form {...agencyForm}>
                     <form
                       onSubmit={agencyForm.handleSubmit(onAgencySubmit)}
-                      className="space-y-6"
+                      className="grid grid-cols-1 md:grid-cols-2 gap-6"
                     >
-                      <FormField
-                        control={agencyForm.control}
-                        name="businessName"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="font-inter text-sm font-medium text-gray-700">
-                              Business Name
-                              <span className="text-red-500 ml-1">*</span>
-                            </FormLabel>
-                            <FormControl>
-                              <Input
-                                placeholder="Enter your business name"
-                                className="h-12"
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage className="font-inter text-xs text-red-500" />
-                          </FormItem>
-                        )}
-                      />
+                      {/* Left Column */}
+                      <div className="space-y-6">
+                        <FormField
+                          control={agencyForm.control}
+                          name="businessName"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="font-inter text-sm font-medium text-gray-700">
+                                Business Name
+                                <span className="text-red-500 ml-1">*</span>
+                              </FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder="Enter your business name"
+                                  className="h-12"
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage className="font-inter text-xs text-red-500" />
+                            </FormItem>
+                          )}
+                        />
 
-                      <FormField
-                        control={agencyForm.control}
-                        name="email"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="font-inter text-sm font-medium text-gray-700">
-                              Business Email
-                              <span className="text-red-500 ml-1">*</span>
-                            </FormLabel>
-                            <FormControl>
-                              <Input
-                                placeholder="Enter your business email"
-                                className="h-12"
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage className="font-inter text-xs text-red-500" />
-                          </FormItem>
-                        )}
-                      />
+                        <FormField
+                          control={agencyForm.control}
+                          name="email"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="font-inter text-sm font-medium text-gray-700">
+                                Business Email
+                                <span className="text-red-500 ml-1">*</span>
+                              </FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder="Enter your business email"
+                                  className="h-12"
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage className="font-inter text-xs text-red-500" />
+                            </FormItem>
+                          )}
+                        />
 
-                      <FormField
-                        control={agencyForm.control}
-                        name="password"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="font-inter text-sm font-medium text-gray-700">
-                              Password
-                              <span className="text-red-500 ml-1">*</span>
-                            </FormLabel>
-                            <FormControl>
-                              <Input
-                                type="password"
-                                placeholder="Create a strong password"
-                                className="h-12"
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage className="font-inter text-xs text-red-500" />
-                          </FormItem>
-                        )}
-                      />
+                        <FormField
+                          control={agencyForm.control}
+                          name="password"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="font-inter text-sm font-medium text-gray-700">
+                                Password
+                                <span className="text-red-500 ml-1">*</span>
+                              </FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="password"
+                                  placeholder="Create a strong password"
+                                  className="h-12"
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage className="font-inter text-xs text-red-500" />
+                            </FormItem>
+                          )}
+                        />
 
-                      {agencyError && (
-                        <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                          <p className="text-red-600 text-sm">{agencyError}</p>
-                        </div>
-                      )}
+                        <FormField
+                          control={agencyForm.control}
+                          name="street_address"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="font-inter text-sm font-medium text-gray-700">
+                                Street Address
+                                <span className="text-red-500 ml-1">*</span>
+                              </FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder="Enter your street address"
+                                  className="h-12"
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage className="font-inter text-xs text-red-500" />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
 
-                      <Button
-                        type="submit"
-                        className="w-full h-12 font-inter font-medium text-base"
-                        disabled={isAgencyLoading || isRateLimited}
-                      >
-                        {isRateLimited ? (
-                          `Wait ${Math.floor(rateLimitTime / 60)}:${(
-                            rateLimitTime % 60
-                          )
-                            .toString()
-                            .padStart(2, "0")} before trying again`
-                        ) : isAgencyLoading ? (
-                          <span className="flex items-center justify-center">
-                            <svg
-                              className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
-                              xmlns="http://www.w3.org/2000/svg"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                            >
-                              <circle
-                                className="opacity-25"
-                                cx="12"
-                                cy="12"
-                                r="10"
-                                stroke="currentColor"
-                                strokeWidth="4"
-                              ></circle>
-                              <path
-                                className="opacity-75"
-                                fill="currentColor"
-                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                              ></path>
-                            </svg>
-                            Creating Agency Account...
-                          </span>
-                        ) : (
-                          "Register Agency"
+                      {/* Right Column */}
+                      <div className="space-y-6">
+                        <FormField
+                          control={agencyForm.control}
+                          name="city"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="font-inter text-sm font-medium text-gray-700">
+                                City
+                                <span className="text-gray-500 ml-1">
+                                  (Pre-filled)
+                                </span>
+                              </FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder="Zamboanga City"
+                                  className="h-12 bg-gray-50"
+                                  readOnly
+                                  value={field.value || "Zamboanga City"}
+                                  onChange={field.onChange}
+                                  name={field.name}
+                                />
+                              </FormControl>
+                              <FormMessage className="font-inter text-xs text-red-500" />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={agencyForm.control}
+                          name="province"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="font-inter text-sm font-medium text-gray-700">
+                                Province
+                                <span className="text-gray-500 ml-1">
+                                  (Pre-filled)
+                                </span>
+                              </FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder="Zamboanga del Sur"
+                                  className="h-12 bg-gray-50"
+                                  readOnly
+                                  value={field.value || "Zamboanga del Sur"}
+                                  onChange={field.onChange}
+                                  name={field.name}
+                                />
+                              </FormControl>
+                              <FormMessage className="font-inter text-xs text-red-500" />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={agencyForm.control}
+                          name="postal_code"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="font-inter text-sm font-medium text-gray-700">
+                                Postal Code
+                                <span className="text-gray-500 ml-1">
+                                  (Pre-filled)
+                                </span>
+                              </FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder="7000"
+                                  className="h-12 bg-gray-50"
+                                  readOnly
+                                  value={field.value || "7000"}
+                                  onChange={field.onChange}
+                                  name={field.name}
+                                />
+                              </FormControl>
+                              <FormMessage className="font-inter text-xs text-red-500" />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+
+                      {/* Full Width Elements */}
+                      <div className="md:col-span-2">
+                        {agencyError && (
+                          <div className="p-3 bg-red-50 border border-red-200 rounded-lg mb-6">
+                            <p className="text-red-600 text-sm">
+                              {agencyError}
+                            </p>
+                          </div>
                         )}
-                      </Button>
+
+                        <Button
+                          type="submit"
+                          className="w-full h-12 font-inter font-medium text-base"
+                          disabled={isAgencyLoading || isRateLimited}
+                        >
+                          {isRateLimited ? (
+                            `Wait ${Math.floor(rateLimitTime / 60)}:${(
+                              rateLimitTime % 60
+                            )
+                              .toString()
+                              .padStart(2, "0")} before trying again`
+                          ) : isAgencyLoading ? (
+                            <span className="flex items-center justify-center">
+                              <svg
+                                className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+                                xmlns="http://www.w3.org/2000/svg"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                              >
+                                <circle
+                                  className="opacity-25"
+                                  cx="12"
+                                  cy="12"
+                                  r="10"
+                                  stroke="currentColor"
+                                  strokeWidth="4"
+                                ></circle>
+                                <path
+                                  className="opacity-75"
+                                  fill="currentColor"
+                                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                ></path>
+                              </svg>
+                              Creating Agency Account...
+                            </span>
+                          ) : (
+                            "Register Agency"
+                          )}
+                        </Button>
+                      </div>
                     </form>
                   </Form>
 

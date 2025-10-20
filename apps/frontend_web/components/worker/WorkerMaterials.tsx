@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -9,20 +9,37 @@ import {
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 
+import {
+  fetchWorkerMaterials,
+  addWorkerMaterial,
+  deleteWorkerMaterial,
+} from "@/lib/worker-materials-api";
+
 interface Material {
-  id: string;
+  productID: number;
   name: string;
   qty?: number;
   unit?: string;
-  // price per unit in PHP
   price?: number;
 }
 
 export default function WorkerMaterials() {
-  const [materials, setMaterials] = useState<Material[]>([
-    { id: "1", name: "Screws (assorted)", qty: 50, unit: "pcs", price: 0.5 },
-    { id: "2", name: "Electrical Tape", qty: 5, unit: "rolls", price: 25 },
-  ]);
+  const [materials, setMaterials] = useState<Material[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  // Fetch materials from API on mount
+  useEffect(() => {
+    setLoading(true);
+    fetchWorkerMaterials()
+      .then((data) => {
+        setMaterials(data);
+      })
+      .catch((err) => {
+        console.error("Failed to load materials", err);
+        setMaterials([]);
+      })
+      .finally(() => setLoading(false));
+  }, []);
 
   const [showModal, setShowModal] = useState(false);
   const [name, setName] = useState("");
@@ -61,20 +78,25 @@ export default function WorkerMaterials() {
       setShowRemoveConfirm(false);
       setMaterialToRemove(null);
     }
-    const newMat: Material = {
-      id: Date.now().toString(),
+    const newMat = {
       name: name.trim(),
       qty: qty ? Number(qty) : undefined,
       unit: unit || undefined,
       price: price ? Number(price) : undefined,
     };
-    setPendingMaterial(newMat);
+    setPendingMaterial(newMat as any);
     setShowConfirm(true);
   };
 
-  const confirmAdd = () => {
+  const confirmAdd = async () => {
     if (!pendingMaterial) return;
-    setMaterials((s) => [pendingMaterial, ...s]);
+    try {
+      const added = await addWorkerMaterial(pendingMaterial);
+      setMaterials((s) => [added, ...s]);
+      setError(null);
+    } catch (e) {
+      setError("Failed to add material");
+    }
     // clear inputs
     setName("");
     setQty("");
@@ -100,9 +122,17 @@ export default function WorkerMaterials() {
     setMaterialToRemove(mat);
     setShowRemoveConfirm(true);
   };
-  const confirmRemove = () => {
+  const confirmRemove = async () => {
     if (materialToRemove) {
-      setMaterials((s) => s.filter((m) => m.id !== materialToRemove.id));
+      try {
+        await deleteWorkerMaterial(materialToRemove.productID);
+        setMaterials((s) =>
+          s.filter((m) => m.productID !== materialToRemove.productID)
+        );
+        setError(null);
+      } catch (e) {
+        setError("Failed to remove material");
+      }
     }
     setShowRemoveConfirm(false);
     setMaterialToRemove(null);
@@ -114,41 +144,52 @@ export default function WorkerMaterials() {
 
   return (
     <Card className="w-full">
-      <CardHeader className="flex items-start justify-between px-6">
+      <CardHeader className="flex items-center justify-between gap-4 px-6 py-4">
         <div>
-          <CardTitle>Materials</CardTitle>
+          <CardTitle className="text-base">Materials</CardTitle>
+          <p className="text-xs text-gray-500">
+            Add materials you commonly use for jobs
+          </p>
         </div>
         <CardAction>
           <button
             onClick={() => setShowModal(true)}
-            className="px-3 py-1 bg-blue-500 text-white rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors"
+            className="inline-flex items-center gap-2 px-3 py-2 bg-blue-500 text-white rounded-md text-sm font-medium hover:bg-blue-600 transition"
           >
-            + Add Material
+            <span className="text-lg">+</span>
+            <span>Add</span>
           </button>
         </CardAction>
       </CardHeader>
-      <CardContent className="px-6 py-3">
-        {materials.length === 0 ? (
-          <p className="text-sm text-gray-500">No materials added yet.</p>
+
+      <CardContent className="px-6 py-4">
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="text-sm text-gray-500">Loading materials...</div>
+          </div>
+        ) : materials.length === 0 ? (
+          <div className="flex items-center justify-center py-10">
+            <div className="text-sm text-gray-500/70">No materials found</div>
+          </div>
         ) : (
-          <div className="space-y-2">
+          <div className="grid gap-3">
             {materials.map((m) => {
               const subtotal = (m.qty || 1) * (m.price || 0);
               return (
                 <div
-                  key={m.id}
-                  className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-3 py-2"
+                  key={m.productID}
+                  className="flex items-center justify-between bg-white shadow-sm border border-gray-100 rounded-md px-4 py-3"
                 >
-                  <div className="flex items-center gap-3">
-                    <Badge className="bg-blue-50 text-blue-700 border-blue-200">
+                  <div className="flex items-start gap-4">
+                    <Badge className="bg-indigo-50 text-indigo-700 border-indigo-100 py-1 px-2">
                       {m.name}
                     </Badge>
-                    <div className="text-xs text-gray-600">
+                    <div className="text-sm text-gray-600">
                       {m.qty !== undefined && (
-                        <span>
+                        <div className="">
                           {m.qty}
                           {m.unit ? ` ${m.unit}` : ""}
-                        </span>
+                        </div>
                       )}
                       {m.price !== undefined && (
                         <div className="text-xs text-gray-500">
@@ -157,13 +198,13 @@ export default function WorkerMaterials() {
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-4">
                     <div className="text-sm font-medium text-gray-900">
                       ₱{subtotal.toFixed(2)}
                     </div>
                     <button
                       onClick={() => askRemoveMaterial(m)}
-                      className="text-red-500 text-xs hover:text-red-600"
+                      className="text-red-600 hover:text-red-700 text-sm"
                     >
                       Remove
                     </button>
@@ -172,8 +213,7 @@ export default function WorkerMaterials() {
               );
             })}
 
-            {/* Total */}
-            <div className="flex justify-end pt-2">
+            <div className="flex justify-end pt-1">
               <div className="text-sm font-semibold text-gray-900">
                 Total: ₱
                 {materials
@@ -187,21 +227,27 @@ export default function WorkerMaterials() {
 
       {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 backdrop-blur-sm bg-gray-900/20 flex items-start justify-center z-[9999] p-4 pt-20">
-          <div className="bg-white rounded-xl p-6 max-w-md w-full shadow-2xl border border-gray-200">
+        <div className="fixed inset-0 bg-black/40 flex items-start justify-center z-50 p-4 pt-20">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-lg border border-gray-100">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold text-gray-900">
                 Add Material
               </h3>
               <button
                 onClick={() => setShowModal(false)}
-                className="text-gray-500 hover:text-gray-700"
+                className="text-gray-400 hover:text-gray-700"
               >
                 ✕
               </button>
             </div>
 
-            <div className="space-y-3">
+            <form
+              className="space-y-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                addMaterial();
+              }}
+            >
               <div>
                 <label className="text-xs font-medium text-gray-700 block mb-1">
                   Name
@@ -232,7 +278,7 @@ export default function WorkerMaterials() {
                   <select
                     value={unit}
                     onChange={(e) => setUnit(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm"
                   >
                     <option value="" disabled>
                       Select unit
@@ -258,29 +304,30 @@ export default function WorkerMaterials() {
                 />
               </div>
 
-              <div className="flex space-x-3 pt-2">
+              <div className="flex justify-end gap-3 pt-1">
                 <button
+                  type="button"
                   onClick={() => setShowModal(false)}
-                  className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200"
+                  className="px-4 py-2 bg-gray-50 border border-gray-200 text-gray-700 rounded-md"
                 >
                   Cancel
                 </button>
                 <button
-                  onClick={addMaterial}
-                  className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600"
+                  type="submit"
+                  className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
                 >
                   Add
                 </button>
               </div>
-            </div>
+            </form>
           </div>
         </div>
       )}
 
       {/* Add Confirmation Modal */}
       {showConfirm && pendingMaterial && !showRemoveConfirm && (
-        <div className="fixed inset-0 backdrop-blur-sm bg-gray-900/20 flex items-center justify-center z-[9999] p-4">
-          <div className="bg-white rounded-xl p-6 max-w-sm w-full shadow-2xl border border-gray-200">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 max-w-sm w-full shadow-lg border border-gray-100">
             <h4 className="text-lg font-semibold text-gray-900 mb-2">
               Confirm Add Material
             </h4>
@@ -304,16 +351,16 @@ export default function WorkerMaterials() {
               </p>
             </div>
 
-            <div className="flex space-x-3">
+            <div className="flex justify-end gap-3">
               <button
                 onClick={cancelConfirm}
-                className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg"
+                className="px-4 py-2 bg-gray-50 border border-gray-200 text-gray-700 rounded-md"
               >
                 Cancel
               </button>
               <button
                 onClick={confirmAdd}
-                className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg"
+                className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
               >
                 Confirm
               </button>
@@ -324,8 +371,8 @@ export default function WorkerMaterials() {
 
       {/* Remove Confirmation Modal */}
       {showRemoveConfirm && materialToRemove && !showConfirm && (
-        <div className="fixed inset-0 backdrop-blur-sm bg-gray-900/20 flex items-center justify-center z-[9999] p-4">
-          <div className="bg-white rounded-xl p-6 max-w-sm w-full shadow-2xl border border-gray-200">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 max-w-sm w-full shadow-lg border border-gray-100">
             <h4 className="text-lg font-semibold text-gray-900 mb-2">
               Confirm Remove Material
             </h4>
@@ -348,16 +395,16 @@ export default function WorkerMaterials() {
                 ).toFixed(2)}
               </p>
             </div>
-            <div className="flex space-x-3">
+            <div className="flex justify-end gap-3">
               <button
                 onClick={cancelRemove}
-                className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg"
+                className="px-4 py-2 bg-gray-50 border border-gray-200 text-gray-700 rounded-md"
               >
                 Cancel
               </button>
               <button
                 onClick={confirmRemove}
-                className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg"
+                className="px-4 py-2 bg-red-600 text-white rounded-md"
               >
                 Remove
               </button>

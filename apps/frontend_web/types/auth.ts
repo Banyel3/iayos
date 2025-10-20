@@ -6,7 +6,9 @@ export type UserProfileType = "WORKER" | "CLIENT" | null;
 export interface User {
   accountID?: number; // Make optional with ?
   email: string;
-  role?: "ADMIN" | "USER"; // Add role property
+  role?: "ADMIN" | "USER" | "AGENCY"; // Add role property (including AGENCY)
+  // Backend-provided accountType is either 'agency' or 'individual'
+  accountType?: "agency" | "individual" | string;
   kycVerified?: boolean; // KYC verification status from database
   profile_data?: {
     firstName?: string;

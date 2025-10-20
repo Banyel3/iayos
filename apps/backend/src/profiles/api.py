@@ -9,11 +9,51 @@ from django.utils import timezone
 
 
 from .schemas import ProductCreateSchema, ProductSchema
-from .services import add_product_to_profile
+from .services import add_product_to_profile, list_products_for_profile, delete_product_for_profile
+
 
 router = Router()
 
+__all__ = ["router"]
+
 #region PRODUCT ENDPOINTS
+
+# List all products/materials for the authenticated worker
+@router.get("/profile/products/", response=list[ProductSchema], auth=cookie_auth)
+def list_products(request):
+    """
+    List all products/materials for the authenticated worker's profile.
+    If profile not found, return an empty list to keep frontend UX simple.
+    """
+    try:
+        profile = Profile.objects.filter(accountFK=request.auth).first()
+        if not profile:
+            # No profile associated yet for this account - return empty list
+            return []
+        return list_products_for_profile(profile)
+    except Exception as e:
+        # Log full traceback for debugging
+        print(f"❌ Error listing products: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": "Failed to list products"}, status=500)
+
+# Delete a product/material by ID for the authenticated worker
+@router.delete("/profile/products/{product_id}", auth=cookie_auth)
+def delete_product(request, product_id: int):
+    """
+    Delete a product/material by ID for the authenticated worker's profile.
+    """
+    try:
+        profile = Profile.objects.get(accountFK=request.auth)
+        return delete_product_for_profile(profile, product_id)
+    except Profile.DoesNotExist:
+        return Response({"error": "Profile not found"}, status=404)
+    except Exception as e:
+        print(f"❌ Error deleting product: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": "Failed to delete product"}, status=500)
 
 @router.post("/profile/products/add", response=ProductSchema, auth=cookie_auth)
 def add_product(request, data: ProductCreateSchema):

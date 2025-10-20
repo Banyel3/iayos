@@ -4,7 +4,8 @@ from datetime import timedelta
 import hashlib
 import uuid
 
-from accounts.models import Accounts, kyc, kycFiles, Profile, Notification
+from accounts.models import Accounts, kyc, kycFiles, Profile, Notification, Agency
+from agency.models import AgencyKYC, AgencyKycFile
 from adminpanel.models import SystemRoles, KYCLogs
 
 
@@ -98,6 +99,39 @@ def fetchAll_kyc(request):
         ]
     }
 
+    # Include Agency KYC submissions -> stored in separate app/models
+    try:
+        agency_records = AgencyKYC.objects.all().order_by('-createdAt')
+        agency_files = AgencyKycFile.objects.filter(agencyKyc__in=agency_records)
+
+        # Gather Agency profile data (businessName etc.)
+        agency_account_ids = agency_records.values_list('accountFK', flat=True)
+        agencies = Agency.objects.filter(accountFK__in=agency_account_ids).select_related('accountFK')
+
+        agency_profile_data = {
+            a.accountFK.accountID: {
+                "businessName": a.businessName,
+                "businessDesc": a.businessDesc,
+                "agencyId": a.agencyId,
+            }
+            for a in agencies
+        }
+
+        data.update({
+            "agency_kyc": list(agency_records.values()),
+            "agency_kyc_files": list(agency_files.values()),
+            "agencies": [
+                {
+                    "accountID": a.accountFK.accountID,
+                    "email": a.accountFK.email,
+                    **agency_profile_data.get(a.accountFK.accountID, {}),
+                }
+                for a in agencies
+            ]
+        })
+    except Exception as e:
+        print(f"⚠️ Warning: failed to include agency KYC in admin response: {e}")
+
     return data
 
 
@@ -129,108 +163,48 @@ def review_kyc_items(request):
     urls = {}
     
     try:
-        if front_id_link:
-            print(f"🔗 Creating signed URL for front ID: '{front_id_link}'")
+        def _create_signed(bucket_name, path):
             try:
-                result = settings.SUPABASE.storage.from_("kyc-docs").create_signed_url(front_id_link, expires_in=60 * 60)
-                print(f"📤 Front ID result type: {type(result)}, value: {result}")
-                # Supabase returns a dict with 'signedURL' key
-                if isinstance(result, dict) and 'signedURL' in result:
-                    urls["frontIDLink"] = result['signedURL']
-                    print(f"✅ Front ID signed URL created successfully")
-                elif isinstance(result, dict) and 'signed_url' in result:
-                    urls["frontIDLink"] = result['signed_url']
-                    print(f"✅ Front ID signed URL created successfully")
-                elif isinstance(result, str):
-                    urls["frontIDLink"] = result
-                    print(f"✅ Front ID signed URL created successfully")
-                else:
-                    print(f"⚠️ Unexpected result format: {result}")
-                    urls["frontIDLink"] = ""
+                return settings.SUPABASE.storage.from_(bucket_name).create_signed_url(path, expires_in=60 * 60)
             except Exception as e:
-                print(f"❌ Error creating signed URL for front ID: {type(e).__name__}: {str(e)}")
-                import traceback
-                print(f"   Traceback: {traceback.format_exc()}")
-                urls["frontIDLink"] = ""
-        else:
-            urls["frontIDLink"] = ""
-        
-        if back_id_link:
-            print(f"🔗 Creating signed URL for back ID: '{back_id_link}'")
-            try:
-                result = settings.SUPABASE.storage.from_("kyc-docs").create_signed_url(back_id_link, expires_in=60 * 60)
-                print(f"📤 Back ID result type: {type(result)}, value: {result}")
-                if isinstance(result, dict) and 'signedURL' in result:
-                    urls["backIDLink"] = result['signedURL']
-                elif isinstance(result, dict) and 'signed_url' in result:
-                    urls["backIDLink"] = result['signed_url']
-                elif isinstance(result, str):
-                    urls["backIDLink"] = result
-                else:
-                    print(f"⚠️ Unexpected result format, using public URL as fallback")
-                    urls["backIDLink"] = settings.SUPABASE.storage.from_("kyc-docs").get_public_url(back_id_link)
-            except Exception as e:
-                print(f"❌ Error creating signed URL for back ID: {str(e)}")
-                print(f"   Attempting public URL fallback...")
+                print(f"❌ Error creating signed URL for {bucket_name}:{path}: {e}")
+                return None
+
+        def _resolve_link(link, default_bucket="kyc-docs"):
+            """
+            Accept either a string path (assume default_bucket) or a dict {bucket, path}.
+            Returns signed URL string or empty string on failure.
+            """
+            if not link:
+                return ""
+            # If it's a mapping, expect {'bucket': 'agency', 'path': 'agency_1/kyc/file.pdf'}
+            if isinstance(link, dict):
+                bucket = link.get('bucket') or default_bucket
+                path = link.get('path')
+            else:
+                bucket = default_bucket
+                path = link
+
+            if not path:
+                return ""
+
+            res = _create_signed(bucket, path)
+            if isinstance(res, dict) and ('signedURL' in res or 'signed_url' in res):
+                return res.get('signedURL') or res.get('signed_url')
+            elif isinstance(res, str):
+                return res
+            else:
+                # fallback to public url if available
                 try:
-                    public_url = settings.SUPABASE.storage.from_("kyc-docs").get_public_url(back_id_link)
-                    urls["backIDLink"] = public_url.rstrip('?')  # Remove trailing ?
-                    print(f"✅ Using public URL: {urls['backIDLink']}")
-                except:
-                    urls["backIDLink"] = ""
-        else:
-            urls["backIDLink"] = ""
-        
-        if clearance_link:
-            print(f"🔗 Creating signed URL for clearance: '{clearance_link}'")
-            try:
-                result = settings.SUPABASE.storage.from_("kyc-docs").create_signed_url(clearance_link, expires_in=60 * 60)
-                print(f"📤 Clearance result type: {type(result)}, value: {result}")
-                if isinstance(result, dict) and 'signedURL' in result:
-                    urls["clearanceLink"] = result['signedURL']
-                    print(f"✅ Clearance signed URL created successfully")
-                elif isinstance(result, dict) and 'signed_url' in result:
-                    urls["clearanceLink"] = result['signed_url']
-                    print(f"✅ Clearance signed URL created successfully")
-                elif isinstance(result, str):
-                    urls["clearanceLink"] = result
-                    print(f"✅ Clearance signed URL created successfully")
-                else:
-                    print(f"⚠️ Unexpected result format: {result}")
-                    urls["clearanceLink"] = ""
-            except Exception as e:
-                print(f"❌ Error creating signed URL for clearance: {type(e).__name__}: {str(e)}")
-                import traceback
-                print(f"   Traceback: {traceback.format_exc()}")
-                urls["clearanceLink"] = ""
-        else:
-            urls["clearanceLink"] = ""
-        
-        if selfie_link:
-            print(f"🔗 Creating signed URL for selfie: '{selfie_link}'")
-            try:
-                result = settings.SUPABASE.storage.from_("kyc-docs").create_signed_url(selfie_link, expires_in=60 * 60)
-                print(f"📤 Selfie result type: {type(result)}, value: {result}")
-                if isinstance(result, dict) and 'signedURL' in result:
-                    urls["selfieLink"] = result['signedURL']
-                elif isinstance(result, dict) and 'signed_url' in result:
-                    urls["selfieLink"] = result['signed_url']
-                elif isinstance(result, str):
-                    urls["selfieLink"] = result
-                else:
-                    print(f"⚠️ Unexpected result format, using public URL as fallback")
-                    urls["selfieLink"] = settings.SUPABASE.storage.from_("kyc-docs").get_public_url(selfie_link)
-            except Exception as e:
-                print(f"❌ Error creating signed URL for selfie: {str(e)}")
-                print(f"   Attempting public URL fallback...")
-                try:
-                    public_url = settings.SUPABASE.storage.from_("kyc-docs").get_public_url(selfie_link)
-                    urls["selfieLink"] = public_url.rstrip('?')  # Remove trailing ?
-                    print(f"✅ Using public URL: {urls['selfieLink']}")
-                except:
-                    urls["selfieLink"] = ""
-        else:
-            urls["selfieLink"] = ""
+                    return settings.SUPABASE.storage.from_(bucket).get_public_url(path)
+                except Exception:
+                    return ""
+
+        # Use _resolve_link for each incoming field
+        urls["frontIDLink"] = _resolve_link(front_id_link, default_bucket="kyc-docs") if front_id_link else ""
+        urls["backIDLink"] = _resolve_link(back_id_link, default_bucket="kyc-docs") if back_id_link else ""
+        urls["clearanceLink"] = _resolve_link(clearance_link, default_bucket="kyc-docs") if clearance_link else ""
+        urls["selfieLink"] = _resolve_link(selfie_link, default_bucket="kyc-docs") if selfie_link else ""
 
         print(f"✅ Final URLs: {urls}")
         return urls

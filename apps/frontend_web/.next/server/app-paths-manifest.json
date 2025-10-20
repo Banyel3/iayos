@@ -1,12 +1,15 @@
 {
   "/_not-found/page": "app/_not-found/page.js",
+  "/admin/dashboard/page": "app/admin/dashboard/page.js",
+  "/admin/kyc/approved/page": "app/admin/kyc/approved/page.js",
+  "/admin/kyc/pending/page": "app/admin/kyc/pending/page.js",
+  "/admin/kyc/rejected/page": "app/admin/kyc/rejected/page.js",
+  "/agency/dashboard/page": "app/agency/dashboard/page.js",
+  "/agency/employees/page": "app/agency/employees/page.js",
+  "/agency/kyc/page": "app/agency/kyc/page.js",
   "/api/auth/check-rate-limit/route": "app/api/auth/check-rate-limit/route.js",
   "/auth/login/page": "app/auth/login/page.js",
-  "/dashboard/home/page": "app/dashboard/home/page.js",
-  "/dashboard/jobs/[id]/page": "app/dashboard/jobs/[id]/page.js",
-  "/dashboard/myRequests/page": "app/dashboard/myRequests/page.js",
-  "/dashboard/profile/edit/page": "app/dashboard/profile/edit/page.js",
-  "/dashboard/profile/page": "app/dashboard/profile/page.js",
-  "/favicon.ico/route": "app/favicon.ico/route.js",
-  "/page": "app/page.js"
+  "/auth/register/agency/page": "app/auth/register/agency/page.js",
+  "/auth/verify-email/page": "app/auth/verify-email/page.js",
+  "/favicon.ico/route": "app/favicon.ico/route.js"
 }

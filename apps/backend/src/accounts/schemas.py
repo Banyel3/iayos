@@ -34,7 +34,7 @@ class createAgencySchema(Schema):
     street_address: str
     city: str             # "Zamboanga City"
     province: str        # "Zamboanga del Sur"
-    postal_code: int    # "7000"
+    postal_code: str    # "7000"
 
 
     createdAt: Optional[datetime] = datetime.utcnow()

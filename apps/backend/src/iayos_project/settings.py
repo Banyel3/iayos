@@ -56,7 +56,12 @@ INSTALLED_APPS = [
     'allauth.socialaccount.providers.google',
     #internal
     'accounts',
-    'adminpanel'
+    'adminpanel',
+    'jobs',
+    'profiles'
+    ,
+    # local apps
+    'agency',
 
 ]
 

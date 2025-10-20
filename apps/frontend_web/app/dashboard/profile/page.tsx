@@ -84,6 +84,19 @@ const ProfilePage = () => {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [isLoadingTransactions, setIsLoadingTransactions] = useState(false);
 
+  // Detect client viewport (only run on client) so we mount WorkerMaterials exactly once
+  const [isClientMobile, setIsClientMobile] = useState<boolean | null>(null);
+  useEffect(() => {
+    // run only on client
+    if (typeof window === "undefined") return;
+    const mq = () => window.innerWidth < 1024; // match Tailwind lg breakpoint
+    const setMatch = () => setIsClientMobile(mq());
+    setMatch();
+    const onResize = () => setMatch();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
   // Authentication check and profile type redirect
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -552,7 +565,9 @@ const ProfilePage = () => {
 
               {/* Materials (mobile) */}
               <div className="mt-3">
-                <WorkerMaterials />
+                {isClientMobile !== null && isClientMobile && (
+                  <WorkerMaterials />
+                )}
               </div>
             </div>
           )}
@@ -979,7 +994,9 @@ const ProfilePage = () => {
 
                     {/* Materials (desktop) */}
                     <div>
-                      <WorkerMaterials />
+                      {isClientMobile !== null && !isClientMobile && (
+                        <WorkerMaterials />
+                      )}
                     </div>
                   </div>
                 )}

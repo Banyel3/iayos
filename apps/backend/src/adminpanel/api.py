@@ -62,6 +62,36 @@ def reject_kyc_verification(request):
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
+
+@router.post("/kyc/create-agency")
+def create_agency_kyc_from_paths(request):
+    """Admin helper: create AgencyKYC and file records from already-uploaded Supabase paths.
+
+    Expects JSON body: { accountID: int, businessName?: str, businessDesc?: str, files: { <FILE_TYPE>: <path>, ... } }
+    FILE_TYPE values: BUSINESS_PERMIT, REP_ID_FRONT, REP_ID_BACK, ADDRESS_PROOF, AUTH_LETTER
+    """
+    import json
+    try:
+        body = json.loads(request.body.decode('utf-8'))
+        account_id = body.get('accountID')
+        businessName = body.get('businessName')
+        businessDesc = body.get('businessDesc')
+        files = body.get('files', {})
+
+        if not account_id:
+            return {"success": False, "error": "accountID is required"}
+
+        from agency.services import create_agency_kyc_from_paths as svc
+        result = svc(account_id, files, businessName=businessName, businessDesc=businessDesc)
+        return {"success": True, **result}
+    except ValueError as e:
+        return {"success": False, "error": str(e)}
+    except Exception as e:
+        print(f"❌ Error in create_agency_kyc_from_paths: {e}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
 @router.get("/kyc/logs")
 def get_kyc_logs(request, action: str = None, limit: int = 100):
     """

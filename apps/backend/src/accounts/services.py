@@ -319,15 +319,25 @@ def fetch_currentUser(accountID):
                 "birthDate": profile.birthDate.isoformat() if profile.birthDate else None,
             }
 
+            # If a Profile exists we treat this as an "individual" account
             return {
                 "accountID": account.accountID,
                 "email": account.email,
                 "role": user_role,  # <-- systemRole from SystemRoles
                 "kycVerified": account.KYCVerified,  # <-- KYC verification status from Accounts
                 "profile_data": profile_data,
+                "accountType": "individual",
             }
 
         except Profile.DoesNotExist:
+            # No Profile found - check if this account has an Agency record
+            try:
+                is_agency = Agency.objects.filter(accountFK=account).exists()
+            except Exception:
+                is_agency = False
+
+            account_type = "agency" if is_agency else "individual"
+
             return {
                 "accountID": account.accountID,
                 "email": account.email,
@@ -335,7 +345,8 @@ def fetch_currentUser(accountID):
                 "kycVerified": account.KYCVerified,  # <-- KYC verification status from Accounts
                 "profile_data": None,
                 "user_data": {},
-                "skill_categories": []
+                "skill_categories": [],
+                "accountType": account_type,
             }
 
     except Accounts.DoesNotExist:

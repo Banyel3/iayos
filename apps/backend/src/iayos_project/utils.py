@@ -50,3 +50,17 @@ def upload_kyc_doc(file, file_name, user_id):
         public=False,
         custom_name=file_name
     )
+
+
+def upload_agency_doc(file, file_name, user_id):
+    """
+    Upload agency KYC documents to the dedicated private 'agency' bucket.
+    Path structure: agency_{user_id}/kyc/<file_name>
+    """
+    return upload_file(
+        file,
+        bucket="agency",
+        path=f"agency_{user_id}/kyc/",
+        public=False,
+        custom_name=file_name
+    )
