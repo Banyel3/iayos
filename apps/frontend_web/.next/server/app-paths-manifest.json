@@ -2,7 +2,11 @@
   "/_not-found/page": "app/_not-found/page.js",
   "/api/auth/check-rate-limit/route": "app/api/auth/check-rate-limit/route.js",
   "/auth/login/page": "app/auth/login/page.js",
-  "/dashboard/inbox/page": "app/dashboard/inbox/page.js",
+  "/dashboard/home/page": "app/dashboard/home/page.js",
+  "/dashboard/jobs/[id]/page": "app/dashboard/jobs/[id]/page.js",
+  "/dashboard/myRequests/page": "app/dashboard/myRequests/page.js",
+  "/dashboard/profile/edit/page": "app/dashboard/profile/edit/page.js",
   "/dashboard/profile/page": "app/dashboard/profile/page.js",
-  "/favicon.ico/route": "app/favicon.ico/route.js"
+  "/favicon.ico/route": "app/favicon.ico/route.js",
+  "/page": "app/page.js"
 }

@@ -8,6 +8,7 @@ import MobileNav from "@/components/ui/mobile-nav";
 import DesktopNavbar from "@/components/ui/desktop-sidebar";
 import NotificationBell from "@/components/notifications/NotificationBell";
 import { useWorkerAvailability } from "@/lib/hooks/useWorkerAvailability";
+import WorkerMaterials from "@/components/worker/WorkerMaterials";
 
 // Extended User interface for profile page
 interface ProfileUser extends User {
@@ -548,6 +549,11 @@ const ProfilePage = () => {
                   ))}
                 </div>
               </div>
+
+              {/* Materials (mobile) */}
+              <div className="mt-3">
+                <WorkerMaterials />
+              </div>
             </div>
           )}
 
@@ -969,6 +975,11 @@ const ProfilePage = () => {
                           </div>
                         ))}
                       </div>
+                    </div>
+
+                    {/* Materials (desktop) */}
+                    <div>
+                      <WorkerMaterials />
                     </div>
                   </div>
                 )}

@@ -16,30 +16,8 @@ import {
   FileText,
   MessageSquare,
 } from "lucide-react";
-<<<<<<< HEAD
-
-export default function AdminDashboardPage() {
-  // Actual statistics data from admin pages
-  const stats = {
-    totalUsers: 13, // 8 clients + 2 workers + 3 agencies
-    totalClients: 8,
-    totalWorkers: 2,
-    totalAgencies: 3,
-    activeJobs: 5,
-    completedJobs: 8,
-    totalRevenue: 8223, // Sum of completed jobs: 450+875+1850+550+2200+168+680+1450
-    monthlyRevenue: 8223, // All completed jobs are from recent month
-    pendingPayments: 2, // Jobs with "processing" or "pending" payment status
-    pendingKYC: 3,
-    activeUsers: 11, // Active clients (7) + active workers (2) + active agencies (2)
-    newUsersThisMonth: 3, // Recent additions
-=======
 import Link from "next/link";
-import {
-  getAdminStats,
-  mockApplications,
-  mockJobListings,
-} from "@/lib/mockData";
+import { getAdminStats, mockApplications, mockJobListings } from "@/lib/mockData";
 
 export default function AdminDashboardPage() {
   // Get actual statistics from mock data
@@ -62,56 +40,9 @@ export default function AdminDashboardPage() {
     pendingKYC: 18, // Keep this as is (not in mock data yet)
     activeUsers: adminStats.activeUsers,
     newUsersThisMonth: 8, // Estimate based on mock data
->>>>>>> dfd36363bfb9d52430933340af3d1642666429b4
   };
 
-  const topCategories = [
-    {
-      name: "Carpentry",
-      jobs: 2,
-      revenue: 4400,
-      activeJobs: 1,
-      completedJobs: 2,
-      avgRating: 4.9,
-      growth: "+15%",
-    },
-    {
-      name: "Landscaping",
-      jobs: 1,
-      revenue: 1850,
-      activeJobs: 0,
-      completedJobs: 1,
-      avgRating: 5.0,
-      growth: "+25%",
-    },
-    {
-      name: "Windows & Doors",
-      jobs: 1,
-      revenue: 1450,
-      activeJobs: 0,
-      completedJobs: 1,
-      avgRating: 4.8,
-      growth: "+10%",
-    },
-    {
-      name: "Plumbing",
-      jobs: 1,
-      revenue: 875,
-      activeJobs: 1,
-      completedJobs: 1,
-      avgRating: 4.7,
-      growth: "+30%",
-    },
-    {
-      name: "Tile Work",
-      jobs: 1,
-      revenue: 680,
-      activeJobs: 0,
-      completedJobs: 1,
-      avgRating: 4.9,
-      growth: "+20%",
-    },
-  ];
+  // topCategories will be calculated from job listings below
 
   // AI-powered prediction data (mock for future feature)
   const trendingPredictions = [
@@ -162,8 +93,6 @@ export default function AdminDashboardPage() {
     },
   ];
 
-<<<<<<< HEAD
-=======
   const pendingActions = [
     {
       id: 1,
@@ -207,8 +136,6 @@ export default function AdminDashboardPage() {
     }))
     .sort((a, b) => b.revenue - a.revenue)
     .slice(0, 5);
-
->>>>>>> dfd36363bfb9d52430933340af3d1642666429b4
   return (
     <div className="flex">
       <Sidebar />
@@ -376,37 +303,16 @@ export default function AdminDashboardPage() {
                             <p className="font-semibold text-gray-900 text-lg">
                               {category.name}
                             </p>
-                            <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-bold rounded">
-                              {category.growth}
-                            </span>
                           </div>
                           <div className="flex items-center gap-4 text-sm text-gray-600">
                             <span>
-                              <span className="font-medium">
-                                {category.jobs}
-                              </span>{" "}
+                              <span className="font-medium">{category.jobs}</span>{" "}
                               total jobs
                             </span>
                             <span>•</span>
                             <span>
-                              <span className="font-medium">
-                                {category.activeJobs}
-                              </span>{" "}
-                              active
-                            </span>
-                            <span>•</span>
-                            <span>
-                              <span className="font-medium">
-                                {category.completedJobs}
-                              </span>{" "}
-                              completed
-                            </span>
-                            <span>•</span>
-                            <span className="flex items-center">
-                              ⭐{" "}
-                              <span className="font-medium ml-1">
-                                {category.avgRating}
-                              </span>
+                              <span className="font-medium">{category.revenue.toLocaleString()}</span>{" "}
+                              revenue
                             </span>
                           </div>
                         </div>
