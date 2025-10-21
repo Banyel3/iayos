@@ -51,9 +51,13 @@ def upload_agency_kyc(payload, business_permit, rep_front, rep_back, address_pro
 
 			file_url = upload_agency_doc(file=file, file_name=unique_name, user_id=user.accountID)
 
+			# Defensive: ensure fileType is a valid choice (should be all-caps, matches FileType)
+			valid_types = {c[0] for c in AgencyKycFile.FileType.choices}
+			if key not in valid_types:
+				raise ValueError(f"{key} is not a valid fileType. Valid: {valid_types}")
 			AgencyKycFile.objects.create(
 				agencyKyc=kyc_record,
-				fileType=key,
+				fileType=key,  # must match FileType choices
 				fileURL=file_url,
 				fileName=unique_name,
 				fileSize=file.size

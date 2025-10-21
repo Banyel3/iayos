@@ -58,10 +58,8 @@ INSTALLED_APPS = [
     'accounts',
     'adminpanel',
     'jobs',
-    'profiles'
-    ,
-    # local apps
-    'agency',
+    'profiles',
+    'agency'
 
 ]
 

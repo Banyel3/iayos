@@ -102,6 +102,7 @@ def fetchAll_kyc(request):
     # Include Agency KYC submissions -> stored in separate app/models
     try:
         agency_records = AgencyKYC.objects.all().order_by('-createdAt')
+        print(f"[ADMIN KYC] AgencyKYC count: {agency_records.count()} | IDs: {[a.agencyKycID for a in agency_records]}")
         agency_files = AgencyKycFile.objects.filter(agencyKyc__in=agency_records)
 
         # Gather Agency profile data (businessName etc.)
@@ -182,8 +183,16 @@ def review_kyc_items(request):
                 bucket = link.get('bucket') or default_bucket
                 path = link.get('path')
             else:
-                bucket = default_bucket
+                # If it's a full URL, return it directly (assume already accessible)
+                if isinstance(link, str) and (link.startswith('http://') or link.startswith('https://')):
+                    return link
+
+                # It's a storage path string. Try to infer bucket from path prefix.
                 path = link
+                if isinstance(path, str) and path.startswith('agency_'):
+                    bucket = 'agency'
+                else:
+                    bucket = default_bucket
 
             if not path:
                 return ""
@@ -199,12 +208,14 @@ def review_kyc_items(request):
                     return settings.SUPABASE.storage.from_(bucket).get_public_url(path)
                 except Exception:
                     return ""
-
         # Use _resolve_link for each incoming field
         urls["frontIDLink"] = _resolve_link(front_id_link, default_bucket="kyc-docs") if front_id_link else ""
         urls["backIDLink"] = _resolve_link(back_id_link, default_bucket="kyc-docs") if back_id_link else ""
         urls["clearanceLink"] = _resolve_link(clearance_link, default_bucket="kyc-docs") if clearance_link else ""
         urls["selfieLink"] = _resolve_link(selfie_link, default_bucket="kyc-docs") if selfie_link else ""
+        # Support addressProofLink if frontend sends it
+        address_link = body.get("addressProofLink")
+        urls["addressProofLink"] = _resolve_link(address_link, default_bucket="kyc-docs") if address_link else ""
 
         print(f"✅ Final URLs: {urls}")
         return urls

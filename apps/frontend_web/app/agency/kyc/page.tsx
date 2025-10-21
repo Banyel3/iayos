@@ -278,7 +278,26 @@ const AgencyKYCPage = () => {
         title: "Submitted",
         message: "KYC submitted",
       });
-      setCurrentStep(4);
+      // Refresh status after upload to trigger verification wall
+      try {
+        const res = await fetch(`${API_BASE}/api/agency/status`, {
+          method: "GET",
+          credentials: "include",
+        });
+        if (res.ok) {
+          const data = await res.json().catch(() => ({}));
+          const status = data?.status || data?.kycStatus || null;
+          setAgencyKycStatus(status);
+          if (data?.files) setAgencyKycFiles(data.files || []);
+          if (status && status !== "NOT_STARTED") {
+            setCurrentStep(4);
+          }
+        } else {
+          setCurrentStep(4); // fallback
+        }
+      } catch {
+        setCurrentStep(4); // fallback
+      }
     } catch (err) {
       console.error(err);
       showToast({
@@ -701,11 +720,27 @@ const AgencyKYCPage = () => {
           <div className="w-full max-w-2xl mx-auto">
             {renderProgressBar()}
 
-            <div className="bg-white rounded-2xl shadow-lg p-8 lg:p-12">
-              {currentStep === 1 && renderStep1()}
-              {currentStep === 2 && renderStep2()}
-              {currentStep === 3 && renderStep3()}
-              {currentStep === 4 && renderStep4()}
+            <div className="relative bg-white rounded-2xl shadow-lg p-8 lg:p-12">
+              {isSubmitting && (
+                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-white/80 rounded-2xl">
+                  <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+                  <div className="text-blue-700 font-medium text-base">
+                    Uploading your documents...
+                  </div>
+                </div>
+              )}
+              <div
+                className={
+                  isSubmitting
+                    ? "opacity-50 pointer-events-none select-none"
+                    : ""
+                }
+              >
+                {currentStep === 1 && renderStep1()}
+                {currentStep === 2 && renderStep2()}
+                {currentStep === 3 && renderStep3()}
+                {currentStep === 4 && renderStep4()}
+              </div>
             </div>
           </div>
         </div>

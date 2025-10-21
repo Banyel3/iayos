@@ -29,7 +29,7 @@ interface PendingKYC {
   userId: string;
   userName: string;
   userEmail: string;
-  userType: "worker" | "client";
+  userType: "worker" | "client" | "agency";
   submissionDate: string;
   priority: "high" | "medium" | "low";
   documentsCount: number;
@@ -41,6 +41,7 @@ interface KYCFiles {
   backIDLink: string;
   clearanceLink: string;
   selfieLink: string;
+  addressProofLink?: string;
   idType?: string;
   clearanceType?: string;
 }
@@ -233,17 +234,13 @@ export default function PendingKYCPage() {
 
       const transformedData: PendingKYC[] = backendData.kyc.map(
         (kycRecord: any) => {
-          // Find the user for this KYC record (using accountFK_id from Django .values())
+          // ...existing code for user KYC...
           const user = backendData.users.find(
             (u: any) => u.accountID === kycRecord.accountFK_id
           );
-
-          // Count files for this KYC record (using kycID_id from Django .values())
           const filesCount = backendData.kyc_files.filter(
             (f: any) => f.kycID_id === kycRecord.kycID
           ).length;
-
-          // Calculate days pending
           const submissionDate = new Date(kycRecord.createdAt);
           const today = new Date();
           const daysPending = isNaN(submissionDate.getTime())
@@ -252,22 +249,15 @@ export default function PendingKYCPage() {
                 (today.getTime() - submissionDate.getTime()) /
                   (1000 * 60 * 60 * 24)
               );
-
-          // Determine priority based on days pending
           let priority: "high" | "medium" | "low" = "low";
           if (daysPending > 14) priority = "high";
           else if (daysPending > 7) priority = "medium";
-
-          // Build full name from profile data or fallback to email
           const fullName =
             user?.firstName && user?.lastName
               ? `${user.firstName} ${user.lastName}`
               : user?.email?.split("@")[0] || "Unknown User";
-
-          // Get userType from profileType in the backend response
           const userType =
             user?.profileType?.toLowerCase() === "client" ? "client" : "worker";
-
           return {
             id: kycRecord.kycID?.toString() || "0",
             userId: kycRecord.accountFK_id?.toString() || "0",
@@ -282,7 +272,44 @@ export default function PendingKYCPage() {
         }
       );
 
-      setPendingKYC(transformedData);
+      // Add agency KYC records
+      const agencyTransformed: PendingKYC[] = (backendData.agency_kyc || [])
+        .filter((rec: any) => rec.status === "PENDING")
+        .map((rec: any) => {
+          const agency = (backendData.agencies || []).find(
+            (a: any) => a.accountID === rec.accountFK_id
+          );
+          const filesCount = (backendData.agency_kyc_files || []).filter(
+            (f: any) => f.agencyKyc_id === rec.agencyKycID
+          ).length;
+          const submissionDate = new Date(rec.createdAt);
+          const today = new Date();
+          const daysPending = isNaN(submissionDate.getTime())
+            ? 0
+            : Math.floor(
+                (today.getTime() - submissionDate.getTime()) /
+                  (1000 * 60 * 60 * 24)
+              );
+          let priority: "high" | "medium" | "low" = "low";
+          if (daysPending > 14) priority = "high";
+          else if (daysPending > 7) priority = "medium";
+          return {
+            id: rec.agencyKycID?.toString() || "0",
+            userId: rec.accountFK_id?.toString() || "0",
+            userName:
+              agency?.businessName ||
+              agency?.email?.split("@")?.[0] ||
+              "Unknown Agency",
+            userEmail: agency?.email || "unknown@email.com",
+            userType: "agency",
+            submissionDate: rec.createdAt || new Date().toISOString(),
+            priority: priority,
+            documentsCount: filesCount,
+            daysPending: daysPending,
+          };
+        });
+
+      setPendingKYC([...transformedData, ...agencyTransformed]);
       console.log("✅ Fetched and transformed KYC requests:", transformedData);
     } catch (error) {
       console.error("❌ Error fetching pending KYC:", error);
@@ -341,37 +368,61 @@ export default function PendingKYCPage() {
 
     setLoadingFiles((prev) => ({ ...prev, [kycId]: true }));
     try {
-      // Find all files for this KYC record from the stored backend data
-      const kycFiles = backendData.kyc_files.filter(
-        (f: any) => f.kycID_id === parseInt(kycId)
-      );
+      // Find the record in pendingKYC to determine type
+      const record = pendingKYC.find((r) => r.id === kycId);
+      let kycFiles: any[] = [];
+      let isAgency = false;
+      if (record?.userType === "agency") {
+        isAgency = true;
+        kycFiles = (backendData.agency_kyc_files || []).filter(
+          (f: any) => f.agencyKyc_id === parseInt(kycId)
+        );
+      } else {
+        kycFiles = (backendData.kyc_files || []).filter(
+          (f: any) => f.kycID_id === parseInt(kycId)
+        );
+      }
 
       console.log(
         `📂 Found ${kycFiles.length} files for KYC ${kycId}:`,
         kycFiles
       );
 
-      // Extract file URLs by fileName patterns
-      // The backend expects: frontIDLink, backIDLink, clearanceLink, selfieLink
-      const frontID = kycFiles.find((f: any) =>
-        f.fileName?.toLowerCase().includes("frontid")
-      );
-      const backID = kycFiles.find((f: any) =>
-        f.fileName?.toLowerCase().includes("backid")
-      );
-      const clearance = kycFiles.find((f: any) =>
-        f.fileName?.toLowerCase().includes("clearance")
-      );
-      const selfie = kycFiles.find((f: any) =>
-        f.fileName?.toLowerCase().includes("selfie")
-      );
+      // For agency, map fileType to keys; for user, use fileName patterns
+      let frontID, backID, clearance, selfie;
+      let addressProof;
+      if (isAgency) {
+        frontID = kycFiles.find((f: any) => f.fileType === "REP_ID_FRONT");
+        backID = kycFiles.find((f: any) => f.fileType === "REP_ID_BACK");
+        clearance = kycFiles.find((f: any) => f.fileType === "BUSINESS_PERMIT");
+        selfie = kycFiles.find((f: any) => f.fileType === "AUTH_LETTER");
+        addressProof = kycFiles.find(
+          (f: any) => f.fileType === "ADDRESS_PROOF"
+        );
+      } else {
+        frontID = kycFiles.find((f: any) =>
+          f.fileName?.toLowerCase().includes("frontid")
+        );
+        backID = kycFiles.find((f: any) =>
+          f.fileName?.toLowerCase().includes("backid")
+        );
+        clearance = kycFiles.find((f: any) =>
+          f.fileName?.toLowerCase().includes("clearance")
+        );
+        selfie = kycFiles.find((f: any) =>
+          f.fileName?.toLowerCase().includes("selfie")
+        );
+      }
 
       // Prepare the request body with file URLs from Supabase storage
       const requestBody = {
+        // Map agency file types to backend keys
         frontIDLink: frontID?.fileURL || "",
         backIDLink: backID?.fileURL || "",
         clearanceLink: clearance?.fileURL || "",
         selfieLink: selfie?.fileURL || "",
+        // addressProofLink is sent for completeness, but backend currently ignores it
+        addressProofLink: addressProof?.fileURL || "",
       };
 
       console.log("📤 Sending file URLs to backend:", requestBody);
@@ -417,6 +468,8 @@ export default function PendingKYCPage() {
 
       const filesWithMetadata = {
         ...signedUrls,
+        addressProofLink:
+          signedUrls.addressProofLink || requestBody.addressProofLink,
         idType: idType,
         clearanceType: clearanceType,
       };
@@ -847,33 +900,75 @@ export default function PendingKYCPage() {
                             <ImageIcon className="w-6 h-6 mr-2 text-blue-600" />
                             Submitted Documents
                           </h4>
-                          <div className="flex gap-3">
-                            {kycFilesMap[record.id].idType && (
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs text-gray-600 font-medium">
-                                  ID Type:
-                                </span>
-                                <span className="text-sm font-semibold px-3 py-1 bg-indigo-100 text-indigo-800 rounded-full">
-                                  {kycFilesMap[record.id].idType}
-                                </span>
-                              </div>
-                            )}
-                            {kycFilesMap[record.id].clearanceType && (
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs text-gray-600 font-medium">
-                                  Clearance:
-                                </span>
-                                <span className="text-sm font-semibold px-3 py-1 bg-purple-100 text-purple-800 rounded-full">
-                                  {kycFilesMap[record.id].clearanceType}
-                                </span>
-                              </div>
-                            )}
-                          </div>
                         </div>
-                        {!kycFilesMap[record.id].frontIDLink &&
-                        !kycFilesMap[record.id].backIDLink &&
-                        !kycFilesMap[record.id].clearanceLink &&
-                        !kycFilesMap[record.id].selfieLink ? (
+                        {record.userType === "agency" ? (
+                          // Agency KYC: show all relevant agency-specific documents in a grid
+                          <div className="grid grid-cols-2 gap-6">
+                            {/* Business Permit */}
+                            {kycFilesMap[record.id].clearanceLink && (
+                              <KYCDocumentImage
+                                url={kycFilesMap[record.id].clearanceLink}
+                                label="Business Permit"
+                                recordId={record.id}
+                                additionalInfo={
+                                  kycFilesMap[record.id].clearanceType
+                                }
+                              />
+                            )}
+                            {/* Rep ID Front */}
+                            {kycFilesMap[record.id].frontIDLink && (
+                              <KYCDocumentImage
+                                url={kycFilesMap[record.id].frontIDLink}
+                                label="Representative ID (Front)"
+                                recordId={record.id}
+                                additionalInfo={kycFilesMap[record.id].idType}
+                              />
+                            )}
+                            {/* Rep ID Back */}
+                            {kycFilesMap[record.id].backIDLink && (
+                              <KYCDocumentImage
+                                url={kycFilesMap[record.id].backIDLink}
+                                label="Representative ID (Back)"
+                                recordId={record.id}
+                                additionalInfo={kycFilesMap[record.id].idType}
+                              />
+                            )}
+                            {/* Address Proof */}
+                            {kycFilesMap[record.id].addressProofLink && (
+                              <KYCDocumentImage
+                                url={
+                                  kycFilesMap[record.id].addressProofLink || ""
+                                }
+                                label="Address Proof"
+                                recordId={record.id}
+                              />
+                            )}
+                            {/* Authorization Letter */}
+                            {kycFilesMap[record.id].selfieLink && (
+                              <KYCDocumentImage
+                                url={kycFilesMap[record.id].selfieLink}
+                                label="Authorization Letter"
+                                recordId={record.id}
+                              />
+                            )}
+                            {/* If no docs, show empty state */}
+                            {!kycFilesMap[record.id].clearanceLink &&
+                              !kycFilesMap[record.id].frontIDLink &&
+                              !kycFilesMap[record.id].backIDLink &&
+                              !kycFilesMap[record.id].addressProofLink &&
+                              !kycFilesMap[record.id].selfieLink && (
+                                <div className="col-span-2 text-center py-12 bg-white rounded-lg border-2 border-dashed border-gray-300">
+                                  <FileText className="w-16 h-16 mx-auto mb-3 text-gray-400" />
+                                  <p className="text-gray-600 font-medium">
+                                    No documents found for this KYC submission
+                                  </p>
+                                </div>
+                              )}
+                          </div>
+                        ) : !kycFilesMap[record.id].frontIDLink &&
+                          !kycFilesMap[record.id].backIDLink &&
+                          !kycFilesMap[record.id].clearanceLink &&
+                          !kycFilesMap[record.id].selfieLink ? (
                           <div className="text-center py-12 bg-white rounded-lg border-2 border-dashed border-gray-300">
                             <FileText className="w-16 h-16 mx-auto mb-3 text-gray-400" />
                             <p className="text-gray-600 font-medium">
@@ -891,7 +986,6 @@ export default function PendingKYCPage() {
                                 additionalInfo={kycFilesMap[record.id].idType}
                               />
                             )}
-
                             {/* Back ID */}
                             {kycFilesMap[record.id].backIDLink && (
                               <KYCDocumentImage
@@ -901,7 +995,6 @@ export default function PendingKYCPage() {
                                 additionalInfo={kycFilesMap[record.id].idType}
                               />
                             )}
-
                             {/* Clearance */}
                             {kycFilesMap[record.id].clearanceLink && (
                               <KYCDocumentImage
@@ -913,7 +1006,6 @@ export default function PendingKYCPage() {
                                 }
                               />
                             )}
-
                             {/* Selfie */}
                             {kycFilesMap[record.id].selfieLink && (
                               <KYCDocumentImage
