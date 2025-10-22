@@ -5,6 +5,7 @@ from ninja.responses import Response
 from django.shortcuts import redirect
 from django.urls import reverse
 from .service import fetchAll_kyc, review_kyc_items, approve_kyc, reject_kyc, fetch_kyc_logs
+from .service import approve_agency_kyc, reject_agency_kyc
 
 router = Router(tags=["adminpanel"])
 
@@ -47,6 +48,22 @@ def approve_kyc_verification(request):
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
+
+@router.post("/kyc/approve-agency")
+def approve_agency_kyc_verification(request):
+    try:
+        result = approve_agency_kyc(request)
+        print(f"✅ Successfully approved Agency KYC: {result}")
+        return result
+    except ValueError as e:
+        print(f"❌ Validation error approving Agency KYC: {str(e)}")
+        return {"success": False, "error": str(e)}
+    except Exception as e:
+        print(f"❌ Error approving Agency KYC Verification: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
 @router.post("/kyc/reject")
 def reject_kyc_verification(request):
     try:
@@ -58,6 +75,22 @@ def reject_kyc_verification(request):
         return {"success": False, "error": str(e)}
     except Exception as e:
         print(f"❌ Error rejecting KYC Verification: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+@router.post("/kyc/reject-agency")
+def reject_agency_kyc_verification(request):
+    try:
+        result = reject_agency_kyc(request)
+        print(f"✅ Successfully rejected Agency KYC: {result}")
+        return result
+    except ValueError as e:
+        print(f"❌ Validation error rejecting Agency KYC: {str(e)}")
+        return {"success": False, "error": str(e)}
+    except Exception as e:
+        print(f"❌ Error rejecting Agency KYC Verification: {str(e)}")
         import traceback
         traceback.print_exc()
         return {"success": False, "error": str(e)}

@@ -56,6 +56,17 @@ class KYCLogs(models.Model):
     # Snapshot of user info at time of review
     userEmail = models.EmailField(max_length=64)
     userAccountID = models.BigIntegerField()
+    # Indicate whether the KYC was for a regular user or an agency
+    class KYCSubject(models.TextChoices):
+        USER = "USER", "User"
+        AGENCY = "AGENCY", "Agency"
+
+    kycType = models.CharField(
+        max_length=10,
+        choices=KYCSubject.choices,
+        default=KYCSubject.USER,
+        help_text="Indicates whether the KYC was for a user account or an agency"
+    )
     
     createdAt = models.DateTimeField(auto_now_add=True)
     

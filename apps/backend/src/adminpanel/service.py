@@ -259,6 +259,8 @@ def approve_kyc(request):
                 "message": "KYC already approved",
                 "kycID": kyc_id,
                 "accountID": kyc_record.accountFK.accountID,
+                "kycStatus": kyc_record.kycStatus,
+                "kycVerified": bool(kyc_record.accountFK.KYCVerified),
             }
         
         # Update KYC status to APPROVED
@@ -291,6 +293,7 @@ def approve_kyc(request):
             reason="KYC documents verified and approved",
             userEmail=user_account.email,
             userAccountID=user_account.accountID,
+            kycType="USER",
         )
         
         # Create notification for the user
@@ -310,31 +313,12 @@ def approve_kyc(request):
         print(f"   - Audit log created")
         print(f"   - Notification sent to user")
         
-        # Delete all KYC files from Supabase storage for privacy
-        kyc_files = kycFiles.objects.filter(kycID=kyc_record)
-        deleted_files_count = 0
-        
-        for file in kyc_files:
-            try:
-                # Extract the file path from fileURL
-                # Format: user_{accountID}/kyc/{filename}
-                file_path = f"user_{user_account.accountID}/kyc/{file.fileName}"
-                
-                # Delete from Supabase storage
-                settings.SUPABASE.storage.from_("kyc-docs").remove([file_path])
-                deleted_files_count += 1
-                print(f"   🗑️  Deleted file from storage: {file_path}")
-            except Exception as e:
-                print(f"   ⚠️  Warning: Could not delete file {file.fileName} from storage: {str(e)}")
-        
-        # Delete all kycFiles records from database
-        kyc_files_deleted = kyc_files.delete()[0]
-        print(f"   🗑️  Deleted {kyc_files_deleted} kycFiles records from database")
-        
-        # Delete the kyc record itself from database
-        kyc_record.delete()
-        print(f"   🗑️  Deleted KYC record from database")
-        print(f"   ✅ Privacy cleanup complete: {deleted_files_count} files removed from storage")
+        # NOTE: Previously we deleted the KYC record and its files for privacy.
+        # Per new requirements, retain the KYC record and associated kycFiles
+        # so the approved/rejected history remains visible in the admin UI.
+        # If you still want to remove storage artifacts for privacy later,
+        # consider a background retention/cleanup job.
+        print("ℹ️ Retaining KYC DB record and kycFiles for audit/history")
         
         return {
             "success": True,
@@ -343,6 +327,7 @@ def approve_kyc(request):
             "accountID": user_account.accountID,
             "userEmail": user_account.email,
             "kycStatus": kyc_record.kycStatus,
+            "kycVerified": bool(user_account.KYCVerified),
         }
         
     except kyc.DoesNotExist:
@@ -413,6 +398,7 @@ def reject_kyc(request):
             reason=reason,
             userEmail=user_account.email,
             userAccountID=user_account.accountID,
+            kycType="USER",
         )
         
         # Create notification for the user
@@ -432,31 +418,10 @@ def reject_kyc(request):
         print(f"   - Audit log created")
         print(f"   - Notification sent to user")
         
-        # Delete all KYC files from Supabase storage for privacy
-        kyc_files = kycFiles.objects.filter(kycID=kyc_record)
-        deleted_files_count = 0
-        
-        for file in kyc_files:
-            try:
-                # Extract the file path from fileURL
-                # Format: user_{accountID}/kyc/{filename}
-                file_path = f"user_{user_account.accountID}/kyc/{file.fileName}"
-                
-                # Delete from Supabase storage
-                settings.SUPABASE.storage.from_("kyc-docs").remove([file_path])
-                deleted_files_count += 1
-                print(f"   🗑️  Deleted file from storage: {file_path}")
-            except Exception as e:
-                print(f"   ⚠️  Warning: Could not delete file {file.fileName} from storage: {str(e)}")
-        
-        # Delete all kycFiles records from database
-        kyc_files_deleted = kyc_files.delete()[0]
-        print(f"   🗑️  Deleted {kyc_files_deleted} kycFiles records from database")
-        
-        # Delete the kyc record itself from database
-        kyc_record.delete()
-        print(f"   🗑️  Deleted KYC record from database")
-        print(f"   ✅ Privacy cleanup complete: {deleted_files_count} files removed from storage")
+        # NOTE: Keep the rejected KYC record and kycFiles so the user can
+        # see the rejection reason and history. We no longer delete DB
+        # records during reject flow.
+        print("ℹ️ Retaining rejected KYC DB record and kycFiles for audit/history")
         
         return {
             "success": True,
@@ -465,6 +430,7 @@ def reject_kyc(request):
             "accountID": user_account.accountID,
             "userEmail": user_account.email,
             "kycStatus": kyc_record.kycStatus,
+            "kycVerified": bool(user_account.KYCVerified),
             "reason": reason,
         }
         
@@ -473,6 +439,211 @@ def reject_kyc(request):
         raise ValueError(f"KYC record with ID {kyc_id} not found")
     except Exception as e:
         print(f"❌ Error rejecting KYC: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise
+
+
+def approve_agency_kyc(request):
+    """
+    Approve an AgencyKYC submission.
+
+    Expects JSON body with:
+    - agencyKycID: The ID of the AgencyKYC record to approve
+    """
+    import json
+
+    try:
+        body = json.loads(request.body.decode('utf-8'))
+        agency_kyc_id = body.get("agencyKycID")
+
+        print(f"🔍 approve_agency_kyc called for AgencyKYC ID: {agency_kyc_id}")
+
+        if not agency_kyc_id:
+            raise ValueError("agencyKycID is required")
+
+        # Fetch the AgencyKYC record
+        agency_record = AgencyKYC.objects.select_related('accountFK').get(agencyKycID=agency_kyc_id)
+
+        account = agency_record.accountFK
+
+        # If already approved
+        if agency_record.status == "APPROVED":
+            return {
+                "success": True,
+                "message": "Agency KYC already approved",
+                "agencyKycID": agency_kyc_id,
+                "accountID": account.accountID,
+            }
+
+        # Update status
+        agency_record.status = "APPROVED"
+        agency_record.reviewedAt = timezone.now()
+
+        reviewer = None
+        if hasattr(request, 'auth') and request.auth:
+            reviewer = request.auth
+            agency_record.reviewedBy = reviewer
+            print(f"👤 Reviewed by admin: {reviewer.email} (ID: {reviewer.accountID})")
+        else:
+            print(f"⚠️  Warning: No authenticated user found in request.auth")
+
+        agency_record.save()
+
+        # Create audit log
+        kyc_log = KYCLogs.objects.create(
+            kycID=agency_record.agencyKycID,
+            accountFK=account,
+            action="APPROVED",
+            reviewedBy=agency_record.reviewedBy,
+            reviewedAt=agency_record.reviewedAt,
+            reason="Agency KYC documents verified and approved",
+            userEmail=account.email,
+            userAccountID=account.accountID,
+            kycType="AGENCY",
+        )
+
+        # Create notification for the agency account
+        Notification.objects.create(
+            accountFK=account,
+            notificationType="AGENCY_KYC_APPROVED",
+            title="Agency KYC Verification Approved ✅",
+            message=f"Your agency KYC verification has been approved.",
+            relatedKYCLogID=kyc_log.kycLogID,
+        )
+
+        # Mark the agency account as verified so the verification wall is removed
+        try:
+            account.KYCVerified = True
+            account.save()
+            print(f"   ✅ Account KYCVerified set to True for account {account.accountID}")
+        except Exception as e:
+            print(f"   ⚠️ Warning: Could not set account KYCVerified: {e}")
+
+        print(f"✅ Agency KYC approved: {agency_kyc_id} for account {account.email}")
+
+        # After approval we remove stored submission artifacts for privacy.
+        # Attempt to delete files; failures are non-fatal and logged.
+        # NOTE: Per new requirements, retain AgencyKYC and AgencyKycFile
+        # records after approval so history is available in the admin UI.
+        # If storage cleanup is desired later, implement a retention policy
+        # or background task to remove older artifacts.
+        print("ℹ️ Retaining AgencyKYC DB record and AgencyKycFile records for audit/history")
+
+        return {
+            "success": True,
+            "message": "Agency KYC approved successfully",
+            "agencyKycID": agency_kyc_id,
+            "accountID": account.accountID,
+            "userEmail": account.email,
+            "status": agency_record.status,
+            "kycVerified": bool(account.KYCVerified),
+        }
+
+    except AgencyKYC.DoesNotExist:
+        print(f"❌ AgencyKYC record not found: {agency_kyc_id}")
+        raise ValueError(f"AgencyKYC record with ID {agency_kyc_id} not found")
+    except Exception as e:
+        print(f"❌ Error approving AgencyKYC: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise
+
+
+def reject_agency_kyc(request):
+    """
+    Reject an AgencyKYC submission.
+
+    Expects JSON body with:
+    - agencyKycID: The ID of the AgencyKYC record to reject
+    - reason: optional reason string
+    """
+    import json
+
+    try:
+        body = json.loads(request.body.decode('utf-8'))
+        agency_kyc_id = body.get("agencyKycID")
+        reason = body.get("reason", "Agency documents did not meet verification requirements")
+
+        print(f"🔍 reject_agency_kyc called for AgencyKYC ID: {agency_kyc_id}")
+
+        if not agency_kyc_id:
+            raise ValueError("agencyKycID is required")
+
+        agency_record = AgencyKYC.objects.select_related('accountFK').get(agencyKycID=agency_kyc_id)
+        account = agency_record.accountFK
+
+        # Update status
+        agency_record.status = "REJECTED"
+        agency_record.reviewedAt = timezone.now()
+
+        reviewer = None
+        if hasattr(request, 'auth') and request.auth:
+            reviewer = request.auth
+            agency_record.reviewedBy = reviewer
+            print(f"👤 Reviewed by admin: {reviewer.email} (ID: {reviewer.accountID})")
+        else:
+            print(f"⚠️  Warning: No authenticated user found in request.auth")
+
+        agency_record.save()
+
+        # Create audit log
+        kyc_log = KYCLogs.objects.create(
+            kycID=agency_record.agencyKycID,
+            accountFK=account,
+            action="Rejected",
+            reviewedBy=agency_record.reviewedBy,
+            reviewedAt=agency_record.reviewedAt,
+            reason=reason,
+            userEmail=account.email,
+            userAccountID=account.accountID,
+            kycType="AGENCY",
+        )
+
+        # Create notification for the agency account
+        Notification.objects.create(
+            accountFK=account,
+            notificationType="AGENCY_KYC_REJECTED",
+            title="Agency KYC Verification Rejected",
+            message=f"Your agency KYC was not approved. Reason: {reason}. You may resubmit your documents.",
+            relatedKYCLogID=kyc_log.kycLogID,
+        )
+
+        print(f"✅ Agency KYC rejected: {agency_kyc_id} for account {account.email}")
+
+        # Do not delete agency files or the record here — keep submission so the agency
+        # can view the rejection reason and resubmit. Mark account as unverified.
+        try:
+            account.KYCVerified = False
+            account.save()
+            print(f"   ✅ Account KYCVerified set to False for account {account.accountID}")
+        except Exception as e:
+            print(f"   ⚠️ Warning: Could not set account KYCVerified: {e}")
+
+        # Attach reason to AgencyKYC notes for frontend display
+        try:
+            agency_record.notes = reason
+            agency_record.save()
+            print(f"   ✍️  Wrote rejection notes to AgencyKYC {agency_record.agencyKycID}")
+        except Exception as e:
+            print(f"   ⚠️ Warning: Could not write notes to AgencyKYC: {e}")
+
+        return {
+            "success": True,
+            "message": "Agency KYC rejected",
+            "agencyKycID": agency_kyc_id,
+            "accountID": account.accountID,
+            "userEmail": account.email,
+            "status": agency_record.status,
+            "kycVerified": bool(account.KYCVerified),
+            "reason": reason,
+        }
+
+    except AgencyKYC.DoesNotExist:
+        print(f"❌ AgencyKYC record not found: {agency_kyc_id}")
+        raise ValueError(f"AgencyKYC record with ID {agency_kyc_id} not found")
+    except Exception as e:
+        print(f"❌ Error rejecting AgencyKYC: {str(e)}")
         import traceback
         traceback.print_exc()
         raise
@@ -508,6 +679,7 @@ def fetch_kyc_logs(action_filter=None, limit=100):
                 "action": log.action,
                 "userEmail": log.userEmail,
                 "userAccountID": log.userAccountID,
+                "kycType": log.kycType,
                 "reviewedBy": log.reviewedBy.email if log.reviewedBy else None,
                 "reviewedByID": log.reviewedBy.accountID if log.reviewedBy else None,
                 "reviewedAt": log.reviewedAt.isoformat(),

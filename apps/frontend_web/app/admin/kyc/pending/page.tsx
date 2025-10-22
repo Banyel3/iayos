@@ -232,8 +232,15 @@ export default function PendingKYCPage() {
       // Store backend data for file access
       setBackendData(backendData);
 
-      const transformedData: PendingKYC[] = backendData.kyc.map(
-        (kycRecord: any) => {
+      // Only include user kyc records that are still pending. Approved/Rejected
+      // records are retained in the DB for history and should not appear in
+      // the pending review queue.
+      const transformedData: PendingKYC[] = (backendData.kyc || [])
+        .filter(
+          (kycRecord: any) =>
+            (kycRecord.kycStatus || "").toUpperCase() === "PENDING"
+        )
+        .map((kycRecord: any) => {
           // ...existing code for user KYC...
           const user = backendData.users.find(
             (u: any) => u.accountID === kycRecord.accountFK_id
@@ -269,8 +276,7 @@ export default function PendingKYCPage() {
             documentsCount: filesCount,
             daysPending: daysPending,
           };
-        }
-      );
+        });
 
       // Add agency KYC records
       const agencyTransformed: PendingKYC[] = (backendData.agency_kyc || [])
@@ -502,21 +508,27 @@ export default function PendingKYCPage() {
   }, []);
 
   // Handle KYC Approval
-  const handleApproveKYC = async (kycId: string) => {
+  const handleApproveKYC = async (kycId: string, userType?: string) => {
     try {
       console.log(`🔍 Approving KYC ID: ${kycId}`);
 
-      const response = await fetch(
-        "http://localhost:8000/api/adminpanel/kyc/approve",
-        {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ kycID: parseInt(kycId) }),
-        }
-      );
+      const isAgency = userType === "agency";
+      const endpoint = isAgency
+        ? "http://localhost:8000/api/adminpanel/kyc/approve-agency"
+        : "http://localhost:8000/api/adminpanel/kyc/approve";
+
+      const payload = isAgency
+        ? { agencyKycID: parseInt(kycId) }
+        : { kycID: parseInt(kycId) };
+
+      const response = await fetch(endpoint, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
 
       const result = await response.json();
 
@@ -528,12 +540,34 @@ export default function PendingKYCPage() {
 
       showToast({
         type: "success",
-        title: "KYC Approved",
-        message: `Successfully approved KYC for ${result.userEmail}`,
+        title: isAgency ? "Agency KYC Approved" : "KYC Approved",
+        message:
+          `Successfully approved ${isAgency ? "agency" : "user"} KYC for ${result.userEmail}` +
+          (result.kycVerified !== undefined
+            ? ` — account verified: ${result.kycVerified}`
+            : ""),
         duration: 5000,
       });
 
-      // Refresh the list to remove approved item
+      // If backend returned the updated verification status, reflect it locally
+      if (isAgency && result.kycVerified !== undefined) {
+        // Update backendData.agency_kyc item status locally for immediate UI feedback
+        setBackendData((prev: any) => {
+          if (!prev) return prev;
+          const updated = { ...prev };
+          if (Array.isArray(updated.agency_kyc)) {
+            updated.agency_kyc = updated.agency_kyc.map((rec: any) => {
+              if (rec.agencyKycID === parseInt(kycId)) {
+                return { ...rec, status: result.status || "APPROVED" };
+              }
+              return rec;
+            });
+          }
+          return updated;
+        });
+      }
+
+      // Refresh the list to remove approved item (server source of truth)
       fetchPendingKYC();
     } catch (error) {
       console.error("❌ Error approving KYC:", error);
@@ -551,25 +585,39 @@ export default function PendingKYCPage() {
   };
 
   // Handle KYC Rejection
-  const handleRejectKYC = async (kycId: string, reason?: string) => {
+  const handleRejectKYC = async (
+    kycId: string,
+    userType?: string,
+    reason?: string
+  ) => {
     try {
       console.log(`🔍 Rejecting KYC ID: ${kycId}`);
 
-      const response = await fetch(
-        "http://localhost:8000/api/adminpanel/kyc/reject",
-        {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
+      const isAgency = userType === "agency";
+      const endpoint = isAgency
+        ? "http://localhost:8000/api/adminpanel/kyc/reject-agency"
+        : "http://localhost:8000/api/adminpanel/kyc/reject";
+
+      const payload = isAgency
+        ? {
+            agencyKycID: parseInt(kycId),
+            reason:
+              reason || "Documents did not meet verification requirements",
+          }
+        : {
             kycID: parseInt(kycId),
             reason:
               reason || "Documents did not meet verification requirements",
-          }),
-        }
-      );
+          };
+
+      const response = await fetch(endpoint, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
 
       const result = await response.json();
 
@@ -581,12 +629,36 @@ export default function PendingKYCPage() {
 
       showToast({
         type: "warning",
-        title: "KYC Rejected",
-        message: `KYC rejected for ${result.userEmail}`,
+        title: isAgency ? "Agency KYC Rejected" : "KYC Rejected",
+        message:
+          `${isAgency ? "Agency" : "User"} KYC rejected for ${result.userEmail}` +
+          (result.kycStatus ? ` — status: ${result.kycStatus}` : "") +
+          (result.reason ? ` — reason: ${result.reason}` : ""),
         duration: 5000,
       });
 
-      // Refresh the list to remove rejected item
+      // Update local copy so the pending list reflects the rejection immediately
+      if (isAgency && result.status) {
+        setBackendData((prev: any) => {
+          if (!prev) return prev;
+          const updated = { ...prev };
+          if (Array.isArray(updated.agency_kyc)) {
+            updated.agency_kyc = updated.agency_kyc.map((rec: any) => {
+              if (rec.agencyKycID === parseInt(kycId)) {
+                return {
+                  ...rec,
+                  status: result.status,
+                  notes: result.reason || rec.notes,
+                };
+              }
+              return rec;
+            });
+          }
+          return updated;
+        });
+      }
+
+      // Refresh the list (server source of truth)
       fetchPendingKYC();
     } catch (error) {
       console.error("❌ Error rejecting KYC:", error);
@@ -874,7 +946,9 @@ export default function PendingKYCPage() {
                           <Button
                             size="sm"
                             className="bg-green-600 hover:bg-green-700 text-white"
-                            onClick={() => handleApproveKYC(record.id)}
+                            onClick={() =>
+                              handleApproveKYC(record.id, record.userType)
+                            }
                           >
                             <CheckCircle className="w-4 h-4 mr-1" />
                             Approve
@@ -883,7 +957,9 @@ export default function PendingKYCPage() {
                             variant="outline"
                             size="sm"
                             className="border-red-200 text-red-600 hover:bg-red-50"
-                            onClick={() => handleRejectKYC(record.id)}
+                            onClick={() =>
+                              handleRejectKYC(record.id, record.userType)
+                            }
                           >
                             <XCircle className="w-4 h-4 mr-1" />
                             Reject

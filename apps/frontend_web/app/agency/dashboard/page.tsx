@@ -25,7 +25,7 @@ export default function AgencyDashboardPage() {
               <CardTitle className="text-sm text-gray-600">
                 Total Workers
               </CardTitle>
-              <UserCheck className="h-5 w-5 text-purple-600" />
+              <UserCheck className="h-5 w-5 text-blue-600 agency-verified:text-blue-700" />
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold">{stats.totalWorkers}</div>
@@ -40,7 +40,7 @@ export default function AgencyDashboardPage() {
               <CardTitle className="text-sm text-gray-600">
                 Active Jobs
               </CardTitle>
-              <Briefcase className="h-5 w-5 text-orange-600" />
+              <Briefcase className="h-5 w-5 text-blue-600 agency-verified:text-blue-700" />
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold">{stats.activeJobs}</div>
@@ -55,7 +55,7 @@ export default function AgencyDashboardPage() {
               <CardTitle className="text-sm text-gray-600">
                 Average Rating
               </CardTitle>
-              <Star className="h-5 w-5 text-yellow-500" />
+              <Star className="h-5 w-5 text-blue-600 agency-verified:text-blue-700" />
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold">{stats.avgRating}</div>

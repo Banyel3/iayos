@@ -55,6 +55,8 @@ export default async function AgencyLayout({
   // Server-side: fetch agency KYC status to know if there's already a submission
   let hasSubmission = false;
   let submissionStatus = null;
+  let submissionNotes: string | null = null;
+  let submissionFiles: any[] | null = null;
   try {
     const statusRes = await fetch("http://localhost:8000/api/agency/status", {
       headers: {
@@ -67,6 +69,8 @@ export default async function AgencyLayout({
     if (statusRes.ok) {
       const statusJson = await statusRes.json();
       submissionStatus = statusJson?.status || statusJson?.kycStatus || null;
+      submissionNotes = statusJson?.notes || null;
+      submissionFiles = statusJson?.files || null;
       if (submissionStatus && submissionStatus !== "NOT_STARTED")
         hasSubmission = true;
     }
@@ -76,7 +80,11 @@ export default async function AgencyLayout({
   }
 
   return (
-    <div className="agency-theme min-h-screen flex bg-gray-50">
+    <div
+      className={`agency-theme min-h-screen flex bg-gray-50 ${
+        kycVerified ? "agency-verified" : ""
+      }`}
+    >
       <div>
         <AgencySidebar />
       </div>
@@ -85,6 +93,7 @@ export default async function AgencyLayout({
           kycVerified={kycVerified}
           hasSubmission={hasSubmission}
           submissionStatus={submissionStatus}
+          submissionNotes={submissionNotes}
         >
           {children}
         </KycGateClient>

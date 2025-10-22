@@ -26,7 +26,7 @@ interface ApprovedKYC {
   userId: string;
   userName: string;
   userEmail: string;
-  userType: "worker" | "client";
+  userType: "worker" | "client" | "agency";
   submissionDate: string;
   approvalDate: string;
   reviewedBy: string;
@@ -99,13 +99,19 @@ export default function ApprovedKYCPage() {
           (approvalDate.getTime() - submissionDate.getTime()) /
             (1000 * 60 * 60 * 24)
         );
+        // Map backend kycType to frontend userType
+        let userType: "worker" | "client" | "agency" = "worker";
+        if (log.kycType === "AGENCY") userType = "agency";
+        // If backend provides profileType we can map client/worker accordingly
+        else if (log.profileType && log.profileType.toLowerCase() === "client")
+          userType = "client";
 
         return {
           id: log.kycLogID?.toString() || "0",
           userId: log.userAccountID?.toString() || "0",
           userName: log.userEmail?.split("@")[0] || "Unknown", // Extract name from email
           userEmail: log.userEmail || "unknown@email.com",
-          userType: "worker" as "worker" | "client", // Default to worker, can be enhanced with actual profile data
+          userType: userType,
           submissionDate: log.createdAt || new Date().toISOString(),
           approvalDate: log.reviewedAt || new Date().toISOString(),
           reviewedBy: log.reviewedBy || "System",

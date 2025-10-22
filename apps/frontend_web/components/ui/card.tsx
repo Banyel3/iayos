@@ -7,7 +7,10 @@ function Card({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="card"
       className={cn(
+        // default card styles
         "bg-white text-neutral-950 flex flex-col gap-6 rounded-xl border border-neutral-200 py-6 shadow-sm dark:bg-neutral-950 dark:text-neutral-50 dark:border-neutral-800",
+        // when inside an agency-verified container, use blue accents
+        "agency-verified:[&[data-slot=card]]:border-blue-200 agency-verified:[&[data-slot=card]]:bg-blue-50 agency-verified:[&[data-slot=card]]:shadow-md",
         className
       )}
       {...props}

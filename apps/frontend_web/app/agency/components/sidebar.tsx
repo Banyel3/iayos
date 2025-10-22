@@ -43,7 +43,9 @@ export default function AgencySidebar({ className }: { className?: string }) {
         {!collapsed && (
           <div className="flex items-center space-x-2">
             <h2 className="text-2xl font-bold">
-              <span className="text-blue-600">iAyos</span>{" "}
+              <span className="text-blue-600 agency-verified:text-blue-800">
+                iAyos
+              </span>{" "}
               <span className="text-gray-500 font-normal">Agency</span>
             </h2>
           </div>
@@ -66,7 +68,7 @@ export default function AgencySidebar({ className }: { className?: string }) {
           className={cn(
             "flex items-center gap-3 px-3 py-2 rounded-md",
             isActive("/agency/dashboard")
-              ? "bg-blue-50 text-blue-600"
+              ? "bg-blue-50 text-blue-600 agency-verified:bg-blue-100 agency-verified:text-blue-800"
               : "text-gray-700 hover:bg-gray-100"
           )}
         >
@@ -79,7 +81,7 @@ export default function AgencySidebar({ className }: { className?: string }) {
           className={cn(
             "flex items-center gap-3 px-3 py-2 rounded-md mt-2",
             isActive("/agency/employees")
-              ? "bg-blue-50 text-blue-600"
+              ? "bg-blue-50 text-blue-600 agency-verified:bg-blue-100 agency-verified:text-blue-800"
               : "text-gray-700 hover:bg-gray-100"
           )}
         >
@@ -91,7 +93,7 @@ export default function AgencySidebar({ className }: { className?: string }) {
           className={cn(
             "flex items-center gap-3 px-3 py-2 rounded-md mt-2",
             isActive("/agency/jobs")
-              ? "bg-blue-50 text-blue-600"
+              ? "bg-blue-50 text-blue-600 agency-verified:bg-blue-100 agency-verified:text-blue-800"
               : "text-gray-700 hover:bg-gray-100"
           )}
         >
@@ -103,7 +105,7 @@ export default function AgencySidebar({ className }: { className?: string }) {
           className={cn(
             "flex items-center gap-3 px-3 py-2 rounded-md mt-2",
             isActive("/agency/reviews")
-              ? "bg-blue-50 text-blue-600"
+              ? "bg-blue-50 text-blue-600 agency-verified:bg-blue-100 agency-verified:text-blue-800"
               : "text-gray-700 hover:bg-gray-100"
           )}
         >
@@ -115,7 +117,7 @@ export default function AgencySidebar({ className }: { className?: string }) {
           className={cn(
             "flex items-center gap-3 px-3 py-2 rounded-md mt-2",
             isActive("/agency/profile")
-              ? "bg-blue-50 text-blue-600"
+              ? "bg-blue-50 text-blue-600 agency-verified:bg-blue-100 agency-verified:text-blue-800"
               : "text-gray-700 hover:bg-gray-100"
           )}
         >

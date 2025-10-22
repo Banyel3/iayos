@@ -45,6 +45,7 @@ const AgencyKYCPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [agencyKycStatus, setAgencyKycStatus] = useState<string | null>(null);
   const [agencyKycFiles, setAgencyKycFiles] = useState<any[]>([]);
+  const [agencyKycNotes, setAgencyKycNotes] = useState<string | null>(null);
 
   const API_BASE =
     process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
@@ -68,6 +69,7 @@ const AgencyKYCPage = () => {
         if (status) {
           setAgencyKycStatus(status);
           if (data?.files) setAgencyKycFiles(data.files || []);
+          if (data?.notes) setAgencyKycNotes(data.notes || null);
           // If KYC already exists (pending/approved/rejected), show review wall
           if (status !== "NOT_STARTED") {
             setCurrentStep(4);
@@ -668,6 +670,14 @@ const AgencyKYCPage = () => {
             Current status:{" "}
             <strong className="capitalize">{agencyKycStatus}</strong>
           </p>
+          {agencyKycStatus &&
+            agencyKycStatus.toUpperCase() === "REJECTED" &&
+            agencyKycNotes && (
+              <div className="mt-3 p-3 bg-red-50 border border-red-100 rounded text-sm text-red-800">
+                <strong className="block mb-1">Reviewer notes:</strong>
+                <div>{agencyKycNotes}</div>
+              </div>
+            )}
           <p className="text-xs text-muted-foreground mt-2">
             You cannot submit another KYC while a submission is active. Contact
             support if you need to update your documents.

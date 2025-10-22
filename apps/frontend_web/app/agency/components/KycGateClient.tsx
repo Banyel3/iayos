@@ -9,6 +9,8 @@ interface Props {
   kycVerified: boolean;
   hasSubmission?: boolean;
   submissionStatus?: string | null;
+  submissionNotes?: string | null;
+  submissionFiles?: any[] | null;
   children: React.ReactNode;
 }
 
@@ -16,6 +18,8 @@ export default function KycGateClient({
   kycVerified,
   hasSubmission = false,
   submissionStatus = null,
+  submissionNotes = null,
+  submissionFiles = null,
   children,
 }: Props) {
   const pathname = usePathname();
@@ -27,13 +31,88 @@ export default function KycGateClient({
   }
 
   // If there's an existing submission and the user isn't verified show a wait message
+  // If submission explicitly rejected, show a rejection prompt
+  if (
+    hasSubmission &&
+    submissionStatus &&
+    submissionStatus.toUpperCase() === "REJECTED"
+  ) {
+    return (
+      <section className="max-w-4xl mx-auto mt-12 p-8 bg-red-50 border border-red-100 rounded-2xl shadow-lg">
+        <div className="flex items-start gap-6">
+          <div className="flex-shrink-0 w-20 h-20 rounded-lg bg-red-100 flex items-center justify-center">
+            <svg
+              className="w-10 h-10 text-red-600"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+            >
+              <path
+                strokeWidth={1.5}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 9v4"
+              />
+              <path
+                strokeWidth={1.5}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 17h.01"
+              />
+            </svg>
+          </div>
+
+          <div className="flex-1">
+            <h2 className="text-2xl font-semibold text-red-900">
+              Verification rejected
+            </h2>
+            <p className="mt-2 text-sm text-red-700">
+              Your submission did not meet our verification requirements.
+            </p>
+
+            <div className="mt-4 text-sm text-red-700">
+              <p>
+                If you received notes from us, please review them and resubmit
+                with corrected documents.
+              </p>
+              {submissionNotes && (
+                <div className="mt-3 p-3 bg-red-100 text-red-800 rounded">
+                  <strong className="block text-sm mb-1">
+                    Notes from reviewer:
+                  </strong>
+                  <div className="text-sm">{submissionNotes}</div>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-6 flex items-center gap-3">
+              <Link href="/support">
+                <Button
+                  variant="ghost"
+                  className="text-red-700 border border-red-100"
+                >
+                  Contact support
+                </Button>
+              </Link>
+              <Link href="/agency/kyc">
+                <Button className="bg-red-600 text-white">Resubmit KYC</Button>
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   if (hasSubmission) {
+    // Render a compact submission preview inline so users don't need to click
+    // through to the KYC page just to see their submitted documents/status.
     return (
       <section className="max-w-4xl mx-auto mt-12 p-8 bg-gradient-to-r from-blue-50 to-white border border-blue-100 rounded-2xl shadow-lg">
         <div className="flex items-start gap-6">
           <div className="flex-shrink-0 w-20 h-20 rounded-lg bg-blue-600/10 flex items-center justify-center">
             <svg
-              className="w-10 h-10 text-blue-600"
+              className="w-10 h-10 text-blue-600 agency-verified:text-blue-800"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -76,18 +155,42 @@ export default function KycGateClient({
               While you wait you can continue to use non-restricted parts of the
               dashboard. We'll notify you via email when verification completes.
             </p>
+            {submissionFiles && submissionFiles.length > 0 && (
+              <div className="mt-6 text-left w-full">
+                <h4 className="text-sm font-semibold mb-2">Submitted files</h4>
+                <ul className="space-y-2 text-sm">
+                  {submissionFiles.map((f, i) => (
+                    <li key={i} className="flex items-center justify-between">
+                      <span className="truncate">
+                        {f.file_name || f.fileName || f.fileName}
+                      </span>
+                      {f.file_url || f.fileURL ? (
+                        <a
+                          href={f.file_url || f.fileURL}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 agency-verified:text-blue-800 text-xs"
+                        >
+                          View
+                        </a>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             <div className="mt-6 flex items-center gap-3">
               <Link href="/support">
                 <Button
                   variant="ghost"
-                  className="text-blue-600 border border-blue-100"
+                  className="text-blue-600 agency-verified:text-blue-800 border border-blue-100 agency-verified:border-blue-200"
                 >
                   Contact support
                 </Button>
               </Link>
               <Link href="/agency/kyc">
-                <Button className="bg-blue-600 text-white">
+                <Button className="bg-blue-600 agency-verified:bg-blue-700 text-white">
                   View submission
                 </Button>
               </Link>
@@ -101,9 +204,9 @@ export default function KycGateClient({
   return (
     <section className="max-w-4xl mx-auto mt-12 p-8 bg-white border border-blue-100 rounded-2xl shadow-lg">
       <div className="flex items-start gap-6">
-        <div className="flex-shrink-0 w-20 h-20 rounded-lg bg-blue-50 flex items-center justify-center">
+        <div className="flex-shrink-0 w-20 h-20 rounded-lg bg-blue-50 agency-verified:bg-blue-100 flex items-center justify-center">
           <svg
-            className="w-10 h-10 text-blue-600"
+            className="w-10 h-10 text-blue-600 agency-verified:text-blue-800"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -140,7 +243,7 @@ export default function KycGateClient({
 
           <ul className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
             <li className="flex items-start gap-3">
-              <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-blue-600">
+              <div className="w-8 h-8 rounded-full bg-blue-50 agency-verified:bg-blue-100 flex items-center justify-center text-blue-600 agency-verified:text-blue-800">
                 1
               </div>
               <div className="text-sm text-slate-700">
@@ -148,7 +251,7 @@ export default function KycGateClient({
               </div>
             </li>
             <li className="flex items-start gap-3">
-              <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-blue-600">
+              <div className="w-8 h-8 rounded-full bg-blue-50 agency-verified:bg-blue-100 flex items-center justify-center text-blue-600 agency-verified:text-blue-800">
                 2
               </div>
               <div className="text-sm text-slate-700">
@@ -156,7 +259,7 @@ export default function KycGateClient({
               </div>
             </li>
             <li className="flex items-start gap-3">
-              <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-blue-600">
+              <div className="w-8 h-8 rounded-full bg-blue-50 agency-verified:bg-blue-100 flex items-center justify-center text-blue-600 agency-verified:text-blue-800">
                 3
               </div>
               <div className="text-sm text-slate-700">Proof of address</div>
