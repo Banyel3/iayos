@@ -26,9 +26,11 @@ It showcases full-stack development skills using Next.js (frontend) and Django (
 📜 License
 
 This project is licensed under the MIT License — see the LICENSE
- file for details.
+file for details.
 You are free to explore, learn from, and modify the code, with proper credit to the authors.
+
 ---
+
 # 🚀 Project Setup Guide
 
 Follow these steps to get the project running on your local machine.
