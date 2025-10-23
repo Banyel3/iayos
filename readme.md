@@ -1,3 +1,34 @@
+---
+
+🛠️ iAyos Marketplace Platform
+
+iAyos is a niche marketplace platform connecting freelance blue-collar workers and small home-based businesses with clients seeking services like home construction, repair, and mechanical work. Think of it as a specialized version of Fiverr or Upwork, focused on practical, hands-on services.
+
+The platform provides:
+
+✅ Client-Worker Matching: Quickly find service providers or gigs.
+
+✅ User Profiles & Ratings: Build trust through verified profiles and reviews.
+
+✅ Task Management: Track, accept, and complete jobs efficiently.
+
+✅ Secure Communication: In-app messaging for seamless coordination.
+
+---
+
+🎓 About This Project
+
+This project was developed as the final submission for the Software Engineering course at [Your University Name].
+It showcases full-stack development skills using Next.js (frontend) and Django (backend), including deployment best practices, environment setup, and team collaboration.
+
+---
+
+📜 License
+
+This project is licensed under the MIT License — see the LICENSE
+ file for details.
+You are free to explore, learn from, and modify the code, with proper credit to the authors.
+---
 # 🚀 Project Setup Guide
 
 Follow these steps to get the project running on your local machine.
