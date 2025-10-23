@@ -1,5 +1,3 @@
----
-
 🛠️ iAyos Marketplace Platform
 
 iAyos is a niche marketplace platform connecting freelance blue-collar workers and small home-based businesses with clients seeking services like home construction, repair, and mechanical work. Think of it as a specialized version of Fiverr or Upwork, focused on practical, hands-on services.
