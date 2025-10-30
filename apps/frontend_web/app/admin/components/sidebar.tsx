@@ -266,7 +266,7 @@ export default function Sidebar({ className }: SidebarProps) {
                     onClick={() => toggleExpanded(item.name)}
                     className={cn(
                       "w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
-                      isItemActive || hasActiveChild
+                      hasActiveChild
                         ? "bg-blue-50 text-blue-600"
                         : "text-gray-700 hover:bg-gray-100"
                     )}
@@ -275,7 +275,7 @@ export default function Sidebar({ className }: SidebarProps) {
                       <Icon
                         className={cn(
                           "h-4 w-4",
-                          isItemActive || hasActiveChild
+                          hasActiveChild
                             ? "text-blue-600"
                             : "text-gray-400"
                         )}

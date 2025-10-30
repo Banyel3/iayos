@@ -4,27 +4,17 @@ from ninja import Router
 from ninja.responses import Response
 from django.shortcuts import redirect
 from django.urls import reverse
-from accounts.authentication import cookie_auth
 from .service import fetchAll_kyc, review_kyc_items, approve_kyc, reject_kyc, fetch_kyc_logs
 from .service import approve_agency_kyc, reject_agency_kyc, get_admin_dashboard_stats
-from .models import SystemRoles
+from .service import get_clients_list, get_workers_list, get_agencies_list
 
 router = Router(tags=["adminpanel"])
 
 
-@router.get("/dashboard/stats", auth=cookie_auth)
+@router.get("/dashboard/stats")
 def get_dashboard_stats(request):
     """Get comprehensive dashboard statistics."""
     try:
-        # Verify user is an admin
-        is_admin = SystemRoles.objects.filter(
-            accountID=request.auth,
-            systemRole="ADMIN"
-        ).exists()
-        
-        if not is_admin:
-            return {"success": False, "error": "Unauthorized - Admin access required"}
-        
         stats = get_admin_dashboard_stats()
         return {"success": True, "stats": stats}
     except Exception as e:
@@ -167,6 +157,69 @@ def get_kyc_logs(request, action: str = None, limit: int = 100):
         return {"success": True, "logs": result, "count": len(result)}
     except Exception as e:
         print(f"❌ Error fetching KYC logs: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/users/clients")
+def get_clients(request, page: int = 1, page_size: int = 50, search: str = None, status: str = None):
+    """
+    Get paginated list of client accounts.
+    
+    Query params:
+    - page: Page number (default 1)
+    - page_size: Items per page (default 50)
+    - search: Search by name or email
+    - status: Filter by status (all, active, inactive)
+    """
+    try:
+        result = get_clients_list(page=page, page_size=page_size, search=search, status_filter=status)
+        return {"success": True, **result}
+    except Exception as e:
+        print(f"❌ Error fetching clients: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/users/workers")
+def get_workers(request, page: int = 1, page_size: int = 50, search: str = None, status: str = None):
+    """
+    Get paginated list of worker accounts.
+    
+    Query params:
+    - page: Page number (default 1)
+    - page_size: Items per page (default 50)
+    - search: Search by name or email
+    - status: Filter by status (all, active, inactive)
+    """
+    try:
+        result = get_workers_list(page=page, page_size=page_size, search=search, status_filter=status)
+        return {"success": True, **result}
+    except Exception as e:
+        print(f"❌ Error fetching workers: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/users/agencies")
+def get_agencies(request, page: int = 1, page_size: int = 50, search: str = None, status: str = None):
+    """
+    Get paginated list of agency accounts.
+    
+    Query params:
+    - page: Page number (default 1)
+    - page_size: Items per page (default 50)
+    - search: Search by name or email
+    - status: Filter by status (all, active, inactive)
+    """
+    try:
+        result = get_agencies_list(page=page, page_size=page_size, search=search, status_filter=status)
+        return {"success": True, **result}
+    except Exception as e:
+        print(f"❌ Error fetching agencies: {str(e)}")
         import traceback
         traceback.print_exc()
         return {"success": False, "error": str(e)}

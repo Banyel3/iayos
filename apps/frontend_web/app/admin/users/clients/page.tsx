@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Card,
@@ -17,177 +17,98 @@ import {
   Download,
   Calendar,
   DollarSign,
+  Loader2,
 } from "lucide-react";
 import { Sidebar } from "../../components";
 
 interface Client {
   id: string;
-  name: string;
+  profile_id: string;
   email: string;
+  first_name: string;
+  last_name: string;
   phone: string;
-  accountType: "personal" | "business";
   location: string;
-  status: "active" | "inactive" | "suspended";
-  verificationStatus: "verified" | "pending" | "rejected";
-  joinDate: string;
-  totalJobsPosted: number;
-  totalSpent: number;
-  activeJobs: number;
-  preferredCategories: string[];
+  status: "active" | "inactive";
+  kyc_status: string;
+  join_date: string;
+  is_verified: boolean;
 }
 
-const mockClients: Client[] = [
-  {
-    id: "1",
-    name: "Sarah Wilson",
-    email: "sarah.wilson@example.com",
-    phone: "+1234567890",
-    accountType: "personal",
-    location: "New York, NY",
-    status: "active",
-    verificationStatus: "verified",
-    joinDate: "2024-01-15",
-    totalJobsPosted: 15,
-    totalSpent: 2450.0,
-    activeJobs: 3,
-    preferredCategories: ["Home Cleaning", "Plumbing", "Electrical"],
-  },
-  {
-    id: "2",
-    name: "David Chen",
-    email: "david.chen@example.com",
-    phone: "+1234567891",
-    accountType: "business",
-    location: "San Francisco, CA",
-    status: "inactive",
-    verificationStatus: "verified",
-    joinDate: "2024-02-20",
-    totalJobsPosted: 8,
-    totalSpent: 1200.0,
-    activeJobs: 0,
-    preferredCategories: ["IT Support", "Electrical"],
-  },
-  {
-    id: "3",
-    name: "Emily Rodriguez",
-    email: "emily.r@techstartup.com",
-    phone: "+1234567892",
-    accountType: "business",
-    location: "Austin, TX",
-    status: "active",
-    verificationStatus: "verified",
-    joinDate: "2024-03-10",
-    totalJobsPosted: 23,
-    totalSpent: 4890.0,
-    activeJobs: 5,
-    preferredCategories: ["Painting", "Carpentry", "Home Cleaning"],
-  },
-  {
-    id: "4",
-    name: "Michael Thompson",
-    email: "m.thompson@gmail.com",
-    phone: "+1234567893",
-    accountType: "personal",
-    location: "Seattle, WA",
-    status: "active",
-    verificationStatus: "verified",
-    joinDate: "2024-04-05",
-    totalJobsPosted: 12,
-    totalSpent: 1850.0,
-    activeJobs: 2,
-    preferredCategories: ["Plumbing", "HVAC"],
-  },
-  {
-    id: "5",
-    name: "Jennifer Lee",
-    email: "jennifer.lee@realestate.com",
-    phone: "+1234567894",
-    accountType: "business",
-    location: "Miami, FL",
-    status: "active",
-    verificationStatus: "verified",
-    joinDate: "2024-01-28",
-    totalJobsPosted: 42,
-    totalSpent: 8720.0,
-    activeJobs: 8,
-    preferredCategories: [
-      "Home Cleaning",
-      "Landscaping",
-      "Painting",
-      "Plumbing",
-    ],
-  },
-  {
-    id: "6",
-    name: "Robert Martinez",
-    email: "robert.m@yahoo.com",
-    phone: "+1234567895",
-    accountType: "personal",
-    location: "Boston, MA",
-    status: "suspended",
-    verificationStatus: "rejected",
-    joinDate: "2024-05-12",
-    totalJobsPosted: 3,
-    totalSpent: 180.0,
-    activeJobs: 0,
-    preferredCategories: ["Electrical"],
-  },
-  {
-    id: "7",
-    name: "Amanda Foster",
-    email: "amanda@designstudio.com",
-    phone: "+1234567896",
-    accountType: "business",
-    location: "Portland, OR",
-    status: "active",
-    verificationStatus: "verified",
-    joinDate: "2024-02-14",
-    totalJobsPosted: 18,
-    totalSpent: 3240.0,
-    activeJobs: 4,
-    preferredCategories: ["Painting", "Carpentry", "Interior Design"],
-  },
-  {
-    id: "8",
-    name: "James Anderson",
-    email: "j.anderson@construction.com",
-    phone: "+1234567897",
-    accountType: "business",
-    location: "Denver, CO",
-    status: "active",
-    verificationStatus: "verified",
-    joinDate: "2024-01-05",
-    totalJobsPosted: 56,
-    totalSpent: 15670.0,
-    activeJobs: 11,
-    preferredCategories: [
-      "Carpentry",
-      "Plumbing",
-      "Electrical",
-      "HVAC",
-      "Roofing",
-    ],
-  },
-];
+interface ClientsResponse {
+  success: boolean;
+  clients: Client[];
+  total: number;
+  page: number;
+  total_pages: number;
+  has_next: boolean;
+  has_previous: boolean;
+}
 
 export default function ClientsPage() {
   const router = useRouter();
-  const [clients] = useState<Client[]>(mockClients);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<
-    "all" | "active" | "inactive" | "suspended"
-  >("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [totalClients, setTotalClients] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
-  const filteredClients = clients.filter((client) => {
-    const matchesSearch =
-      client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      client.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      client.location.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus =
-      statusFilter === "all" || client.status === statusFilter;
+  const fetchClients = async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({
+        page: currentPage.toString(),
+        page_size: "50",
+      });
+      
+      if (searchTerm) params.append("search", searchTerm);
+      if (statusFilter !== "all") params.append("status", statusFilter);
 
-    return matchesSearch && matchesStatus;
-  });
+      const response = await fetch(
+        `http://localhost:8000/api/adminpanel/users/clients?${params}`,
+        {
+          credentials: "include",
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch clients");
+      }
+
+      const data: ClientsResponse = await response.json();
+      
+      if (data.success) {
+        setClients(data.clients);
+        setTotalClients(data.total);
+        setTotalPages(data.total_pages);
+      }
+    } catch (error) {
+      console.error("Error fetching clients:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchClients();
+  }, [currentPage, statusFilter]);
+
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (currentPage === 1) {
+        fetchClients();
+      } else {
+        setCurrentPage(1);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  const activeClients = clients.filter((c) => c.status === "active").length;
 
   return (
     <div className="flex">
@@ -210,7 +131,7 @@ export default function ClientsPage() {
           </div>
 
           {/* Stats Cards */}
-          <div className="grid gap-4 md:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-3">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">
@@ -219,9 +140,9 @@ export default function ClientsPage() {
                 <Building2 className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{clients.length}</div>
+                <div className="text-2xl font-bold">{totalClients}</div>
                 <p className="text-xs text-muted-foreground">
-                  +15% from last month
+                  Registered clients
                 </p>
               </CardContent>
             </Card>
@@ -233,9 +154,7 @@ export default function ClientsPage() {
                 <Building2 className="h-4 w-4 text-green-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">
-                  {clients.filter((c) => c.status === "active").length}
-                </div>
+                <div className="text-2xl font-bold">{activeClients}</div>
                 <p className="text-xs text-muted-foreground">
                   Currently active
                 </p>
@@ -244,34 +163,15 @@ export default function ClientsPage() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">
-                  Total Revenue
-                </CardTitle>
-                <DollarSign className="h-4 w-4 text-green-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  $
-                  {clients
-                    .reduce((acc, c) => acc + c.totalSpent, 0)
-                    .toLocaleString()}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Platform revenue
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Total Jobs
+                  Verified Clients
                 </CardTitle>
                 <Calendar className="h-4 w-4 text-blue-600" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {clients.reduce((acc, c) => acc + c.totalJobsPosted, 0)}
+                  {clients.filter((c) => c.is_verified).length}
                 </div>
-                <p className="text-xs text-muted-foreground">Jobs posted</p>
+                <p className="text-xs text-muted-foreground">Email verified</p>
               </CardContent>
             </Card>
           </div>
@@ -281,7 +181,7 @@ export default function ClientsPage() {
             <CardHeader>
               <CardTitle>Search & Filter</CardTitle>
               <CardDescription>
-                Find clients by name, email, location, or status
+                Find clients by name, email, or status
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -300,20 +200,13 @@ export default function ClientsPage() {
                 <select
                   value={statusFilter}
                   onChange={(e) =>
-                    setStatusFilter(
-                      e.target.value as
-                        | "all"
-                        | "active"
-                        | "inactive"
-                        | "suspended"
-                    )
+                    setStatusFilter(e.target.value as "all" | "active" | "inactive")
                   }
                   className="px-3 py-2 border rounded-md"
                 >
                   <option value="all">All Status</option>
                   <option value="active">Active</option>
                   <option value="inactive">Inactive</option>
-                  <option value="suspended">Suspended</option>
                 </select>
               </div>
             </CardContent>
@@ -323,108 +216,137 @@ export default function ClientsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Clients List</CardTitle>
-              <CardDescription>Overview of all clients</CardDescription>
+              <CardDescription>
+                Overview of all clients (Page {currentPage} of {totalPages})
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="overflow-x-auto">
-                <table className="min-w-full border border-gray-200 rounded-md">
-                  <thead className="bg-gray-100">
-                    <tr>
-                      <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
-                        #
-                      </th>
-                      <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
-                        Name
-                      </th>
-                      <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
-                        Email
-                      </th>
+              {loading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                  <span className="ml-2 text-gray-600">Loading clients...</span>
+                </div>
+              ) : clients.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  No clients found
+                </div>
+              ) : (
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full border border-gray-200 rounded-md">
+                      <thead className="bg-gray-100">
+                        <tr>
+                          <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
+                            #
+                          </th>
+                          <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
+                            Name
+                          </th>
+                          <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
+                            Email
+                          </th>
+                          <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
+                            Phone
+                          </th>
+                          <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
+                            Location
+                          </th>
+                          <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
+                            KYC Status
+                          </th>
+                          <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
+                            Status
+                          </th>
+                          <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
+                            Action
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {clients.map((client, index) => (
+                          <tr key={client.id} className="border-t hover:bg-gray-50">
+                            <td className="px-4 py-2 text-sm">
+                              {(currentPage - 1) * 50 + index + 1}
+                            </td>
+                            <td className="px-4 py-2 text-sm font-medium">
+                              {client.first_name} {client.last_name}
+                            </td>
+                            <td className="px-4 py-2 text-sm text-gray-600">
+                              {client.email}
+                            </td>
+                            <td className="px-4 py-2 text-sm text-gray-600">
+                              {client.phone || "N/A"}
+                            </td>
+                            <td className="px-4 py-2 text-sm text-gray-600">
+                              {client.location || "N/A"}
+                            </td>
+                            <td className="px-4 py-2 text-sm">
+                              <span
+                                className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                  client.kyc_status === "APPROVED"
+                                    ? "bg-green-100 text-green-800"
+                                    : client.kyc_status === "PENDING"
+                                      ? "bg-yellow-100 text-yellow-800"
+                                      : client.kyc_status === "REJECTED"
+                                        ? "bg-red-100 text-red-800"
+                                        : "bg-gray-100 text-gray-800"
+                                }`}
+                              >
+                                {client.kyc_status}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2 text-sm">
+                              <span
+                                className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                  client.status === "active"
+                                    ? "bg-green-100 text-green-800"
+                                    : "bg-gray-100 text-gray-800"
+                                }`}
+                              >
+                                {client.status}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2 text-sm space-x-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() =>
+                                  router.push(`/admin/users/clients/${client.id}`)
+                                }
+                              >
+                                View
+                              </Button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
 
-                      <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
-                        Location
-                      </th>
-                      <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
-                        Jobs Posted
-                      </th>
-                      <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
-                        Active Jobs
-                      </th>
-                      <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
-                        Total Spent
-                      </th>
-                      <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
-                        Status
-                      </th>
-                      <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
-                        Action
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredClients.map((client, index) => (
-                      <tr key={client.id} className="border-t">
-                        <td className="px-4 py-2 text-sm">{index + 1}</td>
-                        <td className="px-4 py-2 text-sm font-medium">
-                          {client.name}
-                        </td>
-                        <td className="px-4 py-2 text-sm text-gray-600">
-                          {client.email}
-                        </td>
-
-                        <td className="px-4 py-2 text-sm text-gray-600">
-                          {client.location}
-                        </td>
-                        <td className="px-4 py-2 text-sm">
-                          {client.totalJobsPosted}
-                        </td>
-                        <td className="px-4 py-2 text-sm">
-                          {client.activeJobs > 0 ? (
-                            <span className="text-blue-600 font-medium">
-                              {client.activeJobs}
-                            </span>
-                          ) : (
-                            <span className="text-gray-400">0</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-2 text-sm font-medium text-green-600">
-                          ${client.totalSpent.toLocaleString()}
-                        </td>
-                        <td className="px-4 py-2 text-sm">
-                          <span
-                            className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              client.status === "active"
-                                ? "bg-green-100 text-green-800"
-                                : client.status === "inactive"
-                                  ? "bg-gray-100 text-gray-800"
-                                  : "bg-red-100 text-red-800"
-                            }`}
-                          >
-                            {client.status}
-                          </span>
-                        </td>
-                        <td className="px-4 py-2 text-sm space-x-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() =>
-                              router.push(`/admin/users/clients/${client.id}`)
-                            }
-                          >
-                            View
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => console.log("Delete", client.id)}
-                          >
-                            Delete
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                  {/* Pagination */}
+                  {totalPages > 1 && (
+                    <div className="flex items-center justify-between mt-4">
+                      <Button
+                        variant="outline"
+                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
+                      >
+                        Previous
+                      </Button>
+                      <span className="text-sm text-gray-600">
+                        Page {currentPage} of {totalPages}
+                      </span>
+                      <Button
+                        variant="outline"
+                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                        disabled={currentPage === totalPages}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  )}
+                </>
+              )}
             </CardContent>
           </Card>
         </div>

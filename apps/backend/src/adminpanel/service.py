@@ -775,10 +775,8 @@ def get_admin_dashboard_stats():
         # User statistics
         total_users = Accounts.objects.count()
         
-        # Count by account type
-        total_agencies = Accounts.objects.filter(
-            Q(accountType='agency') | Q(role='AGENCY')
-        ).count()
+        # Count by account type (agencies are accounts with a linked agency profile)
+        total_agencies = Accounts.objects.filter(agency__isnull=False).count()
         
         # Clients and workers from Profile
         profiles_with_type = Profile.objects.exclude(profileType__isnull=True)
@@ -789,7 +787,7 @@ def get_admin_dashboard_stats():
         active_users = Accounts.objects.filter(isVerified=True).count()
         
         # KYC statistics
-        pending_kyc = kyc.objects.filter(status='PENDING').count()
+        pending_kyc = kyc.objects.filter(kycStatus='PENDING').count()
         pending_agency_kyc = AgencyKYC.objects.filter(status='PENDING').count()
         total_pending_kyc = pending_kyc + pending_agency_kyc
         
@@ -855,5 +853,303 @@ def get_admin_dashboard_stats():
         traceback.print_exc()
         raise
 
+
+def get_clients_list(page: int = 1, page_size: int = 50, search: str = None, status_filter: str = None):
+    """Get paginated list of client accounts with their details."""
+    from django.db.models import Q, Count
+    from django.core.paginator import Paginator
+    
+    try:
+        # Get all profiles with type CLIENT
+        clients_query = Profile.objects.filter(profileType='CLIENT').select_related('accountFK')
+        
+        # Apply search filter
+        if search:
+            clients_query = clients_query.filter(
+                Q(accountFK__email__icontains=search) |
+                Q(firstName__icontains=search) |
+                Q(lastName__icontains=search)
+            )
+        
+        # Apply status filter
+        if status_filter and status_filter != 'all':
+            if status_filter == 'active':
+                clients_query = clients_query.filter(accountFK__isVerified=True)
+            elif status_filter == 'inactive':
+                clients_query = clients_query.filter(accountFK__isVerified=False)
+        
+        # Order by creation date (newest first)
+        clients_query = clients_query.order_by('-accountFK__createdAt')
+        
+        # Paginate
+        paginator = Paginator(clients_query, page_size)
+        page_obj = paginator.get_page(page)
+        
+        # Build result
+        clients_list = []
+        for profile in page_obj:
+            account = profile.accountFK
+            
+            # Get KYC status from logs (most recent entry)
+            try:
+                from adminpanel.models import KYCLogs
+                latest_log = KYCLogs.objects.filter(
+                    accountFK=account,
+                    kycType=KYCLogs.KYCSubject.USER
+                ).order_by('-reviewedAt').first()
+                
+                if latest_log:
+                    kyc_status = latest_log.action  # APPROVED or REJECTED
+                else:
+                    # No log entry - check if KYC exists and is pending
+                    try:
+                        kyc_obj = kyc.objects.get(accountFK=account)
+                        kyc_status = kyc_obj.kycStatus  # PENDING
+                    except kyc.DoesNotExist:
+                        kyc_status = 'NOT_SUBMITTED'
+            except Exception as e:
+                kyc_status = 'NOT_SUBMITTED'
+            
+            clients_list.append({
+                'id': str(account.accountID),
+                'profile_id': str(profile.profileID),
+                'email': account.email,
+                'first_name': profile.firstName or '',
+                'last_name': profile.lastName or '',
+                'phone': profile.contactNum or '',
+                'location': profile.location_sharing_enabled and f"Lat: {profile.latitude}, Lng: {profile.longitude}" or 'N/A',
+                'status': 'active' if account.isVerified else 'inactive',
+                'kyc_status': kyc_status,
+                'join_date': account.createdAt.isoformat() if account.createdAt else None,
+                'is_verified': account.isVerified,
+            })
+        
+        return {
+            'clients': clients_list,
+            'total': paginator.count,
+            'page': page,
+            'total_pages': paginator.num_pages,
+            'has_next': page_obj.has_next(),
+            'has_previous': page_obj.has_previous(),
+        }
+        
+    except Exception as e:
+        print(f"❌ Error fetching clients list: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise
+
+
+def get_workers_list(page: int = 1, page_size: int = 50, search: str = None, status_filter: str = None):
+    """Get paginated list of worker accounts with their details."""
+    from django.db.models import Q, Avg
+    from django.core.paginator import Paginator
+    
+    try:
+        # Get all profiles with type WORKER
+        workers_query = Profile.objects.filter(profileType='WORKER').select_related('accountFK')
+        
+        # Apply search filter
+        if search:
+            workers_query = workers_query.filter(
+                Q(accountFK__email__icontains=search) |
+                Q(firstName__icontains=search) |
+                Q(lastName__icontains=search)
+            )
+        
+        # Apply status filter
+        if status_filter and status_filter != 'all':
+            if status_filter == 'active':
+                workers_query = workers_query.filter(accountFK__isVerified=True)
+            elif status_filter == 'inactive':
+                workers_query = workers_query.filter(accountFK__isVerified=False)
+        
+        # Order by creation date (newest first)
+        workers_query = workers_query.order_by('-accountFK__createdAt')
+        
+        # Paginate
+        paginator = Paginator(workers_query, page_size)
+        page_obj = paginator.get_page(page)
+        
+        # Build result
+        workers_list = []
+        for profile in page_obj:
+            account = profile.accountFK
+            
+            # Get KYC status from logs (most recent entry)
+            try:
+                from adminpanel.models import KYCLogs
+                latest_log = KYCLogs.objects.filter(
+                    accountFK=account,
+                    kycType=KYCLogs.KYCSubject.USER
+                ).order_by('-reviewedAt').first()
+                
+                if latest_log:
+                    kyc_status = latest_log.action  # APPROVED or REJECTED
+                else:
+                    # No log entry - check if KYC exists and is pending
+                    try:
+                        kyc_obj = kyc.objects.get(accountFK=account)
+                        kyc_status = kyc_obj.kycStatus  # PENDING
+                    except kyc.DoesNotExist:
+                        kyc_status = 'NOT_SUBMITTED'
+            except Exception as e:
+                kyc_status = 'NOT_SUBMITTED'
+            
+            # Get worker rating and completed jobs
+            # You may need to adjust this based on your Job/Review models
+            try:
+                from accounts.models import Job
+                completed_jobs = Job.objects.filter(
+                    workerFK=profile,
+                    status='COMPLETED'
+                ).count()
+            except:
+                completed_jobs = 0
+            
+            workers_list.append({
+                'id': str(account.accountID),
+                'profile_id': str(profile.profileID),
+                'email': account.email,
+                'first_name': profile.firstName or '',
+                'last_name': profile.lastName or '',
+                'phone': profile.contactNum or '',
+                'location': profile.location_sharing_enabled and f"Lat: {profile.latitude}, Lng: {profile.longitude}" or 'N/A',
+                'status': 'active' if account.isVerified else 'inactive',
+                'kyc_status': kyc_status,
+                'join_date': account.createdAt.isoformat() if account.createdAt else None,
+                'is_verified': account.isVerified,
+                'completed_jobs': completed_jobs,
+                'rating': 0.0,  # TODO: Calculate from reviews when implemented
+                'review_count': 0,  # TODO: Get from reviews when implemented
+            })
+        
+        return {
+            'workers': workers_list,
+            'total': paginator.count,
+            'page': page,
+            'total_pages': paginator.num_pages,
+            'has_next': page_obj.has_next(),
+            'has_previous': page_obj.has_previous(),
+        }
+        
+    except Exception as e:
+        print(f"❌ Error fetching workers list: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise
+
+
+def get_agencies_list(page: int = 1, page_size: int = 50, search: str = None, status_filter: str = None):
+    """Get paginated list of agency accounts with their details."""
+    from django.db.models import Q, Count
+    from django.core.paginator import Paginator
+    
+    try:
+        # Get all agencies
+        agencies_query = Agency.objects.select_related('accountFK').all()
+        
+        # Apply search filter
+        if search:
+            agencies_query = agencies_query.filter(
+                Q(accountFK__email__icontains=search) |
+                Q(businessName__icontains=search)
+            )
+        
+        # Apply status filter
+        if status_filter and status_filter != 'all':
+            if status_filter == 'active':
+                agencies_query = agencies_query.filter(accountFK__isVerified=True)
+            elif status_filter == 'inactive':
+                agencies_query = agencies_query.filter(accountFK__isVerified=False)
+        
+        # Order by creation date (newest first)
+        agencies_query = agencies_query.order_by('-accountFK__createdAt')
+        
+        # Paginate
+        paginator = Paginator(agencies_query, page_size)
+        page_obj = paginator.get_page(page)
+        
+        # Build result
+        agencies_list = []
+        for agency in page_obj:
+            account = agency.accountFK
+            
+            # Get Agency KYC status from logs (most recent entry)
+            try:
+                from adminpanel.models import KYCLogs
+                latest_log = KYCLogs.objects.filter(
+                    accountFK=account,
+                    kycType=KYCLogs.KYCSubject.AGENCY
+                ).order_by('-reviewedAt').first()
+                
+                if latest_log:
+                    kyc_status = latest_log.action  # APPROVED or REJECTED
+                else:
+                    # No log entry - check if AgencyKYC exists and is pending
+                    try:
+                        agency_kyc_obj = AgencyKYC.objects.get(accountFK=account)
+                        kyc_status = agency_kyc_obj.status  # PENDING, APPROVED, REJECTED
+                    except AgencyKYC.DoesNotExist:
+                        kyc_status = 'NOT_SUBMITTED'
+            except Exception as e:
+                kyc_status = 'NOT_SUBMITTED'
+            
+            # Count employees (AgencyEmployee model - separate from Profile)
+            try:
+                from agency.models import AgencyEmployee
+                total_workers = AgencyEmployee.objects.filter(agency=account).count()
+            except:
+                total_workers = 0
+            
+            # Count jobs
+            try:
+                from accounts.models import Job
+                total_jobs = Job.objects.filter(agencyFK=agency).count()
+                completed_jobs = Job.objects.filter(
+                    agencyFK=agency,
+                    status='COMPLETED'
+                ).count()
+            except:
+                total_jobs = 0
+                completed_jobs = 0
+            
+            agencies_list.append({
+                'id': str(agency.agencyId),
+                'account_id': str(account.accountID),
+                'email': account.email,
+                'agency_name': agency.businessName or '',
+                'phone': agency.contactNumber or '',
+                'address': agency.street_address or '',
+                'city': agency.city or '',
+                'state': agency.province or '',
+                'country': agency.country or '',
+                'website': '',  # Agency model doesn't have website field
+                'description': agency.businessDesc or '',
+                'status': 'active' if account.isVerified else 'inactive',
+                'kyc_status': kyc_status,
+                'join_date': account.createdAt.isoformat() if account.createdAt else None,
+                'is_verified': account.isVerified,
+                'total_workers': total_workers,
+                'total_jobs': total_jobs,
+                'completed_jobs': completed_jobs,
+                'rating': 0.0,  # TODO: Calculate from reviews when implemented
+                'review_count': 0,  # TODO: Get from reviews when implemented
+            })
+        
+        return {
+            'agencies': agencies_list,
+            'total': paginator.count,
+            'page': page,
+            'total_pages': paginator.num_pages,
+            'has_next': page_obj.has_next(),
+            'has_previous': page_obj.has_previous(),
+        }
+        
+    except Exception as e:
+        print(f"❌ Error fetching agencies list: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise
 
 
