@@ -119,6 +119,7 @@ class Agency(models.Model):
     country = models.CharField(max_length=100, default="Philippines", blank=True)
     
     businessDesc = models.CharField(max_length=255, default="", blank=True)
+    contactNumber = models.CharField(max_length=11, default="", blank=True)
 
     createdAt = models.DateTimeField(auto_now_add=True)
 
@@ -267,15 +268,15 @@ class Notification(models.Model):
         return f"{self.notificationType} - {self.accountFK.email} - {self.title}"
 
 
-class JobPosting(models.Model):
+class Job(models.Model):
     """
-    Job postings created by clients to hire workers
+    Jobs created by clients to hire workers
     """
-    jobPostingID = models.BigAutoField(primary_key=True)
+    jobID = models.BigAutoField(primary_key=True)
     clientID = models.ForeignKey(
         ClientProfile,
         on_delete=models.CASCADE,
-        related_name='job_postings'
+        related_name='jobs'
     )
     
     # Job Details
@@ -285,7 +286,7 @@ class JobPosting(models.Model):
         Specializations,
         on_delete=models.SET_NULL,
         null=True,
-        related_name='job_postings'
+        related_name='jobs'
     )
     
     # Budget (always project-based)
@@ -327,44 +328,135 @@ class JobPosting(models.Model):
         default="ACTIVE"
     )
     
+    # Assigned Worker (optional - for IN_PROGRESS jobs)
+    assignedWorkerID = models.ForeignKey(
+        'WorkerProfile',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='assigned_jobs'
+    )
+    
+    # Completion Details
+    completedAt = models.DateTimeField(null=True, blank=True)
+    cancellationReason = models.TextField(null=True, blank=True)
+    
     # Timestamps
     createdAt = models.DateTimeField(auto_now_add=True)
     updatedAt = models.DateTimeField(auto_now=True)
     
     class Meta:
         ordering = ['-createdAt']
+        db_table = 'jobs'
         indexes = [
             models.Index(fields=['clientID', '-createdAt']),
             models.Index(fields=['status', '-createdAt']),
             models.Index(fields=['categoryID', 'status']),
             models.Index(fields=['urgency', '-createdAt']),
+            models.Index(fields=['assignedWorkerID', 'status']),
         ]
     
     def __str__(self):
         return f"{self.title} - {self.clientID.accountFK.email}"
+    
+    def save(self, *args, **kwargs):
+        """Override save to create job log entry on status change"""
+        # Check if this is an update (not a new instance)
+        if self.pk:
+            try:
+                old_instance = Job.objects.get(pk=self.pk)
+                # If status changed, create a log entry
+                if old_instance.status != self.status:
+                    # Import here to avoid circular dependency
+                    from django.utils import timezone
+                    
+                    # Save the job first
+                    super().save(*args, **kwargs)
+                    
+                    # Create log entry
+                    JobLog.objects.create(
+                        jobID=self,
+                        oldStatus=old_instance.status,
+                        newStatus=self.status,
+                        changedBy=None,  # You can pass this through kwargs if needed
+                        notes=f"Status changed from {old_instance.status} to {self.status}"
+                    )
+                    return
+            except Job.DoesNotExist:
+                pass
+        
+        # Normal save
+        super().save(*args, **kwargs)
 
 
-class JobPostingPhoto(models.Model):
+class JobPhoto(models.Model):
     """
-    Photos attached to job postings
+    Photos attached to jobs
     """
     photoID = models.BigAutoField(primary_key=True)
-    jobPostingID = models.ForeignKey(
-        JobPosting,
+    jobID = models.ForeignKey(
+        Job,
         on_delete=models.CASCADE,
         related_name='photos'
     )
     
     photoURL = models.CharField(max_length=255)
     fileName = models.CharField(max_length=255, null=True, blank=True)
-    fileSize = models.IntegerField(null=True, blank=True)  # Size in bytes
     uploadedAt = models.DateTimeField(auto_now_add=True)
     
     class Meta:
-        ordering = ['uploadedAt']
+        db_table = 'job_photos'
+        ordering = ['-uploadedAt']
     
     def __str__(self):
-        return f"Photo for {self.jobPostingID.title}"
+        return f"Photo for {self.jobID.title}"
+
+
+class JobLog(models.Model):
+    """
+    Tracks all status changes and important events for jobs
+    """
+    logID = models.BigAutoField(primary_key=True)
+    jobID = models.ForeignKey(
+        Job,
+        on_delete=models.CASCADE,
+        related_name='logs'
+    )
+    
+    # Status tracking
+    oldStatus = models.CharField(max_length=15, null=True, blank=True)
+    newStatus = models.CharField(max_length=15)
+    
+    # Who made the change
+    changedBy = models.ForeignKey(
+        Accounts,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='job_status_changes'
+    )
+    
+    # Additional details
+    notes = models.TextField(null=True, blank=True)
+    
+    # Timestamp
+    createdAt = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'job_logs'
+        ordering = ['-createdAt']
+        indexes = [
+            models.Index(fields=['jobID', '-createdAt']),
+            models.Index(fields=['newStatus', '-createdAt']),
+        ]
+    
+    def __str__(self):
+        return f"Job #{self.jobID.jobID} - {self.oldStatus} → {self.newStatus}"
+
+
+# Backward compatibility - keep old names as aliases
+JobPosting = Job
+JobPostingPhoto = JobPhoto
 
 
 class Conversation(models.Model):

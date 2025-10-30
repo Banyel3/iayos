@@ -24,7 +24,7 @@ export default async function AgencyLayout({
         cookie: cookieHeader,
         Accept: "application/json",
       },
-      cache: "no-store",
+      next: { revalidate: 60 }, // Cache for 60 seconds instead of no-store
     });
 
     if (!res.ok) {
@@ -63,7 +63,7 @@ export default async function AgencyLayout({
         cookie: cookieHeader,
         Accept: "application/json",
       },
-      cache: "no-store",
+      next: { revalidate: 30 }, // Cache for 30 seconds
     });
 
     if (statusRes.ok) {

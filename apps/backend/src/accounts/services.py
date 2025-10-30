@@ -307,6 +307,17 @@ def fetch_currentUser(accountID):
         role_obj = SystemRoles.objects.filter(accountID=account).first()
         user_role = role_obj.systemRole if role_obj else None
 
+        # Check if this is an admin account
+        if role_obj and role_obj.systemRole == "ADMIN":
+            return {
+                "accountID": account.accountID,
+                "email": account.email,
+                "role": user_role,
+                "kycVerified": account.KYCVerified,
+                "profile_data": None,
+                "accountType": "admin",
+            }
+
         try:
             profile = Profile.objects.select_related("accountFK").get(accountFK=account)
 

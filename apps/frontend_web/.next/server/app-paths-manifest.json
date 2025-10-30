@@ -1,12 +1,6 @@
 {
   "/admin/dashboard/page": "app/admin/dashboard/page.js",
-  "/admin/kyc/pending/page": "app/admin/kyc/pending/page.js",
-  "/agency/dashboard/page": "app/agency/dashboard/page.js",
-  "/agency/employees/page": "app/agency/employees/page.js",
-  "/agency/jobs/page": "app/agency/jobs/page.js",
-  "/agency/kyc/page": "app/agency/kyc/page.js",
-  "/agency/profile/page": "app/agency/profile/page.js",
-  "/agency/reviews/page": "app/agency/reviews/page.js",
+  "/admin/users/clients/page": "app/admin/users/clients/page.js",
   "/api/auth/check-rate-limit/route": "app/api/auth/check-rate-limit/route.js",
   "/auth/login/page": "app/auth/login/page.js",
   "/favicon.ico/route": "app/favicon.ico/route.js"

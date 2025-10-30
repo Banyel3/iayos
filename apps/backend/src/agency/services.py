@@ -1,6 +1,7 @@
-from .models import AgencyKYC, AgencyKycFile
-from accounts.models import Accounts
+from .models import AgencyKYC, AgencyKycFile, AgencyEmployee
+from accounts.models import Accounts, Agency as AgencyProfile, Profile
 from iayos_project.utils import upload_agency_doc
+from django.db.models import Avg, Count
 import uuid
 import os
 
@@ -187,3 +188,188 @@ def create_agency_kyc_from_paths(account_id: int, file_map: dict, businessName: 
 		print(f"Error creating Agency KYC from paths: {e}")
 		raise
 
+
+# Employee management services
+
+def get_agency_employees(account_id):
+	"""Fetch all employees for a given agency account."""
+	try:
+		user = Accounts.objects.get(accountID=account_id)
+		employees = AgencyEmployee.objects.filter(agency=user)
+		
+		return [
+			{
+				"id": emp.employeeID,
+				"name": emp.name,
+				"email": emp.email,
+				"role": emp.role,
+				"avatar": emp.avatar,
+				"rating": float(emp.rating) if emp.rating else None,
+			}
+			for emp in employees
+		]
+	except Accounts.DoesNotExist:
+		raise ValueError("User not found")
+
+
+def add_agency_employee(account_id, name, email, role, avatar=None, rating=None):
+	"""Add a new employee to an agency."""
+	try:
+		user = Accounts.objects.get(accountID=account_id)
+		
+		# Validate role is provided
+		if not role or not role.strip():
+			raise ValueError("Role/specialization is required")
+		
+		# Create the employee
+		employee = AgencyEmployee.objects.create(
+			agency=user,
+			name=name,
+			email=email,
+			role=role,
+			avatar=avatar,
+			rating=rating
+		)
+		
+		return {
+			"id": employee.employeeID,
+			"name": employee.name,
+			"email": employee.email,
+			"role": employee.role,
+			"avatar": employee.avatar,
+			"rating": float(employee.rating) if employee.rating else None,
+			"message": "Employee added successfully"
+		}
+	except Accounts.DoesNotExist:
+		raise ValueError("User not found")
+
+
+def remove_agency_employee(account_id, employee_id):
+	"""Remove an employee from an agency."""
+	try:
+		user = Accounts.objects.get(accountID=account_id)
+		employee = AgencyEmployee.objects.get(employeeID=employee_id, agency=user)
+		employee.delete()
+		
+		return {"message": "Employee removed successfully"}
+	except Accounts.DoesNotExist:
+		raise ValueError("User not found")
+	except AgencyEmployee.DoesNotExist:
+		raise ValueError("Employee not found")
+
+
+def get_agency_profile(account_id):
+	"""Get complete agency profile with statistics."""
+	try:
+		user = Accounts.objects.get(accountID=account_id)
+		
+		# Get agency profile
+		try:
+			agency_profile = AgencyProfile.objects.get(accountFK=user)
+			business_name = agency_profile.businessName
+			business_desc = agency_profile.businessDesc
+			contact_number = agency_profile.contactNumber
+			address = {
+				"street": agency_profile.street_address,
+				"city": agency_profile.city,
+				"province": agency_profile.province,
+				"postal_code": agency_profile.postal_code,
+				"country": agency_profile.country,
+			}
+		except AgencyProfile.DoesNotExist:
+			business_name = None
+			business_desc = None
+			contact_number = None
+			address = None
+		
+		# Get KYC status
+		try:
+			kyc_record = AgencyKYC.objects.get(accountFK=user)
+			kyc_status = kyc_record.status
+			kyc_submitted_at = kyc_record.createdAt
+		except AgencyKYC.DoesNotExist:
+			kyc_status = "NOT_STARTED"
+			kyc_submitted_at = None
+		
+		# Get employee statistics
+		employees = AgencyEmployee.objects.filter(agency=user)
+		total_employees = employees.count()
+		avg_employee_rating = employees.aggregate(avg_rating=Avg('rating'))['avg_rating']
+		
+		# TODO: Get jobs statistics when jobs model is implemented
+		# For now, return placeholder values
+		total_jobs = 0
+		active_jobs = 0
+		completed_jobs = 0
+		
+		# Get account info
+		email = user.email
+		created_at = user.createdAt
+		
+		return {
+			"account_id": user.accountID,
+			"email": email,
+			"contact_number": contact_number,
+			"business_name": business_name,
+			"business_description": business_desc,
+			"address": address,
+			"kyc_status": kyc_status,
+			"kyc_submitted_at": kyc_submitted_at,
+			"statistics": {
+				"total_employees": total_employees,
+				"avg_employee_rating": float(avg_employee_rating) if avg_employee_rating else None,
+				"total_jobs": total_jobs,
+				"active_jobs": active_jobs,
+				"completed_jobs": completed_jobs,
+			},
+			"created_at": created_at,
+		}
+	except Accounts.DoesNotExist:
+		raise ValueError("User not found")
+
+
+def update_agency_profile(account_id, business_name=None, business_desc=None, contact_number=None):
+	"""Update agency profile information."""
+	try:
+		user = Accounts.objects.get(accountID=account_id)
+		
+		# Update Agency profile
+		agency_profile = None
+		try:
+			agency_profile = AgencyProfile.objects.get(accountFK=user)
+			if business_name is not None:
+				agency_profile.businessName = business_name
+			if business_desc is not None:
+				agency_profile.businessDesc = business_desc
+			if contact_number is not None and contact_number.strip():
+				agency_profile.contactNumber = contact_number
+			agency_profile.save()
+		except AgencyProfile.DoesNotExist:
+			# Create agency profile if it doesn't exist
+			if business_name or business_desc or contact_number:
+				agency_profile = AgencyProfile.objects.create(
+					accountFK=user,
+					businessName=business_name or "",
+					businessDesc=business_desc or "",
+					contactNumber=contact_number or ""
+				)
+		
+		# Get the current values to return
+		try:
+			agency_profile = AgencyProfile.objects.get(accountFK=user)
+			current_business_name = agency_profile.businessName
+			current_business_desc = agency_profile.businessDesc
+			current_contact = agency_profile.contactNumber
+		except AgencyProfile.DoesNotExist:
+			current_business_name = None
+			current_business_desc = None
+			current_contact = None
+		
+		return {
+			"message": "Profile updated successfully",
+			"business_name": current_business_name,
+			"business_description": current_business_desc,
+			"contact_number": current_contact
+		}
+	except Accounts.DoesNotExist:
+		raise ValueError("User not found")

@@ -4,11 +4,34 @@ from ninja import Router
 from ninja.responses import Response
 from django.shortcuts import redirect
 from django.urls import reverse
+from accounts.authentication import cookie_auth
 from .service import fetchAll_kyc, review_kyc_items, approve_kyc, reject_kyc, fetch_kyc_logs
-from .service import approve_agency_kyc, reject_agency_kyc
+from .service import approve_agency_kyc, reject_agency_kyc, get_admin_dashboard_stats
+from .models import SystemRoles
 
 router = Router(tags=["adminpanel"])
 
+
+@router.get("/dashboard/stats", auth=cookie_auth)
+def get_dashboard_stats(request):
+    """Get comprehensive dashboard statistics."""
+    try:
+        # Verify user is an admin
+        is_admin = SystemRoles.objects.filter(
+            accountID=request.auth,
+            systemRole="ADMIN"
+        ).exists()
+        
+        if not is_admin:
+            return {"success": False, "error": "Unauthorized - Admin access required"}
+        
+        stats = get_admin_dashboard_stats()
+        return {"success": True, "stats": stats}
+    except Exception as e:
+        print(f"❌ Error in get_dashboard_stats: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
 
 
 @router.get("/kyc/all")

@@ -1,141 +1,111 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { Sidebar } from "../components";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Users,
   Briefcase,
-  DollarSign,
   TrendingUp,
   UserCheck,
   Building2,
-  Sparkles,
-  ArrowUpRight,
-  ArrowDownRight,
-  Minus,
   FileText,
   MessageSquare,
 } from "lucide-react";
 import Link from "next/link";
-import { getAdminStats, mockApplications, mockJobListings } from "@/lib/mockData";
+import { toast } from "sonner";
+
+interface DashboardStats {
+  total_users: number;
+  total_clients: number;
+  total_workers: number;
+  total_agencies: number;
+  active_users: number;
+  new_users_this_month: number;
+  pending_kyc: number;
+  pending_individual_kyc: number;
+  pending_agency_kyc: number;
+  total_jobs: number;
+  active_jobs: number;
+  in_progress_jobs: number;
+  completed_jobs: number;
+  cancelled_jobs: number;
+  open_jobs: number;
+}
 
 export default function AdminDashboardPage() {
-  // Get actual statistics from mock data
-  const adminStats = getAdminStats();
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const stats = {
-    totalUsers: adminStats.totalUsers,
-    totalClients: adminStats.totalClients,
-    totalWorkers: adminStats.totalWorkers,
-    totalAgencies: adminStats.totalAgencies,
-    activeJobs: adminStats.activeJobs,
-    completedJobs: adminStats.completedJobs,
-    totalRevenue: adminStats.totalRevenue,
-    monthlyRevenue: adminStats.monthlyRevenue,
-    totalJobListings: adminStats.totalJobListings,
-    openJobs: adminStats.openJobs,
-    totalApplications: adminStats.totalApplications,
-    pendingApplications: adminStats.pendingApplications,
-    pendingPayments: 23, // Keep this as is (not in mock data yet)
-    pendingKYC: 18, // Keep this as is (not in mock data yet)
-    activeUsers: adminStats.activeUsers,
-    newUsersThisMonth: 8, // Estimate based on mock data
+  const API_BASE =
+    process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
+
+  const fetchStats = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/adminpanel/dashboard/stats`, {
+        credentials: "include",
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setStats(data.stats);
+      } else {
+        toast.error("Failed to fetch dashboard statistics");
+      }
+    } catch (error) {
+      console.error("Error fetching stats:", error);
+      toast.error("Error loading dashboard");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // topCategories will be calculated from job listings below
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchStats();
+    return () => controller.abort();
+  }, []);
 
-  // AI-powered prediction data (mock for future feature)
-  const trendingPredictions = [
-    {
-      id: 1,
-      category: "Home Cleaning",
-      currentDemand: 1,
-      predictedDemand: 3,
-      trend: "up",
-      confidence: 87,
-      change: "+200%",
-    },
-    {
-      id: 2,
-      category: "Plumbing",
-      currentDemand: 1,
-      predictedDemand: 2,
-      trend: "up",
-      confidence: 82,
-      change: "+100%",
-    },
-    {
-      id: 3,
-      category: "HVAC",
-      currentDemand: 1,
-      predictedDemand: 2,
-      trend: "up",
-      confidence: 91,
-      change: "+100%",
-    },
-    {
-      id: 4,
-      category: "Electrical",
-      currentDemand: 2,
-      predictedDemand: 3,
-      trend: "up",
-      confidence: 78,
-      change: "+50%",
-    },
-    {
-      id: 5,
-      category: "Carpentry",
-      currentDemand: 2,
-      predictedDemand: 2,
-      trend: "stable",
-      confidence: 75,
-      change: "0%",
-    },
-  ];
+  if (loading) {
+    return (
+      <div className="flex">
+        <Sidebar />
+        <main className="flex-1 p-6 bg-gray-50">
+          <div className="max-w-7xl mx-auto">
+            <h1 className="text-3xl font-bold text-gray-900 mb-6">
+              Admin Dashboard
+            </h1>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+              {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                <Card key={i}>
+                  <CardHeader className="pb-2">
+                    <div className="h-4 bg-gray-200 rounded w-1/2 animate-pulse"></div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-8 bg-gray-200 rounded w-1/3 mb-2 animate-pulse"></div>
+                    <div className="h-3 bg-gray-200 rounded w-2/3 animate-pulse"></div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
-  const pendingActions = [
-    {
-      id: 1,
-      action: "KYC Verifications",
-      count: stats.pendingKYC,
-      link: "/admin/kyc",
-    },
-    {
-      id: 2,
-      action: "Pending Payments",
-      count: stats.pendingPayments,
-      link: "/admin/payments/pending",
-    },
-    {
-      id: 3,
-      action: "Pending Applications",
-      count: adminStats.pendingApplications,
-      link: "/admin/jobs/applications",
-    },
-    { id: 4, action: "User Reports", count: 12, link: "/admin/reviews" },
-  ];
-
-  // Calculate top categories from actual job listings
-  const categoryStats = mockJobListings.reduce(
-    (acc, job) => {
-      if (!acc[job.category]) {
-        acc[job.category] = { jobs: 0, revenue: 0 };
-      }
-      acc[job.category].jobs += 1;
-      acc[job.category].revenue += job.budget;
-      return acc;
-    },
-    {} as Record<string, { jobs: number; revenue: number }>
-  );
-
-  const topCategories = Object.entries(categoryStats)
-    .map(([name, stats]) => ({
-      name,
-      jobs: stats.jobs,
-      revenue: stats.revenue,
-    }))
-    .sort((a, b) => b.revenue - a.revenue)
-    .slice(0, 5);
+  if (!stats) {
+    return (
+      <div className="flex">
+        <Sidebar />
+        <main className="flex-1 p-6 bg-gray-50">
+          <div className="max-w-7xl mx-auto">
+            <p className="text-red-600">Failed to load dashboard data</p>
+          </div>
+        </main>
+      </div>
+    );
+  }
   return (
     <div className="flex">
       <Sidebar />
@@ -163,11 +133,11 @@ export default function AdminDashboardPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-3xl font-bold text-gray-900">
-                  {stats.totalUsers.toLocaleString()}
+                  {stats.total_users.toLocaleString()}
                 </div>
                 <p className="text-xs text-green-600 mt-2 flex items-center">
                   <TrendingUp className="h-3 w-3 mr-1" />+
-                  {stats.newUsersThisMonth} this month
+                  {stats.new_users_this_month} this month
                 </p>
               </CardContent>
             </Card>
@@ -176,34 +146,35 @@ export default function AdminDashboardPage() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-gray-600">
-                  Active Jobs
+                  Active Job Postings
                 </CardTitle>
                 <Briefcase className="h-5 w-5 text-orange-600" />
               </CardHeader>
               <CardContent>
                 <div className="text-3xl font-bold text-gray-900">
-                  {stats.activeJobs}
+                  {stats.active_jobs}
                 </div>
                 <p className="text-xs text-gray-600 mt-2">
-                  {stats.completedJobs.toLocaleString()} completed
+                  {stats.in_progress_jobs} in progress
                 </p>
               </CardContent>
             </Card>
 
-            {/* Monthly Revenue */}
+            {/* Pending KYC */}
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-gray-600">
-                  Monthly Revenue
+                  Pending KYC
                 </CardTitle>
-                <DollarSign className="h-5 w-5 text-green-600" />
+                <FileText className="h-5 w-5 text-yellow-600" />
               </CardHeader>
               <CardContent>
                 <div className="text-3xl font-bold text-gray-900">
-                  ${stats.monthlyRevenue.toLocaleString()}
+                  {stats.pending_kyc}
                 </div>
                 <p className="text-xs text-gray-600 mt-2">
-                  ${stats.totalRevenue.toLocaleString()} total
+                  {stats.pending_individual_kyc} individual,{" "}
+                  {stats.pending_agency_kyc} agency
                 </p>
               </CardContent>
             </Card>
@@ -218,10 +189,10 @@ export default function AdminDashboardPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-3xl font-bold text-gray-900">
-                  {stats.activeUsers}
+                  {stats.active_users}
                 </div>
                 <p className="text-xs text-gray-600 mt-2">
-                  {((stats.activeUsers / stats.totalUsers) * 100).toFixed(1)}%
+                  {((stats.active_users / stats.total_users) * 100).toFixed(1)}%
                   of total
                 </p>
               </CardContent>
@@ -239,7 +210,7 @@ export default function AdminDashboardPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-gray-900">
-                  {stats.totalClients}
+                  {stats.total_clients}
                 </div>
                 <p className="text-xs text-gray-500 mt-1">Active job posters</p>
               </CardContent>
@@ -254,7 +225,7 @@ export default function AdminDashboardPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-gray-900">
-                  {stats.totalWorkers}
+                  {stats.total_workers}
                 </div>
                 <p className="text-xs text-gray-500 mt-1">Service providers</p>
               </CardContent>
@@ -269,199 +240,148 @@ export default function AdminDashboardPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-gray-900">
-                  {stats.totalAgencies}
+                  {stats.total_agencies}
                 </div>
                 <p className="text-xs text-gray-500 mt-1">Service agencies</p>
               </CardContent>
             </Card>
           </div>
 
-          {/* Top Categories */}
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-green-600" />
-                Top Service Categories
-              </CardTitle>
-              <p className="text-sm text-gray-600 mt-2">
-                Performance metrics and trends across service categories
-              </p>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {topCategories.map((category, index) => (
-                  <div key={category.name}>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4 flex-1">
-                        <div className="flex items-center justify-center w-12 h-12 rounded-full bg-gradient-to-br from-blue-100 to-purple-100">
-                          <span className="text-xl font-bold text-blue-600">
-                            #{index + 1}
-                          </span>
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-1">
-                            <p className="font-semibold text-gray-900 text-lg">
-                              {category.name}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-4 text-sm text-gray-600">
-                            <span>
-                              <span className="font-medium">{category.jobs}</span>{" "}
-                              total jobs
-                            </span>
-                            <span>•</span>
-                            <span>
-                              <span className="font-medium">{category.revenue.toLocaleString()}</span>{" "}
-                              revenue
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="text-right ml-6">
-                        <p className="text-2xl font-bold text-green-600">
-                          ${category.revenue.toLocaleString()}
-                        </p>
-                        <p className="text-xs text-gray-500">total revenue</p>
-                      </div>
-                    </div>
-                    {index < topCategories.length - 1 && (
-                      <div className="border-b border-gray-100 mt-4"></div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+          {/* Job Statistics */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm font-medium text-gray-600">
+                  Total Job Postings
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-gray-900">
+                  {stats.total_jobs}
+                </div>
+                <p className="text-xs text-gray-500 mt-1">All job postings</p>
+              </CardContent>
+            </Card>
 
-          {/* AI-Powered Trending Jobs Prediction */}
-          <Card className="border-2 border-blue-100 bg-gradient-to-br from-blue-50/50 to-purple-50/50">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm font-medium text-gray-600">
+                  In Progress
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-blue-600">
+                  {stats.in_progress_jobs}
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Currently being worked on
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm font-medium text-gray-600">
+                  Completed
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-green-600">
+                  {stats.completed_jobs}
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Successfully finished
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm font-medium text-gray-600">
+                  Cancelled
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-red-600">
+                  {stats.cancelled_jobs}
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Cancelled by clients
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Quick Actions */}
+          <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <Sparkles className="h-5 w-5 text-blue-600" />
-                    AI-Powered Job Demand Forecast
-                  </CardTitle>
-                  <p className="text-sm text-gray-600 mt-2">
-                    Machine learning predictions for upcoming job demand trends
-                    over the next 7 days
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs font-medium text-gray-700">
-                    Next 7 Days
-                  </p>
-                  <p className="text-xs text-gray-500">Prediction Period</p>
-                </div>
-              </div>
+              <CardTitle>Quick Actions</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                {trendingPredictions.map((prediction) => (
-                  <div
-                    key={prediction.id}
-                    className="flex items-center justify-between p-4 bg-white rounded-lg border border-gray-200 hover:border-blue-300 hover:shadow-md transition-all"
-                  >
-                    <div className="flex items-center gap-4 flex-1">
-                      <div
-                        className={`flex items-center justify-center w-12 h-12 rounded-full ${
-                          prediction.trend === "up"
-                            ? "bg-green-100"
-                            : prediction.trend === "down"
-                              ? "bg-red-100"
-                              : "bg-gray-100"
-                        }`}
-                      >
-                        {prediction.trend === "up" ? (
-                          <ArrowUpRight className="h-6 w-6 text-green-600" />
-                        ) : prediction.trend === "down" ? (
-                          <ArrowDownRight className="h-6 w-6 text-red-600" />
-                        ) : (
-                          <Minus className="h-6 w-6 text-gray-600" />
-                        )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Link href="/admin/kyc" className="block">
+                  <div className="p-4 border rounded-lg hover:border-blue-500 hover:shadow-md transition-all cursor-pointer">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="font-semibold text-gray-900">
+                          KYC Verifications
+                        </h3>
+                        <p className="text-sm text-gray-600 mt-1">
+                          {stats.pending_kyc} pending
+                        </p>
                       </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-1">
-                          <p className="font-semibold text-gray-900 text-lg">
-                            {prediction.category}
-                          </p>
-                          <span
-                            className={`px-2 py-1 text-xs font-bold rounded ${
-                              prediction.trend === "up"
-                                ? "bg-green-100 text-green-700"
-                                : prediction.trend === "down"
-                                  ? "bg-red-100 text-red-700"
-                                  : "bg-gray-100 text-gray-700"
-                            }`}
-                          >
-                            {prediction.change}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-4 text-sm">
-                          <span className="text-gray-600">
-                            Current:{" "}
-                            <span className="font-medium text-gray-900">
-                              {prediction.currentDemand}
-                            </span>{" "}
-                            jobs
-                          </span>
-                          <span className="text-gray-400">→</span>
-                          <span className="text-gray-600">
-                            Predicted:{" "}
-                            <span className="font-bold text-blue-600">
-                              {prediction.predictedDemand}
-                            </span>{" "}
-                            jobs
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-right ml-6">
-                      <div className="flex items-center gap-2 justify-end mb-1">
-                        <div className="w-24 bg-gray-200 rounded-full h-2.5">
-                          <div
-                            className={`h-2.5 rounded-full ${
-                              prediction.confidence >= 85
-                                ? "bg-green-500"
-                                : prediction.confidence >= 75
-                                  ? "bg-blue-500"
-                                  : "bg-yellow-500"
-                            }`}
-                            style={{ width: `${prediction.confidence}%` }}
-                          ></div>
-                        </div>
-                        <span className="text-sm font-bold text-gray-700 w-12">
-                          {prediction.confidence}%
-                        </span>
-                      </div>
-                      <p className="text-xs text-gray-500">
-                        {prediction.confidence >= 85
-                          ? "High"
-                          : prediction.confidence >= 75
-                            ? "Good"
-                            : "Moderate"}{" "}
-                        confidence
-                      </p>
+                      <FileText className="h-8 w-8 text-yellow-600" />
                     </div>
                   </div>
-                ))}
-              </div>
-              <div className="mt-6 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200">
-                <div className="flex items-start gap-3">
-                  <Sparkles className="h-5 w-5 text-blue-600 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-semibold text-blue-900 mb-1">
-                      AI-Powered Insights
-                    </p>
-                    <p className="text-xs text-blue-800 leading-relaxed">
-                      Our machine learning model analyzes historical job
-                      patterns, seasonal trends, market indicators, and
-                      real-time platform activity to predict upcoming demand.
-                      Use these insights to optimize resource allocation and
-                      prepare for high-demand periods.
-                    </p>
+                </Link>
+
+                <Link href="/admin/users" className="block">
+                  <div className="p-4 border rounded-lg hover:border-blue-500 hover:shadow-md transition-all cursor-pointer">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="font-semibold text-gray-900">
+                          Manage Users
+                        </h3>
+                        <p className="text-sm text-gray-600 mt-1">
+                          {stats.total_users} total users
+                        </p>
+                      </div>
+                      <Users className="h-8 w-8 text-blue-600" />
+                    </div>
                   </div>
-                </div>
+                </Link>
+
+                <Link href="/admin/jobs" className="block">
+                  <div className="p-4 border rounded-lg hover:border-blue-500 hover:shadow-md transition-all cursor-pointer">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="font-semibold text-gray-900">
+                          Job Management
+                        </h3>
+                        <p className="text-sm text-gray-600 mt-1">
+                          {stats.active_jobs} active jobs
+                        </p>
+                      </div>
+                      <Briefcase className="h-8 w-8 text-orange-600" />
+                    </div>
+                  </div>
+                </Link>
+
+                <Link href="/admin/reviews" className="block">
+                  <div className="p-4 border rounded-lg hover:border-blue-500 hover:shadow-md transition-all cursor-pointer">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="font-semibold text-gray-900">
+                          Reviews & Reports
+                        </h3>
+                        <p className="text-sm text-gray-600 mt-1">
+                          View all reviews
+                        </p>
+                      </div>
+                      <MessageSquare className="h-8 w-8 text-purple-600" />
+                    </div>
+                  </div>
+                </Link>
               </div>
             </CardContent>
           </Card>

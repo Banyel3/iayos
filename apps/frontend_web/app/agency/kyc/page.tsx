@@ -248,7 +248,6 @@ const AgencyKYCPage = () => {
     try {
       const formData = new FormData();
       // align field names with backend agency KYC endpoint
-      formData.append("accountID", user.accountID?.toString() || "");
       formData.append("businessName", businessName);
       formData.append("businessDesc", businessDesc);
       formData.append("registrationNumber", registrationNumber);

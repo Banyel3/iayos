@@ -52,3 +52,34 @@ class AgencyKycFile(models.Model):
 	def save(self, *args, **kwargs):
 		self.full_clean()
 		super().save(*args, **kwargs)
+
+
+class AgencyEmployee(models.Model):
+	"""
+	Employees managed by an agency account.
+	"""
+	employeeID = models.BigAutoField(primary_key=True)
+	# Link to the agency account (must be an agency type account)
+	agency = models.ForeignKey(
+		settings.AUTH_USER_MODEL,
+		on_delete=models.CASCADE,
+		related_name="agency_employees"
+	)
+	
+	# Employee details
+	name = models.CharField(max_length=255)
+	email = models.EmailField(max_length=255)
+	role = models.CharField(max_length=100, blank=True, default="")
+	avatar = models.CharField(max_length=1000, blank=True, null=True)  # URL to avatar image
+	rating = models.DecimalField(max_digits=3, decimal_places=2, null=True, blank=True)  # 0.00 to 5.00
+	
+	# Timestamps
+	createdAt = models.DateTimeField(auto_now_add=True)
+	updatedAt = models.DateTimeField(auto_now=True)
+	
+	class Meta:
+		db_table = "agency_employees"
+		ordering = ["-rating", "name"]
+	
+	def __str__(self):
+		return f"{self.name} ({self.email}) - {self.agency.email}"

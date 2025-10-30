@@ -767,3 +767,93 @@ def get_user_kyc_history(user_account_id):
         raise
 
 
+def get_admin_dashboard_stats():
+    """Get comprehensive dashboard statistics for admin panel."""
+    from django.db.models import Count, Q, Sum
+    
+    try:
+        # User statistics
+        total_users = Accounts.objects.count()
+        
+        # Count by account type
+        total_agencies = Accounts.objects.filter(
+            Q(accountType='agency') | Q(role='AGENCY')
+        ).count()
+        
+        # Clients and workers from Profile
+        profiles_with_type = Profile.objects.exclude(profileType__isnull=True)
+        total_clients = profiles_with_type.filter(profileType='CLIENT').count()
+        total_workers = profiles_with_type.filter(profileType='WORKER').count()
+        
+        # Active users (verified accounts)
+        active_users = Accounts.objects.filter(isVerified=True).count()
+        
+        # KYC statistics
+        pending_kyc = kyc.objects.filter(status='PENDING').count()
+        pending_agency_kyc = AgencyKYC.objects.filter(status='PENDING').count()
+        total_pending_kyc = pending_kyc + pending_agency_kyc
+        
+        # Job statistics - using Job model from accounts
+        try:
+            from accounts.models import Job
+            total_jobs = Job.objects.count()
+            
+            # Active job postings (not yet started)
+            active_jobs = Job.objects.filter(status='ACTIVE').count()
+            
+            # Jobs in progress
+            in_progress_jobs = Job.objects.filter(status='IN_PROGRESS').count()
+            
+            # Completed jobs
+            completed_jobs = Job.objects.filter(status='COMPLETED').count()
+            
+            # Cancelled jobs
+            cancelled_jobs = Job.objects.filter(status='CANCELLED').count()
+            
+            # Open jobs = Active + In Progress (available for workers or currently being worked on)
+            open_jobs = active_jobs + in_progress_jobs
+            
+        except Exception as e:
+            # If Job model doesn't exist or has issues
+            print(f"Warning: Could not fetch job statistics: {e}")
+            total_jobs = 0
+            active_jobs = 0
+            in_progress_jobs = 0
+            completed_jobs = 0
+            cancelled_jobs = 0
+            open_jobs = 0
+        
+        # Calculate new users this month
+        from datetime import datetime
+        from django.utils import timezone
+        current_month_start = timezone.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        new_users_this_month = Accounts.objects.filter(
+            createdAt__gte=current_month_start
+        ).count()
+        
+        return {
+            "total_users": total_users,
+            "total_clients": total_clients,
+            "total_workers": total_workers,
+            "total_agencies": total_agencies,
+            "active_users": active_users,
+            "new_users_this_month": new_users_this_month,
+            "pending_kyc": total_pending_kyc,
+            "pending_individual_kyc": pending_kyc,
+            "pending_agency_kyc": pending_agency_kyc,
+            "total_jobs": total_jobs,
+            "active_jobs": active_jobs,
+            "in_progress_jobs": in_progress_jobs,
+            "completed_jobs": completed_jobs,
+            "cancelled_jobs": cancelled_jobs,
+            "open_jobs": open_jobs,
+        }
+        
+    except Exception as e:
+        print(f"❌ Error fetching admin dashboard stats: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise
+
+
+
