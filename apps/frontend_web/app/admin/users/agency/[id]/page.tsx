@@ -20,143 +20,113 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
-interface Agency {
+interface Address {
+  street: string;
+  city: string;
+  province: string;
+  postal_code: string;
+  country: string;
+  full_address: string;
+}
+
+interface Employee {
   id: string;
   name: string;
   email: string;
-  phone: string;
-  address: string;
-  city: string;
-  state: string;
-  country: string;
-  website?: string;
-  description: string;
-  status: "active" | "inactive" | "suspended";
-  verificationStatus: "verified" | "pending" | "rejected";
-  joinDate: string;
-  totalWorkers: number;
-  totalJobs: number;
-  avgRating: number;
-  reviewCount: number;
+  role: string;
+  rating: number;
+  avatar: string;
 }
 
-// Mock data - should match the data from agency list page
-const mockAgencies: Agency[] = [
-  {
-    id: "agency_001",
-    name: "ProServices Agency",
-    email: "info@proservices.com",
-    phone: "+1-555-0123",
-    address: "123 Business Ave",
-    city: "New York",
-    state: "NY",
-    country: "USA",
-    website: "www.proservices.com",
-    description:
-      "Full-service agency providing home maintenance and repair services",
-    status: "active",
-    verificationStatus: "verified",
-    joinDate: "2024-01-15",
-    totalWorkers: 45,
-    totalJobs: 342,
-    avgRating: 4.7,
-    reviewCount: 128,
-  },
-  {
-    id: "agency_002",
-    name: "HomeHelp Solutions",
-    email: "contact@homehelp.com",
-    phone: "+1-555-0456",
-    address: "456 Service St",
-    city: "Los Angeles",
-    state: "CA",
-    country: "USA",
-    description: "Specialized in residential cleaning and maintenance services",
-    status: "active",
-    verificationStatus: "verified",
-    joinDate: "2024-02-20",
-    totalWorkers: 28,
-    totalJobs: 189,
-    avgRating: 4.5,
-    reviewCount: 76,
-  },
-  {
-    id: "agency_003",
-    name: "CityWide Services",
-    email: "hello@citywide.com",
-    phone: "+1-555-0789",
-    address: "789 Urban Blvd",
-    city: "Chicago",
-    state: "IL",
-    country: "USA",
-    description:
-      "Urban service provider for commercial and residential clients",
-    status: "active",
-    verificationStatus: "pending",
-    joinDate: "2024-03-10",
-    totalWorkers: 12,
-    totalJobs: 45,
-    avgRating: 4.2,
-    reviewCount: 18,
-  },
-  {
-    id: "agency_004",
-    name: "Expert Fixers",
-    email: "info@expertfixers.com",
-    phone: "+1-555-1011",
-    address: "321 Repair Rd",
-    city: "Houston",
-    state: "TX",
-    country: "USA",
-    description: "Professional repair and maintenance agency",
-    status: "inactive",
-    verificationStatus: "verified",
-    joinDate: "2024-04-05",
-    totalWorkers: 8,
-    totalJobs: 23,
-    avgRating: 4.3,
-    reviewCount: 9,
-  },
-  {
-    id: "agency_005",
-    name: "Premium Care Services",
-    email: "support@premiumcare.com",
-    phone: "+1-555-1213",
-    address: "654 Elite Plaza",
-    city: "Miami",
-    state: "FL",
-    country: "USA",
-    website: "www.premiumcare.com",
-    description: "High-end service provider for luxury properties",
-    status: "active",
-    verificationStatus: "verified",
-    joinDate: "2024-01-28",
-    totalWorkers: 32,
-    totalJobs: 267,
-    avgRating: 4.8,
-    reviewCount: 95,
-  },
-];
+interface EmployeeStats {
+  total_employees: number;
+  employees: Employee[];
+}
+
+interface JobStats {
+  total_jobs: number;
+  completed_jobs: number;
+  active_jobs: number;
+  completion_rate: number;
+}
+
+interface Agency {
+  id: string;
+  agency_id: string;
+  email: string;
+  business_name: string;
+  phone: string;
+  address: Address;
+  business_description: string;
+  status: string;
+  kyc_status: string;
+  join_date: string;
+  is_verified: boolean;
+  employee_stats: EmployeeStats;
+  job_stats: JobStats;
+  rating: number;
+  review_count: number;
+}
 
 export default function AgencyDetailPage() {
   const { id } = useParams();
   const router = useRouter();
   const [agency, setAgency] = useState<Agency | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Mock fetch - replace with actual API call
-    const foundAgency = mockAgencies.find((a) => a.id === id);
-    if (foundAgency) {
-      setAgency(foundAgency);
+    async function fetchAgency() {
+      try {
+        setLoading(true);
+        setError(null);
+        const res = await fetch(
+          `http://localhost:8000/api/adminpanel/users/agencies/${id}`,
+          {
+            credentials: "include",
+          }
+        );
+
+        if (!res.ok) {
+          throw new Error("Failed to fetch agency details");
+        }
+
+        const data = await res.json();
+
+        if (data.success && data.agency) {
+          setAgency(data.agency);
+        } else {
+          setError(data.error || "Agency not found");
+        }
+      } catch (err) {
+        console.error("Failed to fetch agency:", err);
+        setError("Failed to load agency details");
+      } finally {
+        setLoading(false);
+      }
     }
+    if (id) fetchAgency();
   }, [id]);
 
-  if (!agency) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto mb-4" />
           <p className="text-muted-foreground">Loading agency details...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !agency) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <p className="text-red-600 mb-4">{error || "Agency not found"}</p>
+          <Button onClick={() => router.push("/admin/users/agency")}>
+            ← Back to Agencies
+          </Button>
         </div>
       </div>
     );
@@ -175,17 +145,11 @@ export default function AgencyDetailPage() {
       {/* Agency Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-3xl font-bold">{agency.name}</h1>
-          <p className="text-muted-foreground mt-1">{agency.description}</p>
+          <h1 className="text-3xl font-bold">{agency.business_name}</h1>
+          <p className="text-muted-foreground mt-1">
+            {agency.business_description}
+          </p>
         </div>
-        <Button
-          onClick={() =>
-            router.push(`/admin/users/agency/${agency.id}/workers`)
-          }
-        >
-          <Users className="w-4 h-4 mr-2" />
-          Manage Workers
-        </Button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -200,25 +164,24 @@ export default function AgencyDetailPage() {
             </div>
 
             {/* Stats Grid */}
-            <div className="grid grid-cols-4 gap-4 border-y py-4">
+            <div className="grid grid-cols-3 gap-4 border-y py-4">
               <div className="text-center">
-                <div className="flex items-center justify-center gap-1 mb-1">
-                  <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
-                  <p className="text-2xl font-bold">{agency.avgRating}</p>
-                </div>
-                <p className="text-xs text-muted-foreground">Rating</p>
+                <p className="text-2xl font-bold">
+                  {agency.employee_stats?.total_employees || 0}
+                </p>
+                <p className="text-xs text-muted-foreground">Employees</p>
               </div>
               <div className="text-center">
-                <p className="text-2xl font-bold">{agency.totalWorkers}</p>
-                <p className="text-xs text-muted-foreground">Workers</p>
+                <p className="text-2xl font-bold">
+                  {agency.job_stats?.total_jobs || 0}
+                </p>
+                <p className="text-xs text-muted-foreground">Total Jobs</p>
               </div>
               <div className="text-center">
-                <p className="text-2xl font-bold">{agency.totalJobs}</p>
-                <p className="text-xs text-muted-foreground">Jobs</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-bold">{agency.reviewCount}</p>
-                <p className="text-xs text-muted-foreground">Reviews</p>
+                <p className="text-2xl font-bold">
+                  {agency.job_stats?.completed_jobs || 0}
+                </p>
+                <p className="text-xs text-muted-foreground">Completed</p>
               </div>
             </div>
 
@@ -237,36 +200,31 @@ export default function AgencyDetailPage() {
                   <Phone className="h-5 w-5 text-muted-foreground mt-0.5" />
                   <div>
                     <p className="text-sm text-muted-foreground">Phone</p>
-                    <p className="font-medium">{agency.phone}</p>
+                    <p className="font-medium">
+                      {agency.phone || "Not provided"}
+                    </p>
                   </div>
                 </div>
-                <div className="flex items-start gap-3">
+                <div className="flex items-start gap-3 md:col-span-2">
                   <MapPin className="h-5 w-5 text-muted-foreground mt-0.5" />
                   <div>
                     <p className="text-sm text-muted-foreground">Address</p>
                     <p className="font-medium">
-                      {agency.address}
-                      <br />
-                      {agency.city}, {agency.state} {agency.country}
+                      {agency.address.street && (
+                        <>
+                          {agency.address.street}
+                          <br />
+                        </>
+                      )}
+                      {agency.address.city && `${agency.address.city}, `}
+                      {agency.address.province} {agency.address.postal_code}
+                      {(agency.address.city ||
+                        agency.address.province ||
+                        agency.address.postal_code) && <br />}
+                      {agency.address.country}
                     </p>
                   </div>
                 </div>
-                {agency.website && (
-                  <div className="flex items-start gap-3">
-                    <Globe className="h-5 w-5 text-muted-foreground mt-0.5" />
-                    <div>
-                      <p className="text-sm text-muted-foreground">Website</p>
-                      <a
-                        href={`https://${agency.website}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-medium text-blue-600 hover:underline"
-                      >
-                        {agency.website}
-                      </a>
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
 
@@ -274,16 +232,14 @@ export default function AgencyDetailPage() {
             <Tabs defaultValue="overview" className="mt-6">
               <TabsList>
                 <TabsTrigger value="overview">Overview</TabsTrigger>
-                <TabsTrigger value="workers">Workers</TabsTrigger>
-                <TabsTrigger value="jobs">Recent Jobs</TabsTrigger>
-                <TabsTrigger value="reviews">Reviews</TabsTrigger>
+                <TabsTrigger value="employees">Employees</TabsTrigger>
               </TabsList>
 
               <TabsContent value="overview" className="mt-4 space-y-4">
                 <Card className="p-4">
                   <h4 className="font-semibold mb-2">About</h4>
                   <p className="text-sm text-muted-foreground">
-                    {agency.description}
+                    {agency.business_description}
                   </p>
                 </Card>
                 <Card className="p-4">
@@ -315,39 +271,47 @@ export default function AgencyDetailPage() {
                 </Card>
               </TabsContent>
 
-              <TabsContent value="workers" className="mt-4">
+              <TabsContent value="employees" className="mt-4">
                 <Card className="p-4">
                   <div className="flex justify-between items-center mb-4">
-                    <h4 className="font-semibold">Agency Workers</h4>
-                    <Button
-                      size="sm"
-                      onClick={() =>
-                        router.push(`/admin/users/agency/${agency.id}/workers`)
-                      }
-                    >
-                      View All Workers
-                    </Button>
+                    <h4 className="font-semibold">Agency Employees</h4>
+                    <span className="text-sm text-muted-foreground">
+                      {agency.employee_stats?.employees?.length || 0} Total
+                    </span>
                   </div>
                   <div className="space-y-3">
-                    {[1, 2, 3].map((i) => (
-                      <div
-                        key={i}
-                        className="flex items-center justify-between p-3 border rounded"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 rounded-full bg-gray-200"></div>
-                          <div>
-                            <p className="font-medium">Worker #{i}</p>
-                            <p className="text-xs text-muted-foreground">
-                              Electrician • 4.5 ⭐
-                            </p>
+                    {agency.employee_stats?.employees &&
+                    agency.employee_stats.employees.length > 0 ? (
+                      agency.employee_stats.employees.map(
+                        (employee: Employee) => (
+                          <div
+                            key={employee.id}
+                            className="flex items-center justify-between p-3 border rounded"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
+                                <Users className="h-5 w-5 text-gray-400" />
+                              </div>
+                              <div>
+                                <p className="font-medium">{employee.name}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {employee.email} • {employee.role}
+                                </p>
+                              </div>
+                            </div>
+                            {employee.rating > 0 && (
+                              <span className="text-xs">
+                                ⭐ {employee.rating.toFixed(1)}
+                              </span>
+                            )}
                           </div>
-                        </div>
-                        <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
-                          Active
-                        </span>
-                      </div>
-                    ))}
+                        )
+                      )
+                    ) : (
+                      <p className="text-sm text-muted-foreground text-center py-4">
+                        No employees registered
+                      </p>
+                    )}
                   </div>
                 </Card>
               </TabsContent>
@@ -447,24 +411,22 @@ export default function AgencyDetailPage() {
                         : "bg-red-50 text-red-600"
                   }`}
                 >
-                  {agency.status.toUpperCase()}
+                  {agency.status?.toUpperCase() || "INACTIVE"}
                 </div>
               </div>
 
               <div>
-                <p className="text-xs text-muted-foreground mb-1">
-                  Verification Status
-                </p>
+                <p className="text-xs text-muted-foreground mb-1">KYC Status</p>
                 <div
                   className={`text-center text-xs font-semibold py-2 rounded-md ${
-                    agency.verificationStatus === "verified"
+                    agency.kyc_status === "APPROVED"
                       ? "bg-blue-50 text-blue-600"
-                      : agency.verificationStatus === "pending"
+                      : agency.kyc_status === "PENDING"
                         ? "bg-yellow-50 text-yellow-600"
                         : "bg-red-50 text-red-600"
                   }`}
                 >
-                  {agency.verificationStatus.toUpperCase()}
+                  {agency.kyc_status}
                 </div>
               </div>
 
@@ -486,10 +448,6 @@ export default function AgencyDetailPage() {
               <CardTitle className="text-sm">Actions</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <Button variant="outline" className="w-full justify-start">
-                <Users className="w-4 h-4 mr-2" />
-                Manage Workers
-              </Button>
               <Button variant="outline" className="w-full justify-start">
                 <Mail className="w-4 h-4 mr-2" />
                 Send Email
@@ -515,16 +473,22 @@ export default function AgencyDetailPage() {
 
                 <dt className="text-gray-500">Joined</dt>
                 <dd className="font-medium text-xs">
-                  {new Date(agency.joinDate).toLocaleDateString()}
+                  {new Date(agency.join_date).toLocaleDateString()}
                 </dd>
 
                 <dt className="text-gray-500">Location</dt>
                 <dd className="font-medium text-xs">
-                  {agency.city}, {agency.state}
+                  {agency.address.city && agency.address.province
+                    ? `${agency.address.city}, ${agency.address.province}`
+                    : agency.address.city ||
+                      agency.address.province ||
+                      "Not provided"}
                 </dd>
 
                 <dt className="text-gray-500">Country</dt>
-                <dd className="font-medium text-xs">{agency.country}</dd>
+                <dd className="font-medium text-xs">
+                  {agency.address.country}
+                </dd>
               </dl>
             </CardContent>
           </Card>

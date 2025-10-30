@@ -275,9 +275,7 @@ export default function Sidebar({ className }: SidebarProps) {
                       <Icon
                         className={cn(
                           "h-4 w-4",
-                          hasActiveChild
-                            ? "text-blue-600"
-                            : "text-gray-400"
+                          hasActiveChild ? "text-blue-600" : "text-gray-400"
                         )}
                       />
                       {!collapsed && (

@@ -14,176 +14,112 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
-interface Client {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  accountType: "personal" | "business";
-  location: string;
-  status: "active" | "inactive" | "suspended";
-  verificationStatus: "verified" | "pending" | "rejected";
-  joinDate: string;
-  totalJobsPosted: number;
-  totalSpent: number;
-  activeJobs: number;
-  preferredCategories: string[];
+interface Address {
+  street: string;
+  city: string;
+  province: string;
+  postal_code: string;
+  country: string;
 }
 
-// Mock data - replace with actual API call
-const mockClients: Client[] = [
-  {
-    id: "1",
-    name: "Sarah Wilson",
-    email: "sarah.wilson@example.com",
-    phone: "+1234567890",
-    accountType: "personal",
-    location: "New York, NY",
-    status: "active",
-    verificationStatus: "verified",
-    joinDate: "2024-01-15",
-    totalJobsPosted: 15,
-    totalSpent: 2450.0,
-    activeJobs: 3,
-    preferredCategories: ["Home Cleaning", "Plumbing", "Electrical"],
-  },
-  {
-    id: "2",
-    name: "David Chen",
-    email: "david.chen@example.com",
-    phone: "+1234567891",
-    accountType: "business",
-    location: "San Francisco, CA",
-    status: "inactive",
-    verificationStatus: "verified",
-    joinDate: "2024-02-20",
-    totalJobsPosted: 8,
-    totalSpent: 1200.0,
-    activeJobs: 0,
-    preferredCategories: ["IT Support", "Electrical"],
-  },
-  {
-    id: "3",
-    name: "Emily Rodriguez",
-    email: "emily.r@techstartup.com",
-    phone: "+1234567892",
-    accountType: "business",
-    location: "Austin, TX",
-    status: "active",
-    verificationStatus: "verified",
-    joinDate: "2024-03-10",
-    totalJobsPosted: 23,
-    totalSpent: 4890.0,
-    activeJobs: 5,
-    preferredCategories: ["Painting", "Carpentry", "Home Cleaning"],
-  },
-  {
-    id: "4",
-    name: "Michael Thompson",
-    email: "m.thompson@gmail.com",
-    phone: "+1234567893",
-    accountType: "personal",
-    location: "Seattle, WA",
-    status: "active",
-    verificationStatus: "verified",
-    joinDate: "2024-04-05",
-    totalJobsPosted: 12,
-    totalSpent: 1850.0,
-    activeJobs: 2,
-    preferredCategories: ["Plumbing", "HVAC"],
-  },
-  {
-    id: "5",
-    name: "Jennifer Lee",
-    email: "jennifer.lee@realestate.com",
-    phone: "+1234567894",
-    accountType: "business",
-    location: "Miami, FL",
-    status: "active",
-    verificationStatus: "verified",
-    joinDate: "2024-01-28",
-    totalJobsPosted: 42,
-    totalSpent: 8720.0,
-    activeJobs: 8,
-    preferredCategories: [
-      "Home Cleaning",
-      "Landscaping",
-      "Painting",
-      "Plumbing",
-    ],
-  },
-  {
-    id: "6",
-    name: "Robert Martinez",
-    email: "robert.m@yahoo.com",
-    phone: "+1234567895",
-    accountType: "personal",
-    location: "Boston, MA",
-    status: "suspended",
-    verificationStatus: "rejected",
-    joinDate: "2024-05-12",
-    totalJobsPosted: 3,
-    totalSpent: 180.0,
-    activeJobs: 0,
-    preferredCategories: ["Electrical"],
-  },
-  {
-    id: "7",
-    name: "Amanda Foster",
-    email: "amanda@designstudio.com",
-    phone: "+1234567896",
-    accountType: "business",
-    location: "Portland, OR",
-    status: "active",
-    verificationStatus: "verified",
-    joinDate: "2024-02-14",
-    totalJobsPosted: 18,
-    totalSpent: 3240.0,
-    activeJobs: 4,
-    preferredCategories: ["Painting", "Carpentry", "Interior Design"],
-  },
-  {
-    id: "8",
-    name: "James Anderson",
-    email: "j.anderson@construction.com",
-    phone: "+1234567897",
-    accountType: "business",
-    location: "Denver, CO",
-    status: "active",
-    verificationStatus: "verified",
-    joinDate: "2024-01-05",
-    totalJobsPosted: 56,
-    totalSpent: 15670.0,
-    activeJobs: 11,
-    preferredCategories: [
-      "Carpentry",
-      "Plumbing",
-      "Electrical",
-      "HVAC",
-      "Roofing",
-    ],
-  },
-];
+interface Location {
+  latitude: number | null;
+  longitude: number | null;
+  sharing_enabled: boolean;
+  updated_at: string | null;
+}
 
+interface ClientData {
+  description: string;
+  rating: number;
+}
+
+interface JobStats {
+  total_jobs: number;
+  completed_jobs: number;
+  active_jobs: number;
+  cancelled_jobs: number;
+}
+
+interface Client {
+  id: string;
+  profile_id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  full_name: string;
+  phone: string;
+  birth_date: string | null;
+  profile_image: string;
+  address: Address;
+  location: Location;
+  status: string;
+  kyc_status: string;
+  join_date: string;
+  is_verified: boolean;
+  client_data: ClientData;
+  job_stats: JobStats;
+  review_count: number;
+}
 export default function ClientDetailPage() {
   const { id } = useParams();
   const router = useRouter();
   const [client, setClient] = useState<Client | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Mock fetch - replace with actual API call
-    const foundClient = mockClients.find((c) => c.id === id);
-    if (foundClient) {
-      setClient(foundClient);
+    async function fetchClient() {
+      try {
+        setLoading(true);
+        setError(null);
+        const res = await fetch(
+          `http://localhost:8000/api/adminpanel/users/clients/${id}`,
+          {
+            credentials: "include",
+          }
+        );
+
+        if (!res.ok) {
+          throw new Error("Failed to fetch client details");
+        }
+
+        const data = await res.json();
+
+        if (data.success && data.client) {
+          setClient(data.client);
+        } else {
+          setError(data.error || "Client not found");
+        }
+      } catch (err) {
+        console.error("Failed to fetch client:", err);
+        setError("Failed to load client details");
+      } finally {
+        setLoading(false);
+      }
     }
+    if (id) fetchClient();
   }, [id]);
 
-  if (!client) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto mb-4" />
           <p className="text-muted-foreground">Loading client details...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !client) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <p className="text-red-600 mb-4">{error || "Client not found"}</p>
+          <Button onClick={() => router.push("/admin/users/clients")}>
+            ← Back to Clients
+          </Button>
         </div>
       </div>
     );
@@ -215,18 +151,22 @@ export default function ClientDetailPage() {
 
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h2 className="text-xl font-bold">{client.name}</h2>
+                <h2 className="text-xl font-bold">
+                  {client.full_name ||
+                    `${client.first_name} ${client.last_name}`.trim()}
+                </h2>
+                <p className="text-sm text-gray-500">{client.email}</p>
                 <p className="text-sm text-gray-500">
-                  {client.accountType === "business" ? "Business" : "Personal"}{" "}
-                  Account
+                  {client.location?.sharing_enabled
+                    ? "Location Sharing: Enabled"
+                    : ""}
                 </p>
-                <p className="text-sm text-gray-500">{client.location}</p>
               </div>
               <div className="text-right">
                 <p className="text-lg font-semibold text-green-600">
-                  ${client.totalSpent.toLocaleString()}
+                  Rating: {client.client_data?.rating?.toFixed(1) || "N/A"}
                 </p>
-                <p className="text-xs text-gray-500">Total Spent</p>
+                <p className="text-xs text-gray-500">Client Rating</p>
               </div>
             </div>
 
@@ -234,68 +174,87 @@ export default function ClientDetailPage() {
             <div className="grid grid-cols-2 gap-y-3 text-sm border-t pt-4">
               <div>
                 <p className="text-gray-500">Jobs Posted</p>
-                <p className="font-semibold">{client.totalJobsPosted}</p>
+                <p className="font-semibold">
+                  {client.job_stats?.total_jobs || 0}
+                </p>
               </div>
               <div>
                 <p className="text-gray-500">Active Jobs</p>
                 <p className="font-semibold text-blue-600">
-                  {client.activeJobs}
+                  {client.job_stats?.active_jobs || 0}
                 </p>
               </div>
               <div>
-                <p className="text-gray-500">Account Type</p>
-                <p className="font-semibold capitalize">{client.accountType}</p>
+                <p className="text-gray-500">Phone</p>
+                <p className="font-semibold">{client.phone || "N/A"}</p>
               </div>
               <div>
-                <p className="text-gray-500">Verification</p>
+                <p className="text-gray-500">KYC Status</p>
                 <span
                   className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    client.verificationStatus === "verified"
+                    client.kyc_status === "APPROVED"
                       ? "bg-green-100 text-green-800"
-                      : client.verificationStatus === "pending"
+                      : client.kyc_status === "PENDING"
                         ? "bg-yellow-100 text-yellow-800"
                         : "bg-red-100 text-red-800"
                   }`}
                 >
-                  {client.verificationStatus}
+                  {client.kyc_status}
                 </span>
               </div>
               <div>
                 <p className="text-gray-500">Join Date</p>
                 <p className="font-semibold">
-                  {new Date(client.joinDate).toLocaleDateString()}
+                  {new Date(client.join_date).toLocaleDateString()}
                 </p>
               </div>
               <div>
                 <p className="text-gray-500">Status</p>
                 <span
                   className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    client.status === "active"
+                    client.status?.toLowerCase() === "active"
                       ? "bg-green-100 text-green-800"
-                      : client.status === "inactive"
-                        ? "bg-gray-100 text-gray-800"
-                        : "bg-red-100 text-red-800"
+                      : "bg-gray-100 text-gray-800"
                   }`}
                 >
-                  {client.status}
+                  {client.status || "Inactive"}
                 </span>
               </div>
             </div>
 
-            {/* Preferred Categories */}
-            <div className="border-t pt-4">
-              <p className="font-medium mb-2">Preferred Service Categories</p>
-              <div className="flex flex-wrap gap-2">
-                {client.preferredCategories.map((category, i) => (
-                  <span
-                    key={i}
-                    className="px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full"
-                  >
-                    {category}
-                  </span>
-                ))}
+            {/* Address Information */}
+            {(client.address?.street ||
+              client.address?.city ||
+              client.address?.province ||
+              client.address?.country) && (
+              <div className="border-t pt-4">
+                <p className="font-medium mb-2">Address</p>
+                <p className="text-sm text-gray-600">
+                  {client.address.street && (
+                    <>
+                      {client.address.street}
+                      <br />
+                    </>
+                  )}
+                  {client.address.city && `${client.address.city}, `}
+                  {client.address.province} {client.address.postal_code}
+                  {(client.address.city ||
+                    client.address.province ||
+                    client.address.postal_code) && <br />}
+                  {client.address.country}
+                </p>
               </div>
-            </div>
+            )}
+
+            {/* Client Description */}
+            {client.client_data?.description && (
+              <div className="border-t pt-4">
+                <p className="font-medium mb-2">About Client</p>
+                <p className="text-sm text-gray-600">
+                  {client.client_data.description}
+                </p>
+              </div>
+            )}
 
             {/* Tabs (Jobs, Transactions, Activity) */}
             <Tabs defaultValue="jobs" className="mt-6">
@@ -455,12 +414,12 @@ export default function ClientDetailPage() {
                 <dt className="text-gray-500">Phone</dt>
                 <dd className="font-medium">{client.phone}</dd>
 
-                <dt className="text-gray-500">Account Type</dt>
-                <dd className="font-medium capitalize">{client.accountType}</dd>
+                <dt className="text-gray-500">Profile ID</dt>
+                <dd className="font-medium">{client.profile_id}</dd>
 
                 <dt className="text-gray-500">Date Joined</dt>
                 <dd className="font-medium">
-                  {new Date(client.joinDate).toLocaleDateString()}
+                  {new Date(client.join_date).toLocaleDateString()}
                 </dd>
               </dl>
             </CardContent>

@@ -323,6 +323,13 @@ const WorkerProfileViewPage = () => {
 
           {/* Action Buttons */}
           <div className="flex space-x-3">
+            {/* TODO: Implement Direct Job Request Feature
+                When clicked, this should open a modal/form to send a direct job request to this worker
+                - Pre-fill worker information (assignedWorkerID)
+                - Similar form to job posting but with worker pre-selected
+                - API endpoint: POST /api/jobs/create with assignedWorkerID field
+                - Status should be "PENDING" instead of "ACTIVE"
+            */}
             <button className="flex-1 bg-blue-500 text-white py-3 rounded-lg font-medium hover:bg-blue-600 transition-colors">
               Hire Worker
             </button>
@@ -445,6 +452,13 @@ const WorkerProfileViewPage = () => {
                 </div>
 
                 <div className="space-y-3">
+                  {/* TODO: Implement Direct Job Request Feature
+                      When clicked, this should open a modal/form to send a direct job request to this worker
+                      - Pre-fill worker information (assignedWorkerID)
+                      - Similar form to job posting but with worker pre-selected
+                      - API endpoint: POST /api/jobs/create with assignedWorkerID field
+                      - Status should be "PENDING" instead of "ACTIVE"
+                  */}
                   <button className="w-full bg-blue-500 text-white py-3 rounded-lg font-medium hover:bg-blue-600 transition-colors">
                     Hire Worker
                   </button>

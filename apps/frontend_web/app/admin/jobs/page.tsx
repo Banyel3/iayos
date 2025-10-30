@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { Sidebar } from "../components";
 import {
   Card,
@@ -20,18 +21,62 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
+interface JobStats {
+  total_jobs: number;
+  active_jobs: number;
+  in_progress_jobs: number;
+  completed_jobs: number;
+  cancelled_jobs: number;
+  total_applications: number;
+  pending_applications: number;
+  accepted_applications: number;
+  total_budget: number;
+  avg_budget: number;
+  completion_rate: number;
+}
+
 export default function JobsManagementPage() {
-  // Dummy statistics
-  const stats = {
-    totalJobs: 342,
-    activeJobs: 87,
-    completedJobs: 198,
-    pendingApplications: 156,
-    disputes: 3,
-    totalRevenue: 145230.5,
-    averageJobValue: 425.75,
-    jobCompletionRate: 92.5,
-  };
+  const [stats, setStats] = useState<JobStats | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const response = await fetch(
+          "http://localhost:8000/api/adminpanel/jobs/dashboard-stats",
+          {
+            credentials: "include",
+          }
+        );
+        const data = await response.json();
+        if (data.success) {
+          setStats(data.stats);
+        }
+      } catch (error) {
+        console.error("Error fetching jobs stats:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchStats();
+  }, []);
+
+  if (isLoading) {
+    return (
+      <div className="flex">
+        <Sidebar />
+        <main className="flex-1 p-6 bg-gray-50">
+          <div className="flex items-center justify-center h-screen">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+              <p className="mt-4 text-gray-600">Loading jobs statistics...</p>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   const recentActivity = [
     {
@@ -97,7 +142,9 @@ export default function JobsManagementPage() {
                 <Briefcase className="h-4 w-4 text-blue-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{stats.totalJobs}</div>
+                <div className="text-2xl font-bold">
+                  {stats?.total_jobs || 0}
+                </div>
                 <p className="text-xs text-gray-600 mt-1">
                   All time posted jobs
                 </p>
@@ -107,12 +154,14 @@ export default function JobsManagementPage() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">
-                  Active Jobs
+                  In Progress
                 </CardTitle>
                 <Clock className="h-4 w-4 text-orange-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{stats.activeJobs}</div>
+                <div className="text-2xl font-bold">
+                  {stats?.in_progress_jobs || 0}
+                </div>
                 <p className="text-xs text-gray-600 mt-1">
                   Currently in progress
                 </p>
@@ -127,7 +176,9 @@ export default function JobsManagementPage() {
                 <CheckCircle className="h-4 w-4 text-green-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{stats.completedJobs}</div>
+                <div className="text-2xl font-bold">
+                  {stats?.completed_jobs || 0}
+                </div>
                 <p className="text-xs text-gray-600 mt-1">
                   Successfully finished
                 </p>
@@ -143,7 +194,7 @@ export default function JobsManagementPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {stats.pendingApplications}
+                  {stats?.pending_applications || 0}
                 </div>
                 <p className="text-xs text-gray-600 mt-1">Awaiting review</p>
               </CardContent>
@@ -155,13 +206,13 @@ export default function JobsManagementPage() {
             <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium text-blue-900">
-                  Total Revenue
+                  Total Budget
                 </CardTitle>
                 <DollarSign className="h-4 w-4 text-blue-600" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-blue-900">
-                  ${stats.totalRevenue.toLocaleString()}
+                  ₱{(stats?.total_budget || 0).toLocaleString()}
                 </div>
               </CardContent>
             </Card>
@@ -175,7 +226,7 @@ export default function JobsManagementPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-green-900">
-                  ${stats.averageJobValue}
+                  ₱{(stats?.avg_budget || 0).toFixed(2)}
                 </div>
               </CardContent>
             </Card>
@@ -189,7 +240,7 @@ export default function JobsManagementPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-purple-900">
-                  {stats.jobCompletionRate}%
+                  {stats?.completion_rate || 0}%
                 </div>
               </CardContent>
             </Card>
@@ -197,13 +248,13 @@ export default function JobsManagementPage() {
             <Card className="bg-gradient-to-br from-red-50 to-red-100 border-red-200">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium text-red-900">
-                  Active Disputes
+                  Active Listings
                 </CardTitle>
                 <AlertTriangle className="h-4 w-4 text-red-600" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-red-900">
-                  {stats.disputes}
+                  {stats?.active_jobs || 0}
                 </div>
               </CardContent>
             </Card>

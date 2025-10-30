@@ -150,6 +150,15 @@ class ClientProfile(models.Model):
 class Specializations(models.Model):
     specializationID = models.BigAutoField(primary_key=True)
     specializationName = models.CharField(max_length=250)
+    description = models.TextField(blank=True, null=True)
+    minimumRate = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    rateType = models.CharField(max_length=20, default='hourly')  # hourly, daily, fixed
+    skillLevel = models.CharField(max_length=20, default='intermediate')  # entry, intermediate, expert
+    averageProjectCostMin = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    averageProjectCostMax = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    
+    class Meta:
+        db_table = 'specializations'
 
 class InterestedJobs(models.Model):
     clientID = models.ForeignKey(ClientProfile, on_delete=models.CASCADE)
@@ -452,6 +461,253 @@ class JobLog(models.Model):
     
     def __str__(self):
         return f"Job #{self.jobID.jobID} - {self.oldStatus} → {self.newStatus}"
+
+
+class JobApplication(models.Model):
+    """
+    Applications submitted by workers for jobs
+    """
+    applicationID = models.BigAutoField(primary_key=True)
+    jobID = models.ForeignKey(
+        Job,
+        on_delete=models.CASCADE,
+        related_name='applications'
+    )
+    workerID = models.ForeignKey(
+        'WorkerProfile',
+        on_delete=models.CASCADE,
+        related_name='job_applications'
+    )
+    
+    # Proposal Details
+    proposalMessage = models.TextField()
+    proposedBudget = models.DecimalField(max_digits=10, decimal_places=2)
+    estimatedDuration = models.CharField(max_length=100, blank=True, null=True)
+    
+    # Budget Option
+    class BudgetOption(models.TextChoices):
+        ACCEPT = "ACCEPT", "Accept Client's Budget"
+        NEGOTIATE = "NEGOTIATE", "Negotiate Different Budget"
+    
+    budgetOption = models.CharField(
+        max_length=20,
+        choices=BudgetOption.choices,
+        default="NEGOTIATE"
+    )
+    
+    # Application Status
+    class ApplicationStatus(models.TextChoices):
+        PENDING = "PENDING", "Pending"
+        ACCEPTED = "ACCEPTED", "Accepted"
+        REJECTED = "REJECTED", "Rejected"
+        WITHDRAWN = "WITHDRAWN", "Withdrawn"
+    
+    status = models.CharField(
+        max_length=20,
+        choices=ApplicationStatus.choices,
+        default="PENDING"
+    )
+    
+    # Timestamps
+    createdAt = models.DateTimeField(auto_now_add=True)
+    updatedAt = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'job_applications'
+        ordering = ['-createdAt']
+        indexes = [
+            models.Index(fields=['jobID', '-createdAt']),
+            models.Index(fields=['workerID', '-createdAt']),
+            models.Index(fields=['status', '-createdAt']),
+        ]
+        # Prevent duplicate applications
+        constraints = [
+            models.UniqueConstraint(
+                fields=['jobID', 'workerID'],
+                name='unique_job_application'
+            )
+        ]
+    
+    def __str__(self):
+        return f"Application by {self.workerID.profileID.firstName} for {self.jobID.title}"
+
+
+class JobDispute(models.Model):
+    """
+    Disputes related to jobs between clients and workers
+    """
+    disputeID = models.BigAutoField(primary_key=True)
+    jobID = models.ForeignKey(
+        Job,
+        on_delete=models.CASCADE,
+        related_name='disputes'
+    )
+    
+    # Disputing Parties
+    class DisputedBy(models.TextChoices):
+        CLIENT = "CLIENT", "Client"
+        WORKER = "WORKER", "Worker"
+    
+    disputedBy = models.CharField(
+        max_length=20,
+        choices=DisputedBy.choices
+    )
+    
+    # Dispute Details
+    reason = models.CharField(max_length=200)
+    description = models.TextField()
+    
+    # Status
+    class DisputeStatus(models.TextChoices):
+        OPEN = "OPEN", "Open"
+        UNDER_REVIEW = "UNDER_REVIEW", "Under Review"
+        RESOLVED = "RESOLVED", "Resolved"
+        CLOSED = "CLOSED", "Closed"
+    
+    status = models.CharField(
+        max_length=20,
+        choices=DisputeStatus.choices,
+        default="OPEN"
+    )
+    
+    # Priority
+    class DisputePriority(models.TextChoices):
+        LOW = "LOW", "Low"
+        MEDIUM = "MEDIUM", "Medium"
+        HIGH = "HIGH", "High"
+        CRITICAL = "CRITICAL", "Critical"
+    
+    priority = models.CharField(
+        max_length=20,
+        choices=DisputePriority.choices,
+        default="MEDIUM"
+    )
+    
+    # Amounts
+    jobAmount = models.DecimalField(max_digits=10, decimal_places=2)
+    disputedAmount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    
+    # Resolution
+    resolution = models.TextField(blank=True, null=True)
+    resolvedDate = models.DateTimeField(blank=True, null=True)
+    assignedTo = models.CharField(max_length=200, blank=True, null=True)
+    
+    # Timestamps
+    openedDate = models.DateTimeField(auto_now_add=True)
+    updatedAt = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'job_disputes'
+        ordering = ['-openedDate']
+        indexes = [
+            models.Index(fields=['jobID', '-openedDate']),
+            models.Index(fields=['status', '-openedDate']),
+            models.Index(fields=['priority', '-openedDate']),
+        ]
+    
+    def __str__(self):
+        return f"Dispute #{self.disputeID} - {self.jobID.title}"
+
+
+class JobReview(models.Model):
+    """
+    Reviews and ratings for completed jobs
+    Both clients and workers can review each other after job completion
+    """
+    reviewID = models.BigAutoField(primary_key=True)
+    jobID = models.ForeignKey(
+        Job,
+        on_delete=models.CASCADE,
+        related_name='reviews'
+    )
+    
+    # Who gave the review
+    reviewerID = models.ForeignKey(
+        Accounts,
+        on_delete=models.CASCADE,
+        related_name='reviews_given'
+    )
+    
+    # Who received the review
+    revieweeID = models.ForeignKey(
+        Accounts,
+        on_delete=models.CASCADE,
+        related_name='reviews_received'
+    )
+    
+    # Review Type (to identify if it's from client or worker)
+    class ReviewerType(models.TextChoices):
+        CLIENT = "CLIENT", "Client"
+        WORKER = "WORKER", "Worker"
+    
+    reviewerType = models.CharField(
+        max_length=10,
+        choices=ReviewerType.choices
+    )
+    
+    # Rating (1-5 stars, decimal for precision)
+    from django.core.validators import MinValueValidator, MaxValueValidator
+    rating = models.DecimalField(
+        max_digits=3, 
+        decimal_places=2, 
+        validators=[MinValueValidator(1.0), MaxValueValidator(5.0)]
+    )
+    
+    # Review Content
+    comment = models.TextField()
+    
+    # Review Status
+    class ReviewStatus(models.TextChoices):
+        ACTIVE = "ACTIVE", "Active"
+        FLAGGED = "FLAGGED", "Flagged"
+        HIDDEN = "HIDDEN", "Hidden"
+        DELETED = "DELETED", "Deleted"
+    
+    status = models.CharField(
+        max_length=10,
+        choices=ReviewStatus.choices,
+        default="ACTIVE"
+    )
+    
+    # Moderation
+    isFlagged = models.BooleanField(default=False)
+    flagReason = models.TextField(blank=True, null=True)
+    flaggedBy = models.ForeignKey(
+        Accounts,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='flagged_reviews'
+    )
+    flaggedAt = models.DateTimeField(blank=True, null=True)
+    
+    # Helpful votes (optional feature)
+    helpfulCount = models.IntegerField(default=0)
+    
+    # Timestamps
+    createdAt = models.DateTimeField(auto_now_add=True)
+    updatedAt = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'job_reviews'
+        ordering = ['-createdAt']
+        indexes = [
+            models.Index(fields=['jobID', '-createdAt']),
+            models.Index(fields=['reviewerID', '-createdAt']),
+            models.Index(fields=['revieweeID', '-createdAt']),
+            models.Index(fields=['status', '-createdAt']),
+            models.Index(fields=['isFlagged', '-createdAt']),
+        ]
+        # Prevent duplicate reviews from same reviewer for same job
+        constraints = [
+            models.UniqueConstraint(
+                fields=['jobID', 'reviewerID'],
+                name='unique_job_reviewer'
+            )
+        ]
+    
+    def __str__(self):
+        return f"Review by {self.reviewerID.firstName} for job #{self.jobID.jobID} - {self.rating}★"
 
 
 # Backward compatibility - keep old names as aliases

@@ -66,14 +66,20 @@ const HomePage = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [workerListings, setWorkerListings] = useState<WorkerListing[]>([]);
   const [isLoadingWorkers, setIsLoadingWorkers] = useState(true);
+  const [jobPostings, setJobPostings] = useState<JobPosting[]>([]);
+  const [isLoadingJobs, setIsLoadingJobs] = useState(true);
 
   // Use the worker availability hook
   const isWorker = user?.profile_data?.profileType === "WORKER";
+  const isClient = user?.profile_data?.profileType === "CLIENT";
   const {
     isAvailable,
     isLoading: isLoadingAvailability,
     handleAvailabilityToggle,
   } = useWorkerAvailability(isWorker, isAuthenticated);
+
+  // State for job categories (Client view) - will be fetched from API
+  const [jobCategories, setJobCategories] = useState<JobCategory[]>([]);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -109,7 +115,7 @@ const HomePage = () => {
               userLatitude = locationData.location.latitude;
               userLongitude = locationData.location.longitude;
               console.log(
-                "✅ Got user location from profile:",
+                "? Got user location from profile:",
                 userLatitude,
                 userLongitude
               );
@@ -135,7 +141,7 @@ const HomePage = () => {
             userLatitude = position.coords.latitude;
             userLongitude = position.coords.longitude;
             console.log(
-              "✅ Got user location from browser:",
+              "? Got user location from browser:",
               userLatitude,
               userLongitude
             );
@@ -182,6 +188,123 @@ const HomePage = () => {
     }
   }, [isAuthenticated, user?.profile_data?.profileType]);
 
+  // Helper function to format time ago
+  const formatTimeAgo = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffMins < 60)
+      return `${diffMins} ${diffMins === 1 ? "minute" : "minutes"} ago`;
+    if (diffHours < 24)
+      return `${diffHours} ${diffHours === 1 ? "hour" : "hours"} ago`;
+    return `${diffDays} ${diffDays === 1 ? "day" : "days"} ago`;
+  };
+
+  // Fetch job postings for workers
+  useEffect(() => {
+    const fetchJobs = async () => {
+      if (!isWorker) return; // Only fetch jobs if user is a worker
+
+      try {
+        setIsLoadingJobs(true);
+        const response = await fetch(
+          "http://localhost:8000/api/jobs/available",
+          {
+            credentials: "include",
+          }
+        );
+
+        if (!response.ok) {
+          console.error(
+            `Failed to fetch jobs: ${response.status} ${response.statusText}`
+          );
+          setJobPostings([]);
+          return;
+        }
+
+        const data = await response.json();
+
+        if (data.success && data.jobs) {
+          // Map backend data to frontend format
+          const mappedJobs: JobPosting[] = data.jobs.map((job: any) => ({
+            id: job.id.toString(),
+            title: job.title,
+            category: job.category?.name || "Uncategorized",
+            description: job.description,
+            budget: `₱${job.budget.toFixed(2)}`,
+            location: job.location,
+            distance: 0, // Will be calculated if we have coordinates
+            postedBy: {
+              name: job.client.name,
+              avatar: job.client.avatar,
+              rating: job.client.rating || 0,
+            },
+            postedAt: formatTimeAgo(job.created_at),
+            urgency: job.urgency as "LOW" | "MEDIUM" | "HIGH",
+          }));
+          setJobPostings(mappedJobs);
+        }
+      } catch (error) {
+        console.error("Error fetching jobs:", error);
+        setJobPostings([]);
+      } finally {
+        setIsLoadingJobs(false);
+      }
+    };
+
+    if (isAuthenticated && isWorker) {
+      fetchJobs();
+    }
+  }, [isAuthenticated, isWorker]);
+
+  // Fetch job categories for client view
+  useEffect(() => {
+    const fetchCategories = async () => {
+      if (!isClient) return;
+
+      try {
+        const response = await fetch(
+          "http://localhost:8000/api/adminpanel/jobs/categories",
+          {
+            credentials: "include",
+          }
+        );
+
+        if (!response.ok) {
+          console.error(
+            `Failed to fetch categories: ${response.status} ${response.statusText}`
+          );
+          setJobCategories([]);
+          return;
+        }
+
+        const data = await response.json();
+        if (data.success && data.categories) {
+          const mappedCategories = data.categories.map((cat: any) => ({
+            id: cat.id.toString(),
+            name: cat.name,
+            description: cat.description || "",
+            icon: cat.icon || "🔧",
+            workerCount: cat.worker_count || 0,
+          }));
+          setJobCategories(mappedCategories);
+        }
+      } catch (error) {
+        console.error("Error fetching categories:", error);
+        setJobCategories([]);
+      }
+    };
+
+    if (isAuthenticated && isClient) {
+      fetchCategories();
+    }
+  }, [isAuthenticated, isClient]);
+
+  // Early returns
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center pb-16">
@@ -194,143 +317,6 @@ const HomePage = () => {
   }
 
   if (!isAuthenticated) return null;
-
-  const isClient = user?.profile_data?.profileType === "CLIENT";
-
-  // Mock data for job postings (Worker view) - sorted by distance
-  const jobPostings: JobPosting[] = [
-    {
-      id: "1",
-      title: "Refrigerator Not Cooling",
-      category: "Appliance Repair",
-      description:
-        "My refrigerator stopped cooling. Need urgent repair. It's a Samsung model, about 3 years old.",
-      budget: "₱500-800",
-      location: "Quezon City, Metro Manila",
-      distance: 1.2,
-      postedBy: {
-        name: "Maria Santos",
-        avatar: "/worker2.jpg",
-        rating: 4.8,
-      },
-      postedAt: "2 hours ago",
-      urgency: "HIGH" as const,
-    },
-    {
-      id: "2",
-      title: "Install New Light Fixtures",
-      category: "Electrical Work",
-      description:
-        "Need to install 5 new LED light fixtures in living room and bedrooms.",
-      budget: "₱800-1200",
-      location: "Makati City, Metro Manila",
-      distance: 2.5,
-      postedBy: {
-        name: "Juan Dela Cruz",
-        avatar: "/worker1.jpg",
-        rating: 4.9,
-      },
-      postedAt: "5 hours ago",
-      urgency: "MEDIUM" as const,
-    },
-    {
-      id: "3",
-      title: "Fix Leaking Kitchen Sink",
-      category: "Plumbing",
-      description:
-        "Kitchen sink has been leaking under the cabinet. Water damage starting to show.",
-      budget: "₱300-500",
-      location: "Pasig City, Metro Manila",
-      distance: 3.8,
-      postedBy: {
-        name: "Anna Lopez",
-        avatar: "/worker3.jpg",
-        rating: 5.0,
-      },
-      postedAt: "1 day ago",
-      urgency: "HIGH" as const,
-    },
-    {
-      id: "4",
-      title: "Washing Machine Repair",
-      category: "Appliance Repair",
-      description:
-        "Washing machine not spinning properly. Makes loud noise during wash cycle.",
-      budget: "₱400-600",
-      location: "Manila City, Metro Manila",
-      distance: 4.2,
-      postedBy: {
-        name: "Carlos Reyes",
-        avatar: "/worker1.jpg",
-        rating: 4.7,
-      },
-      postedAt: "3 hours ago",
-      urgency: "MEDIUM" as const,
-    },
-    {
-      id: "5",
-      title: "Deep House Cleaning",
-      category: "Cleaning Services",
-      description:
-        "Need complete house cleaning for 2-bedroom apartment before moving in.",
-      budget: "₱1200-1800",
-      location: "Mandaluyong City, Metro Manila",
-      distance: 5.0,
-      postedBy: {
-        name: "Lisa Cruz",
-        avatar: "/worker2.jpg",
-        rating: 4.6,
-      },
-      postedAt: "6 hours ago",
-      urgency: "LOW" as const,
-    },
-  ].sort((a, b) => a.distance - b.distance);
-
-  // Mock data for job categories (Client view)
-  const jobCategories: JobCategory[] = [
-    {
-      id: "1",
-      name: "Appliance Repair",
-      description: "Fix refrigerators, washing machines, and more",
-      icon: "🔧",
-      workerCount: 45,
-    },
-    {
-      id: "2",
-      name: "Electrical Work",
-      description: "Wiring, outlets, and electrical repairs",
-      icon: "⚡",
-      workerCount: 32,
-    },
-    {
-      id: "3",
-      name: "Plumbing",
-      description: "Pipe repairs, drain cleaning, installations",
-      icon: "🚿",
-      workerCount: 28,
-    },
-    {
-      id: "4",
-      name: "Carpentry",
-      description: "Furniture repair, installations, woodwork",
-      icon: "🔨",
-      workerCount: 21,
-    },
-    {
-      id: "5",
-      name: "Cleaning Services",
-      description: "House cleaning, deep cleaning, maintenance",
-      icon: "🧽",
-      workerCount: 67,
-    },
-    {
-      id: "6",
-      name: "Gardening",
-      description: "Lawn care, plant maintenance, landscaping",
-      icon: "🌱",
-      workerCount: 19,
-    },
-  ];
 
   // Get urgency color
   const getUrgencyColor = (urgency: string) => {
@@ -418,116 +404,147 @@ const HomePage = () => {
             </div>
           </div>
           <div className="px-4 py-4 space-y-3">
-            {jobPostings.map((job) => (
-              <div
-                key={job.id}
-                className="bg-white rounded-lg border border-gray-200 overflow-hidden"
-              >
-                <div className="p-4">
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-gray-900 mb-1">
-                        {job.title}
-                      </h3>
-                      <div className="flex items-center space-x-2 text-sm text-gray-600">
-                        <span className="flex items-center">
-                          <svg
-                            className="w-4 h-4 mr-1"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.99 1.99 0 013 12V7a2 2 0 012-2z"
-                            />
-                          </svg>
-                          {job.category}
-                        </span>
-                        <span>•</span>
-                        <span className="flex items-center">
-                          <svg
-                            className="w-4 h-4 mr-1"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-                            />
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-                            />
-                          </svg>
-                          {job.distance.toFixed(1)} km away
-                        </span>
-                      </div>
-                    </div>
-                    <span
-                      className={`px-2 py-1 rounded-full text-xs font-medium ${getUrgencyColor(job.urgency)}`}
-                    >
-                      {job.urgency}
-                    </span>
-                  </div>
-                  <p className="text-sm text-gray-700 mb-3">
-                    {job.description}
-                  </p>
-                  <div className="flex items-center justify-between mb-3 pb-3 border-b border-gray-100">
-                    <div className="flex items-center space-x-2">
-                      <Image
-                        src={job.postedBy.avatar}
-                        alt={job.postedBy.name}
-                        width={32}
-                        height={32}
-                        className="w-8 h-8 rounded-full object-cover"
-                      />
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">
-                          {job.postedBy.name}
-                        </p>
-                        <div className="flex items-center text-xs text-gray-600">
-                          <span className="text-yellow-400 mr-1">⭐</span>
-                          {job.postedBy.rating}
+            {isLoadingJobs ? (
+              <div className="text-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                <p className="text-gray-600">Loading available jobs...</p>
+              </div>
+            ) : jobPostings.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg
+                    className="w-8 h-8 text-gray-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                    />
+                  </svg>
+                </div>
+                <h3 className="text-gray-900 font-medium mb-2">
+                  No jobs available
+                </h3>
+                <p className="text-gray-600 text-sm">
+                  Check back later for new job postings
+                </p>
+              </div>
+            ) : (
+              jobPostings.map((job) => (
+                <div
+                  key={job.id}
+                  className="bg-white rounded-lg border border-gray-200 overflow-hidden"
+                >
+                  <div className="p-4">
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-gray-900 mb-1">
+                          {job.title}
+                        </h3>
+                        <div className="flex items-center space-x-2 text-sm text-gray-600">
+                          <span className="flex items-center">
+                            <svg
+                              className="w-4 h-4 mr-1"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.99 1.99 0 013 12V7a2 2 0 012-2z"
+                              />
+                            </svg>
+                            {job.category}
+                          </span>
+                          <span>�</span>
+                          <span className="flex items-center">
+                            <svg
+                              className="w-4 h-4 mr-1"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                              />
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                              />
+                            </svg>
+                            {job.distance.toFixed(1)} km away
+                          </span>
                         </div>
                       </div>
+                      <span
+                        className={`px-2 py-1 rounded-full text-xs font-medium ${getUrgencyColor(job.urgency)}`}
+                      >
+                        {job.urgency}
+                      </span>
                     </div>
-                    <p className="text-xs text-gray-500">{job.postedAt}</p>
+                    <p className="text-sm text-gray-700 mb-3">
+                      {job.description}
+                    </p>
+                    <div className="flex items-center justify-between mb-3 pb-3 border-b border-gray-100">
+                      <div className="flex items-center space-x-2">
+                        <Image
+                          src={job.postedBy.avatar}
+                          alt={job.postedBy.name}
+                          width={32}
+                          height={32}
+                          className="w-8 h-8 rounded-full object-cover"
+                        />
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">
+                            {job.postedBy.name}
+                          </p>
+                          <div className="flex items-center text-xs text-gray-600">
+                            <span className="text-yellow-400 mr-1">?</span>
+                            {job.postedBy.rating}
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-xs text-gray-500">{job.postedAt}</p>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs text-gray-500">Budget</p>
+                        <p className="text-lg font-bold text-green-600">
+                          {job.budget}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 text-right">
+                          Location
+                        </p>
+                        <p className="text-sm font-medium text-gray-900">
+                          {job.location}
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs text-gray-500">Budget</p>
-                      <p className="text-lg font-bold text-green-600">
-                        {job.budget}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500 text-right">
-                        Location
-                      </p>
-                      <p className="text-sm font-medium text-gray-900">
-                        {job.location}
-                      </p>
-                    </div>
+                  <div className="p-3 bg-gray-50 border-t border-gray-100 flex space-x-2">
+                    <button className="flex-1 bg-blue-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors">
+                      View Details
+                    </button>
+                    <button className="flex-1 bg-white text-blue-500 border border-blue-500 py-2 rounded-lg text-sm font-medium hover:bg-blue-50 transition-colors">
+                      Send Proposal
+                    </button>
                   </div>
                 </div>
-                <div className="p-3 bg-gray-50 border-t border-gray-100 flex space-x-2">
-                  <button className="flex-1 bg-blue-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors">
-                    View Details
-                  </button>
-                  <button className="flex-1 bg-white text-blue-500 border border-blue-500 py-2 rounded-lg text-sm font-medium hover:bg-blue-50 transition-colors">
-                    Send Proposal
-                  </button>
-                </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
           <MobileNav isWorker={isWorker} />
         </div>
@@ -570,116 +587,147 @@ const HomePage = () => {
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6">
-              {jobPostings.map((job) => (
-                <div
-                  key={job.id}
-                  className="bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow"
-                >
-                  <div className="p-6">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-lg text-gray-900 mb-2">
-                          {job.title}
-                        </h3>
-                        <div className="flex items-center space-x-3 text-sm text-gray-600">
-                          <span className="flex items-center">
-                            <svg
-                              className="w-4 h-4 mr-1"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.99 1.99 0 013 12V7a2 2 0 012-2z"
-                              />
-                            </svg>
-                            {job.category}
-                          </span>
-                          <span>•</span>
-                          <span className="flex items-center">
-                            <svg
-                              className="w-4 h-4 mr-1"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-                              />
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-                              />
-                            </svg>
-                            {job.distance.toFixed(1)} km away
-                          </span>
-                        </div>
-                      </div>
-                      <span
-                        className={`px-3 py-1 rounded-full text-xs font-medium ${getUrgencyColor(job.urgency)}`}
-                      >
-                        {job.urgency}
-                      </span>
-                    </div>
-                    <p className="text-sm text-gray-700 mb-4">
-                      {job.description}
-                    </p>
-                    <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-100">
-                      <div className="flex items-center space-x-3">
-                        <Image
-                          src={job.postedBy.avatar}
-                          alt={job.postedBy.name}
-                          width={40}
-                          height={40}
-                          className="w-10 h-10 rounded-full object-cover"
-                        />
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">
-                            {job.postedBy.name}
-                          </p>
-                          <div className="flex items-center text-xs text-gray-600">
-                            <span className="text-yellow-400 mr-1">⭐</span>
-                            {job.postedBy.rating}
+              {isLoadingJobs ? (
+                <div className="col-span-2 text-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                  <p className="text-gray-600">Loading available jobs...</p>
+                </div>
+              ) : jobPostings.length === 0 ? (
+                <div className="col-span-2 text-center py-12">
+                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg
+                      className="w-8 h-8 text-gray-400"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                      />
+                    </svg>
+                  </div>
+                  <h3 className="text-gray-900 font-medium mb-2">
+                    No jobs available
+                  </h3>
+                  <p className="text-gray-600 text-sm">
+                    Check back later for new job postings
+                  </p>
+                </div>
+              ) : (
+                jobPostings.map((job) => (
+                  <div
+                    key={job.id}
+                    className="bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow"
+                  >
+                    <div className="p-6">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-lg text-gray-900 mb-2">
+                            {job.title}
+                          </h3>
+                          <div className="flex items-center space-x-3 text-sm text-gray-600">
+                            <span className="flex items-center">
+                              <svg
+                                className="w-4 h-4 mr-1"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.99 1.99 0 013 12V7a2 2 0 012-2z"
+                                />
+                              </svg>
+                              {job.category}
+                            </span>
+                            <span>�</span>
+                            <span className="flex items-center">
+                              <svg
+                                className="w-4 h-4 mr-1"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                                />
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                                />
+                              </svg>
+                              {job.distance.toFixed(1)} km away
+                            </span>
                           </div>
                         </div>
+                        <span
+                          className={`px-3 py-1 rounded-full text-xs font-medium ${getUrgencyColor(job.urgency)}`}
+                        >
+                          {job.urgency}
+                        </span>
                       </div>
-                      <p className="text-xs text-gray-500">{job.postedAt}</p>
+                      <p className="text-sm text-gray-700 mb-4">
+                        {job.description}
+                      </p>
+                      <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-100">
+                        <div className="flex items-center space-x-3">
+                          <Image
+                            src={job.postedBy.avatar}
+                            alt={job.postedBy.name}
+                            width={40}
+                            height={40}
+                            className="w-10 h-10 rounded-full object-cover"
+                          />
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">
+                              {job.postedBy.name}
+                            </p>
+                            <div className="flex items-center text-xs text-gray-600">
+                              <span className="text-yellow-400 mr-1">?</span>
+                              {job.postedBy.rating}
+                            </div>
+                          </div>
+                        </div>
+                        <p className="text-xs text-gray-500">{job.postedAt}</p>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs text-gray-500">Budget</p>
+                          <p className="text-xl font-bold text-green-600">
+                            {job.budget}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 text-right">
+                            Location
+                          </p>
+                          <p className="text-sm font-medium text-gray-900">
+                            {job.location}
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-xs text-gray-500">Budget</p>
-                        <p className="text-xl font-bold text-green-600">
-                          {job.budget}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500 text-right">
-                          Location
-                        </p>
-                        <p className="text-sm font-medium text-gray-900">
-                          {job.location}
-                        </p>
-                      </div>
+                    <div className="p-4 bg-gray-50 border-t border-gray-100 flex space-x-3">
+                      <button className="flex-1 bg-blue-500 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors">
+                        View Details
+                      </button>
+                      <button className="flex-1 bg-white text-blue-500 border border-blue-500 py-2.5 rounded-lg text-sm font-medium hover:bg-blue-50 transition-colors">
+                        Send Proposal
+                      </button>
                     </div>
                   </div>
-                  <div className="p-4 bg-gray-50 border-t border-gray-100 flex space-x-3">
-                    <button className="flex-1 bg-blue-500 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors">
-                      View Details
-                    </button>
-                    <button className="flex-1 bg-white text-blue-500 border border-blue-500 py-2.5 rounded-lg text-sm font-medium hover:bg-blue-50 transition-colors">
-                      Send Proposal
-                    </button>
-                  </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
         </div>
@@ -858,7 +906,7 @@ const HomePage = () => {
                           </div>
                           <div className="flex items-center space-x-3 mb-2">
                             <span className="flex items-center text-xs text-gray-600">
-                              <span className="text-yellow-400 mr-1">⭐</span>
+                              <span className="text-yellow-400 mr-1">?</span>
                               {worker.rating} ({worker.reviewCount})
                             </span>
                             <span className="flex items-center text-xs text-gray-600">
@@ -969,13 +1017,13 @@ const HomePage = () => {
                         </div>
                         <div className="flex items-center space-x-4 text-sm text-gray-600 mb-2">
                           <div className="flex items-center">
-                            <span className="text-yellow-400 mr-1">⭐</span>
+                            <span className="text-yellow-400 mr-1">?</span>
                             <span className="font-medium">{worker.rating}</span>
                             <span className="ml-1">({worker.reviewCount})</span>
                           </div>
-                          <span>•</span>
+                          <span>�</span>
                           <span>{worker.experience}</span>
-                          <span>•</span>
+                          <span>�</span>
                           <span className="flex items-center">
                             <svg
                               className="w-3 h-3 mr-1"
@@ -1068,13 +1116,13 @@ const HomePage = () => {
                         </div>
                         <div className="flex items-center space-x-4 text-sm text-gray-600 mb-2">
                           <div className="flex items-center">
-                            <span className="text-yellow-400 mr-1">⭐</span>
+                            <span className="text-yellow-400 mr-1">?</span>
                             <span className="font-medium">{worker.rating}</span>
                             <span className="ml-1">({worker.reviewCount})</span>
                           </div>
-                          <span>•</span>
+                          <span>�</span>
                           <span>{worker.experience}</span>
-                          <span>•</span>
+                          <span>�</span>
                           <span className="flex items-center">
                             <svg
                               className="w-3 h-3 mr-1"
@@ -1253,7 +1301,7 @@ const HomePage = () => {
                                 {worker.specialization}
                               </p>
                               <div className="flex items-center space-x-1 text-sm">
-                                <span className="text-yellow-400">⭐</span>
+                                <span className="text-yellow-400">?</span>
                                 <span className="font-medium">
                                   {worker.rating}
                                 </span>
@@ -1365,7 +1413,7 @@ const HomePage = () => {
                               {worker.specialization}
                             </p>
                             <div className="flex items-center space-x-1 text-sm">
-                              <span className="text-yellow-400">⭐</span>
+                              <span className="text-yellow-400">?</span>
                               <span className="font-medium">
                                 {worker.rating}
                               </span>

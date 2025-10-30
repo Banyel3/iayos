@@ -8,7 +8,7 @@ from accounts.api import router as accounts_router
 from adminpanel.api import router as adminpanel_router
 from profiles.api import router as profiles_router
 from agency.api import router as agency_router
-# from jobs.api import router as jobs_router
+from jobs.api import router as jobs_router
 
 api = NinjaExtraAPI()
 
@@ -18,7 +18,7 @@ api.add_router("/accounts/", accounts_router)
 api.add_router("/adminpanel/", adminpanel_router)
 api.add_router("/profiles/", profiles_router)
 api.add_router("/agency/", agency_router)
-# api.add_router("/jobs/", jobs_router)
+api.add_router("/jobs/", jobs_router)
 # api.add_router("/agencies/", agencies_router)
 
 urlpatterns = [

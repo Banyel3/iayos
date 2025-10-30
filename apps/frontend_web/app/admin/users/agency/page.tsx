@@ -28,11 +28,6 @@ interface Agency {
   agency_name: string;
   phone: string;
   address: string;
-  city: string;
-  state: string;
-  country: string;
-  website: string;
-  description: string;
   status: "active" | "inactive";
   kyc_status: string;
   join_date: string;
@@ -59,7 +54,9 @@ export default function AgencyPage() {
   const [agencies, setAgencies] = useState<Agency[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "active" | "inactive"
+  >("all");
   const [totalAgencies, setTotalAgencies] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -71,7 +68,7 @@ export default function AgencyPage() {
         page: currentPage.toString(),
         page_size: "50",
       });
-      
+
       if (searchTerm) params.append("search", searchTerm);
       if (statusFilter !== "all") params.append("status", statusFilter);
 
@@ -87,7 +84,7 @@ export default function AgencyPage() {
       }
 
       const data: AgenciesResponse = await response.json();
-      
+
       if (data.success) {
         setAgencies(data.agencies);
         setTotalAgencies(data.total);
@@ -223,7 +220,9 @@ export default function AgencyPage() {
                 <select
                   value={statusFilter}
                   onChange={(e) =>
-                    setStatusFilter(e.target.value as "all" | "active" | "inactive")
+                    setStatusFilter(
+                      e.target.value as "all" | "active" | "inactive"
+                    )
                   }
                   className="px-3 py-2 border rounded-md"
                 >
@@ -247,7 +246,9 @@ export default function AgencyPage() {
               {loading ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-                  <span className="ml-2 text-gray-600">Loading agencies...</span>
+                  <span className="ml-2 text-gray-600">
+                    Loading agencies...
+                  </span>
                 </div>
               ) : agencies.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
@@ -272,7 +273,7 @@ export default function AgencyPage() {
                             Phone
                           </th>
                           <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
-                            Location
+                            Address
                           </th>
                           <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
                             Workers
@@ -293,7 +294,10 @@ export default function AgencyPage() {
                       </thead>
                       <tbody>
                         {agencies.map((agency, index) => (
-                          <tr key={agency.id} className="border-t hover:bg-gray-50">
+                          <tr
+                            key={agency.id}
+                            className="border-t hover:bg-gray-50"
+                          >
                             <td className="px-4 py-2 text-sm">
                               {(currentPage - 1) * 50 + index + 1}
                             </td>
@@ -307,7 +311,7 @@ export default function AgencyPage() {
                               {agency.phone || "N/A"}
                             </td>
                             <td className="px-4 py-2 text-sm text-gray-600">
-                              {agency.city && agency.state ? `${agency.city}, ${agency.state}` : "N/A"}
+                              {agency.address || "N/A"}
                             </td>
                             <td className="px-4 py-2 text-sm text-center">
                               {agency.total_workers}
@@ -346,7 +350,9 @@ export default function AgencyPage() {
                                 variant="outline"
                                 size="sm"
                                 onClick={() =>
-                                  router.push(`/admin/users/agency/${agency.id}`)
+                                  router.push(
+                                    `/admin/users/agency/${agency.account_id}`
+                                  )
                                 }
                               >
                                 View
@@ -363,7 +369,9 @@ export default function AgencyPage() {
                     <div className="flex items-center justify-between mt-4">
                       <Button
                         variant="outline"
-                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                        onClick={() =>
+                          setCurrentPage((p) => Math.max(1, p - 1))
+                        }
                         disabled={currentPage === 1}
                       >
                         Previous
@@ -373,7 +381,9 @@ export default function AgencyPage() {
                       </span>
                       <Button
                         variant="outline"
-                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                        onClick={() =>
+                          setCurrentPage((p) => Math.min(totalPages, p + 1))
+                        }
                         disabled={currentPage === totalPages}
                       >
                         Next

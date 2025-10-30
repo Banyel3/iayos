@@ -68,17 +68,65 @@ const MyRequestsPage = () => {
   const [materials, setMaterials] = useState<string[]>([]);
   const [materialInput, setMaterialInput] = useState("");
 
-  // Job categories for the modal
-  const jobCategories = [
-    { id: "1", name: "Plumbing", icon: "🔧" },
-    { id: "2", name: "Electrical", icon: "⚡" },
-    { id: "3", name: "Carpentry", icon: "🔨" },
-    { id: "4", name: "Painting", icon: "🎨" },
-    { id: "5", name: "Cleaning", icon: "🧹" },
-    { id: "6", name: "Gardening", icon: "🌱" },
-    { id: "7", name: "Moving", icon: "📦" },
-    { id: "8", name: "Appliance Repair", icon: "🔌" },
-  ];
+  // Job post form state
+  const [jobPostForm, setJobPostForm] = useState({
+    title: "",
+    description: "",
+    category_id: "",
+    budget: "",
+    location: "",
+    expected_duration: "",
+    urgency: "",
+    preferred_start_date: "",
+  });
+  const [isSubmittingJob, setIsSubmittingJob] = useState(false);
+  const [jobPostError, setJobPostError] = useState("");
+
+  // Job categories - fetched from backend
+  interface JobCategory {
+    id: string;
+    name: string;
+    icon: string;
+  }
+  const [jobCategories, setJobCategories] = useState<JobCategory[]>([]);
+
+  // Fetch job categories on mount
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const response = await fetch(
+          "http://localhost:8000/api/adminpanel/jobs/categories",
+          {
+            credentials: "include",
+          }
+        );
+        const data = await response.json();
+        if (data.success && data.categories) {
+          // Map categories to the format needed for the dropdown
+          const mappedCategories = data.categories.map((cat: any) => ({
+            id: cat.id.toString(),
+            name: cat.name,
+            icon: cat.icon || "📋",
+          }));
+          setJobCategories(mappedCategories);
+        }
+      } catch (error) {
+        console.error("Error fetching categories:", error);
+        // Fallback to default categories if fetch fails
+        setJobCategories([
+          { id: "1", name: "Plumbing", icon: "🔧" },
+          { id: "2", name: "Electrical", icon: "⚡" },
+          { id: "3", name: "Carpentry", icon: "🔨" },
+          { id: "4", name: "Painting", icon: "🎨" },
+          { id: "5", name: "Cleaning", icon: "🧹" },
+          { id: "6", name: "Gardening", icon: "🌱" },
+          { id: "7", name: "Moving", icon: "📦" },
+          { id: "8", name: "Appliance Repair", icon: "🔌" },
+        ]);
+      }
+    };
+    fetchCategories();
+  }, []);
 
   // Handle adding materials
   const handleAddMaterial = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -93,6 +141,90 @@ const MyRequestsPage = () => {
 
   const handleRemoveMaterial = (material: string) => {
     setMaterials(materials.filter((m) => m !== material));
+  };
+
+  // Handle job post form submission
+  const handleJobPostSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setJobPostError("");
+
+    // Validation
+    if (!jobPostForm.title.trim()) {
+      setJobPostError("Please enter a job title");
+      return;
+    }
+    if (!jobPostForm.category_id) {
+      setJobPostError("Please select a category");
+      return;
+    }
+    if (!jobPostForm.description.trim()) {
+      setJobPostError("Please enter a job description");
+      return;
+    }
+    if (!jobPostForm.budget || parseFloat(jobPostForm.budget) <= 0) {
+      setJobPostError("Please enter a valid budget");
+      return;
+    }
+    if (!jobPostForm.location.trim()) {
+      setJobPostError("Please enter a job location");
+      return;
+    }
+    if (!jobPostForm.urgency) {
+      setJobPostError("Please select urgency level");
+      return;
+    }
+
+    setIsSubmittingJob(true);
+
+    try {
+      const response = await fetch("http://localhost:8000/api/jobs/create", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          title: jobPostForm.title,
+          description: jobPostForm.description,
+          category_id: parseInt(jobPostForm.category_id),
+          budget: parseFloat(jobPostForm.budget),
+          location: jobPostForm.location,
+          expected_duration: jobPostForm.expected_duration || null,
+          urgency: jobPostForm.urgency,
+          preferred_start_date: jobPostForm.preferred_start_date || null,
+          materials_needed: materials,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        // Reset form
+        setJobPostForm({
+          title: "",
+          description: "",
+          category_id: "",
+          budget: "",
+          location: "",
+          expected_duration: "",
+          urgency: "",
+          preferred_start_date: "",
+        });
+        setMaterials([]);
+        setIsJobPostModalOpen(false);
+
+        // Refresh the page or refetch data
+        alert("Job posted successfully!");
+        window.location.reload(); // Temporary - should implement proper data refetch
+      } else {
+        setJobPostError(data.error || "Failed to create job post");
+      }
+    } catch (error) {
+      console.error("Error creating job post:", error);
+      setJobPostError("An error occurred. Please try again.");
+    } finally {
+      setIsSubmittingJob(false);
+    }
   };
 
   // Use the worker availability hook
@@ -126,88 +258,33 @@ const MyRequestsPage = () => {
 
   const isClient = user?.profile_data?.profileType === "CLIENT";
 
-  // Mock data for job requests - extended with details
-  const jobRequests: JobRequest[] = [
-    {
-      id: "1",
-      title: "Car Aircon Repair",
-      price: "₱420",
-      date: "Today, September 1, 2025",
-      status: "ACTIVE",
-      description:
-        "Need professional aircon repair for my car. The cooling is not working properly and there's a strange noise coming from the unit.",
-      location: "Quezon City, Metro Manila",
-      category: "Automotive Repair",
-      postedDate: "September 1, 2025",
-      paymentStatus: "DOWNPAYMENT_PAID",
-      downpaymentMethod: "GCASH",
-      downpaymentAmount: "₱210",
-      totalAmount: "₱420",
-      client: {
-        name: "Juan Dela Cruz",
-        avatar: "/worker1.jpg",
-        rating: 4.8,
-      },
-    },
-    {
-      id: "2",
-      title: "Laptop Screen Replacement",
-      price: "₱850",
-      date: "Yesterday, August 31, 2025",
-      status: "COMPLETED",
-      description:
-        "Laptop screen is cracked and needs replacement. Dell Inspiron 15 model.",
-      location: "Makati City, Metro Manila",
-      category: "Electronics Repair",
-      postedDate: "August 30, 2025",
-      completedDate: "August 31, 2025",
-      paymentStatus: "FULLY_PAID",
-      downpaymentMethod: "WALLET",
-      finalPaymentMethod: "MAYA",
-      downpaymentAmount: "₱425",
-      finalPaymentAmount: "₱425",
-      totalAmount: "₱850",
-      client: {
-        name: "Maria Santos",
-        avatar: "/worker2.jpg",
-        rating: 4.9,
-      },
-      worker: {
-        name: "Pedro Reyes",
-        avatar: "/worker3.jpg",
-        rating: 4.7,
-      },
-    },
-    {
-      id: "3",
-      title: "Kitchen Sink Installation",
-      price: "₱650",
-      date: "August 29, 2025",
-      status: "COMPLETED",
-      description:
-        "Install new kitchen sink with faucet. Materials will be provided.",
-      location: "Pasig City, Metro Manila",
-      category: "Plumbing",
-      postedDate: "August 28, 2025",
-      completedDate: "August 29, 2025",
-      paymentStatus: "FULLY_PAID",
-      downpaymentMethod: "GCASH",
-      finalPaymentMethod: "CASH",
-      downpaymentAmount: "₱325",
-      finalPaymentAmount: "₱325",
-      totalAmount: "₱650",
-      client: {
-        name: "Ana Rodriguez",
-        avatar: "/worker1.jpg",
-        rating: 5.0,
-      },
-      worker: {
-        name: "Carlos Mendoza",
-        avatar: "/worker2.jpg",
-        rating: 4.8,
-      },
-    },
-  ];
+  // State for job requests
+  const [jobRequests, setJobRequests] = useState<JobRequest[]>([]);
+  const [isLoadingRequests, setIsLoadingRequests] = useState(true);
+
+  // Fetch job requests/applications based on user type
+  useEffect(() => {
+    const fetchJobRequests = async () => {
+      if (!isAuthenticated) return;
+
+      try {
+        setIsLoadingRequests(true);
+
+        // TODO: Implement API calls to fetch actual job data
+        // For clients: GET /api/jobs/my-postings
+        // For workers: GET /api/jobs/my-applications
+
+        // Placeholder - will be replaced with actual API calls
+        setJobRequests([]);
+      } catch (error) {
+        console.error("Error fetching job requests:", error);
+      } finally {
+        setIsLoadingRequests(false);
+      }
+    };
+
+    fetchJobRequests();
+  }, [isAuthenticated, activeTab]);
 
   // Filter requests based on active tab
   const filteredRequests = jobRequests.filter((request) => {
@@ -638,7 +715,7 @@ const MyRequestsPage = () => {
             <div>
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg lg:text-xl font-semibold text-gray-900">
-                  Active Jobs
+                  Active Requests
                 </h2>
                 <button
                   onClick={() => setIsJobPostModalOpen(true)}
@@ -649,7 +726,7 @@ const MyRequestsPage = () => {
                 </button>
               </div>
 
-              {/* Active Jobs List */}
+              {/* Active Requests List */}
               <div className="space-y-3">
                 {filteredRequests.length === 0 ? (
                   <div className="text-center py-12">
@@ -669,7 +746,7 @@ const MyRequestsPage = () => {
                       </svg>
                     </div>
                     <h3 className="text-gray-900 font-medium mb-2">
-                      No active jobs
+                      No active requests
                     </h3>
                     <p className="text-gray-600 text-sm">
                       Create your first job posting to get started
@@ -750,7 +827,7 @@ const MyRequestsPage = () => {
                 </h2>
               </div>
 
-              {/* Active Jobs List for Workers */}
+              {/* Active Requests List for Workers */}
               <div className="space-y-3">
                 {filteredRequests.length === 0 ? (
                   <div className="text-center py-12">
@@ -1454,7 +1531,12 @@ const MyRequestsPage = () => {
 
             {/* Modal Content */}
             <div className="p-6">
-              <form className="space-y-6">
+              {jobPostError && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-sm text-red-600">{jobPostError}</p>
+                </div>
+              )}
+              <form className="space-y-6" onSubmit={handleJobPostSubmit}>
                 {/* Job Title */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1462,8 +1544,13 @@ const MyRequestsPage = () => {
                   </label>
                   <input
                     type="text"
+                    value={jobPostForm.title}
+                    onChange={(e) =>
+                      setJobPostForm({ ...jobPostForm, title: e.target.value })
+                    }
                     placeholder="e.g., Fix Leaking Kitchen Sink"
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
                   />
                 </div>
 
@@ -1472,7 +1559,17 @@ const MyRequestsPage = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Category <span className="text-red-500">*</span>
                   </label>
-                  <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  <select
+                    value={jobPostForm.category_id}
+                    onChange={(e) =>
+                      setJobPostForm({
+                        ...jobPostForm,
+                        category_id: e.target.value,
+                      })
+                    }
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                  >
                     <option value="">Select a category</option>
                     {jobCategories.map((category) => (
                       <option key={category.id} value={category.id}>
@@ -1489,8 +1586,16 @@ const MyRequestsPage = () => {
                   </label>
                   <textarea
                     rows={4}
+                    value={jobPostForm.description}
+                    onChange={(e) =>
+                      setJobPostForm({
+                        ...jobPostForm,
+                        description: e.target.value,
+                      })
+                    }
                     placeholder="Describe the job in detail..."
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
                   />
                   <p className="text-xs text-gray-500 mt-1">
                     Include specific details, requirements, and expectations
@@ -1504,10 +1609,15 @@ const MyRequestsPage = () => {
                   </label>
                   <input
                     type="number"
+                    value={jobPostForm.budget}
+                    onChange={(e) =>
+                      setJobPostForm({ ...jobPostForm, budget: e.target.value })
+                    }
                     placeholder="0.00"
                     min="0"
                     step="0.01"
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
                   />
                   <p className="text-xs text-gray-500 mt-1">
                     Enter your total budget for this project
@@ -1521,8 +1631,16 @@ const MyRequestsPage = () => {
                   </label>
                   <input
                     type="text"
+                    value={jobPostForm.location}
+                    onChange={(e) =>
+                      setJobPostForm({
+                        ...jobPostForm,
+                        location: e.target.value,
+                      })
+                    }
                     placeholder="e.g., Quezon City, Metro Manila"
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
                   />
                   <p className="text-xs text-gray-500 mt-1">
                     Enter the address or area where the job will be performed
@@ -1537,6 +1655,13 @@ const MyRequestsPage = () => {
                     </label>
                     <input
                       type="text"
+                      value={jobPostForm.expected_duration}
+                      onChange={(e) =>
+                        setJobPostForm({
+                          ...jobPostForm,
+                          expected_duration: e.target.value,
+                        })
+                      }
                       placeholder="e.g., 2-3 hours, 1 day"
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
@@ -1545,7 +1670,17 @@ const MyRequestsPage = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Urgency <span className="text-red-500">*</span>
                     </label>
-                    <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <select
+                      value={jobPostForm.urgency}
+                      onChange={(e) =>
+                        setJobPostForm({
+                          ...jobPostForm,
+                          urgency: e.target.value,
+                        })
+                      }
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    >
                       <option value="">Select urgency</option>
                       <option value="low">Low - Flexible timing</option>
                       <option value="medium">Medium - Within a week</option>
@@ -1561,6 +1696,13 @@ const MyRequestsPage = () => {
                   </label>
                   <input
                     type="date"
+                    value={jobPostForm.preferred_start_date}
+                    onChange={(e) =>
+                      setJobPostForm({
+                        ...jobPostForm,
+                        preferred_start_date: e.target.value,
+                      })
+                    }
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -1635,16 +1777,46 @@ const MyRequestsPage = () => {
                 <div className="flex space-x-3 pt-4">
                   <button
                     type="button"
-                    onClick={() => setIsJobPostModalOpen(false)}
-                    className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+                    onClick={() => {
+                      setIsJobPostModalOpen(false);
+                      setJobPostError("");
+                    }}
+                    disabled={isSubmittingJob}
+                    className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 px-6 py-3 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 transition-colors"
+                    disabled={isSubmittingJob}
+                    className="flex-1 px-6 py-3 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 transition-colors disabled:opacity-50 flex items-center justify-center"
                   >
-                    Post Job
+                    {isSubmittingJob ? (
+                      <>
+                        <svg
+                          className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          />
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                          />
+                        </svg>
+                        Posting...
+                      </>
+                    ) : (
+                      "Post Job"
+                    )}
                   </button>
                 </div>
               </form>

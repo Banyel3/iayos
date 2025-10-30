@@ -10,7 +10,14 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Input } from "@/components/ui/input";
-import { UserCheck, Star, Search, Download, Loader2, Briefcase } from "lucide-react";
+import {
+  UserCheck,
+  Star,
+  Search,
+  Download,
+  Loader2,
+  Briefcase,
+} from "lucide-react";
 import { Sidebar } from "../../components";
 import { useRouter } from "next/navigation";
 
@@ -21,7 +28,7 @@ interface Worker {
   first_name: string;
   last_name: string;
   phone: string;
-  location: string;
+  address: string;
   status: "active" | "inactive";
   kyc_status: string;
   join_date: string;
@@ -46,7 +53,9 @@ export default function WorkersPage() {
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "active" | "inactive"
+  >("all");
   const [totalWorkers, setTotalWorkers] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -58,7 +67,7 @@ export default function WorkersPage() {
         page: currentPage.toString(),
         page_size: "50",
       });
-      
+
       if (searchTerm) params.append("search", searchTerm);
       if (statusFilter !== "all") params.append("status", statusFilter);
 
@@ -74,7 +83,7 @@ export default function WorkersPage() {
       }
 
       const data: WorkersResponse = await response.json();
-      
+
       if (data.success) {
         setWorkers(data.workers);
         setTotalWorkers(data.total);
@@ -105,7 +114,10 @@ export default function WorkersPage() {
   }, [searchTerm]);
 
   const activeWorkers = workers.filter((w) => w.status === "active").length;
-  const totalCompletedJobs = workers.reduce((sum, w) => sum + w.completed_jobs, 0);
+  const totalCompletedJobs = workers.reduce(
+    (sum, w) => sum + w.completed_jobs,
+    0
+  );
 
   return (
     <div className="flex">
@@ -166,9 +178,7 @@ export default function WorkersPage() {
                 <div className="text-2xl font-bold">
                   {workers.filter((w) => w.is_verified).length}
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Email verified
-                </p>
+                <p className="text-xs text-muted-foreground">Email verified</p>
               </CardContent>
             </Card>
             <Card>
@@ -209,7 +219,9 @@ export default function WorkersPage() {
                 <select
                   value={statusFilter}
                   onChange={(e) =>
-                    setStatusFilter(e.target.value as "all" | "active" | "inactive")
+                    setStatusFilter(
+                      e.target.value as "all" | "active" | "inactive"
+                    )
                   }
                   className="px-3 py-2 border rounded-md"
                 >
@@ -258,7 +270,7 @@ export default function WorkersPage() {
                             Phone
                           </th>
                           <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
-                            Location
+                            Address
                           </th>
                           <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
                             Jobs Completed
@@ -276,7 +288,10 @@ export default function WorkersPage() {
                       </thead>
                       <tbody>
                         {workers.map((worker, index) => (
-                          <tr key={worker.id} className="border-t hover:bg-gray-50">
+                          <tr
+                            key={worker.id}
+                            className="border-t hover:bg-gray-50"
+                          >
                             <td className="px-4 py-2 text-sm">
                               {(currentPage - 1) * 50 + index + 1}
                             </td>
@@ -290,9 +305,9 @@ export default function WorkersPage() {
                               {worker.phone || "N/A"}
                             </td>
                             <td className="px-4 py-2 text-sm text-gray-600">
-                              {worker.location || "N/A"}
+                              {worker.address || "N/A"}
                             </td>
-                            <td className="px-4 py-2 text-sm text-center">
+                            <td className="px-4 py-2 text-sm text-gray-600">
                               {worker.completed_jobs}
                             </td>
                             <td className="px-4 py-2 text-sm">
@@ -326,7 +341,9 @@ export default function WorkersPage() {
                                 variant="outline"
                                 size="sm"
                                 onClick={() =>
-                                  router.push(`/admin/users/workers/${worker.id}`)
+                                  router.push(
+                                    `/admin/users/workers/${worker.id}`
+                                  )
                                 }
                               >
                                 View
@@ -343,7 +360,9 @@ export default function WorkersPage() {
                     <div className="flex items-center justify-between mt-4">
                       <Button
                         variant="outline"
-                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                        onClick={() =>
+                          setCurrentPage((p) => Math.max(1, p - 1))
+                        }
                         disabled={currentPage === 1}
                       >
                         Previous
@@ -353,7 +372,9 @@ export default function WorkersPage() {
                       </span>
                       <Button
                         variant="outline"
-                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                        onClick={() =>
+                          setCurrentPage((p) => Math.min(totalPages, p + 1))
+                        }
                         disabled={currentPage === totalPages}
                       >
                         Next

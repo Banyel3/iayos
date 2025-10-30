@@ -917,7 +917,7 @@ def get_clients_list(page: int = 1, page_size: int = 50, search: str = None, sta
                 'first_name': profile.firstName or '',
                 'last_name': profile.lastName or '',
                 'phone': profile.contactNum or '',
-                'location': profile.location_sharing_enabled and f"Lat: {profile.latitude}, Lng: {profile.longitude}" or 'N/A',
+                'address': f"{account.city}, {account.province}".strip(', ') if (account.city or account.province) else account.country or 'N/A',
                 'status': 'active' if account.isVerified else 'inactive',
                 'kyc_status': kyc_status,
                 'join_date': account.createdAt.isoformat() if account.createdAt else None,
@@ -1014,7 +1014,7 @@ def get_workers_list(page: int = 1, page_size: int = 50, search: str = None, sta
                 'first_name': profile.firstName or '',
                 'last_name': profile.lastName or '',
                 'phone': profile.contactNum or '',
-                'location': profile.location_sharing_enabled and f"Lat: {profile.latitude}, Lng: {profile.longitude}" or 'N/A',
+                'address': f"{account.city}, {account.province}".strip(', ') if (account.city or account.province) else account.country or 'N/A',
                 'status': 'active' if account.isVerified else 'inactive',
                 'kyc_status': kyc_status,
                 'join_date': account.createdAt.isoformat() if account.createdAt else None,
@@ -1035,6 +1035,371 @@ def get_workers_list(page: int = 1, page_size: int = 50, search: str = None, sta
         
     except Exception as e:
         print(f"❌ Error fetching workers list: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise
+
+
+def get_worker_detail(account_id: str):
+    """Get detailed information about a specific worker by account ID."""
+    from django.db.models import Q, Count
+    from adminpanel.models import KYCLogs
+    
+    try:
+        # Get the worker profile
+        profile = Profile.objects.filter(
+            profileType='WORKER',
+            accountFK__accountID=account_id
+        ).select_related('accountFK').first()
+        
+        if not profile:
+            return None
+        
+        account = profile.accountFK
+        
+        # Get KYC status from logs (most recent entry)
+        try:
+            latest_log = KYCLogs.objects.filter(
+                accountFK=account,
+                kycType=KYCLogs.KYCSubject.USER
+            ).order_by('-reviewedAt').first()
+            
+            if latest_log:
+                kyc_status = latest_log.action  # APPROVED or REJECTED
+            else:
+                # No log entry - check if KYC exists and is pending
+                try:
+                    kyc_obj = kyc.objects.get(accountFK=account)
+                    kyc_status = kyc_obj.kycStatus  # PENDING
+                except kyc.DoesNotExist:
+                    kyc_status = 'NOT_SUBMITTED'
+        except Exception as e:
+            kyc_status = 'NOT_SUBMITTED'
+        
+        # Get worker rating and completed jobs
+        try:
+            from accounts.models import Job
+            total_jobs = Job.objects.filter(workerFK=profile).count()
+            completed_jobs = Job.objects.filter(
+                workerFK=profile,
+                status='COMPLETED'
+            ).count()
+            active_jobs = Job.objects.filter(
+                workerFK=profile,
+                status='ACTIVE'
+            ).count()
+        except:
+            total_jobs = 0
+            completed_jobs = 0
+            active_jobs = 0
+        
+        # Get worker specializations/skills
+        try:
+            from accounts.models import WorkerProfile, workerSpecialization, Specializations
+            worker_profile = WorkerProfile.objects.get(profileID=profile)
+            
+            # Get specializations
+            specializations = workerSpecialization.objects.filter(
+                workerID=worker_profile
+            ).select_related('specializationID')
+            
+            skills = [
+                {
+                    'name': spec.specializationID.specializationName,
+                    'experience_years': spec.experienceYears,
+                    'certification': spec.certification or ''
+                }
+                for spec in specializations
+            ]
+            
+            # Get worker-specific data
+            worker_description = worker_profile.description or ''
+            worker_rating = worker_profile.workerRating or 0
+            availability_status = worker_profile.availabilityStatus
+            total_earnings = float(worker_profile.totalEarningGross) if worker_profile.totalEarningGross else 0.0
+        except WorkerProfile.DoesNotExist:
+            skills = []
+            worker_description = ''
+            worker_rating = 0
+            availability_status = 'OFFLINE'
+            total_earnings = 0.0
+        except Exception as e:
+            print(f"❌ Error fetching worker profile details: {str(e)}")
+            skills = []
+            worker_description = ''
+            worker_rating = 0
+            availability_status = 'OFFLINE'
+            total_earnings = 0.0
+        
+        return {
+            'id': str(account.accountID),
+            'profile_id': str(profile.profileID),
+            'email': account.email,
+            'first_name': profile.firstName or '',
+            'last_name': profile.lastName or '',
+            'full_name': f"{profile.firstName or ''} {profile.lastName or ''}".strip(),
+            'phone': profile.contactNum or '',
+            'birth_date': profile.birthDate.isoformat() if profile.birthDate else None,
+            'profile_image': profile.profileImg or '',
+            'address': {
+                'street': account.street_address or '',
+                'city': account.city or '',
+                'province': account.province or '',
+                'postal_code': account.postal_code or '',
+                'country': account.country or 'Philippines',
+            },
+            'location': {
+                'latitude': float(profile.latitude) if profile.latitude else None,
+                'longitude': float(profile.longitude) if profile.longitude else None,
+                'sharing_enabled': profile.location_sharing_enabled,
+                'updated_at': profile.location_updated_at.isoformat() if profile.location_updated_at else None,
+            },
+            'status': 'active' if account.isVerified else 'inactive',
+            'kyc_status': kyc_status,
+            'join_date': account.createdAt.isoformat() if account.createdAt else None,
+            'is_verified': account.isVerified,
+            'worker_data': {
+                'description': worker_description,
+                'rating': worker_rating,
+                'availability_status': availability_status,
+                'total_earnings': total_earnings,
+            },
+            'skills': skills,
+            'job_stats': {
+                'total_jobs': total_jobs,
+                'completed_jobs': completed_jobs,
+                'active_jobs': active_jobs,
+                'completion_rate': (completed_jobs / total_jobs * 100) if total_jobs > 0 else 0,
+            },
+            'review_count': 0,  # TODO: Calculate from reviews when implemented
+        }
+        
+    except Exception as e:
+        print(f"❌ Error fetching worker detail: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise
+
+
+def get_client_detail(account_id: str):
+    """Get detailed information about a specific client by account ID."""
+    from django.db.models import Q, Count
+    from adminpanel.models import KYCLogs
+    
+    try:
+        # Get the client profile
+        profile = Profile.objects.filter(
+            profileType='CLIENT',
+            accountFK__accountID=account_id
+        ).select_related('accountFK').first()
+        
+        if not profile:
+            return None
+        
+        account = profile.accountFK
+        
+        # Get KYC status from logs (most recent entry)
+        try:
+            latest_log = KYCLogs.objects.filter(
+                accountFK=account,
+                kycType=KYCLogs.KYCSubject.USER
+            ).order_by('-reviewedAt').first()
+            
+            if latest_log:
+                kyc_status = latest_log.action  # APPROVED or REJECTED
+            else:
+                # No log entry - check if KYC exists and is pending
+                try:
+                    kyc_obj = kyc.objects.get(accountFK=account)
+                    kyc_status = kyc_obj.kycStatus  # PENDING
+                except kyc.DoesNotExist:
+                    kyc_status = 'NOT_SUBMITTED'
+        except Exception as e:
+            kyc_status = 'NOT_SUBMITTED'
+        
+        # Get client's posted jobs
+        try:
+            from accounts.models import Job, ClientProfile
+            
+            # Get client profile for additional data
+            try:
+                client_profile = ClientProfile.objects.get(profileID=profile)
+                client_description = client_profile.description or ''
+                client_rating = client_profile.clientRating or 0
+                total_jobs_posted = client_profile.totalJobsPosted or 0
+            except ClientProfile.DoesNotExist:
+                client_description = ''
+                client_rating = 0
+                total_jobs_posted = 0
+            
+            # Get job statistics
+            all_jobs = Job.objects.filter(clientFK=profile)
+            total_jobs = all_jobs.count()
+            completed_jobs = all_jobs.filter(status='COMPLETED').count()
+            active_jobs = all_jobs.filter(status='ACTIVE').count()
+            cancelled_jobs = all_jobs.filter(status='CANCELLED').count()
+        except:
+            client_description = ''
+            client_rating = 0
+            total_jobs_posted = 0
+            total_jobs = 0
+            completed_jobs = 0
+            active_jobs = 0
+            cancelled_jobs = 0
+        
+        return {
+            'id': str(account.accountID),
+            'profile_id': str(profile.profileID),
+            'email': account.email,
+            'first_name': profile.firstName or '',
+            'last_name': profile.lastName or '',
+            'full_name': f"{profile.firstName or ''} {profile.lastName or ''}".strip(),
+            'phone': profile.contactNum or '',
+            'birth_date': profile.birthDate.isoformat() if profile.birthDate else None,
+            'profile_image': profile.profileImg or '',
+            'address': {
+                'street': account.street_address or '',
+                'city': account.city or '',
+                'province': account.province or '',
+                'postal_code': account.postal_code or '',
+                'country': account.country or 'Philippines',
+            },
+            'location': {
+                'latitude': float(profile.latitude) if profile.latitude else None,
+                'longitude': float(profile.longitude) if profile.longitude else None,
+                'sharing_enabled': profile.location_sharing_enabled,
+                'updated_at': profile.location_updated_at.isoformat() if profile.location_updated_at else None,
+            },
+            'status': 'active' if account.isVerified else 'inactive',
+            'kyc_status': kyc_status,
+            'join_date': account.createdAt.isoformat() if account.createdAt else None,
+            'is_verified': account.isVerified,
+            'client_data': {
+                'description': client_description,
+                'rating': client_rating,
+                'total_jobs_posted': total_jobs_posted,
+            },
+            'job_stats': {
+                'total_jobs': total_jobs,
+                'completed_jobs': completed_jobs,
+                'active_jobs': active_jobs,
+                'cancelled_jobs': cancelled_jobs,
+                'completion_rate': (completed_jobs / total_jobs * 100) if total_jobs > 0 else 0,
+            },
+            'review_count': 0,  # TODO: Calculate from reviews when implemented
+        }
+        
+    except Exception as e:
+        print(f"❌ Error fetching client detail: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise
+
+
+def get_agency_detail(account_id: str):
+    """Get detailed information about a specific agency by account ID."""
+    from django.db.models import Q, Count
+    from adminpanel.models import KYCLogs
+    from agency.models import AgencyKYC, AgencyEmployee
+    
+    try:
+        # Get the agency
+        agency = Agency.objects.filter(
+            accountFK__accountID=account_id
+        ).select_related('accountFK').first()
+        
+        if not agency:
+            return None
+        
+        account = agency.accountFK
+        
+        # Get Agency KYC status from logs (most recent entry)
+        try:
+            latest_log = KYCLogs.objects.filter(
+                accountFK=account,
+                kycType=KYCLogs.KYCSubject.AGENCY
+            ).order_by('-reviewedAt').first()
+            
+            if latest_log:
+                kyc_status = latest_log.action  # APPROVED or REJECTED
+            else:
+                # No log entry - check if AgencyKYC exists and is pending
+                try:
+                    agency_kyc_obj = AgencyKYC.objects.get(accountFK=account)
+                    kyc_status = agency_kyc_obj.status  # PENDING, APPROVED, REJECTED
+                except AgencyKYC.DoesNotExist:
+                    kyc_status = 'NOT_SUBMITTED'
+        except Exception as e:
+            kyc_status = 'NOT_SUBMITTED'
+        
+        # Count employees (AgencyEmployee model - separate from Profile)
+        try:
+            employees = AgencyEmployee.objects.filter(agency=account)
+            total_employees = employees.count()
+            
+            # Get employee details
+            employee_list = [
+                {
+                    'id': str(emp.employeeID),
+                    'name': emp.name,
+                    'email': emp.email,
+                    'role': emp.role or 'Employee',
+                    'rating': float(emp.rating) if emp.rating else 0.0,
+                    'avatar': emp.avatar or '',
+                }
+                for emp in employees[:10]  # Limit to first 10 employees for detail view
+            ]
+        except:
+            total_employees = 0
+            employee_list = []
+        
+        # Count jobs
+        try:
+            from accounts.models import Job
+            all_jobs = Job.objects.filter(agencyFK=agency)
+            total_jobs = all_jobs.count()
+            completed_jobs = all_jobs.filter(status='COMPLETED').count()
+            active_jobs = all_jobs.filter(status='ACTIVE').count()
+        except:
+            total_jobs = 0
+            completed_jobs = 0
+            active_jobs = 0
+        
+        return {
+            'id': str(account.accountID),
+            'agency_id': str(agency.agencyId),
+            'email': account.email,
+            'business_name': agency.businessName or '',
+            'phone': agency.contactNumber or '',
+            'address': {
+                'street': agency.street_address or '',
+                'city': agency.city or '',
+                'province': agency.province or '',
+                'postal_code': agency.postal_code or '',
+                'country': agency.country or '',
+                'full_address': f"{agency.street_address or ''}, {agency.city or ''}, {agency.province or ''} {agency.postal_code or ''}".strip(', '),
+            },
+            'business_description': agency.businessDesc or '',
+            'status': 'active' if account.isVerified else 'inactive',
+            'kyc_status': kyc_status,
+            'join_date': account.createdAt.isoformat() if account.createdAt else None,
+            'is_verified': account.isVerified,
+            'employee_stats': {
+                'total_employees': total_employees,
+                'employees': employee_list,
+            },
+            'job_stats': {
+                'total_jobs': total_jobs,
+                'completed_jobs': completed_jobs,
+                'active_jobs': active_jobs,
+                'completion_rate': (completed_jobs / total_jobs * 100) if total_jobs > 0 else 0,
+            },
+            'rating': 0.0,  # TODO: Calculate from reviews when implemented
+            'review_count': 0,  # TODO: Get from reviews when implemented
+        }
+        
+    except Exception as e:
+        print(f"❌ Error fetching agency detail: {str(e)}")
         import traceback
         traceback.print_exc()
         raise
@@ -1120,12 +1485,7 @@ def get_agencies_list(page: int = 1, page_size: int = 50, search: str = None, st
                 'email': account.email,
                 'agency_name': agency.businessName or '',
                 'phone': agency.contactNumber or '',
-                'address': agency.street_address or '',
-                'city': agency.city or '',
-                'state': agency.province or '',
-                'country': agency.country or '',
-                'website': '',  # Agency model doesn't have website field
-                'description': agency.businessDesc or '',
+                'address': f"{agency.city}, {agency.province}".strip(', ') if (agency.city or agency.province) else agency.country or 'N/A',
                 'status': 'active' if account.isVerified else 'inactive',
                 'kyc_status': kyc_status,
                 'join_date': account.createdAt.isoformat() if account.createdAt else None,
@@ -1151,5 +1511,763 @@ def get_agencies_list(page: int = 1, page_size: int = 50, search: str = None, st
         import traceback
         traceback.print_exc()
         raise
+
+
+# ==========================================
+# JOBS MANAGEMENT FUNCTIONS
+# ==========================================
+
+def get_jobs_list(page: int = 1, page_size: int = 20, status: str = None, category_id: int = None):
+    """
+    Get paginated list of all jobs with filtering options
+    """
+    from accounts.models import Job, Specializations
+    from django.core.paginator import Paginator
+    from django.db.models import Count
+    
+    try:
+        # Start with all jobs
+        queryset = Job.objects.select_related(
+            'clientID__profileID__accountFK',
+            'categoryID',
+            'assignedWorkerID__profileID__accountFK'
+        ).prefetch_related('applications')
+        
+        # Apply filters
+        if status:
+            queryset = queryset.filter(status=status.upper())
+        
+        if category_id:
+            queryset = queryset.filter(categoryID_id=category_id)
+        
+        # Paginate
+        paginator = Paginator(queryset, page_size)
+        page_obj = paginator.get_page(page)
+        
+        jobs_list = []
+        for job in page_obj:
+            client_profile = job.clientID.profileID
+            client_account = client_profile.accountFK
+            
+            # Get category info
+            category = None
+            if job.categoryID:
+                category = {
+                    'id': job.categoryID.specializationID,
+                    'name': job.categoryID.specializationName
+                }
+            
+            # Get worker info if assigned
+            worker_info = None
+            if job.assignedWorkerID:
+                worker_profile = job.assignedWorkerID.profileID
+                worker_account = worker_profile.accountFK
+                worker_info = {
+                    'id': str(worker_account.accountID),
+                    'name': f"{worker_profile.firstName} {worker_profile.lastName}",
+                    'rating': float(job.assignedWorkerID.rating) if job.assignedWorkerID.rating else 0.0
+                }
+            
+            # Count applications
+            applications_count = job.applications.count()
+            
+            jobs_list.append({
+                'id': str(job.jobID),
+                'title': job.title,
+                'description': job.description,
+                'category': category,
+                'client': {
+                    'id': str(client_account.accountID),
+                    'name': f"{client_profile.firstName} {client_profile.lastName}",
+                    'rating': float(job.clientID.rating) if job.clientID.rating else 0.0
+                },
+                'worker': worker_info,
+                'budget': float(job.budget),
+                'location': job.location,
+                'urgency': job.urgency,
+                'status': job.status,
+                'applications_count': applications_count,
+                'created_at': job.createdAt.isoformat(),
+                'updated_at': job.updatedAt.isoformat(),
+                'completed_at': job.completedAt.isoformat() if job.completedAt else None,
+            })
+        
+        return {
+            'jobs': jobs_list,
+            'total': paginator.count,
+            'page': page,
+            'total_pages': paginator.num_pages,
+            'has_next': page_obj.has_next(),
+            'has_previous': page_obj.has_previous(),
+        }
+        
+    except Exception as e:
+        print(f"❌ Error fetching jobs list: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise
+
+
+def get_job_applications_list(page: int = 1, page_size: int = 20, status: str = None):
+    """
+    Get paginated list of all job applications
+    """
+    from accounts.models import JobApplication
+    from django.core.paginator import Paginator
+    
+    try:
+        queryset = JobApplication.objects.select_related(
+            'jobID__clientID__profileID__accountFK',
+            'jobID__categoryID',
+            'workerID__profileID__accountFK'
+        ).all()
+        
+        # Apply status filter if provided
+        if status:
+            queryset = queryset.filter(status=status.upper())
+        
+        # Paginate
+        paginator = Paginator(queryset, page_size)
+        page_obj = paginator.get_page(page)
+        
+        applications_list = []
+        for app in page_obj:
+            worker_profile = app.workerID.profileID
+            worker_account = worker_profile.accountFK
+            
+            client_profile = app.jobID.clientID.profileID
+            client_account = client_profile.accountFK
+            
+            applications_list.append({
+                'id': str(app.applicationID),
+                'job': {
+                    'id': str(app.jobID.jobID),
+                    'title': app.jobID.title,
+                },
+                'worker': {
+                    'id': str(worker_account.accountID),
+                    'name': f"{worker_profile.firstName} {worker_profile.lastName}",
+                    'rating': float(app.workerID.rating) if app.workerID.rating else 0.0,
+                    'completed_jobs': app.workerID.completedJobs or 0,
+                },
+                'client': {
+                    'id': str(client_account.accountID),
+                    'name': f"{client_profile.firstName} {client_profile.lastName}",
+                },
+                'proposed_budget': float(app.proposedBudget),
+                'budget_option': app.budgetOption,
+                'estimated_duration': app.estimatedDuration,
+                'proposal_message': app.proposalMessage,
+                'status': app.status,
+                'applied_date': app.createdAt.isoformat(),
+                'updated_at': app.updatedAt.isoformat(),
+            })
+        
+        return {
+            'applications': applications_list,
+            'total': paginator.count,
+            'page': page,
+            'total_pages': paginator.num_pages,
+            'has_next': page_obj.has_next(),
+            'has_previous': page_obj.has_previous(),
+        }
+        
+    except Exception as e:
+        print(f"❌ Error fetching applications list: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise
+
+
+def get_jobs_dashboard_stats():
+    """
+    Get statistics for jobs dashboard
+    """
+    from accounts.models import Job, JobApplication
+    from django.db.models import Count, Sum, Avg, Q
+    from decimal import Decimal
+    
+    try:
+        # Total jobs by status
+        total_jobs = Job.objects.count()
+        active_jobs = Job.objects.filter(status='ACTIVE').count()
+        in_progress_jobs = Job.objects.filter(status='IN_PROGRESS').count()
+        completed_jobs = Job.objects.filter(status='COMPLETED').count()
+        cancelled_jobs = Job.objects.filter(status='CANCELLED').count()
+        
+        # Applications stats
+        total_applications = JobApplication.objects.count()
+        pending_applications = JobApplication.objects.filter(status='PENDING').count()
+        accepted_applications = JobApplication.objects.filter(status='ACCEPTED').count()
+        
+        # Budget stats
+        total_budget = Job.objects.aggregate(total=Sum('budget'))['total'] or Decimal('0')
+        avg_budget = Job.objects.aggregate(avg=Avg('budget'))['avg'] or Decimal('0')
+        
+        # Completion rate
+        completion_rate = 0.0
+        if total_jobs > 0:
+            completion_rate = (completed_jobs / total_jobs) * 100
+        
+        return {
+            'total_jobs': total_jobs,
+            'active_jobs': active_jobs,
+            'in_progress_jobs': in_progress_jobs,
+            'completed_jobs': completed_jobs,
+            'cancelled_jobs': cancelled_jobs,
+            'total_applications': total_applications,
+            'pending_applications': pending_applications,
+            'accepted_applications': accepted_applications,
+            'total_budget': float(total_budget),
+            'avg_budget': float(avg_budget),
+            'completion_rate': round(completion_rate, 2),
+        }
+        
+    except Exception as e:
+        print(f"❌ Error fetching jobs dashboard stats: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise
+
+
+def get_job_categories_list():
+    """
+    Get list of all job categories with statistics
+    Returns all categories with job counts
+    """
+    try:
+        from accounts.models import Specializations
+        from django.db.models import Count
+        
+        # Get all categories with job counts
+        categories = Specializations.objects.annotate(
+            jobs_count=Count('jobs', distinct=True),
+            workers_count=Count('workerspecialization', distinct=True),
+            clients_count=Count('interestedjobs', distinct=True)
+        ).order_by('specializationName')
+        
+        categories_data = []
+        for category in categories:
+            categories_data.append({
+                'id': category.specializationID,
+                'name': category.specializationName,
+                'description': category.description or '',
+                'minimum_rate': float(category.minimumRate),
+                'rate_type': category.rateType,
+                'skill_level': category.skillLevel,
+                'average_project_cost_min': float(category.averageProjectCostMin),
+                'average_project_cost_max': float(category.averageProjectCostMax),
+                'jobs_count': category.jobs_count,
+                'workers_count': category.workers_count,
+                'clients_count': category.clients_count,
+            })
+        
+        return categories_data
+        
+    except Exception as e:
+        print(f"❌ Error fetching job categories: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise
+
+
+def get_job_disputes_list(page=1, page_size=20, status=None, priority=None):
+    """
+    Get paginated list of job disputes
+    Returns disputes with job, client, and worker information
+    """
+    try:
+        from accounts.models import JobDispute
+        from django.core.paginator import Paginator
+        
+        # Base query with related data
+        disputes_query = JobDispute.objects.select_related(
+            'jobID',
+            'jobID__clientID',
+            'jobID__clientID__profileID',
+            'jobID__assignedWorkerID',
+            'jobID__assignedWorkerID__profileID',
+            'jobID__categoryID'
+        )
+        
+        # Apply filters
+        if status:
+            disputes_query = disputes_query.filter(status=status.upper())
+        if priority:
+            disputes_query = disputes_query.filter(priority=priority.upper())
+        
+        # Order by priority (critical first) then by date
+        priority_order = {
+            'CRITICAL': 1,
+            'HIGH': 2,
+            'MEDIUM': 3,
+            'LOW': 4
+        }
+        
+        # Annotate with priority order for sorting
+        from django.db.models import Case, When, IntegerField
+        disputes_query = disputes_query.annotate(
+            priority_order=Case(
+                When(priority='CRITICAL', then=1),
+                When(priority='HIGH', then=2),
+                When(priority='MEDIUM', then=3),
+                When(priority='LOW', then=4),
+                output_field=IntegerField(),
+            )
+        ).order_by('priority_order', '-openedDate')
+        
+        # Paginate
+        paginator = Paginator(disputes_query, page_size)
+        disputes_page = paginator.get_page(page)
+        
+        # Format response
+        disputes_data = []
+        for dispute in disputes_page:
+            job = dispute.jobID
+            client = job.clientID
+            worker = job.assignedWorkerID
+            
+            disputes_data.append({
+                'id': f"DISP-{str(dispute.disputeID).zfill(3)}",
+                'dispute_id': dispute.disputeID,
+                'job_id': f"JOB-{str(job.jobID).zfill(3)}",
+                'job_title': job.title,
+                'category': job.categoryID.specializationName if job.categoryID else None,
+                'disputed_by': dispute.disputedBy.lower(),
+                'client': {
+                    'id': str(client.profileID.profileID),
+                    'name': f"{client.profileID.firstName} {client.profileID.lastName}",
+                },
+                'worker': {
+                    'id': str(worker.profileID.profileID) if worker else None,
+                    'name': f"{worker.profileID.firstName} {worker.profileID.lastName}" if worker else "Not Assigned",
+                } if worker else None,
+                'reason': dispute.reason,
+                'description': dispute.description,
+                'opened_date': dispute.openedDate.isoformat(),
+                'status': dispute.status.lower(),
+                'priority': dispute.priority.lower(),
+                'job_amount': float(dispute.jobAmount),
+                'disputed_amount': float(dispute.disputedAmount),
+                'resolution': dispute.resolution,
+                'resolved_date': dispute.resolvedDate.isoformat() if dispute.resolvedDate else None,
+                'assigned_to': dispute.assignedTo,
+            })
+        
+        return {
+            'disputes': disputes_data,
+            'total_count': paginator.count,
+            'total_pages': paginator.num_pages,
+            'current_page': page,
+            'has_next': disputes_page.has_next(),
+            'has_previous': disputes_page.has_previous(),
+        }
+        
+    except Exception as e:
+        print(f"❌ Error fetching job disputes: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise
+
+
+def get_disputes_dashboard_stats():
+    """
+    Get statistics for disputes dashboard
+    Returns counts by status and priority
+    """
+    try:
+        from accounts.models import JobDispute
+        from django.db.models import Sum, Avg
+        from decimal import Decimal
+        
+        # Total disputes
+        total_disputes = JobDispute.objects.count()
+        
+        # By status
+        open_disputes = JobDispute.objects.filter(status='OPEN').count()
+        under_review = JobDispute.objects.filter(status='UNDER_REVIEW').count()
+        resolved_disputes = JobDispute.objects.filter(status='RESOLVED').count()
+        closed_disputes = JobDispute.objects.filter(status='CLOSED').count()
+        
+        # By priority
+        critical_disputes = JobDispute.objects.filter(priority='CRITICAL', status__in=['OPEN', 'UNDER_REVIEW']).count()
+        high_priority = JobDispute.objects.filter(priority='HIGH', status__in=['OPEN', 'UNDER_REVIEW']).count()
+        
+        # By disputed party
+        client_disputes = JobDispute.objects.filter(disputedBy='CLIENT').count()
+        worker_disputes = JobDispute.objects.filter(disputedBy='WORKER').count()
+        
+        # Amount stats
+        total_disputed_amount = JobDispute.objects.aggregate(total=Sum('disputedAmount'))['total'] or Decimal('0')
+        avg_disputed_amount = JobDispute.objects.aggregate(avg=Avg('disputedAmount'))['avg'] or Decimal('0')
+        
+        # Resolution rate
+        resolution_rate = 0.0
+        if total_disputes > 0:
+            resolution_rate = ((resolved_disputes + closed_disputes) / total_disputes) * 100
+        
+        return {
+            'total_disputes': total_disputes,
+            'open_disputes': open_disputes,
+            'under_review': under_review,
+            'resolved_disputes': resolved_disputes,
+            'closed_disputes': closed_disputes,
+            'critical_disputes': critical_disputes,
+            'high_priority': high_priority,
+            'client_disputes': client_disputes,
+            'worker_disputes': worker_disputes,
+            'total_disputed_amount': float(total_disputed_amount),
+            'avg_disputed_amount': float(avg_disputed_amount),
+            'resolution_rate': round(resolution_rate, 2),
+        }
+        
+    except Exception as e:
+        print(f"❌ Error fetching disputes dashboard stats: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise
+
+
+def get_all_reviews_list(page=1, page_size=20, status=None, reviewer_type=None, min_rating=None):
+    """
+    Get paginated list of all reviews (general user reviews)
+    Returns reviews with reviewer and reviewee information
+    """
+    try:
+        from accounts.models import JobReview
+        from django.core.paginator import Paginator
+        
+        # Base query with related data
+        reviews_query = JobReview.objects.select_related(
+            'jobID',
+            'jobID__categoryID',
+            'reviewerID',
+            'revieweeID'
+        )
+        
+        # Apply filters
+        if status:
+            reviews_query = reviews_query.filter(status=status.upper())
+        if reviewer_type:
+            reviews_query = reviews_query.filter(reviewerType=reviewer_type.upper())
+        if min_rating:
+            reviews_query = reviews_query.filter(rating__gte=min_rating)
+        
+        # Order by most recent
+        reviews_query = reviews_query.order_by('-createdAt')
+        
+        # Paginate
+        paginator = Paginator(reviews_query, page_size)
+        reviews_page = paginator.get_page(page)
+        
+        # Format response
+        reviews_data = []
+        for review in reviews_page:
+            job = review.jobID
+            reviewer = review.reviewerID
+            reviewee = review.revieweeID
+            
+            reviews_data.append({
+                'id': f"REV-{str(review.reviewID).zfill(3)}",
+                'review_id': review.reviewID,
+                'job': {
+                    'id': f"JOB-{str(job.jobID).zfill(3)}",
+                    'title': job.title,
+                    'category': job.categoryID.specializationName if job.categoryID else None,
+                },
+                'reviewer': {
+                    'id': str(reviewer.profileID),
+                    'name': f"{reviewer.firstName} {reviewer.lastName}",
+                    'type': review.reviewerType.lower(),
+                },
+                'reviewee': {
+                    'id': str(reviewee.profileID),
+                    'name': f"{reviewee.firstName} {reviewee.lastName}",
+                    'type': 'worker' if review.reviewerType == 'CLIENT' else 'client',
+                },
+                'rating': float(review.rating),
+                'comment': review.comment,
+                'status': review.status.lower(),
+                'is_flagged': review.isFlagged,
+                'flag_reason': review.flagReason,
+                'helpful_count': review.helpfulCount,
+                'created_at': review.createdAt.isoformat(),
+            })
+        
+        return {
+            'reviews': reviews_data,
+            'total_count': paginator.count,
+            'total_pages': paginator.num_pages,
+            'current_page': page,
+            'has_next': reviews_page.has_next(),
+            'has_previous': reviews_page.has_previous(),
+        }
+        
+    except Exception as e:
+        print(f"❌ Error fetching all reviews: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise
+
+
+def get_job_reviews_list(page=1, page_size=20, status=None):
+    """
+    Get paginated list of reviews grouped by job
+    Returns jobs with their client and worker reviews
+    """
+    try:
+        from accounts.models import Job, JobReview
+        from django.core.paginator import Paginator
+        from django.db.models import Q, Count, Avg
+        
+        # Get completed jobs that have at least one review
+        jobs_query = Job.objects.filter(
+            status='COMPLETED',
+            reviews__isnull=False
+        ).select_related(
+            'clientID',
+            'clientID__profileID',
+            'assignedWorkerID',
+            'assignedWorkerID__profileID',
+            'categoryID'
+        ).distinct()
+        
+        # Order by completion date (most recent first)
+        jobs_query = jobs_query.order_by('-completedAt')
+        
+        # Paginate
+        paginator = Paginator(jobs_query, page_size)
+        jobs_page = paginator.get_page(page)
+        
+        # Format response
+        job_reviews_data = []
+        for job in jobs_page:
+            client = job.clientID
+            worker = job.assignedWorkerID
+            
+            # Get client's review (review given by client about worker)
+            client_review = JobReview.objects.filter(
+                jobID=job,
+                reviewerType='CLIENT'
+            ).first()
+            
+            # Get worker's review (review given by worker about client)
+            worker_review = JobReview.objects.filter(
+                jobID=job,
+                reviewerType='WORKER'
+            ).first()
+            
+            # Determine review status
+            if client_review and worker_review:
+                review_status = 'completed'
+            elif client_review or worker_review:
+                review_status = 'pending'
+            else:
+                review_status = 'none'
+            
+            job_data = {
+                'job_id': f"JOB-{str(job.jobID).zfill(3)}",
+                'job_title': job.title,
+                'category': job.categoryID.specializationName if job.categoryID else None,
+                'completion_date': job.completedAt.isoformat() if job.completedAt else None,
+                'client': {
+                    'id': str(client.profileID.profileID),
+                    'name': f"{client.profileID.firstName} {client.profileID.lastName}",
+                },
+                'worker': {
+                    'id': str(worker.profileID.profileID) if worker else None,
+                    'name': f"{worker.profileID.firstName} {worker.profileID.lastName}" if worker else "Not Assigned",
+                } if worker else None,
+                'review_status': review_status,
+            }
+            
+            # Add client review if exists
+            if client_review:
+                job_data['client_review'] = {
+                    'id': f"REV-{str(client_review.reviewID).zfill(3)}",
+                    'rating': float(client_review.rating),
+                    'comment': client_review.comment,
+                    'date': client_review.createdAt.isoformat(),
+                    'is_flagged': client_review.isFlagged,
+                    'status': client_review.status.lower(),
+                }
+            
+            # Add worker review if exists
+            if worker_review:
+                job_data['worker_review'] = {
+                    'id': f"REV-{str(worker_review.reviewID).zfill(3)}",
+                    'rating': float(worker_review.rating),
+                    'comment': worker_review.comment,
+                    'date': worker_review.createdAt.isoformat(),
+                    'is_flagged': worker_review.isFlagged,
+                    'status': worker_review.status.lower(),
+                }
+            
+            job_reviews_data.append(job_data)
+        
+        return {
+            'job_reviews': job_reviews_data,
+            'total_count': paginator.count,
+            'total_pages': paginator.num_pages,
+            'current_page': page,
+            'has_next': jobs_page.has_next(),
+            'has_previous': jobs_page.has_previous(),
+        }
+        
+    except Exception as e:
+        print(f"❌ Error fetching job reviews: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise
+
+
+def get_reviews_dashboard_stats():
+    """
+    Get statistics for reviews dashboard
+    Returns counts and averages
+    """
+    try:
+        from accounts.models import JobReview, Job
+        from django.db.models import Avg, Count, Q
+        from decimal import Decimal
+        
+        # Total reviews
+        total_reviews = JobReview.objects.filter(status='ACTIVE').count()
+        
+        # By reviewer type
+        client_reviews = JobReview.objects.filter(reviewerType='CLIENT', status='ACTIVE').count()
+        worker_reviews = JobReview.objects.filter(reviewerType='WORKER', status='ACTIVE').count()
+        
+        # Average ratings
+        avg_rating_all = JobReview.objects.filter(status='ACTIVE').aggregate(avg=Avg('rating'))['avg'] or Decimal('0')
+        avg_client_given = JobReview.objects.filter(reviewerType='CLIENT', status='ACTIVE').aggregate(avg=Avg('rating'))['avg'] or Decimal('0')
+        avg_worker_given = JobReview.objects.filter(reviewerType='WORKER', status='ACTIVE').aggregate(avg=Avg('rating'))['avg'] or Decimal('0')
+        
+        # Flagged reviews
+        flagged_reviews = JobReview.objects.filter(isFlagged=True).count()
+        
+        # Rating distribution
+        five_star = JobReview.objects.filter(rating__gte=4.5, status='ACTIVE').count()
+        four_star = JobReview.objects.filter(rating__gte=3.5, rating__lt=4.5, status='ACTIVE').count()
+        three_star = JobReview.objects.filter(rating__gte=2.5, rating__lt=3.5, status='ACTIVE').count()
+        below_three = JobReview.objects.filter(rating__lt=2.5, status='ACTIVE').count()
+        
+        # Jobs with reviews
+        completed_jobs = Job.objects.filter(status='COMPLETED').count()
+        jobs_with_reviews = Job.objects.filter(
+            status='COMPLETED',
+            reviews__isnull=False
+        ).distinct().count()
+        
+        # Review completion rate
+        review_rate = 0.0
+        if completed_jobs > 0:
+            review_rate = (jobs_with_reviews / completed_jobs) * 100
+        
+        return {
+            'total_reviews': total_reviews,
+            'client_reviews': client_reviews,
+            'worker_reviews': worker_reviews,
+            'avg_rating_all': round(float(avg_rating_all), 2),
+            'avg_client_given': round(float(avg_client_given), 2),
+            'avg_worker_given': round(float(avg_worker_given), 2),
+            'flagged_reviews': flagged_reviews,
+            'five_star': five_star,
+            'four_star': four_star,
+            'three_star': three_star,
+            'below_three': below_three,
+            'completed_jobs': completed_jobs,
+            'jobs_with_reviews': jobs_with_reviews,
+            'review_completion_rate': round(review_rate, 2),
+        }
+        
+    except Exception as e:
+        print(f"❌ Error fetching reviews dashboard stats: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise
+
+
+def get_flagged_reviews_list(page=1, page_size=20):
+    """
+    Get paginated list of flagged reviews
+    """
+    try:
+        from accounts.models import JobReview
+        from django.core.paginator import Paginator
+        
+        # Get flagged reviews
+        reviews_query = JobReview.objects.filter(
+            isFlagged=True
+        ).select_related(
+            'jobID',
+            'jobID__categoryID',
+            'reviewerID',
+            'revieweeID',
+            'flaggedBy'
+        ).order_by('-flaggedAt')
+        
+        # Paginate
+        paginator = Paginator(reviews_query, page_size)
+        reviews_page = paginator.get_page(page)
+        
+        # Format response
+        reviews_data = []
+        for review in reviews_page:
+            job = review.jobID
+            reviewer = review.reviewerID
+            reviewee = review.revieweeID
+            
+            review_data = {
+                'id': f"REV-{str(review.reviewID).zfill(3)}",
+                'review_id': review.reviewID,
+                'job': {
+                    'id': f"JOB-{str(job.jobID).zfill(3)}",
+                    'title': job.title,
+                    'category': job.categoryID.specializationName if job.categoryID else None,
+                },
+                'reviewer': {
+                    'id': str(reviewer.profileID),
+                    'name': f"{reviewer.firstName} {reviewer.lastName}",
+                    'type': review.reviewerType.lower(),
+                },
+                'reviewee': {
+                    'id': str(reviewee.profileID),
+                    'name': f"{reviewee.firstName} {reviewee.lastName}",
+                    'type': 'worker' if review.reviewerType == 'CLIENT' else 'client',
+                },
+                'rating': float(review.rating),
+                'comment': review.comment,
+                'status': review.status.lower(),
+                'flag_reason': review.flagReason,
+                'flagged_at': review.flaggedAt.isoformat() if review.flaggedAt else None,
+                'created_at': review.createdAt.isoformat(),
+            }
+            
+            if review.flaggedBy:
+                review_data['flagged_by'] = {
+                    'id': str(review.flaggedBy.profileID),
+                    'name': f"{review.flaggedBy.firstName} {review.flaggedBy.lastName}",
+                }
+            
+            reviews_data.append(review_data)
+        
+        return {
+            'reviews': reviews_data,
+            'total_count': paginator.count,
+            'total_pages': paginator.num_pages,
+            'current_page': page,
+            'has_next': reviews_page.has_next(),
+            'has_previous': reviews_page.has_previous(),
+        }
+        
+    except Exception as e:
+        print(f"❌ Error fetching flagged reviews: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise
+
+
+
 
 

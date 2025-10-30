@@ -28,7 +28,7 @@ interface Client {
   first_name: string;
   last_name: string;
   phone: string;
-  location: string;
+  address: string;
   status: "active" | "inactive";
   kyc_status: string;
   join_date: string;
@@ -50,7 +50,9 @@ export default function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "active" | "inactive"
+  >("all");
   const [totalClients, setTotalClients] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -62,7 +64,7 @@ export default function ClientsPage() {
         page: currentPage.toString(),
         page_size: "50",
       });
-      
+
       if (searchTerm) params.append("search", searchTerm);
       if (statusFilter !== "all") params.append("status", statusFilter);
 
@@ -78,7 +80,7 @@ export default function ClientsPage() {
       }
 
       const data: ClientsResponse = await response.json();
-      
+
       if (data.success) {
         setClients(data.clients);
         setTotalClients(data.total);
@@ -200,7 +202,9 @@ export default function ClientsPage() {
                 <select
                   value={statusFilter}
                   onChange={(e) =>
-                    setStatusFilter(e.target.value as "all" | "active" | "inactive")
+                    setStatusFilter(
+                      e.target.value as "all" | "active" | "inactive"
+                    )
                   }
                   className="px-3 py-2 border rounded-md"
                 >
@@ -249,7 +253,7 @@ export default function ClientsPage() {
                             Phone
                           </th>
                           <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
-                            Location
+                            Address
                           </th>
                           <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
                             KYC Status
@@ -264,7 +268,10 @@ export default function ClientsPage() {
                       </thead>
                       <tbody>
                         {clients.map((client, index) => (
-                          <tr key={client.id} className="border-t hover:bg-gray-50">
+                          <tr
+                            key={client.id}
+                            className="border-t hover:bg-gray-50"
+                          >
                             <td className="px-4 py-2 text-sm">
                               {(currentPage - 1) * 50 + index + 1}
                             </td>
@@ -278,7 +285,7 @@ export default function ClientsPage() {
                               {client.phone || "N/A"}
                             </td>
                             <td className="px-4 py-2 text-sm text-gray-600">
-                              {client.location || "N/A"}
+                              {client.address || "N/A"}
                             </td>
                             <td className="px-4 py-2 text-sm">
                               <span
@@ -311,7 +318,9 @@ export default function ClientsPage() {
                                 variant="outline"
                                 size="sm"
                                 onClick={() =>
-                                  router.push(`/admin/users/clients/${client.id}`)
+                                  router.push(
+                                    `/admin/users/clients/${client.id}`
+                                  )
                                 }
                               >
                                 View
@@ -328,7 +337,9 @@ export default function ClientsPage() {
                     <div className="flex items-center justify-between mt-4">
                       <Button
                         variant="outline"
-                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                        onClick={() =>
+                          setCurrentPage((p) => Math.max(1, p - 1))
+                        }
                         disabled={currentPage === 1}
                       >
                         Previous
@@ -338,7 +349,9 @@ export default function ClientsPage() {
                       </span>
                       <Button
                         variant="outline"
-                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                        onClick={() =>
+                          setCurrentPage((p) => Math.min(totalPages, p + 1))
+                        }
                         disabled={currentPage === totalPages}
                       >
                         Next
