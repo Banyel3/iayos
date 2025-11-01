@@ -36,7 +36,7 @@ export const DesktopNavbar: React.FC<DesktopNavbarProps> = ({
       href: "/dashboard/home",
     },
     {
-      label: isWorker ? "Browse Jobs" : "My Requests",
+      label: isWorker ? "Browse Jobs" : "My Jobs",
       href: "/dashboard/myRequests",
     },
     {

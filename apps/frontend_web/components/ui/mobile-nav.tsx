@@ -24,7 +24,7 @@ const navItems: NavItem[] = [
     activeIcon: "/icons/home-icon-active.png",
   },
   {
-    name: "My Requests",
+    name: "My Jobs",
     href: "/dashboard/myRequests",
     icon: "/icons/requests-icon.png",
     activeIcon: "/icons/requests-icon-active.png",

@@ -277,7 +277,6 @@
     --color-red-700: #bf000f;
     --color-red-800: #9f0712;
     --color-red-900: #82181a;
-    --color-orange-50: #fff7ed;
     --color-orange-100: #ffedd5;
     --color-orange-500: #fe6e00;
     --color-orange-600: #f05100;
@@ -406,7 +405,6 @@
       --color-red-700: color(display-p3 .692737 .116232 .104679);
       --color-red-800: color(display-p3 .569606 .121069 .108493);
       --color-red-900: color(display-p3 .466906 .133198 .12139);
-      --color-orange-50: color(display-p3 .99533 .970132 .933499);
       --color-orange-100: color(display-p3 .988762 .931393 .843273);
       --color-orange-500: color(display-p3 .946589 .449788 .0757345);
       --color-orange-600: color(display-p3 .887467 .341665 .0219962);
@@ -488,7 +486,6 @@
       --color-red-700: lab(40.4273% 67.2623 53.7441);
       --color-red-800: lab(33.7174% 55.8993 41.0293);
       --color-red-900: lab(28.5139% 44.5539 29.0463);
-      --color-orange-50: lab(97.7008% 1.53738 5.90646);
       --color-orange-100: lab(94.7127% 3.58391 14.3151);
       --color-orange-500: lab(64.272% 57.1788 90.3583);
       --color-orange-600: lab(57.1026% 64.2584 89.8886);
@@ -1261,10 +1258,6 @@
     margin-left: calc(var(--spacing) * -1);
   }
 
-  .ml-0\.5 {
-    margin-left: calc(var(--spacing) * .5);
-  }
-
   .ml-1 {
     margin-left: calc(var(--spacing) * 1);
   }
@@ -1753,10 +1746,6 @@
 
   .grid-cols-3 {
     grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .grid-cols-4 {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .grid-rows-\[auto_auto\] {
@@ -2455,6 +2444,16 @@
     }
   }
 
+  .bg-gray-900\/50 {
+    background-color: rgba(16, 24, 40, .5);
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .bg-gray-900\/50 {
+      background-color: color-mix(in oklab, var(--color-gray-900) 50%, transparent);
+    }
+  }
+
   .bg-green-50 {
     background-color: var(--color-green-50);
   }
@@ -2489,10 +2488,6 @@
 
   .bg-neutral-900 {
     background-color: var(--color-neutral-900);
-  }
-
-  .bg-orange-50 {
-    background-color: var(--color-orange-50);
   }
 
   .bg-orange-100 {
@@ -2685,10 +2680,6 @@
   .to-white {
     --tw-gradient-to: var(--color-white);
     --tw-gradient-stops: var(--tw-gradient-via-stops, var(--tw-gradient-position), var(--tw-gradient-from) var(--tw-gradient-from-position), var(--tw-gradient-to) var(--tw-gradient-to-position));
-  }
-
-  .fill-current {
-    fill: currentColor;
   }
 
   .fill-yellow-400 {
@@ -4317,6 +4308,12 @@
   }
 
   @media (min-width: 40rem) {
+    .sm\:flex-col {
+      flex-direction: column;
+    }
+  }
+
+  @media (min-width: 40rem) {
     .sm\:flex-row {
       flex-direction: row;
     }
@@ -4325,6 +4322,18 @@
   @media (min-width: 40rem) {
     .sm\:items-center {
       align-items: center;
+    }
+  }
+
+  @media (min-width: 40rem) {
+    .sm\:items-end {
+      align-items: flex-end;
+    }
+  }
+
+  @media (min-width: 40rem) {
+    .sm\:items-start {
+      align-items: flex-start;
     }
   }
 

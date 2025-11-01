@@ -18,3 +18,10 @@ class JobPostingResponseSchema(Schema):
     success: bool
     job_posting_id: int
     message: str
+
+
+class JobApplicationSchema(Schema):
+    proposal_message: str
+    proposed_budget: float
+    estimated_duration: Optional[str] = None
+    budget_option: str  # ACCEPT or NEGOTIATE

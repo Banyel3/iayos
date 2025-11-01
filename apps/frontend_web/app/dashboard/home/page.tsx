@@ -69,6 +69,26 @@ const HomePage = () => {
   const [jobPostings, setJobPostings] = useState<JobPosting[]>([]);
   const [isLoadingJobs, setIsLoadingJobs] = useState(true);
 
+  // Track applied jobs
+  const [appliedJobs, setAppliedJobs] = useState<Set<string>>(new Set());
+
+  // Job details modal state
+  const [selectedJobForDetails, setSelectedJobForDetails] =
+    useState<JobPosting | null>(null);
+  const [showJobDetailsModal, setShowJobDetailsModal] = useState(false);
+
+  // Application modal state
+  const [selectedJob, setSelectedJob] = useState<JobPosting | null>(null);
+  const [showApplicationModal, setShowApplicationModal] = useState(false);
+  const [proposalMessage, setProposalMessage] = useState("");
+  const [proposedBudget, setProposedBudget] = useState("");
+  const [estimatedDuration, setEstimatedDuration] = useState("");
+  const [budgetOption, setBudgetOption] = useState<"ACCEPT" | "NEGOTIATE">(
+    "ACCEPT"
+  );
+  const [isSubmittingApplication, setIsSubmittingApplication] = useState(false);
+  const [applicationError, setApplicationError] = useState("");
+
   // Use the worker availability hook
   const isWorker = user?.profile_data?.profileType === "WORKER";
   const isClient = user?.profile_data?.profileType === "CLIENT";
@@ -261,6 +281,43 @@ const HomePage = () => {
     }
   }, [isAuthenticated, isWorker]);
 
+  // Fetch worker's applications to determine which jobs they've applied to
+  useEffect(() => {
+    const fetchMyApplications = async () => {
+      if (!isWorker || !isAuthenticated) return;
+
+      try {
+        const response = await fetch(
+          "http://localhost:8000/api/jobs/my-applications",
+          {
+            credentials: "include",
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log("📋 My applications response:", data);
+          if (data.success && data.applications) {
+            // Extract job IDs from applications
+            const jobIds = new Set<string>(
+              data.applications.map((app: any) => app.job_id.toString())
+            );
+            console.log("✅ Applied job IDs:", Array.from(jobIds));
+            setAppliedJobs(jobIds);
+          }
+        } else {
+          console.error("❌ Failed to fetch applications:", response.status);
+        }
+      } catch (error) {
+        console.error("Error fetching applications:", error);
+      }
+    };
+
+    if (isAuthenticated && isWorker) {
+      fetchMyApplications();
+    }
+  }, [isAuthenticated, isWorker]);
+
   // Fetch job categories for client view
   useEffect(() => {
     const fetchCategories = async () => {
@@ -329,6 +386,96 @@ const HomePage = () => {
         return "bg-green-100 text-green-700";
       default:
         return "bg-gray-100 text-gray-700";
+    }
+  };
+
+  // Handle opening job details modal
+  const handleViewDetailsClick = (job: JobPosting) => {
+    setSelectedJobForDetails(job);
+    setShowJobDetailsModal(true);
+  };
+
+  // Handle opening application modal
+  const handleApplyClick = (job: JobPosting) => {
+    setSelectedJob(job);
+    setProposalMessage("");
+    setProposedBudget(job.budget.replace(/[^0-9.]/g, "")); // Extract number from budget string
+    setEstimatedDuration("");
+    setBudgetOption("ACCEPT");
+    setApplicationError("");
+    setShowApplicationModal(true);
+  };
+
+  // Handle application submission
+  const handleSubmitApplication = async () => {
+    if (!selectedJob) return;
+
+    // Validation
+    if (!proposalMessage.trim()) {
+      setApplicationError("Please provide a proposal message");
+      return;
+    }
+
+    if (
+      budgetOption === "NEGOTIATE" &&
+      (!proposedBudget || parseFloat(proposedBudget) <= 0)
+    ) {
+      setApplicationError("Please enter a valid budget amount");
+      return;
+    }
+
+    setIsSubmittingApplication(true);
+    setApplicationError("");
+
+    try {
+      const response = await fetch(
+        `http://localhost:8000/api/jobs/${selectedJob.id}/apply`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify({
+            proposal_message: proposalMessage,
+            proposed_budget:
+              budgetOption === "ACCEPT"
+                ? parseFloat(selectedJob.budget.replace(/[^0-9.]/g, ""))
+                : parseFloat(proposedBudget),
+            estimated_duration: estimatedDuration || null,
+            budget_option: budgetOption,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to submit application");
+      }
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Add job to applied jobs set
+        setAppliedJobs((prev) => new Set(prev).add(selectedJob.id));
+
+        alert(
+          "Application submitted successfully! You can view your application status in the job details."
+        );
+        setShowApplicationModal(false);
+        setSelectedJob(null);
+      } else {
+        throw new Error(data.error || "Failed to submit application");
+      }
+    } catch (error) {
+      console.error("Error submitting application:", error);
+      setApplicationError(
+        error instanceof Error
+          ? error.message
+          : "Failed to submit application. Please try again."
+      );
+    } finally {
+      setIsSubmittingApplication(false);
     }
   };
 
@@ -534,13 +681,40 @@ const HomePage = () => {
                       </div>
                     </div>
                   </div>
-                  <div className="p-3 bg-gray-50 border-t border-gray-100 flex space-x-2">
-                    <button className="flex-1 bg-blue-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors">
-                      View Details
-                    </button>
-                    <button className="flex-1 bg-white text-blue-500 border border-blue-500 py-2 rounded-lg text-sm font-medium hover:bg-blue-50 transition-colors">
-                      Send Proposal
-                    </button>
+                  <div className="p-3 bg-gray-50 border-t border-gray-100 flex flex-col space-y-2">
+                    {(() => {
+                      const hasApplied = appliedJobs.has(job.id);
+                      console.log(
+                        `Job ${job.id} - Has Applied: ${hasApplied}, Applied Jobs:`,
+                        Array.from(appliedJobs)
+                      );
+                      return (
+                        hasApplied && (
+                          <p className="text-xs text-green-600 text-center font-medium">
+                            ✓ You have already applied for this job
+                          </p>
+                        )
+                      );
+                    })()}
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => handleViewDetailsClick(job)}
+                        className="flex-1 bg-blue-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors"
+                      >
+                        View Details
+                      </button>
+                      <button
+                        onClick={() => handleApplyClick(job)}
+                        disabled={appliedJobs.has(job.id)}
+                        className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          appliedJobs.has(job.id)
+                            ? "bg-gray-200 text-gray-500 cursor-not-allowed"
+                            : "bg-white text-blue-500 border border-blue-500 hover:bg-blue-50"
+                        }`}
+                      >
+                        {appliedJobs.has(job.id) ? "Applied" : "Apply"}
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))
@@ -717,13 +891,31 @@ const HomePage = () => {
                         </div>
                       </div>
                     </div>
-                    <div className="p-4 bg-gray-50 border-t border-gray-100 flex space-x-3">
-                      <button className="flex-1 bg-blue-500 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors">
-                        View Details
-                      </button>
-                      <button className="flex-1 bg-white text-blue-500 border border-blue-500 py-2.5 rounded-lg text-sm font-medium hover:bg-blue-50 transition-colors">
-                        Send Proposal
-                      </button>
+                    <div className="p-4 bg-gray-50 border-t border-gray-100 flex flex-col space-y-2">
+                      {appliedJobs.has(job.id) && (
+                        <p className="text-xs text-green-600 text-center font-medium">
+                          ✓ You have already applied for this job
+                        </p>
+                      )}
+                      <div className="flex space-x-3">
+                        <button
+                          onClick={() => handleViewDetailsClick(job)}
+                          className="flex-1 bg-blue-500 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors"
+                        >
+                          View Details
+                        </button>
+                        <button
+                          onClick={() => handleApplyClick(job)}
+                          disabled={appliedJobs.has(job.id)}
+                          className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                            appliedJobs.has(job.id)
+                              ? "bg-gray-200 text-gray-500 cursor-not-allowed"
+                              : "bg-white text-blue-500 border border-blue-500 hover:bg-blue-50"
+                          }`}
+                        >
+                          {appliedJobs.has(job.id) ? "Applied" : "Apply"}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))
@@ -731,6 +923,346 @@ const HomePage = () => {
             </div>
           </div>
         </div>
+
+        {/* Job Details Modal */}
+        {showJobDetailsModal && selectedJobForDetails && (
+          <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
+            {/* Backdrop */}
+            <div
+              className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm"
+              onClick={() => setShowJobDetailsModal(false)}
+            />
+
+            {/* Modal Content */}
+            <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-gray-200">
+              {/* Modal Header */}
+              <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between rounded-t-xl z-10">
+                <h2 className="text-xl font-semibold text-gray-900">
+                  Job Details
+                </h2>
+                <button
+                  onClick={() => setShowJobDetailsModal(false)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <svg
+                    className="w-6 h-6"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-6 space-y-6">
+                {/* Title and Budget */}
+                <div>
+                  <h3 className="text-2xl font-bold text-gray-900 mb-2">
+                    {selectedJobForDetails.title}
+                  </h3>
+                  <div className="flex items-center gap-2">
+                    <span className="text-3xl font-bold text-green-600">
+                      {selectedJobForDetails.budget}
+                    </span>
+                    <span
+                      className={`px-3 py-1 text-xs rounded-full ${getUrgencyColor(selectedJobForDetails.urgency)}`}
+                    >
+                      {selectedJobForDetails.urgency}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Category and Location */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-500 mb-1">Category</p>
+                    <p className="font-medium text-gray-900">
+                      {selectedJobForDetails.category}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500 mb-1">Location</p>
+                    <p className="font-medium text-gray-900">
+                      {selectedJobForDetails.location}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Description */}
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-700 mb-2">
+                    Description
+                  </h4>
+                  <p className="text-gray-600 leading-relaxed">
+                    {selectedJobForDetails.description}
+                  </p>
+                </div>
+
+                {/* Client Info */}
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h4 className="text-sm font-semibold text-gray-700 mb-3">
+                    Client Information
+                  </h4>
+                  <div className="flex items-center space-x-3">
+                    <Image
+                      src={selectedJobForDetails.postedBy.avatar}
+                      alt={selectedJobForDetails.postedBy.name}
+                      width={48}
+                      height={48}
+                      className="w-12 h-12 rounded-full object-cover"
+                    />
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-900">
+                        {selectedJobForDetails.postedBy.name}
+                      </p>
+                      <div className="flex items-center text-sm text-gray-600">
+                        <svg
+                          className="w-4 h-4 text-yellow-500 mr-1"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                        </svg>
+                        {selectedJobForDetails.postedBy.rating} rating
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Posted Time */}
+                <div className="text-sm text-gray-500">
+                  Posted {selectedJobForDetails.postedAt}
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex gap-3 pt-4 border-t border-gray-200">
+                  <button
+                    onClick={() => setShowJobDetailsModal(false)}
+                    className="flex-1 px-4 py-2.5 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition-colors"
+                  >
+                    Close
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowJobDetailsModal(false);
+                      handleApplyClick(selectedJobForDetails);
+                    }}
+                    disabled={appliedJobs.has(selectedJobForDetails.id)}
+                    className={`flex-1 px-4 py-2.5 rounded-lg font-medium transition-colors ${
+                      appliedJobs.has(selectedJobForDetails.id)
+                        ? "bg-gray-200 text-gray-500 cursor-not-allowed"
+                        : "bg-blue-600 text-white hover:bg-blue-700"
+                    }`}
+                  >
+                    {appliedJobs.has(selectedJobForDetails.id)
+                      ? "Already Applied"
+                      : "Apply Now"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Application Modal */}
+        {showApplicationModal && selectedJob && (
+          <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
+            {/* Backdrop */}
+            <div
+              className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm"
+              onClick={() =>
+                !isSubmittingApplication && setShowApplicationModal(false)
+              }
+            />
+
+            {/* Modal Content */}
+            <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-gray-200">
+              {/* Modal Header */}
+              <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between rounded-t-xl z-10">
+                <h2 className="text-xl font-semibold text-gray-900">
+                  Apply for Job
+                </h2>
+                <button
+                  onClick={() =>
+                    !isSubmittingApplication && setShowApplicationModal(false)
+                  }
+                  disabled={isSubmittingApplication}
+                  className="text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-50"
+                >
+                  <svg
+                    className="w-6 h-6"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-6 space-y-6">
+                {/* Job Info Summary */}
+                <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
+                  <h3 className="font-semibold text-gray-900 mb-1">
+                    {selectedJob.title}
+                  </h3>
+                  <div className="flex items-center gap-4 text-sm text-gray-600">
+                    <span className="font-medium text-blue-600">
+                      {selectedJob.budget}
+                    </span>
+                    <span>•</span>
+                    <span>{selectedJob.location}</span>
+                    <span>•</span>
+                    <span>{selectedJob.category}</span>
+                  </div>
+                </div>
+
+                {/* Proposal Message */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Proposal Message <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    value={proposalMessage}
+                    onChange={(e) => setProposalMessage(e.target.value)}
+                    placeholder="Explain why you're the best fit for this job..."
+                    rows={5}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                    disabled={isSubmittingApplication}
+                  />
+                </div>
+
+                {/* Budget Option */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-3">
+                    Budget
+                  </label>
+                  <div className="space-y-3">
+                    <label className="flex items-start p-4 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                      <input
+                        type="radio"
+                        name="budgetOption"
+                        value="ACCEPT"
+                        checked={budgetOption === "ACCEPT"}
+                        onChange={() => setBudgetOption("ACCEPT")}
+                        disabled={isSubmittingApplication}
+                        className="mt-1 mr-3"
+                      />
+                      <div className="flex-1">
+                        <div className="font-medium text-gray-900">
+                          Accept Client's Budget
+                        </div>
+                        <div className="text-sm text-gray-600 mt-1">
+                          I agree to work for {selectedJob.budget}
+                        </div>
+                      </div>
+                    </label>
+
+                    <label className="flex items-start p-4 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                      <input
+                        type="radio"
+                        name="budgetOption"
+                        value="NEGOTIATE"
+                        checked={budgetOption === "NEGOTIATE"}
+                        onChange={() => setBudgetOption("NEGOTIATE")}
+                        disabled={isSubmittingApplication}
+                        className="mt-1 mr-3"
+                      />
+                      <div className="flex-1">
+                        <div className="font-medium text-gray-900">
+                          Negotiate Budget
+                        </div>
+                        <div className="text-sm text-gray-600 mt-1">
+                          Discuss a different budget with the client
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Proposed Budget (shown when NEGOTIATE is selected) */}
+                {budgetOption === "NEGOTIATE" && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Your Proposed Budget{" "}
+                      <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600">
+                        ₱
+                      </span>
+                      <input
+                        type="number"
+                        value={proposedBudget}
+                        onChange={(e) => setProposedBudget(e.target.value)}
+                        placeholder="0.00"
+                        min="0"
+                        step="0.01"
+                        className="w-full pl-8 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        disabled={isSubmittingApplication}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Estimated Duration */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Estimated Duration (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={estimatedDuration}
+                    onChange={(e) => setEstimatedDuration(e.target.value)}
+                    placeholder="e.g., 2-3 days, 1 week"
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    disabled={isSubmittingApplication}
+                  />
+                </div>
+
+                {/* Error Message */}
+                {applicationError && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <p className="text-sm text-red-700">{applicationError}</p>
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="flex gap-3 pt-4">
+                  <button
+                    onClick={() => setShowApplicationModal(false)}
+                    disabled={isSubmittingApplication}
+                    className="flex-1 px-4 py-2.5 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSubmitApplication}
+                    disabled={isSubmittingApplication}
+                    className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isSubmittingApplication
+                      ? "Submitting..."
+                      : "Submit Application"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }

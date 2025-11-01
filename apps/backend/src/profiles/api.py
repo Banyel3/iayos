@@ -3,9 +3,20 @@ from ninja.files import UploadedFile
 from ninja.responses import Response
 from accounts.authentication import cookie_auth
 from accounts.models import Wallet, Transaction, Profile
-from .schemas import DepositFundsSchema
+from .schemas import (
+    DepositFundsSchema,
+    ProductCreateSchema,
+    ProductSchema,
+    SendMessageSchema,
+    MessageResponseSchema,
+    ConversationSchema,
+    ConversationParticipantSchema,
+    MarkAsReadSchema
+)
+from .models import Conversation, Message, MessageAttachment
 from decimal import Decimal
 from django.utils import timezone
+from django.db.models import Q
 
 
 from .schemas import ProductCreateSchema, ProductSchema
@@ -581,6 +592,383 @@ def check_payment_status(request, transaction_id: int):
         traceback.print_exc()
         return Response(
             {"error": "Failed to check payment status"},
+            status=500
+        )
+
+#endregion
+
+#region CHAT ENDPOINTS
+
+def get_participant_info(profile: Profile, job_title: str = None) -> dict:
+    """Helper function to get participant information"""
+    return {
+        "profile_id": profile.profileID,
+        "name": f"{profile.firstName} {profile.lastName}",
+        "avatar": profile.profileImg or "/worker1.jpg",
+        "profile_type": profile.profileType,
+        "city": profile.accountFK.city if profile.accountFK else None,
+        "job_title": job_title
+    }
+
+
+@router.get("/chat/conversations", auth=cookie_auth)
+def get_conversations(request):
+    """
+    Get all job-based conversations for the current user's profile.
+    Returns list of conversations tied to jobs where user is either client or worker.
+    """
+    try:
+        # Get user's profile
+        try:
+            user_profile = Profile.objects.get(accountFK=request.auth)
+        except Profile.DoesNotExist:
+            return Response(
+                {"error": "Profile not found"},
+                status=400
+            )
+        
+        # Get all conversations where user is either client or worker
+        conversations = Conversation.objects.filter(
+            Q(client=user_profile) | Q(worker=user_profile)
+        ).select_related(
+            'client__accountFK',
+            'worker__accountFK',
+            'relatedJobPosting',
+            'lastMessageSender'
+        ).order_by('-updatedAt')
+        
+        result = []
+        for conv in conversations:
+            # Determine the other participant (if user is client, show worker; if worker, show client)
+            is_client = conv.client == user_profile
+            other_participant = conv.worker if is_client else conv.client
+            
+            # Get job info
+            job = conv.relatedJobPosting
+            
+            # Count unread messages
+            unread_count = conv.unreadCountClient if is_client else conv.unreadCountWorker
+            
+            result.append({
+                "id": conv.conversationID,
+                "job": {
+                    "id": job.jobID,
+                    "title": job.title,
+                    "status": job.status,
+                    "budget": float(job.budget),
+                    "location": job.location
+                },
+                "other_participant": get_participant_info(other_participant, job.title),
+                "my_role": "CLIENT" if is_client else "WORKER",
+                "last_message": conv.lastMessageText,
+                "last_message_time": conv.lastMessageTime.isoformat() if conv.lastMessageTime else None,
+                "last_message_sender_id": conv.lastMessageSender.profileID if conv.lastMessageSender else None,
+                "unread_count": unread_count,
+                "status": conv.status,
+                "created_at": conv.createdAt.isoformat()
+            })
+        
+        return {
+            "success": True,
+            "conversations": result,
+            "total": len(result)
+        }
+        
+    except Exception as e:
+        print(f"❌ Error fetching conversations: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": f"Failed to fetch conversations: {str(e)}"},
+            status=500
+        )
+
+
+@router.get("/chat/conversations/{conversation_id}", auth=cookie_auth)
+def get_conversation_messages(request, conversation_id: int):
+    """
+    Get all messages in a specific job conversation.
+    Also marks messages as read.
+    """
+    try:
+        # Get user's profile
+        try:
+            user_profile = Profile.objects.get(accountFK=request.auth)
+        except Profile.DoesNotExist:
+            return Response(
+                {"error": "Profile not found"},
+                status=400
+            )
+        
+        # Get the conversation
+        try:
+            conversation = Conversation.objects.select_related(
+                'client__accountFK',
+                'worker__accountFK',
+                'relatedJobPosting'
+            ).get(conversationID=conversation_id)
+        except Conversation.DoesNotExist:
+            return Response(
+                {"error": "Conversation not found"},
+                status=404
+            )
+        
+        # Verify user is a participant (either client or worker)
+        is_client = conversation.client == user_profile
+        is_worker = conversation.worker == user_profile
+        
+        if not (is_client or is_worker):
+            return Response(
+                {"error": "You are not a participant in this conversation"},
+                status=403
+            )
+        
+        # Determine the other participant
+        other_participant = conversation.worker if is_client else conversation.client
+        
+        # Get job info
+        job = conversation.relatedJobPosting
+        
+        # Get all messages
+        messages = Message.objects.filter(
+            conversationID=conversation
+        ).select_related('sender__accountFK').order_by('createdAt')
+        
+        # Mark unread messages as read and reset unread count
+        Message.objects.filter(
+            conversationID=conversation,
+            sender=other_participant,
+            isRead=False
+        ).update(isRead=True, readAt=timezone.now())
+        
+        # Reset unread count for this user
+        if is_client:
+            conversation.unreadCountClient = 0
+        else:
+            conversation.unreadCountWorker = 0
+        conversation.save(update_fields=['unreadCountClient' if is_client else 'unreadCountWorker'])
+        
+        # Format messages
+        formatted_messages = []
+        for msg in messages:
+            formatted_messages.append({
+                "id": msg.messageID,
+                "sender_id": msg.sender.profileID,
+                "sender_name": f"{msg.sender.firstName} {msg.sender.lastName}",
+                "sender_avatar": msg.sender.profileImg or "/worker1.jpg",
+                "message_text": msg.messageText,
+                "message_type": msg.messageType,
+                "is_read": msg.isRead,
+                "created_at": msg.createdAt.isoformat(),
+                "is_mine": msg.sender == user_profile
+            })
+        
+        return {
+            "success": True,
+            "conversation_id": conversation.conversationID,
+            "job": {
+                "id": job.jobID,
+                "title": job.title,
+                "status": job.status,
+                "budget": float(job.budget),
+                "location": job.location
+            },
+            "other_participant": get_participant_info(other_participant, job.title),
+            "my_role": "CLIENT" if is_client else "WORKER",
+            "messages": formatted_messages,
+            "total_messages": len(formatted_messages)
+        }
+        
+    except Exception as e:
+        print(f"❌ Error fetching conversation messages: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": f"Failed to fetch messages: {str(e)}"},
+            status=500
+        )
+
+
+@router.post("/chat/messages", auth=cookie_auth)
+def send_message(request, data: SendMessageSchema):
+    """
+    Send a new message within an existing job conversation.
+    Conversations are created when job applications are accepted.
+    """
+    try:
+        # Get sender's profile
+        try:
+            sender_profile = Profile.objects.get(accountFK=request.auth)
+        except Profile.DoesNotExist:
+            return Response(
+                {"error": "Profile not found"},
+                status=400
+            )
+        
+        # Get the conversation
+        try:
+            conversation = Conversation.objects.select_related(
+                'client',
+                'worker',
+                'relatedJobPosting'
+            ).get(conversationID=data.conversation_id)
+        except Conversation.DoesNotExist:
+            return Response(
+                {"error": "Conversation not found"},
+                status=404
+            )
+        
+        # Verify sender is a participant
+        is_client = conversation.client == sender_profile
+        is_worker = conversation.worker == sender_profile
+        
+        if not (is_client or is_worker):
+            return Response(
+                {"error": "You are not a participant in this conversation"},
+                status=403
+            )
+        
+        # Create the message
+        message = Message.objects.create(
+            conversationID=conversation,
+            sender=sender_profile,
+            messageText=data.message_text,
+            messageType=data.message_type or "TEXT"
+        )
+        
+        return {
+            "success": True,
+            "message": {
+                "id": message.messageID,
+                "conversation_id": conversation.conversationID,
+                "sender_id": sender_profile.profileID,
+                "sender_name": f"{sender_profile.firstName} {sender_profile.lastName}",
+                "message_text": message.messageText,
+                "message_type": message.messageType,
+                "created_at": message.createdAt.isoformat(),
+                "is_mine": True
+            }
+        }
+        
+    except Exception as e:
+        print(f"❌ Error sending message: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": f"Failed to send message: {str(e)}"},
+            status=500
+        )
+
+
+@router.post("/chat/messages/mark-read", auth=cookie_auth)
+def mark_messages_as_read(request, data: MarkAsReadSchema):
+    """
+    Mark messages in a job conversation as read.
+    """
+    try:
+        # Get user's profile
+        try:
+            user_profile = Profile.objects.get(accountFK=request.auth)
+        except Profile.DoesNotExist:
+            return Response(
+                {"error": "Profile not found"},
+                status=400
+            )
+        
+        # Get the conversation
+        try:
+            conversation = Conversation.objects.get(conversationID=data.conversation_id)
+        except Conversation.DoesNotExist:
+            return Response(
+                {"error": "Conversation not found"},
+                status=404
+            )
+        
+        # Verify user is a participant
+        is_client = conversation.client == user_profile
+        is_worker = conversation.worker == user_profile
+        
+        if not (is_client or is_worker):
+            return Response(
+                {"error": "You are not a participant in this conversation"},
+                status=403
+            )
+        
+        # Determine the other participant
+        other_participant = conversation.worker if is_client else conversation.client
+        
+        # Mark messages as read
+        query = Message.objects.filter(
+            conversationID=conversation,
+            sender=other_participant,
+            isRead=False
+        )
+        
+        if data.message_id:
+            # Mark up to specific message
+            query = query.filter(messageID__lte=data.message_id)
+        
+        updated_count = query.update(isRead=True, readAt=timezone.now())
+        
+        # Reset unread count
+        if is_client:
+            conversation.unreadCountClient = 0
+        else:
+            conversation.unreadCountWorker = 0
+        conversation.save(update_fields=['unreadCountClient' if is_client else 'unreadCountWorker'])
+        
+        return {
+            "success": True,
+            "marked_count": updated_count
+        }
+        
+    except Exception as e:
+        print(f"❌ Error marking messages as read: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": f"Failed to mark messages as read: {str(e)}"},
+            status=500
+        )
+
+
+@router.get("/chat/unread-count", auth=cookie_auth)
+def get_unread_count(request):
+    """
+    Get total unread message count for the current user across all job conversations.
+    """
+    try:
+        # Get user's profile
+        try:
+            user_profile = Profile.objects.get(accountFK=request.auth)
+        except Profile.DoesNotExist:
+            return Response(
+                {"error": "Profile not found"},
+                status=400
+            )
+        
+        # Get all conversations where user is either client or worker
+        conversations = Conversation.objects.filter(
+            Q(client=user_profile) | Q(worker=user_profile)
+        )
+        
+        total_unread = 0
+        for conv in conversations:
+            # Add unread count based on user's role
+            if conv.client == user_profile:
+                total_unread += conv.unreadCountClient
+            else:
+                total_unread += conv.unreadCountWorker
+        
+        return {
+            "success": True,
+            "unread_count": total_unread
+        }
+        
+    except Exception as e:
+        print(f"❌ Error getting unread count: {str(e)}")
+        return Response(
+            {"error": f"Failed to get unread count: {str(e)}"},
             status=500
         )
 

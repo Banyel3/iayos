@@ -26,18 +26,26 @@ interface JobRequest {
   title: string;
   price: string;
   date: string;
-  status: "ACTIVE" | "COMPLETED" | "PENDING";
+  status: "ACTIVE" | "COMPLETED" | "PENDING" | "IN_PROGRESS";
   description?: string;
   location?: string;
   client?: {
     name: string;
     avatar: string;
     rating: number;
+    city?: string;
   };
   worker?: {
     name: string;
     avatar: string;
     rating: number;
+  };
+  assignedWorker?: {
+    id: string;
+    name: string;
+    avatar: string;
+    rating: number;
+    city?: string;
   };
   category?: string;
   postedDate?: string;
@@ -61,7 +69,7 @@ const MyRequestsPage = () => {
   const user = authUser as RequestsUser;
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<
-    "myRequests" | "pastRequests" | "requests"
+    "myRequests" | "inProgress" | "pastRequests" | "requests"
   >("myRequests");
   const [selectedJob, setSelectedJob] = useState<JobRequest | null>(null);
   const [isJobPostModalOpen, setIsJobPostModalOpen] = useState(false);
@@ -89,6 +97,32 @@ const MyRequestsPage = () => {
     icon: string;
   }
   const [jobCategories, setJobCategories] = useState<JobCategory[]>([]);
+
+  // State for job requests - moved up to maintain hooks order
+  const [jobRequests, setJobRequests] = useState<JobRequest[]>([]);
+  const [isLoadingRequests, setIsLoadingRequests] = useState(true);
+
+  // State for in-progress jobs
+  const [inProgressJobs, setInProgressJobs] = useState<JobRequest[]>([]);
+  const [isLoadingInProgress, setIsLoadingInProgress] = useState(false);
+
+  // State for cancel confirmation dialog
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [jobToCancel, setJobToCancel] = useState<number | null>(null);
+  const [isCancelling, setIsCancelling] = useState(false);
+
+  // State for job applications
+  const [jobApplications, setJobApplications] = useState<any[]>([]);
+  const [isLoadingApplications, setIsLoadingApplications] = useState(false);
+
+  // Worker availability hook - must be called before any early returns
+  const isWorker = user?.profile_data?.profileType === "WORKER";
+  const isClient = user?.profile_data?.profileType === "CLIENT";
+  const {
+    isAvailable,
+    isLoading: isLoadingAvailability,
+    handleAvailabilityToggle,
+  } = useWorkerAvailability(isWorker, isAuthenticated);
 
   // Fetch job categories on mount
   useEffect(() => {
@@ -227,13 +261,105 @@ const MyRequestsPage = () => {
     }
   };
 
-  // Use the worker availability hook
-  const isWorker = user?.profile_data?.profileType === "WORKER";
-  const {
-    isAvailable,
-    isLoading: isLoadingAvailability,
-    handleAvailabilityToggle,
-  } = useWorkerAvailability(isWorker, isAuthenticated);
+  // Handle job cancellation
+  const handleCancelJob = async () => {
+    if (!jobToCancel) return;
+
+    setIsCancelling(true);
+    try {
+      const response = await fetch(
+        `http://localhost:8000/api/jobs/${jobToCancel}/cancel`,
+        {
+          method: "PATCH",
+          credentials: "include",
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to cancel job");
+      }
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Remove cancelled job from the list
+        setJobRequests((prev) =>
+          prev.filter((job) => parseInt(job.id) !== jobToCancel)
+        );
+        setSelectedJob(null);
+        setShowCancelConfirm(false);
+        setJobToCancel(null);
+        alert("Job cancelled successfully!");
+      } else {
+        throw new Error(data.error || "Failed to cancel job");
+      }
+    } catch (error) {
+      console.error("Error cancelling job:", error);
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Failed to cancel job. Please try again."
+      );
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
+  const handleCancelClick = (jobId: number) => {
+    setJobToCancel(jobId);
+    setShowCancelConfirm(true);
+    setSelectedJob(null); // Close the job detail modal
+  };
+
+  const handleCancelDialogClose = () => {
+    if (!isCancelling) {
+      setShowCancelConfirm(false);
+      setJobToCancel(null);
+    }
+  };
+
+  // Fetch applications when a job is selected (for clients)
+  useEffect(() => {
+    const fetchApplications = async () => {
+      if (!selectedJob || !isClient) {
+        setJobApplications([]);
+        return;
+      }
+
+      setIsLoadingApplications(true);
+      try {
+        console.log("📋 Fetching applications for job:", selectedJob.id);
+        const response = await fetch(
+          `http://localhost:8000/api/jobs/${selectedJob.id}/applications`,
+          {
+            credentials: "include",
+          }
+        );
+
+        console.log("Response status:", response.status);
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          console.error("Error response:", errorData);
+          throw new Error(errorData.error || "Failed to fetch applications");
+        }
+
+        const data = await response.json();
+        console.log("Applications data:", data);
+        if (data.success) {
+          setJobApplications(data.applications);
+        }
+      } catch (error) {
+        console.error("Error fetching applications:", error);
+        setJobApplications([]);
+      } finally {
+        setIsLoadingApplications(false);
+      }
+    };
+
+    fetchApplications();
+  }, [selectedJob, isClient]);
 
   // Authentication check
   useEffect(() => {
@@ -241,6 +367,120 @@ const MyRequestsPage = () => {
       router.push("/auth/login");
     }
   }, [isAuthenticated, isLoading, router]);
+
+  // Fetch job requests/applications based on user type
+  useEffect(() => {
+    const fetchJobRequests = async () => {
+      if (!isAuthenticated) return;
+
+      try {
+        setIsLoadingRequests(true);
+
+        if (isClient) {
+          // For clients: Fetch their job postings
+          const response = await fetch(
+            "http://localhost:8000/api/jobs/my-jobs",
+            {
+              credentials: "include",
+            }
+          );
+
+          if (!response.ok) {
+            console.error(`Failed to fetch job postings: ${response.status}`);
+            setJobRequests([]);
+            return;
+          }
+
+          const data = await response.json();
+
+          if (data.success && data.jobs) {
+            // Map backend data to frontend format
+            const mappedJobs = data.jobs.map((job: any) => ({
+              id: job.id.toString(),
+              title: job.title,
+              price: `₱${parseFloat(job.budget).toFixed(2)}`,
+              date: new Date(job.created_at).toLocaleDateString(),
+              status: job.status as "ACTIVE" | "COMPLETED" | "PENDING",
+              description: job.description,
+              location: job.location,
+              category: job.category?.name || "Uncategorized",
+              postedDate: job.created_at,
+            }));
+            setJobRequests(mappedJobs);
+          } else {
+            setJobRequests([]);
+          }
+        } else if (isWorker) {
+          // For workers: Fetch their job applications
+          // TODO: Implement GET /api/jobs/my-applications
+          setJobRequests([]);
+        } else {
+          setJobRequests([]);
+        }
+      } catch (error) {
+        console.error("Error fetching job requests:", error);
+        setJobRequests([]);
+      } finally {
+        setIsLoadingRequests(false);
+      }
+    };
+
+    fetchJobRequests();
+  }, [isAuthenticated, activeTab, isClient, isWorker]);
+
+  // Fetch in-progress jobs when tab is active
+  useEffect(() => {
+    const fetchInProgressJobs = async () => {
+      if (!isAuthenticated || activeTab !== "inProgress") return;
+
+      try {
+        setIsLoadingInProgress(true);
+
+        const response = await fetch(
+          "http://localhost:8000/api/jobs/in-progress",
+          {
+            credentials: "include",
+          }
+        );
+
+        if (!response.ok) {
+          console.error(`Failed to fetch in-progress jobs: ${response.status}`);
+          setInProgressJobs([]);
+          return;
+        }
+
+        const data = await response.json();
+
+        if (data.success && data.jobs) {
+          // Map backend data to frontend format
+          const mappedJobs = data.jobs.map((job: any) => ({
+            id: job.id.toString(),
+            title: job.title,
+            price: `₱${parseFloat(job.budget).toFixed(2)}`,
+            date: new Date(job.updated_at).toLocaleDateString(),
+            status: job.status as "IN_PROGRESS",
+            description: job.description,
+            location: job.location,
+            category: job.category?.name || "Uncategorized",
+            postedDate: job.created_at,
+            // Include worker or client info depending on user type
+            assignedWorker: job.assigned_worker,
+            client: job.client,
+          }));
+          setInProgressJobs(mappedJobs);
+        } else {
+          setInProgressJobs([]);
+        }
+      } catch (error) {
+        console.error("Error fetching in-progress jobs:", error);
+        setInProgressJobs([]);
+      } finally {
+        setIsLoadingInProgress(false);
+      }
+    };
+
+    fetchInProgressJobs();
+  }, [isAuthenticated, activeTab]);
 
   // Loading state
   if (isLoading) {
@@ -255,36 +495,6 @@ const MyRequestsPage = () => {
   }
 
   if (!isAuthenticated) return null;
-
-  const isClient = user?.profile_data?.profileType === "CLIENT";
-
-  // State for job requests
-  const [jobRequests, setJobRequests] = useState<JobRequest[]>([]);
-  const [isLoadingRequests, setIsLoadingRequests] = useState(true);
-
-  // Fetch job requests/applications based on user type
-  useEffect(() => {
-    const fetchJobRequests = async () => {
-      if (!isAuthenticated) return;
-
-      try {
-        setIsLoadingRequests(true);
-
-        // TODO: Implement API calls to fetch actual job data
-        // For clients: GET /api/jobs/my-postings
-        // For workers: GET /api/jobs/my-applications
-
-        // Placeholder - will be replaced with actual API calls
-        setJobRequests([]);
-      } catch (error) {
-        console.error("Error fetching job requests:", error);
-      } finally {
-        setIsLoadingRequests(false);
-      }
-    };
-
-    fetchJobRequests();
-  }, [isAuthenticated, activeTab]);
 
   // Filter requests based on active tab
   const filteredRequests = jobRequests.filter((request) => {
@@ -680,7 +890,17 @@ const MyRequestsPage = () => {
                   : "border-transparent text-gray-500"
               }`}
             >
-              {isWorker ? "My Jobs" : "My Requests"}
+              My Jobs
+            </button>
+            <button
+              onClick={() => setActiveTab("inProgress")}
+              className={`pb-2 text-sm lg:text-base font-medium border-b-2 transition-colors ${
+                activeTab === "inProgress"
+                  ? "border-blue-500 text-blue-600"
+                  : "border-transparent text-gray-500"
+              }`}
+            >
+              In Progress
             </button>
             <button
               onClick={() => setActiveTab("pastRequests")}
@@ -916,6 +1136,153 @@ const MyRequestsPage = () => {
                   ))
                 )}
               </div>
+            </div>
+          )}
+
+          {/* IN PROGRESS JOBS - Both Client and Worker */}
+          {activeTab === "inProgress" && (
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg lg:text-xl font-semibold text-gray-900">
+                  {isClient ? "Jobs In Progress" : "My Active Jobs"}
+                </h2>
+              </div>
+
+              {isLoadingInProgress ? (
+                <div className="flex justify-center items-center py-12">
+                  <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                </div>
+              ) : inProgressJobs.length === 0 ? (
+                <div className="text-center py-12">
+                  <p className="text-gray-500">
+                    {isClient
+                      ? "No jobs currently in progress"
+                      : "You don't have any active jobs"}
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-4">
+                  {inProgressJobs.map((job) => (
+                    <div
+                      key={job.id}
+                      onClick={() => setSelectedJob(job)}
+                      className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow cursor-pointer"
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                        <div className="flex-1">
+                          <div className="flex items-start justify-between mb-2">
+                            <h3 className="font-semibold text-gray-900 text-base">
+                              {job.title}
+                            </h3>
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                              In Progress
+                            </span>
+                          </div>
+                          <p className="text-sm text-gray-600 mb-2">
+                            {job.description && job.description.length > 100
+                              ? `${job.description.substring(0, 100)}...`
+                              : job.description || "No description"}
+                          </p>
+                          <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
+                            <span className="flex items-center">
+                              <svg
+                                className="w-4 h-4 mr-1"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                                />
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                                />
+                              </svg>
+                              {job.location}
+                            </span>
+                            <span className="flex items-center">
+                              <svg
+                                className="w-4 h-4 mr-1"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
+                                />
+                              </svg>
+                              {job.category}
+                            </span>
+                            {isClient && job.assignedWorker && (
+                              <span className="flex items-center">
+                                <svg
+                                  className="w-4 h-4 mr-1"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                                  />
+                                </svg>
+                                {job.assignedWorker.name}
+                              </span>
+                            )}
+                            {isWorker && job.client && (
+                              <span className="flex items-center">
+                                <svg
+                                  className="w-4 h-4 mr-1"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                                  />
+                                </svg>
+                                Client: {job.client.name}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex sm:flex-col items-center sm:items-end gap-2">
+                          <p className="text-lg font-bold text-blue-600">
+                            {job.price}
+                          </p>
+                          <svg
+                            className="w-5 h-5 text-gray-400"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M9 5l7 7-7 7"
+                            />
+                          </svg>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -1460,12 +1827,178 @@ const MyRequestsPage = () => {
                 </div>
               )}
 
+              {/* Job Applications Section (for clients) */}
+              {isClient && (
+                <div className="border-t border-gray-200 pt-6">
+                  <h4 className="text-lg font-semibold text-gray-900 mb-4">
+                    Applications ({jobApplications.length})
+                  </h4>
+
+                  {isLoadingApplications ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                    </div>
+                  ) : jobApplications.length === 0 ? (
+                    <div className="text-center py-8 bg-gray-50 rounded-lg">
+                      <svg
+                        className="w-12 h-12 text-gray-400 mx-auto mb-3"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"
+                        />
+                      </svg>
+                      <p className="text-gray-600 text-sm">
+                        No applications yet
+                      </p>
+                      <p className="text-gray-500 text-xs mt-1">
+                        Workers will be able to apply for this job
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {jobApplications.map((application) => (
+                        <div
+                          key={application.id}
+                          className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition-colors"
+                        >
+                          {/* Worker Info */}
+                          <div className="flex items-start gap-3 mb-3">
+                            <Image
+                              src={application.worker.avatar}
+                              alt={application.worker.name}
+                              width={48}
+                              height={48}
+                              className="w-12 h-12 rounded-full object-cover"
+                            />
+                            <div className="flex-1">
+                              <div className="flex items-center justify-between">
+                                <h5 className="font-semibold text-gray-900">
+                                  {application.worker.name}
+                                </h5>
+                                <span
+                                  className={`px-2 py-1 text-xs rounded-full ${
+                                    application.status === "PENDING"
+                                      ? "bg-yellow-100 text-yellow-700"
+                                      : application.status === "ACCEPTED"
+                                        ? "bg-green-100 text-green-700"
+                                        : application.status === "REJECTED"
+                                          ? "bg-red-100 text-red-700"
+                                          : "bg-gray-100 text-gray-700"
+                                  }`}
+                                >
+                                  {application.status}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-3 text-sm text-gray-600 mt-1">
+                                <div className="flex items-center">
+                                  <svg
+                                    className="w-4 h-4 text-yellow-500 mr-1"
+                                    fill="currentColor"
+                                    viewBox="0 0 20 20"
+                                  >
+                                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                  </svg>
+                                  {application.worker.rating}
+                                </div>
+                                {application.worker.city && (
+                                  <div className="flex items-center">
+                                    <svg
+                                      className="w-4 h-4 mr-1"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      viewBox="0 0 24 24"
+                                    >
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                                      />
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                                      />
+                                    </svg>
+                                    {application.worker.city}
+                                  </div>
+                                )}
+                                {application.worker.specialization && (
+                                  <span className="text-blue-600">
+                                    {application.worker.specialization}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Proposal Details */}
+                          <div className="bg-gray-50 rounded-lg p-3 mb-3">
+                            <p className="text-sm text-gray-700 mb-2">
+                              {application.proposal_message}
+                            </p>
+                            <div className="flex items-center gap-4 text-sm">
+                              <div>
+                                <span className="text-gray-600">Budget: </span>
+                                <span className="font-semibold text-gray-900">
+                                  ₱
+                                  {application.proposed_budget.toLocaleString()}
+                                </span>
+                                {application.budget_option === "ACCEPT" && (
+                                  <span className="ml-1 text-xs text-green-600">
+                                    (Accepts your budget)
+                                  </span>
+                                )}
+                              </div>
+                              {application.estimated_duration && (
+                                <div>
+                                  <span className="text-gray-600">
+                                    Duration:{" "}
+                                  </span>
+                                  <span className="font-medium text-gray-900">
+                                    {application.estimated_duration}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Action Buttons */}
+                          {application.status === "PENDING" && (
+                            <div className="flex gap-2">
+                              <button className="flex-1 bg-blue-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
+                                Accept
+                              </button>
+                              <button className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg text-sm font-medium hover:bg-gray-300 transition-colors">
+                                Reject
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Action Buttons */}
               <div className="flex gap-3 pt-4">
                 {selectedJob.status === "ACTIVE" && (
                   <>
                     {isClient && (
-                      <button className="flex-1 bg-red-500 text-white py-3 rounded-lg font-medium hover:bg-red-600 transition-colors">
+                      <button
+                        onClick={() =>
+                          handleCancelClick(parseInt(selectedJob.id))
+                        }
+                        className="flex-1 bg-red-500 text-white py-3 rounded-lg font-medium hover:bg-red-600 transition-colors"
+                      >
                         Cancel Job
                       </button>
                     )}
@@ -1492,6 +2025,66 @@ const MyRequestsPage = () => {
       <div className="lg:hidden">
         <MobileNav />
       </div>
+
+      {/* Cancel Confirmation Dialog */}
+      {showCancelConfirm && (
+        <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
+          {/* Semi-transparent backdrop */}
+          <div
+            className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm"
+            onClick={handleCancelDialogClose}
+          />
+
+          {/* Dialog Content */}
+          <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-md border border-gray-200">
+            <div className="p-6">
+              {/* Icon */}
+              <div className="flex items-center justify-center w-12 h-12 mx-auto bg-red-100 rounded-full mb-4">
+                <svg
+                  className="w-6 h-6 text-red-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                  />
+                </svg>
+              </div>
+
+              {/* Title and Message */}
+              <h3 className="text-lg font-semibold text-gray-900 text-center mb-2">
+                Cancel Job Posting?
+              </h3>
+              <p className="text-sm text-gray-600 text-center mb-6">
+                Are you sure you want to cancel this job posting? This action
+                cannot be undone.
+              </p>
+
+              {/* Buttons */}
+              <div className="flex gap-3">
+                <button
+                  onClick={handleCancelDialogClose}
+                  disabled={isCancelling}
+                  className="flex-1 px-4 py-2.5 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Keep Job
+                </button>
+                <button
+                  onClick={handleCancelJob}
+                  disabled={isCancelling}
+                  className="flex-1 px-4 py-2.5 bg-red-500 text-white rounded-lg font-medium hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isCancelling ? "Cancelling..." : "Cancel Job"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Job Post Modal */}
       {isJobPostModalOpen && (
