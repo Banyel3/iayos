@@ -47,6 +47,12 @@ const InboxPage = () => {
   const [isLoadingJobDetails, setIsLoadingJobDetails] = useState(false);
   const [fullImageView, setFullImageView] = useState<string | null>(null);
 
+  // Review modal state
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState("");
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+
   // WebSocket connection for real-time messaging
   const handleWebSocketMessage = useCallback(
     (data: any) => {
@@ -274,7 +280,7 @@ const InboxPage = () => {
 
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/jobs/${selectedChat.job.id}/complete`,
+        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/jobs/${selectedChat.job.id}/mark-complete`,
         {
           method: "POST",
           headers: {
@@ -285,15 +291,26 @@ const InboxPage = () => {
       );
 
       if (response.ok) {
+        const data = await response.json();
         // Update the job status in the selected chat
         setSelectedChat((prev) =>
           prev
             ? {
                 ...prev,
-                job: { ...prev.job, status: "PENDING_COMPLETION" },
+                job: { ...prev.job, status: data.status },
               }
             : null
         );
+        
+        // Update in conversations list too
+        setConversations((prev) =>
+          prev.map((conv) =>
+            conv.id === selectedChat.id
+              ? { ...conv, job: { ...conv.job, status: data.status } }
+              : conv
+          )
+        );
+        
         alert("Job marked as complete! Waiting for client approval.");
       } else {
         const error = await response.json();
@@ -302,6 +319,97 @@ const InboxPage = () => {
     } catch (error) {
       console.error("Error marking job as complete:", error);
       alert("An error occurred. Please try again.");
+    }
+  };
+
+  // Handle client approving job completion
+  const handleApproveCompletion = async () => {
+    if (!selectedChat) return;
+
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/jobs/${selectedChat.job.id}/approve-completion`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        // Update job status to COMPLETED
+        setSelectedChat((prev) =>
+          prev
+            ? {
+                ...prev,
+                job: { ...prev.job, status: data.status },
+              }
+            : null
+        );
+        
+        // Update in conversations list
+        setConversations((prev) =>
+          prev.map((conv) =>
+            conv.id === selectedChat.id
+              ? { ...conv, job: { ...conv.job, status: data.status } }
+              : conv
+          )
+        );
+        
+        // Show review modal
+        setShowReviewModal(true);
+      } else {
+        const error = await response.json();
+        alert(error.error || "Failed to approve job completion");
+      }
+    } catch (error) {
+      console.error("Error approving job completion:", error);
+      alert("An error occurred. Please try again.");
+    }
+  };
+
+  // Handle submitting review
+  const handleSubmitReview = async () => {
+    if (!selectedChat || !reviewComment.trim()) {
+      alert("Please provide a comment with your review");
+      return;
+    }
+
+    setIsSubmittingReview(true);
+
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/jobs/${selectedChat.job.id}/review`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify({
+            rating: reviewRating,
+            comment: reviewComment,
+          }),
+        }
+      );
+
+      if (response.ok) {
+        alert("Thank you for your review!");
+        setShowReviewModal(false);
+        setReviewRating(5);
+        setReviewComment("");
+      } else {
+        const error = await response.json();
+        alert(error.error || "Failed to submit review");
+      }
+    } catch (error) {
+      console.error("Error submitting review:", error);
+      alert("An error occurred. Please try again.");
+    } finally {
+      setIsSubmittingReview(false);
     }
   };
 

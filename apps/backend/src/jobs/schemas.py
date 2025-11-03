@@ -25,3 +25,8 @@ class JobApplicationSchema(Schema):
     proposed_budget: float
     estimated_duration: Optional[str] = None
     budget_option: str  # ACCEPT or NEGOTIATE
+
+
+class SubmitReviewSchema(Schema):
+    rating: float  # 1.0 to 5.0
+    comment: str

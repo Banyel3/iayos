@@ -2,9 +2,9 @@ from ninja import Router, File
 from ninja.responses import Response
 from ninja.files import UploadedFile
 from accounts.authentication import cookie_auth
-from accounts.models import ClientProfile, Specializations, Profile, WorkerProfile, JobApplication, JobPhoto
+from accounts.models import ClientProfile, Specializations, Profile, WorkerProfile, JobApplication, JobPhoto, JobReview
 from .models import JobPosting
-from .schemas import CreateJobPostingSchema, JobPostingResponseSchema, JobApplicationSchema
+from .schemas import CreateJobPostingSchema, JobPostingResponseSchema, JobApplicationSchema, SubmitReviewSchema
 from datetime import datetime
 from django.utils import timezone
 
@@ -1231,4 +1231,243 @@ def upload_job_image(request, job_id: int, image: UploadedFile = File(...)):
             status=500
         )
 
+
+@router.post("/{job_id}/mark-complete", auth=cookie_auth)
+def worker_mark_job_complete(request, job_id: int):
+    """
+    Worker marks the job as complete
+    Changes status from IN_PROGRESS to PENDING_COMPLETION
+    Waits for client approval
+    """
+    try:
+        # Get worker's profile
+        try:
+            worker_profile = WorkerProfile.objects.select_related('profileID__accountFK').get(
+                profileID__accountFK=request.auth
+            )
+        except WorkerProfile.DoesNotExist:
+            return Response(
+                {"error": "Worker profile not found"},
+                status=400
+            )
+        
+        # Get the job
+        try:
+            job = JobPosting.objects.select_related('clientID__profileID__accountFK').get(jobID=job_id)
+        except JobPosting.DoesNotExist:
+            return Response(
+                {"error": "Job not found"},
+                status=404
+            )
+        
+        # Verify worker is assigned to this job
+        if not job.assignedWorkerID or job.assignedWorkerID.profileID.profileID != worker_profile.profileID.profileID:
+            return Response(
+                {"error": "You are not assigned to this job"},
+                status=403
+            )
+        
+        # Verify job is in progress
+        if job.status != "IN_PROGRESS":
+            return Response(
+                {"error": f"Job must be IN_PROGRESS to mark as complete. Current status: {job.status}"},
+                status=400
+            )
+        
+        # Update job status to PENDING_COMPLETION
+        job.status = "PENDING_COMPLETION"
+        job.save()
+        
+        print(f"✅ Worker marked job {job_id} as complete, awaiting client approval")
+        
+        return {
+            "success": True,
+            "message": "Job marked as complete. Waiting for client approval.",
+            "job_id": job_id,
+            "status": job.status
+        }
+        
+    except Exception as e:
+        print(f"❌ Error marking job as complete: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": f"Failed to mark job as complete: {str(e)}"},
+            status=500
+        )
+
+
+@router.post("/{job_id}/approve-completion", auth=cookie_auth)
+def client_approve_job_completion(request, job_id: int):
+    """
+    Client approves job completion
+    Changes status from PENDING_COMPLETION to COMPLETED
+    Triggers review prompt for both parties
+    """
+    try:
+        # Get client's profile
+        try:
+            client_profile = ClientProfile.objects.select_related('profileID__accountFK').get(
+                profileID__accountFK=request.auth
+            )
+        except ClientProfile.DoesNotExist:
+            return Response(
+                {"error": "Client profile not found"},
+                status=400
+            )
+        
+        # Get the job
+        try:
+            job = JobPosting.objects.select_related(
+                'assignedWorkerID__profileID__accountFK'
+            ).get(jobID=job_id)
+        except JobPosting.DoesNotExist:
+            return Response(
+                {"error": "Job not found"},
+                status=404
+            )
+        
+        # Verify client owns this job
+        if job.clientID.profileID.profileID != client_profile.profileID.profileID:
+            return Response(
+                {"error": "You are not the client for this job"},
+                status=403
+            )
+        
+        # Verify job is pending completion
+        if job.status != "PENDING_COMPLETION":
+            return Response(
+                {"error": f"Job must be PENDING_COMPLETION to approve. Current status: {job.status}"},
+                status=400
+            )
+        
+        # Update job status to COMPLETED
+        job.status = "COMPLETED"
+        job.completedAt = timezone.now()
+        job.save()
+        
+        print(f"✅ Client approved job {job_id} completion")
+        
+        return {
+            "success": True,
+            "message": "Job marked as completed! Please review the worker.",
+            "job_id": job_id,
+            "status": job.status,
+            "prompt_review": True,
+            "worker_id": job.assignedWorkerID.profileID.accountFK.accountID if job.assignedWorkerID else None
+        }
+        
+    except Exception as e:
+        print(f"❌ Error approving job completion: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": f"Failed to approve job completion: {str(e)}"},
+            status=500
+        )
+
+
+@router.post("/{job_id}/review", auth=cookie_auth)
+def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
+    """
+    Submit a review for a completed job
+    Both client and worker can review each other
+    """
+    try:
+        # Get user's profile
+        try:
+            profile = Profile.objects.get(accountFK=request.auth)
+        except Profile.DoesNotExist:
+            return Response(
+                {"error": "Profile not found"},
+                status=400
+            )
+        
+        # Get the job
+        try:
+            job = JobPosting.objects.select_related(
+                'clientID__profileID__accountFK',
+                'assignedWorkerID__profileID__accountFK'
+            ).get(jobID=job_id)
+        except JobPosting.DoesNotExist:
+            return Response(
+                {"error": "Job not found"},
+                status=404
+            )
+        
+        # Verify job is completed
+        if job.status != "COMPLETED":
+            return Response(
+                {"error": "Job must be completed before reviewing"},
+                status=400
+            )
+        
+        # Determine if user is client or worker
+        is_client = job.clientID.profileID.profileID == profile.profileID
+        is_worker = job.assignedWorkerID and job.assignedWorkerID.profileID.profileID == profile.profileID
+        
+        if not (is_client or is_worker):
+            return Response(
+                {"error": "You are not a participant in this job"},
+                status=403
+            )
+        
+        # Set reviewer and reviewee
+        if is_client:
+            reviewer_type = "CLIENT"
+            reviewee = job.assignedWorkerID.profileID.accountFK
+        else:
+            reviewer_type = "WORKER"
+            reviewee = job.clientID.profileID.accountFK
+        
+        # Check if review already exists
+        existing_review = JobReview.objects.filter(
+            jobID=job,
+            reviewerID=request.auth,
+            reviewerType=reviewer_type
+        ).first()
+        
+        if existing_review:
+            return Response(
+                {"error": "You have already reviewed this job"},
+                status=400
+            )
+        
+        # Validate rating
+        if data.rating < 1.0 or data.rating > 5.0:
+            return Response(
+                {"error": "Rating must be between 1.0 and 5.0"},
+                status=400
+            )
+        
+        # Create review
+        review = JobReview.objects.create(
+            jobID=job,
+            reviewerID=request.auth,
+            revieweeID=reviewee,
+            reviewerType=reviewer_type,
+            rating=data.rating,
+            comment=data.comment,
+            status="PUBLISHED"
+        )
+        
+        print(f"✅ Review created: {reviewer_type} rated job {job_id} with {data.rating} stars")
+        
+        return {
+            "success": True,
+            "message": "Review submitted successfully",
+            "review_id": review.reviewID,
+            "rating": float(review.rating)
+        }
+        
+    except Exception as e:
+        print(f"❌ Error submitting review: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": f"Failed to submit review: {str(e)}"},
+            status=500
+        )
+
 #endregion
+

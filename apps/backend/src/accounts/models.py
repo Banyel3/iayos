@@ -328,11 +328,12 @@ class Job(models.Model):
     class JobStatus(models.TextChoices):
         ACTIVE = "ACTIVE", "Active"
         IN_PROGRESS = "IN_PROGRESS", "In Progress"
+        PENDING_COMPLETION = "PENDING_COMPLETION", "Pending Completion"
         COMPLETED = "COMPLETED", "Completed"
         CANCELLED = "CANCELLED", "Cancelled"
     
     status = models.CharField(
-        max_length=15,
+        max_length=20,
         choices=JobStatus.choices,
         default="ACTIVE"
     )
