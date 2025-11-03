@@ -35,6 +35,11 @@ interface JobPosting {
   };
   postedAt: string;
   urgency: "LOW" | "MEDIUM" | "HIGH";
+  photos?: Array<{
+    id: number;
+    url: string;
+    file_name?: string;
+  }>;
 }
 
 interface JobCategory {
@@ -76,6 +81,7 @@ const HomePage = () => {
   const [selectedJobForDetails, setSelectedJobForDetails] =
     useState<JobPosting | null>(null);
   const [showJobDetailsModal, setShowJobDetailsModal] = useState(false);
+  const [fullImageView, setFullImageView] = useState<string | null>(null);
 
   // Application modal state
   const [selectedJob, setSelectedJob] = useState<JobPosting | null>(null);
@@ -265,6 +271,7 @@ const HomePage = () => {
             },
             postedAt: formatTimeAgo(job.created_at),
             urgency: job.urgency as "LOW" | "MEDIUM" | "HIGH",
+            photos: job.photos || [],
           }));
           setJobPostings(mappedJobs);
         }
@@ -925,7 +932,7 @@ const HomePage = () => {
         </div>
 
         {/* Job Details Modal */}
-        {showJobDetailsModal && selectedJobForDetails && (
+        {showJobDetailsModal && selectedJobForDetails && !fullImageView && (
           <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
             {/* Backdrop */}
             <div
@@ -1004,6 +1011,35 @@ const HomePage = () => {
                     {selectedJobForDetails.description}
                   </p>
                 </div>
+
+                {/* Job Photos */}
+                {selectedJobForDetails.photos &&
+                  selectedJobForDetails.photos.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-700 mb-3">
+                        Job Photos
+                      </h4>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                        {selectedJobForDetails.photos.map((photo) => (
+                          <div
+                            key={photo.id}
+                            className="relative h-48 rounded-lg overflow-hidden cursor-pointer hover:opacity-90 transition-opacity"
+                            onClick={() => setFullImageView(photo.url)}
+                          >
+                            <img
+                              src={photo.url}
+                              alt={photo.file_name || "Job photo"}
+                              className="w-full h-full object-contain bg-gray-100"
+                              onLoad={(e) => {
+                                e.currentTarget.style.opacity = "1";
+                              }}
+                              style={{ opacity: 0, transition: "opacity 0.3s" }}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                 {/* Client Info */}
                 <div className="bg-gray-50 rounded-lg p-4">
@@ -1259,6 +1295,63 @@ const HomePage = () => {
                       : "Submit Application"}
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Full Image Viewer Modal */}
+        {fullImageView && (
+          <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+              {/* Header */}
+              <div className="flex items-center justify-between p-6 border-b border-gray-200">
+                <button
+                  onClick={() => setFullImageView(null)}
+                  className="flex items-center text-gray-600 hover:text-gray-900 transition-colors"
+                >
+                  <svg
+                    className="w-5 h-5 mr-2"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15 19l-7-7 7-7"
+                    />
+                  </svg>
+                  Back to Details
+                </button>
+                <button
+                  onClick={() => setFullImageView(null)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <svg
+                    className="w-6 h-6"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Image Content */}
+              <div className="flex-1 overflow-auto p-6 bg-gray-50 flex items-center justify-center">
+                <img
+                  src={fullImageView}
+                  alt="Full size view"
+                  className="max-w-full max-h-full object-contain rounded-lg"
+                />
               </div>
             </div>
           </div>

@@ -33,12 +33,33 @@ interface JobDetails {
   postedAt: string;
 }
 
+interface JobApplication {
+  id: number;
+  worker: {
+    id: number;
+    name: string;
+    avatar: string;
+    rating: number;
+    city: string;
+    specialization: string | null;
+  };
+  proposal_message: string;
+  proposed_budget: number;
+  estimated_duration: string;
+  budget_option: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export default function JobDetailsPage() {
   const { id } = useParams();
   const router = useRouter();
   const { user, isAuthenticated, logout } = useAuth();
   const [job, setJob] = useState<JobDetails | null>(null);
+  const [applications, setApplications] = useState<JobApplication[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingApplications, setIsLoadingApplications] = useState(false);
   const [isProposalModalOpen, setIsProposalModalOpen] = useState(false);
   const [proposalMessage, setProposalMessage] = useState("");
   const [budgetOption, setBudgetOption] = useState<
@@ -47,8 +68,12 @@ export default function JobDetailsPage() {
   const [proposedBudget, setProposedBudget] = useState("");
   const [estimatedDuration, setEstimatedDuration] = useState("");
   const [isSubmittingProposal, setIsSubmittingProposal] = useState(false);
+  const [processingApplicationId, setProcessingApplicationId] = useState<
+    number | null
+  >(null);
 
   const isWorker = user?.profile_data?.profileType === "WORKER";
+  const isClient = user?.profile_data?.profileType === "CLIENT";
 
   useEffect(() => {
     const fetchJobDetails = async () => {
@@ -63,6 +88,11 @@ export default function JobDetailsPage() {
 
         if (data.success && data.job) {
           setJob(data.job);
+
+          // If user is the client who owns this job, fetch applications
+          if (isClient) {
+            fetchApplications();
+          }
         } else {
           console.error("Failed to fetch job details");
         }
@@ -76,7 +106,103 @@ export default function JobDetailsPage() {
     if (id) {
       fetchJobDetails();
     }
-  }, [id]);
+  }, [id, isClient]);
+
+  const fetchApplications = async () => {
+    try {
+      setIsLoadingApplications(true);
+      const response = await fetch(
+        `http://localhost:8000/api/jobs/${id}/applications`,
+        {
+          method: "GET",
+          credentials: "include",
+        }
+      );
+
+      const data = await response.json();
+
+      if (data.success && data.applications) {
+        setApplications(data.applications);
+        console.log(`✅ Loaded ${data.applications.length} applications`);
+      }
+    } catch (error) {
+      console.error("Error fetching applications:", error);
+    } finally {
+      setIsLoadingApplications(false);
+    }
+  };
+
+  const handleAcceptApplication = async (applicationId: number) => {
+    if (
+      !confirm(
+        "Are you sure you want to accept this application? This will reject all other pending applications and start the job."
+      )
+    ) {
+      return;
+    }
+
+    try {
+      setProcessingApplicationId(applicationId);
+      const response = await fetch(
+        `http://localhost:8000/api/jobs/${id}/applications/${applicationId}/accept`,
+        {
+          method: "POST",
+          credentials: "include",
+        }
+      );
+
+      const data = await response.json();
+
+      if (data.success) {
+        alert("Application accepted! A chat conversation has been created.");
+        // Refresh job details and applications
+        window.location.reload();
+      } else {
+        alert(data.error || "Failed to accept application");
+      }
+    } catch (error) {
+      console.error("Error accepting application:", error);
+      alert("Failed to accept application");
+    } finally {
+      setProcessingApplicationId(null);
+    }
+  };
+
+  const handleRejectApplication = async (applicationId: number) => {
+    if (!confirm("Are you sure you want to reject this application?")) {
+      return;
+    }
+
+    try {
+      setProcessingApplicationId(applicationId);
+      const response = await fetch(
+        `http://localhost:8000/api/jobs/${id}/applications/${applicationId}/reject`,
+        {
+          method: "POST",
+          credentials: "include",
+        }
+      );
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Update local state
+        setApplications((prev) =>
+          prev.map((app) =>
+            app.id === applicationId ? { ...app, status: "REJECTED" } : app
+          )
+        );
+        alert("Application rejected");
+      } else {
+        alert(data.error || "Failed to reject application");
+      }
+    } catch (error) {
+      console.error("Error rejecting application:", error);
+      alert("Failed to reject application");
+    } finally {
+      setProcessingApplicationId(null);
+    }
+  };
 
   const handleSendProposal = () => {
     setIsProposalModalOpen(true);
@@ -349,6 +475,246 @@ export default function JobDetailsPage() {
                     </span>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* Applications Section - Only visible to job owner (client) */}
+            {isClient && (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                  Applications ({applications.length})
+                </h2>
+
+                {isLoadingApplications ? (
+                  <div className="flex justify-center items-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  </div>
+                ) : applications.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <svg
+                      className="w-12 h-12 mx-auto mb-3 text-gray-400"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"
+                      />
+                    </svg>
+                    <p className="text-sm">No applications yet</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {applications.map((application) => (
+                      <div
+                        key={application.id}
+                        className="border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition-colors"
+                      >
+                        {/* Worker Info */}
+                        <div className="flex items-start gap-3 mb-3">
+                          <Image
+                            src={application.worker.avatar || "/worker1.jpg"}
+                            alt={application.worker.name}
+                            width={48}
+                            height={48}
+                            className="w-12 h-12 rounded-full object-cover"
+                          />
+                          <div className="flex-1">
+                            <h3 className="font-semibold text-gray-900">
+                              {application.worker.name}
+                            </h3>
+                            <div className="flex items-center gap-3 text-sm text-gray-600 mt-1">
+                              <span className="flex items-center">
+                                <span className="text-yellow-400 mr-1">⭐</span>
+                                {application.worker.rating.toFixed(1)}
+                              </span>
+                              {application.worker.city && (
+                                <span>{application.worker.city}</span>
+                              )}
+                              {application.worker.specialization && (
+                                <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs">
+                                  {application.worker.specialization}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          {/* Status Badge */}
+                          <span
+                            className={`px-3 py-1 rounded-full text-xs font-medium ${
+                              application.status === "PENDING"
+                                ? "bg-yellow-100 text-yellow-800"
+                                : application.status === "ACCEPTED"
+                                  ? "bg-green-100 text-green-800"
+                                  : "bg-gray-100 text-gray-800"
+                            }`}
+                          >
+                            {application.status}
+                          </span>
+                        </div>
+
+                        {/* Proposal Message */}
+                        <div className="mb-3">
+                          <p className="text-sm font-medium text-gray-700 mb-1">
+                            Proposal:
+                          </p>
+                          <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
+                            {application.proposal_message}
+                          </p>
+                        </div>
+
+                        {/* Budget & Duration */}
+                        <div className="grid grid-cols-2 gap-3 mb-3 text-sm">
+                          <div className="bg-gray-50 p-3 rounded-lg">
+                            <p className="text-gray-500 mb-1">
+                              Proposed Budget
+                            </p>
+                            <p className="font-semibold text-gray-900">
+                              ₱{application.proposed_budget.toFixed(2)}
+                            </p>
+                            {application.budget_option === "ACCEPT" && (
+                              <span className="text-xs text-green-600">
+                                Accepts your budget
+                              </span>
+                            )}
+                          </div>
+                          {application.estimated_duration && (
+                            <div className="bg-gray-50 p-3 rounded-lg">
+                              <p className="text-gray-500 mb-1">Duration</p>
+                              <p className="font-semibold text-gray-900">
+                                {application.estimated_duration}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Action Buttons - Only show for pending applications */}
+                        {application.status === "PENDING" && (
+                          <div className="flex gap-2 mt-4 pt-4 border-t border-gray-100">
+                            <button
+                              onClick={() =>
+                                handleAcceptApplication(application.id)
+                              }
+                              disabled={
+                                processingApplicationId === application.id
+                              }
+                              className="flex-1 bg-green-500 text-white py-2 px-4 rounded-lg font-medium hover:bg-green-600 transition-colors disabled:bg-green-300 disabled:cursor-not-allowed flex items-center justify-center"
+                            >
+                              {processingApplicationId === application.id ? (
+                                <>
+                                  <svg
+                                    className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <circle
+                                      className="opacity-25"
+                                      cx="12"
+                                      cy="12"
+                                      r="10"
+                                      stroke="currentColor"
+                                      strokeWidth="4"
+                                    ></circle>
+                                    <path
+                                      className="opacity-75"
+                                      fill="currentColor"
+                                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                    ></path>
+                                  </svg>
+                                  Processing...
+                                </>
+                              ) : (
+                                <>
+                                  <svg
+                                    className="w-4 h-4 mr-1"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth={2}
+                                      d="M5 13l4 4L19 7"
+                                    />
+                                  </svg>
+                                  Accept
+                                </>
+                              )}
+                            </button>
+                            <button
+                              onClick={() =>
+                                handleRejectApplication(application.id)
+                              }
+                              disabled={
+                                processingApplicationId === application.id
+                              }
+                              className="flex-1 bg-gray-200 text-gray-700 py-2 px-4 rounded-lg font-medium hover:bg-gray-300 transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed flex items-center justify-center"
+                            >
+                              {processingApplicationId === application.id ? (
+                                <>
+                                  <svg
+                                    className="animate-spin -ml-1 mr-2 h-4 w-4 text-gray-700"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <circle
+                                      className="opacity-25"
+                                      cx="12"
+                                      cy="12"
+                                      r="10"
+                                      stroke="currentColor"
+                                      strokeWidth="4"
+                                    ></circle>
+                                    <path
+                                      className="opacity-75"
+                                      fill="currentColor"
+                                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                    ></path>
+                                  </svg>
+                                  Processing...
+                                </>
+                              ) : (
+                                <>
+                                  <svg
+                                    className="w-4 h-4 mr-1"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth={2}
+                                      d="M6 18L18 6M6 6l12 12"
+                                    />
+                                  </svg>
+                                  Reject
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Timestamp */}
+                        <p className="text-xs text-gray-400 mt-3">
+                          Applied{" "}
+                          {new Date(
+                            application.created_at
+                          ).toLocaleDateString()}{" "}
+                          at{" "}
+                          {new Date(
+                            application.created_at
+                          ).toLocaleTimeString()}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>

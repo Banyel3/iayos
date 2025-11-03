@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import Image from "next/image";
 import { useAuth } from "@/context/AuthContext";
 import { User } from "@/types";
@@ -9,6 +9,13 @@ import MobileNav from "@/components/ui/mobile-nav";
 import DesktopNavbar from "@/components/ui/desktop-sidebar";
 import NotificationBell from "@/components/notifications/NotificationBell";
 import { useWorkerAvailability } from "@/lib/hooks/useWorkerAvailability";
+import { useWebSocket } from "@/lib/hooks/useWebSocket";
+import {
+  fetchConversations,
+  fetchMessages,
+  Conversation,
+  ChatMessage,
+} from "@/lib/api/chat";
 
 // Extended User interface for inbox page
 interface InboxUser extends User {
@@ -20,61 +27,114 @@ interface InboxUser extends User {
   };
 }
 
-// API Response interfaces matching backend
-interface JobInfo {
-  id: number;
-  title: string;
-  status: string;
-  budget: number;
-  location: string;
-}
-
-interface OtherParticipant {
-  profile_id: number;
-  name: string;
-  avatar: string | null;
-  profile_type: string;
-  city: string | null;
-}
-
-interface Conversation {
-  id: number;
-  job: JobInfo;
-  other_participant: OtherParticipant;
-  my_role: "CLIENT" | "WORKER";
-  last_message: string | null;
-  last_message_time: string | null;
-  last_message_sender_id: number | null;
-  unread_count: number;
-  status: string;
-  created_at: string;
-}
-
-interface ChatMessage {
-  id: number;
-  sender_id: number;
-  sender_name: string;
-  sender_avatar: string | null;
-  message_text: string;
-  message_type: string;
-  is_read: boolean;
-  created_at: string;
-  is_mine: boolean;
-}
-
 const InboxPage = () => {
   const { user: authUser, isAuthenticated, isLoading, logout } = useAuth();
   const user = authUser as InboxUser;
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<
-    "all" | "invites" | "applications"
-  >("all");
+  const [activeTab, setActiveTab] = useState<"all" | "unread">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedChat, setSelectedChat] = useState<Conversation | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isLoadingConversations, setIsLoadingConversations] = useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [messageInput, setMessageInput] = useState("");
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Job details modal state
+  const [showJobDetailsModal, setShowJobDetailsModal] = useState(false);
+  const [jobDetailsData, setJobDetailsData] = useState<any>(null);
+  const [isLoadingJobDetails, setIsLoadingJobDetails] = useState(false);
+  const [fullImageView, setFullImageView] = useState<string | null>(null);
+
+  // WebSocket connection for real-time messaging
+  const handleWebSocketMessage = useCallback(
+    (data: any) => {
+      console.log("📨 WebSocket message received:", data);
+
+      // Handle nested message structure from backend
+      const messageData = data.message || data;
+
+      // Skip if this is our own message (already added optimistically)
+      // Backend sends sender_id as string of profileID, we need to compare with current user's profile
+      // For now, we'll use a simple check: if we just sent a message with the same text, skip it
+      const messageSenderId = parseInt(messageData.sender_id);
+
+      // Check if this message was sent by us by comparing timestamps
+      // If we have a recent optimistic message with same text, skip the WebSocket echo
+      setChatMessages((prev) => {
+        // Check if we already have this exact message (within last 5 seconds)
+        const recentMessage = prev
+          .slice(-5) // Check last 5 messages
+          .find(
+            (msg) =>
+              msg.message_text === messageData.message_text &&
+              msg.is_mine &&
+              new Date().getTime() - new Date(msg.created_at).getTime() < 5000
+          );
+
+        if (recentMessage) {
+          console.log("⏭️ Skipping duplicate message (already displayed)");
+          return prev;
+        }
+
+        // Add the new message to chat
+        const newMessage: ChatMessage = {
+          id: messageData.id || Date.now(),
+          sender_id: messageData.sender_id,
+          sender_name: messageData.sender_name || "Unknown",
+          sender_avatar: messageData.sender_avatar || null,
+          message_text: messageData.message_text || messageData.message || "",
+          message_type: messageData.message_type || "TEXT",
+          is_read: messageData.is_read || false,
+          created_at:
+            messageData.timestamp ||
+            messageData.created_at ||
+            new Date().toISOString(),
+          is_mine: false,
+        };
+
+        console.log(
+          "✅ Adding message from other user:",
+          newMessage.message_text
+        );
+        return [...prev, newMessage];
+      });
+
+      // Update conversation's last message
+      if (selectedChat) {
+        setConversations((prev) =>
+          prev.map((conv) =>
+            conv.id === selectedChat.id
+              ? {
+                  ...conv,
+                  last_message:
+                    messageData.message_text || messageData.message || "",
+                  last_message_time:
+                    messageData.timestamp ||
+                    messageData.created_at ||
+                    new Date().toISOString(),
+                }
+              : conv
+          )
+        );
+      }
+
+      // Auto-scroll to bottom
+      setTimeout(
+        () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }),
+        100
+      );
+    },
+    [selectedChat]
+  );
+
+  const {
+    isConnected,
+    isConnecting,
+    error: wsError,
+    sendMessage: wsSendMessage,
+  } = useWebSocket(selectedChat?.id || null, handleWebSocketMessage);
 
   // Use the worker availability hook
   const isWorker = user?.profile_data?.profileType === "WORKER";
@@ -91,22 +151,197 @@ const InboxPage = () => {
     }
   }, [isAuthenticated, isLoading, router]);
 
-  // TODO: Fetch conversations from API
-  useEffect(() => {
-    if (isAuthenticated) {
-      // fetchConversations();
+  // Fetch conversations from API
+  const loadConversations = useCallback(async () => {
+    if (!isAuthenticated) return;
+
+    setIsLoadingConversations(true);
+    try {
+      const convs = await fetchConversations();
+      setConversations(convs);
+      console.log("✅ Loaded conversations:", convs.length);
+    } catch (error) {
+      console.error("❌ Failed to load conversations:", error);
+    } finally {
+      setIsLoadingConversations(false);
     }
   }, [isAuthenticated]);
 
-  // TODO: Fetch messages when chat is selected
+  useEffect(() => {
+    loadConversations();
+  }, [loadConversations]);
+
+  // Fetch messages when chat is selected
+  const loadMessages = useCallback(async (conversationId: number) => {
+    setIsLoadingMessages(true);
+    try {
+      const { messages, conversation } = await fetchMessages(conversationId);
+      setChatMessages(messages);
+      console.log("✅ Loaded messages:", messages.length);
+
+      // Auto-scroll to bottom
+      setTimeout(
+        () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }),
+        100
+      );
+    } catch (error) {
+      console.error("❌ Failed to load messages:", error);
+    } finally {
+      setIsLoadingMessages(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (selectedChat) {
-      // fetchMessages(selectedChat.id);
+      loadMessages(selectedChat.id);
+    } else {
+      setChatMessages([]);
     }
-  }, [selectedChat]);
+  }, [selectedChat, loadMessages]);
 
-  // Loading state
-  if (isLoading) {
+  // Handle sending messages
+  const handleSendMessage = useCallback(() => {
+    if (!messageInput.trim() || !selectedChat) return;
+
+    const message = messageInput.trim();
+    setMessageInput("");
+
+    // Optimistically add message to UI immediately
+    const optimisticMessage: ChatMessage = {
+      id: Date.now(),
+      sender_id: user?.accountID || 0,
+      sender_name:
+        `${user?.profile_data?.firstName || ""} ${user?.profile_data?.lastName || ""}`.trim() ||
+        "You",
+      sender_avatar: user?.profile_data?.profileImg || null,
+      message_text: message,
+      message_type: "TEXT",
+      is_read: false,
+      created_at: new Date().toISOString(),
+      is_mine: true,
+    };
+
+    setChatMessages((prev) => [...prev, optimisticMessage]);
+
+    // Auto-scroll to bottom
+    setTimeout(
+      () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }),
+      100
+    );
+
+    // Try to send via WebSocket (will queue if reconnecting)
+    if (isConnected) {
+      console.log("📤 Sending via WebSocket:", message);
+      wsSendMessage(message);
+    } else if (isConnecting) {
+      console.log("⏳ Queueing message while reconnecting:", message);
+      // Message will be shown optimistically, WebSocket will handle when connected
+      // For now, just wait and try again
+      const retryInterval = setInterval(() => {
+        if (isConnected) {
+          console.log("📤 Sending queued message:", message);
+          wsSendMessage(message);
+          clearInterval(retryInterval);
+        }
+      }, 500);
+
+      // Clear retry after 10 seconds
+      setTimeout(() => clearInterval(retryInterval), 10000);
+    } else {
+      console.warn("⚠️ WebSocket not connected, message shown optimistically");
+      // Message is already shown in UI, will sync when connection restored
+    }
+  }, [
+    messageInput,
+    selectedChat,
+    isConnected,
+    isConnecting,
+    wsSendMessage,
+    user,
+  ]);
+
+  // Handle Enter key to send message
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  };
+
+  // Handle marking job as complete (worker only)
+  const handleMarkAsComplete = async () => {
+    if (!selectedChat) return;
+
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/jobs/${selectedChat.job.id}/complete`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+        }
+      );
+
+      if (response.ok) {
+        // Update the job status in the selected chat
+        setSelectedChat((prev) =>
+          prev
+            ? {
+                ...prev,
+                job: { ...prev.job, status: "PENDING_COMPLETION" },
+              }
+            : null
+        );
+        alert("Job marked as complete! Waiting for client approval.");
+      } else {
+        const error = await response.json();
+        alert(error.error || "Failed to mark job as complete");
+      }
+    } catch (error) {
+      console.error("Error marking job as complete:", error);
+      alert("An error occurred. Please try again.");
+    }
+  };
+
+  // Fetch job details when "View Job Details" is clicked
+  const handleViewJobDetails = async (jobId: number) => {
+    try {
+      setIsLoadingJobDetails(true);
+      setShowJobDetailsModal(true);
+
+      const response = await fetch(`http://localhost:8000/api/jobs/${jobId}`, {
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch job details");
+      }
+
+      const data = await response.json();
+
+      if (data.success) {
+        setJobDetailsData(data.job);
+      }
+    } catch (error) {
+      console.error("❌ Error fetching job details:", error);
+    } finally {
+      setIsLoadingJobDetails(false);
+    }
+  };
+
+  // Loading state - Only show on initial page load, not on reconnections
+  const [hasInitiallyLoaded, setHasInitiallyLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!isLoading) {
+      setHasInitiallyLoaded(true);
+    }
+  }, [isLoading]);
+
+  // Show loading only on first load, not on subsequent auth checks
+  if (!hasInitiallyLoaded && isLoading) {
     return (
       <div className="min-h-screen bg-blue-50 flex items-center justify-center">
         <div className="flex flex-col items-center space-y-4">
@@ -121,14 +356,26 @@ const InboxPage = () => {
 
   // Filter conversations based on active tab and search query
   const filteredMessages = conversations.filter((conv) => {
+    // Search filter
     const matchesSearch =
-      conv.other_participant.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      conv.other_participant.name
+        .toLowerCase()
+        .includes(searchQuery.toLowerCase()) ||
       conv.job.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (conv.last_message && conv.last_message.toLowerCase().includes(searchQuery.toLowerCase()));
+      (conv.last_message &&
+        conv.last_message.toLowerCase().includes(searchQuery.toLowerCase()));
 
-    // TODO: Filter by type (invites/applications) when that data is available
-    // For now, show all that match search
-    return matchesSearch;
+    if (!matchesSearch) return false;
+
+    // Tab filter
+    if (activeTab === "all") {
+      return true;
+    } else if (activeTab === "unread") {
+      // Show only conversations with unread messages
+      return conv.unread_count > 0;
+    }
+
+    return true;
   });
 
   return (
@@ -152,9 +399,9 @@ const InboxPage = () => {
       {/* Desktop Layout */}
       <div className="hidden lg:flex" style={{ height: "calc(100vh - 64px)" }}>
         {/* Left Sidebar - Chat List */}
-        <div className="w-96 border-r border-gray-200 flex flex-col">
-          {/* Sidebar Header */}
-          <div className="p-4 border-b border-gray-200">
+        <div className="w-96 border-r border-gray-200 flex flex-col bg-white">
+          {/* Sidebar Header - Fixed */}
+          <div className="p-4 border-b border-gray-200 flex-shrink-0">
             <h1 className="text-xl font-bold text-gray-900 mb-4">Chats</h1>
 
             {/* Search Bar */}
@@ -196,30 +443,20 @@ const InboxPage = () => {
                 All
               </button>
               <button
-                onClick={() => setActiveTab("invites")}
+                onClick={() => setActiveTab("unread")}
                 className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                  activeTab === "invites"
+                  activeTab === "unread"
                     ? "bg-blue-500 text-white"
                     : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                 }`}
               >
-                Invites
-              </button>
-              <button
-                onClick={() => setActiveTab("applications")}
-                className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                  activeTab === "applications"
-                    ? "bg-blue-500 text-white"
-                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                }`}
-              >
-                Applications
+                Unread
               </button>
             </div>
           </div>
 
-          {/* Chat List */}
-          <div className="flex-1 overflow-y-auto">
+          {/* Chat List - Scrollable */}
+          <div className="flex-1 overflow-y-auto min-h-0">
             {isLoadingConversations ? (
               <div className="flex justify-center items-center h-full">
                 <div className="w-6 h-6 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
@@ -262,7 +499,11 @@ const InboxPage = () => {
                             {conv.other_participant.name}
                           </h3>
                           <span className="text-xs text-gray-500 ml-2 flex-shrink-0">
-                            {conv.last_message_time ? new Date(conv.last_message_time).toLocaleDateString() : ""}
+                            {conv.last_message_time
+                              ? new Date(
+                                  conv.last_message_time
+                                ).toLocaleDateString()
+                              : ""}
                           </span>
                         </div>
                         <p className="text-xs text-gray-600 mb-1 truncate">
@@ -296,9 +537,9 @@ const InboxPage = () => {
         </div>
 
         {/* Right Side - Chat View */}
-        <div className="flex-1 flex flex-col">
-          {/* Top Navigation Bar */}
-          <div className="h-16 border-b border-gray-200 flex items-center justify-between px-6 bg-white">
+        <div className="flex-1 flex flex-col bg-white min-w-0">
+          {/* Top Navigation Bar - Fixed */}
+          <div className="h-16 border-b border-gray-200 flex items-center justify-between px-6 bg-white flex-shrink-0">
             {/* Left - Back button */}
             <button
               onClick={() => router.push("/dashboard/home")}
@@ -333,9 +574,23 @@ const InboxPage = () => {
                   <h2 className="text-sm font-semibold text-gray-900">
                     {selectedChat.other_participant.name}
                   </h2>
-                  <p className="text-xs text-green-500 flex items-center">
-                    <span className="w-2 h-2 bg-green-500 rounded-full mr-1"></span>
-                    Verified
+                  <p className="text-xs flex items-center">
+                    {isConnected ? (
+                      <>
+                        <span className="w-2 h-2 bg-green-500 rounded-full mr-1"></span>
+                        <span className="text-green-600">Connected</span>
+                      </>
+                    ) : isConnecting ? (
+                      <>
+                        <span className="w-2 h-2 bg-yellow-500 rounded-full mr-1 animate-pulse"></span>
+                        <span className="text-yellow-600">Connecting...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="w-2 h-2 bg-gray-400 rounded-full mr-1"></span>
+                        <span className="text-gray-500">Offline</span>
+                      </>
+                    )}
                   </p>
                 </div>
               </div>
@@ -347,41 +602,196 @@ const InboxPage = () => {
 
           {/* Chat Content Area */}
           {selectedChat ? (
-            <div className="flex-1 flex flex-col relative">
-              {/* Job/Request Info Banner - Dynamic based on conversation job */}
-              <div className="bg-gray-50 p-4 border-b border-gray-200 flex-shrink-0 relative z-10">
-                <div className="text-center">
-                  <p className="text-xs text-gray-600 mb-1">
-                    Job Status: {selectedChat.job.status}
-                  </p>
-                  <h3 className="text-sm font-semibold text-gray-900 mb-1">
-                    {selectedChat.job.title}
-                  </h3>
-                  <p className="text-xs text-gray-500 mb-3">
-                    Budget: ₱{selectedChat.job.budget.toFixed(2)} • {selectedChat.job.location}
-                  </p>
-                  <div className="flex justify-center items-center space-x-2">
-                    <span className={`px-4 py-2 rounded-full text-xs font-medium ${
-                      selectedChat.job.status === 'IN_PROGRESS' 
-                        ? 'bg-blue-100 text-blue-700'
-                        : selectedChat.job.status === 'COMPLETED'
-                        ? 'bg-green-100 text-green-700'
-                        : 'bg-yellow-100 text-yellow-700'
-                    }`}>
-                      {selectedChat.my_role === "CLIENT" ? "Your Request" : "Your Job"}
+            <div className="flex-1 flex flex-col min-h-0">
+              {/* Job/Request Info Banner - Fixed */}
+              <div className="bg-gradient-to-b from-gray-50 to-white p-5 border-b border-gray-200 flex-shrink-0">
+                <div className="max-w-2xl mx-auto">
+                  {/* Status Badge */}
+                  <div className="flex justify-center mb-3">
+                    <span
+                      className={`px-3 py-1 rounded-full text-xs font-medium ${
+                        selectedChat.job.status === "IN_PROGRESS"
+                          ? "bg-blue-100 text-blue-700"
+                          : selectedChat.job.status === "COMPLETED"
+                            ? "bg-green-100 text-green-700"
+                            : selectedChat.job.status === "PENDING_COMPLETION"
+                              ? "bg-yellow-100 text-yellow-700"
+                              : "bg-gray-100 text-gray-700"
+                      }`}
+                    >
+                      {selectedChat.job.status === "IN_PROGRESS"
+                        ? "🔄 In Progress"
+                        : selectedChat.job.status === "COMPLETED"
+                          ? "✅ Completed"
+                          : selectedChat.job.status === "PENDING_COMPLETION"
+                            ? "⏳ Pending Completion"
+                            : selectedChat.job.status}
                     </span>
                   </div>
-                  <button 
-                    onClick={() => router.push(`/jobs/${selectedChat.job.id}`)}
-                    className="text-blue-500 text-xs font-medium mt-2 hover:underline block mx-auto"
-                  >
-                    View Job Details →
-                  </button>
+
+                  {/* Job Title */}
+                  <h3 className="text-base font-bold text-gray-900 mb-2 text-center">
+                    {selectedChat.job.title}
+                  </h3>
+
+                  {/* Job Details */}
+                  <div className="flex items-center justify-center space-x-4 text-xs text-gray-600 mb-3">
+                    <div className="flex items-center space-x-1">
+                      <svg
+                        className="w-3.5 h-3.5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                      </svg>
+                      <span className="font-semibold">
+                        ₱{selectedChat.job.budget.toFixed(2)}
+                      </span>
+                    </div>
+                    <span className="text-gray-400">•</span>
+                    <div className="flex items-center space-x-1">
+                      <svg
+                        className="w-3.5 h-3.5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                        />
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                        />
+                      </svg>
+                      <span>{selectedChat.job.location}</span>
+                    </div>
+                    <span className="text-gray-400">•</span>
+                    <span className="font-medium text-blue-600">
+                      {selectedChat.my_role === "CLIENT"
+                        ? "Your Request"
+                        : "Your Job"}
+                    </span>
+                  </div>
+
+                  {/* View Details Link */}
+                  <div className="text-center mb-3">
+                    <button
+                      onClick={() => handleViewJobDetails(selectedChat.job.id)}
+                      className="text-blue-600 text-xs font-semibold hover:text-blue-700 hover:underline inline-flex items-center space-x-1"
+                    >
+                      <span>View Full Details</span>
+                      <svg
+                        className="w-3.5 h-3.5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 5l7 7-7 7"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+
+                  {/* Job Completion Banner - Only for IN_PROGRESS jobs */}
+                  {selectedChat.job.status === "IN_PROGRESS" && (
+                    <div className="mt-1">
+                      {selectedChat.my_role === "CLIENT" ? (
+                        // Client view - Information only
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+                          <div className="flex items-center justify-center space-x-2">
+                            <svg
+                              className="w-4 h-4 text-blue-500 flex-shrink-0"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                              />
+                            </svg>
+                            <span className="text-xs font-medium text-blue-700">
+                              Waiting for worker to complete the job
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        // Worker view - Action button
+                        <button
+                          onClick={handleMarkAsComplete}
+                          className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-sm hover:shadow transition-all rounded-lg px-4 py-2.5"
+                        >
+                          <div className="flex items-center justify-center space-x-2">
+                            <svg
+                              className="w-4 h-4 flex-shrink-0"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                              />
+                            </svg>
+                            <span className="text-sm font-semibold">
+                              Mark Job as Complete
+                            </span>
+                          </div>
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Job Pending Completion Banner */}
+                  {selectedChat.job.status === "PENDING_COMPLETION" && (
+                    <div className="mt-1 bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2">
+                      <div className="flex items-center justify-center space-x-2">
+                        <svg
+                          className="w-4 h-4 text-yellow-600 flex-shrink-0"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                          />
+                        </svg>
+                        <span className="text-xs font-medium text-yellow-700">
+                          {selectedChat.my_role === "CLIENT"
+                            ? "Review and approve worker's completion"
+                            : "Waiting for client approval"}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {/* Messages - Scrollable Area */}
-              <div className="flex-1 overflow-y-auto p-6 pb-24 space-y-4 bg-gray-50">
+              {/* Messages - Scrollable Area (Independent) */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50 min-h-0">
                 {isLoadingMessages ? (
                   <div className="flex justify-center items-center h-full">
                     <div className="w-6 h-6 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
@@ -397,7 +807,10 @@ const InboxPage = () => {
                       >
                         {!msg.is_mine && (
                           <Image
-                            src={selectedChat.other_participant.avatar || "/worker1.jpg"}
+                            src={
+                              selectedChat.other_participant.avatar ||
+                              "/worker1.jpg"
+                            }
                             alt={selectedChat.other_participant.name}
                             width={32}
                             height={32}
@@ -413,11 +826,16 @@ const InboxPage = () => {
                         >
                           <p className="text-sm">{msg.message_text}</p>
                           <p className="text-xs mt-1 opacity-70">
-                            {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            {new Date(msg.created_at).toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
                           </p>
                         </div>
                       </div>
                     ))}
+                    {/* Scroll anchor */}
+                    <div ref={messagesEndRef} />
                   </>
                 ) : (
                   <div className="flex justify-center items-center h-full">
@@ -429,17 +847,49 @@ const InboxPage = () => {
                 )}
               </div>
 
-              {/* Message Input - Sticky at Bottom */}
-              <div className="sticky bottom-0 left-0 right-0 p-4 border-t border-gray-200 bg-white z-10">
+              {/* Message Input - Fixed at Bottom */}
+              <div className="p-4 border-t border-gray-200 bg-white flex-shrink-0">
+                {/* WebSocket connection status - Subtle indicators only */}
+                {wsError && (
+                  <div className="mb-2 text-xs text-red-600 text-center bg-red-50 py-1 px-2 rounded">
+                    Connection issue - messages may be delayed
+                  </div>
+                )}
+
                 <div className="flex items-center space-x-2">
                   <input
                     type="text"
-                    placeholder="Type a message..."
+                    placeholder={
+                      isConnecting
+                        ? "Connecting..."
+                        : !isConnected
+                          ? "Reconnecting to chat..."
+                          : "Type a message..."
+                    }
+                    value={messageInput}
+                    onChange={(e) => setMessageInput(e.target.value)}
+                    onKeyPress={handleKeyPress}
                     className="flex-1 px-4 py-2 border border-gray-300 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
-                  <button className="bg-blue-500 text-white p-2 rounded-full hover:bg-blue-600 transition-colors">
+                  <button
+                    onClick={handleSendMessage}
+                    disabled={!messageInput.trim()}
+                    title={
+                      !isConnected
+                        ? "Reconnecting... Message will be sent when connected"
+                        : "Send message"
+                    }
+                    className="bg-blue-500 text-white p-2 rounded-full hover:bg-blue-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed relative"
+                  >
+                    {isConnecting && (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      </div>
+                    )}
                     <svg
-                      className="w-5 h-5"
+                      className={isConnecting ? "opacity-0" : ""}
+                      width="20"
+                      height="20"
                       fill="currentColor"
                       viewBox="0 0 20 20"
                     >
@@ -517,24 +967,14 @@ const InboxPage = () => {
               All
             </button>
             <button
-              onClick={() => setActiveTab("invites")}
+              onClick={() => setActiveTab("unread")}
               className={`px-4 py-2 rounded-lg text-xs font-medium transition-colors ${
-                activeTab === "invites"
+                activeTab === "unread"
                   ? "bg-blue-500 text-white"
                   : "bg-gray-100 text-gray-600 hover:bg-gray-200"
               }`}
             >
-              📨 Invites
-            </button>
-            <button
-              onClick={() => setActiveTab("applications")}
-              className={`px-4 py-2 rounded-lg text-xs font-medium transition-colors ${
-                activeTab === "applications"
-                  ? "bg-blue-500 text-white"
-                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-              }`}
-            >
-              📋 Applications
+              � Unread
             </button>
           </div>
         </div>
@@ -579,7 +1019,11 @@ const InboxPage = () => {
                             {conv.other_participant.name}
                           </h3>
                           <span className="text-xs text-gray-500 flex-shrink-0">
-                            {conv.last_message_time ? new Date(conv.last_message_time).toLocaleDateString() : ""}
+                            {conv.last_message_time
+                              ? new Date(
+                                  conv.last_message_time
+                                ).toLocaleDateString()
+                              : ""}
                           </span>
                         </div>
                         <p className="text-xs text-gray-600 mb-1 truncate">
@@ -618,6 +1062,269 @@ const InboxPage = () => {
 
         <MobileNav />
       </div>
+
+      {/* Job Details Modal */}
+      {showJobDetailsModal && !fullImageView && (
+        <div
+          className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[100] flex items-end lg:items-center justify-center p-0 lg:p-4"
+          onClick={() => setShowJobDetailsModal(false)}
+        >
+          <div
+            className="bg-white w-full lg:w-full lg:max-w-2xl lg:rounded-lg rounded-t-2xl max-h-[90vh] overflow-y-auto shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-4 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900">
+                Job Details
+              </h2>
+              <button
+                onClick={() => setShowJobDetailsModal(false)}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            {/* Body */}
+            {isLoadingJobDetails ? (
+              <div className="flex justify-center items-center py-12">
+                <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+              </div>
+            ) : jobDetailsData ? (
+              <div className="p-6 space-y-6">
+                {/* Title and Budget */}
+                <div>
+                  <h3 className="text-2xl font-bold text-gray-900 mb-2">
+                    {jobDetailsData.title}
+                  </h3>
+                  <div className="flex items-center gap-2">
+                    <span className="text-3xl font-bold text-green-600">
+                      {jobDetailsData.budget}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Category and Location */}
+                <div className="grid grid-cols-2 gap-4">
+                  {jobDetailsData.category && (
+                    <div>
+                      <p className="text-sm text-gray-500 mb-1">Category</p>
+                      <p className="font-medium text-gray-900">
+                        {jobDetailsData.category.name}
+                      </p>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-sm text-gray-500 mb-1">Location</p>
+                    <p className="font-medium text-gray-900">
+                      {jobDetailsData.location}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Description */}
+                {jobDetailsData.description && (
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-700 mb-2">
+                      Description
+                    </h4>
+                    <p className="text-gray-600 leading-relaxed">
+                      {jobDetailsData.description}
+                    </p>
+                  </div>
+                )}
+
+                {/* Job Photos */}
+                {jobDetailsData.photos && jobDetailsData.photos.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-700 mb-3">
+                      Job Photos
+                    </h4>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {jobDetailsData.photos.map((photo: any) => (
+                        <div
+                          key={photo.id}
+                          className="relative h-48 rounded-lg overflow-hidden cursor-pointer hover:opacity-90 transition-opacity"
+                          onClick={() => setFullImageView(photo.url)}
+                        >
+                          <img
+                            src={photo.url}
+                            alt={photo.file_name || "Job photo"}
+                            className="w-full h-full object-contain bg-gray-100"
+                            onLoad={(e) => {
+                              e.currentTarget.style.opacity = "1";
+                            }}
+                            style={{ opacity: 0, transition: "opacity 0.3s" }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Client Info */}
+                {jobDetailsData.client && (
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <h4 className="text-sm font-semibold text-gray-700 mb-3">
+                      Client Information
+                    </h4>
+                    <div className="flex items-center space-x-3">
+                      <Image
+                        src={jobDetailsData.client.avatar || "/worker1.jpg"}
+                        alt={jobDetailsData.client.name}
+                        width={48}
+                        height={48}
+                        className="w-12 h-12 rounded-full object-cover"
+                      />
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900">
+                          {jobDetailsData.client.name}
+                        </p>
+                        <div className="flex items-center text-sm text-gray-600">
+                          <svg
+                            className="w-4 h-4 text-yellow-500 mr-1"
+                            fill="currentColor"
+                            viewBox="0 0 20 20"
+                          >
+                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                          </svg>
+                          {jobDetailsData.client.rating} rating
+                        </div>
+                        {jobDetailsData.client.city && (
+                          <p className="text-xs text-gray-500">
+                            {jobDetailsData.client.city}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Assigned Worker Info */}
+                {jobDetailsData.assigned_worker && (
+                  <div className="bg-blue-50 rounded-lg p-4">
+                    <h4 className="text-sm font-semibold text-gray-700 mb-3">
+                      Assigned Worker
+                    </h4>
+                    <div className="flex items-center space-x-3">
+                      <Image
+                        src={
+                          jobDetailsData.assigned_worker.avatar ||
+                          "/worker1.jpg"
+                        }
+                        alt={jobDetailsData.assigned_worker.name}
+                        width={48}
+                        height={48}
+                        className="w-12 h-12 rounded-full object-cover"
+                      />
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900">
+                          {jobDetailsData.assigned_worker.name}
+                        </p>
+                        <div className="flex items-center text-sm text-gray-600">
+                          <svg
+                            className="w-4 h-4 text-yellow-500 mr-1"
+                            fill="currentColor"
+                            viewBox="0 0 20 20"
+                          >
+                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                          </svg>
+                          {jobDetailsData.assigned_worker.rating} rating
+                        </div>
+                        {jobDetailsData.assigned_worker.city && (
+                          <p className="text-xs text-gray-500">
+                            {jobDetailsData.assigned_worker.city}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Close Button */}
+                <div className="pt-4 border-t border-gray-200">
+                  <button
+                    onClick={() => setShowJobDetailsModal(false)}
+                    className="w-full px-4 py-2.5 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition-colors"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      )}
+
+      {/* Full Image Viewer Modal */}
+      {fullImageView && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <button
+                onClick={() => setFullImageView(null)}
+                className="flex items-center text-gray-600 hover:text-gray-900 transition-colors"
+              >
+                <svg
+                  className="w-5 h-5 mr-2"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15 19l-7-7 7-7"
+                  />
+                </svg>
+                Back to Details
+              </button>
+              <button
+                onClick={() => setFullImageView(null)}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            {/* Image Content */}
+            <div className="flex-1 overflow-auto p-6 bg-gray-50 flex items-center justify-center">
+              <img
+                src={fullImageView}
+                alt="Full size view"
+                className="max-w-full max-h-full object-contain rounded-lg"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -62,6 +62,11 @@ interface JobRequest {
   downpaymentAmount?: string;
   finalPaymentAmount?: string;
   totalAmount?: string;
+  photos?: Array<{
+    id: number;
+    url: string;
+    file_name?: string;
+  }>;
 }
 
 const MyRequestsPage = () => {
@@ -73,8 +78,14 @@ const MyRequestsPage = () => {
   >("myRequests");
   const [selectedJob, setSelectedJob] = useState<JobRequest | null>(null);
   const [isJobPostModalOpen, setIsJobPostModalOpen] = useState(false);
+  const [fullImageView, setFullImageView] = useState<string | null>(null);
   const [materials, setMaterials] = useState<string[]>([]);
   const [materialInput, setMaterialInput] = useState("");
+
+  // Image upload states
+  const [selectedImages, setSelectedImages] = useState<File[]>([]);
+  const [imagePreviewUrls, setImagePreviewUrls] = useState<string[]>([]);
+  const [uploadingImages, setUploadingImages] = useState(false);
 
   // Job post form state
   const [jobPostForm, setJobPostForm] = useState({
@@ -84,7 +95,6 @@ const MyRequestsPage = () => {
     budget: "",
     location: "",
     expected_duration: "",
-    urgency: "",
     preferred_start_date: "",
   });
   const [isSubmittingJob, setIsSubmittingJob] = useState(false);
@@ -114,6 +124,14 @@ const MyRequestsPage = () => {
   // State for job applications
   const [jobApplications, setJobApplications] = useState<any[]>([]);
   const [isLoadingApplications, setIsLoadingApplications] = useState(false);
+  const [processingApplication, setProcessingApplication] = useState<{
+    id: number;
+    action: "accept" | "reject";
+  } | null>(null);
+
+  // State for wallet balance
+  const [walletBalance, setWalletBalance] = useState<number>(0);
+  const [isLoadingWallet, setIsLoadingWallet] = useState(false);
 
   // Worker availability hook - must be called before any early returns
   const isWorker = user?.profile_data?.profileType === "WORKER";
@@ -123,6 +141,36 @@ const MyRequestsPage = () => {
     isLoading: isLoadingAvailability,
     handleAvailabilityToggle,
   } = useWorkerAvailability(isWorker, isAuthenticated);
+
+  // Fetch wallet balance for clients
+  useEffect(() => {
+    const fetchWalletBalance = async () => {
+      if (!isAuthenticated || !isClient) return;
+
+      try {
+        setIsLoadingWallet(true);
+        const response = await fetch(
+          "http://localhost:8000/api/profiles/wallet/balance",
+          {
+            credentials: "include",
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            setWalletBalance(parseFloat(data.balance) || 0);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching wallet balance:", error);
+      } finally {
+        setIsLoadingWallet(false);
+      }
+    };
+
+    fetchWalletBalance();
+  }, [isAuthenticated, isClient]);
 
   // Fetch job categories on mount
   useEffect(() => {
@@ -177,6 +225,63 @@ const MyRequestsPage = () => {
     setMaterials(materials.filter((m) => m !== material));
   };
 
+  // Handle image selection
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    const fileArray = Array.from(files);
+
+    // Validate file types and sizes
+    const validFiles: File[] = [];
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    const allowedTypes = ["image/jpeg", "image/png", "image/jpg", "image/webp"];
+
+    fileArray.forEach((file) => {
+      if (!allowedTypes.includes(file.type)) {
+        alert(
+          `${file.name} is not a valid image type. Please use JPEG, PNG, JPG, or WEBP.`
+        );
+        return;
+      }
+      if (file.size > maxSize) {
+        alert(`${file.name} is too large. Maximum size is 5MB.`);
+        return;
+      }
+      validFiles.push(file);
+    });
+
+    if (validFiles.length > 0) {
+      // Add to existing images
+      const newImages = [...selectedImages, ...validFiles];
+      setSelectedImages(newImages);
+
+      // Create preview URLs
+      const newPreviewUrls = validFiles.map((file) =>
+        URL.createObjectURL(file)
+      );
+      setImagePreviewUrls([...imagePreviewUrls, ...newPreviewUrls]);
+    }
+  };
+
+  const handleRemoveImage = (index: number) => {
+    // Revoke the object URL to prevent memory leaks
+    URL.revokeObjectURL(imagePreviewUrls[index]);
+
+    const newImages = selectedImages.filter((_, i) => i !== index);
+    const newPreviews = imagePreviewUrls.filter((_, i) => i !== index);
+
+    setSelectedImages(newImages);
+    setImagePreviewUrls(newPreviews);
+  };
+
+  // Cleanup preview URLs on unmount
+  useEffect(() => {
+    return () => {
+      imagePreviewUrls.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, []);
+
   // Handle job post form submission
   const handleJobPostSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -199,12 +304,18 @@ const MyRequestsPage = () => {
       setJobPostError("Please enter a valid budget");
       return;
     }
-    if (!jobPostForm.location.trim()) {
-      setJobPostError("Please enter a job location");
+
+    // Check if budget exceeds wallet balance
+    const budgetAmount = parseFloat(jobPostForm.budget);
+    if (budgetAmount > walletBalance) {
+      setJobPostError(
+        `Insufficient wallet balance. Your current balance is ₱${walletBalance.toFixed(2)}. Please deposit funds or reduce the budget.`
+      );
       return;
     }
-    if (!jobPostForm.urgency) {
-      setJobPostError("Please select urgency level");
+
+    if (!jobPostForm.location.trim()) {
+      setJobPostError("Please select a barangay");
       return;
     }
 
@@ -222,9 +333,8 @@ const MyRequestsPage = () => {
           description: jobPostForm.description,
           category_id: parseInt(jobPostForm.category_id),
           budget: parseFloat(jobPostForm.budget),
-          location: jobPostForm.location,
+          location: `${jobPostForm.location}, Zamboanga City`,
           expected_duration: jobPostForm.expected_duration || null,
-          urgency: jobPostForm.urgency,
           preferred_start_date: jobPostForm.preferred_start_date || null,
           materials_needed: materials,
         }),
@@ -233,6 +343,40 @@ const MyRequestsPage = () => {
       const data = await response.json();
 
       if (response.ok && data.success) {
+        const jobId = data.job_posting_id;
+
+        // Upload images if any were selected
+        if (selectedImages.length > 0) {
+          setUploadingImages(true);
+
+          for (const image of selectedImages) {
+            try {
+              const formData = new FormData();
+              formData.append("image", image);
+
+              const uploadResponse = await fetch(
+                `http://localhost:8000/api/jobs/${jobId}/upload-image`,
+                {
+                  method: "POST",
+                  credentials: "include",
+                  body: formData,
+                }
+              );
+
+              if (!uploadResponse.ok) {
+                console.error(`Failed to upload image: ${image.name}`);
+              }
+            } catch (uploadError) {
+              console.error(
+                `Error uploading image ${image.name}:`,
+                uploadError
+              );
+            }
+          }
+
+          setUploadingImages(false);
+        }
+
         // Reset form
         setJobPostForm({
           title: "",
@@ -241,10 +385,11 @@ const MyRequestsPage = () => {
           budget: "",
           location: "",
           expected_duration: "",
-          urgency: "",
           preferred_start_date: "",
         });
         setMaterials([]);
+        setSelectedImages([]);
+        setImagePreviewUrls([]);
         setIsJobPostModalOpen(false);
 
         // Refresh the page or refetch data
@@ -258,6 +403,7 @@ const MyRequestsPage = () => {
       setJobPostError("An error occurred. Please try again.");
     } finally {
       setIsSubmittingJob(false);
+      setUploadingImages(false);
     }
   };
 
@@ -316,6 +462,87 @@ const MyRequestsPage = () => {
     if (!isCancelling) {
       setShowCancelConfirm(false);
       setJobToCancel(null);
+    }
+  };
+
+  // Handle accepting a job application
+  const handleAcceptApplication = async (applicationId: number) => {
+    if (!selectedJob) return;
+
+    if (
+      !confirm(
+        "Are you sure you want to accept this application? This will reject all other pending applications and start the job."
+      )
+    ) {
+      return;
+    }
+
+    setProcessingApplication({ id: applicationId, action: "accept" });
+    try {
+      const response = await fetch(
+        `http://localhost:8000/api/jobs/${selectedJob.id}/applications/${applicationId}/accept`,
+        {
+          method: "POST",
+          credentials: "include",
+        }
+      );
+
+      const data = await response.json();
+
+      if (data.success) {
+        alert(
+          "✅ Application accepted! A chat conversation has been created. You can now discuss the job details."
+        );
+
+        // Refresh applications and job data
+        window.location.reload();
+      } else {
+        alert(data.error || "Failed to accept application");
+      }
+    } catch (error) {
+      console.error("Error accepting application:", error);
+      alert("Failed to accept application. Please try again.");
+    } finally {
+      setProcessingApplication(null);
+    }
+  };
+
+  // Handle rejecting a job application
+  const handleRejectApplication = async (applicationId: number) => {
+    if (!selectedJob) return;
+
+    if (!confirm("Are you sure you want to reject this application?")) {
+      return;
+    }
+
+    setProcessingApplication({ id: applicationId, action: "reject" });
+    try {
+      const response = await fetch(
+        `http://localhost:8000/api/jobs/${selectedJob.id}/applications/${applicationId}/reject`,
+        {
+          method: "POST",
+          credentials: "include",
+        }
+      );
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Update local state
+        setJobApplications((prev) =>
+          prev.map((app) =>
+            app.id === applicationId ? { ...app, status: "REJECTED" } : app
+          )
+        );
+        alert("Application rejected");
+      } else {
+        alert(data.error || "Failed to reject application");
+      }
+    } catch (error) {
+      console.error("Error rejecting application:", error);
+      alert("Failed to reject application. Please try again.");
+    } finally {
+      setProcessingApplication(null);
     }
   };
 
@@ -405,6 +632,7 @@ const MyRequestsPage = () => {
               location: job.location,
               category: job.category?.name || "Uncategorized",
               postedDate: job.created_at,
+              photos: job.photos || [],
             }));
             setJobRequests(mappedJobs);
           } else {
@@ -466,6 +694,7 @@ const MyRequestsPage = () => {
             // Include worker or client info depending on user type
             assignedWorker: job.assigned_worker,
             client: job.client,
+            photos: job.photos || [],
           }));
           setInProgressJobs(mappedJobs);
         } else {
@@ -948,7 +1177,12 @@ const MyRequestsPage = () => {
 
               {/* Active Requests List */}
               <div className="space-y-3">
-                {filteredRequests.length === 0 ? (
+                {isLoadingRequests ? (
+                  <div className="flex flex-col items-center justify-center py-12">
+                    <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+                    <p className="text-gray-600">Loading your requests...</p>
+                  </div>
+                ) : filteredRequests.length === 0 ? (
                   <div className="text-center py-12">
                     <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                       <svg
@@ -1037,7 +1271,6 @@ const MyRequestsPage = () => {
               </div>
             </div>
           )}
-
           {/* WORKER VIEW */}
           {isWorker && activeTab === "myRequests" && (
             <div>
@@ -1049,7 +1282,14 @@ const MyRequestsPage = () => {
 
               {/* Active Requests List for Workers */}
               <div className="space-y-3">
-                {filteredRequests.length === 0 ? (
+                {isLoadingRequests ? (
+                  <div className="flex flex-col items-center justify-center py-12">
+                    <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+                    <p className="text-gray-600">
+                      Loading your applications...
+                    </p>
+                  </div>
+                ) : filteredRequests.length === 0 ? (
                   <div className="text-center py-12">
                     <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                       <svg
@@ -1138,7 +1378,6 @@ const MyRequestsPage = () => {
               </div>
             </div>
           )}
-
           {/* IN PROGRESS JOBS - Both Client and Worker */}
           {activeTab === "inProgress" && (
             <div>
@@ -1149,8 +1388,13 @@ const MyRequestsPage = () => {
               </div>
 
               {isLoadingInProgress ? (
-                <div className="flex justify-center items-center py-12">
-                  <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                <div className="flex flex-col items-center justify-center py-12">
+                  <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+                  <p className="text-gray-600">
+                    {isClient
+                      ? "Loading jobs in progress..."
+                      : "Loading active jobs..."}
+                  </p>
                 </div>
               ) : inProgressJobs.length === 0 ? (
                 <div className="text-center py-12">
@@ -1285,7 +1529,6 @@ const MyRequestsPage = () => {
               )}
             </div>
           )}
-
           {/* CLIENT PAST REQUESTS */}
           {isClient && activeTab === "pastRequests" && (
             <div>
@@ -1295,7 +1538,12 @@ const MyRequestsPage = () => {
 
               {/* Past Requests List */}
               <div className="space-y-3">
-                {filteredRequests.length === 0 ? (
+                {isLoadingRequests ? (
+                  <div className="flex flex-col items-center justify-center py-12">
+                    <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+                    <p className="text-gray-600">Loading past requests...</p>
+                  </div>
+                ) : filteredRequests.length === 0 ? (
                   <div className="text-center py-12">
                     <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                       <svg
@@ -1363,7 +1611,6 @@ const MyRequestsPage = () => {
               </div>
             </div>
           )}
-
           {/* CLIENT REQUESTS TAB - Worker Applications */}
           {isClient && activeTab === "requests" && (
             <div>
@@ -1376,33 +1623,39 @@ const MyRequestsPage = () => {
 
               {/* Applications List */}
               <div className="space-y-3">
-                <div className="text-center py-12">
-                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <svg
-                      className="w-8 h-8 text-gray-400"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-                      />
-                    </svg>
+                {isLoadingRequests ? (
+                  <div className="flex flex-col items-center justify-center py-12">
+                    <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+                    <p className="text-gray-600">Loading applications...</p>
                   </div>
-                  <h3 className="text-gray-900 font-medium mb-2">
-                    No applications yet
-                  </h3>
-                  <p className="text-gray-600 text-sm">
-                    Worker applications to your jobs will appear here
-                  </p>
-                </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <svg
+                        className="w-8 h-8 text-gray-400"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                        />
+                      </svg>
+                    </div>
+                    <h3 className="text-gray-900 font-medium mb-2">
+                      No applications yet
+                    </h3>
+                    <p className="text-gray-600 text-sm">
+                      Worker applications to your jobs will appear here
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
-          )}
-
+          )}{" "}
           {/* WORKER PAST REQUESTS */}
           {isWorker && activeTab === "pastRequests" && (
             <div>
@@ -1412,7 +1665,14 @@ const MyRequestsPage = () => {
 
               {/* Past Requests List */}
               <div className="space-y-3">
-                {filteredRequests.length === 0 ? (
+                {isLoadingRequests ? (
+                  <div className="flex flex-col items-center justify-center py-12">
+                    <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+                    <p className="text-gray-600">
+                      Loading past applications...
+                    </p>
+                  </div>
+                ) : filteredRequests.length === 0 ? (
                   <div className="text-center py-12">
                     <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                       <svg
@@ -1484,7 +1744,7 @@ const MyRequestsPage = () => {
       </div>
 
       {/* Job Details Modal */}
-      {selectedJob && (
+      {selectedJob && !fullImageView && (
         <div
           className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[100] flex items-end lg:items-center justify-center p-0 lg:p-4"
           onClick={() => setSelectedJob(null)}
@@ -1537,6 +1797,11 @@ const MyRequestsPage = () => {
                   {selectedJob.status === "ACTIVE" && (
                     <span className="px-3 py-1 bg-blue-100 text-blue-700 text-sm rounded-full">
                       Active
+                    </span>
+                  )}
+                  {selectedJob.status === "IN_PROGRESS" && (
+                    <span className="px-3 py-1 bg-yellow-100 text-yellow-700 text-sm rounded-full">
+                      In Progress
                     </span>
                   )}
                 </div>
@@ -1741,6 +2006,34 @@ const MyRequestsPage = () => {
                 </div>
               )}
 
+              {/* Job Photos */}
+              {selectedJob.photos && selectedJob.photos.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-700 mb-3">
+                    Job Photos
+                  </h4>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {selectedJob.photos.map((photo) => (
+                      <div
+                        key={photo.id}
+                        className="relative h-48 rounded-lg overflow-hidden cursor-pointer hover:opacity-90 transition-opacity"
+                        onClick={() => setFullImageView(photo.url)}
+                      >
+                        <img
+                          src={photo.url}
+                          alt={photo.file_name || "Job photo"}
+                          className="w-full h-full object-contain bg-gray-100"
+                          onLoad={(e) => {
+                            e.currentTarget.style.opacity = "1";
+                          }}
+                          style={{ opacity: 0, transition: "opacity 0.3s" }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Client Info */}
               {selectedJob.client && (
                 <div className="bg-gray-50 rounded-lg p-4">
@@ -1827,8 +2120,8 @@ const MyRequestsPage = () => {
                 </div>
               )}
 
-              {/* Job Applications Section (for clients) */}
-              {isClient && (
+              {/* Job Applications Section (for clients) - only for ACTIVE jobs */}
+              {isClient && selectedJob.status === "ACTIVE" && (
                 <div className="border-t border-gray-200 pt-6">
                   <h4 className="text-lg font-semibold text-gray-900 mb-4">
                     Applications ({jobApplications.length})
@@ -1973,11 +2266,81 @@ const MyRequestsPage = () => {
                           {/* Action Buttons */}
                           {application.status === "PENDING" && (
                             <div className="flex gap-2">
-                              <button className="flex-1 bg-blue-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
-                                Accept
+                              <button
+                                onClick={() =>
+                                  handleAcceptApplication(application.id)
+                                }
+                                disabled={
+                                  processingApplication?.id === application.id
+                                }
+                                className="flex-1 bg-blue-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:bg-blue-300 disabled:cursor-not-allowed flex items-center justify-center"
+                              >
+                                {processingApplication?.id === application.id &&
+                                processingApplication?.action === "accept" ? (
+                                  <>
+                                    <svg
+                                      className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                                      xmlns="http://www.w3.org/2000/svg"
+                                      fill="none"
+                                      viewBox="0 0 24 24"
+                                    >
+                                      <circle
+                                        className="opacity-25"
+                                        cx="12"
+                                        cy="12"
+                                        r="10"
+                                        stroke="currentColor"
+                                        strokeWidth="4"
+                                      ></circle>
+                                      <path
+                                        className="opacity-75"
+                                        fill="currentColor"
+                                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                      ></path>
+                                    </svg>
+                                    Accepting...
+                                  </>
+                                ) : (
+                                  "Accept"
+                                )}
                               </button>
-                              <button className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg text-sm font-medium hover:bg-gray-300 transition-colors">
-                                Reject
+                              <button
+                                onClick={() =>
+                                  handleRejectApplication(application.id)
+                                }
+                                disabled={
+                                  processingApplication?.id === application.id
+                                }
+                                className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg text-sm font-medium hover:bg-gray-300 transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed flex items-center justify-center"
+                              >
+                                {processingApplication?.id === application.id &&
+                                processingApplication?.action === "reject" ? (
+                                  <>
+                                    <svg
+                                      className="animate-spin -ml-1 mr-2 h-4 w-4 text-gray-700"
+                                      xmlns="http://www.w3.org/2000/svg"
+                                      fill="none"
+                                      viewBox="0 0 24 24"
+                                    >
+                                      <circle
+                                        className="opacity-25"
+                                        cx="12"
+                                        cy="12"
+                                        r="10"
+                                        stroke="currentColor"
+                                        strokeWidth="4"
+                                      ></circle>
+                                      <path
+                                        className="opacity-75"
+                                        fill="currentColor"
+                                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                      ></path>
+                                    </svg>
+                                    Rejecting...
+                                  </>
+                                ) : (
+                                  "Reject"
+                                )}
                               </button>
                             </div>
                           )}
@@ -1987,6 +2350,241 @@ const MyRequestsPage = () => {
                   )}
                 </div>
               )}
+
+              {/* Worker Assigned Section (for IN_PROGRESS jobs) */}
+              {isClient &&
+                selectedJob.status === "IN_PROGRESS" &&
+                selectedJob.assignedWorker && (
+                  <div className="border-t border-gray-200 pt-6">
+                    <h4 className="text-lg font-semibold text-gray-900 mb-4">
+                      Worker Assigned
+                    </h4>
+
+                    <div className="border border-blue-200 rounded-lg p-4 bg-blue-50">
+                      {/* Worker Info */}
+                      <div className="flex items-start gap-3">
+                        <Image
+                          src={selectedJob.assignedWorker.avatar}
+                          alt={selectedJob.assignedWorker.name}
+                          width={56}
+                          height={56}
+                          className="w-14 h-14 rounded-full object-cover"
+                        />
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between mb-2">
+                            <h5 className="font-semibold text-gray-900 text-lg">
+                              {selectedJob.assignedWorker.name}
+                            </h5>
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                              <svg
+                                className="w-3 h-3 mr-1"
+                                fill="currentColor"
+                                viewBox="0 0 20 20"
+                              >
+                                <path
+                                  fillRule="evenodd"
+                                  d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                  clipRule="evenodd"
+                                />
+                              </svg>
+                              Assigned
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-3 text-sm text-gray-700">
+                            <div className="flex items-center">
+                              <svg
+                                className="w-4 h-4 text-yellow-500 mr-1"
+                                fill="currentColor"
+                                viewBox="0 0 20 20"
+                              >
+                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                              </svg>
+                              <span className="font-medium">
+                                {selectedJob.assignedWorker.rating}
+                              </span>
+                            </div>
+                            {selectedJob.assignedWorker.city && (
+                              <div className="flex items-center">
+                                <svg
+                                  className="w-4 h-4 mr-1"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                                  />
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                                  />
+                                </svg>
+                                {selectedJob.assignedWorker.city}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* View Profile and Message Buttons */}
+                          <div className="flex gap-2 mt-3">
+                            <button
+                              onClick={() =>
+                                router.push(
+                                  `/worker/${selectedJob.assignedWorker?.id}`
+                                )
+                              }
+                              className="flex-1 bg-white border border-blue-600 text-blue-600 py-2 px-4 rounded-lg text-sm font-medium hover:bg-blue-50 transition-colors flex items-center justify-center"
+                            >
+                              <svg
+                                className="w-4 h-4 mr-1.5"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                                />
+                              </svg>
+                              View Profile
+                            </button>
+                            <button
+                              onClick={() => router.push("/dashboard/inbox")}
+                              className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center justify-center"
+                            >
+                              <svg
+                                className="w-4 h-4 mr-1.5"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                                />
+                              </svg>
+                              Message
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+              {/* Client Information Section (for workers viewing IN_PROGRESS jobs) */}
+              {isWorker &&
+                selectedJob.status === "IN_PROGRESS" &&
+                selectedJob.client && (
+                  <div className="border-t border-gray-200 pt-6">
+                    <h4 className="text-lg font-semibold text-gray-900 mb-4">
+                      Client Information
+                    </h4>
+
+                    <div className="border border-green-200 rounded-lg p-4 bg-green-50">
+                      {/* Client Info */}
+                      <div className="flex items-start gap-3">
+                        <Image
+                          src={selectedJob.client.avatar}
+                          alt={selectedJob.client.name}
+                          width={56}
+                          height={56}
+                          className="w-14 h-14 rounded-full object-cover"
+                        />
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between mb-2">
+                            <h5 className="font-semibold text-gray-900 text-lg">
+                              {selectedJob.client.name}
+                            </h5>
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                              <svg
+                                className="w-3 h-3 mr-1"
+                                fill="currentColor"
+                                viewBox="0 0 20 20"
+                              >
+                                <path
+                                  fillRule="evenodd"
+                                  d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"
+                                  clipRule="evenodd"
+                                />
+                              </svg>
+                              Client
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-3 text-sm text-gray-700">
+                            <div className="flex items-center">
+                              <svg
+                                className="w-4 h-4 text-yellow-500 mr-1"
+                                fill="currentColor"
+                                viewBox="0 0 20 20"
+                              >
+                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                              </svg>
+                              <span className="font-medium">
+                                {selectedJob.client.rating}
+                              </span>
+                            </div>
+                            {selectedJob.client.city && (
+                              <div className="flex items-center">
+                                <svg
+                                  className="w-4 h-4 mr-1"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                                  />
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                                  />
+                                </svg>
+                                {selectedJob.client.city}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Message Button */}
+                          <div className="mt-3">
+                            <button
+                              onClick={() => router.push("/dashboard/inbox")}
+                              className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center justify-center"
+                            >
+                              <svg
+                                className="w-4 h-4 mr-1.5"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                                />
+                              </svg>
+                              Message Client
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
               {/* Action Buttons */}
               <div className="flex gap-3 pt-4">
@@ -2209,12 +2807,35 @@ const MyRequestsPage = () => {
                     placeholder="0.00"
                     min="0"
                     step="0.01"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
+                      jobPostForm.budget &&
+                      parseFloat(jobPostForm.budget) > walletBalance
+                        ? "border-red-300 focus:ring-red-500"
+                        : "border-gray-300 focus:ring-blue-500"
+                    }`}
                     required
                   />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Enter your total budget for this project
-                  </p>
+                  <div className="flex items-center justify-between mt-1">
+                    <p className="text-xs text-gray-500">
+                      Available balance:
+                      <span
+                        className={`ml-1 font-semibold ${
+                          jobPostForm.budget &&
+                          parseFloat(jobPostForm.budget) > walletBalance
+                            ? "text-red-600"
+                            : "text-green-600"
+                        }`}
+                      >
+                        ₱{walletBalance.toFixed(2)}
+                      </span>
+                    </p>
+                    {jobPostForm.budget &&
+                      parseFloat(jobPostForm.budget) > walletBalance && (
+                        <p className="text-xs text-red-600 font-medium">
+                          Insufficient balance
+                        </p>
+                      )}
+                  </div>
                 </div>
 
                 {/* Location */}
@@ -2222,25 +2843,159 @@ const MyRequestsPage = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Job Location <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="text"
-                    value={jobPostForm.location}
-                    onChange={(e) =>
-                      setJobPostForm({
-                        ...jobPostForm,
-                        location: e.target.value,
-                      })
-                    }
-                    placeholder="e.g., Quezon City, Metro Manila"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Enter the address or area where the job will be performed
-                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* City - Read-only (not disabled, so it will be included in form data) */}
+                    <div>
+                      <input
+                        type="text"
+                        value="Zamboanga City"
+                        readOnly
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-700 cursor-not-allowed"
+                        tabIndex={-1}
+                      />
+                      <p className="text-xs text-gray-500 mt-1">City</p>
+                    </div>
+
+                    {/* Barangay - Dropdown */}
+                    <div>
+                      <select
+                        value={jobPostForm.location}
+                        onChange={(e) =>
+                          setJobPostForm({
+                            ...jobPostForm,
+                            location: e.target.value,
+                          })
+                        }
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      >
+                        <option value="">Select Barangay</option>
+                        <option value="Arena Blanco">Arena Blanco</option>
+                        <option value="Ayala">Ayala</option>
+                        <option value="Baliwasan">Baliwasan</option>
+                        <option value="Baluno">Baluno</option>
+                        <option value="Boalan">Boalan</option>
+                        <option value="Bolong">Bolong</option>
+                        <option value="Buenavista">Buenavista</option>
+                        <option value="Bunguiao">Bunguiao</option>
+                        <option value="Busay (Sacol Island)">
+                          Busay (Sacol Island)
+                        </option>
+                        <option value="Cabaluay">Cabaluay</option>
+                        <option value="Cabatangan">Cabatangan</option>
+                        <option value="Cacao">Cacao</option>
+                        <option value="Calabasa">Calabasa</option>
+                        <option value="Calarian">Calarian</option>
+                        <option value="Camino Nuevo">Camino Nuevo</option>
+                        <option value="Campo Islam">Campo Islam</option>
+                        <option value="Canelar">Canelar</option>
+                        <option value="Capisan">Capisan</option>
+                        <option value="Cawit">Cawit</option>
+                        <option value="Culianan">Culianan</option>
+                        <option value="Curuan">Curuan</option>
+                        <option value="Dita">Dita</option>
+                        <option value="Divisoria">Divisoria</option>
+                        <option value="Dulian (Upper Bunguiao)">
+                          Dulian (Upper Bunguiao)
+                        </option>
+                        <option value="Dulian (Upper Pasonanca)">
+                          Dulian (Upper Pasonanca)
+                        </option>
+                        <option value="Guisao">Guisao</option>
+                        <option value="Guiwan">Guiwan</option>
+                        <option value="Kasanyangan">Kasanyangan</option>
+                        <option value="La Paz">La Paz</option>
+                        <option value="Labuan">Labuan</option>
+                        <option value="Lamisahan">Lamisahan</option>
+                        <option value="Landang Gua">Landang Gua</option>
+                        <option value="Landang Laum">Landang Laum</option>
+                        <option value="Lanzones">Lanzones</option>
+                        <option value="Lapakan">Lapakan</option>
+                        <option value="Latuan (Curuan)">Latuan (Curuan)</option>
+                        <option value="Licomo">Licomo</option>
+                        <option value="Limaong">Limaong</option>
+                        <option value="Limpapa">Limpapa</option>
+                        <option value="Lubigan">Lubigan</option>
+                        <option value="Lumayang">Lumayang</option>
+                        <option value="Lumbangan">Lumbangan</option>
+                        <option value="Lunzuran">Lunzuran</option>
+                        <option value="Maasin">Maasin</option>
+                        <option value="Malagutay">Malagutay</option>
+                        <option value="Mampang">Mampang</option>
+                        <option value="Manalipa">Manalipa</option>
+                        <option value="Mangusu">Mangusu</option>
+                        <option value="Manicahan">Manicahan</option>
+                        <option value="Mariki">Mariki</option>
+                        <option value="Mercedes">Mercedes</option>
+                        <option value="Muti">Muti</option>
+                        <option value="Pamucutan">Pamucutan</option>
+                        <option value="Pangapuyan">Pangapuyan</option>
+                        <option value="Panubigan">Panubigan</option>
+                        <option value="Pasilmanta (Sacol Island)">
+                          Pasilmanta (Sacol Island)
+                        </option>
+                        <option value="Pasobolong">Pasobolong</option>
+                        <option value="Pasonanca">Pasonanca</option>
+                        <option value="Patalon">Patalon</option>
+                        <option value="Putik">Putik</option>
+                        <option value="Quiniput">Quiniput</option>
+                        <option value="Recodo">Recodo</option>
+                        <option value="Rio Hondo">Rio Hondo</option>
+                        <option value="Salaan">Salaan</option>
+                        <option value="San Jose Cawa-Cawa">
+                          San Jose Cawa-Cawa
+                        </option>
+                        <option value="San Jose Gusu">San Jose Gusu</option>
+                        <option value="San Ramon">San Ramon</option>
+                        <option value="San Roque">San Roque</option>
+                        <option value="Sangali">Sangali</option>
+                        <option value="Santa Barbara">Santa Barbara</option>
+                        <option value="Santa Catalina">Santa Catalina</option>
+                        <option value="Santa Maria">Santa Maria</option>
+                        <option value="Santo Niño">Santo Niño</option>
+                        <option value="Sibulao (Caruan)">
+                          Sibulao (Caruan)
+                        </option>
+                        <option value="Sinubung">Sinubung</option>
+                        <option value="Sinunoc">Sinunoc</option>
+                        <option value="Tagasilay">Tagasilay</option>
+                        <option value="Taguiti">Taguiti</option>
+                        <option value="Talabaan">Talabaan</option>
+                        <option value="Talisayan">Talisayan</option>
+                        <option value="Talon-Talon">Talon-Talon</option>
+                        <option value="Taluksangay">Taluksangay</option>
+                        <option value="Tetuan">Tetuan</option>
+                        <option value="Tictapul">Tictapul</option>
+                        <option value="Tigbalabag">Tigbalabag</option>
+                        <option value="Tigtabon">Tigtabon</option>
+                        <option value="Tolosa">Tolosa</option>
+                        <option value="Tugbungan">Tugbungan</option>
+                        <option value="Tulungatung">Tulungatung</option>
+                        <option value="Tumaga">Tumaga</option>
+                        <option value="Tumalutab">Tumalutab</option>
+                        <option value="Tumitus">Tumitus</option>
+                        <option value="Victoria">Victoria</option>
+                        <option value="Vitali">Vitali</option>
+                        <option value="Zambowood">Zambowood</option>
+                        <option value="Zone I (Poblacion)">
+                          Zone I (Poblacion)
+                        </option>
+                        <option value="Zone II (Poblacion)">
+                          Zone II (Poblacion)
+                        </option>
+                        <option value="Zone III (Poblacion)">
+                          Zone III (Poblacion)
+                        </option>
+                        <option value="Zone IV (Poblacion)">
+                          Zone IV (Poblacion)
+                        </option>
+                      </select>
+                      <p className="text-xs text-gray-500 mt-1">Barangay</p>
+                    </div>
+                  </div>
                 </div>
 
-                {/* Duration & Urgency */}
+                {/* Duration & Start Date */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -2261,43 +3016,20 @@ const MyRequestsPage = () => {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Urgency <span className="text-red-500">*</span>
+                      Preferred Start Date
                     </label>
-                    <select
-                      value={jobPostForm.urgency}
+                    <input
+                      type="date"
+                      value={jobPostForm.preferred_start_date}
                       onChange={(e) =>
                         setJobPostForm({
                           ...jobPostForm,
-                          urgency: e.target.value,
+                          preferred_start_date: e.target.value,
                         })
                       }
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      required
-                    >
-                      <option value="">Select urgency</option>
-                      <option value="low">Low - Flexible timing</option>
-                      <option value="medium">Medium - Within a week</option>
-                      <option value="high">High - ASAP</option>
-                    </select>
+                    />
                   </div>
-                </div>
-
-                {/* Preferred Start Date */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Preferred Start Date
-                  </label>
-                  <input
-                    type="date"
-                    value={jobPostForm.preferred_start_date}
-                    onChange={(e) =>
-                      setJobPostForm({
-                        ...jobPostForm,
-                        preferred_start_date: e.target.value,
-                      })
-                    }
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
                 </div>
 
                 {/* Materials Needed */}
@@ -2343,7 +3075,18 @@ const MyRequestsPage = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Photos (Optional)
                   </label>
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors cursor-pointer">
+                  <input
+                    type="file"
+                    id="job-images"
+                    accept="image/jpeg,image/png,image/jpg,image/webp"
+                    multiple
+                    onChange={handleImageSelect}
+                    className="hidden"
+                  />
+                  <label
+                    htmlFor="job-images"
+                    className="block border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors cursor-pointer"
+                  >
                     <svg
                       className="w-12 h-12 text-gray-400 mx-auto mb-3"
                       fill="none"
@@ -2361,9 +3104,31 @@ const MyRequestsPage = () => {
                       Click to upload or drag and drop
                     </p>
                     <p className="text-xs text-gray-500">
-                      PNG, JPG, GIF up to 10MB
+                      PNG, JPG, WEBP up to 5MB each
                     </p>
-                  </div>
+                  </label>
+
+                  {/* Image Previews */}
+                  {imagePreviewUrls.length > 0 && (
+                    <div className="grid grid-cols-3 gap-3 mt-4">
+                      {imagePreviewUrls.map((url, index) => (
+                        <div key={index} className="relative group">
+                          <img
+                            src={url}
+                            alt={`Preview ${index + 1}`}
+                            className="w-full h-24 object-cover rounded-lg border border-gray-300"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveImage(index)}
+                            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-600 transition-colors shadow-md"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Action Buttons */}
@@ -2373,18 +3138,20 @@ const MyRequestsPage = () => {
                     onClick={() => {
                       setIsJobPostModalOpen(false);
                       setJobPostError("");
+                      setSelectedImages([]);
+                      setImagePreviewUrls([]);
                     }}
-                    disabled={isSubmittingJob}
+                    disabled={isSubmittingJob || uploadingImages}
                     className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    disabled={isSubmittingJob}
+                    disabled={isSubmittingJob || uploadingImages}
                     className="flex-1 px-6 py-3 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 transition-colors disabled:opacity-50 flex items-center justify-center"
                   >
-                    {isSubmittingJob ? (
+                    {isSubmittingJob || uploadingImages ? (
                       <>
                         <svg
                           className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
@@ -2405,7 +3172,7 @@ const MyRequestsPage = () => {
                             d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                           />
                         </svg>
-                        Posting...
+                        {uploadingImages ? "Uploading images..." : "Posting..."}
                       </>
                     ) : (
                       "Post Job"
@@ -2413,6 +3180,63 @@ const MyRequestsPage = () => {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Full Image Viewer Modal */}
+      {fullImageView && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <button
+                onClick={() => setFullImageView(null)}
+                className="flex items-center text-gray-600 hover:text-gray-900 transition-colors"
+              >
+                <svg
+                  className="w-5 h-5 mr-2"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15 19l-7-7 7-7"
+                  />
+                </svg>
+                Back to Details
+              </button>
+              <button
+                onClick={() => setFullImageView(null)}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            {/* Image Content */}
+            <div className="flex-1 overflow-auto p-6 bg-gray-50 flex items-center justify-center">
+              <img
+                src={fullImageView}
+                alt="Full size view"
+                className="max-w-full max-h-full object-contain rounded-lg"
+              />
             </div>
           </div>
         </div>

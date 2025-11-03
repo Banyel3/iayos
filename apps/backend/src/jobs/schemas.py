@@ -9,7 +9,7 @@ class CreateJobPostingSchema(Schema):
     budget: float
     location: str
     expected_duration: Optional[str] = None
-    urgency: str  # LOW, MEDIUM, HIGH
+    urgency: Optional[str] = "MEDIUM"  # LOW, MEDIUM, HIGH (default MEDIUM)
     preferred_start_date: Optional[str] = None
     materials_needed: Optional[list[str]] = []
 

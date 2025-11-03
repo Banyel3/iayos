@@ -33,7 +33,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         
         await self.channel_layer.group_add(self.room_group_name, self.channel_name)
         await self.accept()
-        print(f"[WebSocket] ✅ Connection accepted for user {self.user.username}")
+        print(f"[WebSocket] ✅ Connection accepted for user {self.user.email}")
 
     async def disconnect(self, close_code):
         if hasattr(self, 'room_group_name'):
@@ -41,12 +41,20 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
     async def receive(self, text_data):
         try:
+            print(f"[WebSocket] 📩 Received data: {text_data}")
             data = json.loads(text_data)
             message_text = data.get('message', '')
             message_type = data.get('type', 'TEXT')
+            print(f"[WebSocket] Message text: '{message_text}', type: {message_type}")
+            
             if not message_text:
+                print("[WebSocket] ⚠️ Empty message, skipping")
                 return
+            
+            print(f"[WebSocket] 💾 Saving message to database...")
             message = await self.save_message(message_text, message_type)
+            print(f"[WebSocket] ✅ Message saved with ID: {message.messageID}")
+            
             await self.channel_layer.group_send(
                 self.room_group_name,
                 {
@@ -63,10 +71,13 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     }
                 }
             )
-        except json.JSONDecodeError:
-            pass
+            print(f"[WebSocket] 📤 Message broadcasted to group")
+        except json.JSONDecodeError as e:
+            print(f"[WebSocket] ❌ JSON decode error: {str(e)}")
         except Exception as e:
-            print(f'Error in receive: {str(e)}')
+            print(f'[WebSocket] ❌ Error in receive: {str(e)}')
+            import traceback
+            traceback.print_exc()
 
     async def chat_message(self, event):
         message = event['message']
@@ -76,7 +87,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
     def verify_conversation_access(self):
         try:
             print(f"[WebSocket] Checking access for user: {self.user}")
-            profile = Profile.objects.get(accountID=self.user)
+            profile = Profile.objects.get(accountFK=self.user)
             print(f"[WebSocket] Found profile: {profile.profileID}")
             
             conversation = Conversation.objects.get(conversationID=self.conversation_id)
@@ -99,7 +110,27 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def save_message(self, message_text, message_type):
-        profile = Profile.objects.get(accountID=self.user)
-        conversation = Conversation.objects.get(conversationID=self.conversation_id)
-        message = Message.objects.create(conversationID=conversation, sender=profile, messageText=message_text, messageType=message_type, isRead=False)
-        return message
+        try:
+            print(f"[WebSocket] 🔍 Looking up profile for user: {self.user.email}")
+            profile = Profile.objects.get(accountFK=self.user)
+            print(f"[WebSocket] ✅ Found profile: {profile.profileID}")
+            
+            print(f"[WebSocket] 🔍 Looking up conversation: {self.conversation_id}")
+            conversation = Conversation.objects.get(conversationID=self.conversation_id)
+            print(f"[WebSocket] ✅ Found conversation: {conversation.conversationID}")
+            
+            print(f"[WebSocket] 💾 Creating message...")
+            message = Message.objects.create(
+                conversationID=conversation, 
+                sender=profile, 
+                messageText=message_text, 
+                messageType=message_type, 
+                isRead=False
+            )
+            print(f"[WebSocket] ✅ Message created with ID: {message.messageID}")
+            return message
+        except Exception as e:
+            print(f"[WebSocket] ❌ Error saving message: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            raise

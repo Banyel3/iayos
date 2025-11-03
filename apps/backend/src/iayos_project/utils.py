@@ -10,13 +10,41 @@ def upload_file(file, bucket: str, path: str, public: bool = True, custom_name: 
     file.seek(0)
     file_bytes = file.read()
 
-    result = settings.SUPABASE.storage.from_(bucket).upload(full_path, file_bytes)
-    if not result:
+    try:
+        # Upload with upsert option to overwrite if file exists
+        result = settings.SUPABASE.storage.from_(bucket).upload(
+            full_path, 
+            file_bytes,
+            {"upsert": "true"}
+        )
+        print(f"📤 Upload result for {full_path}: {result}")
+        
+        # Supabase Python client returns different structures
+        # On success, it might return the path or a dict with 'path' key
+        # On error, it returns a dict with 'error' key
+        if result:
+            # Check if it's an error response
+            if isinstance(result, dict) and 'error' in result:
+                print(f"❌ Upload failed with error: {result.get('error')}")
+                return None
+            
+            # Success - get public URL
+            if public:
+                public_url = settings.SUPABASE.storage.from_(bucket).get_public_url(full_path)
+                # Remove trailing '?' if present (Supabase SDK sometimes adds this)
+                if public_url and public_url.endswith('?'):
+                    public_url = public_url.rstrip('?')
+                print(f"🔗 Public URL generated: {public_url}")
+                return public_url
+            return full_path
+        else:
+            print(f"❌ Upload returned falsy result: {result}")
+            return None
+    except Exception as e:
+        print(f"❌ Upload exception: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return None
-
-    if public:
-        return settings.SUPABASE.storage.from_(bucket).get_public_url(full_path)
-    return full_path
 
 def upload_profile_image(file, user_id, custom_name=None):
     """
