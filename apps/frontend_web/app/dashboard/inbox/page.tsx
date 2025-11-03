@@ -46,6 +46,10 @@ const InboxPage = () => {
   >("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedChat, setSelectedChat] = useState<Message | null>(null);
+  const [conversations, setConversations] = useState<Message[]>([]);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [isLoadingConversations, setIsLoadingConversations] = useState(false);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
 
   // Use the worker availability hook
   const isWorker = user?.profile_data?.profileType === "WORKER";
@@ -62,6 +66,20 @@ const InboxPage = () => {
     }
   }, [isAuthenticated, isLoading, router]);
 
+  // TODO: Fetch conversations from API
+  useEffect(() => {
+    if (isAuthenticated) {
+      // fetchConversations();
+    }
+  }, [isAuthenticated]);
+
+  // TODO: Fetch messages when chat is selected
+  useEffect(() => {
+    if (selectedChat) {
+      // fetchMessages(selectedChat.id);
+    }
+  }, [selectedChat]);
+
   // Loading state
   if (isLoading) {
     return (
@@ -76,88 +94,8 @@ const InboxPage = () => {
 
   if (!isAuthenticated) return null;
 
-  // Mock data for messages
-  const messages: Message[] = [
-    {
-      id: "1",
-      name: "Jake Morris",
-      avatar: "/worker1.jpg",
-      message: "You: Negotiated ₱450",
-      time: "1hr ago",
-      isUnread: true,
-      type: "general",
-    },
-    {
-      id: "2",
-      name: "Jane Martha",
-      avatar: "/worker2.jpg",
-      message: "You: San po exact loc?",
-      time: "2hrs ago",
-      isUnread: false,
-      type: "invite",
-    },
-    {
-      id: "3",
-      name: "Luiz Ramon",
-      avatar: "/worker3.jpg",
-      message: "Kaya lang po ba",
-      time: "1hr ago",
-      isUnread: false,
-      type: "application",
-    },
-    {
-      id: "4",
-      name: "Crissy Santos",
-      avatar: "/worker1.jpg",
-      message: "Hi, pwede po ba bukas?",
-      time: "3hr ago",
-      isUnread: false,
-      type: "general",
-    },
-    {
-      id: "5",
-      name: "John Luis",
-      avatar: "/worker2.jpg",
-      message: "You: San po exact loc?",
-      time: "23+ ago",
-      isUnread: true,
-      type: "application",
-    },
-  ];
-
-  // Mock chat messages for selected conversation
-  const mockChatMessages: ChatMessage[] = selectedChat
-    ? [
-        {
-          id: "1",
-          sender: "other",
-          message: "Hi livro, San po",
-          time: "10:00 AM",
-        },
-        {
-          id: "2",
-          sender: "me",
-          message: "Hi! maam, avail po ako to repair",
-          time: "10:01 AM",
-        },
-        {
-          id: "3",
-          sender: "other",
-          message:
-            "Tnx sir, pasilbi na lang po location at number ng boss na magpagawa ng aircon",
-          time: "10:05 AM",
-        },
-        {
-          id: "4",
-          sender: "me",
-          message: "Sige po maam, punta na po ako",
-          time: "10:06 AM",
-        },
-      ]
-    : [];
-
   // Filter messages based on active tab and search query
-  const filteredMessages = messages.filter((message) => {
+  const filteredMessages = conversations.filter((message) => {
     const matchesSearch =
       message.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       message.message.toLowerCase().includes(searchQuery.toLowerCase());
@@ -381,95 +319,52 @@ const InboxPage = () => {
           {/* Chat Content Area */}
           {selectedChat ? (
             <div className="flex-1 flex flex-col relative">
-              {/* Request Info Banner */}
-              <div className="bg-gray-50 p-4 border-b border-gray-200 flex-shrink-0 relative z-10">
-                <div className="text-center">
-                  <p className="text-xs text-gray-600 mb-1">
-                    Your request is Pending
-                  </p>
-                  <h3 className="text-sm font-semibold text-gray-900 mb-1">
-                    Ceiling Fan Repair for ₱280
-                  </h3>
-                  <p className="text-xs text-gray-500 mb-3">
-                    Payment via GCash
-                  </p>
-                  <button className="bg-blue-500 text-white px-6 py-2 rounded-full text-xs font-medium hover:bg-blue-600 transition-colors">
-                    Waiting for Approval from Client
-                  </button>
-                  <button className="text-blue-500 text-xs font-medium mt-2 hover:underline block mx-auto">
-                    View Details →
-                  </button>
-                </div>
-              </div>
+              {/* TODO: Job/Request Info Banner - will be populated from API */}
 
               {/* Messages - Scrollable Area */}
               <div className="flex-1 overflow-y-auto p-6 pb-24 space-y-4 bg-gray-50">
-                {mockChatMessages.map((msg) => (
-                  <div
-                    key={msg.id}
-                    className={`flex ${
-                      msg.sender === "me" ? "justify-end" : "justify-start"
-                    }`}
-                  >
-                    {msg.sender === "other" && (
-                      <Image
-                        src={selectedChat.avatar}
-                        alt={selectedChat.name}
-                        width={32}
-                        height={32}
-                        className="w-8 h-8 rounded-full object-cover mr-2 flex-shrink-0"
-                      />
-                    )}
-                    <div
-                      className={`max-w-xs lg:max-w-md xl:max-w-lg ${
-                        msg.sender === "me"
-                          ? "bg-green-500 text-white"
-                          : "bg-white text-gray-900"
-                      } rounded-2xl px-4 py-2 shadow-sm`}
-                    >
-                      <p className="text-sm">{msg.message}</p>
+                {isLoadingMessages ? (
+                  <div className="flex justify-center items-center h-full">
+                    <div className="w-6 h-6 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                  </div>
+                ) : chatMessages.length > 0 ? (
+                  <>
+                    {chatMessages.map((msg) => (
+                      <div
+                        key={msg.id}
+                        className={`flex ${
+                          msg.sender === "me" ? "justify-end" : "justify-start"
+                        }`}
+                      >
+                        {msg.sender === "other" && (
+                          <Image
+                            src={selectedChat.avatar}
+                            alt={selectedChat.name}
+                            width={32}
+                            height={32}
+                            className="w-8 h-8 rounded-full object-cover mr-2 flex-shrink-0"
+                          />
+                        )}
+                        <div
+                          className={`max-w-xs lg:max-w-md xl:max-w-lg ${
+                            msg.sender === "me"
+                              ? "bg-green-500 text-white"
+                              : "bg-white text-gray-900"
+                          } rounded-2xl px-4 py-2 shadow-sm`}
+                        >
+                          <p className="text-sm">{msg.message}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                ) : (
+                  <div className="flex justify-center items-center h-full">
+                    <div className="text-center text-gray-500">
+                      <p className="text-sm">No messages yet</p>
+                      <p className="text-xs mt-1">Start the conversation!</p>
                     </div>
                   </div>
-                ))}
-
-                {/* Jane accepted message */}
-                <div className="text-center">
-                  <p className="text-xs text-gray-500 italic">
-                    Jane accepted your application.
-                  </p>
-                </div>
-
-                {/* Address Card */}
-                <div className="flex justify-start">
-                  <div className="bg-green-500 text-white rounded-2xl px-4 py-3 shadow-sm max-w-xs">
-                    <p className="text-sm font-semibold mb-1">
-                      #145, Jalon Street, Sta. Maria
-                    </p>
-                    <p className="text-xs">(near Jollibee, blue gate)</p>
-                    <button className="mt-2 bg-white text-green-600 px-3 py-1 rounded-full text-xs font-medium flex items-center">
-                      <svg
-                        className="w-3 h-3 mr-1"
-                        fill="currentColor"
-                        viewBox="0 0 20 20"
-                      >
-                        <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" />
-                      </svg>
-                      09123456789
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex justify-start">
-                  <div className="bg-green-500 text-white rounded-2xl px-4 py-2 shadow-sm">
-                    <p className="text-sm">Pwede kaya po kayo here na po</p>
-                  </div>
-                </div>
-
-                <div className="flex justify-end">
-                  <div className="bg-gray-200 text-gray-700 rounded-2xl px-4 py-2 shadow-sm">
-                    <p className="text-sm">Sige po maam, punta na po ako</p>
-                  </div>
-                </div>
+                )}
               </div>
 
               {/* Message Input - Sticky at Bottom */}

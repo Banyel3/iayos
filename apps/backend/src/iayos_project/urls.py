@@ -19,7 +19,6 @@ api.add_router("/adminpanel/", adminpanel_router)
 api.add_router("/profiles/", profiles_router)
 api.add_router("/agency/", agency_router)
 api.add_router("/jobs/", jobs_router)
-# api.add_router("/agencies/", agencies_router)
 
 urlpatterns = [
     path("admin/", admin.site.urls),

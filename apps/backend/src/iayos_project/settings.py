@@ -42,7 +42,7 @@ ALLOWED_HOSTS = []
 # Application definition
 
 INSTALLED_APPS = [
-    'daphne',  # Must be first for Channels
+    'daphne',  # Must be first for Django Channels
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -254,7 +254,7 @@ XENDIT_TEST_MODE = True  # Always True for development
 # Frontend URL for redirects
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
-# Channels Configuration
+# Django Channels Configuration
 ASGI_APPLICATION = "iayos_project.asgi.application"
 
 CHANNEL_LAYERS = {
@@ -262,3 +262,6 @@ CHANNEL_LAYERS = {
         "BACKEND": "channels.layers.InMemoryChannelLayer"
     },
 }
+
+# Frontend URL for redirects
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
