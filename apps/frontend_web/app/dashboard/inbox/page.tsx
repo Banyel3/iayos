@@ -20,21 +20,46 @@ interface InboxUser extends User {
   };
 }
 
-interface Message {
-  id: string;
+// API Response interfaces matching backend
+interface JobInfo {
+  id: number;
+  title: string;
+  status: string;
+  budget: number;
+  location: string;
+}
+
+interface OtherParticipant {
+  profile_id: number;
   name: string;
-  avatar: string;
-  message: string;
-  time: string;
-  isUnread: boolean;
-  type: "invite" | "application" | "general";
+  avatar: string | null;
+  profile_type: string;
+  city: string | null;
+}
+
+interface Conversation {
+  id: number;
+  job: JobInfo;
+  other_participant: OtherParticipant;
+  my_role: "CLIENT" | "WORKER";
+  last_message: string | null;
+  last_message_time: string | null;
+  last_message_sender_id: number | null;
+  unread_count: number;
+  status: string;
+  created_at: string;
 }
 
 interface ChatMessage {
-  id: string;
-  sender: "me" | "other";
-  message: string;
-  time: string;
+  id: number;
+  sender_id: number;
+  sender_name: string;
+  sender_avatar: string | null;
+  message_text: string;
+  message_type: string;
+  is_read: boolean;
+  created_at: string;
+  is_mine: boolean;
 }
 
 const InboxPage = () => {
@@ -45,8 +70,8 @@ const InboxPage = () => {
     "all" | "invites" | "applications"
   >("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedChat, setSelectedChat] = useState<Message | null>(null);
-  const [conversations, setConversations] = useState<Message[]>([]);
+  const [selectedChat, setSelectedChat] = useState<Conversation | null>(null);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isLoadingConversations, setIsLoadingConversations] = useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
@@ -94,18 +119,15 @@ const InboxPage = () => {
 
   if (!isAuthenticated) return null;
 
-  // Filter messages based on active tab and search query
-  const filteredMessages = conversations.filter((message) => {
+  // Filter conversations based on active tab and search query
+  const filteredMessages = conversations.filter((conv) => {
     const matchesSearch =
-      message.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      message.message.toLowerCase().includes(searchQuery.toLowerCase());
+      conv.other_participant.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      conv.job.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (conv.last_message && conv.last_message.toLowerCase().includes(searchQuery.toLowerCase()));
 
-    if (activeTab === "all") return matchesSearch;
-    if (activeTab === "invites")
-      return matchesSearch && message.type === "invite";
-    if (activeTab === "applications")
-      return matchesSearch && message.type === "application";
-
+    // TODO: Filter by type (invites/applications) when that data is available
+    // For now, show all that match search
     return matchesSearch;
   });
 
@@ -198,27 +220,31 @@ const InboxPage = () => {
 
           {/* Chat List */}
           <div className="flex-1 overflow-y-auto">
-            {filteredMessages.length > 0 ? (
+            {isLoadingConversations ? (
+              <div className="flex justify-center items-center h-full">
+                <div className="w-6 h-6 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+              </div>
+            ) : filteredMessages.length > 0 ? (
               <div>
-                {filteredMessages.map((message) => (
+                {filteredMessages.map((conv) => (
                   <div
-                    key={message.id}
-                    onClick={() => setSelectedChat(message)}
+                    key={conv.id}
+                    onClick={() => setSelectedChat(conv)}
                     className={`p-4 border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer ${
-                      selectedChat?.id === message.id ? "bg-blue-50" : ""
+                      selectedChat?.id === conv.id ? "bg-blue-50" : ""
                     }`}
                   >
                     <div className="flex items-start space-x-3">
                       {/* Avatar */}
                       <div className="relative flex-shrink-0">
                         <Image
-                          src={message.avatar}
-                          alt={message.name}
+                          src={conv.other_participant.avatar || "/worker1.jpg"}
+                          alt={conv.other_participant.name}
                           width={40}
                           height={40}
                           className="w-10 h-10 rounded-full object-cover"
                         />
-                        {message.isUnread && (
+                        {conv.unread_count > 0 && (
                           <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full border-2 border-white"></div>
                         )}
                       </div>
@@ -228,25 +254,28 @@ const InboxPage = () => {
                         <div className="flex items-start justify-between mb-1">
                           <h3
                             className={`text-sm font-medium truncate ${
-                              message.isUnread
+                              conv.unread_count > 0
                                 ? "text-gray-900"
                                 : "text-gray-700"
                             }`}
                           >
-                            {message.name}
+                            {conv.other_participant.name}
                           </h3>
                           <span className="text-xs text-gray-500 ml-2 flex-shrink-0">
-                            {message.time}
+                            {conv.last_message_time ? new Date(conv.last_message_time).toLocaleDateString() : ""}
                           </span>
                         </div>
+                        <p className="text-xs text-gray-600 mb-1 truncate">
+                          {conv.job.title}
+                        </p>
                         <p
                           className={`text-xs truncate ${
-                            message.isUnread
+                            conv.unread_count > 0
                               ? "text-gray-700 font-medium"
                               : "text-gray-500"
                           }`}
                         >
-                          {message.message}
+                          {conv.last_message || "No messages yet"}
                         </p>
                       </div>
                     </div>
@@ -294,15 +323,15 @@ const InboxPage = () => {
             {selectedChat && (
               <div className="flex items-center space-x-3 flex-1 justify-center">
                 <Image
-                  src={selectedChat.avatar}
-                  alt={selectedChat.name}
+                  src={selectedChat.other_participant.avatar || "/worker1.jpg"}
+                  alt={selectedChat.other_participant.name}
                   width={32}
                   height={32}
                   className="w-8 h-8 rounded-full object-cover"
                 />
                 <div>
                   <h2 className="text-sm font-semibold text-gray-900">
-                    {selectedChat.name}
+                    {selectedChat.other_participant.name}
                   </h2>
                   <p className="text-xs text-green-500 flex items-center">
                     <span className="w-2 h-2 bg-green-500 rounded-full mr-1"></span>
@@ -319,7 +348,37 @@ const InboxPage = () => {
           {/* Chat Content Area */}
           {selectedChat ? (
             <div className="flex-1 flex flex-col relative">
-              {/* TODO: Job/Request Info Banner - will be populated from API */}
+              {/* Job/Request Info Banner - Dynamic based on conversation job */}
+              <div className="bg-gray-50 p-4 border-b border-gray-200 flex-shrink-0 relative z-10">
+                <div className="text-center">
+                  <p className="text-xs text-gray-600 mb-1">
+                    Job Status: {selectedChat.job.status}
+                  </p>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-1">
+                    {selectedChat.job.title}
+                  </h3>
+                  <p className="text-xs text-gray-500 mb-3">
+                    Budget: ₱{selectedChat.job.budget.toFixed(2)} • {selectedChat.job.location}
+                  </p>
+                  <div className="flex justify-center items-center space-x-2">
+                    <span className={`px-4 py-2 rounded-full text-xs font-medium ${
+                      selectedChat.job.status === 'IN_PROGRESS' 
+                        ? 'bg-blue-100 text-blue-700'
+                        : selectedChat.job.status === 'COMPLETED'
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-yellow-100 text-yellow-700'
+                    }`}>
+                      {selectedChat.my_role === "CLIENT" ? "Your Request" : "Your Job"}
+                    </span>
+                  </div>
+                  <button 
+                    onClick={() => router.push(`/jobs/${selectedChat.job.id}`)}
+                    className="text-blue-500 text-xs font-medium mt-2 hover:underline block mx-auto"
+                  >
+                    View Job Details →
+                  </button>
+                </div>
+              </div>
 
               {/* Messages - Scrollable Area */}
               <div className="flex-1 overflow-y-auto p-6 pb-24 space-y-4 bg-gray-50">
@@ -333,13 +392,13 @@ const InboxPage = () => {
                       <div
                         key={msg.id}
                         className={`flex ${
-                          msg.sender === "me" ? "justify-end" : "justify-start"
+                          msg.is_mine ? "justify-end" : "justify-start"
                         }`}
                       >
-                        {msg.sender === "other" && (
+                        {!msg.is_mine && (
                           <Image
-                            src={selectedChat.avatar}
-                            alt={selectedChat.name}
+                            src={selectedChat.other_participant.avatar || "/worker1.jpg"}
+                            alt={selectedChat.other_participant.name}
                             width={32}
                             height={32}
                             className="w-8 h-8 rounded-full object-cover mr-2 flex-shrink-0"
@@ -347,12 +406,15 @@ const InboxPage = () => {
                         )}
                         <div
                           className={`max-w-xs lg:max-w-md xl:max-w-lg ${
-                            msg.sender === "me"
+                            msg.is_mine
                               ? "bg-green-500 text-white"
                               : "bg-white text-gray-900"
                           } rounded-2xl px-4 py-2 shadow-sm`}
                         >
-                          <p className="text-sm">{msg.message}</p>
+                          <p className="text-sm">{msg.message_text}</p>
+                          <p className="text-xs mt-1 opacity-70">
+                            {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </p>
                         </div>
                       </div>
                     ))}
@@ -479,23 +541,28 @@ const InboxPage = () => {
 
         <div className="px-4 mt-4">
           <div className="bg-white rounded-lg shadow-sm border border-gray-100">
-            {filteredMessages.length > 0 ? (
+            {isLoadingConversations ? (
+              <div className="flex justify-center items-center p-8">
+                <div className="w-6 h-6 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+              </div>
+            ) : filteredMessages.length > 0 ? (
               <div className="divide-y divide-gray-100">
-                {filteredMessages.map((message) => (
+                {filteredMessages.map((conv) => (
                   <div
-                    key={message.id}
+                    key={conv.id}
+                    onClick={() => router.push(`/dashboard/inbox/${conv.id}`)}
                     className="p-4 hover:bg-gray-50 transition-colors cursor-pointer"
                   >
                     <div className="flex items-center space-x-3">
                       <div className="relative">
                         <Image
-                          src={message.avatar}
-                          alt={message.name}
+                          src={conv.other_participant.avatar || "/worker1.jpg"}
+                          alt={conv.other_participant.name}
                           width={40}
                           height={40}
                           className="w-10 h-10 rounded-full object-cover"
                         />
-                        {message.isUnread && (
+                        {conv.unread_count > 0 && (
                           <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full border-2 border-white"></div>
                         )}
                       </div>
@@ -504,29 +571,32 @@ const InboxPage = () => {
                         <div className="flex items-center justify-between mb-1">
                           <h3
                             className={`text-sm font-medium truncate ${
-                              message.isUnread
+                              conv.unread_count > 0
                                 ? "text-gray-900"
                                 : "text-gray-700"
                             }`}
                           >
-                            {message.name}
+                            {conv.other_participant.name}
                           </h3>
                           <span className="text-xs text-gray-500 flex-shrink-0">
-                            {message.time}
+                            {conv.last_message_time ? new Date(conv.last_message_time).toLocaleDateString() : ""}
                           </span>
                         </div>
+                        <p className="text-xs text-gray-600 mb-1 truncate">
+                          {conv.job.title}
+                        </p>
                         <p
                           className={`text-xs truncate ${
-                            message.isUnread
+                            conv.unread_count > 0
                               ? "text-gray-700 font-medium"
                               : "text-gray-500"
                           }`}
                         >
-                          {message.message}
+                          {conv.last_message || "No messages yet"}
                         </p>
                       </div>
 
-                      {message.isUnread && (
+                      {conv.unread_count > 0 && (
                         <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></div>
                       )}
                     </div>
