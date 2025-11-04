@@ -10,12 +10,15 @@ import DesktopNavbar from "@/components/ui/desktop-sidebar";
 import NotificationBell from "@/components/notifications/NotificationBell";
 import { useWorkerAvailability } from "@/lib/hooks/useWorkerAvailability";
 import { useWebSocket } from "@/lib/hooks/useWebSocket";
+import { Conversation, ChatMessage } from "@/lib/api/chat";
 import {
-  fetchConversations,
-  fetchMessages,
-  Conversation,
-  ChatMessage,
-} from "@/lib/api/chat";
+  useConversations,
+  useConversationMessages,
+  useMarkJobComplete,
+  useApproveJobCompletion,
+  useSubmitReview,
+  useOptimisticMessageUpdate,
+} from "@/lib/hooks/useInboxQueries";
 
 // Extended User interface for inbox page
 interface InboxUser extends User {
@@ -34,12 +37,23 @@ const InboxPage = () => {
   const [activeTab, setActiveTab] = useState<"all" | "unread">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedChat, setSelectedChat] = useState<Conversation | null>(null);
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [isLoadingConversations, setIsLoadingConversations] = useState(false);
-  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [messageInput, setMessageInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // React Query hooks
+  const { data: conversations = [], isLoading: isLoadingConversations } =
+    useConversations();
+  const { data: messagesData, isLoading: isLoadingMessages } =
+    useConversationMessages(selectedChat?.id || null);
+
+  const chatMessages = messagesData?.messages || [];
+  const conversationData = messagesData?.conversation;
+
+  // Mutations
+  const markCompleteMutation = useMarkJobComplete();
+  const approveCompletionMutation = useApproveJobCompletion();
+  const submitReviewMutation = useSubmitReview();
+  const optimisticUpdate = useOptimisticMessageUpdate();
 
   // Job details modal state
   const [showJobDetailsModal, setShowJobDetailsModal] = useState(false);
@@ -49,9 +63,10 @@ const InboxPage = () => {
 
   // Review modal state
   const [showReviewModal, setShowReviewModal] = useState(false);
-  const [reviewRating, setReviewRating] = useState(5);
-  const [reviewComment, setReviewComment] = useState("");
-  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [reviewRating, setReviewRating] = useState(0);
+  const [reviewMessage, setReviewMessage] = useState("");
+  const [hasSubmittedReview, setHasSubmittedReview] = useState(false);
+  const hasShownReviewModalRef = useRef(false); // Track if we've already shown the modal for this job
 
   // WebSocket connection for real-time messaging
   const handleWebSocketMessage = useCallback(
@@ -157,51 +172,197 @@ const InboxPage = () => {
     }
   }, [isAuthenticated, isLoading, router]);
 
-  // Fetch conversations from API
-  const loadConversations = useCallback(async () => {
-    if (!isAuthenticated) return;
+  // Fetch conversations from API with caching
+  const loadConversations = useCallback(
+    async (forceRefresh = false) => {
+      if (!isAuthenticated) return;
 
-    setIsLoadingConversations(true);
-    try {
-      const convs = await fetchConversations();
-      setConversations(convs);
-      console.log("✅ Loaded conversations:", convs.length);
-    } catch (error) {
-      console.error("❌ Failed to load conversations:", error);
-    } finally {
-      setIsLoadingConversations(false);
-    }
-  }, [isAuthenticated]);
+      // Check sessionStorage cache first (unless force refresh)
+      if (!forceRefresh) {
+        const cached = sessionStorage.getItem("inbox_conversations");
+        const cacheTime = sessionStorage.getItem("inbox_conversations_time");
+
+        if (cached && cacheTime) {
+          const age = Date.now() - parseInt(cacheTime);
+          // Use cache if less than 2 minutes old
+          if (age < 120000) {
+            try {
+              const parsedConversations = JSON.parse(cached);
+              setConversations(parsedConversations);
+              console.log(
+                "✅ Loaded conversations from cache:",
+                parsedConversations.length
+              );
+              return;
+            } catch (e) {
+              console.warn("Failed to parse cached conversations");
+            }
+          }
+        }
+      }
+
+      setIsLoadingConversations(true);
+      try {
+        const convs = await fetchConversations();
+        setConversations(convs);
+
+        // Cache in sessionStorage
+        sessionStorage.setItem("inbox_conversations", JSON.stringify(convs));
+        sessionStorage.setItem(
+          "inbox_conversations_time",
+          Date.now().toString()
+        );
+
+        console.log("✅ Loaded conversations from API:", convs.length);
+      } catch (error) {
+        console.error("❌ Failed to load conversations:", error);
+      } finally {
+        setIsLoadingConversations(false);
+      }
+    },
+    [isAuthenticated]
+  );
 
   useEffect(() => {
     loadConversations();
   }, [loadConversations]);
 
-  // Fetch messages when chat is selected
-  const loadMessages = useCallback(async (conversationId: number) => {
-    setIsLoadingMessages(true);
-    try {
-      const { messages, conversation } = await fetchMessages(conversationId);
-      setChatMessages(messages);
-      console.log("✅ Loaded messages:", messages.length);
+  // Fetch messages when chat is selected - with caching
+  const loadMessages = useCallback(
+    async (conversationId: number, forceRefresh = false) => {
+      // Check if we have cached messages and they're recent
+      const cachedMessages = messagesCacheRef.current.get(conversationId);
+      const cachedData = conversationDataCacheRef.current.get(conversationId);
+      const lastFetch = lastFetchTimeRef.current.get(conversationId) || 0;
+      const timeSinceLastFetch = Date.now() - lastFetch;
 
-      // Auto-scroll to bottom
-      setTimeout(
-        () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }),
-        100
+      // Use cache if:
+      // 1. Not force refresh
+      // 2. We have cached data
+      // 3. Last fetch was less than 30 seconds ago
+      if (
+        !forceRefresh &&
+        cachedMessages &&
+        cachedData &&
+        timeSinceLastFetch < 30000
+      ) {
+        console.log(
+          "✅ Using cached messages for conversation:",
+          conversationId
+        );
+        setChatMessages(cachedMessages);
+
+        // Update selected chat with cached data
+        setSelectedChat((prev) => {
+          if (!prev || prev.id !== conversationId) return prev;
+          return {
+            ...prev,
+            job: {
+              ...prev.job,
+              ...cachedData.job,
+            },
+          };
+        });
+
+        // Update review status
+        const myRole = cachedData.my_role;
+        const hasReviewed =
+          myRole === "WORKER"
+            ? cachedData.job?.workerReviewed
+            : cachedData.job?.clientReviewed;
+        setHasSubmittedReview(hasReviewed || false);
+
+        // Auto-scroll to bottom
+        setTimeout(
+          () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }),
+          100
+        );
+        return;
+      }
+
+      // Fetch fresh data
+      setIsLoadingMessages(true);
+      setIsLoadingReviewStatus(true);
+      try {
+        const { messages, conversation } = await fetchMessages(conversationId);
+        setChatMessages(messages);
+
+        // Cache the messages and conversation data
+        messagesCacheRef.current.set(conversationId, messages);
+        conversationDataCacheRef.current.set(conversationId, conversation);
+        lastFetchTimeRef.current.set(conversationId, Date.now());
+
+        console.log("✅ Loaded messages from API:", messages.length);
+
+        // Update the selected chat with fresh conversation data including review status
+        if (conversation) {
+          setSelectedChat((prev) => {
+            if (!prev || prev.id !== conversationId) return prev;
+
+            return {
+              ...prev,
+              job: {
+                ...prev.job,
+                ...conversation.job, // Update with fresh job data including review status
+              },
+            };
+          });
+
+          // Update review status based on fresh data from server
+          const myRole = conversation.my_role;
+          const hasReviewed =
+            myRole === "WORKER"
+              ? conversation.job?.workerReviewed
+              : conversation.job?.clientReviewed;
+          setHasSubmittedReview(hasReviewed || false);
+        }
+
+        // Auto-scroll to bottom
+        setTimeout(
+          () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }),
+          100
+        );
+      } catch (error) {
+        console.error("❌ Failed to load messages:", error);
+      } finally {
+        setIsLoadingMessages(false);
+        setIsLoadingReviewStatus(false);
+      }
+    },
+    []
+  );
+
+  // Check if user has already reviewed this job
+  const checkReviewStatus = useCallback(async (jobId: number) => {
+    try {
+      const response = await fetch(
+        `http://localhost:8000/api/jobs/${jobId}/has-reviewed`,
+        {
+          credentials: "include",
+        }
       );
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setHasSubmittedReview(data.has_reviewed);
+          return data;
+        }
+      }
     } catch (error) {
-      console.error("❌ Failed to load messages:", error);
-    } finally {
-      setIsLoadingMessages(false);
+      console.error("Error checking review status:", error);
     }
+    return null;
   }, []);
 
   useEffect(() => {
     if (selectedChat) {
       loadMessages(selectedChat.id);
+
+      // Reset the modal shown flag when switching to a different job
+      hasShownReviewModalRef.current = false;
     } else {
       setChatMessages([]);
+      setIsLoadingReviewStatus(false);
     }
   }, [selectedChat, loadMessages]);
 
@@ -278,9 +439,10 @@ const InboxPage = () => {
   const handleMarkAsComplete = async () => {
     if (!selectedChat) return;
 
+    setIsMarkingComplete(true);
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/jobs/${selectedChat.job.id}/mark-complete`,
+        `http://localhost:8000/api/jobs/${selectedChat.job.id}/mark-complete`,
         {
           method: "POST",
           headers: {
@@ -292,26 +454,22 @@ const InboxPage = () => {
 
       if (response.ok) {
         const data = await response.json();
-        // Update the job status in the selected chat
+        // Update the job with completion flags
         setSelectedChat((prev) =>
           prev
             ? {
                 ...prev,
-                job: { ...prev.job, status: data.status },
+                job: {
+                  ...prev.job,
+                  workerMarkedComplete: data.worker_marked_complete,
+                  clientMarkedComplete: data.client_marked_complete,
+                },
               }
             : null
         );
-        
-        // Update in conversations list too
-        setConversations((prev) =>
-          prev.map((conv) =>
-            conv.id === selectedChat.id
-              ? { ...conv, job: { ...conv.job, status: data.status } }
-              : conv
-          )
+        alert(
+          data.message || "Job marked as complete! Waiting for client approval."
         );
-        
-        alert("Job marked as complete! Waiting for client approval.");
       } else {
         const error = await response.json();
         alert(error.error || "Failed to mark job as complete");
@@ -319,16 +477,19 @@ const InboxPage = () => {
     } catch (error) {
       console.error("Error marking job as complete:", error);
       alert("An error occurred. Please try again.");
+    } finally {
+      setIsMarkingComplete(false);
     }
   };
 
-  // Handle client approving job completion
+  // Handle client approving completion
   const handleApproveCompletion = async () => {
     if (!selectedChat) return;
 
+    setIsApprovingCompletion(true);
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/jobs/${selectedChat.job.id}/approve-completion`,
+        `http://localhost:8000/api/jobs/${selectedChat.job.id}/approve-completion`,
         {
           method: "POST",
           headers: {
@@ -340,27 +501,22 @@ const InboxPage = () => {
 
       if (response.ok) {
         const data = await response.json();
-        // Update job status to COMPLETED
+        // Update the job status and completion flags
         setSelectedChat((prev) =>
           prev
             ? {
                 ...prev,
-                job: { ...prev.job, status: data.status },
+                job: {
+                  ...prev.job,
+                  status: data.status,
+                  workerMarkedComplete: data.worker_marked_complete,
+                  clientMarkedComplete: data.client_marked_complete,
+                },
               }
             : null
         );
-        
-        // Update in conversations list
-        setConversations((prev) =>
-          prev.map((conv) =>
-            conv.id === selectedChat.id
-              ? { ...conv, job: { ...conv.job, status: data.status } }
-              : conv
-          )
-        );
-        
-        // Show review modal
-        setShowReviewModal(true);
+
+        alert(data.message || "Job completion approved!");
       } else {
         const error = await response.json();
         alert(error.error || "Failed to approve job completion");
@@ -368,21 +524,22 @@ const InboxPage = () => {
     } catch (error) {
       console.error("Error approving job completion:", error);
       alert("An error occurred. Please try again.");
+    } finally {
+      setIsApprovingCompletion(false);
     }
   };
 
   // Handle submitting review
   const handleSubmitReview = async () => {
-    if (!selectedChat || !reviewComment.trim()) {
-      alert("Please provide a comment with your review");
+    if (!selectedChat || reviewRating === 0) {
+      alert("Please select a rating before submitting");
       return;
     }
 
     setIsSubmittingReview(true);
-
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/jobs/${selectedChat.job.id}/review`,
+        `http://localhost:8000/api/jobs/${selectedChat.job.id}/review`,
         {
           method: "POST",
           headers: {
@@ -391,16 +548,36 @@ const InboxPage = () => {
           credentials: "include",
           body: JSON.stringify({
             rating: reviewRating,
-            comment: reviewComment,
+            message: reviewMessage.trim() || null,
           }),
         }
       );
 
       if (response.ok) {
-        alert("Thank you for your review!");
+        const data = await response.json();
+        alert(data.message || "Review submitted successfully!");
         setShowReviewModal(false);
-        setReviewRating(5);
-        setReviewComment("");
+        setReviewRating(0);
+        setReviewMessage("");
+        setHasSubmittedReview(true); // Mark as submitted to prevent re-showing modal
+
+        // Update the conversation data with review status
+        setSelectedChat((prev) => {
+          if (!prev) return null;
+
+          const myRole = prev.my_role;
+          return {
+            ...prev,
+            job: {
+              ...prev.job,
+              status: data.job_completed ? "COMPLETED" : prev.job.status,
+              workerReviewed:
+                myRole === "WORKER" ? true : prev.job.workerReviewed,
+              clientReviewed:
+                myRole === "CLIENT" ? true : prev.job.clientReviewed,
+            },
+          };
+        });
       } else {
         const error = await response.json();
         alert(error.error || "Failed to submit review");
@@ -574,7 +751,10 @@ const InboxPage = () => {
                 {filteredMessages.map((conv) => (
                   <div
                     key={conv.id}
-                    onClick={() => setSelectedChat(conv)}
+                    onClick={() => {
+                      setSelectedChat(conv);
+                      setHasSubmittedReview(false); // Reset review flag when switching conversations
+                    }}
                     className={`p-4 border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer ${
                       selectedChat?.id === conv.id ? "bg-blue-50" : ""
                     }`}
@@ -719,21 +899,23 @@ const InboxPage = () => {
                     <span
                       className={`px-3 py-1 rounded-full text-xs font-medium ${
                         selectedChat.job.status === "IN_PROGRESS"
-                          ? "bg-blue-100 text-blue-700"
+                          ? selectedChat.job.workerMarkedComplete &&
+                            selectedChat.job.clientMarkedComplete
+                            ? "bg-yellow-100 text-yellow-700"
+                            : "bg-blue-100 text-blue-700"
                           : selectedChat.job.status === "COMPLETED"
                             ? "bg-green-100 text-green-700"
-                            : selectedChat.job.status === "PENDING_COMPLETION"
-                              ? "bg-yellow-100 text-yellow-700"
-                              : "bg-gray-100 text-gray-700"
+                            : "bg-gray-100 text-gray-700"
                       }`}
                     >
                       {selectedChat.job.status === "IN_PROGRESS"
-                        ? "🔄 In Progress"
+                        ? selectedChat.job.workerMarkedComplete &&
+                          selectedChat.job.clientMarkedComplete
+                          ? "⏳ Awaiting Reviews"
+                          : "🔄 In Progress"
                         : selectedChat.job.status === "COMPLETED"
-                          ? "✅ Completed"
-                          : selectedChat.job.status === "PENDING_COMPLETION"
-                            ? "⏳ Pending Completion"
-                            : selectedChat.job.status}
+                          ? "✅ Job Completed"
+                          : selectedChat.job.status}
                     </span>
                   </div>
 
@@ -816,85 +998,377 @@ const InboxPage = () => {
                     </button>
                   </div>
 
-                  {/* Job Completion Banner - Only for IN_PROGRESS jobs */}
+                  {/* Job Completion Banner - Two-Phase System */}
                   {selectedChat.job.status === "IN_PROGRESS" && (
-                    <div className="mt-1">
+                    <div className="mt-1 space-y-2">
                       {selectedChat.my_role === "CLIENT" ? (
-                        // Client view - Information only
-                        <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
-                          <div className="flex items-center justify-center space-x-2">
-                            <svg
-                              className="w-4 h-4 text-blue-500 flex-shrink-0"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
+                        // Client view - Show if worker has marked complete
+                        selectedChat.job.workerMarkedComplete ? (
+                          <div>
+                            <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2 mb-2">
+                              <div className="flex items-center space-x-2">
+                                <svg
+                                  className="w-4 h-4 text-green-600 flex-shrink-0"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                                  />
+                                </svg>
+                                <span className="text-xs font-medium text-green-700">
+                                  Worker has marked the job as complete. Please
+                                  review and approve.
+                                </span>
+                              </div>
+                            </div>
+                            <button
+                              onClick={handleApproveCompletion}
+                              disabled={
+                                selectedChat.job.clientMarkedComplete ||
+                                isApprovingCompletion
+                              }
+                              className={`w-full ${
+                                selectedChat.job.clientMarkedComplete ||
+                                isApprovingCompletion
+                                  ? "bg-gray-300 cursor-not-allowed"
+                                  : "bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700"
+                              } text-white shadow-sm hover:shadow transition-all rounded-lg px-4 py-2.5`}
                             >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                              />
-                            </svg>
-                            <span className="text-xs font-medium text-blue-700">
-                              Waiting for worker to complete the job
-                            </span>
+                              <div className="flex items-center justify-center space-x-2">
+                                {isApprovingCompletion ? (
+                                  <svg
+                                    className="animate-spin h-4 w-4 text-white"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <circle
+                                      className="opacity-25"
+                                      cx="12"
+                                      cy="12"
+                                      r="10"
+                                      stroke="currentColor"
+                                      strokeWidth="4"
+                                    ></circle>
+                                    <path
+                                      className="opacity-75"
+                                      fill="currentColor"
+                                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                    ></path>
+                                  </svg>
+                                ) : (
+                                  <svg
+                                    className="w-4 h-4 flex-shrink-0"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth={2}
+                                      d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                                    />
+                                  </svg>
+                                )}
+                                <span className="text-sm font-semibold">
+                                  {isApprovingCompletion
+                                    ? "Approving..."
+                                    : selectedChat.job.clientMarkedComplete
+                                      ? "✓ You Approved Completion"
+                                      : "Approve Job Completion"}
+                                </span>
+                              </div>
+                            </button>
                           </div>
-                        </div>
+                        ) : (
+                          <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+                            <div className="flex items-center justify-center space-x-2">
+                              <svg
+                                className="w-4 h-4 text-blue-500 flex-shrink-0"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                                />
+                              </svg>
+                              <span className="text-xs font-medium text-blue-700">
+                                Waiting for worker to complete the job
+                              </span>
+                            </div>
+                          </div>
+                        )
                       ) : (
-                        // Worker view - Action button
-                        <button
-                          onClick={handleMarkAsComplete}
-                          className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-sm hover:shadow transition-all rounded-lg px-4 py-2.5"
-                        >
-                          <div className="flex items-center justify-center space-x-2">
-                            <svg
-                              className="w-4 h-4 flex-shrink-0"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                              />
-                            </svg>
-                            <span className="text-sm font-semibold">
-                              Mark Job as Complete
-                            </span>
-                          </div>
-                        </button>
+                        // Worker view - Mark complete button
+                        <div className="space-y-2">
+                          <button
+                            onClick={handleMarkAsComplete}
+                            disabled={
+                              selectedChat.job.workerMarkedComplete ||
+                              isMarkingComplete
+                            }
+                            className={`w-full ${
+                              selectedChat.job.workerMarkedComplete ||
+                              isMarkingComplete
+                                ? "bg-gray-300 cursor-not-allowed"
+                                : "bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700"
+                            } text-white shadow-sm hover:shadow transition-all rounded-lg px-4 py-2.5`}
+                          >
+                            <div className="flex items-center justify-center space-x-2">
+                              {isMarkingComplete ? (
+                                <svg
+                                  className="animate-spin h-4 w-4 text-white"
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <circle
+                                    className="opacity-25"
+                                    cx="12"
+                                    cy="12"
+                                    r="10"
+                                    stroke="currentColor"
+                                    strokeWidth="4"
+                                  ></circle>
+                                  <path
+                                    className="opacity-75"
+                                    fill="currentColor"
+                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                  ></path>
+                                </svg>
+                              ) : (
+                                <svg
+                                  className="w-4 h-4 flex-shrink-0"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                                  />
+                                </svg>
+                              )}
+                              <span className="text-sm font-semibold">
+                                {isMarkingComplete
+                                  ? "Marking Complete..."
+                                  : selectedChat.job.workerMarkedComplete
+                                    ? "✓ You Marked as Complete"
+                                    : "Mark Job as Complete"}
+                              </span>
+                            </div>
+                          </button>
+                          {selectedChat.job.workerMarkedComplete && (
+                            <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2">
+                              <div className="flex items-center justify-center space-x-2">
+                                <svg
+                                  className="w-4 h-4 text-yellow-600 flex-shrink-0"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                                  />
+                                </svg>
+                                <span className="text-xs font-medium text-yellow-700">
+                                  Waiting for client to approve completion
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
                   )}
 
-                  {/* Job Pending Completion Banner */}
-                  {selectedChat.job.status === "PENDING_COMPLETION" && (
-                    <div className="mt-1 bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2">
-                      <div className="flex items-center justify-center space-x-2">
-                        <svg
-                          className="w-4 h-4 text-yellow-600 flex-shrink-0"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                          />
-                        </svg>
-                        <span className="text-xs font-medium text-yellow-700">
-                          {selectedChat.my_role === "CLIENT"
-                            ? "Review and approve worker's completion"
-                            : "Waiting for client approval"}
-                        </span>
+                  {/* Review Section - Show when both parties marked complete */}
+                  {selectedChat.job.workerMarkedComplete &&
+                    selectedChat.job.clientMarkedComplete && (
+                      <div className="mt-1">
+                        {isLoadingReviewStatus ? (
+                          <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                            <div className="flex items-center justify-center space-x-2">
+                              <svg
+                                className="animate-spin h-4 w-4 text-gray-600"
+                                xmlns="http://www.w3.org/2000/svg"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                              >
+                                <circle
+                                  className="opacity-25"
+                                  cx="12"
+                                  cy="12"
+                                  r="10"
+                                  stroke="currentColor"
+                                  strokeWidth="4"
+                                ></circle>
+                                <path
+                                  className="opacity-75"
+                                  fill="currentColor"
+                                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                ></path>
+                              </svg>
+                              <span className="text-xs font-medium text-gray-600">
+                                Loading review status...
+                              </span>
+                            </div>
+                          </div>
+                        ) : (selectedChat.my_role === "WORKER" &&
+                            selectedChat.job.workerReviewed) ||
+                          (selectedChat.my_role === "CLIENT" &&
+                            selectedChat.job.clientReviewed) ? (
+                          // Current user has already reviewed
+                          <div className="space-y-2">
+                            {/* Both reviewed - job completed */}
+                            {selectedChat.job.status === "COMPLETED" &&
+                            selectedChat.job.workerReviewed &&
+                            selectedChat.job.clientReviewed ? (
+                              <div className="bg-purple-50 border border-purple-200 rounded-lg px-3 py-2">
+                                <div className="flex items-center justify-center space-x-2">
+                                  <svg
+                                    className="w-4 h-4 text-purple-600 flex-shrink-0"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth={2}
+                                      d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                                    />
+                                  </svg>
+                                  <span className="text-xs font-medium text-purple-700">
+                                    🎉 Job Completed! Both parties have
+                                    reviewed.
+                                  </span>
+                                </div>
+                              </div>
+                            ) : (
+                              // Only current user has reviewed, waiting for other party
+                              <>
+                                <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                                  <div className="flex items-center justify-center space-x-2">
+                                    <svg
+                                      className="w-4 h-4 text-green-600 flex-shrink-0"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      viewBox="0 0 24 24"
+                                    >
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                                      />
+                                    </svg>
+                                    <span className="text-xs font-medium text-green-700">
+                                      ✓ You've submitted your review
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+                                  <div className="flex items-center justify-center space-x-2">
+                                    <svg
+                                      className="w-4 h-4 text-blue-600 flex-shrink-0"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      viewBox="0 0 24 24"
+                                    >
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                                      />
+                                    </svg>
+                                    <span className="text-xs font-medium text-blue-700">
+                                      Waiting for{" "}
+                                      {selectedChat.my_role === "WORKER"
+                                        ? "client"
+                                        : "worker"}{" "}
+                                      to review
+                                    </span>
+                                  </div>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        ) : (
+                          // Current user hasn't reviewed yet
+                          <div className="space-y-2">
+                            {/* Check if other party has already reviewed */}
+                            {((selectedChat.my_role === "WORKER" &&
+                              selectedChat.job.clientReviewed) ||
+                              (selectedChat.my_role === "CLIENT" &&
+                                selectedChat.job.workerReviewed)) && (
+                              <div className="bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
+                                <div className="flex items-center justify-center space-x-2">
+                                  <svg
+                                    className="w-4 h-4 text-orange-600 flex-shrink-0"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth={2}
+                                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                                    />
+                                  </svg>
+                                  <span className="text-xs font-medium text-orange-700">
+                                    {selectedChat.my_role === "WORKER"
+                                      ? "Client"
+                                      : "Worker"}{" "}
+                                    is waiting for your review
+                                  </span>
+                                </div>
+                              </div>
+                            )}
+                            <button
+                              onClick={() => setShowReviewModal(true)}
+                              className="w-full bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-white shadow-sm hover:shadow transition-all rounded-lg px-4 py-2.5"
+                            >
+                              <div className="flex items-center justify-center space-x-2">
+                                <svg
+                                  className="w-4 h-4 flex-shrink-0"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
+                                  />
+                                </svg>
+                                <span className="text-sm font-semibold">
+                                  Leave a Review
+                                </span>
+                              </div>
+                            </button>
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  )}
+                    )}
                 </div>
               </div>
 
@@ -964,47 +1438,59 @@ const InboxPage = () => {
                   </div>
                 )}
 
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="text"
-                    placeholder={
-                      isConnecting
-                        ? "Connecting..."
-                        : !isConnected
-                          ? "Reconnecting to chat..."
-                          : "Type a message..."
-                    }
-                    value={messageInput}
-                    onChange={(e) => setMessageInput(e.target.value)}
-                    onKeyPress={handleKeyPress}
-                    className="flex-1 px-4 py-2 border border-gray-300 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                  <button
-                    onClick={handleSendMessage}
-                    disabled={!messageInput.trim()}
-                    title={
-                      !isConnected
-                        ? "Reconnecting... Message will be sent when connected"
-                        : "Send message"
-                    }
-                    className="bg-blue-500 text-white p-2 rounded-full hover:bg-blue-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed relative"
-                  >
-                    {isConnecting && (
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      </div>
-                    )}
-                    <svg
-                      className={isConnecting ? "opacity-0" : ""}
-                      width="20"
-                      height="20"
-                      fill="currentColor"
-                      viewBox="0 0 20 20"
+                {/* Show message if job is completed */}
+                {selectedChat.job.status === "COMPLETED" &&
+                selectedChat.job.workerReviewed &&
+                selectedChat.job.clientReviewed ? (
+                  <div className="text-center py-3 px-4 bg-gray-100 rounded-lg">
+                    <p className="text-sm text-gray-600">
+                      💬 This job has been completed and reviewed. Messaging is
+                      now disabled.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="text"
+                      placeholder={
+                        isConnecting
+                          ? "Connecting..."
+                          : !isConnected
+                            ? "Reconnecting to chat..."
+                            : "Type a message..."
+                      }
+                      value={messageInput}
+                      onChange={(e) => setMessageInput(e.target.value)}
+                      onKeyPress={handleKeyPress}
+                      className="flex-1 px-4 py-2 border border-gray-300 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                    <button
+                      onClick={handleSendMessage}
+                      disabled={!messageInput.trim()}
+                      title={
+                        !isConnected
+                          ? "Reconnecting... Message will be sent when connected"
+                          : "Send message"
+                      }
+                      className="bg-blue-500 text-white p-2 rounded-full hover:bg-blue-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed relative"
                     >
-                      <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
-                    </svg>
-                  </button>
-                </div>
+                      {isConnecting && (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        </div>
+                      )}
+                      <svg
+                        className={isConnecting ? "opacity-0" : ""}
+                        width="20"
+                        height="20"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           ) : (
@@ -1429,6 +1915,160 @@ const InboxPage = () => {
                 alt="Full size view"
                 className="max-w-full max-h-full object-contain rounded-lg"
               />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Review Modal */}
+      {showReviewModal && selectedChat && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <h3 className="text-xl font-bold text-gray-900">
+                Leave a Review
+              </h3>
+              <button
+                onClick={() => {
+                  setShowReviewModal(false);
+                  setReviewRating(0);
+                  setReviewMessage("");
+                }}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 space-y-6">
+              {/* Job Info */}
+              <div className="bg-gray-50 rounded-lg p-4">
+                <p className="text-sm text-gray-600 mb-1">
+                  {selectedChat.my_role === "CLIENT"
+                    ? "Review Worker"
+                    : "Review Client"}
+                </p>
+                <p className="font-semibold text-gray-900">
+                  {selectedChat.job.title}
+                </p>
+              </div>
+
+              {/* Star Rating */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Rating <span className="text-red-500">*</span>
+                </label>
+                <div className="flex items-center space-x-2">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => setReviewRating(star)}
+                      className="transition-transform hover:scale-110"
+                    >
+                      <svg
+                        className={`w-10 h-10 ${
+                          star <= reviewRating
+                            ? "text-yellow-400 fill-current"
+                            : "text-gray-300"
+                        }`}
+                        fill={star <= reviewRating ? "currentColor" : "none"}
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
+                        />
+                      </svg>
+                    </button>
+                  ))}
+                  <span className="ml-2 text-lg font-semibold text-gray-700">
+                    {reviewRating > 0 ? `${reviewRating}.0` : "Select rating"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Review Message */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Your Review (Optional)
+                </label>
+                <textarea
+                  value={reviewMessage}
+                  onChange={(e) => setReviewMessage(e.target.value)}
+                  rows={4}
+                  placeholder="Share your experience working together..."
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                />
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center space-x-3 p-6 border-t border-gray-200">
+              <button
+                onClick={() => {
+                  setShowReviewModal(false);
+                  setReviewRating(0);
+                  setReviewMessage("");
+                }}
+                className="flex-1 px-4 py-2.5 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSubmitReview}
+                disabled={reviewRating === 0 || isSubmittingReview}
+                className={`flex-1 px-4 py-2.5 rounded-lg font-medium transition-colors flex items-center justify-center ${
+                  reviewRating === 0 || isSubmittingReview
+                    ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                    : "bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white"
+                }`}
+              >
+                {isSubmittingReview ? (
+                  <>
+                    <svg
+                      className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
+                    </svg>
+                    Submitting...
+                  </>
+                ) : (
+                  "Submit Review"
+                )}
+              </button>
             </div>
           </div>
         </div>

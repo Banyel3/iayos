@@ -7,6 +7,10 @@ export interface JobInfo {
   status: string;
   budget: number;
   location: string;
+  workerMarkedComplete?: boolean;
+  clientMarkedComplete?: boolean;
+  workerReviewed?: boolean;
+  clientReviewed?: boolean;
 }
 
 export interface OtherParticipant {

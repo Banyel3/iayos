@@ -649,6 +649,25 @@ def get_conversations(request):
             # Count unread messages
             unread_count = conv.unreadCountClient if is_client else conv.unreadCountWorker
             
+            # Check review status for this job
+            from accounts.models import JobReview
+            worker_account = job.assignedWorkerID.profileID.accountFK if job.assignedWorkerID else None
+            client_account = job.clientID.profileID.accountFK
+            
+            worker_reviewed = False
+            client_reviewed = False
+            
+            if worker_account and client_account:
+                worker_reviewed = JobReview.objects.filter(
+                    jobID=job,
+                    reviewerID=worker_account
+                ).exists()
+                
+                client_reviewed = JobReview.objects.filter(
+                    jobID=job,
+                    reviewerID=client_account
+                ).exists()
+            
             result.append({
                 "id": conv.conversationID,
                 "job": {
@@ -656,7 +675,11 @@ def get_conversations(request):
                     "title": job.title,
                     "status": job.status,
                     "budget": float(job.budget),
-                    "location": job.location
+                    "location": job.location,
+                    "workerMarkedComplete": job.workerMarkedComplete,
+                    "clientMarkedComplete": job.clientMarkedComplete,
+                    "workerReviewed": worker_reviewed,
+                    "clientReviewed": client_reviewed
                 },
                 "other_participant": get_participant_info(other_participant, job.title),
                 "my_role": "CLIENT" if is_client else "WORKER",
@@ -763,6 +786,25 @@ def get_conversation_messages(request, conversation_id: int):
                 "is_mine": msg.sender == user_profile
             })
         
+        # Check review status for this job
+        from accounts.models import JobReview
+        worker_account = job.assignedWorkerID.profileID.accountFK if job.assignedWorkerID else None
+        client_account = job.clientID.profileID.accountFK
+        
+        worker_reviewed = False
+        client_reviewed = False
+        
+        if worker_account and client_account:
+            worker_reviewed = JobReview.objects.filter(
+                jobID=job,
+                reviewerID=worker_account
+            ).exists()
+            
+            client_reviewed = JobReview.objects.filter(
+                jobID=job,
+                reviewerID=client_account
+            ).exists()
+        
         return {
             "success": True,
             "conversation_id": conversation.conversationID,
@@ -771,7 +813,11 @@ def get_conversation_messages(request, conversation_id: int):
                 "title": job.title,
                 "status": job.status,
                 "budget": float(job.budget),
-                "location": job.location
+                "location": job.location,
+                "workerMarkedComplete": job.workerMarkedComplete,
+                "clientMarkedComplete": job.clientMarkedComplete,
+                "workerReviewed": worker_reviewed,
+                "clientReviewed": client_reviewed
             },
             "other_participant": get_participant_info(other_participant, job.title),
             "my_role": "CLIENT" if is_client else "WORKER",

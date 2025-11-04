@@ -2,7 +2,7 @@ from ninja import Router, File
 from ninja.responses import Response
 from ninja.files import UploadedFile
 from accounts.authentication import cookie_auth
-from accounts.models import ClientProfile, Specializations, Profile, WorkerProfile, JobApplication, JobPhoto, JobReview
+from accounts.models import ClientProfile, Specializations, Profile, WorkerProfile, JobApplication, JobPhoto
 from .models import JobPosting
 from .schemas import CreateJobPostingSchema, JobPostingResponseSchema, JobApplicationSchema, SubmitReviewSchema
 from datetime import datetime
@@ -1235,11 +1235,13 @@ def upload_job_image(request, job_id: int, image: UploadedFile = File(...)):
 @router.post("/{job_id}/mark-complete", auth=cookie_auth)
 def worker_mark_job_complete(request, job_id: int):
     """
-    Worker marks the job as complete
-    Changes status from IN_PROGRESS to PENDING_COMPLETION
-    Waits for client approval
+    Worker marks the job as complete (phase 1 of two-phase completion)
+    Sets workerMarkedComplete=True and timestamp
+    Notifies client to verify completion
     """
     try:
+        print(f"✅ Worker marking job {job_id} as complete")
+        
         # Get worker's profile
         try:
             worker_profile = WorkerProfile.objects.select_related('profileID__accountFK').get(
@@ -1274,17 +1276,27 @@ def worker_mark_job_complete(request, job_id: int):
                 status=400
             )
         
-        # Update job status to PENDING_COMPLETION
-        job.status = "PENDING_COMPLETION"
+        # Check if already marked complete by worker
+        if job.workerMarkedComplete:
+            return Response(
+                {"error": "You have already marked this job as complete"},
+                status=400
+            )
+        
+        # Mark as complete by worker
+        job.workerMarkedComplete = True
+        job.workerMarkedCompleteAt = timezone.now()
         job.save()
         
-        print(f"✅ Worker marked job {job_id} as complete, awaiting client approval")
+        print(f"✅ Worker marked job {job_id} as complete. Waiting for client approval.")
         
         return {
             "success": True,
-            "message": "Job marked as complete. Waiting for client approval.",
+            "message": "Job marked as complete. Waiting for client to verify completion.",
             "job_id": job_id,
-            "status": job.status
+            "worker_marked_complete": True,
+            "client_marked_complete": job.clientMarkedComplete,
+            "awaiting_client_verification": not job.clientMarkedComplete
         }
         
     except Exception as e:
@@ -1300,11 +1312,14 @@ def worker_mark_job_complete(request, job_id: int):
 @router.post("/{job_id}/approve-completion", auth=cookie_auth)
 def client_approve_job_completion(request, job_id: int):
     """
-    Client approves job completion
-    Changes status from PENDING_COMPLETION to COMPLETED
-    Triggers review prompt for both parties
+    Client approves job completion (phase 2 of two-phase completion)
+    Sets clientMarkedComplete=True
+    If both worker and client marked complete, changes status to COMPLETED
+    Then both parties can review each other
     """
     try:
+        print(f"✅ Client approving job {job_id} completion")
+        
         # Get client's profile
         try:
             client_profile = ClientProfile.objects.select_related('profileID__accountFK').get(
@@ -1334,25 +1349,45 @@ def client_approve_job_completion(request, job_id: int):
                 status=403
             )
         
-        # Verify job is pending completion
-        if job.status != "PENDING_COMPLETION":
+        # Verify worker has marked complete first
+        if not job.workerMarkedComplete:
             return Response(
-                {"error": f"Job must be PENDING_COMPLETION to approve. Current status: {job.status}"},
+                {"error": "Worker must mark the job as complete first"},
                 status=400
             )
         
-        # Update job status to COMPLETED
-        job.status = "COMPLETED"
-        job.completedAt = timezone.now()
+        # Verify job is still in progress
+        if job.status not in ["IN_PROGRESS", "COMPLETED"]:
+            return Response(
+                {"error": f"Cannot approve completion for job with status: {job.status}"},
+                status=400
+            )
+        
+        # Check if already marked complete by client
+        if job.clientMarkedComplete:
+            return Response(
+                {"error": "You have already approved this job completion"},
+                status=400
+            )
+        
+        # Mark as complete by client
+        job.clientMarkedComplete = True
+        job.clientMarkedCompleteAt = timezone.now()
+        
+        # Don't mark as COMPLETED yet - wait for both reviews
+        # Job stays IN_PROGRESS until both parties submit reviews
         job.save()
         
-        print(f"✅ Client approved job {job_id} completion")
+        print(f"✅ Client approved job {job_id} completion. Waiting for both reviews.")
         
         return {
             "success": True,
-            "message": "Job marked as completed! Please review the worker.",
+            "message": "Job completion approved! Please leave a review.",
             "job_id": job_id,
+            "worker_marked_complete": job.workerMarkedComplete,
+            "client_marked_complete": job.clientMarkedComplete,
             "status": job.status,
+            "both_confirmed": True,
             "prompt_review": True,
             "worker_id": job.assignedWorkerID.profileID.accountFK.accountID if job.assignedWorkerID else None
         }
@@ -1371,9 +1406,12 @@ def client_approve_job_completion(request, job_id: int):
 def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
     """
     Submit a review for a completed job
-    Both client and worker can review each other
+    Both client and worker can review each other after both mark the job complete
+    Can only submit one review per job per person
     """
     try:
+        print(f"⭐ Submitting review for job {job_id}")
+        
         # Get user's profile
         try:
             profile = Profile.objects.get(accountFK=request.auth)
@@ -1386,8 +1424,8 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
         # Get the job
         try:
             job = JobPosting.objects.select_related(
-                'clientID__profileID__accountFK',
-                'assignedWorkerID__profileID__accountFK'
+                'clientID__profileID',
+                'assignedWorkerID__profileID'
             ).get(jobID=job_id)
         except JobPosting.DoesNotExist:
             return Response(
@@ -1395,69 +1433,88 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                 status=404
             )
         
-        # Verify job is completed
-        if job.status != "COMPLETED":
+        # Verify both parties have marked the job as complete
+        if not (job.workerMarkedComplete and job.clientMarkedComplete):
             return Response(
-                {"error": "Job must be completed before reviewing"},
+                {"error": "Both parties must mark the job as complete before reviewing"},
                 status=400
             )
         
-        # Determine if user is client or worker
+        # Job can be IN_PROGRESS or COMPLETED - we allow reviews once both marked complete
+        # The job will transition to COMPLETED after both reviews are submitted
+        
+        # Determine reviewer and reviewee
         is_client = job.clientID.profileID.profileID == profile.profileID
         is_worker = job.assignedWorkerID and job.assignedWorkerID.profileID.profileID == profile.profileID
         
         if not (is_client or is_worker):
             return Response(
-                {"error": "You are not a participant in this job"},
+                {"error": "You are not part of this job"},
                 status=403
             )
         
-        # Set reviewer and reviewee
+        reviewer_profile = profile
         if is_client:
+            reviewee_profile = job.assignedWorkerID.profileID
             reviewer_type = "CLIENT"
-            reviewee = job.assignedWorkerID.profileID.accountFK
         else:
+            reviewee_profile = job.clientID.profileID
             reviewer_type = "WORKER"
-            reviewee = job.clientID.profileID.accountFK
+        
+        # Validate rating
+        if data.rating < 1 or data.rating > 5:
+            return Response(
+                {"error": "Rating must be between 1 and 5 stars"},
+                status=400
+            )
         
         # Check if review already exists
+        from accounts.models import JobReview
         existing_review = JobReview.objects.filter(
             jobID=job,
-            reviewerID=request.auth,
-            reviewerType=reviewer_type
+            reviewerID=request.auth
         ).first()
         
         if existing_review:
             return Response(
-                {"error": "You have already reviewed this job"},
+                {"error": "You have already submitted a review for this job"},
                 status=400
             )
         
-        # Validate rating
-        if data.rating < 1.0 or data.rating > 5.0:
-            return Response(
-                {"error": "Rating must be between 1.0 and 5.0"},
-                status=400
-            )
-        
-        # Create review
+        # Create the review
         review = JobReview.objects.create(
             jobID=job,
             reviewerID=request.auth,
-            revieweeID=reviewee,
+            revieweeID=reviewee_profile.accountFK,
             reviewerType=reviewer_type,
             rating=data.rating,
-            comment=data.comment,
-            status="PUBLISHED"
+            comment=data.message or "",
+            status="ACTIVE"
         )
         
-        print(f"✅ Review created: {reviewer_type} rated job {job_id} with {data.rating} stars")
+        print(f"✅ Review submitted successfully for job {job_id}")
+        print(f"   Reviewer: {reviewer_profile.firstName} ({reviewer_type})")
+        print(f"   Rating: {data.rating} stars")
+        
+        # Check if both parties have now submitted reviews
+        total_reviews = JobReview.objects.filter(jobID=job).count()
+        
+        job_completed = False
+        if total_reviews >= 2 and job.workerMarkedComplete and job.clientMarkedComplete:
+            # Both reviews exist and both parties marked complete - NOW mark job as COMPLETED
+            job.status = "COMPLETED"
+            job.completedAt = timezone.now()
+            job.save()
+            job_completed = True
+            print(f"🎉 Both reviews submitted! Job {job_id} marked as COMPLETED.")
         
         return {
             "success": True,
-            "message": "Review submitted successfully",
+            "message": "Review submitted successfully!",
             "review_id": review.reviewID,
-            "rating": float(review.rating)
+            "rating": float(review.rating),
+            "reviewer_type": reviewer_type,
+            "job_completed": job_completed
         }
         
     except Exception as e:
@@ -1469,5 +1526,37 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
             status=500
         )
 
-#endregion
 
+@router.get("/{job_id}/has-reviewed", auth=cookie_auth)
+def check_user_review_status(request, job_id: int):
+    """
+    Check if the current user has already submitted a review for this job
+    """
+    try:
+        from accounts.models import JobReview
+        
+        # Check if review exists
+        review_exists = JobReview.objects.filter(
+            jobID__jobID=job_id,
+            reviewerID=request.auth
+        ).exists()
+        
+        # Also check total reviews count
+        total_reviews = JobReview.objects.filter(jobID__jobID=job_id).count()
+        
+        return {
+            "success": True,
+            "has_reviewed": review_exists,
+            "total_reviews": total_reviews,
+            "both_reviewed": total_reviews >= 2
+        }
+        
+    except Exception as e:
+        print(f"❌ Error checking review status: {str(e)}")
+        return Response(
+            {"error": f"Failed to check review status: {str(e)}"},
+            status=500
+        )
+
+
+#endregion

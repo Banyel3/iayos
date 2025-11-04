@@ -328,12 +328,11 @@ class Job(models.Model):
     class JobStatus(models.TextChoices):
         ACTIVE = "ACTIVE", "Active"
         IN_PROGRESS = "IN_PROGRESS", "In Progress"
-        PENDING_COMPLETION = "PENDING_COMPLETION", "Pending Completion"
         COMPLETED = "COMPLETED", "Completed"
         CANCELLED = "CANCELLED", "Cancelled"
     
     status = models.CharField(
-        max_length=20,
+        max_length=15,
         choices=JobStatus.choices,
         default="ACTIVE"
     )
@@ -350,6 +349,12 @@ class Job(models.Model):
     # Completion Details
     completedAt = models.DateTimeField(null=True, blank=True)
     cancellationReason = models.TextField(null=True, blank=True)
+    
+    # Two-phase completion tracking
+    workerMarkedComplete = models.BooleanField(default=False)
+    clientMarkedComplete = models.BooleanField(default=False)
+    workerMarkedCompleteAt = models.DateTimeField(null=True, blank=True)
+    clientMarkedCompleteAt = models.DateTimeField(null=True, blank=True)
     
     # Timestamps
     createdAt = models.DateTimeField(auto_now_add=True)

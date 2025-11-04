@@ -28,5 +28,6 @@ class JobApplicationSchema(Schema):
 
 
 class SubmitReviewSchema(Schema):
-    rating: float  # 1.0 to 5.0
-    comment: str
+    rating: int  # 1-5 stars
+    message: Optional[str] = None  # Optional review message
+
