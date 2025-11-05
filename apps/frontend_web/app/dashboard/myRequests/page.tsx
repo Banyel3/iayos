@@ -9,6 +9,7 @@ import MobileNav from "@/components/ui/mobile-nav";
 import DesktopNavbar from "@/components/ui/desktop-sidebar";
 import NotificationBell from "@/components/notifications/NotificationBell";
 import { useWorkerAvailability } from "@/lib/hooks/useWorkerAvailability";
+import { API_BASE_URL } from "@/lib/api/config";
 
 // Extended User interface for requests page
 interface RequestsUser extends User {
@@ -97,6 +98,8 @@ const MyRequestsPage = () => {
     expected_duration: "",
     preferred_start_date: "",
   });
+  const [durationNumber, setDurationNumber] = useState("");
+  const [durationUnit, setDurationUnit] = useState("hours");
   const [isSubmittingJob, setIsSubmittingJob] = useState(false);
   const [jobPostError, setJobPostError] = useState("");
 
@@ -150,7 +153,7 @@ const MyRequestsPage = () => {
       try {
         setIsLoadingWallet(true);
         const response = await fetch(
-          "http://localhost:8000/api/profiles/wallet/balance",
+          `${API_BASE_URL}/profiles/wallet/balance`,
           {
             credentials: "include",
           }
@@ -177,7 +180,7 @@ const MyRequestsPage = () => {
     const fetchCategories = async () => {
       try {
         const response = await fetch(
-          "http://localhost:8000/api/adminpanel/jobs/categories",
+          `${API_BASE_URL}/adminpanel/jobs/categories`,
           {
             credentials: "include",
           }
@@ -305,24 +308,39 @@ const MyRequestsPage = () => {
       return;
     }
 
-    // Check if budget exceeds wallet balance
-    const budgetAmount = parseFloat(jobPostForm.budget);
-    if (budgetAmount > walletBalance) {
-      setJobPostError(
-        `Insufficient wallet balance. Your current balance is ₱${walletBalance.toFixed(2)}. Please deposit funds or reduce the budget.`
-      );
+    if (!jobPostForm.location.trim()) {
+      setJobPostError("Please select a barangay");
       return;
     }
 
-    if (!jobPostForm.location.trim()) {
-      setJobPostError("Please select a barangay");
+    const budgetAmount = parseFloat(jobPostForm.budget);
+    const downpayment = budgetAmount * 0.5;
+
+    // Show payment confirmation
+    const confirmPayment = confirm(
+      `💰 Job Posting Confirmation\n\n` +
+        `Job: ${jobPostForm.title}\n` +
+        `Total Budget: ₱${budgetAmount.toFixed(2)}\n` +
+        `50% Downpayment (Escrow): ₱${downpayment.toFixed(2)}\n\n` +
+        `You will be redirected to Xendit to pay the escrow amount via GCash.\n` +
+        `The downpayment will be held in escrow and released to the worker upon job completion.\n\n` +
+        `Continue to payment?`
+    );
+
+    if (!confirmPayment) {
       return;
     }
 
     setIsSubmittingJob(true);
 
     try {
-      const response = await fetch("http://localhost:8000/api/jobs/create", {
+      // Combine duration number and unit
+      const expectedDuration =
+        durationNumber && durationUnit
+          ? `${durationNumber} ${durationUnit}`
+          : null;
+
+      const response = await fetch(`${API_BASE_URL}/jobs/create`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -334,7 +352,7 @@ const MyRequestsPage = () => {
           category_id: parseInt(jobPostForm.category_id),
           budget: parseFloat(jobPostForm.budget),
           location: `${jobPostForm.location}, Zamboanga City`,
-          expected_duration: jobPostForm.expected_duration || null,
+          expected_duration: expectedDuration,
           preferred_start_date: jobPostForm.preferred_start_date || null,
           materials_needed: materials,
         }),
@@ -344,6 +362,30 @@ const MyRequestsPage = () => {
 
       if (response.ok && data.success) {
         const jobId = data.job_posting_id;
+
+        // Check if payment is required (Xendit invoice generated)
+        if (data.requires_payment && data.invoice_url) {
+          alert(
+            `💰 Job Created - Payment Required\n\n` +
+              `Job: ${jobPostForm.title}\n` +
+              `Escrow Payment (50%): ₱${data.escrow_amount?.toFixed(2)}\n\n` +
+              `You will be redirected to Xendit to complete the payment via GCash.\n` +
+              `Your job will be activated once payment is confirmed.`
+          );
+
+          // Open Xendit payment page
+          window.location.href = data.invoice_url;
+          return;
+        }
+
+        // Show success message with escrow details
+        alert(
+          `✅ Job Posted Successfully!\n\n` +
+            `Escrow Paid: ₱${data.escrow_amount?.toFixed(2)}\n` +
+            `Remaining Payment: ₱${data.remaining_payment?.toFixed(2)}\n` +
+            `New Wallet Balance: ₱${data.new_wallet_balance?.toFixed(2)}\n\n` +
+            `The downpayment is now held in escrow and will be released to the worker upon job completion.`
+        );
 
         // Upload images if any were selected
         if (selectedImages.length > 0) {
@@ -355,7 +397,7 @@ const MyRequestsPage = () => {
               formData.append("image", image);
 
               const uploadResponse = await fetch(
-                `http://localhost:8000/api/jobs/${jobId}/upload-image`,
+                `${API_BASE_URL}/jobs/${jobId}/upload-image`,
                 {
                   method: "POST",
                   credentials: "include",
@@ -387,14 +429,15 @@ const MyRequestsPage = () => {
           expected_duration: "",
           preferred_start_date: "",
         });
+        setDurationNumber("");
+        setDurationUnit("hours");
         setMaterials([]);
         setSelectedImages([]);
         setImagePreviewUrls([]);
         setIsJobPostModalOpen(false);
 
         // Refresh the page or refetch data
-        alert("Job posted successfully!");
-        window.location.reload(); // Temporary - should implement proper data refetch
+        window.location.reload();
       } else {
         setJobPostError(data.error || "Failed to create job post");
       }
@@ -414,7 +457,7 @@ const MyRequestsPage = () => {
     setIsCancelling(true);
     try {
       const response = await fetch(
-        `http://localhost:8000/api/jobs/${jobToCancel}/cancel`,
+        `${API_BASE_URL}/jobs/${jobToCancel}/cancel`,
         {
           method: "PATCH",
           credentials: "include",
@@ -436,7 +479,16 @@ const MyRequestsPage = () => {
         setSelectedJob(null);
         setShowCancelConfirm(false);
         setJobToCancel(null);
-        alert("Job cancelled successfully!");
+
+        // Show refund message if escrow was refunded
+        if (data.refunded && data.refund_amount > 0) {
+          alert(
+            `✅ Job Cancelled Successfully!\n\n` +
+              `Your escrow payment of ₱${data.refund_amount.toFixed(2)} has been refunded to your wallet.`
+          );
+        } else {
+          alert("Job cancelled successfully!");
+        }
       } else {
         throw new Error(data.error || "Failed to cancel job");
       }
@@ -480,7 +532,7 @@ const MyRequestsPage = () => {
     setProcessingApplication({ id: applicationId, action: "accept" });
     try {
       const response = await fetch(
-        `http://localhost:8000/api/jobs/${selectedJob.id}/applications/${applicationId}/accept`,
+        `${API_BASE_URL}/jobs/${selectedJob.id}/applications/${applicationId}/accept`,
         {
           method: "POST",
           credentials: "include",
@@ -518,7 +570,7 @@ const MyRequestsPage = () => {
     setProcessingApplication({ id: applicationId, action: "reject" });
     try {
       const response = await fetch(
-        `http://localhost:8000/api/jobs/${selectedJob.id}/applications/${applicationId}/reject`,
+        `${API_BASE_URL}/jobs/${selectedJob.id}/applications/${applicationId}/reject`,
         {
           method: "POST",
           credentials: "include",
@@ -558,7 +610,7 @@ const MyRequestsPage = () => {
       try {
         console.log("📋 Fetching applications for job:", selectedJob.id);
         const response = await fetch(
-          `http://localhost:8000/api/jobs/${selectedJob.id}/applications`,
+          `${API_BASE_URL}/jobs/${selectedJob.id}/applications`,
           {
             credentials: "include",
           }
@@ -605,12 +657,9 @@ const MyRequestsPage = () => {
 
         if (isClient) {
           // For clients: Fetch their job postings
-          const response = await fetch(
-            "http://localhost:8000/api/jobs/my-jobs",
-            {
-              credentials: "include",
-            }
-          );
+          const response = await fetch(`${API_BASE_URL}/jobs/my-jobs`, {
+            credentials: "include",
+          });
 
           if (!response.ok) {
             console.error(`Failed to fetch job postings: ${response.status}`);
@@ -664,12 +713,9 @@ const MyRequestsPage = () => {
       try {
         setIsLoadingInProgress(true);
 
-        const response = await fetch(
-          "http://localhost:8000/api/jobs/in-progress",
-          {
-            credentials: "include",
-          }
-        );
+        const response = await fetch(`${API_BASE_URL}/jobs/in-progress`, {
+          credentials: "include",
+        });
 
         if (!response.ok) {
           console.error(`Failed to fetch in-progress jobs: ${response.status}`);
@@ -3001,18 +3047,26 @@ const MyRequestsPage = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Expected Duration
                     </label>
-                    <input
-                      type="text"
-                      value={jobPostForm.expected_duration}
-                      onChange={(e) =>
-                        setJobPostForm({
-                          ...jobPostForm,
-                          expected_duration: e.target.value,
-                        })
-                      }
-                      placeholder="e.g., 2-3 hours, 1 day"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        min="1"
+                        value={durationNumber}
+                        onChange={(e) => setDurationNumber(e.target.value)}
+                        placeholder="e.g., 2"
+                        className="w-1/2 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <select
+                        value={durationUnit}
+                        onChange={(e) => setDurationUnit(e.target.value)}
+                        className="w-1/2 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="hours">Hours</option>
+                        <option value="days">Days</option>
+                        <option value="weeks">Weeks</option>
+                        <option value="months">Months</option>
+                      </select>
+                    </div>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">

@@ -1,3 +1,0 @@
-{
-  "/api/auth/check-rate-limit/route": "app/api/auth/check-rate-limit/route.js"
-}

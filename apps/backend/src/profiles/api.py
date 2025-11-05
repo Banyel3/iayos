@@ -612,10 +612,13 @@ def get_participant_info(profile: Profile, job_title: str = None) -> dict:
 
 
 @router.get("/chat/conversations", auth=cookie_auth)
-def get_conversations(request):
+def get_conversations(request, filter: str = "all"):
     """
     Get all job-based conversations for the current user's profile.
     Returns list of conversations tied to jobs where user is either client or worker.
+    
+    Query params:
+    - filter: 'all', 'unread', or 'archived' (default: 'all')
     """
     try:
         # Get user's profile
@@ -628,14 +631,37 @@ def get_conversations(request):
             )
         
         # Get all conversations where user is either client or worker
-        conversations = Conversation.objects.filter(
+        conversations_query = Conversation.objects.filter(
             Q(client=user_profile) | Q(worker=user_profile)
         ).select_related(
             'client__accountFK',
             'worker__accountFK',
             'relatedJobPosting',
             'lastMessageSender'
-        ).order_by('-updatedAt')
+        )
+        
+        # Apply filters based on the filter parameter
+        if filter == "archived":
+            # Show only archived conversations for this user
+            conversations_query = conversations_query.filter(
+                Q(client=user_profile, archivedByClient=True) |
+                Q(worker=user_profile, archivedByWorker=True)
+            )
+        else:
+            # For 'all' and 'unread', exclude archived conversations
+            conversations_query = conversations_query.filter(
+                Q(client=user_profile, archivedByClient=False) |
+                Q(worker=user_profile, archivedByWorker=False)
+            )
+            
+            # Additional filter for unread only
+            if filter == "unread":
+                conversations_query = conversations_query.filter(
+                    Q(client=user_profile, unreadCountClient__gt=0) |
+                    Q(worker=user_profile, unreadCountWorker__gt=0)
+                )
+        
+        conversations = conversations_query.order_by('-updatedAt')
         
         result = []
         for conv in conversations:
@@ -648,6 +674,9 @@ def get_conversations(request):
             
             # Count unread messages
             unread_count = conv.unreadCountClient if is_client else conv.unreadCountWorker
+            
+            # Check if archived by current user
+            is_archived = conv.archivedByClient if is_client else conv.archivedByWorker
             
             # Check review status for this job
             from accounts.models import JobReview
@@ -679,7 +708,8 @@ def get_conversations(request):
                     "workerMarkedComplete": job.workerMarkedComplete,
                     "clientMarkedComplete": job.clientMarkedComplete,
                     "workerReviewed": worker_reviewed,
-                    "clientReviewed": client_reviewed
+                    "clientReviewed": client_reviewed,
+                    "remainingPaymentPaid": job.remainingPaymentPaid
                 },
                 "other_participant": get_participant_info(other_participant, job.title),
                 "my_role": "CLIENT" if is_client else "WORKER",
@@ -687,6 +717,7 @@ def get_conversations(request):
                 "last_message_time": conv.lastMessageTime.isoformat() if conv.lastMessageTime else None,
                 "last_message_sender_id": conv.lastMessageSender.profileID if conv.lastMessageSender else None,
                 "unread_count": unread_count,
+                "is_archived": is_archived,
                 "status": conv.status,
                 "created_at": conv.createdAt.isoformat()
             })
@@ -1018,4 +1049,68 @@ def get_unread_count(request):
             status=500
         )
 
+
+@router.post("/chat/conversations/{conversation_id}/toggle-archive", auth=cookie_auth)
+def toggle_conversation_archive(request, conversation_id: int):
+    """
+    Toggle archive status for a conversation for the current user.
+    Each user can archive/unarchive independently.
+    """
+    try:
+        # Get user's profile
+        try:
+            user_profile = Profile.objects.get(accountFK=request.auth)
+        except Profile.DoesNotExist:
+            return Response(
+                {"error": "Profile not found"},
+                status=400
+            )
+        
+        # Get the conversation
+        try:
+            conversation = Conversation.objects.get(conversationID=conversation_id)
+        except Conversation.DoesNotExist:
+            return Response(
+                {"error": "Conversation not found"},
+                status=404
+            )
+        
+        # Verify user is a participant
+        is_client = conversation.client == user_profile
+        is_worker = conversation.worker == user_profile
+        
+        if not (is_client or is_worker):
+            return Response(
+                {"error": "You are not a participant in this conversation"},
+                status=403
+            )
+        
+        # Toggle archive status based on user role
+        if is_client:
+            conversation.archivedByClient = not conversation.archivedByClient
+            is_archived = conversation.archivedByClient
+            conversation.save(update_fields=['archivedByClient'])
+        else:
+            conversation.archivedByWorker = not conversation.archivedByWorker
+            is_archived = conversation.archivedByWorker
+            conversation.save(update_fields=['archivedByWorker'])
+        
+        return {
+            "success": True,
+            "is_archived": is_archived,
+            "conversation_id": conversation_id,
+            "message": "Conversation archived" if is_archived else "Conversation unarchived"
+        }
+        
+    except Exception as e:
+        print(f"❌ Error toggling archive status: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": f"Failed to toggle archive status: {str(e)}"},
+            status=500
+        )
+
+
 #endregion
+

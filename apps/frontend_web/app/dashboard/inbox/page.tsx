@@ -10,10 +10,15 @@ import DesktopNavbar from "@/components/ui/desktop-sidebar";
 import NotificationBell from "@/components/notifications/NotificationBell";
 import { useWorkerAvailability } from "@/lib/hooks/useWorkerAvailability";
 import { useWebSocket } from "@/lib/hooks/useWebSocket";
-import { Conversation, ChatMessage } from "@/lib/api/chat";
+import { API_BASE_URL } from "@/lib/api/config";
 import {
-  useConversations,
-  useConversationMessages,
+  Conversation,
+  ChatMessage,
+  fetchConversations,
+  fetchMessages,
+  toggleConversationArchive,
+} from "@/lib/api/chat";
+import {
   useMarkJobComplete,
   useApproveJobCompletion,
   useSubmitReview,
@@ -34,20 +39,35 @@ const InboxPage = () => {
   const { user: authUser, isAuthenticated, isLoading, logout } = useAuth();
   const user = authUser as InboxUser;
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<"all" | "unread">("all");
+  const [activeTab, setActiveTab] = useState<"all" | "unread" | "archived">(
+    "all"
+  );
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedChat, setSelectedChat] = useState<Conversation | null>(null);
   const [messageInput, setMessageInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // React Query hooks
-  const { data: conversations = [], isLoading: isLoadingConversations } =
-    useConversations();
-  const { data: messagesData, isLoading: isLoadingMessages } =
-    useConversationMessages(selectedChat?.id || null);
+  // Local state for conversations and messages (decoupled from react-query data)
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [isLoadingConversations, setIsLoadingConversations] = useState(false);
 
-  const chatMessages = messagesData?.messages || [];
-  const conversationData = messagesData?.conversation;
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [isLoadingReviewStatus, setIsLoadingReviewStatus] = useState(false);
+
+  // Action state flags
+  const [isMarkingComplete, setIsMarkingComplete] = useState(false);
+  const [isApprovingCompletion, setIsApprovingCompletion] = useState(false);
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+
+  // Simple in-memory caches for messages and conversation metadata
+  const messagesCacheRef = useRef<Map<number, ChatMessage[]>>(new Map());
+  const conversationDataCacheRef = useRef<Map<number, any>>(new Map());
+  const lastFetchTimeRef = useRef<Map<number, number>>(new Map());
+
+  // React Query hooks (mutations/utilities only)
+  // Note: We fetch/store conversations and messages locally in this component
+  // to enable caching, optimistic updates, and fine-grained control.
 
   // Mutations
   const markCompleteMutation = useMarkJobComplete();
@@ -179,8 +199,9 @@ const InboxPage = () => {
 
       // Check sessionStorage cache first (unless force refresh)
       if (!forceRefresh) {
-        const cached = sessionStorage.getItem("inbox_conversations");
-        const cacheTime = sessionStorage.getItem("inbox_conversations_time");
+        const cacheKey = `inbox_conversations_${activeTab}`;
+        const cached = sessionStorage.getItem(cacheKey);
+        const cacheTime = sessionStorage.getItem(`${cacheKey}_time`);
 
         if (cached && cacheTime) {
           const age = Date.now() - parseInt(cacheTime);
@@ -190,7 +211,7 @@ const InboxPage = () => {
               const parsedConversations = JSON.parse(cached);
               setConversations(parsedConversations);
               console.log(
-                "✅ Loaded conversations from cache:",
+                `✅ Loaded ${activeTab} conversations from cache:`,
                 parsedConversations.length
               );
               return;
@@ -203,24 +224,25 @@ const InboxPage = () => {
 
       setIsLoadingConversations(true);
       try {
-        const convs = await fetchConversations();
+        const convs = await fetchConversations(activeTab);
         setConversations(convs);
 
-        // Cache in sessionStorage
-        sessionStorage.setItem("inbox_conversations", JSON.stringify(convs));
-        sessionStorage.setItem(
-          "inbox_conversations_time",
-          Date.now().toString()
-        );
+        // Cache in sessionStorage with tab-specific key
+        const cacheKey = `inbox_conversations_${activeTab}`;
+        sessionStorage.setItem(cacheKey, JSON.stringify(convs));
+        sessionStorage.setItem(`${cacheKey}_time`, Date.now().toString());
 
-        console.log("✅ Loaded conversations from API:", convs.length);
+        console.log(
+          `✅ Loaded ${activeTab} conversations from API:`,
+          convs.length
+        );
       } catch (error) {
         console.error("❌ Failed to load conversations:", error);
       } finally {
         setIsLoadingConversations(false);
       }
     },
-    [isAuthenticated]
+    [isAuthenticated, activeTab]
   );
 
   useEffect(() => {
@@ -336,7 +358,7 @@ const InboxPage = () => {
   const checkReviewStatus = useCallback(async (jobId: number) => {
     try {
       const response = await fetch(
-        `http://localhost:8000/api/jobs/${jobId}/has-reviewed`,
+        `${API_BASE_URL}/jobs/${jobId}/has-reviewed`,
         {
           credentials: "include",
         }
@@ -442,7 +464,7 @@ const InboxPage = () => {
     setIsMarkingComplete(true);
     try {
       const response = await fetch(
-        `http://localhost:8000/api/jobs/${selectedChat.job.id}/mark-complete`,
+        `${API_BASE_URL}/jobs/${selectedChat.job.id}/mark-complete`,
         {
           method: "POST",
           headers: {
@@ -489,7 +511,7 @@ const InboxPage = () => {
     setIsApprovingCompletion(true);
     try {
       const response = await fetch(
-        `http://localhost:8000/api/jobs/${selectedChat.job.id}/approve-completion`,
+        `${API_BASE_URL}/jobs/${selectedChat.job.id}/approve-completion`,
         {
           method: "POST",
           headers: {
@@ -501,6 +523,15 @@ const InboxPage = () => {
 
       if (response.ok) {
         const data = await response.json();
+
+        // Check if payment is required
+        if (data.requires_payment && data.invoice_url) {
+          // Redirect to Xendit payment page
+          alert(`${data.message}\n\nRedirecting to payment page...`);
+          window.location.href = data.invoice_url;
+          return;
+        }
+
         // Update the job status and completion flags
         setSelectedChat((prev) =>
           prev
@@ -539,7 +570,7 @@ const InboxPage = () => {
     setIsSubmittingReview(true);
     try {
       const response = await fetch(
-        `http://localhost:8000/api/jobs/${selectedChat.job.id}/review`,
+        `${API_BASE_URL}/jobs/${selectedChat.job.id}/review`,
         {
           method: "POST",
           headers: {
@@ -590,13 +621,83 @@ const InboxPage = () => {
     }
   };
 
+  // Handle confirming final payment after returning from Xendit
+  const handleConfirmFinalPayment = async () => {
+    if (!selectedChat) return;
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/jobs/${selectedChat.job.id}/confirm-final-payment`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+
+        // Update the job to reflect payment completed
+        setSelectedChat((prev) =>
+          prev
+            ? {
+                ...prev,
+                job: {
+                  ...prev.job,
+                  remainingPaymentPaid: true,
+                },
+              }
+            : null
+        );
+
+        alert(data.message || "Payment confirmed! You can now leave a review.");
+      } else {
+        const error = await response.json();
+        alert(error.error || "Failed to confirm payment");
+      }
+    } catch (error) {
+      console.error("Error confirming payment:", error);
+      alert("An error occurred. Please try again.");
+    }
+  };
+
+  // Handle archiving/unarchiving a conversation
+  const handleToggleArchive = async (conversationId: number) => {
+    try {
+      const result = await toggleConversationArchive(conversationId);
+
+      // Remove from current view
+      setConversations((prev) =>
+        prev.filter((conv) => conv.id !== conversationId)
+      );
+
+      // If this was the selected chat, clear it
+      if (selectedChat?.id === conversationId) {
+        setSelectedChat(null);
+      }
+
+      // Clear cache to force refresh on next load
+      const cacheKey = `inbox_conversations_${activeTab}`;
+      sessionStorage.removeItem(cacheKey);
+      sessionStorage.removeItem(`${cacheKey}_time`);
+
+      alert(result.message);
+    } catch (error) {
+      console.error("Error toggling archive:", error);
+      alert("Failed to update archive status. Please try again.");
+    }
+  };
+
   // Fetch job details when "View Job Details" is clicked
   const handleViewJobDetails = async (jobId: number) => {
     try {
       setIsLoadingJobDetails(true);
       setShowJobDetailsModal(true);
 
-      const response = await fetch(`http://localhost:8000/api/jobs/${jobId}`, {
+      const response = await fetch(`${API_BASE_URL}/jobs/${jobId}`, {
         credentials: "include",
       });
 
@@ -652,14 +753,8 @@ const InboxPage = () => {
 
     if (!matchesSearch) return false;
 
-    // Tab filter
-    if (activeTab === "all") {
-      return true;
-    } else if (activeTab === "unread") {
-      // Show only conversations with unread messages
-      return conv.unread_count > 0;
-    }
-
+    // Note: Tab filtering (all/unread/archived) is now done server-side in fetchConversations
+    // This just handles the search on the already-filtered results
     return true;
   });
 
@@ -736,6 +831,16 @@ const InboxPage = () => {
                 }`}
               >
                 Unread
+              </button>
+              <button
+                onClick={() => setActiveTab("archived")}
+                className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  activeTab === "archived"
+                    ? "bg-blue-500 text-white"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                }`}
+              >
+                Archived
               </button>
             </div>
           </div>
@@ -884,8 +989,32 @@ const InboxPage = () => {
               </div>
             )}
 
-            {/* Right - Empty space for balance */}
-            <div className="w-8"></div>
+            {/* Right - Archive button */}
+            <button
+              onClick={() =>
+                selectedChat && handleToggleArchive(selectedChat.id)
+              }
+              className="text-gray-600 hover:text-gray-900 transition-colors"
+              title={
+                activeTab === "archived"
+                  ? "Unarchive conversation"
+                  : "Archive conversation"
+              }
+            >
+              <svg
+                className="w-6 h-6"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"
+                />
+              </svg>
+            </button>
           </div>
 
           {/* Chat Content Area */}
@@ -1197,9 +1326,48 @@ const InboxPage = () => {
                     </div>
                   )}
 
-                  {/* Review Section - Show when both parties marked complete */}
+                  {/* Payment Section - Show when client approved completion but payment not made */}
+                  {selectedChat.my_role === "CLIENT" &&
+                    selectedChat.job.clientMarkedComplete &&
+                    !selectedChat.job.remainingPaymentPaid && (
+                      <div className="mt-1">
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 mb-2">
+                          <div className="flex items-center justify-center space-x-2">
+                            <svg
+                              className="w-4 h-4 text-blue-600 flex-shrink-0"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                              />
+                            </svg>
+                            <span className="text-xs font-medium text-blue-700">
+                              Complete the final 50% payment to leave a review
+                            </span>
+                          </div>
+                        </div>
+                        <button
+                          onClick={handleConfirmFinalPayment}
+                          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 px-4 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md"
+                        >
+                          Confirm Payment Completed
+                        </button>
+                        <p className="text-xs text-gray-500 text-center mt-2">
+                          Click this after completing payment via Xendit
+                        </p>
+                      </div>
+                    )}
+
+                  {/* Review Section - Show when both parties marked complete AND payment is done (for client) */}
                   {selectedChat.job.workerMarkedComplete &&
-                    selectedChat.job.clientMarkedComplete && (
+                    selectedChat.job.clientMarkedComplete &&
+                    (selectedChat.my_role === "WORKER" ||
+                      selectedChat.job.remainingPaymentPaid) && (
                       <div className="mt-1">
                         {isLoadingReviewStatus ? (
                           <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
@@ -1568,7 +1736,17 @@ const InboxPage = () => {
                   : "bg-gray-100 text-gray-600 hover:bg-gray-200"
               }`}
             >
-              � Unread
+              Unread
+            </button>
+            <button
+              onClick={() => setActiveTab("archived")}
+              className={`px-4 py-2 rounded-lg text-xs font-medium transition-colors ${
+                activeTab === "archived"
+                  ? "bg-blue-500 text-white"
+                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              }`}
+            >
+              Archived
             </button>
           </div>
         </div>

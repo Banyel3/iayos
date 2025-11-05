@@ -1,4 +1,5 @@
 "use client";
+
 import React, {
   createContext,
   useContext,
@@ -8,6 +9,7 @@ import React, {
 } from "react";
 import { User, AuthContextType } from "@/types";
 import { useRouter } from "next/navigation";
+import { API_BASE_URL } from "@/lib/api/config";
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -44,9 +46,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const checkAuthWithServer = async (): Promise<boolean> => {
     setIsLoading(true);
     try {
-      const response = await fetch("http://localhost:8000/api/accounts/me", {
-        credentials: "include", // 🔥 HTTP-only cookies sent automatically
-      });
+      const response = await fetch(
+        `${API_BASE_URL.replace("/api", "")}/api/accounts/me`,
+        {
+          credentials: "include", // 🔥 HTTP-only cookies sent automatically
+        }
+      );
 
       if (response.ok) {
         const userData = await response.json();
@@ -83,12 +88,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       clearAllAuthCaches();
       setUser(null);
 
-      const response = await fetch("http://localhost:8000/api/accounts/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-        credentials: "include", // 🔥 Cookies handled automatically
-      });
+      const response = await fetch(
+        `${API_BASE_URL.replace("/api", "")}/api/accounts/login`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
+          credentials: "include", // 🔥 Cookies handled automatically
+        }
+      );
 
       if (!response.ok) {
         // Login failed - ensure everything is cleared
@@ -99,7 +107,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       // Login successful - now fetch user data
       const userDataResponse = await fetch(
-        "http://localhost:8000/api/accounts/me",
+        `${API_BASE_URL.replace("/api", "")}/api/accounts/me`,
         {
           credentials: "include",
         }
@@ -140,7 +148,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       clearAllAuthCaches();
 
       // Call backend to clear cookies
-      await fetch("http://localhost:8000/api/accounts/logout", {
+      await fetch(`${API_BASE_URL.replace("/api", "")}/api/accounts/logout`, {
         method: "POST",
         credentials: "include",
       });

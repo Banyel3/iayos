@@ -1,0 +1,124 @@
+version: "3.8"
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: iayos-postgres
+    environment:
+      POSTGRES_DB: iayos_db
+      POSTGRES_USER: iayos_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-your_secure_password}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./apps/backend/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - iayos-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U iayos_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Django Backend
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: backend-production
+    container_name: iayos-backend
+    environment:
+      DATABASE_URL: postgresql://iayos_user:${DB_PASSWORD:-your_secure_password}@postgres:5432/iayos_db?sslmode=disable
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-change-me-in-production}
+      DJANGO_SETTINGS_MODULE: core.settings
+      DEBUG: ${DEBUG:-False}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      XENDIT_API_KEY: ${XENDIT_API_KEY}
+      XENDIT_WEBHOOK_TOKEN: ${XENDIT_WEBHOOK_TOKEN}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./apps/backend/src:/app/backend
+      - media_files:/app/backend/media
+      - static_files:/app/backend/static
+    networks:
+      - iayos-network
+    command: >
+      sh -c "
+        python manage.py migrate &&
+        python manage.py collectstatic --noinput &&
+        gunicorn --bind 0.0.0.0:8000 --workers 4 --timeout 120 core.wsgi:application
+      "
+
+  # Django Channels (WebSocket server)
+  channels:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: backend-production
+    container_name: iayos-channels
+    environment:
+      DATABASE_URL: postgresql://iayos_user:${DB_PASSWORD:-your_secure_password}@postgres:5432/iayos_db?sslmode=disable
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-change-me-in-production}
+      DJANGO_SETTINGS_MODULE: core.settings
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+    ports:
+      - "8001:8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - iayos-network
+    command: daphne -b 0.0.0.0 -p 8001 core.asgi:application
+
+  # Next.js Frontend
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: frontend-production
+    container_name: iayos-frontend
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+      NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:-ws://localhost:8001}
+      NODE_ENV: production
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - iayos-network
+
+  # Nginx Reverse Proxy (optional but recommended for production)
+  nginx:
+    image: nginx:alpine
+    container_name: iayos-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+      - static_files:/var/www/static:ro
+      - media_files:/var/www/media:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - iayos-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  media_files:
+  static_files:
+
+networks:
+  iayos-network:
+    driver: bridge

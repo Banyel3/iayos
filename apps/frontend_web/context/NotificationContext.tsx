@@ -8,6 +8,7 @@ import React, {
   useCallback,
 } from "react";
 import { useAuth } from "./AuthContext";
+import { API_BASE_URL } from "@/lib/api/config";
 
 interface Notification {
   notificationID: number;
@@ -50,7 +51,7 @@ export function NotificationProvider({
     try {
       setIsLoading(true);
       const response = await fetch(
-        "http://localhost:8000/api/accounts/notifications?limit=50",
+        `${API_BASE_URL}/accounts/notifications?limit=50`,
         {
           credentials: "include",
         }
@@ -74,7 +75,7 @@ export function NotificationProvider({
 
     try {
       const response = await fetch(
-        "http://localhost:8000/api/accounts/notifications/unread-count",
+        `${API_BASE_URL}/accounts/notifications/unread-count`,
         {
           credentials: "include",
         }
@@ -94,7 +95,7 @@ export function NotificationProvider({
   const markAsRead = async (notificationId: number) => {
     try {
       const response = await fetch(
-        `http://localhost:8000/api/accounts/notifications/${notificationId}/mark-read`,
+        `${API_BASE_URL}/accounts/notifications/${notificationId}/mark-read`,
         {
           method: "POST",
           credentials: "include",
@@ -120,7 +121,7 @@ export function NotificationProvider({
   const markAllAsRead = async () => {
     try {
       const response = await fetch(
-        "http://localhost:8000/api/accounts/notifications/mark-all-read",
+        `${API_BASE_URL}/accounts/notifications/mark-all-read`,
         {
           method: "POST",
           credentials: "include",

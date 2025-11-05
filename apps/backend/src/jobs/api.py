@@ -2,11 +2,14 @@ from ninja import Router, File
 from ninja.responses import Response
 from ninja.files import UploadedFile
 from accounts.authentication import cookie_auth
-from accounts.models import ClientProfile, Specializations, Profile, WorkerProfile, JobApplication, JobPhoto
+from accounts.models import ClientProfile, Specializations, Profile, WorkerProfile, JobApplication, JobPhoto, Wallet, Transaction
+from accounts.xendit_service import XenditService
 from .models import JobPosting
 from .schemas import CreateJobPostingSchema, JobPostingResponseSchema, JobApplicationSchema, SubmitReviewSchema
 from datetime import datetime
 from django.utils import timezone
+from decimal import Decimal
+from django.db import transaction as db_transaction
 
 router = Router()
 
@@ -73,27 +76,106 @@ def create_job_posting(request, data: CreateJobPostingSchema):
                     status=400
                 )
         
-        # Create job posting
-        job_posting = JobPosting.objects.create(
-            clientID=client_profile,
-            title=data.title,
-            description=data.description,
-            categoryID=category,
-            budget=data.budget,
-            location=data.location,
-            expectedDuration=data.expected_duration,
-            urgency=data.urgency.upper() if data.urgency else "MEDIUM",
-            preferredStartDate=preferred_start_date,
-            materialsNeeded=data.materials_needed if data.materials_needed else [],
-            status=JobPosting.JobStatus.ACTIVE
+        # Calculate 50% downpayment (escrow)
+        downpayment = Decimal(str(data.budget)) * Decimal('0.5')
+        remaining_payment = Decimal(str(data.budget)) * Decimal('0.5')
+        
+        print(f"💰 Payment breakdown:")
+        print(f"   Total Budget: ₱{data.budget}")
+        print(f"   Downpayment (50%): ₱{downpayment}")
+        print(f"   Remaining (50%): ₱{remaining_payment}")
+        
+        # Get or create client's wallet
+        wallet, created = Wallet.objects.get_or_create(
+            accountFK=request.auth,
+            defaults={'balance': Decimal('0.00')}
         )
         
-        print(f"✅ Job posting created: ID={job_posting.jobID}, Title='{job_posting.title}'")
+        if created:
+            print(f"💼 New wallet created for {request.auth.email}")
+        
+        print(f"💳 Current wallet balance: ₱{wallet.balance}")
+        
+        # Use database transaction to ensure atomicity
+        with db_transaction.atomic():
+            # Create job posting first (with escrowPaid=False)
+            job_posting = JobPosting.objects.create(
+                clientID=client_profile,
+                title=data.title,
+                description=data.description,
+                categoryID=category,
+                budget=data.budget,
+                escrowAmount=downpayment,
+                escrowPaid=False,  # Will be marked true after payment
+                remainingPayment=remaining_payment,
+                location=data.location,
+                expectedDuration=data.expected_duration,
+                urgency=data.urgency.upper() if data.urgency else "MEDIUM",
+                preferredStartDate=preferred_start_date,
+                materialsNeeded=data.materials_needed if data.materials_needed else [],
+                status=JobPosting.JobStatus.ACTIVE
+            )
+            
+            # Create pending transaction for escrow payment
+            escrow_transaction = Transaction.objects.create(
+                walletID=wallet,
+                transactionType=Transaction.TransactionType.PAYMENT,
+                amount=downpayment,
+                balanceAfter=wallet.balance,  # Will update after payment
+                status=Transaction.TransactionStatus.PENDING,
+                description=f"Escrow payment (50% downpayment) for job: {job_posting.title}",
+                relatedJobPosting=job_posting,
+                referenceNumber=f"ESCROW-{job_posting.jobID}-{timezone.now().strftime('%Y%m%d%H%M%S')}"
+            )
+            
+            print(f"✅ Job posting created: ID={job_posting.jobID}, Title='{job_posting.title}'")
+            print(f"📋 Pending escrow transaction created: ID={escrow_transaction.transactionID}")
+        
+        # Get user profile for Xendit invoice
+        try:
+            profile = Profile.objects.get(accountFK=request.auth)
+            user_name = f"{profile.firstName or ''} {profile.lastName or ''}".strip() or request.auth.email
+        except Profile.DoesNotExist:
+            user_name = request.auth.email
+        
+        # Create Xendit invoice for escrow payment
+        print(f"� Creating Xendit invoice for escrow payment...")
+        xendit_result = XenditService.create_gcash_payment(
+            amount=float(downpayment),
+            user_email=request.auth.email,
+            user_name=user_name,
+            transaction_id=escrow_transaction.transactionID
+        )
+        
+        if not xendit_result.get("success"):
+            # If Xendit fails, delete the job and transaction
+            job_posting.delete()
+            escrow_transaction.delete()
+            return Response(
+                {"error": "Failed to create payment invoice", "details": xendit_result.get("error")},
+                status=500
+            )
+        
+        # Update transaction with Xendit details
+        escrow_transaction.xenditInvoiceID = xendit_result['invoice_id']
+        escrow_transaction.xenditExternalID = xendit_result['external_id']
+        escrow_transaction.invoiceURL = xendit_result['invoice_url']
+        escrow_transaction.xenditPaymentChannel = "GCASH"
+        escrow_transaction.xenditPaymentMethod = "EWALLET"
+        escrow_transaction.save()
+        
+        print(f"📄 Xendit invoice created: {xendit_result['invoice_id']}")
+        print(f"🔗 Payment URL: {xendit_result['invoice_url']}")
         
         return {
             "success": True,
+            "requires_payment": True,
             "job_posting_id": job_posting.jobID,
-            "message": "Job posting created successfully"
+            "escrow_amount": float(downpayment),
+            "remaining_payment": float(remaining_payment),
+            "invoice_url": xendit_result['invoice_url'],
+            "invoice_id": xendit_result['invoice_id'],
+            "message": f"Job created. Please complete the ₱{downpayment} escrow payment via Xendit."
         }
         
     except Exception as e:
@@ -683,6 +765,38 @@ def cancel_job_posting(request, job_id: int):
                 status=400
             )
         
+        # Refund escrow to client if it was paid
+        refund_amount = Decimal('0.00')
+        if job.escrowPaid and job.escrowAmount > 0:
+            print(f"💰 Refunding escrow amount: ₱{job.escrowAmount}")
+            
+            # Get client's wallet
+            wallet = Wallet.objects.get(accountFK=request.auth)
+            
+            # Use database transaction for atomicity
+            with db_transaction.atomic():
+                # Add escrow back to wallet
+                wallet.balance += job.escrowAmount
+                wallet.save()
+                
+                # Create refund transaction
+                refund_transaction = Transaction.objects.create(
+                    walletID=wallet,
+                    transactionType=Transaction.TransactionType.REFUND,
+                    amount=job.escrowAmount,
+                    balanceAfter=wallet.balance,
+                    status=Transaction.TransactionStatus.COMPLETED,
+                    description=f"Escrow refund for cancelled job: {job.title}",
+                    relatedJobPosting=job,
+                    referenceNumber=f"REFUND-{job.jobID}-{timezone.now().strftime('%Y%m%d%H%M%S')}"
+                )
+                
+                refund_amount = job.escrowAmount
+                
+                print(f"✅ Refunded ₱{job.escrowAmount} to wallet")
+                print(f"💳 New balance: ₱{wallet.balance}")
+                print(f"📝 Refund transaction created: ID={refund_transaction.transactionID}")
+        
         # Update status to CANCELLED
         job.status = JobPosting.JobStatus.CANCELLED
         job.save()
@@ -692,7 +806,9 @@ def cancel_job_posting(request, job_id: int):
         return {
             "success": True,
             "message": "Job posting cancelled successfully",
-            "job_id": job_id
+            "job_id": job_id,
+            "refund_amount": float(refund_amount),
+            "refunded": refund_amount > 0
         }
         
     except Exception as e:
@@ -1373,24 +1489,104 @@ def client_approve_job_completion(request, job_id: int):
         # Mark as complete by client
         job.clientMarkedComplete = True
         job.clientMarkedCompleteAt = timezone.now()
-        
-        # Don't mark as COMPLETED yet - wait for both reviews
-        # Job stays IN_PROGRESS until both parties submit reviews
         job.save()
         
-        print(f"✅ Client approved job {job_id} completion. Waiting for both reviews.")
+        print(f"✅ Client approved job {job_id} completion.")
         
-        return {
-            "success": True,
-            "message": "Job completion approved! Please leave a review.",
-            "job_id": job_id,
-            "worker_marked_complete": job.workerMarkedComplete,
-            "client_marked_complete": job.clientMarkedComplete,
-            "status": job.status,
-            "both_confirmed": True,
-            "prompt_review": True,
-            "worker_id": job.assignedWorkerID.profileID.accountFK.accountID if job.assignedWorkerID else None
-        }
+        # Check if remaining payment already paid
+        if job.remainingPaymentPaid:
+            print(f"✅ Remaining payment already paid for job {job_id}")
+            return {
+                "success": True,
+                "message": "Job completion approved! You can now leave a review.",
+                "job_id": job_id,
+                "worker_marked_complete": job.workerMarkedComplete,
+                "client_marked_complete": job.clientMarkedComplete,
+                "status": job.status,
+                "requires_payment": False,
+                "payment_already_completed": True,
+                "prompt_review": True,
+                "worker_id": job.assignedWorkerID.profileID.accountFK.accountID if job.assignedWorkerID else None
+            }
+        
+        # Generate Xendit invoice for remaining 50% payment
+        try:
+            from accounts.xendit_service import XenditService
+            
+            remaining_amount = job.remainingPayment
+            
+            # Create a transaction record for the remaining payment
+            transaction = Transaction.objects.create(
+                accountID=client_profile.profileID.accountFK,
+                transactionType="PAYMENT",
+                amount=remaining_amount,
+                status="PENDING",
+                description=f"Remaining payment for job: {job.title}",
+                referenceNumber=f"JOB-{job.jobID}-FINAL-{timezone.now().strftime('%Y%m%d%H%M%S')}"
+            )
+            
+            # Generate Xendit invoice
+            invoice_result = XenditService.create_gcash_payment(
+                amount=float(remaining_amount),
+                customer_email=client_profile.profileID.accountFK.email,
+                description=f"Final Payment (50%) for Job: {job.title}",
+                external_id=f"FINAL-{job.jobID}-{transaction.transactionID}"
+            )
+            
+            if invoice_result:
+                print(f"✅ Xendit invoice created for final payment: {invoice_result['invoice_id']}")
+                
+                # Store invoice details in transaction
+                transaction.referenceNumber = f"{transaction.referenceNumber}-{invoice_result['invoice_id']}"
+                transaction.save()
+                
+                return {
+                    "success": True,
+                    "message": "Job completion approved! Please complete the final payment.",
+                    "job_id": job_id,
+                    "worker_marked_complete": job.workerMarkedComplete,
+                    "client_marked_complete": job.clientMarkedComplete,
+                    "status": job.status,
+                    "requires_payment": True,
+                    "invoice_url": invoice_result["invoice_url"],
+                    "invoice_id": invoice_result["invoice_id"],
+                    "payment_amount": float(remaining_amount),
+                    "prompt_review": False,  # Only after payment
+                    "worker_id": job.assignedWorkerID.profileID.accountFK.accountID if job.assignedWorkerID else None
+                }
+            else:
+                # If invoice creation fails, allow proceeding without payment
+                print(f"⚠️ Xendit invoice creation failed, allowing review without payment")
+                return {
+                    "success": True,
+                    "message": "Job completion approved! Payment processing unavailable, please contact support.",
+                    "job_id": job_id,
+                    "worker_marked_complete": job.workerMarkedComplete,
+                    "client_marked_complete": job.clientMarkedComplete,
+                    "status": job.status,
+                    "requires_payment": False,
+                    "payment_error": True,
+                    "prompt_review": True,
+                    "worker_id": job.assignedWorkerID.profileID.accountFK.accountID if job.assignedWorkerID else None
+                }
+                
+        except Exception as payment_error:
+            print(f"⚠️ Error creating payment invoice: {str(payment_error)}")
+            import traceback
+            traceback.print_exc()
+            # Allow proceeding with review even if payment fails
+            return {
+                "success": True,
+                "message": "Job completion approved! Payment processing error, please contact support.",
+                "job_id": job_id,
+                "worker_marked_complete": job.workerMarkedComplete,
+                "client_marked_complete": job.clientMarkedComplete,
+                "status": job.status,
+                "requires_payment": False,
+                "payment_error": True,
+                "prompt_review": True,
+                "worker_id": job.assignedWorkerID.profileID.accountFK.accountID if job.assignedWorkerID else None
+            }
         
     except Exception as e:
         print(f"❌ Error approving job completion: {str(e)}")
@@ -1440,10 +1636,7 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                 status=400
             )
         
-        # Job can be IN_PROGRESS or COMPLETED - we allow reviews once both marked complete
-        # The job will transition to COMPLETED after both reviews are submitted
-        
-        # Determine reviewer and reviewee
+        # Determine reviewer type first to check payment requirement
         is_client = job.clientID.profileID.profileID == profile.profileID
         is_worker = job.assignedWorkerID and job.assignedWorkerID.profileID.profileID == profile.profileID
         
@@ -1452,6 +1645,16 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                 {"error": "You are not part of this job"},
                 status=403
             )
+        
+        # If client is reviewing, check if final payment has been made
+        if is_client and not job.remainingPaymentPaid:
+            return Response(
+                {"error": "You must complete the final payment before leaving a review"},
+                status=400
+            )
+        
+        # Job can be IN_PROGRESS or COMPLETED - we allow reviews once both marked complete
+        # The job will transition to COMPLETED after both reviews are submitted
         
         reviewer_profile = profile
         if is_client:
@@ -1559,4 +1762,94 @@ def check_user_review_status(request, job_id: int):
         )
 
 
+@router.post("/{job_id}/confirm-final-payment", auth=cookie_auth)
+def confirm_final_payment(request, job_id: int):
+    """
+    Confirm that the final 50% payment has been completed
+    This can be called manually or by a webhook after Xendit payment confirmation
+    """
+    try:
+        print(f"💰 Confirming final payment for job {job_id}")
+        
+        # Get client's profile
+        try:
+            client_profile = ClientProfile.objects.select_related('profileID__accountFK').get(
+                profileID__accountFK=request.auth
+            )
+        except ClientProfile.DoesNotExist:
+            return Response(
+                {"error": "Client profile not found"},
+                status=400
+            )
+        
+        # Get the job
+        try:
+            job = JobPosting.objects.select_related(
+                'assignedWorkerID__profileID__accountFK'
+            ).get(jobID=job_id)
+        except JobPosting.DoesNotExist:
+            return Response(
+                {"error": "Job not found"},
+                status=404
+            )
+        
+        # Verify client owns this job
+        if job.clientID.profileID.profileID != client_profile.profileID.profileID:
+            return Response(
+                {"error": "You are not the client for this job"},
+                status=403
+            )
+        
+        # Verify completion has been approved
+        if not job.clientMarkedComplete:
+            return Response(
+                {"error": "You must approve job completion first"},
+                status=400
+            )
+        
+        # Check if already paid
+        if job.remainingPaymentPaid:
+            return Response(
+                {"error": "Final payment has already been confirmed"},
+                status=400
+            )
+        
+        # Mark payment as complete
+        with db_transaction.atomic():
+            job.remainingPaymentPaid = True
+            job.remainingPaymentPaidAt = timezone.now()
+            job.save()
+            
+            # Update the transaction status to COMPLETED
+            Transaction.objects.filter(
+                accountID=client_profile.profileID.accountFK,
+                description__icontains=f"Remaining payment for job: {job.title}",
+                status="PENDING"
+            ).update(
+                status="COMPLETED",
+                timestamp=timezone.now()
+            )
+        
+        print(f"✅ Final payment confirmed for job {job_id}")
+        
+        return {
+            "success": True,
+            "message": "Final payment confirmed! You can now leave a review.",
+            "job_id": job_id,
+            "payment_confirmed": True,
+            "prompt_review": True,
+            "worker_id": job.assignedWorkerID.profileID.accountFK.accountID if job.assignedWorkerID else None
+        }
+        
+    except Exception as e:
+        print(f"❌ Error confirming final payment: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": f"Failed to confirm final payment: {str(e)}"},
+            status=500
+        )
+
+
 #endregion
+

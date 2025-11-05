@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { UserProfileType } from "@/types";
 import NotificationBell from "@/components/notifications/NotificationBell";
+import { API_BASE_URL } from "@/lib/api/config";
 
 // Temporary User interface extension for this page
 interface DashboardUser {
@@ -87,14 +88,11 @@ const TempDashboard = () => {
 
       console.log("Sending request:", values);
 
-      const res = await fetch(
-        "http://localhost:8000/api/accounts/assign-role",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(values),
-        }
-      );
+      const res = await fetch(`${API_BASE_URL}/accounts/assign-role`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(values),
+      });
 
       if (!res.ok) {
         const errorData = await res.json();
