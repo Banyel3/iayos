@@ -31,7 +31,7 @@ load_dotenv(BASE_DIR.parent / ".env.local", override=True)
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-ss_o*cm)=s&gj!mnt)w&6+-20*s+4imz84l1=m_(59s0ztn9y+'
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-ss_o*cm)=s&gj!mnt)w&6+-20*s+4imz84l1=m_(59s0ztn9y+')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -247,7 +247,7 @@ SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "")
 SUPABASE = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
 # Xendit Configuration
-XENDIT_API_KEY = os.getenv("XENDIT_API_KEY", "xnd_development_nWEcAWzDMSMcgbDr3BBBzBhqmG1kubqYcksJ8X1l1iZvkk43z7uyDbCegkF3z")
+XENDIT_API_KEY = os.getenv("XENDIT_API_KEY")  # Must be set in .env.docker
 XENDIT_WEBHOOK_TOKEN = os.getenv("XENDIT_WEBHOOK_TOKEN", "")  # Optional: for webhook verification
 XENDIT_TEST_MODE = True  # Always True for development
 

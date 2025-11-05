@@ -882,9 +882,16 @@ def xendit_webhook(request):
             # Payment successful
             wallet = transaction.walletID
             
-            # Update wallet balance
-            wallet.balance += transaction.amount
-            wallet.save()
+            # Update wallet balance based on transaction type
+            if transaction.transactionType == Transaction.TransactionType.DEPOSIT:
+                # Deposit adds to wallet
+                wallet.balance += transaction.amount
+                wallet.save()
+                print(f"💰 Added ₱{transaction.amount} to wallet (DEPOSIT)")
+            elif transaction.transactionType == Transaction.TransactionType.PAYMENT:
+                # Payment/Escrow - money goes to platform, not deducted from wallet
+                # Wallet balance stays the same (escrow is held by platform)
+                print(f"💸 Escrow payment of ₱{transaction.amount} received (held by platform)")
             
             # Update transaction
             transaction.status = Transaction.TransactionStatus.COMPLETED
@@ -894,6 +901,15 @@ def xendit_webhook(request):
             transaction.xenditPaymentMethod = webhook_data.get('payment_method')
             transaction.completedAt = timezone.now()
             transaction.save()
+            
+            # If this is an escrow payment, mark the job as escrow paid
+            if transaction.relatedJobPosting:
+                job = transaction.relatedJobPosting
+                if "escrow" in transaction.description.lower() or "downpayment" in transaction.description.lower():
+                    job.escrowPaid = True
+                    job.escrowPaidAt = timezone.now()
+                    job.save()
+                    print(f"✅ Job {job.jobID} escrow marked as paid")
             
             print(f"✅ Payment completed for transaction {transaction.transactionID}")
             
@@ -960,11 +976,17 @@ def simulate_payment_completion(request, transaction_id: int):
         
         print(f"💰 Simulating payment completion for transaction {transaction_id}")
         print(f"   Current balance: ₱{wallet.balance}")
-        print(f"   Adding: ₱{transaction.amount}")
         
-        # Update wallet balance
-        wallet.balance += transaction.amount
-        wallet.save()
+        # Update wallet balance based on transaction type
+        if transaction.transactionType == Transaction.TransactionType.DEPOSIT:
+            # Deposit adds to wallet
+            wallet.balance += transaction.amount
+            wallet.save()
+            print(f"   Added: ₱{transaction.amount} (DEPOSIT)")
+        elif transaction.transactionType == Transaction.TransactionType.PAYMENT:
+            # Payment/Escrow - money goes to platform, not deducted from wallet
+            # Wallet balance stays the same (escrow is held by platform)
+            print(f"   Escrow payment: ₱{transaction.amount} (held by platform)")
         
         # Update transaction
         transaction.status = Transaction.TransactionStatus.COMPLETED
@@ -973,6 +995,15 @@ def simulate_payment_completion(request, transaction_id: int):
         transaction.xenditPaymentChannel = "GCASH"
         transaction.completedAt = timezone.now()
         transaction.save()
+        
+        # If this is an escrow payment, mark the job as escrow paid
+        if transaction.relatedJobPosting:
+            job = transaction.relatedJobPosting
+            if "escrow" in transaction.description.lower() or "downpayment" in transaction.description.lower():
+                job.escrowPaid = True
+                job.escrowPaidAt = timezone.now()
+                job.save()
+                print(f"✅ Job {job.jobID} escrow marked as paid")
         
         print(f"   New balance: ₱{wallet.balance}")
         print(f"✅ Payment simulation completed!")

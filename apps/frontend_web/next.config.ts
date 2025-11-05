@@ -34,12 +34,4 @@ const nextConfig: NextConfig = {
   transpilePackages: ["rate-limiter-flexible"],
 };
 
-// Use dynamic import to avoid ESLint no-require-imports error
-const withPWA = require("next-pwa");
-
-const pwaConfig = withPWA({
-  dest: "public",
-  disable: process.env.NODE_ENV === "development",
-});
-
-module.exports = pwaConfig(nextConfig);
+export default nextConfig;

@@ -12,6 +12,7 @@ class CreateJobPostingSchema(Schema):
     urgency: Optional[str] = "MEDIUM"  # LOW, MEDIUM, HIGH (default MEDIUM)
     preferred_start_date: Optional[str] = None
     materials_needed: Optional[list[str]] = []
+    payment_method: Optional[str] = "WALLET"  # WALLET or GCASH
 
 
 class JobPostingResponseSchema(Schema):

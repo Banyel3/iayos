@@ -20,7 +20,6 @@ export const metadata: Metadata = {
   title: "iAyos",
   description:
     "The Marketplace for Everyday Help Platform for Blue-Collar Services",
-  manifest: "/manifest.json",
 };
 
 export const viewport = {

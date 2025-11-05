@@ -325,6 +325,40 @@ class Job(models.Model):
     )
     remainingPaymentPaidAt = models.DateTimeField(null=True, blank=True)
     
+    # Payment Method Tracking (for final 50% payment)
+    class PaymentMethod(models.TextChoices):
+        GCASH = "GCASH", "GCash"
+        CASH = "CASH", "Cash"
+    
+    finalPaymentMethod = models.CharField(
+        max_length=20,
+        choices=PaymentMethod.choices,
+        null=True,
+        blank=True,
+        help_text="Payment method chosen for final 50% payment"
+    )
+    paymentMethodSelectedAt = models.DateTimeField(null=True, blank=True)
+    
+    # Cash Payment Proof (for cash payments)
+    cashPaymentProofUrl = models.CharField(
+        max_length=500,
+        null=True,
+        blank=True,
+        help_text="URL to proof of payment image (for cash payments)"
+    )
+    cashProofUploadedAt = models.DateTimeField(null=True, blank=True)
+    
+    # Admin verification for cash payments
+    cashPaymentApproved = models.BooleanField(default=False)
+    cashPaymentApprovedAt = models.DateTimeField(null=True, blank=True)
+    cashPaymentApprovedBy = models.ForeignKey(
+        'Accounts',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='approved_cash_payments'
+    )
+    
     # Location
     location = models.CharField(max_length=255)
     

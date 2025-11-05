@@ -378,7 +378,7 @@ const InboxPage = () => {
 
   useEffect(() => {
     if (selectedChat) {
-      loadMessages(selectedChat.id);
+      loadMessages(selectedChat.id, true); // Force refresh to get latest job status
 
       // Reset the modal shown flag when switching to a different job
       hasShownReviewModalRef.current = false;

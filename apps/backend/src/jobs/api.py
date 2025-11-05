@@ -96,8 +96,168 @@ def create_job_posting(request, data: CreateJobPostingSchema):
         
         print(f"💳 Current wallet balance: ₱{wallet.balance}")
         
-        # Use database transaction to ensure atomicity
-        with db_transaction.atomic():
+        # Get payment method (default to WALLET)
+        payment_method = data.payment_method.upper() if data.payment_method else "WALLET"
+        print(f"💳 Payment method selected: {payment_method}")
+        
+        # Handle payment based on method
+        if payment_method == "WALLET":
+            # Check if client has sufficient balance for escrow
+            if wallet.balance < downpayment:
+                return Response(
+                    {
+                        "error": "Insufficient wallet balance",
+                        "required": float(downpayment),
+                        "available": float(wallet.balance),
+                        "message": f"You need ₱{downpayment} for the escrow payment, but only have ₱{wallet.balance}. Please deposit more funds or use GCash payment."
+                    },
+                    status=400
+                )
+            
+            # Use database transaction to ensure atomicity
+            with db_transaction.atomic():
+                # Deduct escrow from wallet balance
+                wallet.balance -= downpayment
+                wallet.save()
+                
+                print(f"💸 Deducted ₱{downpayment} from wallet. New balance: ₱{wallet.balance}")
+                
+                # Create job posting with escrowPaid=True (already deducted)
+                job_posting = JobPosting.objects.create(
+                    clientID=client_profile,
+                    title=data.title,
+                    description=data.description,
+                    categoryID=category,
+                    budget=data.budget,
+                    escrowAmount=downpayment,
+                    escrowPaid=True,  # Already deducted from wallet
+                    escrowPaidAt=timezone.now(),
+                    remainingPayment=remaining_payment,
+                    location=data.location,
+                    expectedDuration=data.expected_duration,
+                    urgency=data.urgency.upper() if data.urgency else "MEDIUM",
+                    preferredStartDate=preferred_start_date,
+                    materialsNeeded=data.materials_needed if data.materials_needed else [],
+                    status=JobPosting.JobStatus.ACTIVE
+                )
+                
+                # Create completed transaction for escrow payment
+                escrow_transaction = Transaction.objects.create(
+                    walletID=wallet,
+                    transactionType=Transaction.TransactionType.PAYMENT,
+                    amount=downpayment,
+                    balanceAfter=wallet.balance,
+                    status=Transaction.TransactionStatus.COMPLETED,
+                    description=f"Escrow payment (50% downpayment) for job: {job_posting.title}",
+                    relatedJobPosting=job_posting,
+                    completedAt=timezone.now(),
+                    referenceNumber=f"ESCROW-{job_posting.jobID}-{timezone.now().strftime('%Y%m%d%H%M%S')}"
+                )
+                
+                print(f"✅ Job posting created: ID={job_posting.jobID}, Title='{job_posting.title}'")
+                print(f"✅ Escrow transaction completed: ID={escrow_transaction.transactionID}")
+            
+            return {
+                "success": True,
+                "requires_payment": False,
+                "payment_method": "WALLET",
+                "job_posting_id": job_posting.jobID,
+                "escrow_amount": float(downpayment),
+                "remaining_payment": float(remaining_payment),
+                "new_wallet_balance": float(wallet.balance),
+                "message": f"Job created successfully! ₱{downpayment} escrow deducted from your wallet."
+            }
+        
+        elif payment_method == "GCASH":
+            # Use database transaction to ensure atomicity
+            with db_transaction.atomic():
+                # Create job posting first (with escrowPaid=False)
+                job_posting = JobPosting.objects.create(
+                    clientID=client_profile,
+                    title=data.title,
+                    description=data.description,
+                    categoryID=category,
+                    budget=data.budget,
+                    escrowAmount=downpayment,
+                    escrowPaid=False,  # Will be marked true after Xendit payment
+                    remainingPayment=remaining_payment,
+                    location=data.location,
+                    expectedDuration=data.expected_duration,
+                    urgency=data.urgency.upper() if data.urgency else "MEDIUM",
+                    preferredStartDate=preferred_start_date,
+                    materialsNeeded=data.materials_needed if data.materials_needed else [],
+                    status=JobPosting.JobStatus.ACTIVE
+                )
+                
+                # Create pending transaction for escrow payment
+                escrow_transaction = Transaction.objects.create(
+                    walletID=wallet,
+                    transactionType=Transaction.TransactionType.PAYMENT,
+                    amount=downpayment,
+                    balanceAfter=wallet.balance,  # Will update after payment
+                    status=Transaction.TransactionStatus.PENDING,
+                    description=f"Escrow payment (50% downpayment) for job: {job_posting.title}",
+                    relatedJobPosting=job_posting,
+                    referenceNumber=f"ESCROW-{job_posting.jobID}-{timezone.now().strftime('%Y%m%d%H%M%S')}"
+                )
+                
+                print(f"✅ Job posting created: ID={job_posting.jobID}, Title='{job_posting.title}'")
+                print(f"📋 Pending escrow transaction created: ID={escrow_transaction.transactionID}")
+            
+            # Get user profile for Xendit invoice
+            try:
+                profile = Profile.objects.get(accountFK=request.auth)
+                user_name = f"{profile.firstName or ''} {profile.lastName or ''}".strip() or request.auth.email
+            except Profile.DoesNotExist:
+                user_name = request.auth.email
+            
+            # Create Xendit invoice for escrow payment
+            print(f"💳 Creating Xendit invoice for escrow payment...")
+            xendit_result = XenditService.create_gcash_payment(
+                amount=float(downpayment),
+                user_email=request.auth.email,
+                user_name=user_name,
+                transaction_id=escrow_transaction.transactionID
+            )
+            
+            if not xendit_result.get("success"):
+                # If Xendit fails, delete the job and transaction
+                job_posting.delete()
+                escrow_transaction.delete()
+                return Response(
+                    {"error": "Failed to create payment invoice", "details": xendit_result.get("error")},
+                    status=500
+                )
+            
+            # Update transaction with Xendit details
+            escrow_transaction.xenditInvoiceID = xendit_result['invoice_id']
+            escrow_transaction.xenditExternalID = xendit_result['external_id']
+            escrow_transaction.invoiceURL = xendit_result['invoice_url']
+            escrow_transaction.xenditPaymentChannel = "GCASH"
+            escrow_transaction.xenditPaymentMethod = "EWALLET"
+            escrow_transaction.save()
+            
+            print(f"📄 Xendit invoice created: {xendit_result['invoice_id']}")
+            print(f"🔗 Payment URL: {xendit_result['invoice_url']}")
+            
+            return {
+                "success": True,
+                "requires_payment": True,
+                "payment_method": "GCASH",
+                "job_posting_id": job_posting.jobID,
+                "escrow_amount": float(downpayment),
+                "remaining_payment": float(remaining_payment),
+                "invoice_url": xendit_result['invoice_url'],
+                "invoice_id": xendit_result['invoice_id'],
+                "transaction_id": escrow_transaction.transactionID,
+                "message": f"Job created. Please complete the ₱{downpayment} escrow payment via GCash."
+            }
+        
+        else:
+            return Response(
+                {"error": f"Invalid payment method: {payment_method}. Use 'WALLET' or 'GCASH'."},
+                status=400
+            )
             # Create job posting first (with escrowPaid=False)
             job_posting = JobPosting.objects.create(
                 clientID=client_profile,
@@ -249,7 +409,22 @@ def get_my_job_postings(request):
                 "status": job.status,
                 "created_at": job.createdAt.isoformat(),
                 "updated_at": job.updatedAt.isoformat(),
-                "photos": photos
+                "photos": photos,
+                # Payment information
+                "payment_info": {
+                    "escrow_amount": float(job.escrowAmount),
+                    "escrow_paid": job.escrowPaid,
+                    "escrow_paid_at": job.escrowPaidAt.isoformat() if job.escrowPaidAt else None,
+                    "remaining_payment": float(job.remainingPayment),
+                    "remaining_payment_paid": job.remainingPaymentPaid,
+                    "remaining_payment_paid_at": job.remainingPaymentPaidAt.isoformat() if job.remainingPaymentPaidAt else None,
+                    "final_payment_method": job.finalPaymentMethod,
+                    "payment_method_selected_at": job.paymentMethodSelectedAt.isoformat() if job.paymentMethodSelectedAt else None,
+                    "cash_payment_proof_url": job.cashPaymentProofUrl,
+                    "cash_proof_uploaded_at": job.cashProofUploadedAt.isoformat() if job.cashProofUploadedAt else None,
+                    "cash_payment_approved": job.cashPaymentApproved,
+                    "cash_payment_approved_at": job.cashPaymentApprovedAt.isoformat() if job.cashPaymentApprovedAt else None,
+                }
             })
         
         print(f"✅ Found {len(jobs)} job postings")
@@ -1428,13 +1603,26 @@ def worker_mark_job_complete(request, job_id: int):
 @router.post("/{job_id}/approve-completion", auth=cookie_auth)
 def client_approve_job_completion(request, job_id: int):
     """
-    Client approves job completion (phase 2 of two-phase completion)
-    Sets clientMarkedComplete=True
-    If both worker and client marked complete, changes status to COMPLETED
-    Then both parties can review each other
+    Client approves job completion and selects payment method
+    Payment methods: GCASH (online) or CASH (manual with proof upload)
+    
+    Request body (optional):
+    {
+        "payment_method": "GCASH" | "CASH"  // Optional, defaults to GCASH
+    }
     """
     try:
         print(f"✅ Client approving job {job_id} completion")
+        
+        # Get payment method from request body (default to GCASH)
+        payment_method = request.data.get('payment_method', 'GCASH').upper()
+        if payment_method not in ['GCASH', 'CASH']:
+            return Response(
+                {"error": "Invalid payment method. Choose GCASH or CASH"},
+                status=400
+            )
+        
+        print(f"💳 Payment method selected: {payment_method}")
         
         # Get client's profile
         try:
@@ -1486,12 +1674,14 @@ def client_approve_job_completion(request, job_id: int):
                 status=400
             )
         
-        # Mark as complete by client
+        # Mark as complete by client and save payment method
         job.clientMarkedComplete = True
         job.clientMarkedCompleteAt = timezone.now()
+        job.finalPaymentMethod = payment_method
+        job.paymentMethodSelectedAt = timezone.now()
         job.save()
         
-        print(f"✅ Client approved job {job_id} completion.")
+        print(f"✅ Client approved job {job_id} completion with {payment_method} payment.")
         
         # Check if remaining payment already paid
         if job.remainingPaymentPaid:
@@ -1503,34 +1693,65 @@ def client_approve_job_completion(request, job_id: int):
                 "worker_marked_complete": job.workerMarkedComplete,
                 "client_marked_complete": job.clientMarkedComplete,
                 "status": job.status,
+                "payment_method": payment_method,
                 "requires_payment": False,
                 "payment_already_completed": True,
                 "prompt_review": True,
                 "worker_id": job.assignedWorkerID.profileID.accountFK.accountID if job.assignedWorkerID else None
             }
         
-        # Generate Xendit invoice for remaining 50% payment
+        # Generate payment based on selected method
         try:
-            from accounts.xendit_service import XenditService
+            from accounts.models import Wallet
             
             remaining_amount = job.remainingPayment
             
+            # Handle CASH payment (manual with proof upload)
+            if payment_method == 'CASH':
+                print(f"💵 Cash payment selected - client needs to upload proof")
+                return {
+                    "success": True,
+                    "message": "Job completion approved! Please upload proof of cash payment.",
+                    "job_id": job_id,
+                    "worker_marked_complete": job.workerMarkedComplete,
+                    "client_marked_complete": job.clientMarkedComplete,
+                    "status": job.status,
+                    "payment_method": "CASH",
+                    "requires_payment": True,
+                    "requires_proof_upload": True,
+                    "payment_amount": float(remaining_amount),
+                    "prompt_review": False,  # Only after admin approves proof
+                    "worker_id": job.assignedWorkerID.profileID.accountFK.accountID if job.assignedWorkerID else None
+                }
+            
+            # Handle GCASH payment (online via Xendit)
+            from accounts.xendit_service import XenditService
+            
+            # Get or create wallet for client
+            wallet, _ = Wallet.objects.get_or_create(
+                accountFK=client_profile.profileID.accountFK,
+                defaults={'balance': 0}
+            )
+            
             # Create a transaction record for the remaining payment
             transaction = Transaction.objects.create(
-                accountID=client_profile.profileID.accountFK,
+                walletID=wallet,
                 transactionType="PAYMENT",
                 amount=remaining_amount,
+                balanceAfter=wallet.balance,  # Balance won't change yet (pending)
                 status="PENDING",
-                description=f"Remaining payment for job: {job.title}",
-                referenceNumber=f"JOB-{job.jobID}-FINAL-{timezone.now().strftime('%Y%m%d%H%M%S')}"
+                description=f"Remaining payment for job: {job.title} (GCash)",
+                referenceNumber=f"JOB-{job.jobID}-FINAL-GCASH-{timezone.now().strftime('%Y%m%d%H%M%S')}",
+                relatedJobPosting=job
             )
             
             # Generate Xendit invoice
+            client_name = f"{client_profile.profileID.accountFK.firstName} {client_profile.profileID.accountFK.lastName}".strip() or "Client"
             invoice_result = XenditService.create_gcash_payment(
                 amount=float(remaining_amount),
-                customer_email=client_profile.profileID.accountFK.email,
-                description=f"Final Payment (50%) for Job: {job.title}",
-                external_id=f"FINAL-{job.jobID}-{transaction.transactionID}"
+                user_email=client_profile.profileID.accountFK.email,
+                user_name=client_name,
+                transaction_id=transaction.transactionID
             )
             
             if invoice_result:
@@ -1542,12 +1763,14 @@ def client_approve_job_completion(request, job_id: int):
                 
                 return {
                     "success": True,
-                    "message": "Job completion approved! Please complete the final payment.",
+                    "message": "Job completion approved! Please complete the GCash payment.",
                     "job_id": job_id,
                     "worker_marked_complete": job.workerMarkedComplete,
                     "client_marked_complete": job.clientMarkedComplete,
                     "status": job.status,
+                    "payment_method": "GCASH",
                     "requires_payment": True,
+                    "requires_proof_upload": False,
                     "invoice_url": invoice_result["invoice_url"],
                     "invoice_id": invoice_result["invoice_id"],
                     "payment_amount": float(remaining_amount),
@@ -1564,6 +1787,7 @@ def client_approve_job_completion(request, job_id: int):
                     "worker_marked_complete": job.workerMarkedComplete,
                     "client_marked_complete": job.clientMarkedComplete,
                     "status": job.status,
+                    "payment_method": "GCASH",
                     "requires_payment": False,
                     "payment_error": True,
                     "prompt_review": True,
@@ -1571,7 +1795,7 @@ def client_approve_job_completion(request, job_id: int):
                 }
                 
         except Exception as payment_error:
-            print(f"⚠️ Error creating payment invoice: {str(payment_error)}")
+            print(f"⚠️ Error processing payment: {str(payment_error)}")
             import traceback
             traceback.print_exc()
             # Allow proceeding with review even if payment fails
@@ -1594,6 +1818,117 @@ def client_approve_job_completion(request, job_id: int):
         traceback.print_exc()
         return Response(
             {"error": f"Failed to approve job completion: {str(e)}"},
+            status=500
+        )
+
+
+@router.post("/{job_id}/upload-cash-proof", auth=cookie_auth)
+def upload_cash_payment_proof(request, job_id: int):
+    """
+    Upload proof of cash payment for final 50% payment
+    Client uploads screenshot/photo of cash payment receipt
+    """
+    try:
+        print(f"💵 Uploading cash payment proof for job {job_id}")
+        
+        # Get client's profile
+        try:
+            client_profile = ClientProfile.objects.select_related('profileID__accountFK').get(
+                profileID__accountFK=request.auth
+            )
+        except ClientProfile.DoesNotExist:
+            return Response(
+                {"error": "Client profile not found"},
+                status=400
+            )
+        
+        # Get the job
+        try:
+            job = JobPosting.objects.get(jobID=job_id)
+        except JobPosting.DoesNotExist:
+            return Response(
+                {"error": "Job not found"},
+                status=404
+            )
+        
+        # Verify client owns this job
+        if job.clientID.profileID.profileID != client_profile.profileID.profileID:
+            return Response(
+                {"error": "You are not the client for this job"},
+                status=403
+            )
+        
+        # Verify payment method is CASH
+        if job.finalPaymentMethod != 'CASH':
+            return Response(
+                {"error": "This job is not set for cash payment"},
+                status=400
+            )
+        
+        # Verify not already approved
+        if job.cashPaymentApproved:
+            return Response(
+                {"error": "Cash payment has already been approved"},
+                status=400
+            )
+        
+        # Get proof image from request
+        proof_image = request.FILES.get('proof_image')
+        if not proof_image:
+            return Response(
+                {"error": "Please provide proof_image file"},
+                status=400
+            )
+        
+        # Upload to Supabase storage
+        try:
+            from django.conf import settings
+            import uuid
+            
+            supabase = settings.SUPABASE
+            file_extension = proof_image.name.split('.')[-1]
+            file_name = f"cash_proofs/{job_id}_{uuid.uuid4().hex}.{file_extension}"
+            
+            # Upload file
+            result = supabase.storage.from_('job-images').upload(
+                file_name,
+                proof_image.read(),
+                {'content-type': proof_image.content_type}
+            )
+            
+            # Get public URL
+            proof_url = supabase.storage.from_('job-images').get_public_url(file_name)
+            
+            # Save proof URL to job
+            job.cashPaymentProofUrl = proof_url
+            job.cashProofUploadedAt = timezone.now()
+            job.save()
+            
+            print(f"✅ Cash payment proof uploaded: {proof_url}")
+            
+            return {
+                "success": True,
+                "message": "Proof of payment uploaded successfully! Waiting for admin verification.",
+                "proof_url": proof_url,
+                "job_id": job_id,
+                "awaiting_admin_approval": True
+            }
+            
+        except Exception as upload_error:
+            print(f"❌ Error uploading proof: {str(upload_error)}")
+            import traceback
+            traceback.print_exc()
+            return Response(
+                {"error": f"Failed to upload proof: {str(upload_error)}"},
+                status=500
+            )
+    
+    except Exception as e:
+        print(f"❌ Error uploading cash proof: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": f"Failed to upload cash payment proof: {str(e)}"},
             status=500
         )
 
@@ -1820,15 +2155,22 @@ def confirm_final_payment(request, job_id: int):
             job.remainingPaymentPaidAt = timezone.now()
             job.save()
             
-            # Update the transaction status to COMPLETED
-            Transaction.objects.filter(
-                accountID=client_profile.profileID.accountFK,
-                description__icontains=f"Remaining payment for job: {job.title}",
-                status="PENDING"
-            ).update(
-                status="COMPLETED",
-                timestamp=timezone.now()
-            )
+            # Get client's wallet
+            from accounts.models import Wallet
+            try:
+                wallet = Wallet.objects.get(accountFK=client_profile.profileID.accountFK)
+                
+                # Update the transaction status to COMPLETED
+                Transaction.objects.filter(
+                    walletID=wallet,
+                    description__icontains=f"Remaining payment for job: {job.title}",
+                    status="PENDING"
+                ).update(
+                    status="COMPLETED",
+                    completedAt=timezone.now()
+                )
+            except Wallet.DoesNotExist:
+                print(f"⚠️ Wallet not found for client, skipping transaction update")
         
         print(f"✅ Final payment confirmed for job {job_id}")
         

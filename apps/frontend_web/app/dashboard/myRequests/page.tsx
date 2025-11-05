@@ -103,6 +103,13 @@ const MyRequestsPage = () => {
   const [isSubmittingJob, setIsSubmittingJob] = useState(false);
   const [jobPostError, setJobPostError] = useState("");
 
+  // Payment method selection
+  const [showPaymentMethodModal, setShowPaymentMethodModal] = useState(false);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<
+    "WALLET" | "GCASH"
+  >("WALLET");
+  const [pendingJobData, setPendingJobData] = useState<any>(null);
+
   // Job categories - fetched from backend
   interface JobCategory {
     id: string;
@@ -301,6 +308,192 @@ const MyRequestsPage = () => {
     }
     if (!jobPostForm.description.trim()) {
       setJobPostError("Please enter a job description");
+      return;
+    }
+    if (!jobPostForm.budget || parseFloat(jobPostForm.budget) <= 0) {
+      setJobPostError("Please enter a valid budget");
+      return;
+    }
+
+    if (!jobPostForm.location.trim()) {
+      setJobPostError("Please select a barangay");
+      return;
+    }
+
+    const budgetAmount = parseFloat(jobPostForm.budget);
+    const downpayment = budgetAmount * 0.5;
+
+    // Prepare job data
+    const expectedDuration =
+      durationNumber && durationUnit
+        ? `${durationNumber} ${durationUnit}`
+        : null;
+
+    const jobData = {
+      title: jobPostForm.title,
+      description: jobPostForm.description,
+      category_id: parseInt(jobPostForm.category_id),
+      budget: budgetAmount,
+      location: `${jobPostForm.location}, Zamboanga City`,
+      expected_duration: expectedDuration,
+      preferred_start_date: jobPostForm.preferred_start_date || null,
+      materials_needed: materials,
+      downpayment,
+    };
+
+    // Store pending job data and show payment method modal
+    setPendingJobData(jobData);
+    setShowPaymentMethodModal(true);
+  };
+
+  // Handle payment method confirmation
+  const handlePaymentMethodConfirm = async () => {
+    if (!pendingJobData) return;
+
+    const budgetAmount = pendingJobData.budget;
+    const downpayment = pendingJobData.downpayment;
+
+    // Check wallet balance if WALLET payment is selected
+    if (selectedPaymentMethod === "WALLET" && walletBalance < downpayment) {
+      alert(
+        `❌ Insufficient Wallet Balance\n\n` +
+          `Required: ₱${downpayment.toFixed(2)}\n` +
+          `Available: ₱${walletBalance.toFixed(2)}\n\n` +
+          `Please deposit more funds or select GCash payment.`
+      );
+      return;
+    }
+
+    setShowPaymentMethodModal(false);
+    setIsSubmittingJob(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/jobs/create`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          ...pendingJobData,
+          payment_method: selectedPaymentMethod,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        const jobId = data.job_posting_id;
+
+        // Handle GCASH payment (requires Xendit)
+        if (
+          data.payment_method === "GCASH" &&
+          data.requires_payment &&
+          data.invoice_url
+        ) {
+          alert(
+            `💰 Job Created - Payment Required\n\n` +
+              `Job: ${pendingJobData.title}\n` +
+              `Escrow Payment (50%): ₱${data.escrow_amount?.toFixed(2)}\n\n` +
+              `You will be redirected to Xendit to complete the payment via GCash.\n` +
+              `Your job will be activated once payment is confirmed.`
+          );
+
+          // Open Xendit payment page
+          window.location.href = data.invoice_url;
+          return;
+        }
+
+        // Handle WALLET payment (already deducted)
+        if (data.payment_method === "WALLET") {
+          alert(
+            `✅ Job Posted Successfully!\n\n` +
+              `Payment Method: Wallet\n` +
+              `Escrow Paid: ₱${data.escrow_amount?.toFixed(2)}\n` +
+              `Remaining Payment: ₱${data.remaining_payment?.toFixed(2)}\n` +
+              `New Wallet Balance: ₱${data.new_wallet_balance?.toFixed(2)}\n\n` +
+              `The downpayment has been deducted from your wallet and is now held in escrow.`
+          );
+
+          // Update local wallet balance
+          setWalletBalance(data.new_wallet_balance || 0);
+        }
+
+        // Upload images if any were selected
+        if (selectedImages.length > 0) {
+          setUploadingImages(true);
+
+          for (const image of selectedImages) {
+            try {
+              const formData = new FormData();
+              formData.append("image", image);
+
+              const uploadResponse = await fetch(
+                `${API_BASE_URL}/jobs/${jobId}/upload-image`,
+                {
+                  method: "POST",
+                  credentials: "include",
+                  body: formData,
+                }
+              );
+
+              if (!uploadResponse.ok) {
+                console.error(`Failed to upload image: ${image.name}`);
+              }
+            } catch (uploadError) {
+              console.error(
+                `Error uploading image ${image.name}:`,
+                uploadError
+              );
+            }
+          }
+
+          setUploadingImages(false);
+        }
+
+        // Reset form and close modal
+        setJobPostForm({
+          title: "",
+          description: "",
+          category_id: "",
+          budget: "",
+          location: "",
+          expected_duration: "",
+          preferred_start_date: "",
+        });
+        setMaterials([]);
+        setSelectedImages([]);
+        setImagePreviewUrls([]);
+        setPendingJobData(null);
+        setIsJobPostModalOpen(false);
+
+        // Reload page to show new job
+        window.location.reload();
+      } else {
+        setJobPostError(
+          data.error || data.message || "Failed to create job posting"
+        );
+      }
+    } catch (error) {
+      console.error("Error creating job:", error);
+      setJobPostError(
+        "An error occurred while creating the job. Please try again."
+      );
+    } finally {
+      setIsSubmittingJob(false);
+    }
+  };
+
+  const handleJobPostSubmit_OLD = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setJobPostError("");
+
+    if (!jobPostForm.title.trim()) {
+      setJobPostError("Please enter a job title");
+      return;
+    }
+    if (!jobPostForm.category_id) {
+      setJobPostError("Please select a category");
       return;
     }
     if (!jobPostForm.budget || parseFloat(jobPostForm.budget) <= 0) {
@@ -671,18 +864,59 @@ const MyRequestsPage = () => {
 
           if (data.success && data.jobs) {
             // Map backend data to frontend format
-            const mappedJobs = data.jobs.map((job: any) => ({
-              id: job.id.toString(),
-              title: job.title,
-              price: `₱${parseFloat(job.budget).toFixed(2)}`,
-              date: new Date(job.created_at).toLocaleDateString(),
-              status: job.status as "ACTIVE" | "COMPLETED" | "PENDING",
-              description: job.description,
-              location: job.location,
-              category: job.category?.name || "Uncategorized",
-              postedDate: job.created_at,
-              photos: job.photos || [],
-            }));
+            const mappedJobs = data.jobs.map((job: any) => {
+              const paymentInfo = job.payment_info || {};
+              const escrowAmount = parseFloat(paymentInfo.escrow_amount || 0);
+              const remainingAmount = parseFloat(
+                paymentInfo.remaining_payment || 0
+              );
+              const totalBudget = parseFloat(job.budget);
+
+              // Determine payment status
+              let paymentStatus: "PENDING" | "DOWNPAYMENT_PAID" | "FULLY_PAID" =
+                "PENDING";
+              if (
+                paymentInfo.escrow_paid &&
+                paymentInfo.remaining_payment_paid
+              ) {
+                paymentStatus = "FULLY_PAID";
+              } else if (paymentInfo.escrow_paid) {
+                paymentStatus = "DOWNPAYMENT_PAID";
+              }
+
+              // Determine downpayment method (for escrow)
+              // Since we're tracking payment method on final payment, we'll infer from transaction
+              let downpaymentMethod: "WALLET" | "GCASH" | undefined;
+              if (paymentInfo.escrow_paid) {
+                // We need to check if there's a Xendit invoice or if it was wallet payment
+                // For now, we'll default to showing the payment was made
+                downpaymentMethod = "WALLET"; // This could be improved by checking transaction details
+              }
+
+              return {
+                id: job.id.toString(),
+                title: job.title,
+                price: `₱${totalBudget.toFixed(2)}`,
+                date: new Date(job.created_at).toLocaleDateString(),
+                status: job.status as "ACTIVE" | "COMPLETED" | "PENDING",
+                description: job.description,
+                location: job.location,
+                category: job.category?.name || "Uncategorized",
+                postedDate: job.created_at,
+                photos: job.photos || [],
+                // Payment information
+                paymentStatus,
+                downpaymentMethod,
+                finalPaymentMethod: paymentInfo.final_payment_method as
+                  | "WALLET"
+                  | "GCASH"
+                  | "CASH"
+                  | undefined,
+                downpaymentAmount: `₱${escrowAmount.toFixed(2)}`,
+                finalPaymentAmount: `₱${remainingAmount.toFixed(2)}`,
+                totalAmount: `₱${totalBudget.toFixed(2)}`,
+              };
+            });
             setJobRequests(mappedJobs);
           } else {
             setJobRequests([]);
@@ -727,21 +961,56 @@ const MyRequestsPage = () => {
 
         if (data.success && data.jobs) {
           // Map backend data to frontend format
-          const mappedJobs = data.jobs.map((job: any) => ({
-            id: job.id.toString(),
-            title: job.title,
-            price: `₱${parseFloat(job.budget).toFixed(2)}`,
-            date: new Date(job.updated_at).toLocaleDateString(),
-            status: job.status as "IN_PROGRESS",
-            description: job.description,
-            location: job.location,
-            category: job.category?.name || "Uncategorized",
-            postedDate: job.created_at,
-            // Include worker or client info depending on user type
-            assignedWorker: job.assigned_worker,
-            client: job.client,
-            photos: job.photos || [],
-          }));
+          const mappedJobs = data.jobs.map((job: any) => {
+            const paymentInfo = job.payment_info || {};
+            const escrowAmount = parseFloat(paymentInfo.escrow_amount || 0);
+            const remainingAmount = parseFloat(
+              paymentInfo.remaining_payment || 0
+            );
+            const totalBudget = parseFloat(job.budget);
+
+            // Determine payment status
+            let paymentStatus: "PENDING" | "DOWNPAYMENT_PAID" | "FULLY_PAID" =
+              "PENDING";
+            if (paymentInfo.escrow_paid && paymentInfo.remaining_payment_paid) {
+              paymentStatus = "FULLY_PAID";
+            } else if (paymentInfo.escrow_paid) {
+              paymentStatus = "DOWNPAYMENT_PAID";
+            }
+
+            // Determine downpayment method (for escrow)
+            let downpaymentMethod: "WALLET" | "GCASH" | undefined;
+            if (paymentInfo.escrow_paid) {
+              downpaymentMethod = "WALLET"; // Could be improved by checking transaction details
+            }
+
+            return {
+              id: job.id.toString(),
+              title: job.title,
+              price: `₱${totalBudget.toFixed(2)}`,
+              date: new Date(job.updated_at).toLocaleDateString(),
+              status: job.status as "IN_PROGRESS",
+              description: job.description,
+              location: job.location,
+              category: job.category?.name || "Uncategorized",
+              postedDate: job.created_at,
+              // Include worker or client info depending on user type
+              assignedWorker: job.assigned_worker,
+              client: job.client,
+              photos: job.photos || [],
+              // Payment information
+              paymentStatus,
+              downpaymentMethod,
+              finalPaymentMethod: paymentInfo.final_payment_method as
+                | "WALLET"
+                | "GCASH"
+                | "CASH"
+                | undefined,
+              downpaymentAmount: `₱${escrowAmount.toFixed(2)}`,
+              finalPaymentAmount: `₱${remainingAmount.toFixed(2)}`,
+              totalAmount: `₱${totalBudget.toFixed(2)}`,
+            };
+          });
           setInProgressJobs(mappedJobs);
         } else {
           setInProgressJobs([]);
@@ -3234,6 +3503,186 @@ const MyRequestsPage = () => {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Payment Method Selection Modal */}
+      {showPaymentMethodModal && pendingJobData && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            {/* Modal Header */}
+            <div className="bg-blue-50 border-b border-blue-100 px-6 py-4 rounded-t-2xl">
+              <h2 className="text-xl font-semibold text-gray-900">
+                💰 Select Payment Method
+              </h2>
+              <p className="text-sm text-gray-600 mt-1">
+                Choose how to pay the 50% escrow downpayment
+              </p>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 space-y-4">
+              {/* Payment Summary */}
+              <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Job:</span>
+                  <span className="font-medium text-gray-900">
+                    {pendingJobData.title}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Total Budget:</span>
+                  <span className="font-medium text-gray-900">
+                    ₱{pendingJobData.budget.toFixed(2)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-base font-semibold text-blue-600 pt-2 border-t border-gray-200">
+                  <span>50% Downpayment (Escrow):</span>
+                  <span>₱{pendingJobData.downpayment.toFixed(2)}</span>
+                </div>
+              </div>
+
+              {/* Wallet Balance Info */}
+              <div className="bg-blue-50 rounded-lg p-4 flex items-center justify-between">
+                <div className="flex items-center">
+                  <svg
+                    className="w-5 h-5 text-blue-600 mr-2"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
+                    />
+                  </svg>
+                  <span className="text-sm text-gray-700">
+                    Your Wallet Balance:
+                  </span>
+                </div>
+                <span className="font-semibold text-gray-900">
+                  ₱{walletBalance.toFixed(2)}
+                </span>
+              </div>
+
+              {/* Payment Method Options */}
+              <div className="space-y-3">
+                {/* Wallet Payment */}
+                <button
+                  type="button"
+                  onClick={() => setSelectedPaymentMethod("WALLET")}
+                  className={`w-full p-4 border-2 rounded-lg text-left transition-all ${
+                    selectedPaymentMethod === "WALLET"
+                      ? "border-blue-500 bg-blue-50"
+                      : "border-gray-200 hover:border-gray-300"
+                  }`}
+                >
+                  <div className="flex items-start">
+                    <div
+                      className={`w-5 h-5 rounded-full border-2 mt-0.5 mr-3 flex items-center justify-center ${
+                        selectedPaymentMethod === "WALLET"
+                          ? "border-blue-500"
+                          : "border-gray-300"
+                      }`}
+                    >
+                      {selectedPaymentMethod === "WALLET" && (
+                        <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-semibold text-gray-900">
+                          Pay from Wallet
+                        </span>
+                        <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
+                          Instant
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-600">
+                        Deduct ₱{pendingJobData.downpayment.toFixed(2)} from
+                        your wallet balance
+                      </p>
+                      {walletBalance < pendingJobData.downpayment && (
+                        <p className="text-xs text-red-600 mt-1 font-medium">
+                          ⚠️ Insufficient balance (need ₱
+                          {(pendingJobData.downpayment - walletBalance).toFixed(
+                            2
+                          )}{" "}
+                          more)
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </button>
+
+                {/* GCash Payment */}
+                <button
+                  type="button"
+                  onClick={() => setSelectedPaymentMethod("GCASH")}
+                  className={`w-full p-4 border-2 rounded-lg text-left transition-all ${
+                    selectedPaymentMethod === "GCASH"
+                      ? "border-blue-500 bg-blue-50"
+                      : "border-gray-200 hover:border-gray-300"
+                  }`}
+                >
+                  <div className="flex items-start">
+                    <div
+                      className={`w-5 h-5 rounded-full border-2 mt-0.5 mr-3 flex items-center justify-center ${
+                        selectedPaymentMethod === "GCASH"
+                          ? "border-blue-500"
+                          : "border-gray-300"
+                      }`}
+                    >
+                      {selectedPaymentMethod === "GCASH" && (
+                        <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-semibold text-gray-900">
+                          Pay with GCash
+                        </span>
+                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
+                          via Xendit
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-600">
+                        Pay ₱{pendingJobData.downpayment.toFixed(2)} via GCash
+                        online payment
+                      </p>
+                    </div>
+                  </div>
+                </button>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex space-x-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPaymentMethodModal(false);
+                    setPendingJobData(null);
+                  }}
+                  className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handlePaymentMethodConfirm}
+                  disabled={
+                    selectedPaymentMethod === "WALLET" &&
+                    walletBalance < pendingJobData.downpayment
+                  }
+                  className="flex-1 px-6 py-3 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Continue
+                </button>
+              </div>
             </div>
           </div>
         </div>
