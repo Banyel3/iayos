@@ -102,6 +102,10 @@ class Conversation(models.Model):
     unreadCountClient = models.IntegerField(default=0)
     unreadCountWorker = models.IntegerField(default=0)
     
+    # Archive flags - each participant can archive independently
+    archivedByClient = models.BooleanField(default=False)
+    archivedByWorker = models.BooleanField(default=False)
+    
     # Conversation status
     class ConversationStatus(models.TextChoices):
         ACTIVE = "ACTIVE", "Active"  # Job is in progress

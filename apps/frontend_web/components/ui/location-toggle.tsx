@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
+import { API_BASE_URL } from "@/lib/api/config";
 
 interface LocationToggleProps {
   onLocationUpdate?: (latitude: number, longitude: number) => void;
@@ -33,15 +34,12 @@ export const LocationToggle: React.FC<LocationToggleProps> = ({
   const checkLocationStatus = async () => {
     setIsLoadingStatus(true); // Start loading
     try {
-      const response = await fetch(
-        "http://localhost:8000/api/accounts/location/me",
-        {
-          credentials: "include",
-          headers: {
-            Accept: "application/json",
-          },
-        }
-      );
+      const response = await fetch(`${API_BASE_URL}/accounts/location/me`, {
+        credentials: "include",
+        headers: {
+          Accept: "application/json",
+        },
+      });
 
       if (response.ok) {
         const data = await response.json();
@@ -103,17 +101,14 @@ export const LocationToggle: React.FC<LocationToggleProps> = ({
     latitude: number,
     longitude: number
   ) => {
-    const response = await fetch(
-      "http://localhost:8000/api/accounts/location/update",
-      {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ latitude, longitude }),
-      }
-    );
+    const response = await fetch(`${API_BASE_URL}/accounts/location/update`, {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ latitude, longitude }),
+    });
 
     if (!response.ok) {
       throw new Error("Failed to update location in backend");
@@ -124,7 +119,7 @@ export const LocationToggle: React.FC<LocationToggleProps> = ({
 
   const toggleLocationSharing = async (enabled: boolean) => {
     const response = await fetch(
-      "http://localhost:8000/api/accounts/location/toggle-sharing",
+      `${API_BASE_URL}/accounts/location/toggle-sharing`,
       {
         method: "POST",
         credentials: "include",

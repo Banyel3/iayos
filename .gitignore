@@ -42,6 +42,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .next*
+.env.docker.example
 
 
 # Byte-compiled / Python cache

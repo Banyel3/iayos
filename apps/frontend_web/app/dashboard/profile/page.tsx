@@ -9,6 +9,7 @@ import DesktopNavbar from "@/components/ui/desktop-sidebar";
 import NotificationBell from "@/components/notifications/NotificationBell";
 import { useWorkerAvailability } from "@/lib/hooks/useWorkerAvailability";
 import WorkerMaterials from "@/components/worker/WorkerMaterials";
+import { API_BASE_URL } from "@/lib/api/config";
 
 // Extended User interface for profile page
 interface ProfileUser extends User {
@@ -135,16 +136,13 @@ const ProfilePage = () => {
 
     try {
       setIsLoadingWallet(true);
-      const response = await fetch(
-        "http://localhost:8000/api/accounts/wallet/balance",
-        {
-          method: "GET",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
-      );
+      const response = await fetch(`${API_BASE_URL}/accounts/wallet/balance`, {
+        method: "GET",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
 
       if (response.ok) {
         const data = await response.json();
@@ -173,7 +171,7 @@ const ProfilePage = () => {
     try {
       setIsLoadingTransactions(true);
       const response = await fetch(
-        "http://localhost:8000/api/accounts/wallet/transactions",
+        `${API_BASE_URL}/accounts/wallet/transactions`,
         {
           method: "GET",
           credentials: "include",
@@ -214,20 +212,17 @@ const ProfilePage = () => {
 
     try {
       setIsProcessing(true);
-      const response = await fetch(
-        "http://localhost:8000/api/accounts/wallet/deposit",
-        {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            amount: Number(fundAmount),
-            payment_method: "GCASH",
-          }),
-        }
-      );
+      const response = await fetch(`${API_BASE_URL}/accounts/wallet/deposit`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          amount: Number(fundAmount),
+          payment_method: "GCASH",
+        }),
+      });
 
       const data = await response.json();
 
@@ -268,7 +263,7 @@ const ProfilePage = () => {
     try {
       setIsProcessing(true);
       const response = await fetch(
-        "http://localhost:8000/api/payments/request-withdrawal",
+        `${API_BASE_URL}/payments/request-withdrawal`,
         {
           method: "POST",
           credentials: "include",

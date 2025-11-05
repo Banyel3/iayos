@@ -11,6 +11,7 @@ export interface JobInfo {
   clientMarkedComplete?: boolean;
   workerReviewed?: boolean;
   clientReviewed?: boolean;
+  remainingPaymentPaid?: boolean;
 }
 
 export interface OtherParticipant {
@@ -30,6 +31,7 @@ export interface Conversation {
   last_message_time: string | null;
   last_message_sender_id: number | null;
   unread_count: number;
+  is_archived: boolean;
   status: string;
   created_at: string;
 }
@@ -71,11 +73,14 @@ interface SendMessageResponse {
 
 /**
  * Fetch all conversations for the authenticated user
+ * @param filter - 'all', 'unread', or 'archived'
  */
-export const fetchConversations = async (): Promise<Conversation[]> => {
+export const fetchConversations = async (
+  filter: "all" | "unread" | "archived" = "all"
+): Promise<Conversation[]> => {
   try {
     const response = await fetch(
-      `${API_BASE_URL}/profiles/chat/conversations`,
+      `${API_BASE_URL}/profiles/chat/conversations?filter=${filter}`,
       {
         method: "GET",
         headers: {
@@ -93,7 +98,10 @@ export const fetchConversations = async (): Promise<Conversation[]> => {
     }
 
     const data: ConversationsResponse = await response.json();
-    console.log("✅ Fetched conversations:", data.conversations.length);
+    console.log(
+      `✅ Fetched ${filter} conversations:`,
+      data.conversations.length
+    );
     return data.conversations;
   } catch (error) {
     console.error("❌ Error fetching conversations:", error);
@@ -208,6 +216,43 @@ export const markMessagesAsRead = async (
     console.log("✅ Messages marked as read");
   } catch (error) {
     console.error("❌ Error marking messages as read:", error);
+    throw error;
+  }
+};
+
+/**
+ * Toggle archive status for a conversation
+ */
+export const toggleConversationArchive = async (
+  conversationId: number
+): Promise<{ is_archived: boolean; message: string }> => {
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/profiles/chat/conversations/${conversationId}/toggle-archive`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(
+        errorData.error || `HTTP error! status: ${response.status}`
+      );
+    }
+
+    const data = await response.json();
+    console.log("✅ Toggled archive status:", data.message);
+    return {
+      is_archived: data.is_archived,
+      message: data.message,
+    };
+  } catch (error) {
+    console.error("❌ Error toggling archive status:", error);
     throw error;
   }
 };

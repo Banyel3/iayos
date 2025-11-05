@@ -10,6 +10,7 @@ import DesktopNavbar from "@/components/ui/desktop-sidebar";
 import NotificationBell from "@/components/notifications/NotificationBell";
 import { useWorkerAvailability } from "@/lib/hooks/useWorkerAvailability";
 import { LocationToggle } from "@/components/ui/location-toggle";
+import { API_BASE_URL } from "@/lib/api/config";
 
 interface HomeUser extends User {
   profile_data?: {
@@ -125,7 +126,7 @@ const HomePage = () => {
 
         try {
           const locationResponse = await fetch(
-            "http://localhost:8000/api/accounts/location/me",
+            `${API_BASE_URL}/accounts/location/me`,
             {
               method: "GET",
               headers: {
@@ -177,7 +178,7 @@ const HomePage = () => {
         }
 
         // Build URL with location parameters if available
-        let url = "http://localhost:8000/api/accounts/users/workers";
+        let url = `${API_BASE_URL}/accounts/users/workers`;
         if (userLatitude !== null && userLongitude !== null) {
           url += `?latitude=${userLatitude}&longitude=${userLongitude}`;
         }
@@ -237,12 +238,9 @@ const HomePage = () => {
 
       try {
         setIsLoadingJobs(true);
-        const response = await fetch(
-          "http://localhost:8000/api/jobs/available",
-          {
-            credentials: "include",
-          }
-        );
+        const response = await fetch(`${API_BASE_URL}/jobs/available`, {
+          credentials: "include",
+        });
 
         if (!response.ok) {
           console.error(
@@ -294,12 +292,9 @@ const HomePage = () => {
       if (!isWorker || !isAuthenticated) return;
 
       try {
-        const response = await fetch(
-          "http://localhost:8000/api/jobs/my-applications",
-          {
-            credentials: "include",
-          }
-        );
+        const response = await fetch(`${API_BASE_URL}/jobs/my-applications`, {
+          credentials: "include",
+        });
 
         if (response.ok) {
           const data = await response.json();
@@ -332,7 +327,7 @@ const HomePage = () => {
 
       try {
         const response = await fetch(
-          "http://localhost:8000/api/adminpanel/jobs/categories",
+          `${API_BASE_URL}/adminpanel/jobs/categories`,
           {
             credentials: "include",
           }
@@ -436,7 +431,7 @@ const HomePage = () => {
 
     try {
       const response = await fetch(
-        `http://localhost:8000/api/jobs/${selectedJob.id}/apply`,
+        `${API_BASE_URL}/jobs/${selectedJob.id}/apply`,
         {
           method: "POST",
           headers: {

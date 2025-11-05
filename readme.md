@@ -33,6 +33,98 @@ You are free to explore, learn from, and modify the code, with proper credit to 
 
 Follow these steps to get the project running on your local machine.
 
+This repo supports two ways to run locally:
+
+- Docker (recommended for all dev machines)
+- Native (Node + Python installed on your OS)
+
+The sections below start with Docker. The native guide remains available further down.
+
+---
+
+## 🐳 Docker Development (recommended)
+
+Run the full stack with one command—no local Node/Python setup required.
+
+### Prerequisites
+
+- Docker Desktop (Windows/macOS) or Docker Engine (Linux)
+- On Windows, enable WSL2 integration in Docker Desktop
+
+### Quick start
+
+Open a terminal at the repo root and run:
+
+```powershell
+# Stop any previous stack (safe to run even if nothing is up)
+docker-compose -f docker-compose.dev.yml down
+
+# Build dev images (first build may take a while)
+docker-compose -f docker-compose.dev.yml build
+
+# Start in the foreground (use -d to detach)
+docker-compose -f docker-compose.dev.yml up
+```
+
+Services and ports:
+
+- Frontend (Next.js): http://localhost:3000
+- Backend (Django): http://localhost:8000
+
+Useful commands:
+
+```powershell
+# Run in background then tail logs
+docker-compose -f docker-compose.dev.yml up -d
+docker logs iayos-frontend-dev -f --tail=100
+docker logs iayos-backend-dev  -f --tail=100
+
+# Restart only the frontend (after certain dependency changes)
+docker-compose -f docker-compose.dev.yml restart frontend
+
+# Exec into a container shell
+docker exec -it iayos-frontend-dev sh
+docker exec -it iayos-backend-dev  sh
+
+# Apply Django migrations (already executed on start)
+docker exec -it iayos-backend-dev sh -lc "cd /app/apps/backend/src && python3 manage.py migrate"
+
+# Create a Django superuser (optional)
+docker exec -it iayos-backend-dev sh -lc "cd /app/apps/backend/src && python3 manage.py createsuperuser"
+```
+
+### Windows tips
+
+- Use PowerShell or Windows Terminal. Commands above are PowerShell-safe.
+- Make sure the repo folder is shared with Docker/WSL2.
+- Source code is bind-mounted for hot reload in both frontend and backend.
+
+### Tailwind v4 native engines inside Docker (what we fixed)
+
+The frontend uses Tailwind CSS v4 and Next.js 15, which rely on native bindings:
+
+- lightningcss (CSS transformer)
+- Tailwind Oxide (scanner)
+
+To ensure these work reliably in Linux containers:
+
+- The Dockerfile pre-installs platform-specific native packages for Linux (glibc):
+  - `lightningcss-linux-x64-gnu`
+  - `@tailwindcss/oxide-linux-x64-gnu`
+- The dev compose uses anonymous volumes for `/app/apps/frontend_web/node_modules` and `/app/apps/frontend_web/.next` so host files never override container Linux binaries.
+
+If you ever see errors like “Failed to load native binding” or “Cannot find module '../lightningcss.linux-x64-gnu.node'”, do a clean rebuild:
+
+```powershell
+docker-compose -f docker-compose.dev.yml down
+docker-compose -f docker-compose.dev.yml build
+docker-compose -f docker-compose.dev.yml up -d
+```
+
+### Environment variables
+
+For development, `docker-compose.dev.yml` already provides required environment variables. If you need to override values locally, export them in your shell before `up`, or adapt the compose file to use an `.env` file. Do not commit secrets.
+
 ---
 
 ## Prerequisites
@@ -42,9 +134,11 @@ Before you begin, make sure you have the following installed:
 ### Install Node.js
 
 **Windows:**
+
 1. Download the installer from [nodejs.org](https://nodejs.org/)
 2. Run the installer and follow the setup wizard
 3. Verify installation by opening Command Prompt and running:
+
 ```bash
 node --version
 npm --version
@@ -52,6 +146,7 @@ npm --version
 
 **Mac:**
 Using Homebrew (recommended):
+
 ```bash
 brew install node
 ```
@@ -61,15 +156,18 @@ Or download the installer from [nodejs.org](https://nodejs.org/)
 ### Install Python
 
 **Windows:**
+
 1. Download Python 3.8+ from [python.org](https://www.python.org/downloads/)
 2. **Important:** Check "Add Python to PATH" during installation
 3. Verify installation:
+
 ```bash
 python --version
 ```
 
 **Mac:**
 Using Homebrew (recommended):
+
 ```bash
 brew install python@3
 ```
@@ -163,12 +261,14 @@ Your development environment is now set up and running.
 
 **Windows (PowerShell):**
 If you get an execution policy error, run:
+
 ```bash
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 ```
 
 **Mac/Linux:**
 Use `source` instead of `./`:
+
 ```bash
 source venv/bin/activate
 ```
@@ -180,12 +280,14 @@ Make sure you've placed the `.env` file in `apps/backend/` directory. Without it
 ### Port Already in Use
 
 If port 8000 (Django) or 3000 (frontend) is already in use, you can:
+
 - Stop the process using that port
 - Or specify a different port when running the servers
 
 ### Module Not Found Errors
 
 Make sure you've:
+
 - Activated the virtual environment before running the backend
 - Run `npm install` in both root and `apps/frontend_web`
 - Installed Python dependencies if there's a `requirements.txt` in the backend folder
@@ -193,11 +295,13 @@ Make sure you've:
 ### Turbo Command Not Found
 
 If `npx turbo run dev` fails, try:
+
 ```bash
 npm install turbo --global
 ```
 
 Or use:
+
 ```bash
 npm run dev
 ```

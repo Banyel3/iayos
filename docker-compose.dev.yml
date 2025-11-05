@@ -1,0 +1,100 @@
+# Development Docker Compose with Hot Reload
+# Usage: docker-compose -f docker-compose.dev.yml up
+# Note: Using production Neon database, no local PostgreSQL needed
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: backend-development
+    container_name: iayos-backend-dev
+    environment:
+      # Database (using your production Neon database)
+      DATABASE_URL: postgresql://neondb_owner:npg_7LvkI4EXUucH@ep-autumn-pond-a1f6i8dz-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
+
+      # Supabase
+      SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFndGxkamJ1YmhycnN4bnNkYXhjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkzNzc4NDAsImV4cCI6MjA3NDk1Mzg0MH0.jx_62toEtOg1RBY_n-h9yOCgtOAwtOS2t0vxXzLGxmY
+      SUPABASE_URL: https://agtldjbubhrrsxnsdaxc.supabase.co
+      SUPABASE_SERVICE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFndGxkamJ1YmhycnN4bnNkYXhjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1OTM3Nzg0MCwiZXhwIjoyMDc0OTUzODQwfQ.U_eHZwN_1XRl2SVY4ZF7_53jHr9FvzD38-iMRPe5Y0I
+
+      # Django
+      DJANGO_SECRET_KEY: h/cxjN0OMf2J/r4ae3Z20e1yAX6IRwtEZZW9f8Hmh3o=
+      DEBUG: "True"
+      ALLOWED_HOSTS: "*"
+      FRONTEND_URL: http://localhost:3000
+
+      # Xendit
+      XENDIT_API_KEY: xnd_development_nWEcAWzDMSMcgbDr3BBBzBhqmG1kubqYcksJ8X1l1iZvkk43z7uyDbCegkF3z
+    ports:
+      - "8000:8000"
+      - "8001:8001"
+    volumes:
+      # Mount source code for hot reload
+      - ./apps/backend:/app/apps/backend
+    networks:
+      - iayos-network
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=1
+    command: >
+      sh -c "
+        cd /app/apps/backend/src &&
+        python3 manage.py migrate &&
+        python3 manage.py runserver 0.0.0.0:8000
+      "
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: frontend-development
+    container_name: iayos-frontend-dev
+    environment:
+      # API URLs - Use Docker service names inside containers
+      NEXT_PUBLIC_API_URL: http://backend:8000
+      NEXT_PUBLIC_WS_URL: ws://backend:8001
+      NODE_ENV: development
+
+      # Auth
+      AUTH_SECRET: h/cxjN0OMf2J/r4ae3Z20e1yAX6IRwtEZZW9f8Hmh3o=
+      AUTH_GOOGLE_ID: 1078622341415-it4p4asqe4l20oumi9a05iel904beusn.apps.googleusercontent.com
+      AUTH_GOOGLE_SECRET: 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
+      NEXTHAUTH_URL: https://localhost:5005
+      NEXTAUTH_SECRET: mysecret
+
+      # Email (Resend)
+      RESEND_API_KEY: re_efLhCKxB_9xhR2y5f6oTU3znqpJLmi8NZ
+      SMTP_USER: resend
+      SMTP_PASS: re_efLhCKxB_9xhR2y5f6oTU3znqpJLmi8NZ
+      SMTP_HOST: smtp.resend.com
+      SMTP_POST: 465
+      SMTP_EMAIL_FROM: team@devante.online
+
+      # Turnstile (Cloudflare)
+      NEXT_PUBLIC_TURNSTILE_SITE_KEY: 0x4AAAAAAB2NxNIqtEfl2Ay7
+      TURNSTILE_SECRET_KEY: 0x4AAAAAAB2NxCsqp5nprKSp3aEGlIM_EFw
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    volumes:
+      # Mount source code for hot reload
+      - ./apps/frontend_web:/app/apps/frontend_web
+      - ./packages:/app/packages
+      # Prevent host node_modules/.next from overriding container's Linux deps
+      - /app/apps/frontend_web/node_modules
+      - /app/apps/frontend_web/.next
+      # Don't mount node_modules - let Docker manage them
+    networks:
+      - iayos-network
+    command: >
+      sh -c "
+        cd /app && \
+        npm i lightningcss-linux-x64-gnu @tailwindcss/oxide-linux-x64-gnu --no-save || true && \
+        cd /app/apps/frontend_web && \
+        npx next dev
+      "
+
+networks:
+  iayos-network:
+    driver: bridge

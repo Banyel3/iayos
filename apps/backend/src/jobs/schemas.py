@@ -17,6 +17,12 @@ class CreateJobPostingSchema(Schema):
 class JobPostingResponseSchema(Schema):
     success: bool
     job_posting_id: int
+    requires_payment: Optional[bool] = None
+    escrow_amount: Optional[float] = None
+    remaining_payment: Optional[float] = None
+    new_wallet_balance: Optional[float] = None
+    invoice_url: Optional[str] = None
+    invoice_id: Optional[str] = None
     message: str
 
 

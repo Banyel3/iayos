@@ -301,6 +301,30 @@ class Job(models.Model):
     # Budget (always project-based)
     budget = models.DecimalField(max_digits=10, decimal_places=2)
     
+    # Escrow Payment Fields
+    escrowAmount = models.DecimalField(
+        max_digits=10, 
+        decimal_places=2, 
+        default=0.00,
+        help_text="Amount held in escrow (50% downpayment)"
+    )
+    escrowPaid = models.BooleanField(
+        default=False,
+        help_text="Whether the escrow downpayment has been paid"
+    )
+    escrowPaidAt = models.DateTimeField(null=True, blank=True)
+    remainingPayment = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0.00,
+        help_text="Remaining 50% to be paid upon completion"
+    )
+    remainingPaymentPaid = models.BooleanField(
+        default=False,
+        help_text="Whether the remaining 50% payment has been paid"
+    )
+    remainingPaymentPaidAt = models.DateTimeField(null=True, blank=True)
+    
     # Location
     location = models.CharField(max_length=255)
     
