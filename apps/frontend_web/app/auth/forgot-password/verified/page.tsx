@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "@/components/ui/form_button";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -280,4 +280,10 @@ const ForgotPasswordVerified = () => {
   );
 };
 
-export default ForgotPasswordVerified;
+export default function ForgotPasswordVerifiedPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <ForgotPasswordVerified />
+    </Suspense>
+  );
+}

@@ -22,9 +22,19 @@ COPY turbo.json ./
 # ============================================
 FROM base AS deps
 
-# Install dependencies
-RUN npm ci --legacy-peer-deps \
+# Copy frontend package files
+COPY apps/frontend_web/package.json apps/frontend_web/package-lock.json* ./apps/frontend_web/
+
+# Install root dependencies first
+RUN npm install --legacy-peer-deps
+
+# Install frontend dependencies
+WORKDIR /app/apps/frontend_web
+RUN npm install --legacy-peer-deps \
     && npm i lightningcss-linux-x64-gnu @tailwindcss/oxide-linux-x64-gnu --no-save || true
+
+# Reset workdir
+WORKDIR /app
 
 # ============================================
 # Stage 3: Build Frontend
@@ -45,32 +55,55 @@ WORKDIR /app/apps/frontend_web
 RUN npm run build
 
 # ============================================
-# Stage 4: Python Backend Base
+# Stage 4: Python Backend Base (Secure Alpine)
 # ============================================
-FROM python:3.13.9-slim AS backend-base
+FROM python:3.14-alpine AS backend-base
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PATH="/app/.local/bin:$PATH"
 
-# Keep base minimal for faster dev builds (no heavy apt installs)
+# Create non-root user early for security
+RUN addgroup -g 1001 -S appgroup \
+    && adduser -S -D -H -u 1001 -h /app -s /sbin/nologin -G appgroup appuser
 
 WORKDIR /app/backend
 
 # ============================================
-# Stage 5: Backend Dependencies
+# Stage 5: Backend Dependencies (Secure)
 # ============================================
 FROM backend-base AS backend-deps
+
+# Install build dependencies and cleanup
+RUN apk add --no-cache --virtual .build-deps \
+        gcc \
+        musl-dev \
+        postgresql-dev \
+        python3-dev \
+        libffi-dev \
+        openssl-dev \
+        cargo \
+        rust \
+    && apk add --no-cache \
+        postgresql-client \
+        libpq \
+    && rm -rf /var/cache/apk/*
 
 # Copy requirements file
 COPY apps/backend/requirements.txt .
 
-# Install Python dependencies (use BuildKit cache for speed on rebuilds)
+# Install Python dependencies with security checks
 RUN --mount=type=cache,target=/root/.cache/pip \
-    python -m pip install --upgrade 'pip>=25.3' && \
-    pip install --break-system-packages -r requirements.txt
+    mkdir -p /app/.local \
+    && python -m pip install --upgrade 'pip>=25.3' setuptools wheel \
+    && pip install --no-cache-dir --user -r requirements.txt \
+    && apk del .build-deps \
+    && rm -rf /root/.cache \
+    && find /app/.local -name "*.pyc" -delete 2>/dev/null || true \
+    && find /app/.local -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
 
 # ============================================
 # Stage 6: Backend Builder
@@ -81,53 +114,84 @@ FROM backend-deps AS backend-builder
 COPY apps/backend .
 
 # ============================================
-# Stage 7: Frontend Production
+# Stage 7: Frontend Production (Secure)
 # ============================================
 FROM node:20-alpine AS frontend-production
+
+# Create non-root user
+RUN addgroup -g 1001 -S nodegroup \
+    && adduser -S -D -H -u 1001 -h /app -s /sbin/nologin -G nodegroup nodeuser
 
 WORKDIR /app
 
 # Set environment to production
 ENV NODE_ENV=production
 
-# Copy built application from frontend-builder
-COPY --from=frontend-builder /app/apps/frontend_web/.next ./apps/frontend_web/.next
-COPY --from=frontend-builder /app/apps/frontend_web/public ./apps/frontend_web/public
-COPY --from=frontend-builder /app/apps/frontend_web/package.json ./apps/frontend_web/package.json
-COPY --from=deps /app/node_modules ./node_modules
+# Copy built application from frontend-builder with proper ownership
+COPY --from=frontend-builder --chown=nodeuser:nodegroup /app/apps/frontend_web/.next ./apps/frontend_web/.next
+COPY --from=frontend-builder --chown=nodeuser:nodegroup /app/apps/frontend_web/public ./apps/frontend_web/public
+COPY --from=frontend-builder --chown=nodeuser:nodegroup /app/apps/frontend_web/package.json ./apps/frontend_web/package.json
+COPY --from=deps --chown=nodeuser:nodegroup /app/node_modules ./node_modules
 
 WORKDIR /app/apps/frontend_web
+
+# Switch to non-root user
+USER nodeuser
+
+# Add health check
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1
 
 # Expose port for Next.js
 EXPOSE 3000
 
-# Start Next.js
+# Start Next.js with security headers
 CMD ["npm", "start"]
 
 # ============================================
-# Stage 8: Backend Production
+# Stage 8: Backend Production (Secure)
 # ============================================
-FROM backend-base AS backend-production
+FROM python:3.14-alpine AS backend-production
+
+# Set secure environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PATH="/app/.local/bin:$PATH"
+
+# Create non-root user
+RUN addgroup -g 1001 -S appgroup \
+    && adduser -S -D -H -u 1001 -h /app -s /sbin/nologin -G appgroup appuser
+
+# Install only runtime dependencies
+RUN apk add --no-cache \
+        postgresql-client \
+        libpq \
+        libffi \
+        openssl \
+    && rm -rf /var/cache/apk/*
 
 WORKDIR /app/backend
 
-# Install runtime tools only for production if needed
-RUN apt-get update && apt-get install -y \
-    postgresql-client \
-    && rm -rf /var/lib/apt/lists/*
+# Copy Python dependencies from deps stage
+COPY --from=backend-deps --chown=appuser:appgroup /app/.local /app/.local
 
-# Copy Python dependencies
-COPY --from=backend-deps /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
-COPY --from=backend-deps /usr/local/bin /usr/local/bin
+# Copy application code with proper ownership
+COPY --from=backend-builder --chown=appuser:appgroup /app/backend ./
 
-# Copy application code
-COPY --from=backend-builder /app/backend ./
+# Switch to non-root user
+USER appuser
+
+# Add health check
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/', timeout=10)" || exit 1
 
 # Expose port for Django
 EXPOSE 8000
 
-# Start Django with Gunicorn
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "4", "--timeout", "120", "core.wsgi:application"]
+# Start Django with Gunicorn (add security options)
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "2", "--worker-class", "sync", "--timeout", "120", "--max-requests", "1000", "--max-requests-jitter", "50", "--preload", "src.iayos_project.wsgi:application"]
 
 # ============================================
 # Stage 9: Frontend Development (Node only)
@@ -157,22 +221,41 @@ EXPOSE 3000
 CMD ["sh", "-c", "cd /app/apps/frontend_web && npx next dev"]
 
 # ============================================
-# Stage 10: Backend Development (Python only)
+# Stage 10: Backend Development (Secure)
 # ============================================
 FROM backend-base AS backend-development
 
+# Install development dependencies with cleanup
+RUN apk add --no-cache --virtual .build-deps \
+        gcc \
+        musl-dev \
+        postgresql-dev \
+        python3-dev \
+        libffi-dev \
+        openssl-dev \
+        cargo \
+        rust \
+    && apk add --no-cache \
+        postgresql-client \
+        libpq
+
 WORKDIR /app/apps/backend
 
-# Ensure pip is up-to-date and use cache mount for faster rebuilds
+# Install Python dependencies with security
 COPY apps/backend/requirements.txt ./
 RUN --mount=type=cache,target=/root/.cache/pip \
-    python -m pip install --upgrade pip && \
-    pip install --break-system-packages -r requirements.txt
+    python -m pip install --upgrade pip setuptools wheel \
+    && pip install --user -r requirements.txt \
+    && apk del .build-deps \
+    && rm -rf /root/.cache
 
 # Copy backend source (mounted in dev)
-COPY apps/backend .
+COPY --chown=appuser:appgroup apps/backend .
+
+# Switch to non-root user
+USER appuser
 
 EXPOSE 8000
 
 # Default dev command (compose overrides)
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+CMD ["python", "src/manage.py", "runserver", "0.0.0.0:8000"]

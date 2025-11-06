@@ -30,12 +30,16 @@ ENV/
 *~
 .DS_Store
 
-# Environment files
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-.env.docker.example
+# Environment files (security critical)
+.env*
+!.env.docker
+*.key
+*.pem
+*.cert
+*.crt
+secrets/
+config/local/
+*.conf
 # Git
 .git
 .gitignore
@@ -67,3 +71,19 @@ Thumbs.db
 # Media files (uploaded by users - should be in volumes)
 media/
 uploads/
+
+# Security-sensitive files
+*.sarif
+vulnerability-reports/
+security-scans/
+docker-scout-*.json
+*.security
+audit-logs/
+
+# Development tools and configs
+Dockerfile*
+docker-compose*.yml
+!docker-compose.yml
+scripts/
+tests/
+.github/

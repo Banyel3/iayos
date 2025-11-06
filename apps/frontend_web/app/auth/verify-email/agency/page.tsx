@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { CircleX, SquareCheckBig, Loader2, AlertTriangle } from "lucide-react";
@@ -161,6 +161,12 @@ const VerifyAgencyEmail = () => {
       </div>
     </div>
   );
-};
+}
 
-export default VerifyAgencyEmail;
+export default function AgencyEmailVerification() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <VerifyAgencyEmail />
+    </Suspense>
+  );
+}

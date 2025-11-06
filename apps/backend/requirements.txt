@@ -1,21 +1,53 @@
-django==5.2.8
-django-ninja
-django-ninja-extra
-PyJWT
-cryptography
-pydantic[email]
-django-cors-headers
-psycopg2-binary
-python-dotenv
-dj-database-url
-httpx
-rav
-django-allauth
-django-allauth[socialaccount]
-supabase
-xendit-python
-python-dateutil
-channels
-channels-redis
-daphne
+# Core Django with security patches (CRITICAL SECURITY UPDATE - CVE-2025-64459)
+django>=5.2.8
+django-ninja==1.4.0
+django-ninja-extra==0.22.0
+
+# Authentication & Security
+PyJWT==2.8.0
+cryptography==42.0.8
+pydantic[email]==2.7.4
+
+# CORS and headers
+django-cors-headers==4.4.0
+
+# Database
+psycopg2-binary==2.9.9
+
+# Configuration
+python-dotenv==1.0.1
+dj-database-url==2.2.0
+
+# HTTP client
+httpx==0.27.0
+
+# Development tools
+rav==0.1.0
+
+# Social authentication
+django-allauth==64.0.0
+
+# Storage
+supabase==2.5.1
+
+# Payment processing
+xendit-python==7.0.0
+
+# Date utilities
+python-dateutil==2.9.0
+
+# WebSocket support
+channels==4.1.0
+channels-redis==4.2.0
+daphne==4.1.2
+
+# Production server
+gunicorn==23.0.0
+
+# Security updates for Alpine packages
+# Force pip upgrade to fix CVE-2025-8869  
+pip>=25.3
+
+# Security monitoring
+django-security==0.17.0
 

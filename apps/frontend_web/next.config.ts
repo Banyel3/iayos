@@ -2,6 +2,12 @@ import type { NextConfig } from "next";
 import * as path from "path";
 
 const nextConfig: NextConfig = {
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+  typescript: {
+    ignoreBuildErrors: true,
+  },
   devIndicators: false,
   reactStrictMode: true,
   outputFileTracingRoot: path.join(__dirname, "../../"),

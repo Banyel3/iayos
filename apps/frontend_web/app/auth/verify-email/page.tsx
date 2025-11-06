@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { CircleX, SquareCheckBig, Loader2, AlertTriangle } from "lucide-react";
@@ -159,4 +159,10 @@ const VerifyEmail = () => {
   );
 };
 
-export default VerifyEmail;
+export default function VerifyEmailPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <VerifyEmail />
+    </Suspense>
+  );
+}
