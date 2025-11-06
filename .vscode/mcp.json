@@ -1,0 +1,22 @@
+{
+  "servers": {
+    "github-mcp": {
+      "type": "http",
+      "url": "https://api.githubcopilot.com/mcp"
+    },
+    "cve-search_mcp": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "C:/code/mcp-servers/cve-search_mcp",
+        "run",
+        "main.py"
+      ]
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["@playwright/mcp@latest"],
+      "type": "stdio"
+    }
+  }
+}
