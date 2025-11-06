@@ -36,6 +36,7 @@ export function useConversationMessages(conversationId: number | null) {
     enabled: conversationId !== null,
     staleTime: 30 * 1000, // 30 seconds
     gcTime: 5 * 60 * 1000, // 5 minutes
+    // Return the full response (messages + conversation metadata)
   });
 }
 
@@ -78,13 +79,20 @@ export function useApproveJobCompletion() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (jobId: number) => {
+    mutationFn: async ({
+      jobId,
+      paymentMethod = "WALLET",
+    }: {
+      jobId: number;
+      paymentMethod?: "WALLET" | "GCASH" | "CASH";
+    }) => {
       const response = await fetch(
         `http://localhost:8000/api/jobs/${jobId}/approve-completion`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
+          body: JSON.stringify({ payment_method: paymentMethod }),
         }
       );
 
@@ -95,9 +103,11 @@ export function useApproveJobCompletion() {
 
       return response.json();
     },
-    onSuccess: (data, jobId) => {
+    onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: inboxKeys.conversations() });
-      queryClient.invalidateQueries({ queryKey: inboxKeys.messages(jobId) });
+      queryClient.invalidateQueries({
+        queryKey: inboxKeys.messages(variables.jobId),
+      });
     },
   });
 }

@@ -24,8 +24,6 @@ const clearAllAuthCaches = () => {
   cacheKeys.forEach((key) => {
     localStorage.removeItem(key);
   });
-
-  console.log("🗑️ Cleared all auth caches:", cacheKeys);
 };
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {

@@ -5,13 +5,38 @@ from accounts.authentication import cookie_auth
 from accounts.models import ClientProfile, Specializations, Profile, WorkerProfile, JobApplication, JobPhoto, Wallet, Transaction
 from accounts.xendit_service import XenditService
 from .models import JobPosting
-from .schemas import CreateJobPostingSchema, JobPostingResponseSchema, JobApplicationSchema, SubmitReviewSchema
+from .schemas import CreateJobPostingSchema, JobPostingResponseSchema, JobApplicationSchema, SubmitReviewSchema, ApproveJobCompletionSchema
 from datetime import datetime
 from django.utils import timezone
 from decimal import Decimal
 from django.db import transaction as db_transaction
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
 
 router = Router()
+
+
+def broadcast_job_status_update(job_id, update_data):
+    """
+    Broadcast job status update via WebSocket
+    """
+    try:
+        channel_layer = get_channel_layer()
+        if channel_layer:
+            async_to_sync(channel_layer.group_send)(
+                f'job_{job_id}',
+                {
+                    'type': 'job_status_update',
+                    'data': update_data
+                }
+            )
+            print(f"📡 Broadcasted job status update for job {job_id}: {update_data}")
+        else:
+            print(f"⚠️ No channel layer available for broadcasting")
+    except Exception as e:
+        print(f"❌ Error broadcasting job status: {str(e)}")
+        import traceback
+        traceback.print_exc()
 
 
 @router.post("/create", auth=cookie_auth, response=JobPostingResponseSchema)
@@ -452,11 +477,8 @@ def get_available_jobs(request):
     Sorted by proximity to worker's location (same city first)
     """
     try:
-        print(f"🔍 Fetching available jobs for {request.auth.email}")
-        
         # Get worker's city from the Accounts model (not Profile)
         worker_city = request.auth.city if request.auth.city else None
-        print(f"👤 Worker city: {worker_city}")
         
         # Verify worker profile exists
         try:
@@ -474,8 +496,6 @@ def get_available_jobs(request):
             'categoryID',
             'clientID__profileID__accountFK'
         ).prefetch_related('photos').order_by('-createdAt')
-        
-        print(f"📋 Found {job_postings.count()} active jobs")
         
         # Format and sort jobs
         jobs = []
@@ -538,8 +558,6 @@ def get_available_jobs(request):
         # Combine: same city first, then others
         sorted_jobs = same_city_jobs + other_jobs
         
-        print(f"✅ Sorted: {len(same_city_jobs)} same city, {len(other_jobs)} other cities")
-        
         return {
             "success": True,
             "jobs": sorted_jobs,
@@ -549,7 +567,6 @@ def get_available_jobs(request):
         }
         
     except Exception as e:
-        print(f"❌ Error fetching available jobs: {str(e)}")
         import traceback
         traceback.print_exc()
         return Response(
@@ -566,8 +583,6 @@ def get_in_progress_jobs(request):
     - For workers: jobs they're assigned to that are IN_PROGRESS
     """
     try:
-        print(f"🔄 Fetching in-progress jobs for {request.auth.email}")
-        
         # Get user's profile
         try:
             profile = Profile.objects.get(accountFK=request.auth)
@@ -695,7 +710,155 @@ def get_in_progress_jobs(request):
                     }
                 })
         
-        print(f"✅ Found {len(jobs)} in-progress jobs")
+        return {
+            "success": True,
+            "jobs": jobs,
+            "total": len(jobs)
+        }
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": f"Failed to fetch in-progress jobs: {str(e)}"},
+            status=500
+        )
+
+
+@router.get("/completed", auth=cookie_auth)
+def get_completed_jobs(request):
+    """
+    Get all completed jobs for the current user
+    - For clients: jobs they posted that are COMPLETED
+    - For workers: jobs they completed that are COMPLETED
+    """
+    try:
+        # Get user's profile
+        try:
+            profile = Profile.objects.get(accountFK=request.auth)
+        except Profile.DoesNotExist:
+            return Response(
+                {"error": "Profile not found"},
+                status=400
+            )
+        
+        jobs = []
+        
+        if profile.profileType == "CLIENT":
+            # Get client's completed jobs
+            try:
+                client_profile = ClientProfile.objects.get(profileID=profile)
+            except ClientProfile.DoesNotExist:
+                return Response(
+                    {"error": "Client profile not found"},
+                    status=403
+                )
+            
+            job_postings = JobPosting.objects.filter(
+                clientID=client_profile,
+                status=JobPosting.JobStatus.COMPLETED
+            ).select_related('categoryID', 'assignedWorkerID__profileID__accountFK').prefetch_related('photos').order_by('-updatedAt')
+            
+            for job in job_postings:
+                # Get assigned worker info if exists
+                worker_info = None
+                if job.assignedWorkerID:
+                    worker_profile = job.assignedWorkerID.profileID
+                    worker_account = worker_profile.accountFK
+                    worker_info = {
+                        "id": job.assignedWorkerID.profileID.profileID,
+                        "name": f"{worker_profile.firstName} {worker_profile.lastName}",
+                        "avatar": worker_profile.profileImg or "/worker1.jpg",
+                        "rating": job.assignedWorkerID.workerRating if hasattr(job.assignedWorkerID, 'workerRating') else 0,
+                        "city": worker_account.city
+                    }
+                
+                # Get job photos
+                photos = [
+                    {
+                        "id": photo.photoID,
+                        "url": photo.photoURL,
+                        "file_name": photo.fileName
+                    }
+                    for photo in job.photos.all()
+                ]
+                
+                jobs.append({
+                    "id": job.jobID,
+                    "title": job.title,
+                    "description": job.description,
+                    "category": {
+                        "id": job.categoryID.specializationID,
+                        "name": job.categoryID.specializationName
+                    } if job.categoryID else None,
+                    "budget": float(job.budget),
+                    "location": job.location,
+                    "expected_duration": job.expectedDuration,
+                    "urgency": job.urgency,
+                    "preferred_start_date": job.preferredStartDate.isoformat() if job.preferredStartDate else None,
+                    "materials_needed": job.materialsNeeded,
+                    "status": job.status,
+                    "created_at": job.createdAt.isoformat(),
+                    "updated_at": job.updatedAt.isoformat(),
+                    "assigned_worker": worker_info,
+                    "photos": photos
+                })
+                
+        elif profile.profileType == "WORKER":
+            # Get jobs completed by this worker
+            try:
+                worker_profile = WorkerProfile.objects.get(profileID=profile)
+            except WorkerProfile.DoesNotExist:
+                return Response(
+                    {"error": "Worker profile not found"},
+                    status=403
+                )
+            
+            job_postings = JobPosting.objects.filter(
+                assignedWorkerID=worker_profile,
+                status=JobPosting.JobStatus.COMPLETED
+            ).select_related('categoryID', 'clientID__profileID__accountFK').prefetch_related('photos').order_by('-updatedAt')
+            
+            for job in job_postings:
+                # Get client info
+                client_profile = job.clientID.profileID
+                client_account = client_profile.accountFK
+                
+                # Get job photos
+                photos = [
+                    {
+                        "id": photo.photoID,
+                        "url": photo.photoURL,
+                        "file_name": photo.fileName
+                    }
+                    for photo in job.photos.all()
+                ]
+                
+                jobs.append({
+                    "id": job.jobID,
+                    "title": job.title,
+                    "description": job.description,
+                    "category": {
+                        "id": job.categoryID.specializationID,
+                        "name": job.categoryID.specializationName
+                    } if job.categoryID else None,
+                    "budget": float(job.budget),
+                    "location": job.location,
+                    "expected_duration": job.expectedDuration,
+                    "urgency": job.urgency,
+                    "preferred_start_date": job.preferredStartDate.isoformat() if job.preferredStartDate else None,
+                    "materials_needed": job.materialsNeeded,
+                    "status": job.status,
+                    "created_at": job.createdAt.isoformat(),
+                    "updated_at": job.updatedAt.isoformat(),
+                    "photos": photos,
+                    "client": {
+                        "name": f"{client_profile.firstName} {client_profile.lastName}",
+                        "city": client_account.city,
+                        "rating": job.clientID.clientRating if hasattr(job.clientID, 'clientRating') else 0,
+                        "avatar": client_profile.profileImg or "/worker1.jpg"
+                    }
+                })
         
         return {
             "success": True,
@@ -704,11 +867,10 @@ def get_in_progress_jobs(request):
         }
         
     except Exception as e:
-        print(f"❌ Error fetching in-progress jobs: {str(e)}")
         import traceback
         traceback.print_exc()
         return Response(
-            {"error": f"Failed to fetch in-progress jobs: {str(e)}"},
+            {"error": f"Failed to fetch completed jobs: {str(e)}"},
             status=500
         )
 
@@ -1581,6 +1743,16 @@ def worker_mark_job_complete(request, job_id: int):
         
         print(f"✅ Worker marked job {job_id} as complete. Waiting for client approval.")
         
+        # Broadcast job status update via WebSocket
+        broadcast_job_status_update(job_id, {
+            'event': 'worker_marked_complete',
+            'job_id': job_id,
+            'worker_marked_complete': True,
+            'client_marked_complete': False,
+            'awaiting_client_verification': True,
+            'timestamp': timezone.now().isoformat()
+        })
+        
         return {
             "success": True,
             "message": "Job marked as complete. Waiting for client to verify completion.",
@@ -1601,7 +1773,7 @@ def worker_mark_job_complete(request, job_id: int):
 
 
 @router.post("/{job_id}/approve-completion", auth=cookie_auth)
-def client_approve_job_completion(request, job_id: int):
+def client_approve_job_completion(request, job_id: int, data: ApproveJobCompletionSchema):
     """
     Client approves job completion and selects payment method
     Payment methods: GCASH (online) or CASH (manual with proof upload)
@@ -1614,11 +1786,11 @@ def client_approve_job_completion(request, job_id: int):
     try:
         print(f"✅ Client approving job {job_id} completion")
         
-        # Get payment method from request body (default to GCASH)
-        payment_method = request.data.get('payment_method', 'GCASH').upper()
-        if payment_method not in ['GCASH', 'CASH']:
+        # Get payment method from request body (default to WALLET)
+        payment_method = data.payment_method.upper() if data.payment_method else 'WALLET'
+        if payment_method not in ['WALLET', 'GCASH', 'CASH']:
             return Response(
-                {"error": "Invalid payment method. Choose GCASH or CASH"},
+                {"error": "Invalid payment method. Choose WALLET, GCASH, or CASH"},
                 status=400
             )
         
@@ -1683,6 +1855,16 @@ def client_approve_job_completion(request, job_id: int):
         
         print(f"✅ Client approved job {job_id} completion with {payment_method} payment.")
         
+        # Broadcast job status update via WebSocket
+        broadcast_job_status_update(job_id, {
+            'event': 'client_approved_completion',
+            'job_id': job_id,
+            'worker_marked_complete': True,
+            'client_marked_complete': True,
+            'payment_method': payment_method,
+            'timestamp': timezone.now().isoformat()
+        })
+        
         # Check if remaining payment already paid
         if job.remainingPaymentPaid:
             print(f"✅ Remaining payment already paid for job {job_id}")
@@ -1705,6 +1887,66 @@ def client_approve_job_completion(request, job_id: int):
             from accounts.models import Wallet
             
             remaining_amount = job.remainingPayment
+            
+            # Handle WALLET payment (instant deduction)
+            if payment_method == 'WALLET':
+                print(f"💳 Wallet payment selected - checking balance")
+                
+                # Get or create wallet for client
+                wallet, _ = Wallet.objects.get_or_create(
+                    accountFK=client_profile.profileID.accountFK,
+                    defaults={'balance': 0}
+                )
+                
+                # Check if client has sufficient balance
+                if wallet.balance < remaining_amount:
+                    return Response({
+                        "error": "Insufficient wallet balance",
+                        "required": float(remaining_amount),
+                        "available": float(wallet.balance),
+                        "message": f"You need ₱{remaining_amount} but only have ₱{wallet.balance}. Please deposit more funds or use a different payment method."
+                    }, status=400)
+                
+                # Deduct remaining payment from wallet
+                wallet.balance -= remaining_amount
+                wallet.save()
+                
+                print(f"💸 Deducted ₱{remaining_amount} from wallet. New balance: ₱{wallet.balance}")
+                
+                # Create transaction record
+                transaction = Transaction.objects.create(
+                    walletID=wallet,
+                    transactionType="PAYMENT",
+                    amount=remaining_amount,
+                    balanceAfter=wallet.balance,
+                    status="COMPLETED",
+                    description=f"Remaining payment for job: {job.title} (Wallet)",
+                    referenceNumber=f"JOB-{job.jobID}-FINAL-WALLET-{timezone.now().strftime('%Y%m%d%H%M%S')}",
+                    relatedJobPosting=job
+                )
+                
+                # Mark payment as completed
+                job.remainingPaymentPaid = True
+                job.remainingPaymentPaidAt = timezone.now()
+                job.status = "COMPLETED"
+                job.save()
+                
+                print(f"✅ Job {job_id} marked as COMPLETED via WALLET payment")
+                
+                return {
+                    "success": True,
+                    "message": "Payment successful! Job completed. Please leave a review for the worker.",
+                    "job_id": job_id,
+                    "worker_marked_complete": job.workerMarkedComplete,
+                    "client_marked_complete": job.clientMarkedComplete,
+                    "status": "COMPLETED",
+                    "payment_method": "WALLET",
+                    "requires_payment": False,
+                    "payment_completed": True,
+                    "prompt_review": True,
+                    "worker_id": job.assignedWorkerID.profileID.accountFK.accountID if job.assignedWorkerID else None,
+                    "new_wallet_balance": float(wallet.balance)
+                }
             
             # Handle CASH payment (manual with proof upload)
             if payment_method == 'CASH':
@@ -1746,7 +1988,7 @@ def client_approve_job_completion(request, job_id: int):
             )
             
             # Generate Xendit invoice
-            client_name = f"{client_profile.profileID.accountFK.firstName} {client_profile.profileID.accountFK.lastName}".strip() or "Client"
+            client_name = f"{client_profile.profileID.firstName} {client_profile.profileID.lastName}".strip() or "Client"
             invoice_result = XenditService.create_gcash_payment(
                 amount=float(remaining_amount),
                 user_email=client_profile.profileID.accountFK.email,

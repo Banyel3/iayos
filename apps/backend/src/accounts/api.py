@@ -910,6 +910,13 @@ def xendit_webhook(request):
                     job.escrowPaidAt = timezone.now()
                     job.save()
                     print(f"✅ Job {job.jobID} escrow marked as paid")
+                elif "remaining" in transaction.description.lower() or "final" in transaction.description.lower():
+                    # This is the remaining payment - mark job as completed
+                    job.remainingPaymentPaid = True
+                    job.remainingPaymentPaidAt = timezone.now()
+                    job.status = "COMPLETED"
+                    job.save()
+                    print(f"✅ Job {job.jobID} remaining payment received - Job marked as COMPLETED")
             
             print(f"✅ Payment completed for transaction {transaction.transactionID}")
             

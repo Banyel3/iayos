@@ -10,6 +10,7 @@ import DesktopNavbar from "@/components/ui/desktop-sidebar";
 import NotificationBell from "@/components/notifications/NotificationBell";
 import { useWorkerAvailability } from "@/lib/hooks/useWorkerAvailability";
 import { API_BASE_URL } from "@/lib/api/config";
+import { fetchCompletedJobs } from "@/lib/api/jobs";
 
 // Extended User interface for requests page
 interface RequestsUser extends User {
@@ -125,6 +126,10 @@ const MyRequestsPage = () => {
   // State for in-progress jobs
   const [inProgressJobs, setInProgressJobs] = useState<JobRequest[]>([]);
   const [isLoadingInProgress, setIsLoadingInProgress] = useState(false);
+
+  // State for completed jobs
+  const [completedJobs, setCompletedJobs] = useState<JobRequest[]>([]);
+  const [isLoadingCompleted, setIsLoadingCompleted] = useState(false);
 
   // State for cancel confirmation dialog
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
@@ -863,6 +868,18 @@ const MyRequestsPage = () => {
           const data = await response.json();
 
           if (data.success && data.jobs) {
+            // Debug: Log first job's photos to check structure
+            if (data.jobs.length > 0) {
+              console.log("📦 First job from API:", data.jobs[0]);
+              if (data.jobs[0].photos) {
+                console.log("📸 Job photos from API:", data.jobs[0].photos);
+                console.log(
+                  "📸 Photo URLs:",
+                  data.jobs[0].photos.map((p: any) => p.url)
+                );
+              }
+            }
+
             // Map backend data to frontend format
             const mappedJobs = data.jobs.map((job: any) => {
               const paymentInfo = job.payment_info || {};
@@ -903,7 +920,11 @@ const MyRequestsPage = () => {
                 location: job.location,
                 category: job.category?.name || "Uncategorized",
                 postedDate: job.created_at,
-                photos: job.photos || [],
+                photos: (job.photos || []).map((photo: any) => ({
+                  id: photo.id,
+                  url: photo.url,
+                  file_name: photo.file_name,
+                })),
                 // Payment information
                 paymentStatus,
                 downpaymentMethod,
@@ -997,7 +1018,11 @@ const MyRequestsPage = () => {
               // Include worker or client info depending on user type
               assignedWorker: job.assigned_worker,
               client: job.client,
-              photos: job.photos || [],
+              photos: (job.photos || []).map((photo: any) => ({
+                id: photo.id,
+                url: photo.url,
+                file_name: photo.file_name,
+              })),
               // Payment information
               paymentStatus,
               downpaymentMethod,
@@ -1025,6 +1050,58 @@ const MyRequestsPage = () => {
 
     fetchInProgressJobs();
   }, [isAuthenticated, activeTab]);
+
+  // Fetch completed jobs when tab is active
+  useEffect(() => {
+    const fetchCompletedJobsData = async () => {
+      if (!isAuthenticated || activeTab !== "pastRequests") return;
+
+      try {
+        setIsLoadingCompleted(true);
+        const jobs = await fetchCompletedJobs();
+
+        // Map to JobRequest format
+        const mappedJobs: JobRequest[] = jobs.map((job) => ({
+          id: job.id,
+          title: job.title,
+          price: job.budget,
+          date: job.postedAt,
+          status: "COMPLETED",
+          description: job.description,
+          location: job.location,
+          category: job.category,
+          postedDate: job.postedAt,
+          photos: job.photos,
+          // Include client or worker info depending on user type
+          ...(isWorker
+            ? {
+                client: {
+                  name: job.postedBy.name,
+                  avatar: job.postedBy.avatar,
+                  rating: job.postedBy.rating,
+                },
+              }
+            : {
+                assignedWorker: {
+                  id: job.id, // Use job ID as fallback
+                  name: job.postedBy.name,
+                  avatar: job.postedBy.avatar,
+                  rating: job.postedBy.rating,
+                },
+              }),
+        }));
+
+        setCompletedJobs(mappedJobs);
+      } catch (error) {
+        console.error("Error fetching completed jobs:", error);
+        setCompletedJobs([]);
+      } finally {
+        setIsLoadingCompleted(false);
+      }
+    };
+
+    fetchCompletedJobsData();
+  }, [isAuthenticated, activeTab, isWorker]);
 
   // Loading state
   if (isLoading) {
@@ -1975,19 +2052,17 @@ const MyRequestsPage = () => {
           {isWorker && activeTab === "pastRequests" && (
             <div>
               <h2 className="text-lg lg:text-xl font-semibold text-gray-900 mb-4">
-                Past Job Applications
+                Past Jobs
               </h2>
 
-              {/* Past Requests List */}
+              {/* Past Jobs List */}
               <div className="space-y-3">
-                {isLoadingRequests ? (
+                {isLoadingCompleted ? (
                   <div className="flex flex-col items-center justify-center py-12">
                     <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-                    <p className="text-gray-600">
-                      Loading past applications...
-                    </p>
+                    <p className="text-gray-600">Loading completed jobs...</p>
                   </div>
-                ) : filteredRequests.length === 0 ? (
+                ) : completedJobs.length === 0 ? (
                   <div className="text-center py-12">
                     <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                       <svg
@@ -2005,34 +2080,62 @@ const MyRequestsPage = () => {
                       </svg>
                     </div>
                     <h3 className="text-gray-900 font-medium mb-2">
-                      No past applications
+                      No completed jobs yet
                     </h3>
                     <p className="text-gray-600 text-sm">
                       Your completed jobs will appear here
                     </p>
                   </div>
                 ) : (
-                  filteredRequests.map((request) => (
+                  completedJobs.map((job) => (
                     <div
-                      key={request.id}
-                      onClick={() => setSelectedJob(request)}
+                      key={job.id}
+                      onClick={() => setSelectedJob(job)}
                       className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md hover:border-blue-300 transition-all cursor-pointer"
                     >
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1">
-                          <h3 className="font-medium text-gray-900 mb-1">
-                            {request.title}
-                          </h3>
-                          <p className="text-sm text-gray-500">
-                            {request.date}
-                          </p>
-                          <span className="inline-block mt-2 px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">
-                            Completed
-                          </span>
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start gap-3">
+                            {/* Client Avatar */}
+                            {job.client && (
+                              <div className="flex-shrink-0">
+                                <Image
+                                  src={job.client.avatar}
+                                  alt={job.client.name}
+                                  width={40}
+                                  height={40}
+                                  className="rounded-full object-cover"
+                                />
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-medium text-gray-900 mb-1 truncate">
+                                {job.title}
+                              </h3>
+                              {job.client && (
+                                <p className="text-sm text-gray-600 mb-1">
+                                  Client: {job.client.name}
+                                </p>
+                              )}
+                              <p className="text-xs text-gray-500 mb-2">
+                                {job.date}
+                              </p>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="inline-block px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">
+                                  ✓ Completed
+                                </span>
+                                {job.category && (
+                                  <span className="inline-block px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">
+                                    {job.category}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <p className="font-semibold text-gray-900 text-lg">
-                            {request.price}
+                        <div className="text-right flex-shrink-0">
+                          <p className="font-semibold text-gray-900 text-lg whitespace-nowrap">
+                            {job.price}
                           </p>
                           <svg
                             className="w-5 h-5 text-gray-400 ml-auto mt-1"
@@ -2322,30 +2425,45 @@ const MyRequestsPage = () => {
               )}
 
               {/* Job Photos */}
-              {selectedJob.photos && selectedJob.photos.length > 0 && (
+              {selectedJob.photos && selectedJob.photos.length > 0 ? (
                 <div>
                   <h4 className="text-sm font-semibold text-gray-700 mb-3">
-                    Job Photos
+                    Job Photos ({selectedJob.photos.length})
                   </h4>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                    {selectedJob.photos.map((photo) => (
-                      <div
-                        key={photo.id}
-                        className="relative h-48 rounded-lg overflow-hidden cursor-pointer hover:opacity-90 transition-opacity"
-                        onClick={() => setFullImageView(photo.url)}
-                      >
-                        <img
-                          src={photo.url}
-                          alt={photo.file_name || "Job photo"}
-                          className="w-full h-full object-contain bg-gray-100"
-                          onLoad={(e) => {
-                            e.currentTarget.style.opacity = "1";
-                          }}
-                          style={{ opacity: 0, transition: "opacity 0.3s" }}
-                        />
-                      </div>
-                    ))}
+                    {selectedJob.photos.map((photo) => {
+                      console.log("🖼️ Rendering photo:", photo);
+                      return (
+                        <div
+                          key={photo.id}
+                          className="relative h-48 rounded-lg overflow-hidden cursor-pointer hover:opacity-90 transition-opacity"
+                          onClick={() => setFullImageView(photo.url)}
+                        >
+                          <img
+                            src={photo.url}
+                            alt={photo.file_name || "Job photo"}
+                            className="w-full h-full object-contain bg-gray-100"
+                            onLoad={(e) => {
+                              console.log("✅ Image loaded:", photo.url);
+                              e.currentTarget.style.opacity = "1";
+                            }}
+                            onError={(e) => {
+                              console.error(
+                                "❌ Image failed to load:",
+                                photo.url
+                              );
+                              e.currentTarget.src = "/placeholder-image.png";
+                            }}
+                            style={{ opacity: 0, transition: "opacity 0.3s" }}
+                          />
+                        </div>
+                      );
+                    })}
                   </div>
+                </div>
+              ) : (
+                <div className="text-sm text-gray-500 italic">
+                  No photos uploaded for this job
                 </div>
               )}
 

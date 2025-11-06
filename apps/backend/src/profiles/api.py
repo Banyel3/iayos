@@ -602,7 +602,6 @@ def check_payment_status(request, transaction_id: int):
 def get_participant_info(profile: Profile, job_title: str = None) -> dict:
     """Helper function to get participant information"""
     return {
-        "profile_id": profile.profileID,
         "name": f"{profile.firstName} {profile.lastName}",
         "avatar": profile.profileImg or "/worker1.jpg",
         "profile_type": profile.profileType,
@@ -715,7 +714,6 @@ def get_conversations(request, filter: str = "all"):
                 "my_role": "CLIENT" if is_client else "WORKER",
                 "last_message": conv.lastMessageText,
                 "last_message_time": conv.lastMessageTime.isoformat() if conv.lastMessageTime else None,
-                "last_message_sender_id": conv.lastMessageSender.profileID if conv.lastMessageSender else None,
                 "unread_count": unread_count,
                 "is_archived": is_archived,
                 "status": conv.status,
@@ -806,8 +804,6 @@ def get_conversation_messages(request, conversation_id: int):
         formatted_messages = []
         for msg in messages:
             formatted_messages.append({
-                "id": msg.messageID,
-                "sender_id": msg.sender.profileID,
                 "sender_name": f"{msg.sender.firstName} {msg.sender.lastName}",
                 "sender_avatar": msg.sender.profileImg or "/worker1.jpg",
                 "message_text": msg.messageText,
@@ -916,9 +912,7 @@ def send_message(request, data: SendMessageSchema):
         return {
             "success": True,
             "message": {
-                "id": message.messageID,
                 "conversation_id": conversation.conversationID,
-                "sender_id": sender_profile.profileID,
                 "sender_name": f"{sender_profile.firstName} {sender_profile.lastName}",
                 "message_text": message.messageText,
                 "message_type": message.messageType,

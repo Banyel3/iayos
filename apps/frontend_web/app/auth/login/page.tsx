@@ -159,12 +159,6 @@ const Login = () => {
       // Prefer backend accountType when available (more authoritative)
       const accountType = (user.accountType || "").toString().toLowerCase();
       const role = (user.role || "").toString().toUpperCase();
-      console.log(
-        "✅ User already authenticated, accountType:",
-        accountType,
-        "role:",
-        role
-      );
 
       if (accountType === "agency") {
         console.log(
@@ -235,7 +229,6 @@ const Login = () => {
 
       if (userResponse.ok) {
         const userData = await userResponse.json();
-        console.log("📋 User data:", userData);
 
         // Prefer authoritative accountType from backend (set in /me)
         const accountType = (userData.accountType || "")

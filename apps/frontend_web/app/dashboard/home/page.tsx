@@ -10,7 +10,14 @@ import DesktopNavbar from "@/components/ui/desktop-sidebar";
 import NotificationBell from "@/components/notifications/NotificationBell";
 import { useWorkerAvailability } from "@/lib/hooks/useWorkerAvailability";
 import { LocationToggle } from "@/components/ui/location-toggle";
-import { API_BASE_URL } from "@/lib/api/config";
+import {
+  fetchAvailableJobs,
+  fetchJobCategories,
+  fetchWorkers,
+  fetchMyApplications,
+  submitJobApplication,
+} from "@/lib/api/jobs";
+import type { JobPosting, JobCategory, WorkerListing } from "@/lib/api/jobs";
 
 interface HomeUser extends User {
   profile_data?: {
@@ -21,62 +28,12 @@ interface HomeUser extends User {
   };
 }
 
-interface JobPosting {
-  id: string;
-  title: string;
-  category: string;
-  description: string;
-  budget: string;
-  location: string;
-  distance: number;
-  postedBy: {
-    name: string;
-    avatar: string;
-    rating: number;
-  };
-  postedAt: string;
-  urgency: "LOW" | "MEDIUM" | "HIGH";
-  photos?: Array<{
-    id: number;
-    url: string;
-    file_name?: string;
-  }>;
-}
-
-interface JobCategory {
-  id: string;
-  name: string;
-  description: string;
-  icon: string;
-  workerCount: number;
-}
-
-interface WorkerListing {
-  id: string;
-  name: string;
-  avatar: string;
-  rating: number;
-  reviewCount: number;
-  startingPrice: string;
-  experience: string;
-  specialization: string;
-  isVerified: boolean;
-  distance: number | null; // Can be null if location unavailable
-}
-
 const HomePage = () => {
   const { user: authUser, isAuthenticated, isLoading, logout } = useAuth();
   const user = authUser as HomeUser;
   const router = useRouter();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [workerListings, setWorkerListings] = useState<WorkerListing[]>([]);
-  const [isLoadingWorkers, setIsLoadingWorkers] = useState(true);
-  const [jobPostings, setJobPostings] = useState<JobPosting[]>([]);
-  const [isLoadingJobs, setIsLoadingJobs] = useState(true);
-
-  // Track applied jobs
-  const [appliedJobs, setAppliedJobs] = useState<Set<string>>(new Set());
 
   // Job details modal state
   const [selectedJobForDetails, setSelectedJobForDetails] =
@@ -93,8 +50,18 @@ const HomePage = () => {
   const [budgetOption, setBudgetOption] = useState<"ACCEPT" | "NEGOTIATE">(
     "ACCEPT"
   );
-  const [isSubmittingApplication, setIsSubmittingApplication] = useState(false);
   const [applicationError, setApplicationError] = useState("");
+  const [isSubmittingApplication, setIsSubmittingApplication] = useState(false);
+
+  // State for fetched data
+  const [jobPostings, setJobPostings] = useState<JobPosting[]>([]);
+  const [jobCategories, setJobCategories] = useState<JobCategory[]>([]);
+  const [workerListings, setWorkerListings] = useState<WorkerListing[]>([]);
+  const [appliedJobs, setAppliedJobs] = useState<Set<string>>(new Set());
+  const [isLoadingJobs, setIsLoadingJobs] = useState(false);
+  const [isLoadingCategories, setIsLoadingCategories] = useState(false);
+  const [isLoadingWorkers, setIsLoadingWorkers] = useState(false);
+  const [isLoadingApplications, setIsLoadingApplications] = useState(false);
 
   // Use the worker availability hook
   const isWorker = user?.profile_data?.profileType === "WORKER";
@@ -105,263 +72,75 @@ const HomePage = () => {
     handleAvailabilityToggle,
   } = useWorkerAvailability(isWorker, isAuthenticated);
 
-  // State for job categories (Client view) - will be fetched from API
-  const [jobCategories, setJobCategories] = useState<JobCategory[]>([]);
+  // Fetch jobs for workers
+  useEffect(() => {
+    if (isAuthenticated && isWorker) {
+      setIsLoadingJobs(true);
+      fetchAvailableJobs()
+        .then((jobs) => {
+          setJobPostings(jobs);
+          setIsLoadingJobs(false);
+        })
+        .catch((error) => {
+          console.error("Error fetching jobs:", error);
+          setIsLoadingJobs(false);
+        });
+    }
+  }, [isAuthenticated, isWorker]);
+
+  // Fetch categories for clients
+  useEffect(() => {
+    if (isAuthenticated && isClient) {
+      setIsLoadingCategories(true);
+      fetchJobCategories()
+        .then((categories) => {
+          setJobCategories(categories);
+          setIsLoadingCategories(false);
+        })
+        .catch((error) => {
+          console.error("Error fetching categories:", error);
+          setIsLoadingCategories(false);
+        });
+    }
+  }, [isAuthenticated, isClient]);
+
+  // Fetch workers for clients
+  useEffect(() => {
+    if (isAuthenticated && isClient) {
+      setIsLoadingWorkers(true);
+      fetchWorkers()
+        .then((workers) => {
+          setWorkerListings(workers);
+          setIsLoadingWorkers(false);
+        })
+        .catch((error) => {
+          console.error("Error fetching workers:", error);
+          setIsLoadingWorkers(false);
+        });
+    }
+  }, [isAuthenticated, isClient]);
+
+  // Fetch applied jobs for workers
+  useEffect(() => {
+    if (isAuthenticated && isWorker) {
+      setIsLoadingApplications(true);
+      fetchMyApplications()
+        .then((applications) => {
+          setAppliedJobs(applications);
+          setIsLoadingApplications(false);
+        })
+        .catch((error) => {
+          console.error("Error fetching applications:", error);
+          setIsLoadingApplications(false);
+        });
+    }
+  }, [isAuthenticated, isWorker]);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.push("/auth/login");
     }
   }, [isAuthenticated, isLoading, router]);
-
-  // Fetch workers from backend
-  useEffect(() => {
-    const fetchWorkers = async () => {
-      try {
-        setIsLoadingWorkers(true);
-
-        // First, try to get the user's location from their profile
-        let userLatitude: number | null = null;
-        let userLongitude: number | null = null;
-
-        try {
-          const locationResponse = await fetch(
-            `${API_BASE_URL}/accounts/location/me`,
-            {
-              method: "GET",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              credentials: "include",
-            }
-          );
-
-          if (locationResponse.ok) {
-            const locationData = await locationResponse.json();
-            if (locationData.success && locationData.location) {
-              userLatitude = locationData.location.latitude;
-              userLongitude = locationData.location.longitude;
-              console.log(
-                "? Got user location from profile:",
-                userLatitude,
-                userLongitude
-              );
-            }
-          }
-        } catch (locError) {
-          console.log(
-            "User location not available from profile, will try browser location"
-          );
-        }
-
-        // If no location from profile, try to get from browser
-        if (userLatitude === null || userLongitude === null) {
-          try {
-            const position = await new Promise<GeolocationPosition>(
-              (resolve, reject) => {
-                navigator.geolocation.getCurrentPosition(resolve, reject, {
-                  timeout: 5000,
-                  enableHighAccuracy: false,
-                });
-              }
-            );
-            userLatitude = position.coords.latitude;
-            userLongitude = position.coords.longitude;
-            console.log(
-              "? Got user location from browser:",
-              userLatitude,
-              userLongitude
-            );
-          } catch (geoError) {
-            console.log("Browser location not available");
-          }
-        }
-
-        // Build URL with location parameters if available
-        let url = `${API_BASE_URL}/accounts/users/workers`;
-        if (userLatitude !== null && userLongitude !== null) {
-          url += `?latitude=${userLatitude}&longitude=${userLongitude}`;
-        }
-
-        const response = await fetch(url, {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: "include", // Include cookies for authentication
-        });
-
-        if (!response.ok) {
-          throw new Error("Failed to fetch workers");
-        }
-
-        const data = await response.json();
-
-        if (data.success && data.workers) {
-          setWorkerListings(data.workers);
-        }
-      } catch (error) {
-        console.error("Error fetching workers:", error);
-        // Optionally set empty array or keep mock data as fallback
-        setWorkerListings([]);
-      } finally {
-        setIsLoadingWorkers(false);
-      }
-    };
-
-    // Only fetch if user is a client
-    if (isAuthenticated && user?.profile_data?.profileType === "CLIENT") {
-      fetchWorkers();
-    }
-  }, [isAuthenticated, user?.profile_data?.profileType]);
-
-  // Helper function to format time ago
-  const formatTimeAgo = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMins / 60);
-    const diffDays = Math.floor(diffHours / 24);
-
-    if (diffMins < 60)
-      return `${diffMins} ${diffMins === 1 ? "minute" : "minutes"} ago`;
-    if (diffHours < 24)
-      return `${diffHours} ${diffHours === 1 ? "hour" : "hours"} ago`;
-    return `${diffDays} ${diffDays === 1 ? "day" : "days"} ago`;
-  };
-
-  // Fetch job postings for workers
-  useEffect(() => {
-    const fetchJobs = async () => {
-      if (!isWorker) return; // Only fetch jobs if user is a worker
-
-      try {
-        setIsLoadingJobs(true);
-        const response = await fetch(`${API_BASE_URL}/jobs/available`, {
-          credentials: "include",
-        });
-
-        if (!response.ok) {
-          console.error(
-            `Failed to fetch jobs: ${response.status} ${response.statusText}`
-          );
-          setJobPostings([]);
-          return;
-        }
-
-        const data = await response.json();
-
-        if (data.success && data.jobs) {
-          // Map backend data to frontend format
-          const mappedJobs: JobPosting[] = data.jobs.map((job: any) => ({
-            id: job.id.toString(),
-            title: job.title,
-            category: job.category?.name || "Uncategorized",
-            description: job.description,
-            budget: `₱${job.budget.toFixed(2)}`,
-            location: job.location,
-            distance: 0, // Will be calculated if we have coordinates
-            postedBy: {
-              name: job.client.name,
-              avatar: job.client.avatar,
-              rating: job.client.rating || 0,
-            },
-            postedAt: formatTimeAgo(job.created_at),
-            urgency: job.urgency as "LOW" | "MEDIUM" | "HIGH",
-            photos: job.photos || [],
-          }));
-          setJobPostings(mappedJobs);
-        }
-      } catch (error) {
-        console.error("Error fetching jobs:", error);
-        setJobPostings([]);
-      } finally {
-        setIsLoadingJobs(false);
-      }
-    };
-
-    if (isAuthenticated && isWorker) {
-      fetchJobs();
-    }
-  }, [isAuthenticated, isWorker]);
-
-  // Fetch worker's applications to determine which jobs they've applied to
-  useEffect(() => {
-    const fetchMyApplications = async () => {
-      if (!isWorker || !isAuthenticated) return;
-
-      try {
-        const response = await fetch(`${API_BASE_URL}/jobs/my-applications`, {
-          credentials: "include",
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          console.log("📋 My applications response:", data);
-          if (data.success && data.applications) {
-            // Extract job IDs from applications
-            const jobIds = new Set<string>(
-              data.applications.map((app: any) => app.job_id.toString())
-            );
-            console.log("✅ Applied job IDs:", Array.from(jobIds));
-            setAppliedJobs(jobIds);
-          }
-        } else {
-          console.error("❌ Failed to fetch applications:", response.status);
-        }
-      } catch (error) {
-        console.error("Error fetching applications:", error);
-      }
-    };
-
-    if (isAuthenticated && isWorker) {
-      fetchMyApplications();
-    }
-  }, [isAuthenticated, isWorker]);
-
-  // Fetch job categories for client view
-  useEffect(() => {
-    const fetchCategories = async () => {
-      if (!isClient) return;
-
-      try {
-        const response = await fetch(
-          `${API_BASE_URL}/adminpanel/jobs/categories`,
-          {
-            credentials: "include",
-          }
-        );
-
-        if (!response.ok) {
-          console.error(
-            `Failed to fetch categories: ${response.status} ${response.statusText}`
-          );
-          setJobCategories([]);
-          return;
-        }
-
-        const data = await response.json();
-        if (data.success && data.categories) {
-          const mappedCategories = data.categories.map((cat: any) => ({
-            id: cat.id.toString(),
-            name: cat.name,
-            description: cat.description || "",
-            icon: cat.icon || "🔧",
-            workerCount: cat.worker_count || 0,
-          }));
-          setJobCategories(mappedCategories);
-        }
-      } catch (error) {
-        console.error("Error fetching categories:", error);
-        setJobCategories([]);
-      }
-    };
-
-    if (isAuthenticated && isClient) {
-      fetchCategories();
-    }
-  }, [isAuthenticated, isClient]);
 
   // Early returns
   if (isLoading) {
@@ -409,7 +188,7 @@ const HomePage = () => {
   };
 
   // Handle application submission
-  const handleSubmitApplication = async () => {
+  const handleSubmitApplication = () => {
     if (!selectedJob) return;
 
     // Validation
@@ -426,59 +205,44 @@ const HomePage = () => {
       return;
     }
 
-    setIsSubmittingApplication(true);
     setApplicationError("");
 
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/jobs/${selectedJob.id}/apply`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: "include",
-          body: JSON.stringify({
-            proposal_message: proposalMessage,
-            proposed_budget:
-              budgetOption === "ACCEPT"
-                ? parseFloat(selectedJob.budget.replace(/[^0-9.]/g, ""))
-                : parseFloat(proposedBudget),
-            estimated_duration: estimatedDuration || null,
-            budget_option: budgetOption,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to submit application");
-      }
-
-      const data = await response.json();
-
-      if (data.success) {
-        // Add job to applied jobs set
-        setAppliedJobs((prev) => new Set(prev).add(selectedJob.id));
-
+    // Submit the application
+    setIsSubmittingApplication(true);
+    submitJobApplication({
+      jobId: selectedJob.id,
+      proposalMessage,
+      proposedBudget:
+        budgetOption === "ACCEPT"
+          ? parseFloat(selectedJob.budget.replace(/[^0-9.]/g, ""))
+          : parseFloat(proposedBudget),
+      estimatedDuration: estimatedDuration || null,
+      budgetOption,
+    })
+      .then(() => {
         alert(
           "Application submitted successfully! You can view your application status in the job details."
         );
         setShowApplicationModal(false);
         setSelectedJob(null);
-      } else {
-        throw new Error(data.error || "Failed to submit application");
-      }
-    } catch (error) {
-      console.error("Error submitting application:", error);
-      setApplicationError(
-        error instanceof Error
-          ? error.message
-          : "Failed to submit application. Please try again."
-      );
-    } finally {
-      setIsSubmittingApplication(false);
-    }
+        setProposalMessage("");
+        setProposedBudget("");
+        setEstimatedDuration("");
+        setBudgetOption("ACCEPT");
+        setIsSubmittingApplication(false);
+        // Refresh applied jobs
+        fetchMyApplications().then((applications) => {
+          setAppliedJobs(applications);
+        });
+      })
+      .catch((error) => {
+        setApplicationError(
+          error instanceof Error
+            ? error.message
+            : "Failed to submit application. Please try again."
+        );
+        setIsSubmittingApplication(false);
+      });
   };
 
   // Filter workers by selected category
@@ -684,20 +448,11 @@ const HomePage = () => {
                     </div>
                   </div>
                   <div className="p-3 bg-gray-50 border-t border-gray-100 flex flex-col space-y-2">
-                    {(() => {
-                      const hasApplied = appliedJobs.has(job.id);
-                      console.log(
-                        `Job ${job.id} - Has Applied: ${hasApplied}, Applied Jobs:`,
-                        Array.from(appliedJobs)
-                      );
-                      return (
-                        hasApplied && (
-                          <p className="text-xs text-green-600 text-center font-medium">
-                            ✓ You have already applied for this job
-                          </p>
-                        )
-                      );
-                    })()}
+                    {appliedJobs.has(job.id) && (
+                      <p className="text-xs text-green-600 text-center font-medium">
+                        ✓ You have already applied for this job
+                      </p>
+                    )}
                     <div className="flex space-x-2">
                       <button
                         onClick={() => handleViewDetailsClick(job)}

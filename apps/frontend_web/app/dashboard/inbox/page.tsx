@@ -19,11 +19,14 @@ import {
   toggleConversationArchive,
 } from "@/lib/api/chat";
 import {
+  useConversationMessages,
   useMarkJobComplete,
   useApproveJobCompletion,
   useSubmitReview,
   useOptimisticMessageUpdate,
 } from "@/lib/hooks/useInboxQueries";
+import { useQueryClient } from "@tanstack/react-query";
+import { inboxKeys } from "@/lib/hooks/useInboxQueries";
 
 // Extended User interface for inbox page
 interface InboxUser extends User {
@@ -39,20 +42,34 @@ const InboxPage = () => {
   const { user: authUser, isAuthenticated, isLoading, logout } = useAuth();
   const user = authUser as InboxUser;
   const router = useRouter();
+  const queryClient = useQueryClient();
+
   const [activeTab, setActiveTab] = useState<"all" | "unread" | "archived">(
     "all"
   );
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedChat, setSelectedChat] = useState<Conversation | null>(null);
+  const [selectedConversationId, setSelectedConversationId] = useState<
+    number | null
+  >(null);
   const [messageInput, setMessageInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Local state for conversations and messages (decoupled from react-query data)
+  // Local state for conversations (still needed for WebSocket updates)
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [isLoadingConversations, setIsLoadingConversations] = useState(false);
 
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  // 🔥 USE TANSTACK QUERY FOR MESSAGES - No more manual state!
+  const {
+    data: messageData,
+    isLoading: isLoadingMessages,
+    isFetching: isFetchingMessages,
+  } = useConversationMessages(selectedConversationId);
+
+  // Extract messages array from the response
+  const chatMessages = messageData?.messages ?? [];
+  const conversationMetadata = messageData?.conversation;
+
   const [isLoadingReviewStatus, setIsLoadingReviewStatus] = useState(false);
 
   // Action state flags
@@ -60,10 +77,10 @@ const InboxPage = () => {
   const [isApprovingCompletion, setIsApprovingCompletion] = useState(false);
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
 
-  // Simple in-memory caches for messages and conversation metadata
-  const messagesCacheRef = useRef<Map<number, ChatMessage[]>>(new Map());
-  const conversationDataCacheRef = useRef<Map<number, any>>(new Map());
-  const lastFetchTimeRef = useRef<Map<number, number>>(new Map());
+  // Stream Controller: Only keep metadata cache (messages now in React Query)
+  const conversationMetadataRef = useRef<Map<number, any>>(new Map());
+  const currentlyLoadingRef = useRef<number | null>(null);
+  const lastLoadedConversationIdRef = useRef<number | null>(null);
 
   // React Query hooks (mutations/utilities only)
   // Note: We fetch/store conversations and messages locally in this component
@@ -89,85 +106,153 @@ const InboxPage = () => {
   const hasShownReviewModalRef = useRef(false); // Track if we've already shown the modal for this job
 
   // WebSocket connection for real-time messaging
+  const lastProcessedMessageRef = useRef<Set<string>>(new Set());
+
   const handleWebSocketMessage = useCallback(
     (data: any) => {
-      console.log("📨 WebSocket message received:", data);
+      // Handle message history response
+      if (data.action === "messages_response") {
+        console.log(
+          "📖 [WebSocket] Received message history:",
+          data.conversation_id,
+          `(${data.messages?.length || 0} messages)`
+        );
 
-      // Handle nested message structure from backend
-      const messageData = data.message || data;
-
-      // Skip if this is our own message (already added optimistically)
-      // Backend sends sender_id as string of profileID, we need to compare with current user's profile
-      // For now, we'll use a simple check: if we just sent a message with the same text, skip it
-      const messageSenderId = parseInt(messageData.sender_id);
-
-      // Check if this message was sent by us by comparing timestamps
-      // If we have a recent optimistic message with same text, skip the WebSocket echo
-      setChatMessages((prev) => {
-        // Check if we already have this exact message (within last 5 seconds)
-        const recentMessage = prev
-          .slice(-5) // Check last 5 messages
-          .find(
-            (msg) =>
-              msg.message_text === messageData.message_text &&
-              msg.is_mine &&
-              new Date().getTime() - new Date(msg.created_at).getTime() < 5000
-          );
-
-        if (recentMessage) {
-          console.log("⏭️ Skipping duplicate message (already displayed)");
-          return prev;
+        if (data.error) {
+          console.error("❌ [WebSocket] Error fetching messages:", data.error);
+          return;
         }
 
-        // Add the new message to chat
-        const newMessage: ChatMessage = {
-          id: messageData.id || Date.now(),
-          sender_id: messageData.sender_id,
-          sender_name: messageData.sender_name || "Unknown",
-          sender_avatar: messageData.sender_avatar || null,
-          message_text: messageData.message_text || messageData.message || "",
-          message_type: messageData.message_type || "TEXT",
-          is_read: messageData.is_read || false,
-          created_at:
-            messageData.timestamp ||
-            messageData.created_at ||
-            new Date().toISOString(),
-          is_mine: false,
-        };
+        const conversationId = data.conversation_id;
+        const messages = data.messages || [];
+        const conversationData = data.conversation || {};
+
+        // Format messages
+        const formattedMessages = messages.map((msg: any, index: number) => ({
+          id: Date.now() + index, // Client-side ID for React key
+          sender_id: 0, // Not used
+          sender_name: msg.sender_name,
+          sender_avatar: msg.sender_avatar,
+          message_text: msg.message_text,
+          message_type: msg.message_type,
+          is_read: msg.is_read,
+          created_at: msg.created_at,
+          is_mine: msg.is_mine,
+        }));
+
+        // 🔥 UPDATE REACT QUERY CACHE - This is the key!
+        queryClient.setQueryData(inboxKeys.messages(conversationId), {
+          messages: formattedMessages,
+          conversation: conversationData,
+        });
+
+        // Store metadata separately (not in React Query)
+        conversationMetadataRef.current.set(conversationId, conversationData);
 
         console.log(
-          "✅ Adding message from other user:",
-          newMessage.message_text
+          "✅ [TanStack Query] Cached",
+          formattedMessages.length,
+          "messages for conversation",
+          conversationId
         );
-        return [...prev, newMessage];
-      });
 
-      // Update conversation's last message
-      if (selectedChat) {
-        setConversations((prev) =>
-          prev.map((conv) =>
-            conv.id === selectedChat.id
-              ? {
-                  ...conv,
-                  last_message:
-                    messageData.message_text || messageData.message || "",
-                  last_message_time:
-                    messageData.timestamp ||
-                    messageData.created_at ||
-                    new Date().toISOString(),
-                }
-              : conv
-          )
-        );
+        // Update review status if this is the selected conversation
+        if (selectedChat && selectedChat.id === conversationId) {
+          if (conversationData) {
+            const myRole = conversationData.my_role;
+            const hasReviewed =
+              myRole === "WORKER"
+                ? conversationData.job?.workerReviewed
+                : conversationData.job?.clientReviewed;
+            setHasSubmittedReview(hasReviewed || false);
+            setIsLoadingReviewStatus(false);
+          }
+
+          // Auto-scroll
+          setTimeout(() => {
+            messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+          }, 100);
+        }
+
+        // Clear loading guard (WebSocket fetch complete)
+        currentlyLoadingRef.current = null;
+
+        return;
       }
 
-      // Auto-scroll to bottom
-      setTimeout(
-        () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }),
-        100
+      // Handle regular chat message
+      const messageData = data.message || data;
+      const conversationId = messageData.conversation_id || selectedChat?.id;
+
+      if (!conversationId) {
+        console.warn("⚠️ [WebSocket] Received message without conversation_id");
+        return;
+      }
+
+      // Use message content + timestamp for deduplication (no IDs exposed)
+      const messageKey = `${messageData.sender_name}-${messageData.message || messageData.message_text}-${messageData.created_at}`;
+
+      // Quick deduplication check
+      if (lastProcessedMessageRef.current.has(messageKey)) return;
+      lastProcessedMessageRef.current.add(messageKey);
+
+      // Cleanup old keys (keep last 20)
+      if (lastProcessedMessageRef.current.size > 20) {
+        const keysArray = Array.from(lastProcessedMessageRef.current);
+        lastProcessedMessageRef.current = new Set(keysArray.slice(-20));
+      }
+
+      // Add the new message to chat
+      const newMessage: ChatMessage = {
+        id: Date.now(), // Generate client-side ID for React key only
+        sender_id: 0, // Not used, will be removed
+        sender_name: messageData.sender_name || "Unknown",
+        sender_avatar: messageData.sender_avatar || null,
+        message_text: messageData.message_text || messageData.message || "",
+        message_type: messageData.message_type || messageData.type || "TEXT",
+        is_read: messageData.is_read || false,
+        created_at: messageData.created_at || new Date().toISOString(),
+        is_mine: messageData.is_mine || false,
+      };
+
+      // 🔥 UPDATE REACT QUERY CACHE - Add message to conversation
+      queryClient.setQueryData(
+        inboxKeys.messages(conversationId),
+        (oldData) => {
+          if (!oldData) return oldData;
+          return {
+            ...oldData,
+            messages: [...oldData.messages, newMessage],
+          };
+        }
+      );
+
+      console.log(
+        "✅ [TanStack Query] Added message to cache for conversation",
+        conversationId
+      );
+
+      // If this message is for the currently selected chat, auto-scroll
+      if (selectedChat && selectedChat.id === conversationId) {
+        requestAnimationFrame(() => {
+          messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        });
+      }
+
+      // Update conversation's last message in the list
+      setConversations((prev) =>
+        prev.map((conv) =>
+          conv.id === conversationId
+            ? {
+                ...conv,
+                last_message: newMessage.message_text,
+                last_message_time: newMessage.created_at,
+              }
+            : conv
+        )
       );
     },
-    [selectedChat]
+    [selectedChat, queryClient]
   );
 
   const {
@@ -175,7 +260,9 @@ const InboxPage = () => {
     isConnecting,
     error: wsError,
     sendMessage: wsSendMessage,
-  } = useWebSocket(selectedChat?.id || null, handleWebSocketMessage);
+    requestMessages: wsRequestMessages,
+    retry: retryWebSocket,
+  } = useWebSocket(null, handleWebSocketMessage); // null = global connection for all conversations
 
   // Use the worker availability hook
   const isWorker = user?.profile_data?.profileType === "WORKER";
@@ -249,109 +336,19 @@ const InboxPage = () => {
     loadConversations();
   }, [loadConversations]);
 
-  // Fetch messages when chat is selected - with caching
-  const loadMessages = useCallback(
-    async (conversationId: number, forceRefresh = false) => {
-      // Check if we have cached messages and they're recent
-      const cachedMessages = messagesCacheRef.current.get(conversationId);
-      const cachedData = conversationDataCacheRef.current.get(conversationId);
-      const lastFetch = lastFetchTimeRef.current.get(conversationId) || 0;
-      const timeSinceLastFetch = Date.now() - lastFetch;
-
-      // Use cache if:
-      // 1. Not force refresh
-      // 2. We have cached data
-      // 3. Last fetch was less than 30 seconds ago
-      if (
-        !forceRefresh &&
-        cachedMessages &&
-        cachedData &&
-        timeSinceLastFetch < 30000
-      ) {
-        console.log(
-          "✅ Using cached messages for conversation:",
-          conversationId
-        );
-        setChatMessages(cachedMessages);
-
-        // Update selected chat with cached data
-        setSelectedChat((prev) => {
-          if (!prev || prev.id !== conversationId) return prev;
-          return {
-            ...prev,
-            job: {
-              ...prev.job,
-              ...cachedData.job,
-            },
-          };
-        });
-
-        // Update review status
-        const myRole = cachedData.my_role;
-        const hasReviewed =
-          myRole === "WORKER"
-            ? cachedData.job?.workerReviewed
-            : cachedData.job?.clientReviewed;
-        setHasSubmittedReview(hasReviewed || false);
-
-        // Auto-scroll to bottom
-        setTimeout(
-          () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }),
-          100
-        );
-        return;
-      }
-
-      // Fetch fresh data
-      setIsLoadingMessages(true);
-      setIsLoadingReviewStatus(true);
-      try {
-        const { messages, conversation } = await fetchMessages(conversationId);
-        setChatMessages(messages);
-
-        // Cache the messages and conversation data
-        messagesCacheRef.current.set(conversationId, messages);
-        conversationDataCacheRef.current.set(conversationId, conversation);
-        lastFetchTimeRef.current.set(conversationId, Date.now());
-
-        console.log("✅ Loaded messages from API:", messages.length);
-
-        // Update the selected chat with fresh conversation data including review status
-        if (conversation) {
-          setSelectedChat((prev) => {
-            if (!prev || prev.id !== conversationId) return prev;
-
-            return {
-              ...prev,
-              job: {
-                ...prev.job,
-                ...conversation.job, // Update with fresh job data including review status
-              },
-            };
-          });
-
-          // Update review status based on fresh data from server
-          const myRole = conversation.my_role;
-          const hasReviewed =
-            myRole === "WORKER"
-              ? conversation.job?.workerReviewed
-              : conversation.job?.clientReviewed;
-          setHasSubmittedReview(hasReviewed || false);
-        }
-
-        // Auto-scroll to bottom
-        setTimeout(
-          () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }),
-          100
-        );
-      } catch (error) {
-        console.error("❌ Failed to load messages:", error);
-      } finally {
-        setIsLoadingMessages(false);
-        setIsLoadingReviewStatus(false);
-      }
+  // 🔥 TanStack Query: Cache invalidation utility
+  const invalidateConversationCache = useCallback(
+    (conversationId: number) => {
+      console.log(
+        "🗑️ [TanStack Query] Invalidating cache for conversation",
+        conversationId
+      );
+      queryClient.invalidateQueries({
+        queryKey: inboxKeys.messages(conversationId),
+      });
+      conversationMetadataRef.current.delete(conversationId);
     },
-    []
+    [queryClient]
   );
 
   // Check if user has already reviewed this job
@@ -377,16 +374,70 @@ const InboxPage = () => {
   }, []);
 
   useEffect(() => {
+    console.log(
+      "[useEffect#1] selectedChat changed:",
+      selectedChat?.id,
+      selectedChat
+    );
     if (selectedChat) {
-      loadMessages(selectedChat.id, true); // Force refresh to get latest job status
-
-      // Reset the modal shown flag when switching to a different job
-      hasShownReviewModalRef.current = false;
+      // Update the stable conversation ID
+      console.log(
+        "[useEffect#1] Setting selectedConversationId to:",
+        selectedChat.id
+      );
+      setSelectedConversationId(selectedChat.id);
     } else {
-      setChatMessages([]);
+      console.log("[useEffect#1] Clearing selectedConversationId");
+      setSelectedConversationId(null);
       setIsLoadingReviewStatus(false);
     }
-  }, [selectedChat, loadMessages]);
+  }, [selectedChat]);
+
+  // 🔥 TanStack Query automatically fetches when selectedConversationId changes!
+  // The useConversationMessages hook above will handle fetching & caching
+  // We just need to trigger WebSocket request for real-time updates
+  useEffect(() => {
+    if (selectedConversationId && isConnected) {
+      console.log(
+        "🔄 [TanStack Query] Requesting messages via WebSocket:",
+        selectedConversationId
+      );
+      wsRequestMessages(selectedConversationId);
+
+      // Reset modal flag
+      hasShownReviewModalRef.current = false;
+    }
+  }, [selectedConversationId, isConnected, wsRequestMessages]);
+
+  // 🔥 Auto-prompt review when BOTH parties mark complete (for worker)
+  useEffect(() => {
+    if (!selectedChat || !conversationMetadata) return;
+
+    const job = conversationMetadata.job;
+    const myRole = conversationMetadata.my_role;
+
+    // Only trigger for workers when:
+    // 1. Both parties have marked complete
+    // 2. Worker hasn't reviewed yet
+    // 3. We haven't shown the modal for this job yet
+    if (
+      myRole === "WORKER" &&
+      job?.workerMarkedComplete &&
+      job?.clientMarkedComplete &&
+      !job?.workerReviewed &&
+      !hasShownReviewModalRef.current
+    ) {
+      console.log(
+        "✅ Both parties marked complete, prompting worker for review"
+      );
+      hasShownReviewModalRef.current = true;
+
+      // Small delay to ensure smooth UX after payment
+      setTimeout(() => {
+        setShowReviewModal(true);
+      }, 500);
+    }
+  }, [selectedChat, conversationMetadata]);
 
   // Handle sending messages
   const handleSendMessage = useCallback(() => {
@@ -410,7 +461,23 @@ const InboxPage = () => {
       is_mine: true,
     };
 
-    setChatMessages((prev) => [...prev, optimisticMessage]);
+    // 🔥 TanStack Query: Update cache immediately (optimistic update)
+    const conversationId = selectedChat.id;
+    queryClient.setQueryData(
+      inboxKeys.messages(conversationId),
+      (oldData: any) => {
+        if (!oldData) return oldData;
+        return {
+          ...oldData,
+          messages: [...oldData.messages, optimisticMessage],
+        };
+      }
+    );
+
+    console.log(
+      "✅ [TanStack Query] Added optimistic message to cache for conversation",
+      conversationId
+    );
 
     // Auto-scroll to bottom
     setTimeout(
@@ -419,17 +486,17 @@ const InboxPage = () => {
     );
 
     // Try to send via WebSocket (will queue if reconnecting)
-    if (isConnected) {
+    if (isConnected && selectedChat) {
       console.log("📤 Sending via WebSocket:", message);
-      wsSendMessage(message);
-    } else if (isConnecting) {
+      wsSendMessage(selectedChat.id, message);
+    } else if (isConnecting && selectedChat) {
       console.log("⏳ Queueing message while reconnecting:", message);
       // Message will be shown optimistically, WebSocket will handle when connected
       // For now, just wait and try again
       const retryInterval = setInterval(() => {
-        if (isConnected) {
+        if (isConnected && selectedChat) {
           console.log("📤 Sending queued message:", message);
-          wsSendMessage(message);
+          wsSendMessage(selectedChat.id, message);
           clearInterval(retryInterval);
         }
       }, 500);
@@ -462,20 +529,12 @@ const InboxPage = () => {
     if (!selectedChat) return;
 
     setIsMarkingComplete(true);
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/jobs/${selectedChat.job.id}/mark-complete`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: "include",
-        }
-      );
 
-      if (response.ok) {
-        const data = await response.json();
+    markCompleteMutation.mutate(selectedChat.job.id, {
+      onSuccess: (data) => {
+        // 🔥 Stream Controller: Invalidate cache to force fresh data on next load
+        invalidateConversationCache(selectedChat.id);
+
         // Update the job with completion flags
         setSelectedChat((prev) =>
           prev
@@ -492,72 +551,108 @@ const InboxPage = () => {
         alert(
           data.message || "Job marked as complete! Waiting for client approval."
         );
-      } else {
-        const error = await response.json();
-        alert(error.error || "Failed to mark job as complete");
-      }
-    } catch (error) {
-      console.error("Error marking job as complete:", error);
-      alert("An error occurred. Please try again.");
-    } finally {
-      setIsMarkingComplete(false);
-    }
+        setIsMarkingComplete(false);
+      },
+      onError: (error) => {
+        console.error("Error marking job as complete:", error);
+        alert(
+          error instanceof Error
+            ? error.message
+            : "An error occurred. Please try again."
+        );
+        setIsMarkingComplete(false);
+      },
+    });
   };
 
   // Handle client approving completion
-  const handleApproveCompletion = async () => {
+  const handleApproveCompletion = async (
+    paymentMethod: "WALLET" | "GCASH" | "CASH" = "WALLET"
+  ) => {
     if (!selectedChat) return;
 
     setIsApprovingCompletion(true);
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/jobs/${selectedChat.job.id}/approve-completion`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: "include",
-        }
-      );
 
-      if (response.ok) {
-        const data = await response.json();
+    approveCompletionMutation.mutate(
+      { jobId: selectedChat.job.id, paymentMethod },
+      {
+        onSuccess: (data) => {
+          // 🔥 Stream Controller: Invalidate cache for fresh job status
+          invalidateConversationCache(selectedChat.id);
 
-        // Check if payment is required
-        if (data.requires_payment && data.invoice_url) {
-          // Redirect to Xendit payment page
-          alert(`${data.message}\n\nRedirecting to payment page...`);
-          window.location.href = data.invoice_url;
-          return;
-        }
+          // Check if payment is required
+          if (data.requires_payment) {
+            if (data.invoice_url) {
+              // GCASH payment - redirect to Xendit
+              alert(`${data.message}\n\nRedirecting to payment page...`);
+              window.location.href = data.invoice_url;
+              setIsApprovingCompletion(false);
+              return;
+            } else if (data.requires_proof_upload) {
+              // CASH payment - show upload proof UI
+              alert(data.message);
+              setIsApprovingCompletion(false);
+              // TODO: Show proof upload modal
+              return;
+            }
+          }
 
-        // Update the job status and completion flags
-        setSelectedChat((prev) =>
-          prev
-            ? {
-                ...prev,
-                job: {
-                  ...prev.job,
-                  status: data.status,
-                  workerMarkedComplete: data.worker_marked_complete,
-                  clientMarkedComplete: data.client_marked_complete,
-                },
-              }
-            : null
-        );
+          // Payment completed (WALLET) or no payment required - prompt for review
+          if (data.prompt_review) {
+            // Update the job status
+            setSelectedChat((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    job: {
+                      ...prev.job,
+                      status: data.status,
+                      workerMarkedComplete: data.worker_marked_complete,
+                      clientMarkedComplete: data.client_marked_complete,
+                    },
+                  }
+                : null
+            );
 
-        alert(data.message || "Job completion approved!");
-      } else {
-        const error = await response.json();
-        alert(error.error || "Failed to approve job completion");
+            alert(
+              data.message ||
+                "Payment successful! Please leave a review for the worker."
+            );
+            // Automatically open review modal
+            setShowReviewModal(true);
+            setIsApprovingCompletion(false);
+            return;
+          }
+
+          // Update the job status
+          setSelectedChat((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  job: {
+                    ...prev.job,
+                    status: data.status,
+                    workerMarkedComplete: data.worker_marked_complete,
+                    clientMarkedComplete: data.client_marked_complete,
+                  },
+                }
+              : null
+          );
+
+          alert(data.message || "Job completion approved!");
+          setIsApprovingCompletion(false);
+        },
+        onError: (error) => {
+          console.error("Error approving job completion:", error);
+          alert(
+            error instanceof Error
+              ? error.message
+              : "An error occurred. Please try again."
+          );
+          setIsApprovingCompletion(false);
+        },
       }
-    } catch (error) {
-      console.error("Error approving job completion:", error);
-      alert("An error occurred. Please try again.");
-    } finally {
-      setIsApprovingCompletion(false);
-    }
+    );
   };
 
   // Handle submitting review
@@ -568,57 +663,51 @@ const InboxPage = () => {
     }
 
     setIsSubmittingReview(true);
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/jobs/${selectedChat.job.id}/review`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: "include",
-          body: JSON.stringify({
-            rating: reviewRating,
-            message: reviewMessage.trim() || null,
-          }),
-        }
-      );
 
-      if (response.ok) {
-        const data = await response.json();
-        alert(data.message || "Review submitted successfully!");
-        setShowReviewModal(false);
-        setReviewRating(0);
-        setReviewMessage("");
-        setHasSubmittedReview(true); // Mark as submitted to prevent re-showing modal
+    submitReviewMutation.mutate(
+      {
+        jobId: selectedChat.job.id,
+        rating: reviewRating,
+        message: reviewMessage,
+      },
+      {
+        onSuccess: (data) => {
+          alert(data.message || "Review submitted successfully!");
+          setShowReviewModal(false);
+          setReviewRating(0);
+          setReviewMessage("");
+          setHasSubmittedReview(true); // Mark as submitted to prevent re-showing modal
 
-        // Update the conversation data with review status
-        setSelectedChat((prev) => {
-          if (!prev) return null;
+          // Update the conversation data with review status
+          setSelectedChat((prev) => {
+            if (!prev) return null;
 
-          const myRole = prev.my_role;
-          return {
-            ...prev,
-            job: {
-              ...prev.job,
-              status: data.job_completed ? "COMPLETED" : prev.job.status,
-              workerReviewed:
-                myRole === "WORKER" ? true : prev.job.workerReviewed,
-              clientReviewed:
-                myRole === "CLIENT" ? true : prev.job.clientReviewed,
-            },
-          };
-        });
-      } else {
-        const error = await response.json();
-        alert(error.error || "Failed to submit review");
+            const myRole = prev.my_role;
+            return {
+              ...prev,
+              job: {
+                ...prev.job,
+                status: data.job_completed ? "COMPLETED" : prev.job.status,
+                workerReviewed:
+                  myRole === "WORKER" ? true : prev.job.workerReviewed,
+                clientReviewed:
+                  myRole === "CLIENT" ? true : prev.job.clientReviewed,
+              },
+            };
+          });
+          setIsSubmittingReview(false);
+        },
+        onError: (error) => {
+          console.error("Error submitting review:", error);
+          alert(
+            error instanceof Error
+              ? error.message
+              : "An error occurred. Please try again."
+          );
+          setIsSubmittingReview(false);
+        },
       }
-    } catch (error) {
-      console.error("Error submitting review:", error);
-      alert("An error occurred. Please try again.");
-    } finally {
-      setIsSubmittingReview(false);
-    }
+    );
   };
 
   // Handle confirming final payment after returning from Xendit
@@ -1156,7 +1245,7 @@ const InboxPage = () => {
                               </div>
                             </div>
                             <button
-                              onClick={handleApproveCompletion}
+                              onClick={() => handleApproveCompletion("WALLET")}
                               disabled={
                                 selectedChat.job.clientMarkedComplete ||
                                 isApprovingCompletion
@@ -1548,9 +1637,9 @@ const InboxPage = () => {
                   </div>
                 ) : chatMessages.length > 0 ? (
                   <>
-                    {chatMessages.map((msg) => (
+                    {chatMessages.map((msg, index) => (
                       <div
-                        key={msg.id}
+                        key={`${msg.id}-${msg.created_at}-${index}`}
                         className={`flex ${
                           msg.is_mine ? "justify-end" : "justify-start"
                         }`}
@@ -1603,6 +1692,56 @@ const InboxPage = () => {
                 {wsError && (
                   <div className="mb-2 text-xs text-red-600 text-center bg-red-50 py-1 px-2 rounded">
                     Connection issue - messages may be delayed
+                  </div>
+                )}
+
+                {/* Connection Error Banner */}
+                {wsError && (
+                  <div className="mb-3 px-4 py-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <svg
+                          className="w-5 h-5 text-yellow-600"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                          />
+                        </svg>
+                        <div>
+                          <p className="text-sm font-medium text-yellow-800">
+                            {wsError}
+                          </p>
+                          <p className="text-xs text-yellow-600 mt-0.5">
+                            Messages will be delivered when reconnected
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={retryWebSocket}
+                        className="px-3 py-1.5 bg-yellow-600 text-white text-sm rounded-md hover:bg-yellow-700 transition-colors flex items-center space-x-1"
+                      >
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                          />
+                        </svg>
+                        <span>Retry Now</span>
+                      </button>
+                    </div>
                   </div>
                 )}
 

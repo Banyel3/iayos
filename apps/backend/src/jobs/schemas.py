@@ -38,3 +38,6 @@ class SubmitReviewSchema(Schema):
     rating: int  # 1-5 stars
     message: Optional[str] = None  # Optional review message
 
+
+class ApproveJobCompletionSchema(Schema):
+    payment_method: Optional[str] = "WALLET"  # WALLET, GCASH, or CASH
