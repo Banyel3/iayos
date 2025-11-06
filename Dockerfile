@@ -47,7 +47,7 @@ RUN npm run build
 # ============================================
 # Stage 4: Python Backend Base
 # ============================================
-FROM python:3.11-slim AS backend-base
+FROM python:3.13.9-slim AS backend-base
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
@@ -69,7 +69,7 @@ COPY apps/backend/requirements.txt .
 
 # Install Python dependencies (use BuildKit cache for speed on rebuilds)
 RUN --mount=type=cache,target=/root/.cache/pip \
-    python -m pip install --upgrade pip && \
+    python -m pip install --upgrade 'pip>=25.3' && \
     pip install --break-system-packages -r requirements.txt
 
 # ============================================

@@ -20,7 +20,7 @@ export const inboxKeys = {
 export function useConversations() {
   return useQuery({
     queryKey: inboxKeys.conversations(),
-    queryFn: fetchConversations,
+    queryFn: () => fetchConversations("all"),
     staleTime: 2 * 60 * 1000, // 2 minutes
     gcTime: 5 * 60 * 1000, // 5 minutes
   });

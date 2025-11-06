@@ -69,16 +69,13 @@ git pull origin features/kyc
 - Request `.env.docker` file from team lead
 - Place it in project root: `iayos/.env.docker`
 
-### 3. Build and Run
+### 3. Build and Start
 
 Open VS Code, open a terminal (`` Ctrl+` ``), and run:
 
 ```powershell
-# Build Docker images (first build takes forever lmao)
-docker-compose -f docker-compose.dev.yml build
-
-# Start all services
-docker-compose -f docker-compose.dev.yml up
+# Build and start all services
+docker-compose -f docker-compose.dev.yml up --build
 ```
 
 ### 4. Access the Application
@@ -110,13 +107,18 @@ git pull origin features/kyc
 Open VS Code terminal (`` Ctrl+` ``) and run:
 
 ```powershell
-# Start everything
+
+# Build First
+
+docker-compose -f docker-compose.dev.yml build
+
+# Start everything (hot reload enabled - code changes auto-update!)
 docker-compose -f docker-compose.dev.yml up -d
 
 # Stop all services
 docker-compose -f docker-compose.dev.yml down
 
-# Rebuild after dependency changes
+# Rebuild when dependencies change (package.json, requirements.txt, Dockerfile)
 docker-compose -f docker-compose.dev.yml build
 
 # Restart a service
@@ -127,6 +129,13 @@ docker-compose -f docker-compose.dev.yml restart backend
 docker logs iayos-frontend-dev -f --tail=100
 docker logs iayos-backend-dev -f --tail=100
 ```
+
+> **💡 Development Tip:** Code changes in `apps/backend` and `apps/frontend_web` auto-reload thanks to volume mounts. You only need to rebuild when dependencies change!
+> docker logs iayos-backend-dev -f --tail=100
+
+````
+
+> **💡 Development Tip:** Code changes in `apps/backend` and `apps/frontend_web` auto-reload thanks to volume mounts. You only need to rebuild when dependencies change!
 
 ---
 
@@ -140,7 +149,7 @@ docker exec -it iayos-backend-dev sh -lc "cd /app/apps/backend/src && python3 ma
 
 # Create superuser
 docker exec -it iayos-backend-dev sh -lc "cd /app/apps/backend/src && python3 manage.py createsuperuser"
-```
+````
 
 ### Access Container Shell
 

@@ -218,7 +218,9 @@ const InboxPage = () => {
       // 🔥 UPDATE REACT QUERY CACHE - Add message to conversation
       queryClient.setQueryData(
         inboxKeys.messages(conversationId),
-        (oldData) => {
+        (
+          oldData: { messages: ChatMessage[]; conversation: any } | undefined
+        ) => {
           if (!oldData) return oldData;
           return {
             ...oldData,
