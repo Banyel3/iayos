@@ -58,6 +58,27 @@ services:
         npx next dev
       "
 
+  # Flutter Mobile Development (optional - for running Flutter in container)
+  mobile:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: flutter-base
+    container_name: iayos-mobile-dev
+    volumes:
+      # Mount mobile source code for hot reload
+      - ./apps/frontend_mobile/iayos_mobile:/app/apps/frontend_mobile/iayos_mobile
+    networks:
+      - iayos-network
+    working_dir: /app/apps/frontend_mobile/iayos_mobile
+    command: >
+      sh -c "
+        flutter pub get &&
+        echo 'Flutter mobile container ready. Use: docker exec -it iayos-mobile-dev flutter run'
+      "
+    profiles:
+      - mobile # This service won't start by default, use: docker-compose --profile mobile up
+
 networks:
   iayos-network:
     driver: bridge

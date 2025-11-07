@@ -219,3 +219,9 @@ key.properties
 /docs
 /apps/frontend_web/.next/*
 /apps/frontend_web/.next/server
+acli.exe
+
+/.claude
+
+CLAUDE.md
+AGENTS.md

@@ -36,7 +36,7 @@ SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-ss_o*cm)=s&gj!mnt)w
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']  # Allow all hosts in development (restrict in production)
 
 
 # Application definition
@@ -99,18 +99,22 @@ SOCIALACCOUNT_PROVIDERS = {
 
 # CORS Settings - Allow frontend during dev
 # settings.py
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "http://localhost:8000",
-    "http://127.0.0.1:8000",
-]
+CORS_ALLOW_ALL_ORIGINS = True  # Allow all origins in development (restrict in production)
+
+# Legacy CORS settings (kept for reference)
+# CORS_ALLOWED_ORIGINS = [
+#     "http://localhost:3000",
+#     "http://127.0.0.1:3000",
+#     "http://localhost:8000",
+#     "http://127.0.0.1:8000",
+# ]
 
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "http://localhost:8000",
     "http://127.0.0.1:8000",
+    "http://10.0.2.2:8000",  # Android emulator host access
 ]
 
 # Allow credentials (cookies) to be sent
