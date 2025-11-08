@@ -124,7 +124,7 @@ class AuthService {
         );
       }
     } catch (e) {
-      print('Logout error: $e');
+      // Logout error - silently fail
     } finally {
       // Clear local storage
       await _storage.delete(key: _accessTokenKey);
@@ -183,7 +183,7 @@ class AuthService {
         Uri.parse(ApiConfig.getUrl(ApiConfig.refreshToken)),
         headers: {
           'Content-Type': 'application/json',
-          'Cookie': 'refresh=$refreshToken',
+          'Authorization': 'Bearer $refreshToken',  // Send refresh token as Bearer
         },
       );
 
@@ -228,7 +228,12 @@ class AuthService {
         }
         return {'success': false, 'error': 'Session expired'};
       } else {
-        return {'success': false, 'error': 'Failed to fetch user'};
+        // Return detailed error for debugging
+        String errorBody = response.body;
+        return {
+          'success': false,
+          'error': 'Failed to fetch user (${response.statusCode}): $errorBody'
+        };
       }
     } catch (e) {
       return {'success': false, 'error': 'Network error: ${e.toString()}'};

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class CreateAccountScreen extends StatefulWidget {
@@ -10,7 +9,8 @@ class CreateAccountScreen extends StatefulWidget {
   State<CreateAccountScreen> createState() => _CreateAccountScreenState();
 }
 
-class _CreateAccountScreenState extends State<CreateAccountScreen> with SingleTickerProviderStateMixin {
+class _CreateAccountScreenState extends State<CreateAccountScreen>
+    with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _lastNameController = TextEditingController();
   final _middleNameController = TextEditingController();
@@ -35,13 +35,10 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> with SingleTi
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.easeIn),
     );
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.1),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeOut,
-    ));
+    _slideAnimation =
+        Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(
+          CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
+        );
     _animationController.forward();
   }
 
@@ -52,7 +49,10 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> with SingleTi
     await prefs.setString('middleName', _middleNameController.text);
     await prefs.setString('lastName', _lastNameController.text);
     await prefs.setString('contactNum', _contactNumberController.text);
-    await prefs.setString('birthDate', _selectedBirthdate?.toIso8601String() ?? '');
+    await prefs.setString(
+      'birthDate',
+      _selectedBirthdate?.toIso8601String() ?? '',
+    );
     await prefs.setString('email', _emailController.text);
     await prefs.setString('password', _passwordController.text);
   }
@@ -320,7 +320,9 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> with SingleTi
                                 backgroundColor: const Color(0xFF54B7EC),
                                 foregroundColor: Colors.white,
                                 elevation: 4,
-                                shadowColor: const Color(0xFF54B7EC).withOpacity(0.4),
+                                shadowColor: const Color(
+                                  0xFF54B7EC,
+                                ).withOpacity(0.4),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(16),
                                 ),
@@ -335,7 +337,8 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> with SingleTi
                                       ),
                                     )
                                   : Row(
-                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
                                       children: [
                                         Text(
                                           'Continue to Location',
@@ -345,7 +348,10 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> with SingleTi
                                           ),
                                         ),
                                         const SizedBox(width: 8),
-                                        const Icon(Icons.arrow_forward, size: 20),
+                                        const Icon(
+                                          Icons.arrow_forward,
+                                          size: 20,
+                                        ),
                                       ],
                                     ),
                             ),
@@ -435,9 +441,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> with SingleTi
       decoration: BoxDecoration(
         color: const Color(0xFF54B7EC).withOpacity(0.05),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: const Color(0xFF54B7EC).withOpacity(0.1),
-        ),
+        border: Border.all(color: const Color(0xFF54B7EC).withOpacity(0.1)),
       ),
       child: Row(
         children: [
@@ -447,11 +451,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> with SingleTi
               color: const Color(0xFF54B7EC).withOpacity(0.1),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(
-              icon,
-              color: const Color(0xFF54B7EC),
-              size: 20,
-            ),
+            child: Icon(icon, color: const Color(0xFF54B7EC), size: 20),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -468,10 +468,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> with SingleTi
                 ),
                 Text(
                   subtitle,
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    color: Colors.black54,
-                  ),
+                  style: GoogleFonts.inter(fontSize: 12, color: Colors.black54),
                 ),
               ],
             ),
@@ -527,15 +524,8 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> with SingleTi
           ),
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: GoogleFonts.inter(
-              fontSize: 15,
-              color: Colors.black38,
-            ),
-            prefixIcon: Icon(
-              icon,
-              color: const Color(0xFF54B7EC),
-              size: 22,
-            ),
+            hintStyle: GoogleFonts.inter(fontSize: 15, color: Colors.black38),
+            prefixIcon: Icon(icon, color: const Color(0xFF54B7EC), size: 22),
             prefixText: prefixText,
             prefixStyle: GoogleFonts.inter(
               fontSize: 15,
@@ -550,17 +540,11 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> with SingleTi
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(
-                color: Colors.grey.shade200,
-                width: 1.5,
-              ),
+              borderSide: BorderSide(color: Colors.grey.shade200, width: 1.5),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(
-                color: Color(0xFF54B7EC),
-                width: 2,
-              ),
+              borderSide: const BorderSide(color: Color(0xFF54B7EC), width: 2),
             ),
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
@@ -571,10 +555,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> with SingleTi
             ),
             focusedErrorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(
-                color: Color(0xFFE53935),
-                width: 2,
-              ),
+              borderSide: const BorderSide(color: Color(0xFFE53935), width: 2),
             ),
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 16,
@@ -630,10 +611,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> with SingleTi
             decoration: BoxDecoration(
               color: Colors.grey.shade50,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: Colors.grey.shade200,
-                width: 1.5,
-              ),
+              border: Border.all(color: Colors.grey.shade200, width: 1.5),
             ),
             child: Row(
               children: [
@@ -666,10 +644,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> with SingleTi
                     ),
                   ),
                 ),
-                Icon(
-                  Icons.arrow_drop_down,
-                  color: Colors.grey.shade600,
-                ),
+                Icon(Icons.arrow_drop_down, color: Colors.grey.shade600),
               ],
             ),
           ),
@@ -713,10 +688,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> with SingleTi
           onChanged: (value) => setState(() {}),
           decoration: InputDecoration(
             hintText: 'At least 8 characters',
-            hintStyle: GoogleFonts.inter(
-              fontSize: 15,
-              color: Colors.black38,
-            ),
+            hintStyle: GoogleFonts.inter(fontSize: 15, color: Colors.black38),
             prefixIcon: const Icon(
               Icons.lock_outline,
               color: Color(0xFF54B7EC),
@@ -744,17 +716,11 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> with SingleTi
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(
-                color: Colors.grey.shade200,
-                width: 1.5,
-              ),
+              borderSide: BorderSide(color: Colors.grey.shade200, width: 1.5),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(
-                color: Color(0xFF54B7EC),
-                width: 2,
-              ),
+              borderSide: const BorderSide(color: Color(0xFF54B7EC), width: 2),
             ),
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
@@ -765,10 +731,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> with SingleTi
             ),
             focusedErrorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(
-                color: Color(0xFFE53935),
-                width: 2,
-              ),
+              borderSide: const BorderSide(color: Color(0xFFE53935), width: 2),
             ),
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 16,
@@ -823,9 +786,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> with SingleTi
       decoration: BoxDecoration(
         color: strengthColor.withOpacity(0.1),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: strengthColor.withOpacity(0.3),
-        ),
+        border: Border.all(color: strengthColor.withOpacity(0.3)),
       ),
       child: Row(
         children: [
@@ -864,9 +825,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> with SingleTi
                     return Expanded(
                       child: Container(
                         height: 3,
-                        margin: EdgeInsets.only(
-                          right: index < 3 ? 4 : 0,
-                        ),
+                        margin: EdgeInsets.only(right: index < 3 ? 4 : 0),
                         decoration: BoxDecoration(
                           color: index < strength
                               ? strengthColor

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/auth_service.dart';
 
@@ -11,7 +10,8 @@ class SetLocationScreen extends StatefulWidget {
   State<SetLocationScreen> createState() => _SetLocationScreenState();
 }
 
-class _SetLocationScreenState extends State<SetLocationScreen> with SingleTickerProviderStateMixin {
+class _SetLocationScreenState extends State<SetLocationScreen>
+    with SingleTickerProviderStateMixin {
   final _authService = AuthService();
   String? _selectedCountry;
   String? _selectedProvince;
@@ -40,10 +40,10 @@ class _SetLocationScreenState extends State<SetLocationScreen> with SingleTicker
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.easeIn),
     );
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.1),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _animationController, curve: Curves.easeOut));
+    _slideAnimation =
+        Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(
+          CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
+        );
     _animationController.forward();
   }
 
@@ -224,7 +224,8 @@ class _SetLocationScreenState extends State<SetLocationScreen> with SingleTicker
                           value: _selectedCountry,
                           items: _countries,
                           icon: Icons.flag,
-                          onChanged: (value) => setState(() => _selectedCountry = value),
+                          onChanged: (value) =>
+                              setState(() => _selectedCountry = value),
                         ),
                         const SizedBox(height: 16),
                         _buildModernDropdownField(
@@ -232,7 +233,8 @@ class _SetLocationScreenState extends State<SetLocationScreen> with SingleTicker
                           value: _selectedProvince,
                           items: _provinces,
                           icon: Icons.landscape,
-                          onChanged: (value) => setState(() => _selectedProvince = value),
+                          onChanged: (value) =>
+                              setState(() => _selectedProvince = value),
                         ),
                         const SizedBox(height: 16),
                         _buildModernDropdownField(
@@ -240,7 +242,8 @@ class _SetLocationScreenState extends State<SetLocationScreen> with SingleTicker
                           value: _selectedCity,
                           items: _cities,
                           icon: Icons.location_city,
-                          onChanged: (value) => setState(() => _selectedCity = value),
+                          onChanged: (value) =>
+                              setState(() => _selectedCity = value),
                         ),
                         const SizedBox(height: 24),
 
@@ -259,7 +262,8 @@ class _SetLocationScreenState extends State<SetLocationScreen> with SingleTicker
                                 value: _selectedPostalCode,
                                 items: _postalCodes,
                                 icon: Icons.markunread_mailbox,
-                                onChanged: (value) => setState(() => _selectedPostalCode = value),
+                                onChanged: (value) =>
+                                    setState(() => _selectedPostalCode = value),
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -269,7 +273,8 @@ class _SetLocationScreenState extends State<SetLocationScreen> with SingleTicker
                                 value: _selectedBarangay,
                                 items: _barangays,
                                 icon: Icons.apartment,
-                                onChanged: (value) => setState(() => _selectedBarangay = value),
+                                onChanged: (value) =>
+                                    setState(() => _selectedBarangay = value),
                                 placeholder: 'Select Barangay',
                               ),
                             ),
@@ -328,7 +333,9 @@ class _SetLocationScreenState extends State<SetLocationScreen> with SingleTicker
                               backgroundColor: const Color(0xFF54B7EC),
                               foregroundColor: Colors.white,
                               elevation: 4,
-                              shadowColor: const Color(0xFF54B7EC).withOpacity(0.4),
+                              shadowColor: const Color(
+                                0xFF54B7EC,
+                              ).withOpacity(0.4),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(16),
                               ),
@@ -354,7 +361,10 @@ class _SetLocationScreenState extends State<SetLocationScreen> with SingleTicker
                                         ),
                                       ),
                                       const SizedBox(width: 8),
-                                      const Icon(Icons.check_circle_outline, size: 20),
+                                      const Icon(
+                                        Icons.check_circle_outline,
+                                        size: 20,
+                                      ),
                                     ],
                                   ),
                           ),
@@ -417,9 +427,7 @@ class _SetLocationScreenState extends State<SetLocationScreen> with SingleTicker
       decoration: BoxDecoration(
         color: const Color(0xFF54B7EC).withOpacity(0.05),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: const Color(0xFF54B7EC).withOpacity(0.1),
-        ),
+        border: Border.all(color: const Color(0xFF54B7EC).withOpacity(0.1)),
       ),
       child: Row(
         children: [
@@ -447,10 +455,7 @@ class _SetLocationScreenState extends State<SetLocationScreen> with SingleTicker
                 const SizedBox(height: 2),
                 Text(
                   subtitle,
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
-                    color: Colors.black54,
-                  ),
+                  style: GoogleFonts.inter(fontSize: 11, color: Colors.black54),
                 ),
               ],
             ),
@@ -499,10 +504,7 @@ class _SetLocationScreenState extends State<SetLocationScreen> with SingleTicker
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: Colors.grey.shade300,
-              width: 1.5,
-            ),
+            border: Border.all(color: Colors.grey.shade300, width: 1.5),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withOpacity(0.03),
@@ -516,10 +518,7 @@ class _SetLocationScreenState extends State<SetLocationScreen> with SingleTicker
               value: value,
               hint: Text(
                 placeholder ?? 'Select ${label.toLowerCase()}',
-                style: GoogleFonts.inter(
-                  fontSize: 14,
-                  color: Colors.black45,
-                ),
+                style: GoogleFonts.inter(fontSize: 14, color: Colors.black45),
               ),
               isExpanded: true,
               icon: const Icon(
@@ -589,10 +588,7 @@ class _SetLocationScreenState extends State<SetLocationScreen> with SingleTicker
           style: GoogleFonts.inter(fontSize: 14, color: Colors.black87),
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: GoogleFonts.inter(
-              fontSize: 14,
-              color: Colors.black45,
-            ),
+            hintStyle: GoogleFonts.inter(fontSize: 14, color: Colors.black45),
             filled: true,
             fillColor: Colors.white,
             prefixIcon: Icon(icon, color: const Color(0xFF54B7EC), size: 20),
@@ -620,8 +616,10 @@ class _SetLocationScreenState extends State<SetLocationScreen> with SingleTicker
 
   Future<void> _handleSignUp() async {
     // Validate location fields
-    if (_selectedCountry == null || _selectedProvince == null ||
-        _selectedCity == null || _selectedPostalCode == null ||
+    if (_selectedCountry == null ||
+        _selectedProvince == null ||
+        _selectedCity == null ||
+        _selectedPostalCode == null ||
         _selectedBarangay == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -654,7 +652,8 @@ class _SetLocationScreenState extends State<SetLocationScreen> with SingleTicker
       String birthDate = '';
       if (birthDateStr.isNotEmpty) {
         final date = DateTime.parse(birthDateStr);
-        birthDate = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+        birthDate =
+            '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
       }
 
       // Build street address

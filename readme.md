@@ -240,7 +240,31 @@ NEXT_PUBLIC_WS_URL=ws://localhost:8001
 
 ---
 
-## 📝 Tips
+## � Flutter Mobile App
+
+### Build APK with Docker
+
+```powershell
+# Build Flutter APK (outputs to ./output/ folder)
+.\scripts\build-mobile.ps1
+
+# Or manually:
+docker buildx build --target mobile-production --output type=local,dest=./output -f Dockerfile .
+```
+
+### Local Flutter Development
+
+```powershell
+cd apps\frontend_mobile\iayos_mobile
+flutter pub get
+flutter run
+```
+
+📖 **Full Flutter build guide:** See [docs/FLUTTER_DOCKER_BUILD.md](docs/FLUTTER_DOCKER_BUILD.md)
+
+---
+
+## �📝 Tips
 
 - **Open terminal in VS Code:** Press `` Ctrl+` `` (backtick key)
 - **Run commands from project root**

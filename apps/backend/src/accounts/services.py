@@ -130,29 +130,41 @@ def generateCookie(user):
     access_payload = {
         'user_id': user.accountID,
         'email': user.email,
-        'exp': now + timedelta(minutes=60),
+        'exp': now + timedelta(hours=1),  # Access token: 1 hour
         'iat': now
     }
 
     refresh_payload = {
         'user_id': user.accountID,
         'email': user.email,
-        'exp': now + timedelta(minutes=60),
+        'exp': now + timedelta(days=7),  # Refresh token: 7 days
         'iat': now
     }
 
     access_token = jwt.encode(access_payload, settings.SECRET_KEY, algorithm='HS256')
     refresh_token = jwt.encode(refresh_payload, settings.SECRET_KEY, algorithm='HS256')
 
-    response = JsonResponse({"message": "Login Successful"})
+    # Return tokens both in cookies (for web) and in response body (for mobile)
+    response = JsonResponse({
+        "message": "Login Successful",
+        "access": access_token,
+        "refresh": refresh_token,
+        "user": {
+            "accountID": user.accountID,
+            "email": user.email,
+            "isVerified": user.isVerified
+        }
+    })
+    
+    # Set cookies for Next.js web app compatibility
     response.set_cookie(
         key="access",
         value=access_token,
         httponly=True,
         secure=False,
         samesite="Lax",
-        max_age=3600,
-        domain=None,  # No domain = works for whatever domain sets it
+        max_age=3600,  # 1 hour (matches token expiry)
+        domain=None,
     )
     response.set_cookie(
         key="refresh",
@@ -160,8 +172,8 @@ def generateCookie(user):
         httponly=True,
         secure=False,
         samesite="Lax",
-        max_age=86400,
-        domain=None,  # No domain
+        max_age=604800,  # 7 days (matches token expiry)
+        domain=None,
     )
     return response
 

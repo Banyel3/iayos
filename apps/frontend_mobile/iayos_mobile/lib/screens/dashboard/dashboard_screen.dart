@@ -31,23 +31,47 @@ class _DashboardScreenState extends State<DashboardScreen> {
     try {
       final result = await _authService.getCurrentUser();
 
-      if (result['success']) {
-        setState(() {
-          _currentUser = User.fromJson(result['data']);
-          _isLoading = false;
-        });
+      if (!mounted) return;
 
-        // Check if user hasn't selected a role yet
-        if (!_currentUser!.hasProfileType && mounted) {
-          // Navigate to role selection
-          Navigator.pushReplacementNamed(context, '/role-selection');
+      if (result['success']) {
+        try {
+          final userData = User.fromJson(result['data']);
+          setState(() {
+            _currentUser = userData;
+            _isLoading = false;
+          });
+
+          // Check if user hasn't selected a role yet
+          if (!_currentUser!.hasProfileType && mounted) {
+            // Navigate to role selection
+            Navigator.pushReplacementNamed(context, '/role-selection');
+          }
+        } catch (parseError) {
+          // Error parsing user data
+          setState(() {
+            _isLoading = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error loading profile: ${parseError.toString()}'),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 5),
+            ),
+          );
         }
       } else {
         // Failed to load user, logout and go to login
-        if (mounted) {
-          await _authService.logout();
-          Navigator.pushReplacementNamed(context, '/login');
-        }
+        setState(() {
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Session expired. Please login again.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        await _authService.logout();
+        Navigator.pushReplacementNamed(context, '/login');
       }
     } catch (e) {
       if (mounted) {
@@ -59,6 +83,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           SnackBar(
             content: Text('Failed to load user data: ${e.toString()}'),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
           ),
         );
         await _authService.logout();

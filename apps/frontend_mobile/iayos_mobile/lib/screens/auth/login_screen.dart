@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../services/auth_service.dart';
+import '../dashboard/dashboard_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -9,7 +10,8 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStateMixin {
+class _LoginScreenState extends State<LoginScreen>
+    with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -51,7 +53,8 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
           child: SingleChildScrollView(
             child: ConstrainedBox(
               constraints: BoxConstraints(
-                minHeight: MediaQuery.of(context).size.height -
+                minHeight:
+                    MediaQuery.of(context).size.height -
                     MediaQuery.of(context).padding.top -
                     MediaQuery.of(context).padding.bottom,
               ),
@@ -89,7 +92,9 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                 shape: BoxShape.circle,
                                 boxShadow: [
                                   BoxShadow(
-                                    color: const Color(0xFF54B7EC).withOpacity(0.3),
+                                    color: const Color(
+                                      0xFF54B7EC,
+                                    ).withOpacity(0.3),
                                     blurRadius: 20,
                                     spreadRadius: 5,
                                   ),
@@ -161,7 +166,9 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                 size: 20,
                               ),
                               filled: true,
-                              fillColor: const Color(0xFFD0EAF8).withOpacity(0.3),
+                              fillColor: const Color(
+                                0xFFD0EAF8,
+                              ).withOpacity(0.3),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide: BorderSide.none,
@@ -237,7 +244,9 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                 },
                               ),
                               filled: true,
-                              fillColor: const Color(0xFFD0EAF8).withOpacity(0.3),
+                              fillColor: const Color(
+                                0xFFD0EAF8,
+                              ).withOpacity(0.3),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide: BorderSide.none,
@@ -307,7 +316,10 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                               ),
                               GestureDetector(
                                 onTap: () {
-                                  Navigator.pushNamed(context, '/forgot-password');
+                                  Navigator.pushNamed(
+                                    context,
+                                    '/forgot-password',
+                                  );
                                 },
                                 child: Text(
                                   'Forgot Password?',
@@ -332,7 +344,9 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                 backgroundColor: const Color(0xFF54B7EC),
                                 foregroundColor: Colors.white,
                                 elevation: 3,
-                                shadowColor: const Color(0xFF54B7EC).withOpacity(0.4),
+                                shadowColor: const Color(
+                                  0xFF54B7EC,
+                                ).withOpacity(0.4),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
                                 ),
@@ -367,7 +381,9 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                 ),
                               ),
                               Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 16),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                ),
                                 child: Text(
                                   'OR',
                                   style: GoogleFonts.inter(
@@ -487,35 +503,63 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         password: _passwordController.text,
       );
 
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+      // Debug: print the response
+      print('Login result: $result');
+      print('Success value: ${result['success']}');
+      print('Success type: ${result['success'].runtimeType}');
 
-        if (result['success']) {
-          // Show success message
+      if (!mounted) return;
+
+      setState(() {
+        _isLoading = false;
+      });
+
+      // Check for success - handle both bool and string 'true'
+      final bool isSuccess =
+          result['success'] == true ||
+          result['success'] == 'true' ||
+          (result['success'] is String &&
+              (result['success'] as String).toLowerCase() == 'true');
+
+      if (isSuccess &&
+          result['data'] != null &&
+          result['data']['access'] != null) {
+        // Show success message briefly before navigation
+        if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                'Login successful!',
+                'Login successful! Redirecting...',
                 style: GoogleFonts.inter(),
               ),
               backgroundColor: Colors.green,
               behavior: SnackBarBehavior.floating,
+              duration: const Duration(milliseconds: 500),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10),
               ),
             ),
           );
 
-          // TODO: Navigate to home/dashboard
-          // Navigator.pushReplacementNamed(context, '/home');
-        } else {
-          // Show error message
+          // Small delay to let snackbar show, then navigate
+          await Future.delayed(const Duration(milliseconds: 600));
+
+          if (mounted) {
+            // Navigate using pushReplacement for cleaner navigation
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (context) => const DashboardScreen()),
+              (route) => false,
+            );
+          }
+        }
+      } else {
+        // Show error message
+        if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                result['error'] ?? 'Login failed',
+                result['error'] ??
+                    'Login failed - Invalid credentials or server error',
                 style: GoogleFonts.inter(),
               ),
               backgroundColor: Colors.red,
@@ -535,7 +579,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'An error occurred: ${e.toString()}',
+              'Connection error: ${e.toString()}',
               style: GoogleFonts.inter(),
             ),
             backgroundColor: Colors.red,

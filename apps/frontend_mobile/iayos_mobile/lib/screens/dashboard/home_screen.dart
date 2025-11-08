@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../models/user.dart';
 import '../../utils/constants.dart';
+import '../../services/dashboard_service.dart';
 
 class HomeScreen extends StatefulWidget {
   final User user;
@@ -13,30 +14,80 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  final _dashboardService = DashboardService();
+  Map<String, dynamic>? _dashboardStats;
+  List<dynamic> _recentJobs = [];
+  bool _isLoadingStats = true;
+  bool _isLoadingJobs = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDashboardData();
+  }
+
+  Future<void> _loadDashboardData() async {
+    // Load stats
+    final statsResult = await _dashboardService.getDashboardStats();
+    if (statsResult['success'] && mounted) {
+      setState(() {
+        _dashboardStats = statsResult['data'];
+        _isLoadingStats = false;
+      });
+    } else if (mounted) {
+      setState(() {
+        _isLoadingStats = false;
+      });
+    }
+
+    // Load recent jobs
+    final jobsResult = await _dashboardService.getRecentJobs(limit: 5);
+    if (jobsResult['success'] && mounted) {
+      setState(() {
+        _recentJobs = jobsResult['data']['jobs'] ?? [];
+        _isLoadingJobs = false;
+      });
+    } else if (mounted) {
+      setState(() {
+        _isLoadingJobs = false;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
-        child: Column(
-          children: [
-            // Header
-            _buildHeader(),
-
-            // Search Bar
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: _buildSearchBar(),
+        child: SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: MediaQuery.of(context).size.height -
+                  MediaQuery.of(context).padding.top -
+                  MediaQuery.of(context).padding.bottom,
             ),
-            const SizedBox(height: 20),
+            child: Column(
+              children: [
+                // Header
+                _buildHeader(),
 
-            // Content based on role
-            Expanded(
-              child: widget.user.isClient
-                  ? _buildClientContent()
-                  : _buildWorkerContent(),
+                // Search Bar
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: _buildSearchBar(),
+                ),
+                const SizedBox(height: 20),
+
+                // Content based on role
+                SizedBox(
+                  height: MediaQuery.of(context).size.height * 0.5,
+                  child: widget.user.isClient
+                      ? _buildClientContent()
+                      : _buildWorkerContent(),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

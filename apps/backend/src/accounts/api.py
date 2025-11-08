@@ -1094,3 +1094,17 @@ def check_payment_status(request, transaction_id: int):
 
 #endregion
 
+
+
+
+#region MOBILE API ROUTER
+# ===========================================================================
+# MOBILE-SPECIFIC API ENDPOINTS
+# Optimized for mobile app with minimal payloads and better error handling
+# ===========================================================================
+
+mobile_router = Router(tags=["Mobile API"])
+
+# ===========================
+# MOBILE JOB ENDPOINTS
+# ===========================

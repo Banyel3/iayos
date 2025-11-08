@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../models/user.dart';
-import '../../utils/constants.dart';
 
 class MyRequestsScreen extends StatefulWidget {
   final User user;
@@ -42,7 +41,9 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
             ),
             const SizedBox(height: 20),
             Text(
-              widget.user.isClient ? 'No Posted Jobs Yet' : 'No Applications Yet',
+              widget.user.isClient
+                  ? 'No Posted Jobs Yet'
+                  : 'No Applications Yet',
               style: GoogleFonts.inter(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
