@@ -802,3 +802,184 @@ def mobile_available_jobs(request, page: int = 1, limit: int = 20):
         )
 
 #endregion
+
+#region MOBILE WALLET ENDPOINTS
+
+@mobile_router.get("/wallet/balance", auth=jwt_auth)
+def mobile_get_wallet_balance(request):
+    """Get current user's wallet balance - Mobile"""
+    try:
+        from .models import Wallet
+        
+        # Get or create wallet for the user
+        wallet, created = Wallet.objects.get_or_create(
+            accountFK=request.auth,
+            defaults={'balance': 0.00}
+        )
+        
+        print(f"💵 [Mobile] Balance request for user {request.auth.email}: ₱{wallet.balance}")
+        
+        return {
+            "success": True,
+            "balance": float(wallet.balance),
+            "created": created
+        }
+        
+    except Exception as e:
+        print(f"❌ [Mobile] Error fetching wallet balance: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to fetch wallet balance"},
+            status=500
+        )
+
+
+@mobile_router.post("/wallet/deposit", auth=jwt_auth)
+def mobile_deposit_funds(request, amount: float, payment_method: str = "GCASH"):
+    """
+    Mobile wallet deposit via Xendit GCash
+    TEST MODE: Transaction auto-approved, funds added immediately
+    """
+    try:
+        from .models import Wallet, Transaction, Profile
+        from .xendit_service import XenditService
+        from decimal import Decimal
+        from django.utils import timezone
+        
+        print(f"📥 [Mobile] Deposit request: ₱{amount} from {request.auth.email}")
+        
+        if amount <= 0:
+            return Response(
+                {"error": "Amount must be greater than 0"},
+                status=400
+            )
+        
+        # Get or create wallet
+        wallet, _ = Wallet.objects.get_or_create(
+            accountFK=request.auth,
+            defaults={'balance': 0.00}
+        )
+        
+        # Get user's profile for name
+        try:
+            profile = Profile.objects.get(accountFK=request.auth)
+            user_name = f"{profile.firstName} {profile.lastName}"
+        except Profile.DoesNotExist:
+            user_name = request.auth.email.split('@')[0]
+        
+        print(f"💰 Current balance: ₱{wallet.balance}")
+        
+        # TEST MODE: Add funds immediately
+        wallet.balance += Decimal(str(amount))
+        wallet.save()
+        
+        # Create completed transaction
+        transaction = Transaction.objects.create(
+            walletID=wallet,
+            transactionType=Transaction.TransactionType.DEPOSIT,
+            amount=Decimal(str(amount)),
+            balanceAfter=wallet.balance,
+            status=Transaction.TransactionStatus.COMPLETED,
+            description=f"TOP UP via GCASH - ₱{amount}",
+            paymentMethod=Transaction.PaymentMethod.GCASH,
+            completedAt=timezone.now()
+        )
+        
+        print(f"✅ New balance: ₱{wallet.balance}")
+        
+        # Create Xendit invoice
+        xendit_result = XenditService.create_gcash_payment(
+            amount=amount,
+            user_email=request.auth.email,
+            user_name=user_name,
+            transaction_id=transaction.transactionID
+        )
+        
+        if not xendit_result.get("success"):
+            return Response(
+                {"error": "Failed to create payment invoice"},
+                status=500
+            )
+        
+        # Update transaction with Xendit details
+        transaction.xenditInvoiceID = xendit_result['invoice_id']
+        transaction.xenditExternalID = xendit_result['external_id']
+        transaction.invoiceURL = xendit_result['invoice_url']
+        transaction.xenditPaymentChannel = "GCASH"
+        transaction.xenditPaymentMethod = "EWALLET"
+        transaction.save()
+        
+        print(f"📄 Invoice created: {xendit_result['invoice_id']}")
+        
+        return {
+            "success": True,
+            "transaction_id": transaction.transactionID,
+            "payment_url": xendit_result['invoice_url'],
+            "invoice_id": xendit_result['invoice_id'],
+            "amount": amount,
+            "new_balance": float(wallet.balance),
+            "expiry_date": xendit_result['expiry_date'],
+            "message": "Funds added successfully"
+        }
+        
+    except Exception as e:
+        print(f"❌ [Mobile] Error depositing funds: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to deposit funds"},
+            status=500
+        )
+
+
+@mobile_router.get("/wallet/transactions", auth=jwt_auth)
+def mobile_get_transactions(request):
+    """Get wallet transaction history - Mobile"""
+    try:
+        from .models import Wallet, Transaction
+        
+        # Get user's wallet
+        wallet = Wallet.objects.filter(accountFK=request.auth).first()
+        
+        if not wallet:
+            return {
+                "success": True,
+                "transactions": []
+            }
+        
+        # Get transactions
+        transactions = Transaction.objects.filter(
+            walletID=wallet
+        ).order_by('-createdAt')[:50]  # Last 50 transactions
+        
+        transaction_list = []
+        for t in transactions:
+            transaction_list.append({
+                'transactionID': t.transactionID,
+                'transactionType': t.transactionType,
+                'amount': float(t.amount),
+                'balanceAfter': float(t.balanceAfter),
+                'status': t.status,
+                'description': t.description,
+                'paymentMethod': t.paymentMethod,
+                'invoiceURL': t.invoiceURL,
+                'createdAt': t.createdAt.isoformat(),
+                'completedAt': t.completedAt.isoformat() if t.completedAt else None,
+            })
+        
+        return {
+            "success": True,
+            "transactions": transaction_list
+        }
+        
+    except Exception as e:
+        print(f"❌ [Mobile] Error fetching transactions: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to fetch transactions"},
+            status=500
+        )
+
+#endregion

@@ -3,6 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../models/user.dart';
 import '../../utils/constants.dart';
 import '../../services/dashboard_service.dart';
+import '../workers/workers_list_screen.dart';
+import '../jobs/job_list_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final User user;
@@ -282,7 +284,7 @@ class _HomeScreenState extends State<HomeScreen> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 40),
             child: Text(
-              'Find skilled workers near you.\nFeature coming soon!',
+              'Find skilled workers near you',
               textAlign: TextAlign.center,
               style: GoogleFonts.inter(
                 fontSize: 14,
@@ -292,35 +294,59 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: () {
-              // TODO: Navigate to post job screen
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    'Post Job feature coming soon!',
-                    style: GoogleFonts.inter(),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => WorkersListScreen(user: widget.user),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.search, size: 20),
+                label: Text(
+                  'Browse Workers',
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
                   ),
-                  backgroundColor: AppColors.primary,
                 ),
-              );
-            },
-            icon: const Icon(Icons.add, size: 20),
-            label: Text(
-              'Post a Job',
-              style: GoogleFonts.inter(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
               ),
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+              const SizedBox(width: 12),
+              OutlinedButton.icon(
+                onPressed: () {
+                  // Navigate to post job screen (already exists)
+                  Navigator.pushNamed(context, '/post-job');
+                },
+                icon: const Icon(Icons.add, size: 20),
+                label: Text(
+                  'Post a Job',
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primary,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  side: BorderSide(color: AppColors.primary),
+                ),
               ),
-            ),
+            ],
           ),
         ],
       ),
@@ -351,12 +377,39 @@ class _HomeScreenState extends State<HomeScreen> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 40),
             child: Text(
-              'Find jobs that match your skills.\nFeature coming soon!',
+              'Find jobs that match your skills',
               textAlign: TextAlign.center,
               style: GoogleFonts.inter(
                 fontSize: 14,
                 color: Colors.black54,
                 height: 1.5,
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => JobListScreen(user: widget.user),
+                ),
+              );
+            },
+            icon: const Icon(Icons.search, size: 20),
+            label: Text(
+              'Browse Jobs',
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
               ),
             ),
           ),

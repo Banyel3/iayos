@@ -14,6 +14,35 @@ from iayos_project.utils import upload_kyc_doc
 import os
 
 
+def get_full_image_url(image_path):
+    """
+    Ensure image URLs are absolute and properly formatted for mobile apps.
+    If the path is relative or just a filename, construct the full Supabase URL.
+    If it's already a full URL, return as is.
+    """
+    # Handle None, empty string, or whitespace-only strings
+    if not image_path or not image_path.strip():
+        print("   → Image path is None/empty/whitespace, returning None")
+        return None
+    
+    # If it's already a full URL (starts with http:// or https://), return as is
+    if image_path.startswith(('http://', 'https://')):
+        print(f"   → Already full URL, returning as-is: {image_path}")
+        return image_path
+    
+    # If it's a relative path starting with /, it's a local fallback image
+    if image_path.startswith('/'):
+        # For mobile apps, these won't work - return None to trigger fallback avatar
+        print(f"   → Relative path detected ({image_path}), returning None for mobile")
+        return None
+    
+    # Otherwise, it's a Supabase storage path - construct the full URL
+    supabase_url = settings.SUPABASE_URL
+    full_url = f"{supabase_url}/storage/v1/object/public/users/{image_path}"
+    print(f"   → Constructing full URL: {full_url}")
+    return full_url
+
+
 def create_account_individ(data):
     # 1️⃣ Check if email exists
     if Accounts.objects.filter(email__iexact=data.email).exists():
@@ -64,7 +93,7 @@ def create_account_individ(data):
         lastName=data.lastName,
         contactNum=data.contactNum,
         birthDate=birth_date,
-        profileImg=""  # Provide empty default for required field to avoid DB errors
+        profileImg=None  # NULL until user uploads a profile picture
     )
 
     verifyLink = f"http://localhost:3000/auth/verify-email?verifyToken={verifyToken}&id={user.accountID}"
@@ -322,10 +351,17 @@ def fetch_currentUser(accountID):
         try:
             profile = Profile.objects.select_related("accountFK").get(accountFK=account)
 
+            # Debug: Log what's stored in DB vs what we're sending
+            raw_profile_img = profile.profileImg
+            formatted_profile_img = get_full_image_url(profile.profileImg)
+            print(f"🖼️  Profile Image Debug for user {accountID}:")
+            print(f"   Raw DB value: {raw_profile_img}")
+            print(f"   Formatted URL: {formatted_profile_img}")
+
             profile_data = {
                 "firstName": profile.firstName,
                 "lastName": profile.lastName,
-                "profileImg": profile.profileImg,
+                "profileImg": formatted_profile_img,  # Ensure full URL for mobile
                 "profileType": profile.profileType,
                 "contactNum": profile.contactNum,
                 "birthDate": profile.birthDate.isoformat() if profile.birthDate else None,

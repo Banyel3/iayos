@@ -14,7 +14,7 @@ class ProfileService {
   /// Get current user profile
   Future<Map<String, dynamic>> getProfile() async {
     try {
-      final token = await _storage.read(key: 'auth_token');
+      final token = await _storage.read(key: 'access_token');
       if (token == null) {
         return {
           'success': false,
@@ -59,7 +59,7 @@ class ProfileService {
     String? birthDate,
   }) async {
     try {
-      final token = await _storage.read(key: 'auth_token');
+      final token = await _storage.read(key: 'access_token');
       if (token == null) {
         return {
           'success': false,
@@ -106,7 +106,7 @@ class ProfileService {
   /// Upload profile image
   Future<Map<String, dynamic>> uploadProfileImage(File imageFile) async {
     try {
-      final token = await _storage.read(key: 'auth_token');
+      final token = await _storage.read(key: 'access_token');
       if (token == null) {
         return {
           'success': false,

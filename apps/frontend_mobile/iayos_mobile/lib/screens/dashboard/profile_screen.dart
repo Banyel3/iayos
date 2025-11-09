@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../models/user.dart';
 import '../../services/auth_service.dart';
+import '../../services/wallet_service.dart';
 import '../../utils/constants.dart';
+import '../profile/edit_profile_screen.dart';
+import '../wallet/add_funds_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   final User user;
@@ -15,6 +18,23 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final _authService = AuthService();
+  final _walletService = WalletService();
+  double? _currentBalance;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchBalance();
+  }
+
+  Future<void> _fetchBalance() async {
+    final balance = await _walletService.getBalance();
+    if (mounted && balance != null) {
+      setState(() {
+        _currentBalance = balance;
+      });
+    }
+  }
 
   Future<void> _handleLogout() async {
     // Show confirmation dialog
@@ -29,9 +49,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           'Are you sure you want to logout?',
           style: GoogleFonts.inter(),
         ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -122,17 +140,62 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                         ],
                       ),
-                      child: widget.user.profileData.profileImg != null
+                      child:
+                          widget.user.profileData.profileImg != null &&
+                              widget.user.profileData.profileImg!.isNotEmpty
                           ? ClipOval(
                               child: Image.network(
                                 widget.user.profileData.profileImg!,
                                 fit: BoxFit.cover,
+                                loadingBuilder:
+                                    (context, child, loadingProgress) {
+                                      if (loadingProgress == null) return child;
+                                      return Center(
+                                        child: CircularProgressIndicator(
+                                          value:
+                                              loadingProgress
+                                                      .expectedTotalBytes !=
+                                                  null
+                                              ? loadingProgress
+                                                        .cumulativeBytesLoaded /
+                                                    loadingProgress
+                                                        .expectedTotalBytes!
+                                              : null,
+                                          valueColor:
+                                              const AlwaysStoppedAnimation<
+                                                Color
+                                              >(Colors.white),
+                                          strokeWidth: 2,
+                                        ),
+                                      );
+                                    },
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Center(
+                                    child: Text(
+                                      widget
+                                              .user
+                                              .profileData
+                                              .firstName
+                                              .isNotEmpty
+                                          ? widget.user.profileData.firstName[0]
+                                                .toUpperCase()
+                                          : '?',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 40,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  );
+                                },
                               ),
                             )
                           : Center(
                               child: Text(
-                                widget.user.profileData.firstName[0]
-                                    .toUpperCase(),
+                                widget.user.profileData.firstName.isNotEmpty
+                                    ? widget.user.profileData.firstName[0]
+                                          .toUpperCase()
+                                    : '?',
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 40,
@@ -235,32 +298,86 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ],
                       ),
                       const SizedBox(height: 12),
-                      Text(
-                        widget.user.profileData.walletBalance != null
-                            ? CurrencyFormatter.format(
-                                widget.user.profileData.walletBalance!)
-                            : '₱0.00',
-                        style: GoogleFonts.inter(
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
+                      Row(
+                        children: [
+                          Text(
+                            _currentBalance != null
+                                ? CurrencyFormatter.format(_currentBalance!)
+                                : (widget.user.profileData.walletBalance != null
+                                      ? CurrencyFormatter.format(
+                                          widget
+                                              .user
+                                              .profileData
+                                              .walletBalance!,
+                                        )
+                                      : '₱0.00'),
+                            style: GoogleFonts.inter(
+                              fontSize: 32,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          if (_currentBalance == null)
+                            SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white.withOpacity(0.7),
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                       const SizedBox(height: 16),
                       Row(
                         children: [
                           Expanded(
                             child: ElevatedButton.icon(
-                              onPressed: () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      'Wallet feature coming soon!',
-                                      style: GoogleFonts.inter(),
+                              onPressed: () async {
+                                if (widget.user.isClient) {
+                                  // Fetch latest balance before navigating
+                                  await _fetchBalance();
+
+                                  if (!mounted) return;
+
+                                  final balanceToUse =
+                                      _currentBalance ??
+                                      widget.user.profileData.walletBalance ??
+                                      0.0;
+
+                                  // Navigate to Add Funds screen
+                                  final success = await Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => AddFundsScreen(
+                                        currentBalance: balanceToUse,
+                                        onSuccess: () async {
+                                          // Refresh balance after successful deposit
+                                          await _fetchBalance();
+                                        },
+                                      ),
                                     ),
-                                    backgroundColor: AppColors.primary,
-                                  ),
-                                );
+                                  );
+
+                                  // Refresh balance if funds were added
+                                  if (success == true && mounted) {
+                                    await _fetchBalance();
+                                  }
+                                } else {
+                                  // Worker cash out feature (coming soon)
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        'Cash out feature coming soon!',
+                                        style: GoogleFonts.inter(),
+                                      ),
+                                      backgroundColor: AppColors.primary,
+                                    ),
+                                  );
+                                }
                               },
                               icon: Icon(
                                 widget.user.isClient
@@ -278,8 +395,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.white,
                                 foregroundColor: AppColors.primary,
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 12),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(8),
                                 ),
@@ -298,15 +416,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 icon: Icons.person_outline,
                 title: 'Edit Profile',
                 subtitle: 'Update your personal information',
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'Edit Profile coming soon!',
-                        style: GoogleFonts.inter(),
-                      ),
+                onTap: () async {
+                  final updated = await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) =>
+                          EditProfileScreen(user: widget.user),
                     ),
                   );
+
+                  // If profile was updated, refresh the dashboard
+                  if (updated == true && mounted) {
+                    // Trigger a rebuild to show updated info
+                    setState(() {});
+                  }
                 },
               ),
 
@@ -416,10 +539,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         decoration: BoxDecoration(
           border: Border(
-            bottom: BorderSide(
-              color: Colors.grey.shade200,
-              width: 1,
-            ),
+            bottom: BorderSide(color: Colors.grey.shade200, width: 1),
           ),
         ),
         child: Row(
@@ -487,11 +607,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ],
               ),
             ),
-            Icon(
-              Icons.chevron_right,
-              color: Colors.grey.shade400,
-              size: 22,
-            ),
+            Icon(Icons.chevron_right, color: Colors.grey.shade400, size: 22),
           ],
         ),
       ),
