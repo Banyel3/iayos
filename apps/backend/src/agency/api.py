@@ -152,3 +152,36 @@ def update_profile(request, business_description: str = Form(None), contact_numb
     except Exception as e:
         print(f"Error updating agency profile: {str(e)}")
         return Response({"error": "Internal server error"}, status=500)
+
+
+# Simplified agency job endpoints - Direct invite/hire model
+
+@router.get("/jobs", auth=cookie_auth)
+def get_agency_jobs(request, status: str = None, page: int = 1, limit: int = 20):
+    """
+    Get all jobs assigned to this agency (direct hires/invites).
+    
+    Query Parameters:
+    - status: Filter by job status (ACTIVE, IN_PROGRESS, COMPLETED, CANCELLED)
+    - page: Page number for pagination (default: 1)
+    - limit: Items per page (default: 20, max: 100)
+    """
+    try:
+        account_id = request.auth.accountID
+        
+        # Validate limit
+        if limit > 100:
+            limit = 100
+        
+        result = services.get_agency_jobs(
+            account_id=account_id,
+            status_filter=status,
+            page=page,
+            limit=limit
+        )
+        return result
+    except ValueError as e:
+        return Response({"error": str(e)}, status=400)
+    except Exception as e:
+        print(f"Error fetching agency jobs: {str(e)}")
+        return Response({"error": "Internal server error"}, status=500)

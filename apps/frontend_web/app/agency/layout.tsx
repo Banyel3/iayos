@@ -16,15 +16,19 @@ export default async function AgencyLayout({
     .map((c) => `${c.name}=${c.value}`)
     .join("; ");
 
+  // Use internal Docker network for server-side requests
+  // In Docker: backend:8000, Outside Docker: localhost:8000
+  const serverApiUrl = process.env.SERVER_API_URL || "http://backend:8000";
+
   let user: any = null;
 
   try {
-    const res = await fetch("http://localhost:8000/api/accounts/me", {
+    const res = await fetch(`${serverApiUrl}/api/accounts/me`, {
       headers: {
         cookie: cookieHeader,
         Accept: "application/json",
       },
-      next: { revalidate: 60 }, // Cache for 60 seconds instead of no-store
+      cache: "no-store", // Don't cache auth checks to prevent stale data
     });
 
     if (!res.ok) {
@@ -43,10 +47,11 @@ export default async function AgencyLayout({
       const role = (user?.role || "").toString().toUpperCase();
       if (role !== "AGENCY") {
         // Non-agency users go to regular dashboard
-        redirect("/dashboard/profile");
+        redirect("/dashboard");
       }
     }
   } catch (err) {
+    console.error("Agency layout auth error:", err);
     redirect("/auth/login");
   }
   // If user exists but hasn't completed KYC, show a verification wall
@@ -58,7 +63,7 @@ export default async function AgencyLayout({
   let submissionNotes: string | null = null;
   let submissionFiles: any[] | null = null;
   try {
-    const statusRes = await fetch("http://localhost:8000/api/agency/status", {
+    const statusRes = await fetch(`${serverApiUrl}/api/agency/status`, {
       headers: {
         cookie: cookieHeader,
         Accept: "application/json",

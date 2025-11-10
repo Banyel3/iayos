@@ -132,10 +132,8 @@ class _JobListScreenState extends State<JobListScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => JobDetailsScreen(
-          jobId: job['job_id'],
-          user: widget.user,
-        ),
+        builder: (context) =>
+            JobDetailsScreen(jobId: job['job_id'], user: widget.user),
       ),
     );
   }
@@ -143,9 +141,7 @@ class _JobListScreenState extends State<JobListScreen> {
   void _navigateToPostJob() {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => PostJobScreen(user: widget.user),
-      ),
+      MaterialPageRoute(builder: (context) => PostJobScreen(user: widget.user)),
     ).then((result) {
       if (result == true) {
         _refreshJobs();
@@ -199,10 +195,10 @@ class _JobListScreenState extends State<JobListScreen> {
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : _errorMessage != null
-                    ? _buildErrorState()
-                    : _jobs.isEmpty
-                        ? _buildEmptyState()
-                        : _buildJobList(),
+                ? _buildErrorState()
+                : _jobs.isEmpty
+                ? _buildEmptyState()
+                : _buildJobList(),
           ),
         ],
       ),
@@ -240,12 +236,9 @@ class _JobListScreenState extends State<JobListScreen> {
           ..._categories.map((category) {
             return Padding(
               padding: const EdgeInsets.only(right: 8),
-              child: _buildCategoryChip(
-                category['name'],
-                category['id'],
-              ),
+              child: _buildCategoryChip(category['name'], category['id']),
             );
-          }).toList(),
+          }),
         ],
       ),
     );
@@ -256,7 +249,8 @@ class _JobListScreenState extends State<JobListScreen> {
     return FilterChip(
       label: Text(label),
       selected: isSelected,
-      onSelected: (selected) => _onCategorySelected(selected ? categoryId : null),
+      onSelected: (selected) =>
+          _onCategorySelected(selected ? categoryId : null),
       backgroundColor: Colors.grey.shade100,
       selectedColor: AppColors.primary.withOpacity(0.2),
       checkmarkColor: AppColors.primary,
@@ -293,9 +287,7 @@ class _JobListScreenState extends State<JobListScreen> {
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         onTap: () => _navigateToJobDetails(job),
         borderRadius: BorderRadius.circular(12),
@@ -319,7 +311,10 @@ class _JobListScreenState extends State<JobListScreen> {
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.primary.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(8),
@@ -342,17 +337,18 @@ class _JobListScreenState extends State<JobListScreen> {
                 job['description'] ?? '',
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.inter(
-                  fontSize: 14,
-                  color: Colors.black54,
-                ),
+                style: GoogleFonts.inter(fontSize: 14, color: Colors.black54),
               ),
               const SizedBox(height: 12),
 
               // Location and Category
               Row(
                 children: [
-                  Icon(Icons.location_on, size: 16, color: Colors.grey.shade600),
+                  Icon(
+                    Icons.location_on,
+                    size: 16,
+                    color: Colors.grey.shade600,
+                  ),
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(
@@ -365,7 +361,10 @@ class _JobListScreenState extends State<JobListScreen> {
                   ),
                   const SizedBox(width: 12),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.grey.shade100,
                       borderRadius: BorderRadius.circular(6),
@@ -426,10 +425,7 @@ class _JobListScreenState extends State<JobListScreen> {
         Container(
           width: 8,
           height: 8,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-          ),
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
         const SizedBox(width: 6),
         Text(
@@ -449,11 +445,7 @@ class _JobListScreenState extends State<JobListScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.work_outline,
-            size: 80,
-            color: Colors.grey.shade400,
-          ),
+          Icon(Icons.work_outline, size: 80, color: Colors.grey.shade400),
           const SizedBox(height: 16),
           Text(
             'No jobs available',
@@ -468,10 +460,7 @@ class _JobListScreenState extends State<JobListScreen> {
             widget.user.isClient
                 ? 'Post a job to get started'
                 : 'Check back later for new opportunities',
-            style: GoogleFonts.inter(
-              fontSize: 14,
-              color: Colors.black54,
-            ),
+            style: GoogleFonts.inter(fontSize: 14, color: Colors.black54),
           ),
         ],
       ),
@@ -483,11 +472,7 @@ class _JobListScreenState extends State<JobListScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.error_outline,
-            size: 80,
-            color: Colors.red.shade400,
-          ),
+          Icon(Icons.error_outline, size: 80, color: Colors.red.shade400),
           const SizedBox(height: 16),
           Text(
             'Error loading jobs',
@@ -503,10 +488,7 @@ class _JobListScreenState extends State<JobListScreen> {
             child: Text(
               _errorMessage ?? 'Something went wrong',
               textAlign: TextAlign.center,
-              style: GoogleFonts.inter(
-                fontSize: 14,
-                color: Colors.black54,
-              ),
+              style: GoogleFonts.inter(fontSize: 14, color: Colors.black54),
             ),
           ),
           const SizedBox(height: 24),

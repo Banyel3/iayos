@@ -18,6 +18,7 @@ import {
   submitJobApplication,
 } from "@/lib/api/jobs";
 import type { JobPosting, JobCategory, WorkerListing } from "@/lib/api/jobs";
+import { isAgencyAccount, canApplyToJobs, canAcceptJobsDirectly } from "@/lib/utils/agency";
 
 interface HomeUser extends User {
   profile_data?: {
@@ -66,11 +67,15 @@ const HomePage = () => {
   // Use the worker availability hook
   const isWorker = user?.profile_data?.profileType === "WORKER";
   const isClient = user?.profile_data?.profileType === "CLIENT";
+  const isAgency = isAgencyAccount(user);
+  const canApply = canApplyToJobs(user);
+  const canAcceptDirectly = canAcceptJobsDirectly(user);
+
   const {
     isAvailable,
     isLoading: isLoadingAvailability,
     handleAvailabilityToggle,
-  } = useWorkerAvailability(isWorker, isAuthenticated);
+  } = useWorkerAvailability(isWorker && !isAgency, isAuthenticated);
 
   // Fetch jobs for workers
   useEffect(() => {

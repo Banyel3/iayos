@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/form_button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Briefcase, Star, Users } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 interface AgencyStats {
   total_employees: number;
@@ -43,6 +44,7 @@ export default function AgencyDashboardPage() {
     }
   };
 
+  // Fetch stats on mount - auth is handled by layout
   useEffect(() => {
     const controller = new AbortController();
     fetchStats();

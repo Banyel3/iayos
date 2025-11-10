@@ -18,7 +18,13 @@ class _MyJobsScreenState extends State<MyJobsScreen>
   final _myJobsService = MyJobsService();
   late TabController _tabController;
 
-  final List<String> _tabs = ['All', 'Active', 'In Progress', 'Completed', 'Pending'];
+  final List<String> _tabs = [
+    'All',
+    'Active',
+    'In Progress',
+    'Completed',
+    'Pending',
+  ];
   final Map<String, List<dynamic>> _jobsByStatus = {
     'All': [],
     'Active': [],
@@ -64,7 +70,8 @@ class _MyJobsScreenState extends State<MyJobsScreen>
   void _onScroll(String tab) {
     final controller = _scrollControllers[tab];
     if (controller != null &&
-        controller.position.pixels >= controller.position.maxScrollExtent * 0.8 &&
+        controller.position.pixels >=
+            controller.position.maxScrollExtent * 0.8 &&
         !(_isLoadingMoreByTab[tab] ?? false) &&
         (_hasMoreDataByTab[tab] ?? false)) {
       _loadMoreJobs(tab);
@@ -201,10 +208,7 @@ class _MyJobsScreenState extends State<MyJobsScreen>
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            AppColors.primary,
-            AppColors.primary.withOpacity(0.8),
-          ],
+          colors: [AppColors.primary, AppColors.primary.withOpacity(0.8)],
         ),
       ),
       child: Row(
@@ -377,10 +381,7 @@ class _MyJobsScreenState extends State<MyJobsScreen>
         // TODO: Navigate to job details
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              'Job details: $title',
-              style: GoogleFonts.inter(),
-            ),
+            content: Text('Job details: $title', style: GoogleFonts.inter()),
             backgroundColor: AppColors.primary,
           ),
         );
@@ -440,11 +441,7 @@ class _MyJobsScreenState extends State<MyJobsScreen>
             // Budget
             Row(
               children: [
-                Icon(
-                  Icons.attach_money,
-                  size: 18,
-                  color: AppColors.primary,
-                ),
+                Icon(Icons.attach_money, size: 18, color: AppColors.primary),
                 const SizedBox(width: 4),
                 Text(
                   CurrencyFormatter.format(budget),
@@ -497,27 +494,34 @@ class _MyJobsScreenState extends State<MyJobsScreen>
                             child: Image.network(
                               otherPartyImg,
                               fit: BoxFit.cover,
-                              loadingBuilder: (context, child, loadingProgress) {
-                                if (loadingProgress == null) return child;
-                                return Center(
-                                  child: SizedBox(
-                                    width: 12,
-                                    height: 12,
-                                    child: CircularProgressIndicator(
-                                      value: loadingProgress.expectedTotalBytes != null
-                                          ? loadingProgress.cumulativeBytesLoaded /
-                                              loadingProgress.expectedTotalBytes!
-                                          : null,
-                                      strokeWidth: 1.5,
-                                      color: AppColors.primary,
-                                    ),
-                                  ),
-                                );
-                              },
+                              loadingBuilder:
+                                  (context, child, loadingProgress) {
+                                    if (loadingProgress == null) return child;
+                                    return Center(
+                                      child: SizedBox(
+                                        width: 12,
+                                        height: 12,
+                                        child: CircularProgressIndicator(
+                                          value:
+                                              loadingProgress
+                                                      .expectedTotalBytes !=
+                                                  null
+                                              ? loadingProgress
+                                                        .cumulativeBytesLoaded /
+                                                    loadingProgress
+                                                        .expectedTotalBytes!
+                                              : null,
+                                          strokeWidth: 1.5,
+                                          color: AppColors.primary,
+                                        ),
+                                      ),
+                                    );
+                                  },
                               errorBuilder: (context, error, stackTrace) {
                                 return Center(
                                   child: Text(
-                                    (otherPartyName != null && otherPartyName.isNotEmpty)
+                                    (otherPartyName != null &&
+                                            otherPartyName.isNotEmpty)
                                         ? otherPartyName[0].toUpperCase()
                                         : '?',
                                     style: GoogleFonts.inter(
@@ -532,7 +536,7 @@ class _MyJobsScreenState extends State<MyJobsScreen>
                           )
                         : Center(
                             child: Text(
-                              (otherPartyName != null && otherPartyName.isNotEmpty)
+                              (otherPartyName.isNotEmpty)
                                   ? otherPartyName[0].toUpperCase()
                                   : '?',
                               style: GoogleFonts.inter(
@@ -769,9 +773,7 @@ class _MyJobsScreenState extends State<MyJobsScreen>
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: CircularProgressIndicator(
-          color: AppColors.primary,
-        ),
+        child: CircularProgressIndicator(color: AppColors.primary),
       ),
     );
   }

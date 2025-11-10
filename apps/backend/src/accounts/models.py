@@ -245,13 +245,40 @@ class Notification(models.Model):
     )
     
     class NotificationType(models.TextChoices):
+        # KYC Notifications
         KYC_APPROVED = "KYC_APPROVED", "KYC Approved"
         KYC_REJECTED = "KYC_REJECTED", "KYC Rejected"
-        MESSAGE = "MESSAGE", "Message"
+        AGENCY_KYC_APPROVED = "AGENCY_KYC_APPROVED", "Agency KYC Approved"
+        AGENCY_KYC_REJECTED = "AGENCY_KYC_REJECTED", "Agency KYC Rejected"
+
+        # Job Application Notifications
+        APPLICATION_RECEIVED = "APPLICATION_RECEIVED", "Application Received"
+        APPLICATION_ACCEPTED = "APPLICATION_ACCEPTED", "Application Accepted"
+        APPLICATION_REJECTED = "APPLICATION_REJECTED", "Application Rejected"
+
+        # Job Status Notifications
+        JOB_STARTED = "JOB_STARTED", "Job Started"
+        JOB_COMPLETED_WORKER = "JOB_COMPLETED_WORKER", "Job Marked Complete by Worker"
+        JOB_COMPLETED_CLIENT = "JOB_COMPLETED_CLIENT", "Job Approved by Client"
+        JOB_CANCELLED = "JOB_CANCELLED", "Job Cancelled"
+
+        # Payment Notifications
+        PAYMENT_RECEIVED = "PAYMENT_RECEIVED", "Payment Received"
+        ESCROW_PAID = "ESCROW_PAID", "Escrow Payment Confirmed"
+        REMAINING_PAYMENT_PAID = "REMAINING_PAYMENT_PAID", "Final Payment Confirmed"
+        PAYMENT_RELEASED = "PAYMENT_RELEASED", "Payment Released"
+
+        # Message Notifications
+        MESSAGE = "MESSAGE", "New Message"
+
+        # Review Notifications
+        REVIEW_RECEIVED = "REVIEW_RECEIVED", "Review Received"
+
+        # System Notifications
         SYSTEM = "SYSTEM", "System"
     
     notificationType = models.CharField(
-        max_length=20,
+        max_length=50,
         choices=NotificationType.choices,
         default="SYSTEM"
     )
@@ -259,9 +286,11 @@ class Notification(models.Model):
     title = models.CharField(max_length=200)
     message = models.TextField()
     isRead = models.BooleanField(default=False)
-    
-    # Optional: Link to related KYC log for context
+
+    # Optional: Link to related entities for context
     relatedKYCLogID = models.BigIntegerField(null=True, blank=True)
+    relatedJobID = models.BigIntegerField(null=True, blank=True)
+    relatedApplicationID = models.BigIntegerField(null=True, blank=True)
     
     createdAt = models.DateTimeField(auto_now_add=True)
     readAt = models.DateTimeField(null=True, blank=True)
@@ -382,6 +411,18 @@ class Job(models.Model):
     # Materials Needed (stored as JSON array)
     materialsNeeded = models.JSONField(default=list, blank=True)
     
+    # Job Type
+    class JobType(models.TextChoices):
+        LISTING = "LISTING", "Job Listing (Open for applications)"
+        INVITE = "INVITE", "Direct Invite/Hire (Worker or Agency)"
+    
+    jobType = models.CharField(
+        max_length=10,
+        choices=JobType.choices,
+        default="LISTING",
+        help_text="LISTING = open job post, INVITE = direct hire"
+    )
+    
     # Job Status
     class JobStatus(models.TextChoices):
         ACTIVE = "ACTIVE", "Active"
@@ -395,13 +436,23 @@ class Job(models.Model):
         default="ACTIVE"
     )
     
-    # Assigned Worker (optional - for IN_PROGRESS jobs)
+    # Assigned Worker or Agency
     assignedWorkerID = models.ForeignKey(
         'WorkerProfile',
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='assigned_jobs'
+        related_name='assigned_jobs',
+        help_text="Worker assigned to this job (for individual workers)"
+    )
+    
+    assignedAgencyFK = models.ForeignKey(
+        'Agency',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='assigned_jobs',
+        help_text="Agency assigned to this job (for agency hires)"
     )
     
     # Completion Details

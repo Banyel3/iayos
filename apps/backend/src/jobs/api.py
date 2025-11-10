@@ -181,7 +181,18 @@ def create_job_posting(request, data: CreateJobPostingSchema):
                 
                 print(f"✅ Job posting created: ID={job_posting.jobID}, Title='{job_posting.title}'")
                 print(f"✅ Escrow transaction completed: ID={escrow_transaction.transactionID}")
-            
+
+                # Create escrow payment notification for client
+                from accounts.models import Notification
+                Notification.objects.create(
+                    accountFK=client_profile.profileID.accountFK,
+                    notificationType="ESCROW_PAID",
+                    title=f"Job Posted Successfully",
+                    message=f"Your job '{job_posting.title}' is now live! Escrow payment of ₱{downpayment} has been deducted from your wallet.",
+                    relatedJobID=job_posting.jobID
+                )
+                print(f"📬 Escrow payment notification sent to client {client_profile.profileID.accountFK.email}")
+
             return {
                 "success": True,
                 "requires_payment": False,
@@ -1272,6 +1283,14 @@ def apply_for_job(request, job_id: int, data: JobApplicationSchema):
     try:
         print(f"📝 Worker {request.auth.email} applying for job {job_id}")
         
+        # CRITICAL: Block agencies from applying to jobs
+        from accounts.models import Agency
+        if Agency.objects.filter(accountFK=request.auth).exists():
+            return Response(
+                {"error": "Agencies cannot apply to jobs. Please use the 'Accept Job' feature instead."},
+                status=403
+            )
+        
         # Get user's profile
         try:
             profile = Profile.objects.get(accountFK=request.auth)
@@ -1335,9 +1354,22 @@ def apply_for_job(request, job_id: int, data: JobApplicationSchema):
             budgetOption=data.budget_option,
             status=JobApplication.ApplicationStatus.PENDING
         )
-        
+
         print(f"✅ Application {application.applicationID} created successfully")
-        
+
+        # Create notification for the client
+        from accounts.models import Notification
+        worker_name = f"{worker_profile.profileID.firstName} {worker_profile.profileID.lastName}"
+        Notification.objects.create(
+            accountFK=job.clientID.profileID.accountFK,
+            notificationType="APPLICATION_RECEIVED",
+            title=f"New Application for '{job.title}'",
+            message=f"{worker_name} applied for your job posting. Review their proposal and qualifications.",
+            relatedJobID=job.jobID,
+            relatedApplicationID=application.applicationID
+        )
+        print(f"📬 Notification sent to client {job.clientID.profileID.accountFK.email}")
+
         return {
             "success": True,
             "message": "Application submitted successfully",
@@ -1352,6 +1384,85 @@ def apply_for_job(request, job_id: int, data: JobApplicationSchema):
             {"error": f"Failed to submit application: {str(e)}"},
             status=500
         )
+
+
+@router.post("/{job_id}/accept", auth=cookie_auth)
+def accept_job(request, job_id: int):
+    """
+    Agency accepts a job posting
+    Only agencies can accept jobs (not apply like workers)
+    This creates a relationship between the agency and the job
+    """
+    try:
+        print(f"🏢 Agency {request.auth.email} accepting job {job_id}")
+        
+        # Verify user is an agency
+        from accounts.models import Agency
+        try:
+            agency = Agency.objects.get(accountFK=request.auth)
+        except Agency.DoesNotExist:
+            return Response(
+                {"error": "Only agencies can accept jobs. Individual workers should apply instead."},
+                status=403
+            )
+        
+        # Get the job posting
+        try:
+            job = JobPosting.objects.get(jobID=job_id)
+        except JobPosting.DoesNotExist:
+            return Response(
+                {"error": "Job posting not found"},
+                status=404
+            )
+        
+        # Check if job is still active
+        if job.status != JobPosting.JobStatus.ACTIVE:
+            return Response(
+                {"error": "This job is no longer available for acceptance"},
+                status=400
+            )
+        
+        # For now, we'll send a notification to the client about agency interest
+        # Future: Add AgencyJobAcceptance model to track agency-job relationships
+        from accounts.models import Notification
+        Notification.objects.create(
+            accountFK=job.clientID.profileID.accountFK,
+            notificationType="AGENCY_INTEREST",
+            title=f"Agency Interested in '{job.title}'",
+            message=f"Agency '{agency.businessName}' has expressed interest in your job posting. They will contact you to discuss details.",
+            relatedJobID=job.jobID
+        )
+        print(f"📬 Notification sent to client {job.clientID.profileID.accountFK.email}")
+        
+        # Send notification to agency confirming their interest
+        Notification.objects.create(
+            accountFK=request.auth,
+            notificationType="JOB_ACCEPTANCE_CONFIRMED",
+            title=f"Interest Registered for '{job.title}'",
+            message=f"Your interest in this job has been communicated to the client. They may reach out to discuss further details.",
+            relatedJobID=job.jobID
+        )
+
+        return {
+            "success": True,
+            "message": "Job acceptance registered successfully. The client has been notified.",
+            "job_id": job.jobID,
+            "job_title": job.title
+        }
+        
+    except Exception as e:
+        print(f"❌ Error accepting job: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": f"Failed to accept job: {str(e)}"},
+            status=500
+        )
+
+
+# OLD ENDPOINT REMOVED - Use /api/agency/jobs instead
+# This endpoint used the old JobPosting model and complex agency browsing logic
+# New simplified model: Clients create INVITE-type jobs with assignedAgencyFK directly
 
 
 @router.post("/{job_id}/applications/{application_id}/accept", auth=cookie_auth)
@@ -1456,15 +1567,43 @@ def accept_application(request, job_id: int, application_id: int):
             )
         
         # Reject all other pending applications for this job
-        JobApplication.objects.filter(
+        other_applications = JobApplication.objects.filter(
             jobID=job,
             status=JobApplication.ApplicationStatus.PENDING
         ).exclude(
             applicationID=application_id
-        ).update(status=JobApplication.ApplicationStatus.REJECTED)
-        
+        ).select_related('workerID__profileID__accountFK')
+
+        # Notify rejected workers
+        from accounts.models import Notification
+        for other_app in other_applications:
+            Notification.objects.create(
+                accountFK=other_app.workerID.profileID.accountFK,
+                notificationType="APPLICATION_REJECTED",
+                title=f"Application Not Selected",
+                message=f"Unfortunately, your application for '{job.title}' was not selected. Keep applying to find more opportunities!",
+                relatedJobID=job.jobID,
+                relatedApplicationID=other_app.applicationID
+            )
+            print(f"📬 Rejection notification sent to worker {other_app.workerID.profileID.accountFK.email}")
+
+        # Update status
+        other_applications.update(status=JobApplication.ApplicationStatus.REJECTED)
+
+        # Create notification for accepted worker
+        client_name = f"{client_profile.profileID.firstName} {client_profile.profileID.lastName}"
+        Notification.objects.create(
+            accountFK=application.workerID.profileID.accountFK,
+            notificationType="APPLICATION_ACCEPTED",
+            title=f"Application Accepted! 🎉",
+            message=f"{client_name} accepted your application for '{job.title}'. The job has started and you can now chat with the client.",
+            relatedJobID=job.jobID,
+            relatedApplicationID=application.applicationID
+        )
+        print(f"📬 Acceptance notification sent to worker {application.workerID.profileID.accountFK.email}")
+
         print(f"✅ Application {application_id} accepted, job status updated to IN_PROGRESS")
-        
+
         return {
             "success": True,
             "message": "Application accepted successfully",
@@ -1557,9 +1696,21 @@ def reject_application(request, job_id: int, application_id: int):
         # Update application status
         application.status = JobApplication.ApplicationStatus.REJECTED
         application.save()
-        
+
+        # Create notification for the worker
+        from accounts.models import Notification
+        Notification.objects.create(
+            accountFK=application.workerID.profileID.accountFK,
+            notificationType="APPLICATION_REJECTED",
+            title=f"Application Not Selected",
+            message=f"Your application for '{job.title}' was not selected. Don't worry, there are more opportunities waiting!",
+            relatedJobID=job.jobID,
+            relatedApplicationID=application.applicationID
+        )
+        print(f"📬 Rejection notification sent to worker {application.workerID.profileID.accountFK.email}")
+
         print(f"✅ Application {application_id} rejected")
-        
+
         return {
             "success": True,
             "message": "Application rejected successfully",
@@ -1740,9 +1891,21 @@ def worker_mark_job_complete(request, job_id: int):
         job.workerMarkedComplete = True
         job.workerMarkedCompleteAt = timezone.now()
         job.save()
-        
+
         print(f"✅ Worker marked job {job_id} as complete. Waiting for client approval.")
-        
+
+        # Create notification for the client
+        from accounts.models import Notification
+        worker_name = f"{worker_profile.profileID.firstName} {worker_profile.profileID.lastName}"
+        Notification.objects.create(
+            accountFK=job.clientID.profileID.accountFK,
+            notificationType="JOB_COMPLETED_WORKER",
+            title=f"Job Completion Pending Approval",
+            message=f"{worker_name} has marked '{job.title}' as complete. Please review the work and approve if satisfied.",
+            relatedJobID=job.jobID
+        )
+        print(f"📬 Completion notification sent to client {job.clientID.profileID.accountFK.email}")
+
         # Broadcast job status update via WebSocket
         broadcast_job_status_update(job_id, {
             'event': 'worker_marked_complete',
@@ -1852,9 +2015,21 @@ def client_approve_job_completion(request, job_id: int, data: ApproveJobCompleti
         job.finalPaymentMethod = payment_method
         job.paymentMethodSelectedAt = timezone.now()
         job.save()
-        
+
         print(f"✅ Client approved job {job_id} completion with {payment_method} payment.")
-        
+
+        # Create notification for the worker
+        from accounts.models import Notification
+        client_name = f"{client_profile.profileID.firstName} {client_profile.profileID.lastName}"
+        Notification.objects.create(
+            accountFK=job.assignedWorkerID.profileID.accountFK,
+            notificationType="JOB_COMPLETED_CLIENT",
+            title=f"Job Completion Approved! 🎉",
+            message=f"{client_name} has approved the completion of '{job.title}'. Awaiting final payment.",
+            relatedJobID=job.jobID
+        )
+        print(f"📬 Client approval notification sent to worker {job.assignedWorkerID.profileID.accountFK.email}")
+
         # Broadcast job status update via WebSocket
         broadcast_job_status_update(job_id, {
             'event': 'client_approved_completion',
@@ -1930,9 +2105,29 @@ def client_approve_job_completion(request, job_id: int, data: ApproveJobCompleti
                 job.remainingPaymentPaidAt = timezone.now()
                 job.status = "COMPLETED"
                 job.save()
-                
+
                 print(f"✅ Job {job_id} marked as COMPLETED via WALLET payment")
-                
+
+                # Create payment notification for the worker
+                Notification.objects.create(
+                    accountFK=job.assignedWorkerID.profileID.accountFK,
+                    notificationType="PAYMENT_RELEASED",
+                    title=f"Payment Received! 💰",
+                    message=f"You received ₱{remaining_amount} payment for '{job.title}'. The job is now complete!",
+                    relatedJobID=job.jobID
+                )
+                print(f"📬 Payment notification sent to worker {job.assignedWorkerID.profileID.accountFK.email}")
+
+                # Create payment confirmation for the client
+                Notification.objects.create(
+                    accountFK=client_profile.profileID.accountFK,
+                    notificationType="REMAINING_PAYMENT_PAID",
+                    title=f"Payment Confirmed",
+                    message=f"Your final payment of ₱{remaining_amount} for '{job.title}' was successful. Please leave a review!",
+                    relatedJobID=job.jobID
+                )
+                print(f"📬 Payment confirmation sent to client {client_profile.profileID.accountFK.email}")
+
                 return {
                     "success": True,
                     "message": "Payment successful! Job completed. Please leave a review for the worker.",

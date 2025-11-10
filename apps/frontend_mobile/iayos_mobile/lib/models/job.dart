@@ -28,6 +28,8 @@ class Job {
   final JobWorker? assignedWorker;
   final double? distance; // In kilometers
   final String? urgency; // 'LOW' | 'MEDIUM' | 'HIGH'
+  final int? applicationsCount; // Number of applications for this job
+  final bool? hasApplied; // Whether current user has applied
 
   // Timestamps
   final DateTime createdAt;
@@ -58,6 +60,8 @@ class Job {
     this.assignedWorker,
     this.distance,
     this.urgency,
+    this.applicationsCount,
+    this.hasApplied,
     required this.createdAt,
     this.updatedAt,
     this.completedAt,
@@ -96,6 +100,8 @@ class Job {
           : null,
       distance: json['distance']?.toDouble(),
       urgency: json['urgency'],
+      applicationsCount: json['applications_count'] ?? json['applicationsCount'],
+      hasApplied: json['has_applied'] ?? json['hasApplied'] ?? false,
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'])
           : DateTime.now(),
@@ -133,6 +139,8 @@ class Job {
       'assignedWorker': assignedWorker?.toJson(),
       'distance': distance,
       'urgency': urgency,
+      'applications_count': applicationsCount,
+      'has_applied': hasApplied,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
       'completed_at': completedAt?.toIso8601String(),

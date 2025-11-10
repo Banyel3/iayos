@@ -1,7 +1,9 @@
 from .models import AgencyKYC, AgencyKycFile, AgencyEmployee
-from accounts.models import Accounts, Agency as AgencyProfile, Profile
+from accounts.models import Accounts, Agency as AgencyProfile, Profile, Job, Notification
 from iayos_project.utils import upload_agency_doc
-from django.db.models import Avg, Count
+from django.db.models import Avg, Count, Q
+from django.utils import timezone
+from datetime import timedelta
 import uuid
 import os
 
@@ -371,5 +373,109 @@ def update_agency_profile(account_id, business_name=None, business_desc=None, co
 			"business_description": current_business_desc,
 			"contact_number": current_contact
 		}
+	except Accounts.DoesNotExist:
+		raise ValueError("User not found")
+
+
+# Simplified agency job services - Direct invite/hire model
+
+def get_agency_jobs(account_id, status_filter=None, page=1, limit=20):
+	"""
+	Get all jobs assigned to this agency (where assignedAgencyFK = this agency).
+	
+	Args:
+		account_id: Agency's account ID
+		status_filter: Optional status filter (ACTIVE, IN_PROGRESS, COMPLETED, CANCELLED)
+		page: Page number for pagination
+		limit: Items per page
+	
+	Returns:
+		Dictionary with jobs, pagination info, and counts
+	"""
+	try:
+		user = Accounts.objects.get(accountID=account_id)
+		
+		# Verify user has an agency profile
+		try:
+			agency = AgencyProfile.objects.get(accountFK=user)
+		except AgencyProfile.DoesNotExist:
+			raise ValueError("Agency profile not found. Complete KYC first.")
+		
+		# Build query for jobs assigned to this agency
+		query = Q(assignedAgencyFK=agency)
+		
+		# Apply status filter
+		if status_filter:
+			valid_statuses = ['ACTIVE', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']
+			if status_filter.upper() not in valid_statuses:
+				raise ValueError(f"Invalid status. Must be one of: {', '.join(valid_statuses)}")
+			query &= Q(status=status_filter.upper())
+		
+		# Get total count
+		total_count = Job.objects.filter(query).count()
+		
+		# Calculate pagination
+		offset = (page - 1) * limit
+		total_pages = (total_count + limit - 1) // limit  # Ceiling division
+		
+		# Get jobs with related data
+		jobs = Job.objects.filter(query).select_related(
+			'clientID',
+			'clientID__profileID',
+			'categoryID'
+		).order_by('-createdAt')[offset:offset + limit]
+		
+		# Format response
+		jobs_data = []
+		for job in jobs:
+			# Get client info
+			client_profile = job.clientID.profileID
+			
+			jobs_data.append({
+				'jobID': job.jobID,
+				'title': job.title,
+				'description': job.description,
+				'category': {
+					'id': job.categoryID.specializationID,
+					'name': job.categoryID.specializationName
+				} if job.categoryID else None,
+				'budget': float(job.budget) if job.budget else None,
+				'location': job.location,
+				'urgency': job.urgency,
+				'status': job.status,
+				'jobType': job.jobType,
+				'expectedDuration': job.expectedDuration,
+				'preferredStartDate': job.preferredStartDate.isoformat() if job.preferredStartDate else None,
+				'client': {
+					'id': client_profile.accountFK.accountID,
+					'name': f"{client_profile.firstName} {client_profile.lastName}",
+					'avatar': client_profile.profilePicture,
+					'email': client_profile.accountFK.email,
+				},
+				'createdAt': job.createdAt.isoformat(),
+				'updatedAt': job.updatedAt.isoformat(),
+			})
+		
+		# Get status counts
+		status_counts = {
+			'active': Job.objects.filter(assignedAgencyFK=agency, status='ACTIVE').count(),
+			'inProgress': Job.objects.filter(assignedAgencyFK=agency, status='IN_PROGRESS').count(),
+			'completed': Job.objects.filter(assignedAgencyFK=agency, status='COMPLETED').count(),
+			'cancelled': Job.objects.filter(assignedAgencyFK=agency, status='CANCELLED').count(),
+		}
+		
+		return {
+			'jobs': jobs_data,
+			'pagination': {
+				'page': page,
+				'limit': limit,
+				'totalCount': total_count,
+				'totalPages': total_pages,
+				'hasNext': page < total_pages,
+				'hasPrev': page > 1,
+			},
+			'statusCounts': status_counts,
+		}
+		
 	except Accounts.DoesNotExist:
 		raise ValueError("User not found")

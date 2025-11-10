@@ -76,7 +76,11 @@ class _PostJobScreenState extends State<PostJobScreen> {
     // Parse materials (comma-separated)
     final materialsText = _materialsController.text.trim();
     final materials = materialsText.isNotEmpty
-        ? materialsText.split(',').map((m) => m.trim()).where((m) => m.isNotEmpty).toList()
+        ? materialsText
+              .split(',')
+              .map((m) => m.trim())
+              .where((m) => m.isNotEmpty)
+              .toList()
         : null;
 
     final result = await _jobService.createJob(
@@ -398,7 +402,7 @@ class _PostJobScreenState extends State<PostJobScreen> {
         ),
         const SizedBox(height: 8),
         DropdownButtonFormField<int>(
-          value: _selectedCategoryId,
+          initialValue: _selectedCategoryId,
           decoration: InputDecoration(
             hintText: 'Select a category',
             border: OutlineInputBorder(
@@ -454,17 +458,13 @@ class _PostJobScreenState extends State<PostJobScreen> {
         const SizedBox(height: 8),
         Row(
           children: [
-            Expanded(
-              child: _buildUrgencyOption('LOW', 'Low', Colors.green),
-            ),
+            Expanded(child: _buildUrgencyOption('LOW', 'Low', Colors.green)),
             const SizedBox(width: 8),
             Expanded(
               child: _buildUrgencyOption('MEDIUM', 'Medium', Colors.orange),
             ),
             const SizedBox(width: 8),
-            Expanded(
-              child: _buildUrgencyOption('HIGH', 'High', Colors.red),
-            ),
+            Expanded(child: _buildUrgencyOption('HIGH', 'High', Colors.red)),
           ],
         ),
       ],
@@ -494,10 +494,7 @@ class _PostJobScreenState extends State<PostJobScreen> {
             Container(
               width: 12,
               height: 12,
-              decoration: BoxDecoration(
-                color: color,
-                shape: BoxShape.circle,
-              ),
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
             ),
             const SizedBox(height: 4),
             Text(
@@ -536,7 +533,11 @@ class _PostJobScreenState extends State<PostJobScreen> {
         Row(
           children: [
             Expanded(
-              child: _buildPaymentOption('WALLET', 'Wallet', Icons.account_balance_wallet),
+              child: _buildPaymentOption(
+                'WALLET',
+                'Wallet',
+                Icons.account_balance_wallet,
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -559,7 +560,9 @@ class _PostJobScreenState extends State<PostJobScreen> {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary.withOpacity(0.1) : Colors.grey.shade50,
+          color: isSelected
+              ? AppColors.primary.withOpacity(0.1)
+              : Colors.grey.shade50,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isSelected ? AppColors.primary : Colors.grey.shade300,

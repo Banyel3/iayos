@@ -242,13 +242,41 @@ RESEND_BASE_URL = "https://api.resend.com"
 
 SOCIALACCOUNT_LOGIN_ON_GET = True
 
-from supabase import create_client
+# Import custom Supabase adapter for new secret API keys
+from iayos_project.supabase_adapter import create_supabase_client
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
-SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "")
+SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "")
+# New secret API key format (sb_secret_...) - replaces the old service_role JWT
+SUPABASE_SECRET_KEY = os.getenv("SUPABASE_SECRET_KEY") or os.getenv("SUPABASE_SERVICE_KEY", "")
 
-# Create Supabase client as a settings constant
-SUPABASE = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+# Create Supabase client using new secret API keys
+SUPABASE = None
+if SUPABASE_URL and SUPABASE_SECRET_KEY:
+    try:
+        # Use custom adapter that works with new secret API keys
+        SUPABASE = create_supabase_client(
+            url=SUPABASE_URL,
+            secret_key=SUPABASE_SECRET_KEY,
+            anon_key=SUPABASE_ANON_KEY
+        )
+        print("✓ Supabase client initialized successfully with secret API key")
+    except Exception as e:
+        print(f"✗ Failed to initialize Supabase client: {e}")
+        print("File storage features will be disabled.")
+elif SUPABASE_URL and SUPABASE_ANON_KEY:
+    try:
+        # Fallback: use anon key only (limited access)
+        SUPABASE = create_supabase_client(
+            url=SUPABASE_URL,
+            secret_key=SUPABASE_ANON_KEY,
+            anon_key=SUPABASE_ANON_KEY
+        )
+        print("⚠ Supabase initialized with ANON key only (RLS restrictions apply)")
+    except Exception as e:
+        print(f"✗ Failed to initialize Supabase client: {e}")
+else:
+    print("✗ SUPABASE_URL or SUPABASE_SECRET_KEY not set. File storage features will be disabled.")
 
 # Xendit Configuration
 XENDIT_API_KEY = os.getenv("XENDIT_API_KEY")  # Must be set in .env.docker

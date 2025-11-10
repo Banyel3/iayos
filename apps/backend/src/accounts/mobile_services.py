@@ -520,7 +520,6 @@ def get_user_profile_mobile(user):
     """
     try:
         from .models import Profile
-        from django.conf import settings
 
         # Get user's profile
         try:
@@ -531,29 +530,6 @@ def get_user_profile_mobile(user):
                 'error': 'Profile not found'
             }
 
-        # Generate signed URL for profile image if it exists (private bucket)
-        profile_img_url = ''
-        if profile.profileImg:
-            try:
-                # Check if it's already a full URL
-                if profile.profileImg.startswith('http://') or profile.profileImg.startswith('https://'):
-                    profile_img_url = profile.profileImg
-                else:
-                    # It's a storage path, create signed URL
-                    # Profile images expire in 1 hour
-                    result = settings.SUPABASE.storage.from_('profile-images').create_signed_url(
-                        profile.profileImg,
-                        expires_in=3600  # 1 hour
-                    )
-                    if isinstance(result, dict) and ('signedURL' in result or 'signed_url' in result):
-                        profile_img_url = result.get('signedURL') or result.get('signed_url')
-                    elif isinstance(result, str):
-                        profile_img_url = result
-            except Exception as e:
-                print(f"⚠️ Failed to create signed URL for profile image: {str(e)}")
-                # Fallback to empty string
-                profile_img_url = ''
-
         # Build profile data
         profile_data = {
             'account_id': user.accountID,
@@ -563,7 +539,7 @@ def get_user_profile_mobile(user):
             'middle_name': profile.middleName or '',
             'contact_num': profile.contactNum or '',
             'birth_date': profile.birthDate.isoformat() if profile.birthDate else None,
-            'profile_img': profile_img_url,
+            'profile_img': profile.profileImg or '',  # Already a full public URL from upload_file
             'profile_type': profile.profileType,
             'kyc_verified': user.KYCVerified,
             'is_verified': user.isVerified,
@@ -643,7 +619,6 @@ def upload_profile_image_mobile(user, image_file):
     try:
         from .models import Profile
         from iayos_project.utils import upload_file
-        from django.conf import settings
 
         # Get user's profile
         try:
@@ -670,8 +645,9 @@ def upload_profile_image_mobile(user, image_file):
             }
 
         # Upload to Supabase using the utils function
-        bucket_name = 'profile-images'
-        file_path = f'users/{user.accountID}'
+        # Bucket 'users' is public, path: user_{accountID}/profileImage/{filename}
+        bucket_name = 'users'
+        file_path = f'user_{user.accountID}/profileImage'
 
         image_url = upload_file(
             file=image_file,

@@ -111,7 +111,7 @@ COPY --from=mobile-builder /app/apps/frontend_mobile/iayos_mobile/build/app/outp
 # ============================================
 # Stage 7: Python Backend Base (Secure Alpine)
 # ============================================
-FROM python:3.14-alpine AS backend-base
+FROM python:3.12-alpine AS backend-base
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
@@ -155,7 +155,6 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     && python -m pip install --upgrade 'pip>=25.3' setuptools wheel \
     && pip install --no-cache-dir --user -r requirements.txt \
     && apk del .build-deps \
-    && rm -rf /root/.cache \
     && find /app/.local -name "*.pyc" -delete 2>/dev/null || true \
     && find /app/.local -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
 
@@ -205,7 +204,7 @@ CMD ["npm", "start"]
 # ============================================
 # Stage 11: Backend Production (Secure)
 # ============================================
-FROM python:3.14-alpine AS backend-production
+FROM python:3.12-alpine AS backend-production
 
 # Set secure environment variables
 ENV PYTHONUNBUFFERED=1 \
@@ -299,12 +298,14 @@ WORKDIR /app/apps/backend
 COPY apps/backend/requirements.txt ./
 RUN --mount=type=cache,target=/root/.cache/pip \
     python -m pip install --upgrade pip setuptools wheel \
-    && pip install --user -r requirements.txt \
-    && apk del .build-deps \
-    && rm -rf /root/.cache
+    && pip install --no-cache-dir -r requirements.txt \
+    && apk del .build-deps
 
 # Copy backend source (mounted in dev)
 COPY --chown=appuser:appgroup apps/backend .
+
+# Give appuser ownership of working directory
+RUN chown -R appuser:appgroup /app
 
 # Switch to non-root user
 USER appuser

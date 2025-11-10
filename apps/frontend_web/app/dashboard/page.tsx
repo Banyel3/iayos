@@ -12,6 +12,7 @@ interface DashboardUser {
   accountID: number;
   email: string;
   role: string;
+  accountType?: string;
   profile_data?: {
     firstName?: string;
     lastName?: string;
@@ -32,6 +33,22 @@ const TempDashboard = () => {
   const router = useRouter();
   const [selectedType, setSelectedType] = useState<UserProfileType>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Redirect agency users to agency dashboard
+  useEffect(() => {
+    if (!isLoading && isAuthenticated && user) {
+      const accountType = (user.accountType || "").toString().toLowerCase();
+      const role = (user.role || "").toString().toUpperCase();
+
+      if (accountType === "agency" || role === "AGENCY") {
+        console.log(
+          "🏢 Dashboard: Agency user detected, redirecting to agency dashboard"
+        );
+        router.replace("/agency/dashboard");
+        return;
+      }
+    }
+  }, [isLoading, isAuthenticated, user, router]);
 
   // Redirect logic for existing profileType
   useEffect(() => {

@@ -8,11 +8,7 @@ class JobDetailsScreen extends StatefulWidget {
   final int jobId;
   final User user;
 
-  const JobDetailsScreen({
-    super.key,
-    required this.jobId,
-    required this.user,
-  });
+  const JobDetailsScreen({super.key, required this.jobId, required this.user});
 
   @override
   State<JobDetailsScreen> createState() => _JobDetailsScreenState();
@@ -95,9 +91,10 @@ class _JobDetailsScreenState extends State<JobDetailsScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _errorMessage != null
-              ? _buildErrorState()
-              : _buildJobDetails(),
-      bottomNavigationBar: !_isLoading && _jobDetails != null && !widget.user.isClient
+          ? _buildErrorState()
+          : _buildJobDetails(),
+      bottomNavigationBar:
+          !_isLoading && _jobDetails != null && !widget.user.isClient
           ? _buildActionBar()
           : null,
     );
@@ -244,12 +241,32 @@ class _JobDetailsScreenState extends State<JobDetailsScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          _buildDetailRow(Icons.category, 'Category', _jobDetails!['category_name'] ?? 'General'),
-          _buildDetailRow(Icons.location_on, 'Location', _jobDetails!['location'] ?? 'Not specified'),
-          _buildDetailRow(Icons.access_time, 'Duration', _jobDetails!['expected_duration'] ?? 'Not specified'),
+          _buildDetailRow(
+            Icons.category,
+            'Category',
+            _jobDetails!['category_name'] ?? 'General',
+          ),
+          _buildDetailRow(
+            Icons.location_on,
+            'Location',
+            _jobDetails!['location'] ?? 'Not specified',
+          ),
+          _buildDetailRow(
+            Icons.access_time,
+            'Duration',
+            _jobDetails!['expected_duration'] ?? 'Not specified',
+          ),
           if (_jobDetails!['preferred_start_date'] != null)
-            _buildDetailRow(Icons.calendar_today, 'Start Date', _formatDate(_jobDetails!['preferred_start_date'])),
-          _buildDetailRow(Icons.people, 'Applications', '${_jobDetails!['applications_count'] ?? 0}'),
+            _buildDetailRow(
+              Icons.calendar_today,
+              'Start Date',
+              _formatDate(_jobDetails!['preferred_start_date']),
+            ),
+          _buildDetailRow(
+            Icons.people,
+            'Applications',
+            '${_jobDetails!['applications_count'] ?? 0}',
+          ),
         ],
       ),
     );
@@ -329,7 +346,7 @@ class _JobDetailsScreenState extends State<JobDetailsScreen> {
                 ],
               ),
             );
-          }).toList(),
+          }),
         ],
       ),
     );
@@ -481,10 +498,7 @@ class _JobDetailsScreenState extends State<JobDetailsScreen> {
           Container(
             width: 8,
             height: 8,
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-            ),
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           ),
           const SizedBox(width: 6),
           Text(
@@ -528,10 +542,7 @@ class _JobDetailsScreenState extends State<JobDetailsScreen> {
           ),
           child: Text(
             hasApplied ? 'Already Applied' : 'Apply Now',
-            style: GoogleFonts.inter(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
+            style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold),
           ),
         ),
       ),
@@ -543,11 +554,7 @@ class _JobDetailsScreenState extends State<JobDetailsScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.error_outline,
-            size: 80,
-            color: Colors.red.shade400,
-          ),
+          Icon(Icons.error_outline, size: 80, color: Colors.red.shade400),
           const SizedBox(height: 16),
           Text(
             'Error loading job',
@@ -563,10 +570,7 @@ class _JobDetailsScreenState extends State<JobDetailsScreen> {
             child: Text(
               _errorMessage ?? 'Something went wrong',
               textAlign: TextAlign.center,
-              style: GoogleFonts.inter(
-                fontSize: 14,
-                color: Colors.black54,
-              ),
+              style: GoogleFonts.inter(fontSize: 14, color: Colors.black54),
             ),
           ),
           const SizedBox(height: 24),

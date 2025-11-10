@@ -154,24 +154,56 @@ const Login = () => {
   }, []);
 
   // 🔥 FIX: Only redirect if we're SURE user is authenticated AND not loading
+  // Use sessionStorage to track redirects and prevent loops
   useEffect(() => {
+    const lastRedirect = sessionStorage.getItem("last_login_redirect");
+    const now = Date.now();
+
+    console.log("🔍 Login Page useEffect:", {
+      authLoading,
+      isAuthenticated,
+      hasUser: !!user,
+      accountType: user?.accountType,
+      role: user?.role,
+      lastRedirect: lastRedirect ? new Date(parseInt(lastRedirect)) : "none",
+    });
+
+    // Prevent redirect loops - if we redirected in the last 5 seconds, don't redirect again
+    if (lastRedirect && now - parseInt(lastRedirect) < 5000) {
+      console.log("⏸️ Login Page: Recently redirected, preventing loop");
+      return;
+    }
+
     if (!authLoading && isAuthenticated && user) {
       // Prefer backend accountType when available (more authoritative)
       const accountType = (user.accountType || "").toString().toLowerCase();
       const role = (user.role || "").toString().toUpperCase();
 
+      // Mark that we're redirecting
+      sessionStorage.setItem("last_login_redirect", now.toString());
+
       if (accountType === "agency") {
         console.log(
-          "🏢 Account type 'agency' detected, redirecting to agency dashboard"
+          "🏢 Login Page: Account type 'agency' detected, redirecting to agency dashboard"
         );
-        router.replace("/agency/dashboard");
+        router.replace("/agency/dashboard"); // Use replace instead of push
       } else if (role === "ADMIN") {
-        console.log("🔐 Admin user detected, redirecting to admin panel");
+        console.log(
+          "🔐 Login Page: Admin user detected, redirecting to admin panel"
+        );
         router.replace("/admin/dashboard");
       } else {
-        console.log("👤 Regular user, redirecting to dashboard");
-        router.replace("/dashboard/profile");
+        console.log("👤 Login Page: Regular user, redirecting to dashboard");
+        router.replace("/dashboard");
       }
+    } else if (!authLoading && isAuthenticated && !user) {
+      console.log(
+        "⚠️ Login Page: Authenticated but no user data - staying on login"
+      );
+    } else if (!authLoading && !isAuthenticated) {
+      console.log("ℹ️ Login Page: Not authenticated - showing login form");
+      // Clear redirect timestamp when showing login form
+      sessionStorage.removeItem("last_login_redirect");
     }
   }, [authLoading, isAuthenticated, user, router]);
 
@@ -238,21 +270,31 @@ const Login = () => {
           console.log(
             "🏢 Account type 'agency' detected, redirecting to agency dashboard"
           );
-          router.push("/agency/dashboard");
+          sessionStorage.setItem("last_login_redirect", Date.now().toString());
+          router.replace("/agency/dashboard");
         } else {
           // Fallback to role-based redirect (role may be ADMIN)
           const backendRole = (userData.role || "").toString().toUpperCase();
           if (backendRole === "ADMIN") {
             console.log("🔐 Admin login, redirecting to admin panel");
-            router.push("/admin/dashboard");
+            sessionStorage.setItem(
+              "last_login_redirect",
+              Date.now().toString()
+            );
+            router.replace("/admin/dashboard");
           } else {
             console.log("👤 User login, redirecting to dashboard");
-            router.push("/dashboard/profile");
+            sessionStorage.setItem(
+              "last_login_redirect",
+              Date.now().toString()
+            );
+            router.replace("/dashboard");
           }
         }
       } else {
         // Fallback to regular dashboard if can't fetch user data
-        router.push("/dashboard/profile");
+        sessionStorage.setItem("last_login_redirect", Date.now().toString());
+        router.replace("/dashboard");
       }
     } catch (error) {
       console.error("Login error:", error);
