@@ -120,6 +120,24 @@ function AgenciesPageContent() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Navigation Bar */}
+        <div className="mb-6 bg-white rounded-lg shadow-sm border border-gray-200 px-6 py-3">
+          <div className="flex items-center space-x-6">
+            <button
+              onClick={() => router.push('/client/agencies')}
+              className="text-blue-600 font-semibold border-b-2 border-blue-600 pb-1"
+            >
+              Browse Agencies
+            </button>
+            <button
+              onClick={() => router.push('/client/my-invite-jobs')}
+              className="text-gray-600 hover:text-gray-900 pb-1"
+            >
+              My Invitations
+            </button>
+          </div>
+        </div>
+
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
