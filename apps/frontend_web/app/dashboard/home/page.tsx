@@ -16,9 +16,20 @@ import {
   fetchWorkers,
   fetchMyApplications,
   submitJobApplication,
+  fetchAgencies,
 } from "@/lib/api/jobs";
-import type { JobPosting, JobCategory, WorkerListing } from "@/lib/api/jobs";
-import { isAgencyAccount, canApplyToJobs, canAcceptJobsDirectly } from "@/lib/utils/agency";
+import type {
+  JobPosting,
+  JobCategory,
+  WorkerListing,
+  AgencyListing,
+} from "@/lib/api/jobs";
+import {
+  isAgencyAccount,
+  canApplyToJobs,
+  canAcceptJobsDirectly,
+} from "@/lib/utils/agency";
+import AgencyCard from "@/components/ui/agency-card";
 
 interface HomeUser extends User {
   profile_data?: {
@@ -58,11 +69,18 @@ const HomePage = () => {
   const [jobPostings, setJobPostings] = useState<JobPosting[]>([]);
   const [jobCategories, setJobCategories] = useState<JobCategory[]>([]);
   const [workerListings, setWorkerListings] = useState<WorkerListing[]>([]);
+  const [agencyListings, setAgencyListings] = useState<AgencyListing[]>([]);
   const [appliedJobs, setAppliedJobs] = useState<Set<string>>(new Set());
   const [isLoadingJobs, setIsLoadingJobs] = useState(false);
   const [isLoadingCategories, setIsLoadingCategories] = useState(false);
   const [isLoadingWorkers, setIsLoadingWorkers] = useState(false);
+  const [isLoadingAgencies, setIsLoadingAgencies] = useState(false);
   const [isLoadingApplications, setIsLoadingApplications] = useState(false);
+
+  // Tab state for client view (Workers vs Agencies)
+  const [clientViewTab, setClientViewTab] = useState<"workers" | "agencies">(
+    "workers"
+  );
 
   // Use the worker availability hook
   const isWorker = user?.profile_data?.profileType === "WORKER";
@@ -121,6 +139,22 @@ const HomePage = () => {
         .catch((error) => {
           console.error("Error fetching workers:", error);
           setIsLoadingWorkers(false);
+        });
+    }
+  }, [isAuthenticated, isClient]);
+
+  // Fetch agencies for clients
+  useEffect(() => {
+    if (isAuthenticated && isClient) {
+      setIsLoadingAgencies(true);
+      fetchAgencies({ limit: 12, sortBy: "rating" })
+        .then((agencies) => {
+          setAgencyListings(agencies);
+          setIsLoadingAgencies(false);
+        })
+        .catch((error) => {
+          console.error("Error fetching agencies:", error);
+          setIsLoadingAgencies(false);
         });
     }
   }, [isAuthenticated, isClient]);
@@ -1144,11 +1178,35 @@ const HomePage = () => {
         <div className="lg:hidden pb-16">
           <div className="bg-white px-4 py-4 border-b border-gray-100">
             <h1 className="text-xl font-semibold text-gray-900">
-              Find Workers
+              Find Service Providers
             </h1>
             <p className="text-sm text-gray-600 mt-1">
-              Browse by category or search
+              Browse workers or agencies
             </p>
+
+            {/* Tabs for Workers vs Agencies - Mobile */}
+            <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg mt-3">
+              <button
+                onClick={() => setClientViewTab("workers")}
+                className={`flex-1 py-2 px-3 rounded-md font-medium text-sm transition-colors ${
+                  clientViewTab === "workers"
+                    ? "bg-white text-blue-600 shadow-sm"
+                    : "text-gray-600"
+                }`}
+              >
+                Workers
+              </button>
+              <button
+                onClick={() => setClientViewTab("agencies")}
+                className={`flex-1 py-2 px-3 rounded-md font-medium text-sm transition-colors ${
+                  clientViewTab === "agencies"
+                    ? "bg-white text-blue-600 shadow-sm"
+                    : "text-gray-600"
+                }`}
+              >
+                Agencies
+              </button>
+            </div>
           </div>
           <div className="bg-white px-4 py-3 border-b border-gray-100">
             <div className="relative">
@@ -1176,166 +1234,196 @@ const HomePage = () => {
               </div>
             </div>
           </div>
-          <div className="px-4 py-4">
-            <h2 className="text-lg font-semibold text-gray-900 mb-3">
-              Service Categories
-            </h2>
-            <div className="grid grid-cols-2 gap-3">
-              {jobCategories.map((category) => (
-                <div
-                  key={category.id}
-                  onClick={() =>
-                    setSelectedCategory(
-                      selectedCategory === category.id ? null : category.id
-                    )
-                  }
-                  className={`bg-white rounded-lg p-4 border-2 cursor-pointer transition-all ${
-                    selectedCategory === category.id
-                      ? "border-blue-500 bg-blue-50"
-                      : "border-gray-200 hover:border-blue-300"
-                  }`}
-                >
-                  <div className="text-center">
-                    <div className="text-3xl mb-2">{category.icon}</div>
-                    <h3 className="font-medium text-gray-900 text-sm mb-1">
-                      {category.name}
-                    </h3>
-                    <p className="text-xs text-gray-600 mb-2">
-                      {category.description}
-                    </p>
-                    <p className="text-xs text-blue-600 font-medium">
-                      {category.workerCount} workers
-                    </p>
+          {clientViewTab === "workers" && (
+            <div className="px-4 py-4">
+              <h2 className="text-lg font-semibold text-gray-900 mb-3">
+                Service Categories
+              </h2>
+              <div className="grid grid-cols-2 gap-3">
+                {jobCategories.map((category) => (
+                  <div
+                    key={category.id}
+                    onClick={() =>
+                      setSelectedCategory(
+                        selectedCategory === category.id ? null : category.id
+                      )
+                    }
+                    className={`bg-white rounded-lg p-4 border-2 cursor-pointer transition-all ${
+                      selectedCategory === category.id
+                        ? "border-blue-500 bg-blue-50"
+                        : "border-gray-200 hover:border-blue-300"
+                    }`}
+                  >
+                    <div className="text-center">
+                      <div className="text-3xl mb-2">{category.icon}</div>
+                      <h3 className="font-medium text-gray-900 text-sm mb-1">
+                        {category.name}
+                      </h3>
+                      <p className="text-xs text-gray-600 mb-2">
+                        {category.description}
+                      </p>
+                      <p className="text-xs text-blue-600 font-medium">
+                        {category.workerCount} workers
+                      </p>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Workers Near You Section - Mobile */}
-          <div className="px-4 pb-4">
-            <h2 className="text-lg font-semibold text-gray-900 mb-3">
-              Workers Near You
-            </h2>
-            {isLoadingWorkers ? (
-              <div className="flex justify-center py-8">
-                <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-              </div>
-            ) : workerListings.length === 0 ? (
-              <div className="bg-white rounded-lg border border-gray-200 p-6 text-center">
-                <p className="text-gray-600">
-                  No workers available at the moment
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {[...workerListings]
-                  .sort((a, b) => {
-                    // Handle null distances - put them at the end
-                    if (a.distance === null && b.distance === null) return 0;
-                    if (a.distance === null) return 1;
-                    if (b.distance === null) return -1;
-                    return a.distance - b.distance;
-                  })
-                  .map((worker) => (
-                    <div
-                      key={worker.id}
-                      className="bg-white rounded-lg border border-gray-200 p-4"
-                    >
-                      <div className="flex items-start space-x-3">
-                        <div className="relative">
-                          <Image
-                            src={worker.avatar}
-                            alt={worker.name}
-                            width={56}
-                            height={56}
-                            className="w-14 h-14 rounded-full object-cover"
-                          />
-                          <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white" />
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-start justify-between mb-1">
-                            <div>
-                              <div className="flex items-center space-x-1">
-                                <h3 className="font-semibold text-gray-900 text-sm">
-                                  {worker.name}
-                                </h3>
-                                {worker.isVerified && (
-                                  <svg
-                                    className="w-4 h-4 text-blue-500"
-                                    fill="currentColor"
-                                    viewBox="0 0 20 20"
-                                  >
-                                    <path
-                                      fillRule="evenodd"
-                                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                                      clipRule="evenodd"
-                                    />
-                                  </svg>
-                                )}
+          {clientViewTab === "workers" && (
+            <div className="px-4 pb-4">
+              <h2 className="text-lg font-semibold text-gray-900 mb-3">
+                Workers Near You
+              </h2>
+              {isLoadingWorkers ? (
+                <div className="flex justify-center py-8">
+                  <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                </div>
+              ) : workerListings.length === 0 ? (
+                <div className="bg-white rounded-lg border border-gray-200 p-6 text-center">
+                  <p className="text-gray-600">
+                    No workers available at the moment
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {[...workerListings]
+                    .sort((a, b) => {
+                      // Handle null distances - put them at the end
+                      if (a.distance === null && b.distance === null) return 0;
+                      if (a.distance === null) return 1;
+                      if (b.distance === null) return -1;
+                      return a.distance - b.distance;
+                    })
+                    .map((worker) => (
+                      <div
+                        key={worker.id}
+                        className="bg-white rounded-lg border border-gray-200 p-4"
+                      >
+                        <div className="flex items-start space-x-3">
+                          <div className="relative">
+                            <Image
+                              src={worker.avatar}
+                              alt={worker.name}
+                              width={56}
+                              height={56}
+                              className="w-14 h-14 rounded-full object-cover"
+                            />
+                            <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white" />
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-start justify-between mb-1">
+                              <div>
+                                <div className="flex items-center space-x-1">
+                                  <h3 className="font-semibold text-gray-900 text-sm">
+                                    {worker.name}
+                                  </h3>
+                                  {worker.isVerified && (
+                                    <svg
+                                      className="w-4 h-4 text-blue-500"
+                                      fill="currentColor"
+                                      viewBox="0 0 20 20"
+                                    >
+                                      <path
+                                        fillRule="evenodd"
+                                        d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                                        clipRule="evenodd"
+                                      />
+                                    </svg>
+                                  )}
+                                </div>
+                                <p className="text-xs text-gray-600">
+                                  {worker.specialization}
+                                </p>
                               </div>
-                              <p className="text-xs text-gray-600">
-                                {worker.specialization}
-                              </p>
+                              <div className="text-right">
+                                <p className="text-sm font-semibold text-gray-900">
+                                  {worker.startingPrice}
+                                </p>
+                              </div>
                             </div>
-                            <div className="text-right">
-                              <p className="text-sm font-semibold text-gray-900">
-                                {worker.startingPrice}
-                              </p>
+                            <div className="flex items-center space-x-3 mb-2">
+                              <span className="flex items-center text-xs text-gray-600">
+                                <span className="text-yellow-400 mr-1">?</span>
+                                {worker.rating} ({worker.reviewCount})
+                              </span>
+                              <span className="flex items-center text-xs text-gray-600">
+                                <svg
+                                  className="w-3 h-3 mr-1"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                                  />
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                                  />
+                                </svg>
+                                {worker.distance !== null
+                                  ? `${worker.distance.toFixed(1)} km`
+                                  : "N/A"}
+                              </span>
                             </div>
-                          </div>
-                          <div className="flex items-center space-x-3 mb-2">
-                            <span className="flex items-center text-xs text-gray-600">
-                              <span className="text-yellow-400 mr-1">?</span>
-                              {worker.rating} ({worker.reviewCount})
-                            </span>
-                            <span className="flex items-center text-xs text-gray-600">
-                              <svg
-                                className="w-3 h-3 mr-1"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
+                            <div className="flex space-x-2">
+                              <button
+                                onClick={() =>
+                                  router.push(`/dashboard/workers/${worker.id}`)
+                                }
+                                className="flex-1 bg-blue-500 text-white py-2 rounded-lg text-xs font-medium"
                               >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-                                />
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-                                />
-                              </svg>
-                              {worker.distance !== null
-                                ? `${worker.distance.toFixed(1)} km`
-                                : "N/A"}
-                            </span>
-                          </div>
-                          <div className="flex space-x-2">
-                            <button
-                              onClick={() =>
-                                router.push(`/dashboard/workers/${worker.id}`)
-                              }
-                              className="flex-1 bg-blue-500 text-white py-2 rounded-lg text-xs font-medium"
-                            >
-                              View Profile
-                            </button>
-                            <button className="flex-1 border border-blue-500 text-blue-500 py-2 rounded-lg text-xs font-medium">
-                              Message
-                            </button>
+                                View Profile
+                              </button>
+                              <button className="flex-1 border border-blue-500 text-blue-500 py-2 rounded-lg text-xs font-medium">
+                                Message
+                              </button>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
-              </div>
-            )}
-          </div>
+                    ))}
+                </div>
+              )}
+            </div>
+          )}
 
-          {selectedCategory && (
+          {/* Agencies Section - Mobile */}
+          {clientViewTab === "agencies" && (
+            <div className="px-4 pb-4">
+              <h2 className="text-lg font-semibold text-gray-900 mb-3">
+                Verified Agencies
+              </h2>
+              {isLoadingAgencies ? (
+                <div className="flex justify-center py-8">
+                  <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                </div>
+              ) : agencyListings.length === 0 ? (
+                <div className="bg-white rounded-lg border border-gray-200 p-6 text-center">
+                  <p className="text-gray-600">
+                    No agencies available at the moment
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {agencyListings.map((agency) => (
+                    <AgencyCard key={agency.agencyId} agency={agency} />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {selectedCategory && clientViewTab === "workers" && (
             <div className="px-4 pb-4">
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-lg font-semibold text-gray-900">
@@ -1549,12 +1637,40 @@ const HomePage = () => {
         <div className="hidden lg:block">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <div className="bg-white px-6 py-5 border-b border-gray-100 rounded-t-lg">
-              <h1 className="text-2xl font-semibold text-gray-900">
-                Find Workers
-              </h1>
-              <p className="text-sm text-gray-600 mt-1">
-                Browse by category or search
-              </p>
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h1 className="text-2xl font-semibold text-gray-900">
+                    Find Service Providers
+                  </h1>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Browse workers or agencies for your projects
+                  </p>
+                </div>
+              </div>
+
+              {/* Tabs for Workers vs Agencies */}
+              <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg mt-4">
+                <button
+                  onClick={() => setClientViewTab("workers")}
+                  className={`flex-1 py-2 px-4 rounded-md font-medium transition-colors ${
+                    clientViewTab === "workers"
+                      ? "bg-white text-blue-600 shadow-sm"
+                      : "text-gray-600 hover:text-gray-900"
+                  }`}
+                >
+                  Individual Workers
+                </button>
+                <button
+                  onClick={() => setClientViewTab("agencies")}
+                  className={`flex-1 py-2 px-4 rounded-md font-medium transition-colors ${
+                    clientViewTab === "agencies"
+                      ? "bg-white text-blue-600 shadow-sm"
+                      : "text-gray-600 hover:text-gray-900"
+                  }`}
+                >
+                  Agencies
+                </button>
+              </div>
             </div>
             <div className="bg-white px-6 py-4 border-b border-gray-100">
               <div className="relative max-w-2xl">
@@ -1582,166 +1698,203 @@ const HomePage = () => {
                 </div>
               </div>
             </div>
-            {/* Categories Grid */}
-            <div className="bg-white px-6 py-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                Browse by Category
-              </h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {jobCategories.map((category) => (
-                  <button
-                    key={category.id}
-                    onClick={() =>
-                      setSelectedCategory(
-                        selectedCategory === category.id ? null : category.id
-                      )
-                    }
-                    className={`p-4 rounded-lg border-2 transition-all ${
-                      selectedCategory === category.id
-                        ? "border-blue-500 bg-blue-50"
-                        : "border-gray-200 bg-white hover:border-blue-300"
-                    }`}
-                  >
-                    <div className="text-3xl mb-2">{category.icon}</div>
-                    <h3 className="font-semibold text-sm text-gray-900 mb-1">
-                      {category.name}
-                    </h3>
-                    <p className="text-xs text-gray-500">
-                      {category.workerCount} workers
-                    </p>
-                  </button>
-                ))}
+            {/* Categories Grid - Only show for workers tab */}
+            {clientViewTab === "workers" && (
+              <div className="bg-white px-6 py-6">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                  Browse by Category
+                </h2>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {jobCategories.map((category) => (
+                    <button
+                      key={category.id}
+                      onClick={() =>
+                        setSelectedCategory(
+                          selectedCategory === category.id ? null : category.id
+                        )
+                      }
+                      className={`p-4 rounded-lg border-2 transition-all ${
+                        selectedCategory === category.id
+                          ? "border-blue-500 bg-blue-50"
+                          : "border-gray-200 bg-white hover:border-blue-300"
+                      }`}
+                    >
+                      <div className="text-3xl mb-2">{category.icon}</div>
+                      <h3 className="font-semibold text-sm text-gray-900 mb-1">
+                        {category.name}
+                      </h3>
+                      <p className="text-xs text-gray-500">
+                        {category.workerCount} workers
+                      </p>
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Workers Near You Section */}
-            <div className="bg-white px-6 py-8">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold text-gray-900">
-                  Workers Near You
-                </h2>
-              </div>
-              {isLoadingWorkers ? (
-                <div className="flex justify-center py-12">
-                  <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+            {clientViewTab === "workers" && (
+              <div className="bg-white px-6 py-8">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-2xl font-bold text-gray-900">
+                    Workers Near You
+                  </h2>
+                  <button
+                    onClick={() => router.push("/dashboard/workers")}
+                    className="text-blue-600 hover:text-blue-700 font-medium text-sm"
+                  >
+                    View All →
+                  </button>
                 </div>
-              ) : workerListings.length === 0 ? (
-                <div className="border border-gray-200 rounded-lg p-8 text-center">
-                  <p className="text-gray-600">
-                    No workers available at the moment
-                  </p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {[...workerListings]
-                    .sort((a, b) => {
-                      // Handle null distances - put them at the end
-                      if (a.distance === null && b.distance === null) return 0;
-                      if (a.distance === null) return 1;
-                      if (b.distance === null) return -1;
-                      return a.distance - b.distance;
-                    })
-                    .map((worker) => (
-                      <div
-                        key={worker.id}
-                        className="border border-gray-200 rounded-lg overflow-hidden hover:shadow-lg transition-shadow"
-                      >
-                        <div className="p-6">
-                          <div className="flex items-start space-x-4 mb-4">
-                            <div className="relative">
-                              <Image
-                                src={worker.avatar}
-                                alt={worker.name}
-                                width={64}
-                                height={64}
-                                className="w-16 h-16 rounded-full object-cover"
-                              />
-                              <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center space-x-2 mb-1">
-                                <h3 className="font-semibold text-gray-900 truncate">
-                                  {worker.name}
-                                </h3>
-                                {worker.isVerified && (
-                                  <svg
-                                    className="w-5 h-5 text-blue-500 flex-shrink-0"
-                                    fill="currentColor"
-                                    viewBox="0 0 20 20"
-                                  >
-                                    <path
-                                      fillRule="evenodd"
-                                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                                      clipRule="evenodd"
-                                    />
-                                  </svg>
-                                )}
+                {isLoadingWorkers ? (
+                  <div className="flex justify-center py-12">
+                    <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                  </div>
+                ) : workerListings.length === 0 ? (
+                  <div className="border border-gray-200 rounded-lg p-8 text-center">
+                    <p className="text-gray-600">
+                      No workers available at the moment
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {[...workerListings]
+                      .sort((a, b) => {
+                        // Handle null distances - put them at the end
+                        if (a.distance === null && b.distance === null)
+                          return 0;
+                        if (a.distance === null) return 1;
+                        if (b.distance === null) return -1;
+                        return a.distance - b.distance;
+                      })
+                      .map((worker) => (
+                        <div
+                          key={worker.id}
+                          className="border border-gray-200 rounded-lg overflow-hidden hover:shadow-lg transition-shadow"
+                        >
+                          <div className="p-6">
+                            <div className="flex items-start space-x-4 mb-4">
+                              <div className="relative">
+                                <Image
+                                  src={worker.avatar}
+                                  alt={worker.name}
+                                  width={64}
+                                  height={64}
+                                  className="w-16 h-16 rounded-full object-cover"
+                                />
+                                <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white" />
                               </div>
-                              <p className="text-sm text-gray-600 mb-2">
-                                {worker.specialization}
-                              </p>
-                              <div className="flex items-center space-x-1 text-sm">
-                                <span className="text-yellow-400">?</span>
-                                <span className="font-medium">
-                                  {worker.rating}
-                                </span>
-                                <span className="text-gray-500">
-                                  ({worker.reviewCount} reviews)
-                                </span>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center space-x-2 mb-1">
+                                  <h3 className="font-semibold text-gray-900 truncate">
+                                    {worker.name}
+                                  </h3>
+                                  {worker.isVerified && (
+                                    <svg
+                                      className="w-5 h-5 text-blue-500 flex-shrink-0"
+                                      fill="currentColor"
+                                      viewBox="0 0 20 20"
+                                    >
+                                      <path
+                                        fillRule="evenodd"
+                                        d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                                        clipRule="evenodd"
+                                      />
+                                    </svg>
+                                  )}
+                                </div>
+                                <p className="text-sm text-gray-600 mb-2">
+                                  {worker.specialization}
+                                </p>
+                                <div className="flex items-center space-x-1 text-sm">
+                                  <span className="text-yellow-400">?</span>
+                                  <span className="font-medium">
+                                    {worker.rating}
+                                  </span>
+                                  <span className="text-gray-500">
+                                    ({worker.reviewCount} reviews)
+                                  </span>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                          <div className="flex items-center justify-between mb-4">
-                            <span className="text-sm text-gray-600 flex items-center">
-                              <svg
-                                className="w-4 h-4 mr-1"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
+                            <div className="flex items-center justify-between mb-4">
+                              <span className="text-sm text-gray-600 flex items-center">
+                                <svg
+                                  className="w-4 h-4 mr-1"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                                  />
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                                  />
+                                </svg>
+                                {worker.distance !== null
+                                  ? `${worker.distance.toFixed(1)} km away`
+                                  : "N/A"}
+                              </span>
+                              <span className="text-sm font-semibold text-gray-900">
+                                {worker.startingPrice}
+                              </span>
+                            </div>
+                            <div className="flex space-x-2">
+                              <button
+                                onClick={() =>
+                                  router.push(`/dashboard/workers/${worker.id}`)
+                                }
+                                className="flex-1 bg-blue-500 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors"
                               >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-                                />
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-                                />
-                              </svg>
-                              {worker.distance !== null
-                                ? `${worker.distance.toFixed(1)} km away`
-                                : "N/A"}
-                            </span>
-                            <span className="text-sm font-semibold text-gray-900">
-                              {worker.startingPrice}
-                            </span>
-                          </div>
-                          <div className="flex space-x-2">
-                            <button
-                              onClick={() =>
-                                router.push(`/dashboard/workers/${worker.id}`)
-                              }
-                              className="flex-1 bg-blue-500 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors"
-                            >
-                              View Profile
-                            </button>
-                            <button className="flex-1 bg-white text-blue-500 border border-blue-500 py-2.5 rounded-lg text-sm font-medium hover:bg-blue-50 transition-colors">
-                              Message
-                            </button>
+                                View Profile
+                              </button>
+                              <button className="flex-1 bg-white text-blue-500 border border-blue-500 py-2.5 rounded-lg text-sm font-medium hover:bg-blue-50 transition-colors">
+                                Message
+                              </button>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
-                </div>
-              )}
-            </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+            )}
 
-            {/* Workers Grid */}
-            {selectedCategory && (
+            {/* Agencies Section */}
+            {clientViewTab === "agencies" && (
+              <div className="bg-white px-6 py-8">
+                <h2 className="text-2xl font-bold text-gray-900 mb-6">
+                  Verified Agencies
+                </h2>
+                {isLoadingAgencies ? (
+                  <div className="flex justify-center py-12">
+                    <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                  </div>
+                ) : agencyListings.length === 0 ? (
+                  <div className="border border-gray-200 rounded-lg p-8 text-center">
+                    <p className="text-gray-600">
+                      No agencies available at the moment
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {agencyListings.map((agency) => (
+                      <AgencyCard key={agency.agencyId} agency={agency} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Workers Grid - Category Filtered */}
+            {selectedCategory && clientViewTab === "workers" && (
               <div className="bg-white px-6 py-6">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-lg font-semibold text-gray-900">

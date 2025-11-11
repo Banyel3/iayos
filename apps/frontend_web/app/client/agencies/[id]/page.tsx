@@ -7,41 +7,7 @@ import AgencyProfileHeader from "@/components/client/agencies/AgencyProfileHeade
 import AgencyStatsGrid from "@/components/client/agencies/AgencyStatsGrid";
 import AgencyReviewsList from "@/components/client/agencies/AgencyReviewsList";
 import InviteJobCreationModal from "@/components/client/jobs/InviteJobCreationModal";
-
-interface Employee {
-  employeeId: number;
-  name: string;
-  email: string;
-  role: string;
-  avatar: string | null;
-  rating: number | null;
-}
-
-interface AgencyProfile {
-  agencyId: number;
-  businessName: string;
-  businessDesc: string | null;
-  street_address: string | null;
-  city: string | null;
-  province: string | null;
-  postal_code: string | null;
-  country: string | null;
-  contactNumber: string | null;
-  kycStatus: string;
-  stats: {
-    totalJobs: number;
-    completedJobs: number;
-    activeJobs: number;
-    cancelledJobs: number;
-    averageRating: number;
-    totalReviews: number;
-    onTimeCompletionRate: number;
-    responseTime: string;
-  };
-  employees: Employee[];
-  specializations: string[];
-  createdAt: string;
-}
+import { fetchAgencyProfile, type AgencyProfile } from "@/lib/api/jobs";
 
 export default function AgencyProfilePage() {
   const params = useParams();
@@ -55,7 +21,7 @@ export default function AgencyProfilePage() {
 
   useEffect(() => {
     if (agencyId) {
-      fetchAgencyProfile();
+      fetchAgencyProfileData();
     }
   }, [agencyId]);
 
@@ -68,23 +34,12 @@ export default function AgencyProfilePage() {
     setShowHireModal(false);
   };
 
-  const fetchAgencyProfile = async () => {
+  const fetchAgencyProfileData = async () => {
     setLoading(true);
     setError(null);
 
     try {
-      const response = await fetch(`/api/client/agencies/${agencyId}`, {
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        if (response.status === 404) {
-          throw new Error("Agency not found");
-        }
-        throw new Error("Failed to fetch agency profile");
-      }
-
-      const data = await response.json();
+      const data = await fetchAgencyProfile(agencyId);
       setAgency(data);
     } catch (err: any) {
       console.error("Error fetching agency profile:", err);

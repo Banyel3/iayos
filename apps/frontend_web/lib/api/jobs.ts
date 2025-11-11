@@ -47,6 +47,53 @@ export interface WorkerListing {
   experience: string;
 }
 
+export interface AgencyListing {
+  agencyId: number;
+  businessName: string;
+  businessDesc: string | null;
+  city: string | null;
+  province: string | null;
+  averageRating: number | null;
+  totalReviews: number;
+  completedJobs: number;
+  activeJobs: number;
+  kycStatus: string;
+  specializations: string[];
+}
+
+export interface AgencyProfile {
+  agencyId: number;
+  businessName: string;
+  businessDesc: string | null;
+  street_address: string | null;
+  city: string | null;
+  province: string | null;
+  postal_code: string | null;
+  country: string | null;
+  contactNumber: string | null;
+  kycStatus: string;
+  stats: {
+    totalJobs: number;
+    completedJobs: number;
+    activeJobs: number;
+    cancelledJobs: number;
+    averageRating: number;
+    totalReviews: number;
+    onTimeCompletionRate: number;
+    responseTime: string;
+  };
+  employees: Array<{
+    employeeId: number;
+    name: string;
+    email: string;
+    role: string;
+    avatar: string | null;
+    rating: number | null;
+  }>;
+  specializations: string[];
+  createdAt: string;
+}
+
 export interface JobApplication {
   job_id: number;
   status: string;
@@ -316,4 +363,62 @@ export async function fetchCompletedJobs(): Promise<JobPosting[]> {
   }
 
   return [];
+}
+
+/**
+ * Fetch agencies for clients (home page integration)
+ */
+export async function fetchAgencies(params?: {
+  limit?: number;
+  sortBy?: "rating" | "jobs" | "created";
+}): Promise<AgencyListing[]> {
+  const { limit = 12, sortBy = "rating" } = params || {};
+
+  const queryParams = new URLSearchParams({
+    page: "1",
+    limit: limit.toString(),
+    sort_by: sortBy,
+  });
+
+  const response = await fetch(
+    `${API_BASE_URL}/client/agencies/browse?${queryParams.toString()}`,
+    {
+      credentials: "include",
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      `Failed to fetch agencies: ${response.status} ${response.statusText}`
+    );
+  }
+
+  const data = await response.json();
+
+  if (data.agencies) {
+    return data.agencies;
+  }
+
+  return [];
+}
+
+/**
+ * Fetch a single agency profile by ID
+ */
+export async function fetchAgencyProfile(
+  agencyId: string | number
+): Promise<AgencyProfile> {
+  const response = await fetch(`${API_BASE_URL}/client/agencies/${agencyId}`, {
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    if (response.status === 404) {
+      throw new Error("Agency not found");
+    }
+    throw new Error("Failed to fetch agency profile");
+  }
+
+  const data = await response.json();
+  return data;
 }

@@ -30,8 +30,9 @@ def browse_agencies(
         Dict with agencies list, pagination info
     """
     # Base query - only show KYC approved agencies to clients by default
+    # AgencyKYC links to Accounts (accountFK), so we join through accountFK
     agencies_query = Agency.objects.filter(
-        agencykyc__status=kyc_status
+        accountFK__agencykyc__status=kyc_status
     )
     
     # Apply filters
@@ -55,8 +56,8 @@ def browse_agencies(
                 output_field=IntegerField()
             )
         ),
-        avg_rating=Avg('assigned_jobs__jobreview__agencyRating'),
-        total_reviews=Count('assigned_jobs__jobreview', distinct=True)
+        avg_rating=Avg('assigned_jobs__reviews__rating'),
+        total_reviews=Count('assigned_jobs__reviews', distinct=True)
     )
     
     # Filter by minimum rating
@@ -84,9 +85,9 @@ def browse_agencies(
     # Build response
     agencies_data = []
     for agency in agencies_page:
-        # Get KYC status
+        # Get KYC status - both Agency and AgencyKYC link to Accounts via accountFK
         try:
-            kyc_record = AgencyKYC.objects.get(agencyID=agency)
+            kyc_record = AgencyKYC.objects.get(accountFK=agency.accountFK)
             kyc_status_val = kyc_record.status
         except AgencyKYC.DoesNotExist:
             kyc_status_val = "PENDING"
@@ -96,7 +97,7 @@ def browse_agencies(
             Job.objects.filter(
                 assignedAgencyFK=agency,
                 status='COMPLETED'
-            ).values_list('categoryID__categoryName', flat=True).distinct()[:5]
+            ).values_list('categoryID__specializationName', flat=True).distinct()[:5]
         )
         
         agencies_data.append({
@@ -211,9 +212,9 @@ def get_agency_profile(agency_id: int) -> Dict:
     except Agency.DoesNotExist:
         raise ValueError("Agency not found")
     
-    # Get KYC status
+    # Get KYC status - both Agency and AgencyKYC link to Accounts via accountFK
     try:
-        kyc_record = AgencyKYC.objects.get(agencyID=agency)
+        kyc_record = AgencyKYC.objects.get(accountFK=agency.accountFK)
         kyc_status = kyc_record.status
     except AgencyKYC.DoesNotExist:
         kyc_status = "PENDING"
@@ -225,20 +226,20 @@ def get_agency_profile(agency_id: int) -> Dict:
     active_jobs = jobs.filter(status__in=['ACTIVE', 'IN_PROGRESS']).count()
     cancelled_jobs = jobs.filter(status='CANCELLED').count()
     
-    # Get ratings
+    # Get ratings - JobReview has 'rating' field, not 'agencyRating'
     reviews = JobReview.objects.filter(jobID__assignedAgencyFK=agency)
-    avg_rating = reviews.aggregate(Avg('agencyRating'))['agencyRating__avg'] or 0.0
+    avg_rating = reviews.aggregate(Avg('rating'))['rating__avg'] or 0.0
     total_reviews = reviews.count()
     
     # On-time completion rate (simplified)
     on_time_rate = (completed_jobs / total_jobs * 100) if total_jobs > 0 else 0.0
     
-    # Get employees
+    # Get employees - AgencyEmployee.agency links to Accounts (user), not Agency model
     employees_data = []
-    employees = AgencyEmployee.objects.filter(agencyID=agency)
+    employees = AgencyEmployee.objects.filter(agency=agency.accountFK)
     for emp in employees:
         employees_data.append({
-            "employeeId": emp.employeeId,
+            "employeeId": emp.employeeID,  # Note: model field is employeeID (uppercase)
             "name": emp.name,
             "email": emp.email,
             "role": emp.role,
@@ -246,12 +247,12 @@ def get_agency_profile(agency_id: int) -> Dict:
             "rating": float(emp.rating) if emp.rating else None
         })
     
-    # Get specializations
+    # Get specializations - categoryID links to Specializations model with specializationName field
     specializations = list(
         Job.objects.filter(
             assignedAgencyFK=agency,
             status='COMPLETED'
-        ).values_list('categoryID__categoryName', flat=True).distinct()
+        ).values_list('categoryID__specializationName', flat=True).distinct()
     )
     
     return {
