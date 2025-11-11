@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { JobCard } from "@/components/agency";
-import { Loader2, AlertCircle, Briefcase } from "lucide-react";
+import { JobCard, PendingInviteCard, RejectReasonModal } from "@/components/agency";
+import { Loader2, AlertCircle, Briefcase, Mail } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface Job {
@@ -21,6 +21,8 @@ interface Job {
   jobType: string;
   expectedDuration: string | null;
   preferredStartDate: string | null;
+  materialsNeeded?: string[];
+  inviteStatus?: string;
   client: {
     id: number;
     name: string;
@@ -31,22 +33,40 @@ interface Job {
   updatedAt: string;
 }
 
+type TabType = 'available' | 'invites';
+
 export default function AgencyJobsPage() {
+  const [activeTab, setActiveTab] = useState<TabType>('available');
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [pendingInvites, setPendingInvites] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [accepting, setAccepting] = useState<number | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [rejectModalOpen, setRejectModalOpen] = useState(false);
+  const [selectedJobForReject, setSelectedJobForReject] = useState<Job | null>(null);
   const hasFetched = React.useRef(false);
 
-  // Fetch available jobs
+  // Fetch jobs based on active tab
   useEffect(() => {
     // Prevent duplicate fetches in React Strict Mode (dev only)
     if (hasFetched.current) return;
     hasFetched.current = true;
 
     fetchJobs();
+    fetchPendingInvites();
   }, []);
+
+  // Refetch when tab changes
+  useEffect(() => {
+    if (!hasFetched.current) return; // Don't fetch on initial mount
+    
+    if (activeTab === 'available') {
+      fetchJobs();
+    } else if (activeTab === 'invites') {
+      fetchPendingInvites();
+    }
+  }, [activeTab]);
 
   const fetchJobs = async () => {
     try {
@@ -70,6 +90,33 @@ export default function AgencyJobsPage() {
     } catch (err) {
       console.error("Error fetching jobs:", err);
       setError(err instanceof Error ? err.message : "Failed to load jobs");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchPendingInvites = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const response = await fetch(`${apiUrl}/api/agency/jobs?invite_status=PENDING`, {
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch pending invites: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      setPendingInvites(data.jobs || []);
+    } catch (err) {
+      console.error("Error fetching pending invites:", err);
+      setError(err instanceof Error ? err.message : "Failed to load pending invites");
     } finally {
       setLoading(false);
     }
@@ -114,6 +161,94 @@ export default function AgencyJobsPage() {
     }
   };
 
+  const handleAcceptInvite = async (jobId: number) => {
+    try {
+      setAccepting(jobId);
+      setError(null);
+      setSuccessMessage(null);
+
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const response = await fetch(`${apiUrl}/api/agency/jobs/${jobId}/accept`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to accept invitation");
+      }
+
+      const result = await response.json();
+
+      // Show success message
+      setSuccessMessage(result.message || "Invitation accepted successfully! Job is now active.");
+
+      // Scroll to top to show success message
+      window.scrollTo({ top: 0, behavior: "smooth" });
+
+      // Remove from pending invites list
+      setPendingInvites((prevInvites) => prevInvites.filter((job) => job.jobID !== jobId));
+    } catch (err) {
+      console.error("Error accepting invitation:", err);
+      setError(err instanceof Error ? err.message : "Failed to accept invitation");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } finally {
+      setAccepting(null);
+    }
+  };
+
+  const handleRejectInviteClick = (job: Job) => {
+    setSelectedJobForReject(job);
+    setRejectModalOpen(true);
+  };
+
+  const handleRejectInviteSubmit = async (reason: string) => {
+    if (!selectedJobForReject) return;
+
+    try {
+      setError(null);
+      setSuccessMessage(null);
+
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const response = await fetch(`${apiUrl}/api/agency/jobs/${selectedJobForReject.jobID}/reject`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ rejection_reason: reason }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to reject invitation");
+      }
+
+      const result = await response.json();
+
+      // Show success message
+      setSuccessMessage(result.message || "Invitation rejected. Client has been refunded.");
+
+      // Scroll to top to show success message
+      window.scrollTo({ top: 0, behavior: "smooth" });
+
+      // Remove from pending invites list
+      setPendingInvites((prevInvites) => 
+        prevInvites.filter((job) => job.jobID !== selectedJobForReject.jobID)
+      );
+
+      // Close modal
+      setRejectModalOpen(false);
+      setSelectedJobForReject(null);
+    } catch (err) {
+      console.error("Error rejecting invitation:", err);
+      throw err; // Re-throw to let modal handle error display
+    }
+  };
+
   // Loading state
   if (loading) {
     return (
@@ -137,11 +272,64 @@ export default function AgencyJobsPage() {
         {/* Page Header */}
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Available Jobs
+            Job Management
           </h1>
           <p className="text-gray-600">
-            Browse and accept jobs that match your agency's expertise
+            Browse available jobs and manage direct invitations
           </p>
+        </div>
+
+        {/* Tabs */}
+        <div className="mb-6">
+          <div className="border-b border-gray-200">
+            <nav className="-mb-px flex space-x-8">
+              <button
+                onClick={() => setActiveTab('available')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                  activeTab === 'available'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <div className="flex items-center space-x-2">
+                  <Briefcase className="h-5 w-5" />
+                  <span>Available Jobs</span>
+                  {jobs.length > 0 && (
+                    <span className={`px-2 py-0.5 text-xs rounded-full ${
+                      activeTab === 'available' 
+                        ? 'bg-blue-100 text-blue-600' 
+                        : 'bg-gray-100 text-gray-600'
+                    }`}>
+                      {jobs.length}
+                    </span>
+                  )}
+                </div>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('invites')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                  activeTab === 'invites'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <div className="flex items-center space-x-2">
+                  <Mail className="h-5 w-5" />
+                  <span>Pending Invites</span>
+                  {pendingInvites.length > 0 && (
+                    <span className={`px-2 py-0.5 text-xs rounded-full ${
+                      activeTab === 'invites' 
+                        ? 'bg-blue-100 text-blue-600' 
+                        : 'bg-red-100 text-red-600'
+                    }`}>
+                      {pendingInvites.length}
+                    </span>
+                  )}
+                </div>
+              </button>
+            </nav>
+          </div>
         </div>
 
         {/* Success Message */}
@@ -164,38 +352,88 @@ export default function AgencyJobsPage() {
           </Alert>
         )}
 
-        {/* Jobs List */}
-        {jobs.length === 0 ? (
-          <Card>
-            <CardContent className="py-12">
-              <div className="text-center">
-                <Briefcase className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  No Jobs Available
-                </h3>
-                <p className="text-gray-600 max-w-md mx-auto">
-                  There are currently no jobs available. Check back later for
-                  new opportunities.
-                </p>
+        {/* Tab Content */}
+        {activeTab === 'available' && (
+          <>
+            {jobs.length === 0 ? (
+              <Card>
+                <CardContent className="py-12">
+                  <div className="text-center">
+                    <Briefcase className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                      No Jobs Available
+                    </h3>
+                    <p className="text-gray-600 max-w-md mx-auto">
+                      There are currently no jobs available. Check back later for
+                      new opportunities.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-6">
+                <div className="text-sm text-gray-600 mb-4">
+                  Showing {jobs.length} {jobs.length === 1 ? "job" : "jobs"}
+                </div>
+                {jobs.map((job) => (
+                  <JobCard
+                    key={job.jobID}
+                    job={job}
+                    onAccept={handleAcceptJob}
+                    accepting={accepting === job.jobID}
+                  />
+                ))}
               </div>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-6">
-            <div className="text-sm text-gray-600 mb-4">
-              Showing {jobs.length} {jobs.length === 1 ? "job" : "jobs"}
-            </div>
-            {jobs.map((job) => (
-              <JobCard
-                key={job.jobID}
-                job={job}
-                onAccept={handleAcceptJob}
-                accepting={accepting === job.jobID}
-              />
-            ))}
-          </div>
+            )}
+          </>
+        )}
+
+        {activeTab === 'invites' && (
+          <>
+            {pendingInvites.length === 0 ? (
+              <Card>
+                <CardContent className="py-12">
+                  <div className="text-center">
+                    <Mail className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                      No Pending Invites
+                    </h3>
+                    <p className="text-gray-600 max-w-md mx-auto">
+                      You don't have any pending job invitations at the moment. When clients send you direct invitations, they will appear here.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-6">
+                <div className="text-sm text-gray-600 mb-4">
+                  You have {pendingInvites.length} pending {pendingInvites.length === 1 ? "invitation" : "invitations"}
+                </div>
+                {pendingInvites.map((job) => (
+                  <PendingInviteCard
+                    key={job.jobID}
+                    job={job}
+                    onAccept={handleAcceptInvite}
+                    onReject={handleRejectInviteClick}
+                    accepting={accepting === job.jobID}
+                  />
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
+
+      {/* Reject Reason Modal */}
+      <RejectReasonModal
+        isOpen={rejectModalOpen}
+        onClose={() => {
+          setRejectModalOpen(false);
+          setSelectedJobForReject(null);
+        }}
+        onSubmit={handleRejectInviteSubmit}
+        jobTitle={selectedJobForReject?.title || ''}
+      />
     </div>
   );
 }
