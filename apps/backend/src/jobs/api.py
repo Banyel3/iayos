@@ -2632,3 +2632,420 @@ def confirm_final_payment(request, job_id: int):
 
 #endregion
 
+
+#region INVITE Job Creation (Direct Hiring for Agencies/Workers)
+
+@router.post("/create-invite", auth=cookie_auth)
+def create_invite_job(
+    request,
+    title: str,
+    description: str,
+    category_id: int,
+    budget: float,
+    location: str,
+    expected_duration: str = None,
+    urgency: str = "MEDIUM",
+    preferred_start_date: str = None,
+    materials_needed: list = None,
+    agency_id: int = None,
+    worker_id: int = None,
+    payment_method: str = "WALLET"
+):
+    """
+    Create an INVITE-type job (direct hire for agency or worker)
+    - Client selects an agency or worker to invite
+    - 50% downpayment is held in escrow (pending agency/worker acceptance)
+    - Agency/worker can accept or reject the invite
+    - If accepted: job becomes ACTIVE, escrow released
+    - If rejected: escrow refunded to client
+    
+    Required: Either agency_id OR worker_id (not both)
+    """
+    try:
+        print(f"📝 INVITE job creation request from {request.auth.email}")
+        
+        # Validate that either agency_id or worker_id is provided (not both)
+        if not agency_id and not worker_id:
+            return Response(
+                {"error": "Must provide either agency_id or worker_id"},
+                status=400
+            )
+        if agency_id and worker_id:
+            return Response(
+                {"error": "Cannot invite both agency and worker. Choose one."},
+                status=400
+            )
+        
+        # Verify user is a client
+        try:
+            profile = Profile.objects.get(accountFK=request.auth)
+            if profile.profileType != "CLIENT":
+                return Response(
+                    {"error": "Only clients can create INVITE jobs"},
+                    status=403
+                )
+            client_profile = ClientProfile.objects.get(profileID=profile)
+        except (Profile.DoesNotExist, ClientProfile.DoesNotExist):
+            return Response(
+                {"error": "Client profile not found"},
+                status=400
+            )
+        
+        # Import Job model (not JobPosting)
+        from accounts.models import Job, Agency, Notification
+        
+        # Verify agency or worker exists
+        assigned_agency = None
+        assigned_worker = None
+        invite_target_name = ""
+        
+        if agency_id:
+            try:
+                assigned_agency = Agency.objects.get(agencyId=agency_id)
+                invite_target_name = assigned_agency.businessName
+                # Verify agency KYC is approved
+                from agency.models import AgencyKYC
+                try:
+                    kyc = AgencyKYC.objects.get(agencyID=assigned_agency)
+                    if kyc.status != "APPROVED":
+                        return Response(
+                            {"error": f"Agency KYC status is {kyc.status}. Can only invite APPROVED agencies."},
+                            status=400
+                        )
+                except AgencyKYC.DoesNotExist:
+                    return Response(
+                        {"error": "Agency has not completed KYC verification"},
+                        status=400
+                    )
+            except Agency.DoesNotExist:
+                return Response(
+                    {"error": "Agency not found"},
+                    status=404
+                )
+        
+        if worker_id:
+            try:
+                assigned_worker = WorkerProfile.objects.get(profileID__profileID=worker_id)
+                invite_target_name = f"{assigned_worker.profileID.firstName} {assigned_worker.profileID.lastName}"
+            except WorkerProfile.DoesNotExist:
+                return Response(
+                    {"error": "Worker not found"},
+                    status=404
+                )
+        
+        # Validate category
+        try:
+            category = Specializations.objects.get(specializationID=category_id)
+        except Specializations.DoesNotExist:
+            return Response(
+                {"error": "Invalid category"},
+                status=400
+            )
+        
+        # Parse preferred start date
+        preferred_start_date_obj = None
+        if preferred_start_date:
+            try:
+                preferred_start_date_obj = datetime.strptime(preferred_start_date, "%Y-%m-%d").date()
+            except ValueError:
+                return Response(
+                    {"error": "Invalid date format. Use YYYY-MM-DD"},
+                    status=400
+                )
+        
+        # Calculate escrow (50% downpayment)
+        total_budget = Decimal(str(budget))
+        downpayment = total_budget * Decimal('0.5')
+        remaining_payment = total_budget * Decimal('0.5')
+        
+        print(f"💰 Budget: ₱{total_budget} | Escrow: ₱{downpayment} | Remaining: ₱{remaining_payment}")
+        
+        # Get client wallet
+        wallet, created = Wallet.objects.get_or_create(
+            accountFK=request.auth,
+            defaults={'balance': Decimal('0.00')}
+        )
+        
+        # Handle payment method
+        payment_method = payment_method.upper()
+        
+        if payment_method == "WALLET":
+            # Check wallet balance
+            if wallet.balance < downpayment:
+                return Response(
+                    {
+                        "error": "Insufficient wallet balance",
+                        "required": float(downpayment),
+                        "available": float(wallet.balance)
+                    },
+                    status=400
+                )
+            
+            with db_transaction.atomic():
+                # Deduct escrow from wallet
+                wallet.balance -= downpayment
+                wallet.save()
+                
+                # Create INVITE job with PENDING invite status
+                job = Job.objects.create(
+                    clientID=client_profile,
+                    title=title,
+                    description=description,
+                    categoryID=category,
+                    budget=total_budget,
+                    escrowAmount=downpayment,
+                    escrowPaid=True,
+                    escrowPaidAt=timezone.now(),
+                    remainingPayment=remaining_payment,
+                    location=location,
+                    expectedDuration=expected_duration,
+                    urgency=urgency.upper(),
+                    preferredStartDate=preferred_start_date_obj,
+                    materialsNeeded=materials_needed or [],
+                    jobType="INVITE",  # Set job type to INVITE
+                    inviteStatus="PENDING",  # Agency/worker hasn't responded yet
+                    status="ACTIVE",  # Job is created but awaiting acceptance
+                    assignedAgencyFK=assigned_agency,
+                    assignedWorkerID=assigned_worker
+                )
+                
+                # Create escrow transaction
+                Transaction.objects.create(
+                    walletID=wallet,
+                    transactionType=Transaction.TransactionType.PAYMENT,
+                    amount=downpayment,
+                    balanceAfter=wallet.balance,
+                    status=Transaction.TransactionStatus.COMPLETED,
+                    description=f"Escrow payment (50%) for INVITE job: {job.title}",
+                    relatedJobID=job,
+                    completedAt=timezone.now(),
+                    referenceNumber=f"INVITE-ESCROW-{job.jobID}-{timezone.now().strftime('%Y%m%d%H%M%S')}"
+                )
+                
+                # Send notification to agency/worker
+                target_account = assigned_agency.accountFK if assigned_agency else assigned_worker.profileID.accountFK
+                Notification.objects.create(
+                    accountFK=target_account,
+                    notificationType="JOB_INVITE",
+                    title=f"New Job Invitation: {title}",
+                    message=f"You've been invited to work on '{title}'. Budget: ₱{budget}. Review and respond to the invitation.",
+                    relatedJobID=job.jobID
+                )
+                
+                # Send confirmation to client
+                Notification.objects.create(
+                    accountFK=request.auth,
+                    notificationType="JOB_INVITE_SENT",
+                    title="Job Invitation Sent",
+                    message=f"Your invitation to {invite_target_name} for '{title}' has been sent. Awaiting their response.",
+                    relatedJobID=job.jobID
+                )
+                
+                print(f"✅ INVITE job created: ID={job.jobID}, inviteStatus=PENDING")
+            
+            return {
+                "success": True,
+                "job_id": job.jobID,
+                "job_type": "INVITE",
+                "invite_status": "PENDING",
+                "invite_target": invite_target_name,
+                "escrow_paid": True,
+                "escrow_amount": float(downpayment),
+                "new_wallet_balance": float(wallet.balance),
+                "message": f"Invitation sent to {invite_target_name}! Escrow of ₱{downpayment} deducted from your wallet."
+            }
+        
+        elif payment_method == "GCASH":
+            with db_transaction.atomic():
+                # Create INVITE job with pending payment
+                job = Job.objects.create(
+                    clientID=client_profile,
+                    title=title,
+                    description=description,
+                    categoryID=category,
+                    budget=total_budget,
+                    escrowAmount=downpayment,
+                    escrowPaid=False,  # Will be marked true after payment
+                    remainingPayment=remaining_payment,
+                    location=location,
+                    expectedDuration=expected_duration,
+                    urgency=urgency.upper(),
+                    preferredStartDate=preferred_start_date_obj,
+                    materialsNeeded=materials_needed or [],
+                    jobType="INVITE",
+                    inviteStatus="PENDING",
+                    status="ACTIVE",
+                    assignedAgencyFK=assigned_agency,
+                    assignedWorkerID=assigned_worker
+                )
+                
+                # Create pending transaction
+                transaction = Transaction.objects.create(
+                    walletID=wallet,
+                    transactionType=Transaction.TransactionType.PAYMENT,
+                    amount=downpayment,
+                    balanceAfter=wallet.balance,
+                    status=Transaction.TransactionStatus.PENDING,
+                    description=f"Escrow payment (50%) for INVITE job: {job.title}",
+                    relatedJobID=job,
+                    referenceNumber=f"INVITE-ESCROW-{job.jobID}-{timezone.now().strftime('%Y%m%d%H%M%S')}"
+                )
+            
+            # Create Xendit invoice
+            user_name = f"{profile.firstName or ''} {profile.lastName or ''}".strip() or request.auth.email
+            xendit_result = XenditService.create_gcash_payment(
+                amount=float(downpayment),
+                user_email=request.auth.email,
+                user_name=user_name,
+                transaction_id=transaction.transactionID
+            )
+            
+            if not xendit_result.get("success"):
+                job.delete()
+                transaction.delete()
+                return Response(
+                    {"error": "Failed to create payment invoice"},
+                    status=500
+                )
+            
+            # Update transaction with Xendit details
+            transaction.xenditInvoiceID = xendit_result['invoice_id']
+            transaction.xenditExternalID = xendit_result['external_id']
+            transaction.invoiceURL = xendit_result['invoice_url']
+            transaction.xenditPaymentChannel = "GCASH"
+            transaction.xenditPaymentMethod = "EWALLET"
+            transaction.save()
+            
+            print(f"✅ INVITE job created: ID={job.jobID}, awaiting GCash payment")
+            
+            return {
+                "success": True,
+                "requires_payment": True,
+                "job_id": job.jobID,
+                "job_type": "INVITE",
+                "invite_status": "PENDING",
+                "invite_target": invite_target_name,
+                "escrow_amount": float(downpayment),
+                "invoice_url": xendit_result['invoice_url'],
+                "invoice_id": xendit_result['invoice_id'],
+                "transaction_id": transaction.transactionID,
+                "message": f"Please complete the ₱{downpayment} escrow payment via GCash."
+            }
+        
+        else:
+            return Response(
+                {"error": f"Invalid payment method: {payment_method}"},
+                status=400
+            )
+        
+    except Exception as e:
+        print(f"❌ Error creating INVITE job: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": f"Failed to create INVITE job: {str(e)}"},
+            status=500
+        )
+
+
+@router.get("/my-invite-jobs", auth=cookie_auth)
+def get_my_invite_jobs(request, invite_status: str = None, page: int = 1, limit: int = 20):
+    """
+    Get client's INVITE-type jobs with optional invite status filter
+    
+    Query Parameters:
+    - invite_status: Filter by PENDING, ACCEPTED, REJECTED
+    - page: Page number
+    - limit: Items per page
+    """
+    try:
+        # Verify user is a client
+        try:
+            profile = Profile.objects.get(accountFK=request.auth)
+            if profile.profileType != "CLIENT":
+                return Response(
+                    {"error": "Only clients can view INVITE jobs"},
+                    status=403
+                )
+            client_profile = ClientProfile.objects.get(profileID=profile)
+        except (Profile.DoesNotExist, ClientProfile.DoesNotExist):
+            return Response(
+                {"error": "Client profile not found"},
+                status=400
+            )
+        
+        from accounts.models import Job
+        
+        # Base query: INVITE-type jobs for this client
+        jobs_query = Job.objects.filter(
+            clientID=client_profile,
+            jobType="INVITE"
+        )
+        
+        # Filter by invite status if provided
+        if invite_status:
+            jobs_query = jobs_query.filter(inviteStatus=invite_status.upper())
+        
+        # Order by creation date
+        jobs_query = jobs_query.order_by('-createdAt')
+        
+        # Pagination
+        total = jobs_query.count()
+        start_idx = (page - 1) * limit
+        end_idx = start_idx + limit
+        jobs_page = jobs_query[start_idx:end_idx]
+        
+        # Build response
+        jobs_data = []
+        for job in jobs_page:
+            invite_target = None
+            if job.assignedAgencyFK:
+                invite_target = {
+                    "type": "agency",
+                    "id": job.assignedAgencyFK.agencyId,
+                    "name": job.assignedAgencyFK.businessName
+                }
+            elif job.assignedWorkerID:
+                invite_target = {
+                    "type": "worker",
+                    "id": job.assignedWorkerID.profileID.profileID,
+                    "name": f"{job.assignedWorkerID.profileID.firstName} {job.assignedWorkerID.profileID.lastName}"
+                }
+            
+            jobs_data.append({
+                "job_id": job.jobID,
+                "title": job.title,
+                "description": job.description,
+                "budget": float(job.budget),
+                "location": job.location,
+                "status": job.status,
+                "invite_status": job.inviteStatus,
+                "invite_target": invite_target,
+                "invite_rejection_reason": job.inviteRejectionReason,
+                "invite_responded_at": job.inviteRespondedAt,
+                "escrow_paid": job.escrowPaid,
+                "created_at": job.createdAt,
+                "updated_at": job.updatedAt
+            })
+        
+        total_pages = (total + limit - 1) // limit
+        
+        return {
+            "jobs": jobs_data,
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "total_pages": total_pages
+        }
+        
+    except Exception as e:
+        print(f"❌ Error fetching INVITE jobs: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to fetch INVITE jobs"},
+            status=500
+        )
+
+#endregion
+

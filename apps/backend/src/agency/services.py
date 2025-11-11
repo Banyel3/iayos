@@ -379,13 +379,14 @@ def update_agency_profile(account_id, business_name=None, business_desc=None, co
 
 # Simplified agency job services - Direct invite/hire model
 
-def get_agency_jobs(account_id, status_filter=None, page=1, limit=20):
+def get_agency_jobs(account_id, status_filter=None, invite_status_filter=None, page=1, limit=20):
 	"""
 	Get all jobs assigned to this agency (where assignedAgencyFK = this agency).
 	
 	Args:
 		account_id: Agency's account ID
 		status_filter: Optional status filter (ACTIVE, IN_PROGRESS, COMPLETED, CANCELLED)
+		invite_status_filter: Optional invite status filter (PENDING, ACCEPTED, REJECTED)
 		page: Page number for pagination
 		limit: Items per page
 	
@@ -410,6 +411,13 @@ def get_agency_jobs(account_id, status_filter=None, page=1, limit=20):
 			if status_filter.upper() not in valid_statuses:
 				raise ValueError(f"Invalid status. Must be one of: {', '.join(valid_statuses)}")
 			query &= Q(status=status_filter.upper())
+		
+		# Apply invite status filter (for INVITE-type jobs)
+		if invite_status_filter:
+			valid_invite_statuses = ['PENDING', 'ACCEPTED', 'REJECTED']
+			if invite_status_filter.upper() not in valid_invite_statuses:
+				raise ValueError(f"Invalid invite status. Must be one of: {', '.join(valid_invite_statuses)}")
+			query &= Q(inviteStatus=invite_status_filter.upper())
 		
 		# Get total count
 		total_count = Job.objects.filter(query).count()

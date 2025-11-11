@@ -436,6 +436,30 @@ class Job(models.Model):
         default="ACTIVE"
     )
     
+    # Invite Status (for INVITE-type jobs)
+    class InviteStatus(models.TextChoices):
+        PENDING = "PENDING", "Pending Agency Response"
+        ACCEPTED = "ACCEPTED", "Agency Accepted"
+        REJECTED = "REJECTED", "Agency Rejected"
+    
+    inviteStatus = models.CharField(
+        max_length=10,
+        choices=InviteStatus.choices,
+        null=True,
+        blank=True,
+        help_text="Status of agency/worker invite (only for INVITE-type jobs)"
+    )
+    inviteRejectionReason = models.TextField(
+        null=True,
+        blank=True,
+        help_text="Reason provided by agency/worker for rejecting the invite"
+    )
+    inviteRespondedAt = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Timestamp when agency/worker responded to invite"
+    )
+    
     # Assigned Worker or Agency
     assignedWorkerID = models.ForeignKey(
         'WorkerProfile',
