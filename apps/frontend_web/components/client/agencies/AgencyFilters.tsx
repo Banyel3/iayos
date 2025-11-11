@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { Filter, X } from 'lucide-react';
-import { useState } from 'react';
+import { Filter, X } from "lucide-react";
+import { useState } from "react";
 
 interface AgencyFiltersProps {
   onFilterChange: (filters: FilterState) => void;
@@ -11,25 +11,41 @@ export interface FilterState {
   city: string;
   province: string;
   minRating: number | null;
-  sortBy: 'rating' | 'jobs' | 'created';
+  sortBy: "rating" | "jobs" | "created";
 }
 
 const PHILIPPINE_CITIES = [
-  'Manila', 'Quezon City', 'Makati', 'Pasig', 'Taguig', 'Caloocan', 
-  'Cebu City', 'Davao City', 'Cagayan de Oro', 'Zamboanga City'
+  "Manila",
+  "Quezon City",
+  "Makati",
+  "Pasig",
+  "Taguig",
+  "Caloocan",
+  "Cebu City",
+  "Davao City",
+  "Cagayan de Oro",
+  "Zamboanga City",
 ];
 
 const PHILIPPINE_PROVINCES = [
-  'Metro Manila', 'Cebu', 'Davao del Sur', 'Laguna', 'Cavite', 
-  'Bulacan', 'Rizal', 'Pampanga', 'Batangas', 'Pangasinan'
+  "Metro Manila",
+  "Cebu",
+  "Davao del Sur",
+  "Laguna",
+  "Cavite",
+  "Bulacan",
+  "Rizal",
+  "Pampanga",
+  "Batangas",
+  "Pangasinan",
 ];
 
 export default function AgencyFilters({ onFilterChange }: AgencyFiltersProps) {
   const [filters, setFilters] = useState<FilterState>({
-    city: '',
-    province: '',
+    city: "",
+    province: "",
     minRating: null,
-    sortBy: 'rating'
+    sortBy: "rating",
   });
 
   const [showFilters, setShowFilters] = useState(true);
@@ -42,16 +58,17 @@ export default function AgencyFilters({ onFilterChange }: AgencyFiltersProps) {
 
   const clearFilters = () => {
     const defaultFilters: FilterState = {
-      city: '',
-      province: '',
+      city: "",
+      province: "",
       minRating: null,
-      sortBy: 'rating'
+      sortBy: "rating",
     };
     setFilters(defaultFilters);
     onFilterChange(defaultFilters);
   };
 
-  const hasActiveFilters = filters.city || filters.province || filters.minRating !== null;
+  const hasActiveFilters =
+    filters.city || filters.province || filters.minRating !== null;
 
   return (
     <div className="bg-white rounded-lg shadow-md p-6">
@@ -65,7 +82,7 @@ export default function AgencyFilters({ onFilterChange }: AgencyFiltersProps) {
           onClick={() => setShowFilters(!showFilters)}
           className="text-sm text-blue-600 hover:text-blue-800 lg:hidden"
         >
-          {showFilters ? 'Hide' : 'Show'}
+          {showFilters ? "Hide" : "Show"}
         </button>
       </div>
 
@@ -78,7 +95,7 @@ export default function AgencyFilters({ onFilterChange }: AgencyFiltersProps) {
             </label>
             <select
               value={filters.sortBy}
-              onChange={(e) => updateFilter('sortBy', e.target.value)}
+              onChange={(e) => updateFilter("sortBy", e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="rating">Highest Rating</option>
@@ -93,8 +110,13 @@ export default function AgencyFilters({ onFilterChange }: AgencyFiltersProps) {
               Minimum Rating
             </label>
             <select
-              value={filters.minRating || ''}
-              onChange={(e) => updateFilter('minRating', e.target.value ? Number(e.target.value) : null)}
+              value={filters.minRating || ""}
+              onChange={(e) =>
+                updateFilter(
+                  "minRating",
+                  e.target.value ? Number(e.target.value) : null
+                )
+              }
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="">Any Rating</option>
@@ -112,7 +134,7 @@ export default function AgencyFilters({ onFilterChange }: AgencyFiltersProps) {
             </label>
             <select
               value={filters.city}
-              onChange={(e) => updateFilter('city', e.target.value)}
+              onChange={(e) => updateFilter("city", e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="">All Cities</option>
@@ -131,7 +153,7 @@ export default function AgencyFilters({ onFilterChange }: AgencyFiltersProps) {
             </label>
             <select
               value={filters.province}
-              onChange={(e) => updateFilter('province', e.target.value)}
+              onChange={(e) => updateFilter("province", e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="">All Provinces</option>

@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { Star, ChevronLeft, ChevronRight, MessageSquare } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { Star, ChevronLeft, ChevronRight, MessageSquare } from "lucide-react";
+import { useState, useEffect } from "react";
 
 interface Review {
   reviewId: number;
@@ -16,7 +16,9 @@ interface AgencyReviewsListProps {
   agencyId: number;
 }
 
-export default function AgencyReviewsList({ agencyId }: AgencyReviewsListProps) {
+export default function AgencyReviewsList({
+  agencyId,
+}: AgencyReviewsListProps) {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -36,11 +38,11 @@ export default function AgencyReviewsList({ agencyId }: AgencyReviewsListProps) 
     try {
       const response = await fetch(
         `/api/client/agencies/${agencyId}/reviews?page=${page}&limit=${limit}`,
-        { credentials: 'include' }
+        { credentials: "include" }
       );
 
       if (!response.ok) {
-        throw new Error('Failed to fetch reviews');
+        throw new Error("Failed to fetch reviews");
       }
 
       const data = await response.json();
@@ -48,8 +50,8 @@ export default function AgencyReviewsList({ agencyId }: AgencyReviewsListProps) 
       setTotalPages(data.totalPages);
       setAverageRating(data.averageRating);
     } catch (err) {
-      console.error('Error fetching reviews:', err);
-      setError('Failed to load reviews');
+      console.error("Error fetching reviews:", err);
+      setError("Failed to load reviews");
     } finally {
       setLoading(false);
     }
@@ -63,8 +65,8 @@ export default function AgencyReviewsList({ agencyId }: AgencyReviewsListProps) 
             key={star}
             className={`h-4 w-4 ${
               star <= rating
-                ? 'text-yellow-400 fill-yellow-400'
-                : 'text-gray-300'
+                ? "text-yellow-400 fill-yellow-400"
+                : "text-gray-300"
             }`}
           />
         ))}
@@ -74,10 +76,10 @@ export default function AgencyReviewsList({ agencyId }: AgencyReviewsListProps) 
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
+    return date.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
     });
   };
 
@@ -124,20 +126,27 @@ export default function AgencyReviewsList({ agencyId }: AgencyReviewsListProps) 
                 {/* Review Header */}
                 <div className="flex items-start justify-between mb-3">
                   <div>
-                    <p className="font-semibold text-gray-900">{review.clientName}</p>
-                    <p className="text-sm text-gray-600">{formatDate(review.createdAt)}</p>
+                    <p className="font-semibold text-gray-900">
+                      {review.clientName}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      {formatDate(review.createdAt)}
+                    </p>
                   </div>
                   {renderStars(review.rating)}
                 </div>
 
                 {/* Job Title */}
                 <p className="text-sm text-gray-700 mb-2">
-                  <span className="font-medium">Project:</span> {review.jobTitle}
+                  <span className="font-medium">Project:</span>{" "}
+                  {review.jobTitle}
                 </p>
 
                 {/* Review Comment */}
                 {review.comment && (
-                  <p className="text-gray-700 leading-relaxed">{review.comment}</p>
+                  <p className="text-gray-700 leading-relaxed">
+                    {review.comment}
+                  </p>
                 )}
               </div>
             ))}

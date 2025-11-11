@@ -1,18 +1,18 @@
-'use client';
+"use client";
 
-import { Search, X } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { Search, X } from "lucide-react";
+import { useState, useEffect } from "react";
 
 interface AgencySearchBarProps {
   onSearch: (query: string) => void;
   placeholder?: string;
 }
 
-export default function AgencySearchBar({ 
-  onSearch, 
-  placeholder = "Search agencies by name or description..." 
+export default function AgencySearchBar({
+  onSearch,
+  placeholder = "Search agencies by name or description...",
 }: AgencySearchBarProps) {
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState("");
 
   // Debounce search
   useEffect(() => {
@@ -26,8 +26,8 @@ export default function AgencySearchBar({
   }, [query, onSearch]);
 
   const handleClear = () => {
-    setQuery('');
-    onSearch('');
+    setQuery("");
+    onSearch("");
   };
 
   return (
@@ -52,7 +52,9 @@ export default function AgencySearchBar({
         )}
       </div>
       {query.length > 0 && query.length < 2 && (
-        <p className="text-xs text-gray-500 mt-1">Type at least 2 characters to search</p>
+        <p className="text-xs text-gray-500 mt-1">
+          Type at least 2 characters to search
+        </p>
       )}
     </div>
   );

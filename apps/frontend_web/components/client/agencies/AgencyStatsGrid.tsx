@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { Briefcase, TrendingUp, Users, Clock, Star } from 'lucide-react';
+import { Briefcase, TrendingUp, Users, Clock, Star } from "lucide-react";
 
 interface AgencyStatsGridProps {
   stats: {
@@ -21,14 +21,20 @@ interface AgencyStatsGridProps {
   }>;
 }
 
-export default function AgencyStatsGrid({ stats, employees }: AgencyStatsGridProps) {
-  const completionRate = stats.totalJobs > 0 
-    ? ((stats.completedJobs / stats.totalJobs) * 100).toFixed(1)
-    : '0';
+export default function AgencyStatsGrid({
+  stats,
+  employees,
+}: AgencyStatsGridProps) {
+  const completionRate =
+    stats.totalJobs > 0
+      ? ((stats.completedJobs / stats.totalJobs) * 100).toFixed(1)
+      : "0";
 
   return (
     <div className="bg-white rounded-lg shadow-md p-6">
-      <h2 className="text-xl font-semibold text-gray-900 mb-6">Agency Statistics</h2>
+      <h2 className="text-xl font-semibold text-gray-900 mb-6">
+        Agency Statistics
+      </h2>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
@@ -42,7 +48,9 @@ export default function AgencyStatsGrid({ stats, employees }: AgencyStatsGridPro
         {/* Completed Jobs */}
         <div className="text-center p-4 bg-green-50 rounded-lg">
           <TrendingUp className="h-8 w-8 text-green-600 mx-auto mb-2" />
-          <p className="text-2xl font-bold text-green-600">{stats.completedJobs}</p>
+          <p className="text-2xl font-bold text-green-600">
+            {stats.completedJobs}
+          </p>
           <p className="text-sm text-gray-600">Completed</p>
         </div>
 
@@ -56,7 +64,9 @@ export default function AgencyStatsGrid({ stats, employees }: AgencyStatsGridPro
         {/* Average Rating */}
         <div className="text-center p-4 bg-yellow-50 rounded-lg">
           <Star className="h-8 w-8 text-yellow-600 mx-auto mb-2" />
-          <p className="text-2xl font-bold text-yellow-600">{stats.averageRating.toFixed(1)}</p>
+          <p className="text-2xl font-bold text-yellow-600">
+            {stats.averageRating.toFixed(1)}
+          </p>
           <p className="text-sm text-gray-600">Avg Rating</p>
         </div>
       </div>
@@ -66,8 +76,12 @@ export default function AgencyStatsGrid({ stats, employees }: AgencyStatsGridPro
         {/* Completion Rate */}
         <div className="border border-gray-200 rounded-lg p-4">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-gray-700">Completion Rate</span>
-            <span className="text-lg font-bold text-gray-900">{completionRate}%</span>
+            <span className="text-sm font-medium text-gray-700">
+              Completion Rate
+            </span>
+            <span className="text-lg font-bold text-gray-900">
+              {completionRate}%
+            </span>
           </div>
           <div className="w-full bg-gray-200 rounded-full h-2">
             <div
@@ -80,8 +94,12 @@ export default function AgencyStatsGrid({ stats, employees }: AgencyStatsGridPro
         {/* On-Time Completion */}
         <div className="border border-gray-200 rounded-lg p-4">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-gray-700">On-Time Delivery</span>
-            <span className="text-lg font-bold text-gray-900">{stats.onTimeCompletionRate}%</span>
+            <span className="text-sm font-medium text-gray-700">
+              On-Time Delivery
+            </span>
+            <span className="text-lg font-bold text-gray-900">
+              {stats.onTimeCompletionRate}%
+            </span>
           </div>
           <div className="w-full bg-gray-200 rounded-full h-2">
             <div
@@ -106,7 +124,9 @@ export default function AgencyStatsGrid({ stats, employees }: AgencyStatsGridPro
           <Users className="h-5 w-5 text-gray-400" />
           <div>
             <p className="text-sm font-medium text-gray-900">Team Members</p>
-            <p className="text-sm text-gray-600">{employees.length} employees</p>
+            <p className="text-sm text-gray-600">
+              {employees.length} employees
+            </p>
           </div>
         </div>
       </div>

@@ -1,11 +1,13 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useCallback, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import AgencyCard from '@/components/client/agencies/AgencyCard';
-import AgencySearchBar from '@/components/client/agencies/AgencySearchBar';
-import AgencyFilters, { FilterState } from '@/components/client/agencies/AgencyFilters';
-import { ChevronLeft, ChevronRight, Loader2, Building2 } from 'lucide-react';
+import { useState, useEffect, useCallback, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import AgencyCard from "@/components/client/agencies/AgencyCard";
+import AgencySearchBar from "@/components/client/agencies/AgencySearchBar";
+import AgencyFilters, {
+  FilterState,
+} from "@/components/client/agencies/AgencyFilters";
+import { ChevronLeft, ChevronRight, Loader2, Building2 } from "lucide-react";
 
 interface Agency {
   agencyId: number;
@@ -32,22 +34,22 @@ interface BrowseResponse {
 function AgenciesPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  
+
   const [agencies, setAgencies] = useState<Agency[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [filters, setFilters] = useState<FilterState>({
-    city: '',
-    province: '',
+    city: "",
+    province: "",
     minRating: null,
-    sortBy: 'rating'
+    sortBy: "rating",
   });
   const [pagination, setPagination] = useState({
     page: 1,
     limit: 12,
     total: 0,
-    totalPages: 0
+    totalPages: 0,
   });
 
   const fetchAgencies = useCallback(async () => {
@@ -59,12 +61,13 @@ function AgenciesPageContent() {
       const params = new URLSearchParams({
         page: pagination.page.toString(),
         limit: pagination.limit.toString(),
-        sort_by: filters.sortBy
+        sort_by: filters.sortBy,
       });
 
-      if (filters.city) params.append('city', filters.city);
-      if (filters.province) params.append('province', filters.province);
-      if (filters.minRating) params.append('min_rating', filters.minRating.toString());
+      if (filters.city) params.append("city", filters.city);
+      if (filters.province) params.append("province", filters.province);
+      if (filters.minRating)
+        params.append("min_rating", filters.minRating.toString());
 
       // Use search endpoint if there's a query, otherwise browse
       const endpoint = searchQuery
@@ -72,11 +75,11 @@ function AgenciesPageContent() {
         : `/api/client/agencies/browse?${params.toString()}`;
 
       const response = await fetch(endpoint, {
-        credentials: 'include'
+        credentials: "include",
       });
 
       if (!response.ok) {
-        throw new Error('Failed to fetch agencies');
+        throw new Error("Failed to fetch agencies");
       }
 
       const data: BrowseResponse = await response.json();
@@ -85,11 +88,11 @@ function AgenciesPageContent() {
         page: data.page,
         limit: data.limit,
         total: data.total,
-        totalPages: data.totalPages
+        totalPages: data.totalPages,
       });
     } catch (err) {
-      console.error('Error fetching agencies:', err);
-      setError('Failed to load agencies. Please try again.');
+      console.error("Error fetching agencies:", err);
+      setError("Failed to load agencies. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -101,17 +104,17 @@ function AgenciesPageContent() {
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);
-    setPagination(prev => ({ ...prev, page: 1 }));
+    setPagination((prev) => ({ ...prev, page: 1 }));
   };
 
   const handleFilterChange = (newFilters: FilterState) => {
     setFilters(newFilters);
-    setPagination(prev => ({ ...prev, page: 1 }));
+    setPagination((prev) => ({ ...prev, page: 1 }));
   };
 
   const handlePageChange = (newPage: number) => {
-    setPagination(prev => ({ ...prev, page: newPage }));
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setPagination((prev) => ({ ...prev, page: newPage }));
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   return (
@@ -165,7 +168,7 @@ function AgenciesPageContent() {
                 <p className="text-gray-600 mb-4">
                   {searchQuery
                     ? `No results for "${searchQuery}". Try different keywords.`
-                    : 'Try adjusting your filters to see more results.'}
+                    : "Try adjusting your filters to see more results."}
                 </p>
               </div>
             ) : (
@@ -195,8 +198,11 @@ function AgenciesPageContent() {
                     </button>
 
                     <div className="flex items-center space-x-1">
-                      {Array.from({ length: pagination.totalPages }, (_, i) => i + 1)
-                        .filter(page => {
+                      {Array.from(
+                        { length: pagination.totalPages },
+                        (_, i) => i + 1
+                      )
+                        .filter((page) => {
                           // Show first page, last page, current page, and pages around current
                           return (
                             page === 1 ||
@@ -207,7 +213,10 @@ function AgenciesPageContent() {
                         .map((page, idx, arr) => (
                           <>
                             {idx > 0 && arr[idx - 1] !== page - 1 && (
-                              <span key={`ellipsis-${page}`} className="px-2 text-gray-400">
+                              <span
+                                key={`ellipsis-${page}`}
+                                className="px-2 text-gray-400"
+                              >
                                 ...
                               </span>
                             )}
@@ -216,8 +225,8 @@ function AgenciesPageContent() {
                               onClick={() => handlePageChange(page)}
                               className={`px-4 py-2 rounded-md ${
                                 pagination.page === page
-                                  ? 'bg-blue-600 text-white'
-                                  : 'border border-gray-300 hover:bg-gray-50'
+                                  ? "bg-blue-600 text-white"
+                                  : "border border-gray-300 hover:bg-gray-50"
                               }`}
                             >
                               {page}
@@ -246,11 +255,13 @@ function AgenciesPageContent() {
 
 export default function AgenciesPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Loader2 className="h-12 w-12 text-blue-600 animate-spin" />
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <Loader2 className="h-12 w-12 text-blue-600 animate-spin" />
+        </div>
+      }
+    >
       <AgenciesPageContent />
     </Suspense>
   );

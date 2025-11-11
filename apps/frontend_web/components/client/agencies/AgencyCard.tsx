@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { Building2, MapPin, Star, Briefcase, Users } from 'lucide-react';
+import Link from "next/link";
+import { Building2, MapPin, Star, Briefcase, Users } from "lucide-react";
 
 interface AgencyCardProps {
   agency: {
@@ -20,9 +20,9 @@ interface AgencyCardProps {
 }
 
 export default function AgencyCard({ agency }: AgencyCardProps) {
-  const locationText = [agency.city, agency.province]
-    .filter(Boolean)
-    .join(', ') || 'Location not specified';
+  const locationText =
+    [agency.city, agency.province].filter(Boolean).join(", ") ||
+    "Location not specified";
 
   return (
     <Link href={`/client/agencies/${agency.agencyId}`}>
@@ -45,7 +45,7 @@ export default function AgencyCard({ agency }: AgencyCardProps) {
           </div>
 
           {/* KYC Badge */}
-          {agency.kycStatus === 'APPROVED' && (
+          {agency.kycStatus === "APPROVED" && (
             <span className="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-1 rounded-full">
               Verified
             </span>
@@ -85,11 +85,12 @@ export default function AgencyCard({ agency }: AgencyCardProps) {
             <div className="flex items-center justify-center space-x-1 mb-1">
               <Star className="h-4 w-4 text-yellow-400 fill-yellow-400" />
               <span className="text-sm font-semibold text-gray-900">
-                {agency.averageRating?.toFixed(1) || 'N/A'}
+                {agency.averageRating?.toFixed(1) || "N/A"}
               </span>
             </div>
             <p className="text-xs text-gray-500">
-              {agency.totalReviews} {agency.totalReviews === 1 ? 'review' : 'reviews'}
+              {agency.totalReviews}{" "}
+              {agency.totalReviews === 1 ? "review" : "reviews"}
             </p>
           </div>
 

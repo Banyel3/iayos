@@ -1,11 +1,12 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Loader2, Users, Award } from 'lucide-react';
-import AgencyProfileHeader from '@/components/client/agencies/AgencyProfileHeader';
-import AgencyStatsGrid from '@/components/client/agencies/AgencyStatsGrid';
-import AgencyReviewsList from '@/components/client/agencies/AgencyReviewsList';
+import { useState, useEffect } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { ArrowLeft, Loader2, Users, Award } from "lucide-react";
+import AgencyProfileHeader from "@/components/client/agencies/AgencyProfileHeader";
+import AgencyStatsGrid from "@/components/client/agencies/AgencyStatsGrid";
+import AgencyReviewsList from "@/components/client/agencies/AgencyReviewsList";
+import InviteJobCreationModal from "@/components/client/jobs/InviteJobCreationModal";
 
 interface Employee {
   employeeId: number;
@@ -58,36 +59,39 @@ export default function AgencyProfilePage() {
     }
   }, [agencyId]);
 
+  const handleHireClick = () => {
+    setShowHireModal(true);
+  };
+
+  const handleHireSuccess = (jobId: number) => {
+    // Success handled in modal (shows alert and redirects)
+    setShowHireModal(false);
+  };
+
   const fetchAgencyProfile = async () => {
     setLoading(true);
     setError(null);
 
     try {
       const response = await fetch(`/api/client/agencies/${agencyId}`, {
-        credentials: 'include'
+        credentials: "include",
       });
 
       if (!response.ok) {
         if (response.status === 404) {
-          throw new Error('Agency not found');
+          throw new Error("Agency not found");
         }
-        throw new Error('Failed to fetch agency profile');
+        throw new Error("Failed to fetch agency profile");
       }
 
       const data = await response.json();
       setAgency(data);
     } catch (err: any) {
-      console.error('Error fetching agency profile:', err);
-      setError(err.message || 'Failed to load agency profile');
+      console.error("Error fetching agency profile:", err);
+      setError(err.message || "Failed to load agency profile");
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleHireClick = () => {
-    // TODO: Open INVITE job creation modal (Part 6)
-    setShowHireModal(true);
-    alert('INVITE job creation modal will be implemented in Part 6');
   };
 
   if (loading) {
@@ -105,9 +109,9 @@ export default function AgencyProfilePage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="bg-white rounded-lg shadow-md p-8 max-w-md text-center">
-          <p className="text-red-600 mb-4">{error || 'Agency not found'}</p>
+          <p className="text-red-600 mb-4">{error || "Agency not found"}</p>
           <button
-            onClick={() => router.push('/client/agencies')}
+            onClick={() => router.push("/client/agencies")}
             className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
           >
             Back to Agencies
@@ -122,7 +126,7 @@ export default function AgencyProfilePage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Back Button */}
         <button
-          onClick={() => router.push('/client/agencies')}
+          onClick={() => router.push("/client/agencies")}
           className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 mb-6"
         >
           <ArrowLeft className="h-5 w-5" />
@@ -138,14 +142,19 @@ export default function AgencyProfilePage() {
           {/* Left Column - Stats and Employees */}
           <div className="lg:col-span-2 space-y-6">
             {/* Statistics */}
-            <AgencyStatsGrid stats={agency.stats} employees={agency.employees} />
+            <AgencyStatsGrid
+              stats={agency.stats}
+              employees={agency.employees}
+            />
 
             {/* Specializations */}
             {agency.specializations.length > 0 && (
               <div className="bg-white rounded-lg shadow-md p-6">
                 <div className="flex items-center space-x-2 mb-4">
                   <Award className="h-5 w-5 text-blue-600" />
-                  <h2 className="text-xl font-semibold text-gray-900">Specializations</h2>
+                  <h2 className="text-xl font-semibold text-gray-900">
+                    Specializations
+                  </h2>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {agency.specializations.map((spec, idx) => (
@@ -165,7 +174,9 @@ export default function AgencyProfilePage() {
               <div className="bg-white rounded-lg shadow-md p-6">
                 <div className="flex items-center space-x-2 mb-4">
                   <Users className="h-5 w-5 text-blue-600" />
-                  <h2 className="text-xl font-semibold text-gray-900">Team Members</h2>
+                  <h2 className="text-xl font-semibold text-gray-900">
+                    Team Members
+                  </h2>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {agency.employees.map((employee) => (
@@ -180,8 +191,12 @@ export default function AgencyProfilePage() {
                           </span>
                         </div>
                         <div>
-                          <p className="font-semibold text-gray-900">{employee.name}</p>
-                          <p className="text-sm text-gray-600">{employee.role}</p>
+                          <p className="font-semibold text-gray-900">
+                            {employee.name}
+                          </p>
+                          <p className="text-sm text-gray-600">
+                            {employee.role}
+                          </p>
                           {employee.rating && (
                             <p className="text-sm text-yellow-600">
                               ⭐ {employee.rating.toFixed(1)}
@@ -202,6 +217,17 @@ export default function AgencyProfilePage() {
           </div>
         </div>
       </div>
+
+      {/* INVITE Job Creation Modal */}
+      <InviteJobCreationModal
+        agency={{
+          agencyId: agency.agencyId,
+          businessName: agency.businessName,
+        }}
+        isOpen={showHireModal}
+        onClose={() => setShowHireModal(false)}
+        onSuccess={handleHireSuccess}
+      />
     </div>
   );
 }

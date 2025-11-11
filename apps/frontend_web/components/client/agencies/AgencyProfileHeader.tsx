@@ -1,6 +1,13 @@
-'use client';
+"use client";
 
-import { Building2, MapPin, Phone, Mail, Star, CheckCircle } from 'lucide-react';
+import {
+  Building2,
+  MapPin,
+  Phone,
+  Mail,
+  Star,
+  CheckCircle,
+} from "lucide-react";
 
 interface AgencyProfileHeaderProps {
   agency: {
@@ -20,12 +27,14 @@ interface AgencyProfileHeaderProps {
   onHireClick: () => void;
 }
 
-export default function AgencyProfileHeader({ agency, onHireClick }: AgencyProfileHeaderProps) {
-  const fullAddress = [
-    agency.street_address,
-    agency.city,
-    agency.province
-  ].filter(Boolean).join(', ') || 'Address not provided';
+export default function AgencyProfileHeader({
+  agency,
+  onHireClick,
+}: AgencyProfileHeaderProps) {
+  const fullAddress =
+    [agency.street_address, agency.city, agency.province]
+      .filter(Boolean)
+      .join(", ") || "Address not provided";
 
   return (
     <div className="bg-white rounded-lg shadow-md p-8">
@@ -44,7 +53,7 @@ export default function AgencyProfileHeader({ agency, onHireClick }: AgencyProfi
                 <h1 className="text-3xl font-bold text-gray-900">
                   {agency.businessName}
                 </h1>
-                {agency.kycStatus === 'APPROVED' && (
+                {agency.kycStatus === "APPROVED" && (
                   <span className="flex items-center space-x-1 bg-green-100 text-green-800 text-sm font-medium px-3 py-1 rounded-full">
                     <CheckCircle className="h-4 w-4" />
                     <span>Verified</span>
@@ -61,7 +70,8 @@ export default function AgencyProfileHeader({ agency, onHireClick }: AgencyProfi
                   </span>
                 </div>
                 <span className="text-gray-600">
-                  ({agency.stats.totalReviews} {agency.stats.totalReviews === 1 ? 'review' : 'reviews'})
+                  ({agency.stats.totalReviews}{" "}
+                  {agency.stats.totalReviews === 1 ? "review" : "reviews"})
                 </span>
                 <span className="text-gray-400">•</span>
                 <span className="text-gray-600">
