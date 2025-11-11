@@ -12,6 +12,7 @@ from decimal import Decimal
 from django.db import transaction as db_transaction
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
+from typing import List, Optional
 
 router = Router()
 
@@ -2643,12 +2644,12 @@ def create_invite_job(
     category_id: int,
     budget: float,
     location: str,
-    expected_duration: str = None,
+    expected_duration: Optional[str] = None,
     urgency: str = "MEDIUM",
-    preferred_start_date: str = None,
-    materials_needed: list = None,
-    agency_id: int = None,
-    worker_id: int = None,
+    preferred_start_date: Optional[str] = None,
+    materials_needed: Optional[List[str]] = None,
+    agency_id: Optional[int] = None,
+    worker_id: Optional[int] = None,
     payment_method: str = "WALLET"
 ):
     """

@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { X, AlertCircle, Loader2 } from 'lucide-react';
+import { useState } from "react";
+import { X, AlertCircle, Loader2 } from "lucide-react";
 
 interface RejectReasonModalProps {
   isOpen: boolean;
@@ -14,9 +14,9 @@ export default function RejectReasonModal({
   isOpen,
   onClose,
   onSubmit,
-  jobTitle
+  jobTitle,
 }: RejectReasonModalProps) {
-  const [reason, setReason] = useState('');
+  const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -25,7 +25,7 @@ export default function RejectReasonModal({
     setError(null);
 
     if (reason.trim().length < 20) {
-      setError('Please provide a reason with at least 20 characters');
+      setError("Please provide a reason with at least 20 characters");
       return;
     }
 
@@ -33,10 +33,10 @@ export default function RejectReasonModal({
     try {
       await onSubmit(reason.trim());
       // Reset form on success
-      setReason('');
+      setReason("");
       onClose();
     } catch (err: any) {
-      setError(err.message || 'Failed to reject invitation');
+      setError(err.message || "Failed to reject invitation");
     } finally {
       setLoading(false);
     }
@@ -44,7 +44,7 @@ export default function RejectReasonModal({
 
   const handleClose = () => {
     if (!loading) {
-      setReason('');
+      setReason("");
       setError(null);
       onClose();
     }
@@ -58,8 +58,12 @@ export default function RejectReasonModal({
         {/* Header */}
         <div className="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-bold text-gray-900">Reject Invitation</h2>
-            <p className="text-sm text-gray-600 mt-1">Provide a reason for declining</p>
+            <h2 className="text-xl font-bold text-gray-900">
+              Reject Invitation
+            </h2>
+            <p className="text-sm text-gray-600 mt-1">
+              Provide a reason for declining
+            </p>
           </div>
           <button
             onClick={handleClose}
@@ -88,7 +92,10 @@ export default function RejectReasonModal({
 
           {/* Reason Textarea */}
           <div className="mb-4">
-            <label htmlFor="reason" className="block text-sm font-medium text-gray-700 mb-2">
+            <label
+              htmlFor="reason"
+              className="block text-sm font-medium text-gray-700 mb-2"
+            >
               Reason for Rejection *
             </label>
             <textarea
@@ -108,8 +115,12 @@ export default function RejectReasonModal({
               <p className="text-xs text-gray-500">
                 {reason.length} / 500 characters
               </p>
-              <p className={`text-xs ${reason.length >= 20 ? 'text-green-600' : 'text-gray-500'}`}>
-                {reason.length >= 20 ? '✓ Minimum met' : 'Minimum 20 characters'}
+              <p
+                className={`text-xs ${reason.length >= 20 ? "text-green-600" : "text-gray-500"}`}
+              >
+                {reason.length >= 20
+                  ? "✓ Minimum met"
+                  : "Minimum 20 characters"}
               </p>
             </div>
           </div>
@@ -117,7 +128,8 @@ export default function RejectReasonModal({
           {/* Info Box */}
           <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
             <p className="text-sm text-yellow-800">
-              <strong>Note:</strong> The client will be notified and their downpayment will be refunded immediately.
+              <strong>Note:</strong> The client will be notified and their
+              downpayment will be refunded immediately.
             </p>
           </div>
 
