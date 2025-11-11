@@ -47,6 +47,14 @@ class AgencyEmployeeSchema(Schema):
     role: str
     avatar: Optional[str] = None
     rating: Optional[float] = None
+    # Performance tracking (Agency Phase 2)
+    employeeOfTheMonth: bool = False
+    employeeOfTheMonthDate: Optional[str] = None
+    employeeOfTheMonthReason: Optional[str] = None
+    lastRatingUpdate: Optional[str] = None
+    totalJobsCompleted: int = 0
+    totalEarnings: float = 0.0
+    isActive: bool = True
 
 
 class AgencyStatsSchema(Schema):

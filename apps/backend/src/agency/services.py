@@ -207,6 +207,14 @@ def get_agency_employees(account_id):
 				"role": emp.role,
 				"avatar": emp.avatar,
 				"rating": float(emp.rating) if emp.rating else None,
+				# Agency Phase 2 performance fields
+				"employeeOfTheMonth": emp.employeeOfTheMonth,
+				"employeeOfTheMonthDate": emp.employeeOfTheMonthDate.isoformat() if emp.employeeOfTheMonthDate else None,
+				"employeeOfTheMonthReason": emp.employeeOfTheMonthReason,
+				"lastRatingUpdate": emp.lastRatingUpdate.isoformat() if emp.lastRatingUpdate else None,
+				"totalJobsCompleted": emp.totalJobsCompleted,
+				"totalEarnings": float(emp.totalEarnings),
+				"isActive": emp.isActive,
 			}
 			for emp in employees
 		]
@@ -240,6 +248,14 @@ def add_agency_employee(account_id, name, email, role, avatar=None, rating=None)
 			"role": employee.role,
 			"avatar": employee.avatar,
 			"rating": float(employee.rating) if employee.rating else None,
+			# Agency Phase 2 performance fields (defaults for new employees)
+			"employeeOfTheMonth": employee.employeeOfTheMonth,
+			"employeeOfTheMonthDate": None,
+			"employeeOfTheMonthReason": "",
+			"lastRatingUpdate": None,
+			"totalJobsCompleted": employee.totalJobsCompleted,
+			"totalEarnings": float(employee.totalEarnings),
+			"isActive": employee.isActive,
 			"message": "Employee added successfully"
 		}
 	except Accounts.DoesNotExist:
