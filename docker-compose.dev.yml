@@ -1,0 +1,84 @@
+# Development Docker Compose with Hot Reload
+# Usage: docker-compose -f docker-compose.dev.yml up
+# Note: Using production Neon database, no local PostgreSQL needed
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: backend-development
+    container_name: iayos-backend-dev
+    env_file:
+      - .env.docker
+    ports:
+      - "8000:8000"
+      - "8001:8001"
+    volumes:
+      # Mount source code for hot reload
+      - ./apps/backend:/app/apps/backend
+    networks:
+      - iayos-network
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=1
+    command: >
+      sh -c "
+        cd /app/apps/backend/src &&
+        python3 manage.py migrate &&
+        python3 manage.py runserver 0.0.0.0:8000
+      "
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: frontend-development
+    container_name: iayos-frontend-dev
+    env_file:
+      - .env.docker
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    volumes:
+      # Mount source code for hot reload
+      - ./apps/frontend_web:/app/apps/frontend_web
+      - ./packages:/app/packages
+      # Prevent host node_modules/.next from overriding container's Linux deps
+      - /app/apps/frontend_web/node_modules
+      - /app/apps/frontend_web/.next
+      # Don't mount node_modules - let Docker manage them
+    networks:
+      - iayos-network
+    command: >
+      sh -c "
+        cd /app && \
+        npm i lightningcss-linux-x64-gnu @tailwindcss/oxide-linux-x64-gnu --no-save || true && \
+        cd /app/apps/frontend_web && \
+        npx next dev
+      "
+
+  # Flutter Mobile Development (optional - for running Flutter in container)
+  mobile:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: flutter-base
+    container_name: iayos-mobile-dev
+    volumes:
+      # Mount mobile source code for hot reload
+      - ./apps/frontend_mobile/iayos_mobile:/app/apps/frontend_mobile/iayos_mobile
+    networks:
+      - iayos-network
+    working_dir: /app/apps/frontend_mobile/iayos_mobile
+    command: >
+      sh -c "
+        flutter pub get &&
+        echo 'Flutter mobile container ready. Use: docker exec -it iayos-mobile-dev flutter run'
+      "
+    profiles:
+      - mobile # This service won't start by default, use: docker-compose --profile mobile up
+
+networks:
+  iayos-network:
+    driver: bridge

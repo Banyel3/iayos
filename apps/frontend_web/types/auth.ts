@@ -6,7 +6,10 @@ export type UserProfileType = "WORKER" | "CLIENT" | null;
 export interface User {
   accountID?: number; // Make optional with ?
   email: string;
-  role?: "ADMIN" | "USER"; // Add role property
+  role?: "ADMIN" | "USER" | "AGENCY"; // Add role property (including AGENCY)
+  // Backend-provided accountType is either 'agency' or 'individual'
+  accountType?: "agency" | "individual" | string;
+  kycVerified?: boolean; // KYC verification status from database
   profile_data?: {
     firstName?: string;
     lastName?: string;
@@ -18,13 +21,11 @@ export interface User {
 }
 
 export interface AuthContextType {
-  accessToken: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
   user: User | null; // User can be null
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
-  refreshToken: () => Promise<boolean>;
   checkAuth: () => Promise<boolean>;
 }
 

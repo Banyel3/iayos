@@ -1,6 +1,20 @@
-from ninja import Router
-from .schemas import createAccountSchema, logInSchema, createAgencySchema, forgotPasswordSchema, resetPasswordSchema, assignRoleSchema
-from .services import create_account_individ, create_account_agency, login_account, _verify_account, forgot_password_request, reset_password_verify, logout_account, refresh_token, fetch_currentUser, generateCookie, assign_role
+from ninja import Router, Form, File
+from ninja.files import UploadedFile
+from .schemas import (
+    createAccountSchema, logInSchema, createAgencySchema, 
+    forgotPasswordSchema, resetPasswordSchema, assignRoleSchema, 
+    KYCUploadSchema, KYCStatusResponse, KYCUploadResponse,
+    UpdateLocationSchema, LocationResponseSchema, 
+    ToggleLocationSharingSchema, NearbyWorkersSchema,
+    DepositFundsSchema
+)
+from .services import (
+    create_account_individ, create_account_agency, login_account, 
+    _verify_account, forgot_password_request, reset_password_verify, 
+    logout_account, refresh_token, fetch_currentUser, generateCookie, 
+    assign_role, upload_kyc_document, get_kyc_status, get_pending_kyc_submissions,
+    update_user_location, toggle_location_sharing, get_user_location, find_nearby_workers
+)
 from ninja.responses import Response
 from .authentication import cookie_auth
 from django.shortcuts import redirect
@@ -26,11 +40,15 @@ def register(request, payload: createAccountSchema):
         result = create_account_individ(payload)
         return result
     except ValueError as e:
+        print(f"❌ ValueError in registration: {str(e)}")  # Add logging
         return Response(
             {"error": [{"message": str(e)}]}, 
             status=400
         )
     except Exception as e:
+        print(f"❌ Exception in registration: {str(e)}")  # Add logging
+        import traceback
+        traceback.print_exc()  # Print full stack trace
         return Response(
             {"error": [{"message": "Registration failed"}]}, 
             status=500
@@ -67,7 +85,7 @@ def assignRole(request, payload: assignRoleSchema):
 @router.post("/logout", auth=cookie_auth)
 def logout(request):
    try:
-       result = logout_account
+       result = logout_account()  # 🔥 FIX: Call the function with ()
        return result
    except ValueError as e:
         return {"error": [{"message": str(e)}]}
@@ -115,7 +133,6 @@ def forgot_password_send_verify(request, payload: forgotPasswordSchema):
 
 @router.post("/forgot-password/verify")
 def forgot_password_verify(request, payload: resetPasswordSchema, verifyToken: str, id: int):
-    """Reset password with verification token"""
     try:
         result = reset_password_verify(verifyToken, id, payload)
         return result
@@ -123,6 +140,971 @@ def forgot_password_verify(request, payload: resetPasswordSchema, verifyToken: s
         return {"error": [{"message": str(e)}]}
     except Exception as e:
         return {"error": [{"message": "Password reset failed"}]}
+    
+@router.post("/upload/kyc")
+def upload_kyc(request):
+    try:
+        accountID = int(request.POST.get("accountID"))
+        IDType = request.POST.get("IDType")
+        clearanceType = request.POST.get("clearanceType")
+        frontID = request.FILES.get("frontID")
+        backID = request.FILES.get("backID")
+        clearance = request.FILES.get("clearance")
+        selfie = request.FILES.get("selfie")
+
+        payload = KYCUploadSchema(
+            accountID=accountID,
+            IDType=IDType,
+            clearanceType=clearanceType
+        )
+        result = upload_kyc_document(payload, frontID, backID, clearance, selfie)
+        return result
+    except ValueError as e:
+        print(f"❌ ValueError in KYC upload: {str(e)}")
+        return {"error": [{"message": str(e)}]}
+    except Exception as e:
+        print(f"❌ Exception in KYC upload: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"error": [{"message": "Upload Failed"}]}
+
+@router.get("/kyc/history", auth=cookie_auth)
+def get_kyc_application_history(request):
+    """
+    Get the authenticated user's KYC application history.
+    
+    Returns:
+    - hasActiveKYC: boolean - if user has pending KYC
+    - activeKYCId: ID of pending KYC (if any)
+    - kycHistory: list of past applications with status, dates, and reasons
+    - canResubmit: boolean - if user can submit new KYC
+    - totalApplications: total number of KYC applications submitted
+    """
+    try:
+        from adminpanel.service import get_user_kyc_history
+        
+        user = request.auth
+        print(f"🔍 Fetching KYC history for user: {user.email} (ID: {user.accountID})")
+        
+        result = get_user_kyc_history(user.accountID)
+        return {"success": True, **result}
+        
+    except Exception as e:
+        print(f"❌ Error fetching KYC history: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": "Failed to fetch KYC history"}
+
+
+@router.get("/notifications", auth=cookie_auth)
+def get_notifications(request, limit: int = 50, unread_only: bool = False):
+    """
+    Get notifications for the authenticated user.
+    
+    Query params:
+    - limit: Maximum number of notifications to return (default 50)
+    - unread_only: If true, only return unread notifications (default false)
+    """
+    try:
+        from .services import get_user_notifications
+        
+        user = request.auth
+        notifications = get_user_notifications(user.accountID, limit, unread_only)
+        
+        return {
+            "success": True,
+            "notifications": notifications,
+            "count": len(notifications)
+        }
+        
+    except Exception as e:
+        print(f"❌ Error fetching notifications: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": "Failed to fetch notifications"}
+
+
+@router.post("/notifications/{notification_id}/mark-read", auth=cookie_auth)
+def mark_notification_read(request, notification_id: int):
+    """
+    Mark a specific notification as read.
+    """
+    try:
+        from .services import mark_notification_as_read
+        
+        user = request.auth
+        mark_notification_as_read(user.accountID, notification_id)
+        
+        return {"success": True, "message": "Notification marked as read"}
+        
+    except ValueError as e:
+        return {"success": False, "error": str(e)}
+    except Exception as e:
+        print(f"❌ Error marking notification as read: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": "Failed to mark notification as read"}
+
+
+@router.post("/notifications/mark-all-read", auth=cookie_auth)
+def mark_all_notifications_read(request):
+    """
+    Mark all notifications as read for the authenticated user.
+    """
+    try:
+        from .services import mark_all_notifications_as_read
+        
+        user = request.auth
+        count = mark_all_notifications_as_read(user.accountID)
+        
+        return {
+            "success": True,
+            "message": f"Marked {count} notifications as read",
+            "count": count
+        }
+        
+    except Exception as e:
+        print(f"❌ Error marking all notifications as read: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": "Failed to mark notifications as read"}
+
+
+@router.get("/notifications/unread-count", auth=cookie_auth)
+def get_unread_count(request):
+    """
+    Get the count of unread notifications for the authenticated user.
+    """
+    try:
+        from .services import get_unread_notification_count
+        
+        user = request.auth
+        count = get_unread_notification_count(user.accountID)
+        
+        return {"success": True, "unreadCount": count}
+        
+    except Exception as e:
+        print(f"❌ Error getting unread count: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": "Failed to get unread count"}
+
+
+#region WORKER ENDPOINTS
+@router.get("/users/workers")
+
+def get_all_workers_endpoint(request, latitude: float = None, longitude: float = None):
+    """
+    Fetch all workers with their profiles and specializations.
+    Public endpoint - no authentication required for browsing workers.
+    
+    Query Parameters:
+        latitude (optional): Client's latitude for distance calculation
+        longitude (optional): Client's longitude for distance calculation
+    """
+    try:
+        from .services import get_all_workers
+        
+        # Pass client location to service function
+        workers = get_all_workers(
+            client_latitude=latitude,
+            client_longitude=longitude
+        )
+        
+        return {
+            "success": True,
+            "workers": workers,
+            "count": len(workers)
+        }
+        
+    except Exception as e:
+        print(f"❌ Error fetching workers: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"success": False, "error": "Failed to fetch workers"}, 
+            status=500
+        )
+
+
+@router.get("/users/workers/{user_id}")
+def get_worker_by_id_endpoint(request, user_id: int, latitude: float = None, longitude: float = None):
+    """
+    Fetch a single worker by their account ID.
+    Public endpoint - no authentication required for viewing worker profiles.
+    
+    Query Parameters:
+        latitude (optional): Client's latitude for distance calculation
+        longitude (optional): Client's longitude for distance calculation
+    """
+    try:
+        from .services import get_worker_by_id
+        
+        # Pass client location to service function
+        worker = get_worker_by_id(
+            user_id,
+            client_latitude=latitude,
+            client_longitude=longitude
+        )
+        
+        if worker is None:
+            return Response(
+                {"success": False, "error": "Worker not found"}, 
+                status=404
+            )
+        
+        return {
+            "success": True,
+            "worker": worker
+        }
+        
+    except Exception as e:
+        print(f"❌ Error fetching worker {user_id}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"success": False, "error": "Failed to fetch worker"}, 
+            status=500
+        )
+
+
+@router.patch("/workers/availability", auth=cookie_auth)
+def update_worker_availability_endpoint(request, is_available: bool):
+    """
+    Update the authenticated worker's availability status.
+    Requires authentication.
+    """
+    try:
+        from .services import update_worker_availability
+        
+        user = request.auth
+        result = update_worker_availability(user.accountID, is_available)
+        
+        return {
+            "success": True,
+            "data": result
+        }
+        
+    except ValueError as e:
+        print(f"❌ ValueError updating availability: {str(e)}")
+        return Response(
+            {"success": False, "error": str(e)}, 
+            status=400
+        )
+    except Exception as e:
+        print(f"❌ Error updating worker availability: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"success": False, "error": "Failed to update availability"}, 
+            status=500
+        )
+
+
+@router.get("/workers/availability", auth=cookie_auth)
+def get_worker_availability_endpoint(request):
+    """
+    Get the authenticated worker's current availability status.
+    Requires authentication.
+    """
+    try:
+        from .services import get_worker_availability
+        
+        user = request.auth
+        result = get_worker_availability(user.accountID)
+        
+        return {
+            "success": True,
+            "data": result
+        }
+        
+    except Exception as e:
+        print(f"❌ Error getting worker availability: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"success": False, "error": "Failed to get availability"}, 
+            status=500
+        )
+#endregion
+
+#region LOCATION TRACKING APIs
+
+@router.post("/location/update", auth=cookie_auth, response=LocationResponseSchema)
+def update_location(request, payload: UpdateLocationSchema):
+    """
+    Update user's current GPS location
+    """
+    try:
+        user = request.auth
+        result = update_user_location(
+            account_id=user.accountID,
+            latitude=payload.latitude,
+            longitude=payload.longitude
+        )
+        return result
+        
+    except ValueError as e:
+        return Response(
+            {"error": str(e)},
+            status=400
+        )
+    except Exception as e:
+        print(f"❌ Error updating location: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to update location"},
+            status=500
+        )
+
+
+@router.get("/location/me", auth=cookie_auth, response=LocationResponseSchema)
+def get_my_location(request):
+    """
+    Get current user's location
+    """
+    try:
+        user = request.auth
+        result = get_user_location(account_id=user.accountID)
+        return result
+        
+    except ValueError as e:
+        return Response(
+            {"error": str(e)},
+            status=400
+        )
+    except Exception as e:
+        print(f"❌ Error getting location: {str(e)}")
+        return Response(
+            {"error": "Failed to get location"},
+            status=500
+        )
+
+
+@router.post("/location/toggle-sharing", auth=cookie_auth, response=LocationResponseSchema)
+def toggle_location_sharing_endpoint(request, payload: ToggleLocationSharingSchema):
+    """
+    Enable or disable location sharing
+    """
+    try:
+        user = request.auth
+        result = toggle_location_sharing(
+            account_id=user.accountID,
+            enabled=payload.enabled
+        )
+        return result
+        
+    except ValueError as e:
+        return Response(
+            {"error": str(e)},
+            status=400
+        )
+    except Exception as e:
+        print(f"❌ Error toggling location sharing: {str(e)}")
+        return Response(
+            {"error": "Failed to toggle location sharing"},
+            status=500
+        )
+
+
+@router.post("/location/nearby-workers")
+def get_nearby_workers(request, payload: NearbyWorkersSchema):
+    """
+    Find workers near a specific location
+    Can be used by clients to find workers nearby
+    """
+    try:
+        result = find_nearby_workers(
+            latitude=payload.latitude,
+            longitude=payload.longitude,
+            radius_km=payload.radius_km,
+            specialization_id=payload.specialization_id
+        )
+        return result
+        
+    except Exception as e:
+        print(f"❌ Error finding nearby workers: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to find nearby workers"},
+            status=500
+        )
+
+#endregion
+
+#region PROFILE IMAGE UPLOAD
+
+@router.post("/upload/profile-image", auth=cookie_auth)
+def upload_profile_image_endpoint(request, profile_image: UploadedFile = File(...)):
+    """
+    Upload user profile image to Supabase storage.
+    
+    Path structure: users/user_{userID}/profileImage/avatar.png
+    
+    Args:
+        profile_image: Image file (JPEG, PNG, JPG, WEBP, max 5MB)
+    
+    Returns:
+        success: boolean
+        message: string
+        image_url: string (public URL)
+        accountID: int
+    """
+    try:
+        from .services import upload_profile_image_service
+        
+        user = request.auth
+        result = upload_profile_image_service(user, profile_image)
+        
+        return result
+        
+    except ValueError as e:
+        print(f"❌ ValueError in profile image upload: {str(e)}")
+        return Response(
+            {"error": str(e)},
+            status=400
+        )
+    except Exception as e:
+        print(f"❌ Exception in profile image upload: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to upload profile image"},
+            status=500
+        )
+
+#endregion
+
+#region WALLET ENDPOINTS
+
+@router.get("/wallet/balance", auth=cookie_auth)
+def get_wallet_balance(request):
+    """Get current user's wallet balance"""
+    try:
+        from .models import Wallet
+        
+        # Get or create wallet for the user
+        wallet, created = Wallet.objects.get_or_create(
+            accountFK=request.auth,
+            defaults={'balance': 0.00}
+        )
+        
+        return {
+            "success": True,
+            "balance": float(wallet.balance),
+            "created": created
+        }
+        
+    except Exception as e:
+        print(f"❌ Error fetching wallet balance: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to fetch wallet balance"},
+            status=500
+        )
+
+
+@router.post("/wallet/deposit", auth=cookie_auth)
+def deposit_funds(request, data: DepositFundsSchema):
+    """
+    Create a Xendit payment invoice for wallet deposit
+    TEST MODE: Transaction auto-approved, funds added immediately
+    Returns payment URL for user to see Xendit page
+    """
+    try:
+        from .models import Wallet, Transaction, Profile
+        from .xendit_service import XenditService
+        from decimal import Decimal
+        from django.utils import timezone
+        
+        amount = data.amount
+        payment_method = data.payment_method
+        
+        print(f"📥 Deposit request received: amount={amount}, payment_method={payment_method}")
+        
+        if amount <= 0:
+            return Response(
+                {"error": "Amount must be greater than 0"},
+                status=400
+            )
+        
+        # Get or create wallet
+        wallet, _ = Wallet.objects.get_or_create(
+            accountFK=request.auth,
+            defaults={'balance': 0.00}
+        )
+        
+        # Get user's profile for name
+        try:
+            profile = Profile.objects.get(accountFK=request.auth)
+            user_name = f"{profile.firstName} {profile.lastName}"
+        except Profile.DoesNotExist:
+            user_name = request.auth.email.split('@')[0]  # Fallback to email username
+        
+        print(f"💰 Processing deposit for {user_name}")
+        print(f"   Current balance: ₱{wallet.balance}")
+        
+        # TEST MODE: Add funds immediately and mark as completed
+        wallet.balance += Decimal(str(amount))
+        wallet.save()
+        
+        # Create completed transaction (auto-approved in TEST MODE)
+        transaction = Transaction.objects.create(
+            walletID=wallet,
+            transactionType=Transaction.TransactionType.DEPOSIT,
+            amount=Decimal(str(amount)),
+            balanceAfter=wallet.balance,
+            status=Transaction.TransactionStatus.COMPLETED,
+            description=f"TOP UP via GCASH - ₱{amount}",
+            paymentMethod=Transaction.PaymentMethod.GCASH,
+            completedAt=timezone.now()
+        )
+        
+        print(f"   New balance: ₱{wallet.balance}")
+        print(f"✅ Funds added immediately! Transaction {transaction.transactionID}")
+        
+        # Create Xendit invoice for user experience
+        print(f"🔄 Creating Xendit invoice...")
+        xendit_result = XenditService.create_gcash_payment(
+            amount=amount,
+            user_email=request.auth.email,
+            user_name=user_name,
+            transaction_id=transaction.transactionID
+        )
+        
+        if not xendit_result.get("success"):
+            # If Xendit fails, funds are still added but return error
+            return Response(
+                {"error": "Failed to create payment invoice", "details": xendit_result.get("error")},
+                status=500
+            )
+        
+        # Update transaction with Xendit details
+        transaction.xenditInvoiceID = xendit_result['invoice_id']
+        transaction.xenditExternalID = xendit_result['external_id']
+        transaction.invoiceURL = xendit_result['invoice_url']
+        transaction.xenditPaymentChannel = "GCASH"
+        transaction.xenditPaymentMethod = "EWALLET"
+        transaction.save()
+        
+        print(f"📄 Xendit invoice created: {xendit_result['invoice_id']}")
+        
+        return {
+            "success": True,
+            "transaction_id": transaction.transactionID,
+            "payment_url": xendit_result['invoice_url'],
+            "invoice_id": xendit_result['invoice_id'],
+            "amount": amount,
+            "new_balance": float(wallet.balance),
+            "expiry_date": xendit_result['expiry_date'],
+            "message": "Funds added and payment invoice created"
+        }
+        
+    except Exception as e:
+        print(f"❌ Error depositing funds: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to deposit funds"},
+            status=500
+        )
+
+
+@router.post("/wallet/withdraw", auth=cookie_auth)
+def withdraw_funds(request, amount: float, payment_method: str = "GCASH"):
+    """Withdraw funds from wallet"""
+    try:
+        from .models import Wallet, Transaction
+        from decimal import Decimal
+        from django.utils import timezone
+        
+        if amount <= 0:
+            return Response(
+                {"error": "Amount must be greater than 0"},
+                status=400
+            )
+        
+        # Get wallet
+        try:
+            wallet = Wallet.objects.get(accountFK=request.auth)
+        except Wallet.DoesNotExist:
+            return Response(
+                {"error": "Wallet not found"},
+                status=404
+            )
+        
+        # Check sufficient balance
+        if wallet.balance < Decimal(str(amount)):
+            return Response(
+                {"error": "Insufficient balance"},
+                status=400
+            )
+        
+        # Update balance
+        wallet.balance -= Decimal(str(amount))
+        wallet.save()
+        
+        # Create transaction record
+        transaction = Transaction.objects.create(
+            walletID=wallet,
+            transactionType="WITHDRAWAL",
+            amount=Decimal(str(amount)),
+            balanceAfter=wallet.balance,
+            status="COMPLETED",
+            description=f"Withdrawal via {payment_method}",
+            paymentMethod=payment_method,
+            completedAt=timezone.now()
+        )
+        
+        return {
+            "success": True,
+            "new_balance": float(wallet.balance),
+            "transaction_id": transaction.transactionID,
+            "message": f"Successfully withdrew ₱{amount}"
+        }
+        
+    except Exception as e:
+        print(f"❌ Error withdrawing funds: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to withdraw funds"},
+            status=500
+        )
+
+
+@router.get("/wallet/transactions", auth=cookie_auth)
+def get_wallet_transactions(request):
+    """Get user's wallet transaction history"""
+    try:
+        from .models import Wallet, Transaction
+        
+        # Get wallet
+        try:
+            wallet = Wallet.objects.get(accountFK=request.auth)
+        except Wallet.DoesNotExist:
+            return {
+                "success": True,
+                "transactions": []
+            }
+        
+        # Get transactions
+        transactions = Transaction.objects.filter(
+            walletID=wallet
+        ).order_by('-createdAt')[:50]  # Last 50 transactions
+        
+        transaction_list = [
+            {
+                "id": t.transactionID,
+                "type": t.transactionType,
+                "amount": float(t.amount),
+                "balance_after": float(t.balanceAfter),
+                "status": t.status,
+                "description": t.description,
+                "payment_method": t.paymentMethod,
+                "reference_number": t.referenceNumber,
+                "created_at": t.createdAt.isoformat(),
+                "completed_at": t.completedAt.isoformat() if t.completedAt else None
+            }
+            for t in transactions
+        ]
+        
+        return {
+            "success": True,
+            "transactions": transaction_list,
+            "current_balance": float(wallet.balance)
+        }
+        
+    except Exception as e:
+        print(f"❌ Error fetching transactions: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to fetch transactions"},
+            status=500
+        )
+
+
+@router.post("/wallet/webhook", auth=None)  # No auth for webhooks
+def xendit_webhook(request):
+    """
+    Handle Xendit payment webhook callbacks
+    This endpoint is called by Xendit when payment status changes
+    """
+    try:
+        from .models import Transaction
+        from .xendit_service import XenditService
+        from decimal import Decimal
+        from django.utils import timezone
+        import json
+        
+        # Get webhook payload
+        payload = json.loads(request.body)
+        
+        print(f"📥 Xendit Webhook received: {payload.get('id')}")
+        
+        # Verify webhook (optional in TEST mode)
+        webhook_token = request.headers.get('x-callback-token', '')
+        if not XenditService.verify_webhook_signature(webhook_token):
+            print(f"❌ Invalid webhook signature")
+            return Response(
+                {"error": "Invalid webhook signature"},
+                status=401
+            )
+        
+        # Parse webhook data
+        webhook_data = XenditService.parse_webhook_payload(payload)
+        if not webhook_data:
+            return Response(
+                {"error": "Invalid webhook payload"},
+                status=400
+            )
+        
+        # Find transaction by Xendit invoice ID
+        try:
+            transaction = Transaction.objects.get(
+                xenditInvoiceID=webhook_data['invoice_id']
+            )
+        except Transaction.DoesNotExist:
+            print(f"❌ Transaction not found for invoice {webhook_data['invoice_id']}")
+            return Response(
+                {"error": "Transaction not found"},
+                status=404
+            )
+        
+        # Update transaction based on status
+        invoice_status = webhook_data['status']
+        
+        if invoice_status == 'PAID':
+            # Payment successful
+            wallet = transaction.walletID
+            
+            # Update wallet balance based on transaction type
+            if transaction.transactionType == Transaction.TransactionType.DEPOSIT:
+                # Deposit adds to wallet
+                wallet.balance += transaction.amount
+                wallet.save()
+                print(f"💰 Added ₱{transaction.amount} to wallet (DEPOSIT)")
+            elif transaction.transactionType == Transaction.TransactionType.PAYMENT:
+                # Payment/Escrow - money goes to platform, not deducted from wallet
+                # Wallet balance stays the same (escrow is held by platform)
+                print(f"💸 Escrow payment of ₱{transaction.amount} received (held by platform)")
+            
+            # Update transaction
+            transaction.status = Transaction.TransactionStatus.COMPLETED
+            transaction.balanceAfter = wallet.balance
+            transaction.xenditPaymentID = webhook_data.get('payment_id')
+            transaction.xenditPaymentChannel = webhook_data.get('payment_channel')
+            transaction.xenditPaymentMethod = webhook_data.get('payment_method')
+            transaction.completedAt = timezone.now()
+            transaction.save()
+            
+            # If this is an escrow payment, mark the job as escrow paid
+            if transaction.relatedJobPosting:
+                job = transaction.relatedJobPosting
+                if "escrow" in transaction.description.lower() or "downpayment" in transaction.description.lower():
+                    job.escrowPaid = True
+                    job.escrowPaidAt = timezone.now()
+                    job.save()
+                    print(f"✅ Job {job.jobID} escrow marked as paid")
+                elif "remaining" in transaction.description.lower() or "final" in transaction.description.lower():
+                    # This is the remaining payment - mark job as completed
+                    job.remainingPaymentPaid = True
+                    job.remainingPaymentPaidAt = timezone.now()
+                    job.status = "COMPLETED"
+                    job.save()
+                    print(f"✅ Job {job.jobID} remaining payment received - Job marked as COMPLETED")
+            
+            print(f"✅ Payment completed for transaction {transaction.transactionID}")
+            
+        elif invoice_status in ['EXPIRED', 'FAILED']:
+            # Payment failed or expired
+            transaction.status = Transaction.TransactionStatus.FAILED
+            transaction.description = f"{transaction.description} - {invoice_status}"
+            transaction.save()
+            
+            print(f"❌ Payment {invoice_status.lower()} for transaction {transaction.transactionID}")
+        
+        return {"success": True, "message": "Webhook processed"}
+        
+    except Exception as e:
+        print(f"❌ Error processing webhook: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to process webhook"},
+            status=500
+        )
+
+
+@router.post("/wallet/simulate-payment/{transaction_id}", auth=cookie_auth)
+def simulate_payment_completion(request, transaction_id: int):
+    """
+    DEVELOPMENT ONLY: Manually complete a payment for testing
+    This simulates what the Xendit webhook would do
+    """
+    try:
+        from .models import Transaction
+        from decimal import Decimal
+        from django.utils import timezone
+        
+        # Get transaction
+        try:
+            transaction = Transaction.objects.get(
+                transactionID=transaction_id,
+                walletID__accountFK=request.auth  # Ensure user owns this transaction
+            )
+        except Transaction.DoesNotExist:
+            return Response(
+                {"error": "Transaction not found"},
+                status=404
+            )
+        
+        # Check if already completed
+        if transaction.status == Transaction.TransactionStatus.COMPLETED:
+            return {
+                "success": False,
+                "message": "Transaction already completed",
+                "balance": float(transaction.walletID.balance)
+            }
+        
+        # Check if pending
+        if transaction.status != Transaction.TransactionStatus.PENDING:
+            return Response(
+                {"error": f"Transaction is {transaction.status}, cannot complete"},
+                status=400
+            )
+        
+        # Complete the payment
+        wallet = transaction.walletID
+        
+        print(f"💰 Simulating payment completion for transaction {transaction_id}")
+        print(f"   Current balance: ₱{wallet.balance}")
+        
+        # Update wallet balance based on transaction type
+        if transaction.transactionType == Transaction.TransactionType.DEPOSIT:
+            # Deposit adds to wallet
+            wallet.balance += transaction.amount
+            wallet.save()
+            print(f"   Added: ₱{transaction.amount} (DEPOSIT)")
+        elif transaction.transactionType == Transaction.TransactionType.PAYMENT:
+            # Payment/Escrow - money goes to platform, not deducted from wallet
+            # Wallet balance stays the same (escrow is held by platform)
+            print(f"   Escrow payment: ₱{transaction.amount} (held by platform)")
+        
+        # Update transaction
+        transaction.status = Transaction.TransactionStatus.COMPLETED
+        transaction.balanceAfter = wallet.balance
+        transaction.xenditPaymentID = "SIMULATED_" + str(transaction_id)
+        transaction.xenditPaymentChannel = "GCASH"
+        transaction.completedAt = timezone.now()
+        transaction.save()
+        
+        # If this is an escrow payment, mark the job as escrow paid
+        if transaction.relatedJobPosting:
+            job = transaction.relatedJobPosting
+            if "escrow" in transaction.description.lower() or "downpayment" in transaction.description.lower():
+                job.escrowPaid = True
+                job.escrowPaidAt = timezone.now()
+                job.save()
+                print(f"✅ Job {job.jobID} escrow marked as paid")
+        
+        print(f"   New balance: ₱{wallet.balance}")
+        print(f"✅ Payment simulation completed!")
+        
+        return {
+            "success": True,
+            "message": "Payment completed successfully (simulated)",
+            "transaction_id": transaction.transactionID,
+            "amount": float(transaction.amount),
+            "new_balance": float(wallet.balance)
+        }
+        
+    except Exception as e:
+        print(f"❌ Error simulating payment: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to simulate payment"},
+            status=500
+        )
+
+
+@router.get("/wallet/payment-status/{transaction_id}", auth=cookie_auth)
+def check_payment_status(request, transaction_id: int):
+    """
+    Check the current status of a payment transaction
+    Used for polling payment status from frontend
+    """
+    try:
+        from .models import Transaction
+        from .xendit_service import XenditService
+        
+        # Get transaction
+        try:
+            transaction = Transaction.objects.get(
+                transactionID=transaction_id,
+                walletID__accountFK=request.auth  # Ensure user owns this transaction
+            )
+        except Transaction.DoesNotExist:
+            return Response(
+                {"error": "Transaction not found"},
+                status=404
+            )
+        
+        # If transaction already completed/failed, return current status
+        if transaction.status in [Transaction.TransactionStatus.COMPLETED, Transaction.TransactionStatus.FAILED]:
+            return {
+                "success": True,
+                "status": transaction.status,
+                "amount": float(transaction.amount),
+                "balance_after": float(transaction.balanceAfter),
+                "completed_at": transaction.completedAt.isoformat() if transaction.completedAt else None
+            }
+        
+        # If still pending, check with Xendit
+        if transaction.xenditInvoiceID:
+            xendit_status = XenditService.get_invoice_status(transaction.xenditInvoiceID)
+            
+            return {
+                "success": True,
+                "status": transaction.status,
+                "xendit_status": xendit_status.get('status'),
+                "payment_url": transaction.invoiceURL,
+                "amount": float(transaction.amount)
+            }
+        
+        return {
+            "success": True,
+            "status": transaction.status,
+            "amount": float(transaction.amount)
+        }
+        
+    except Exception as e:
+        print(f"❌ Error checking payment status: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to check payment status"},
+            status=500
+        )
+
 #endregion
 
 
+
+
+#region MOBILE API ROUTER
+# ===========================================================================
+# MOBILE-SPECIFIC API ENDPOINTS
+# Optimized for mobile app with minimal payloads and better error handling
+# ===========================================================================
+
+mobile_router = Router(tags=["Mobile API"])
+
+# ===========================
+# MOBILE JOB ENDPOINTS
+# ===========================

@@ -48,17 +48,21 @@ const Login = () => {
   } = useAuth();
   const { showAuthError } = useAuthToast();
 
+  // Initialize form hook at the top (before any returns)
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    mode: "onChange", // Enable real-time validation
+    defaultValues: {
+      email: "",
+      password: "",
+    },
+  });
+
   const handleForgotPassword = () => {
     if (!isAuthenticated) {
       router.push("/auth/forgot-password");
     }
   };
-
-  useEffect(() => {
-    if (!authLoading && isAuthenticated) {
-      router.replace("/dashboard/profile"); // redirect if already logged in
-    }
-  }, [authLoading, isAuthenticated, router]);
 
   // Function to check actual rate limit status from backend
   const checkRateLimitStatus = async () => {
@@ -149,16 +153,83 @@ const Login = () => {
     }
   }, []);
 
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    mode: "onChange", // Enable real-time validation
-    defaultValues: {
-      email: "",
-      password: "",
-    },
-  });
+  // 🔥 FIX: Only redirect if we're SURE user is authenticated AND not loading
+  // Use sessionStorage to track redirects and prevent loops
+  useEffect(() => {
+    const lastRedirect = sessionStorage.getItem("last_login_redirect");
+    const now = Date.now();
 
-  if (authLoading) return null; // Don't show loading text, just wait for auth check
+    console.log("🔍 Login Page useEffect:", {
+      authLoading,
+      isAuthenticated,
+      hasUser: !!user,
+      accountType: user?.accountType,
+      role: user?.role,
+      lastRedirect: lastRedirect ? new Date(parseInt(lastRedirect)) : "none",
+    });
+
+    // Prevent redirect loops - if we redirected in the last 5 seconds, don't redirect again
+    if (lastRedirect && now - parseInt(lastRedirect) < 5000) {
+      console.log("⏸️ Login Page: Recently redirected, preventing loop");
+      return;
+    }
+
+    if (!authLoading && isAuthenticated && user) {
+      // Prefer backend accountType when available (more authoritative)
+      const accountType = (user.accountType || "").toString().toLowerCase();
+      const role = (user.role || "").toString().toUpperCase();
+
+      // Mark that we're redirecting
+      sessionStorage.setItem("last_login_redirect", now.toString());
+
+      if (accountType === "agency") {
+        console.log(
+          "🏢 Login Page: Account type 'agency' detected, redirecting to agency dashboard"
+        );
+        router.replace("/agency/dashboard"); // Use replace instead of push
+      } else if (role === "ADMIN") {
+        console.log(
+          "🔐 Login Page: Admin user detected, redirecting to admin panel"
+        );
+        router.replace("/admin/dashboard");
+      } else {
+        console.log("👤 Login Page: Regular user, redirecting to dashboard");
+        router.replace("/dashboard");
+      }
+    } else if (!authLoading && isAuthenticated && !user) {
+      console.log(
+        "⚠️ Login Page: Authenticated but no user data - staying on login"
+      );
+    } else if (!authLoading && !isAuthenticated) {
+      console.log("ℹ️ Login Page: Not authenticated - showing login form");
+      // Clear redirect timestamp when showing login form
+      sessionStorage.removeItem("last_login_redirect");
+    }
+  }, [authLoading, isAuthenticated, user, router]);
+
+  // 🔥 FIX: Show loading only during initial auth check, not the form
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="flex flex-col items-center space-y-4">
+          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-gray-600">Checking authentication...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 🔥 FIX: Only show login form if NOT authenticated
+  if (isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="flex flex-col items-center space-y-4">
+          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-gray-600">Redirecting to dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   const handleGoogle = async () => {
     try {
@@ -179,6 +250,52 @@ const Login = () => {
       localStorage.removeItem("rateLimitEndTime");
       setIsRateLimited(false);
       setRateLimitTime(0);
+
+      // Fetch fresh user data to get the role
+      const userResponse = await fetch(
+        "http://localhost:8000/api/accounts/me",
+        {
+          credentials: "include",
+        }
+      );
+
+      if (userResponse.ok) {
+        const userData = await userResponse.json();
+
+        // Prefer authoritative accountType from backend (set in /me)
+        const accountType = (userData.accountType || "")
+          .toString()
+          .toLowerCase();
+        if (accountType === "agency") {
+          console.log(
+            "🏢 Account type 'agency' detected, redirecting to agency dashboard"
+          );
+          sessionStorage.setItem("last_login_redirect", Date.now().toString());
+          router.replace("/agency/dashboard");
+        } else {
+          // Fallback to role-based redirect (role may be ADMIN)
+          const backendRole = (userData.role || "").toString().toUpperCase();
+          if (backendRole === "ADMIN") {
+            console.log("🔐 Admin login, redirecting to admin panel");
+            sessionStorage.setItem(
+              "last_login_redirect",
+              Date.now().toString()
+            );
+            router.replace("/admin/dashboard");
+          } else {
+            console.log("👤 User login, redirecting to dashboard");
+            sessionStorage.setItem(
+              "last_login_redirect",
+              Date.now().toString()
+            );
+            router.replace("/dashboard");
+          }
+        }
+      } else {
+        // Fallback to regular dashboard if can't fetch user data
+        sessionStorage.setItem("last_login_redirect", Date.now().toString());
+        router.replace("/dashboard");
+      }
     } catch (error) {
       console.error("Login error:", error);
       const errorMessage =

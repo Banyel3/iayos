@@ -1,55 +1,142 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Star } from "lucide-react";
+import { Star, Loader2, ExternalLink } from "lucide-react";
+import Link from "next/link";
+
+interface Skill {
+  name: string;
+  experience_years: number;
+  certification: string;
+}
+
+interface Address {
+  street: string;
+  city: string;
+  province: string;
+  postal_code: string;
+  country: string;
+}
+
+interface Location {
+  latitude: number | null;
+  longitude: number | null;
+  sharing_enabled: boolean;
+  updated_at: string | null;
+}
+
+interface WorkerData {
+  description: string;
+  rating: number;
+  availability_status: string;
+  total_earnings: number;
+}
+
+interface JobStats {
+  total_jobs: number;
+  completed_jobs: number;
+  active_jobs: number;
+  completion_rate: number;
+}
 
 interface Worker {
   id: string;
-  name: string;
+  profile_id: string;
   email: string;
+  first_name: string;
+  last_name: string;
+  full_name: string;
   phone: string;
-  skills: string[];
-  rating: number;
-  reviewCount: number;
-  startingRate: number;
-  status: "verified" | "banned" | "suspended";
-  joinDate: string;
-  completedJobs: number;
-  totalJobs: number;
-  jobTitle: string;
-  experience: string;
+  birth_date: string | null;
+  profile_image: string;
+  address: Address;
+  location: Location;
+  status: string;
+  kyc_status: string;
+  join_date: string;
+  is_verified: boolean;
+  worker_data: WorkerData;
+  skills: Skill[];
+  job_stats: JobStats;
+  review_count: number;
 }
 
 export default function WorkerDetailPage() {
   const { id } = useParams();
+  const router = useRouter();
   const [worker, setWorker] = useState<Worker | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchWorker() {
       try {
-        const res = await fetch(`/api/workers/${id}`);
+        setLoading(true);
+        setError(null);
+        const res = await fetch(
+          `http://localhost:8000/api/adminpanel/users/workers/${id}`,
+          {
+            credentials: "include",
+          }
+        );
+
+        if (!res.ok) {
+          throw new Error("Failed to fetch worker details");
+        }
+
         const data = await res.json();
-        setWorker(data);
+
+        if (data.success && data.worker) {
+          setWorker(data.worker);
+        } else {
+          setError(data.error || "Worker not found");
+        }
       } catch (err) {
         console.error("Failed to fetch worker:", err);
+        setError("Failed to load worker details");
+      } finally {
+        setLoading(false);
       }
     }
     if (id) fetchWorker();
   }, [id]);
 
-  if (!worker) {
-    return <div className="p-6">Loading worker details...</div>;
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading worker details...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !worker) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <p className="text-red-600 mb-4">{error || "Worker not found"}</p>
+          <Button onClick={() => router.push("/admin/users/workers")}>
+            ← Back to Workers
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="p-6 space-y-6">
       {/* Back Button */}
-      <Button variant="outline" onClick={() => history.back()}>
-        ← Back
+      <Button
+        variant="outline"
+        onClick={() => router.push("/admin/users/workers")}
+      >
+        ← Back to Workers
       </Button>
 
       {/* Worker Header */}
@@ -66,49 +153,132 @@ export default function WorkerDetailPage() {
 
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h2 className="text-xl font-bold">{worker.name}</h2>
-                <p className="text-sm text-gray-500">{worker.jobTitle}</p>
+                <h2 className="text-xl font-bold">
+                  {worker.full_name ||
+                    `${worker.first_name} ${worker.last_name}`.trim()}
+                </h2>
+                <p className="text-sm text-gray-500">
+                  {worker.worker_data.availability_status || "Worker"}
+                </p>
               </div>
-              <p className="text-lg font-semibold">₱{worker.startingRate}</p>
+              <p className="text-lg font-semibold">
+                ₱{worker.worker_data.total_earnings.toFixed(2)}
+              </p>
             </div>
 
             {/* Info Grid */}
-            <div className="grid grid-cols-2 gap-y-2 text-sm">
-              <p>
-                <strong>Ratings:</strong> {worker.rating} ⭐
-              </p>
-              <p>
-                <strong>Total Jobs:</strong> {worker.totalJobs}
-              </p>
-              <p>
-                <strong>Jobs Completed:</strong> {worker.completedJobs}
-              </p>
-              <p>
-                <strong>Experience:</strong> {worker.experience}
-              </p>
-              <p>
-                <strong>Status:</strong> {worker.status}
-              </p>
-              <p>
-                <strong>Joined:</strong>{" "}
-                {new Date(worker.joinDate).toLocaleDateString()}
-              </p>
+            <div className="grid grid-cols-2 gap-y-3 text-sm border-t pt-4">
+              <div>
+                <p className="text-gray-500">Rating</p>
+                <div className="flex items-center gap-1">
+                  <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
+                  <span className="font-semibold">
+                    {worker.worker_data.rating}
+                  </span>
+                  <span className="text-xs text-gray-500">
+                    ({worker.review_count})
+                  </span>
+                </div>
+              </div>
+              <div>
+                <p className="text-gray-500">Total Jobs</p>
+                <p className="font-semibold">{worker.job_stats.total_jobs}</p>
+              </div>
+              <div>
+                <p className="text-gray-500">Jobs Completed</p>
+                <p className="font-semibold">
+                  {worker.job_stats.completed_jobs}
+                </p>
+              </div>
+              <div>
+                <p className="text-gray-500">Completion Rate</p>
+                <p className="font-semibold">
+                  {worker.job_stats.completion_rate.toFixed(1)}%
+                </p>
+              </div>
+              <div>
+                <p className="text-gray-500">Status</p>
+                <span
+                  className={`px-2 py-1 rounded-full text-xs font-medium ${
+                    worker.status === "active" || worker.status === "verified"
+                      ? "bg-green-100 text-green-800"
+                      : worker.status === "banned"
+                        ? "bg-red-100 text-red-800"
+                        : "bg-yellow-100 text-yellow-800"
+                  }`}
+                >
+                  {worker.status || "inactive"}
+                </span>
+              </div>
+              <div>
+                <p className="text-gray-500">Joined</p>
+                <p className="font-semibold">
+                  {worker.join_date
+                    ? new Date(worker.join_date).toLocaleDateString()
+                    : "N/A"}
+                </p>
+              </div>
             </div>
+
+            {/* Address Information */}
+            {(worker.address?.street ||
+              worker.address?.city ||
+              worker.address?.province ||
+              worker.address?.country) && (
+              <div className="border-t pt-4">
+                <p className="font-medium mb-2">Address</p>
+                <p className="text-sm text-gray-600">
+                  {worker.address.street && (
+                    <>
+                      {worker.address.street}
+                      <br />
+                    </>
+                  )}
+                  {worker.address.city && `${worker.address.city}, `}
+                  {worker.address.province} {worker.address.postal_code}
+                  {(worker.address.city ||
+                    worker.address.province ||
+                    worker.address.postal_code) && <br />}
+                  {worker.address.country}
+                </p>
+              </div>
+            )}
 
             {/* Skills */}
             <div>
-              <p className="font-medium">Skills</p>
+              <p className="font-medium">Skills & Specializations</p>
               <div className="flex flex-wrap gap-2 mt-2">
-                {worker.skills.map((skill, i) => (
-                  <span
-                    key={i}
-                    className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded"
-                  >
-                    {skill}
+                {worker.skills && worker.skills.length > 0 ? (
+                  worker.skills.map((skill, i) => (
+                    <div
+                      key={i}
+                      className="px-3 py-1 bg-blue-100 text-blue-800 text-xs rounded flex flex-col"
+                    >
+                      <span className="font-medium">{skill.name}</span>
+                      {skill.experience_years > 0 && (
+                        <span className="text-xs text-blue-600">
+                          {skill.experience_years} years exp
+                        </span>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <span className="text-sm text-gray-500">
+                    No skills listed
                   </span>
-                ))}
+                )}
               </div>
             </div>
+
+            {/* Worker Description */}
+            {worker.worker_data.description && (
+              <div>
+                <p className="font-medium">About</p>
+                <p className="text-sm text-gray-600 mt-1">
+                  {worker.worker_data.description}
+                </p>
+              </div>
+            )}
 
             {/* Tabs (Jobs, Transactions, Disputes) */}
             <Tabs defaultValue="jobs" className="mt-6">
@@ -119,17 +289,56 @@ export default function WorkerDetailPage() {
               </TabsList>
               <TabsContent value="jobs" className="mt-4">
                 {/* Example Job Item */}
-                <Card className="p-4">
-                  <p className="text-sm font-semibold">Ceiling Fan Repair</p>
-                  <p className="text-xs text-gray-500">Completed · ₱300</p>
-                  <p className="text-xs mt-2 italic">"my fan is ok na hehe"</p>
-                  <div className="flex items-center mt-1 text-yellow-500">
-                    <Star className="h-4 w-4" /> 5.0
+                <Card className="p-4 hover:shadow-md transition-shadow">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold">
+                          Ceiling Fan Repair
+                        </p>
+                        <Link
+                          href="/admin/jobs/completed/COMP-001"
+                          className="text-blue-600 hover:text-blue-800"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                        </Link>
+                      </div>
+                      <p className="text-xs text-gray-500">Completed · ₱300</p>
+                      <p className="text-xs mt-2 italic">
+                        "my fan is ok na hehe"
+                      </p>
+                      <div className="flex items-center mt-1 text-yellow-500">
+                        <Star className="h-4 w-4" /> 5.0
+                      </div>
+                    </div>
                   </div>
                 </Card>
               </TabsContent>
               <TabsContent value="transactions" className="mt-4">
-                <p>Transactions data here...</p>
+                <Card className="p-4 hover:shadow-md transition-shadow">
+                  <div className="flex justify-between items-center mb-2">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold">
+                          Payment Received
+                        </p>
+                        <Link
+                          href="/admin/jobs/completed/COMP-001"
+                          className="text-blue-600 hover:text-blue-800"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                        </Link>
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        TXN-2024-001234 • Jan 15, 2024
+                      </p>
+                    </div>
+                    <p className="font-semibold text-green-600">₱300.00</p>
+                  </div>
+                  <p className="text-xs text-gray-600">
+                    Payment for Ceiling Fan Repair job
+                  </p>
+                </Card>
               </TabsContent>
               <TabsContent value="disputes" className="mt-4">
                 <p>Disputes data here...</p>
@@ -139,18 +348,18 @@ export default function WorkerDetailPage() {
         </Card>
 
         {/* Right Side: Status and User Details Panel */}
-        <div className="space-y-4 lg:max-w-xs lg:ml-auto">
+        <div className="space-y-4">
           {/* Status card */}
           <Card>
-            <CardHeader className="px-4 py-3">
+            <CardHeader>
               <CardTitle className="text-sm">Status</CardTitle>
             </CardHeader>
-            <CardContent className="p-4 space-y-3 text-sm">
+            <CardContent className="space-y-3 text-sm">
               <div>
                 {/* Full width bordered status bar */}
                 <div className="w-full border rounded-md bg-white">
                   <div className="bg-blue-50 text-center text-xs text-blue-600 font-semibold py-2 rounded-md">
-                    {worker.status.toUpperCase()}
+                    {worker.status ? worker.status.toUpperCase() : "INACTIVE"}
                   </div>
                 </div>
               </div>
@@ -172,11 +381,11 @@ export default function WorkerDetailPage() {
                 <Button variant="outline" className="w-full justify-center">
                   <span className="mr-2">⏸</span>Suspend
                 </Button>
-                <Button variant="outline" className="w-full justify-center">
+                <Button
+                  variant="outline"
+                  className="w-full justify-center col-span-2"
+                >
                   Reset Password
-                </Button>
-                <Button variant="default" className="w-full justify-center">
-                  Edit Profile
                 </Button>
               </div>
             </CardContent>
@@ -184,10 +393,10 @@ export default function WorkerDetailPage() {
 
           {/* User details card */}
           <Card>
-            <CardHeader className="px-4 py-3">
+            <CardHeader>
               <CardTitle className="text-sm">User Details</CardTitle>
             </CardHeader>
-            <CardContent className="p-4">
+            <CardContent>
               {/* Use a description list to align labels and values */}
               <dl className="grid grid-cols-2 gap-y-2 text-sm">
                 <dt className="text-gray-500">User Type</dt>
@@ -196,23 +405,68 @@ export default function WorkerDetailPage() {
                 <dt className="text-gray-500">User ID</dt>
                 <dd className="font-medium">#{worker.id}</dd>
 
+                <dt className="text-gray-500">Profile ID</dt>
+                <dd className="font-medium">#{worker.profile_id}</dd>
+
                 <dt className="text-gray-500">Email</dt>
-                <dd className="font-medium">{worker.email}</dd>
+                <dd className="font-medium col-span-2">{worker.email}</dd>
 
                 <dt className="text-gray-500">Phone Number</dt>
-                <dd className="font-medium">{worker.phone}</dd>
+                <dd className="font-medium col-span-2">
+                  {worker.phone || "—"}
+                </dd>
 
                 <dt className="text-gray-500">Date of Birth</dt>
-                <dd className="font-medium">
-                  {(worker as any).dateOfBirth
-                    ? new Date((worker as any).dateOfBirth).toLocaleDateString()
+                <dd className="font-medium col-span-2">
+                  {worker.birth_date
+                    ? new Date(worker.birth_date).toLocaleDateString()
                     : "—"}
                 </dd>
 
                 <dt className="text-gray-500">Date Joined</dt>
-                <dd className="font-medium">
-                  {new Date(worker.joinDate).toLocaleDateString()}
+                <dd className="font-medium col-span-2">
+                  {worker.join_date
+                    ? new Date(worker.join_date).toLocaleDateString()
+                    : "N/A"}
                 </dd>
+
+                <dt className="text-gray-500">KYC Status</dt>
+                <dd className="font-medium col-span-2">
+                  <span
+                    className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      worker.kyc_status === "APPROVED"
+                        ? "bg-green-100 text-green-800"
+                        : worker.kyc_status === "PENDING"
+                          ? "bg-yellow-100 text-yellow-800"
+                          : worker.kyc_status === "REJECTED"
+                            ? "bg-red-100 text-red-800"
+                            : "bg-gray-100 text-gray-800"
+                    }`}
+                  >
+                    {worker.kyc_status || "NOT_SUBMITTED"}
+                  </span>
+                </dd>
+
+                <dt className="text-gray-500">Verified</dt>
+                <dd className="font-medium col-span-2">
+                  {worker.is_verified ? "✓ Yes" : "✗ No"}
+                </dd>
+
+                <dt className="text-gray-500">Location Sharing</dt>
+                <dd className="font-medium col-span-2">
+                  {worker.location.sharing_enabled ? "Enabled" : "Disabled"}
+                </dd>
+
+                {worker.location.sharing_enabled &&
+                  worker.location.latitude && (
+                    <>
+                      <dt className="text-gray-500">Coordinates</dt>
+                      <dd className="font-medium col-span-2 text-xs">
+                        {worker.location.latitude.toFixed(6)},{" "}
+                        {worker.location.longitude?.toFixed(6)}
+                      </dd>
+                    </>
+                  )}
               </dl>
             </CardContent>
           </Card>

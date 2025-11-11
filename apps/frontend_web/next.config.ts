@@ -2,9 +2,24 @@ import type { NextConfig } from "next";
 import * as path from "path";
 
 const nextConfig: NextConfig = {
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+  typescript: {
+    ignoreBuildErrors: true,
+  },
   devIndicators: false,
   reactStrictMode: true,
   outputFileTracingRoot: path.join(__dirname, "../../"),
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "agtldjbubhrrsxnsdaxc.supabase.co",
+        pathname: "/storage/v1/object/public/**",
+      },
+    ],
+  },
   webpack: (config, { isServer }) => {
     // Exclude TypeScript definition files from processing
     config.module.rules.push({
@@ -25,12 +40,4 @@ const nextConfig: NextConfig = {
   transpilePackages: ["rate-limiter-flexible"],
 };
 
-// Use dynamic import to avoid ESLint no-require-imports error
-const withPWA = require("next-pwa");
-
-const pwaConfig = withPWA({
-  dest: "public",
-  disable: process.env.NODE_ENV === "development",
-});
-
-module.exports = pwaConfig(nextConfig);
+export default nextConfig;

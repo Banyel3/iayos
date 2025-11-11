@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   Card,
   CardContent,
@@ -16,73 +17,100 @@ import {
   Download,
   Calendar,
   DollarSign,
+  Loader2,
 } from "lucide-react";
 import { Sidebar } from "../../components";
 
 interface Client {
   id: string;
-  name: string;
+  profile_id: string;
   email: string;
+  first_name: string;
+  last_name: string;
   phone: string;
-  company?: string;
-  location: string;
-  status: "active" | "inactive" | "suspended";
-  verificationStatus: "verified" | "pending" | "rejected";
-  joinDate: string;
-  totalJobsPosted: number;
-  totalSpent: number;
-  averageRating: number;
+  address: string;
+  status: "active" | "inactive";
+  kyc_status: string;
+  join_date: string;
+  is_verified: boolean;
 }
 
-const mockClients: Client[] = [
-  {
-    id: "1",
-    name: "Sarah Wilson",
-    email: "sarah.wilson@example.com",
-    phone: "+1234567890",
-    company: "Software Engineer",
-    location: "New York, NY",
-    status: "active",
-    verificationStatus: "verified",
-    joinDate: "2024-01-15",
-    totalJobsPosted: 15,
-    totalSpent: 2450.0,
-    averageRating: 4.7,
-  },
-  {
-    id: "2",
-    name: "David Chen",
-    email: "david.chen@example.com",
-    phone: "+1234567891",
-    company: "Data Analyst",
-    location: "San Francisco, CA",
-    status: "inactive",
-    verificationStatus: "verified",
-    joinDate: "2024-02-20",
-    totalJobsPosted: 8,
-    totalSpent: 1200.0,
-    averageRating: 4.5,
-  },
-];
+interface ClientsResponse {
+  success: boolean;
+  clients: Client[];
+  total: number;
+  page: number;
+  total_pages: number;
+  has_next: boolean;
+  has_previous: boolean;
+}
 
 export default function ClientsPage() {
-  const [clients] = useState<Client[]>(mockClients);
+  const router = useRouter();
+  const [clients, setClients] = useState<Client[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<
-    "all" | "active" | "inactive" | "suspended"
+    "all" | "active" | "inactive"
   >("all");
+  const [totalClients, setTotalClients] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
-  const filteredClients = clients.filter((client) => {
-    const matchesSearch =
-      client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      client.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (client.company &&
-        client.company.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesStatus =
-      statusFilter === "all" || client.status === statusFilter;
+  const fetchClients = async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({
+        page: currentPage.toString(),
+        page_size: "50",
+      });
 
-    return matchesSearch && matchesStatus;
-  });
+      if (searchTerm) params.append("search", searchTerm);
+      if (statusFilter !== "all") params.append("status", statusFilter);
+
+      const response = await fetch(
+        `http://localhost:8000/api/adminpanel/users/clients?${params}`,
+        {
+          credentials: "include",
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch clients");
+      }
+
+      const data: ClientsResponse = await response.json();
+
+      if (data.success) {
+        setClients(data.clients);
+        setTotalClients(data.total);
+        setTotalPages(data.total_pages);
+      }
+    } catch (error) {
+      console.error("Error fetching clients:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchClients();
+  }, [currentPage, statusFilter]);
+
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (currentPage === 1) {
+        fetchClients();
+      } else {
+        setCurrentPage(1);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  const activeClients = clients.filter((c) => c.status === "active").length;
 
   return (
     <div className="flex">
@@ -105,7 +133,7 @@ export default function ClientsPage() {
           </div>
 
           {/* Stats Cards */}
-          <div className="grid gap-4 md:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-3">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">
@@ -114,9 +142,9 @@ export default function ClientsPage() {
                 <Building2 className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{clients.length}</div>
+                <div className="text-2xl font-bold">{totalClients}</div>
                 <p className="text-xs text-muted-foreground">
-                  +15% from last month
+                  Registered clients
                 </p>
               </CardContent>
             </Card>
@@ -128,9 +156,7 @@ export default function ClientsPage() {
                 <Building2 className="h-4 w-4 text-green-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">
-                  {clients.filter((c) => c.status === "active").length}
-                </div>
+                <div className="text-2xl font-bold">{activeClients}</div>
                 <p className="text-xs text-muted-foreground">
                   Currently active
                 </p>
@@ -139,34 +165,15 @@ export default function ClientsPage() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">
-                  Total Revenue
-                </CardTitle>
-                <DollarSign className="h-4 w-4 text-green-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  $
-                  {clients
-                    .reduce((acc, c) => acc + c.totalSpent, 0)
-                    .toLocaleString()}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Platform revenue
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Total Jobs
+                  Verified Clients
                 </CardTitle>
                 <Calendar className="h-4 w-4 text-blue-600" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {clients.reduce((acc, c) => acc + c.totalJobsPosted, 0)}
+                  {clients.filter((c) => c.is_verified).length}
                 </div>
-                <p className="text-xs text-muted-foreground">Jobs posted</p>
+                <p className="text-xs text-muted-foreground">Email verified</p>
               </CardContent>
             </Card>
           </div>
@@ -176,7 +183,7 @@ export default function ClientsPage() {
             <CardHeader>
               <CardTitle>Search & Filter</CardTitle>
               <CardDescription>
-                Find clients by name, email, company, or status
+                Find clients by name, email, or status
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -196,11 +203,7 @@ export default function ClientsPage() {
                   value={statusFilter}
                   onChange={(e) =>
                     setStatusFilter(
-                      e.target.value as
-                        | "all"
-                        | "active"
-                        | "inactive"
-                        | "suspended"
+                      e.target.value as "all" | "active" | "inactive"
                     )
                   }
                   className="px-3 py-2 border rounded-md"
@@ -208,7 +211,6 @@ export default function ClientsPage() {
                   <option value="all">All Status</option>
                   <option value="active">Active</option>
                   <option value="inactive">Inactive</option>
-                  <option value="suspended">Suspended</option>
                 </select>
               </div>
             </CardContent>
@@ -218,93 +220,146 @@ export default function ClientsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Clients List</CardTitle>
-              <CardDescription>Overview of all clients</CardDescription>
+              <CardDescription>
+                Overview of all clients (Page {currentPage} of {totalPages})
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="overflow-x-auto">
-                <table className="min-w-full border border-gray-200 rounded-md">
-                  <thead className="bg-gray-100">
-                    <tr>
-                      <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
-                        #
-                      </th>
-                      <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
-                        Name
-                      </th>
-                      <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
-                        Job Title
-                      </th>
-                      <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
-                        Ratings
-                      </th>
-                      <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
-                        Jobs Completed
-                      </th>
-                      <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
-                        Status
-                      </th>
-                      <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
-                        Action
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredClients.map((client, index) => (
-                      <tr key={client.id} className="border-t">
-                        <td className="px-4 py-2 text-sm">{index + 1}</td>
-                        <td className="px-4 py-2 text-sm font-medium">
-                          {client.name}
-                        </td>
-                        <td className="px-4 py-2 text-sm">
-                          {client.company || "—"}
-                        </td>
-                        <td className="px-4 py-2 text-sm">
-                          {client.averageRating}/5.0
-                        </td>
-                        <td className="px-4 py-2 text-sm">
-                          {client.totalJobsPosted}
-                        </td>
-                        <td className="px-4 py-2 text-sm">
-                          <span
-                            className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              client.status === "active"
-                                ? "bg-green-100 text-green-800"
-                                : client.status === "inactive"
-                                  ? "bg-gray-100 text-gray-800"
-                                  : "bg-red-100 text-red-800"
-                            }`}
+              {loading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                  <span className="ml-2 text-gray-600">Loading clients...</span>
+                </div>
+              ) : clients.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  No clients found
+                </div>
+              ) : (
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full border border-gray-200 rounded-md">
+                      <thead className="bg-gray-100">
+                        <tr>
+                          <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
+                            #
+                          </th>
+                          <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
+                            Name
+                          </th>
+                          <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
+                            Email
+                          </th>
+                          <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
+                            Phone
+                          </th>
+                          <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
+                            Address
+                          </th>
+                          <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
+                            KYC Status
+                          </th>
+                          <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
+                            Status
+                          </th>
+                          <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
+                            Action
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {clients.map((client, index) => (
+                          <tr
+                            key={client.id}
+                            className="border-t hover:bg-gray-50"
                           >
-                            {client.status}
-                          </span>
-                        </td>
-                        <td className="px-4 py-2 text-sm space-x-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => console.log("View", client.id)}
-                          >
-                            View
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => console.log("Edit", client.id)}
-                          >
-                            Edit
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => console.log("Delete", client.id)}
-                          >
-                            Delete
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                            <td className="px-4 py-2 text-sm">
+                              {(currentPage - 1) * 50 + index + 1}
+                            </td>
+                            <td className="px-4 py-2 text-sm font-medium">
+                              {client.first_name} {client.last_name}
+                            </td>
+                            <td className="px-4 py-2 text-sm text-gray-600">
+                              {client.email}
+                            </td>
+                            <td className="px-4 py-2 text-sm text-gray-600">
+                              {client.phone || "N/A"}
+                            </td>
+                            <td className="px-4 py-2 text-sm text-gray-600">
+                              {client.address || "N/A"}
+                            </td>
+                            <td className="px-4 py-2 text-sm">
+                              <span
+                                className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                  client.kyc_status === "APPROVED"
+                                    ? "bg-green-100 text-green-800"
+                                    : client.kyc_status === "PENDING"
+                                      ? "bg-yellow-100 text-yellow-800"
+                                      : client.kyc_status === "REJECTED"
+                                        ? "bg-red-100 text-red-800"
+                                        : "bg-gray-100 text-gray-800"
+                                }`}
+                              >
+                                {client.kyc_status}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2 text-sm">
+                              <span
+                                className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                  client.status === "active"
+                                    ? "bg-green-100 text-green-800"
+                                    : "bg-gray-100 text-gray-800"
+                                }`}
+                              >
+                                {client.status}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2 text-sm space-x-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() =>
+                                  router.push(
+                                    `/admin/users/clients/${client.id}`
+                                  )
+                                }
+                              >
+                                View
+                              </Button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Pagination */}
+                  {totalPages > 1 && (
+                    <div className="flex items-center justify-between mt-4">
+                      <Button
+                        variant="outline"
+                        onClick={() =>
+                          setCurrentPage((p) => Math.max(1, p - 1))
+                        }
+                        disabled={currentPage === 1}
+                      >
+                        Previous
+                      </Button>
+                      <span className="text-sm text-gray-600">
+                        Page {currentPage} of {totalPages}
+                      </span>
+                      <Button
+                        variant="outline"
+                        onClick={() =>
+                          setCurrentPage((p) => Math.min(totalPages, p + 1))
+                        }
+                        disabled={currentPage === totalPages}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  )}
+                </>
+              )}
             </CardContent>
           </Card>
         </div>

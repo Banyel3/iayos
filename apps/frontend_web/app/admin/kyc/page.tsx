@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Card,
   CardContent,
@@ -90,6 +91,7 @@ const mockKYCRecords: KYCRecord[] = [
 import { Sidebar } from "../components";
 
 export default function KYCManagementPage() {
+  const router = useRouter();
   const [kycRecords] = useState<KYCRecord[]>(mockKYCRecords);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<
@@ -347,7 +349,11 @@ export default function KYCManagementPage() {
                 )}
 
                 <div className="flex justify-end space-x-2">
-                  <Button variant="outline" size="sm">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => router.push(`/admin/kyc/${record.id}`)}
+                  >
                     <Shield className="w-4 h-4 mr-2" />
                     View Details
                   </Button>

@@ -13,9 +13,12 @@ export default async function AdminLayout({
     .map((c) => `${c.name}=${c.value}`)
     .join("; ");
 
+  // Use internal Docker network for server-side requests
+  const serverApiUrl = process.env.SERVER_API_URL || "http://backend:8000";
+
   // Server-side validate session with backend to avoid client-only cookie checks
   try {
-    const res = await fetch("http://localhost:8000/api/accounts/me", {
+    const res = await fetch(`${serverApiUrl}/api/accounts/me`, {
       headers: {
         cookie: cookieHeader,
         Accept: "application/json",

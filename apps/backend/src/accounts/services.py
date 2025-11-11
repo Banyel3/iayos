@@ -1,5 +1,5 @@
 # services.py
-from .models import Accounts, Profile, Agency
+from .models import Accounts, Profile, Agency, kyc, kycFiles
 from adminpanel.models import SystemRoles
 from django.utils.dateparse import parse_date
 from django.utils import timezone
@@ -10,6 +10,37 @@ import uuid
 import jwt
 import hashlib
 from datetime import timedelta
+from iayos_project.utils import upload_kyc_doc
+import os
+
+
+def get_full_image_url(image_path):
+    """
+    Ensure image URLs are absolute and properly formatted for mobile apps.
+    If the path is relative or just a filename, construct the full Supabase URL.
+    If it's already a full URL, return as is.
+    """
+    # Handle None, empty string, or whitespace-only strings
+    if not image_path or not image_path.strip():
+        print("   → Image path is None/empty/whitespace, returning None")
+        return None
+    
+    # If it's already a full URL (starts with http:// or https://), return as is
+    if image_path.startswith(('http://', 'https://')):
+        print(f"   → Already full URL, returning as-is: {image_path}")
+        return image_path
+    
+    # If it's a relative path starting with /, it's a local fallback image
+    if image_path.startswith('/'):
+        # For mobile apps, these won't work - return None to trigger fallback avatar
+        print(f"   → Relative path detected ({image_path}), returning None for mobile")
+        return None
+    
+    # Otherwise, it's a Supabase storage path - construct the full URL
+    supabase_url = settings.SUPABASE_URL
+    full_url = f"{supabase_url}/storage/v1/object/public/users/{image_path}"
+    print(f"   → Constructing full URL: {full_url}")
+    return full_url
 
 
 def create_account_individ(data):
@@ -36,6 +67,12 @@ def create_account_individ(data):
     user = Accounts.objects.create_user(
         email=data.email,
         password=data.password,
+        street_address=data.street_address,
+        city=data.city,
+        province=data.province,
+        postal_code=data.postal_code,
+        country=data.country
+        
     )
 
 
@@ -52,10 +89,11 @@ def create_account_individ(data):
     profile = Profile.objects.create(
         accountFK=user,
         firstName=data.firstName,
+        middleName=data.middleName,
         lastName=data.lastName,
         contactNum=data.contactNum,
         birthDate=birth_date,
-        profileImg=""  # Provide empty default for required field to avoid DB errors
+        profileImg=None  # NULL until user uploads a profile picture
     )
 
     verifyLink = f"http://localhost:3000/auth/verify-email?verifyToken={verifyToken}&id={user.accountID}"
@@ -121,29 +159,41 @@ def generateCookie(user):
     access_payload = {
         'user_id': user.accountID,
         'email': user.email,
-        'exp': now + timedelta(minutes=60),
+        'exp': now + timedelta(hours=1),  # Access token: 1 hour
         'iat': now
     }
 
     refresh_payload = {
         'user_id': user.accountID,
         'email': user.email,
-        'exp': now + timedelta(minutes=60),
+        'exp': now + timedelta(days=7),  # Refresh token: 7 days
         'iat': now
     }
 
     access_token = jwt.encode(access_payload, settings.SECRET_KEY, algorithm='HS256')
     refresh_token = jwt.encode(refresh_payload, settings.SECRET_KEY, algorithm='HS256')
 
-    response = JsonResponse({"message": "Login Successful"})
+    # Return tokens both in cookies (for web) and in response body (for mobile)
+    response = JsonResponse({
+        "message": "Login Successful",
+        "access": access_token,
+        "refresh": refresh_token,
+        "user": {
+            "accountID": user.accountID,
+            "email": user.email,
+            "isVerified": user.isVerified
+        }
+    })
+    
+    # Set cookies for Next.js web app compatibility
     response.set_cookie(
         key="access",
         value=access_token,
         httponly=True,
         secure=False,
         samesite="Lax",
-        max_age=3600,
-        domain=None,  # No domain = works for whatever domain sets it
+        max_age=3600,  # 1 hour (matches token expiry)
+        domain=None,
     )
     response.set_cookie(
         key="refresh",
@@ -151,8 +201,8 @@ def generateCookie(user):
         httponly=True,
         secure=False,
         samesite="Lax",
-        max_age=86400,
-        domain=None,  # No domain
+        max_age=604800,  # 7 days (matches token expiry)
+        domain=None,
     )
     return response
 
@@ -301,38 +351,996 @@ def fetch_currentUser(accountID):
         try:
             profile = Profile.objects.select_related("accountFK").get(accountFK=account)
 
+            # Debug: Log what's stored in DB vs what we're sending
+            raw_profile_img = profile.profileImg
+            formatted_profile_img = get_full_image_url(profile.profileImg)
+            print(f"🖼️  Profile Image Debug for user {accountID}:")
+            print(f"   Raw DB value: {raw_profile_img}")
+            print(f"   Formatted URL: {formatted_profile_img}")
+
             profile_data = {
                 "firstName": profile.firstName,
                 "lastName": profile.lastName,
-                "profileImg": profile.profileImg,
+                "profileImg": formatted_profile_img,  # Ensure full URL for mobile
                 "profileType": profile.profileType,
+                "contactNum": profile.contactNum,
+                "birthDate": profile.birthDate.isoformat() if profile.birthDate else None,
             }
 
+            # If a Profile exists we treat this as an "individual" account
             return {
                 "accountID": account.accountID,
                 "email": account.email,
                 "role": user_role,  # <-- systemRole from SystemRoles
+                "kycVerified": account.KYCVerified,  # <-- KYC verification status from Accounts
                 "profile_data": profile_data,
+                "accountType": "individual",
             }
 
         except Profile.DoesNotExist:
+            # No Profile found - check if this account has an Agency record
+            try:
+                is_agency = Agency.objects.filter(accountFK=account).exists()
+            except Exception:
+                is_agency = False
+
+            account_type = "agency" if is_agency else "individual"
+
             return {
                 "accountID": account.accountID,
                 "email": account.email,
                 "role": user_role,
+                "kycVerified": account.KYCVerified,  # <-- KYC verification status from Accounts
                 "profile_data": None,
                 "user_data": {},
-                "skill_categories": []
+                "skill_categories": [],
+                "accountType": account_type,
             }
 
     except Accounts.DoesNotExist:
         raise ValueError("User not found")
 
 def assign_role(data):
-    user = Accounts.objects.get(email__iexact=data.email)
-    profile = Profile.objects.get(accountFK=user)
+    """
+    Assign a role (WORKER or CLIENT) to a user and create the corresponding profile.
+    Creates WorkerProfile for workers or ClientProfile for clients.
+    """
+    from .models import WorkerProfile, ClientProfile
+    
+    try:
+        # Get user and profile
+        user = Accounts.objects.get(email__iexact=data.email)
+        profile = Profile.objects.get(accountFK=user)
 
-    profile.profileType = data.selectedType
-    profile.save()
+        # Update profile type
+        profile.profileType = data.selectedType
+        profile.save()
+        
+        print(f"✅ Assigned role {data.selectedType} to user {user.email}")
 
-    return {"message": "Role Assigned Successfully"}
+        # Create WorkerProfile or ClientProfile based on role
+        if data.selectedType == Profile.ProfileType.WORKER:
+            # Create or update WorkerProfile
+            worker_profile, created = WorkerProfile.objects.get_or_create(
+                profileID=profile,
+                defaults={
+                    'description': '',
+                    'workerRating': 0,
+                    'totalEarningGross': 0.00,
+                    'availabilityStatus': 'OFFLINE'
+                }
+            )
+            if created:
+                print(f"✅ Created WorkerProfile for user {user.email}")
+            else:
+                print(f"ℹ️ WorkerProfile already exists for user {user.email}")
+                
+        elif data.selectedType == Profile.ProfileType.CLIENT:
+            # Create or update ClientProfile
+            client_profile, created = ClientProfile.objects.get_or_create(
+                profileID=profile,
+                defaults={
+                    'description': '',
+                    'totalJobsPosted': 0,
+                    'clientRating': 0
+                }
+            )
+            if created:
+                print(f"✅ Created ClientProfile for user {user.email}")
+            else:
+                print(f"ℹ️ ClientProfile already exists for user {user.email}")
+
+        return {"message": "Role Assigned Successfully"}
+        
+    except Accounts.DoesNotExist:
+        raise ValueError("User account not found")
+    except Profile.DoesNotExist:
+        raise ValueError("User profile not found")
+    except Exception as e:
+        print(f"❌ Error assigning role: {str(e)}")
+        raise ValueError(f"Failed to assign role: {str(e)}")
+
+def upload_kyc_document(payload, frontID, backID, clearance, selfie):
+    try:
+        user = Accounts.objects.get(accountID=payload.accountID)
+
+        # Define image inputs
+        images = {
+            'FRONTID': frontID,
+            'BACKID': backID,
+            'CLEARANCE': clearance,
+            'SELFIE': selfie
+        }
+
+        allowed_mime_types = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf']
+        max_size = 5 * 1024 * 1024  # 5 MB
+
+        # Validate ID Type
+        if payload.IDType:
+            allowed_id_types = ['PASSPORT', 'NATIONALID', 'UMID', 'PHILHEALTH', 'DRIVERSLICENSE']
+            if payload.IDType.upper() not in allowed_id_types:
+                raise ValueError(f"Invalid ID type. Allowed: {', '.join(allowed_id_types)}")
+
+        # Validate Clearance Type
+        if payload.clearanceType:
+            allowed_clearance_types = ['POLICE', 'NBI']
+            if payload.clearanceType.upper() not in allowed_clearance_types:
+                raise ValueError(f"Invalid clearance type. Allowed: {', '.join(allowed_clearance_types)}")
+
+        # Generate unique filenames per document
+        unique_names = {}
+        for key, file in images.items():
+            if not file:
+                continue
+
+            # Determine type label (for naming)
+            type_label = None
+            if key in ['FRONTID', 'BACKID']:
+                type_label = payload.IDType.lower()
+            elif key == 'CLEARANCE':
+                type_label = payload.clearanceType.lower()
+            else:
+                type_label = key.lower()
+
+            ext = os.path.splitext(file.name)[1]
+            unique_names[key] = f"{key.lower()}_{type_label}_{uuid.uuid4().hex}{ext}"
+
+        # Get or create KYC record
+        kyc_record, created = kyc.objects.get_or_create(
+            accountFK=user,
+            defaults={'kycStatus': 'PENDING', 'notes': ''}
+        )
+
+        # If KYC record already exists, delete old files to avoid duplicates
+        # and reset status to PENDING for re-review
+        if not created:
+            kycFiles.objects.filter(kycID=kyc_record).delete()
+            kyc_record.kycStatus = 'PENDING'
+            kyc_record.notes = 'Re-submitted'
+            kyc_record.save()
+
+        uploaded_files = []
+
+        # Upload each file
+        for key, file in images.items():
+            if not file:
+                continue
+
+            if file.content_type not in allowed_mime_types:
+                raise ValueError(f"{key}: Invalid file type. Allowed: JPEG, PNG, PDF")
+
+            if file.size > max_size:
+                raise ValueError(f"{key}: File too large. Maximum size is 5MB")
+
+            unique_filename = unique_names[key]
+            file_url = upload_kyc_doc(
+                file=file,
+                user_id=user.accountID,
+                file_name=unique_filename
+            )
+
+            # Assign proper ID type or clearance type
+            id_type = None
+            if key in ['FRONTID', 'BACKID']:
+                id_type = payload.IDType.upper()
+            elif key == 'CLEARANCE':
+                id_type = payload.clearanceType.upper()
+
+            kycFiles.objects.create(
+                kycID=kyc_record,
+                idType=id_type,
+                fileURL=file_url,
+                fileName=unique_filename,
+                fileSize=file.size
+            )
+
+            uploaded_files.append({
+                "file_type": key.lower(),
+                "file_url": file_url,
+                "file_name": unique_filename,
+                "file_size": file.size
+            })
+
+        return {
+            "message": "KYC documents uploaded successfully",
+            "kyc_id": kyc_record.kycID,
+            "files": uploaded_files
+        }
+
+    except Accounts.DoesNotExist:
+        raise ValueError("User not found")
+    except ValueError:
+        raise
+    except Exception as e:
+        print(f"KYC upload error: {str(e)}")
+        raise ValueError("Internal server error during upload")
+
+def get_kyc_status(user_id):
+    """
+    Get current KYC status and uploaded documents
+    """
+    try:
+        user = Accounts.objects.get(accountID=user_id)
+
+        try:
+            kyc_record = kyc.objects.get(accountFK=user)
+        except kyc.DoesNotExist:
+            return {
+                "status": "NOT_STARTED",
+                "message": "No KYC submission found"
+            }
+
+        kyc_files = kycFiles.objects.filter(kycID=kyc_record)
+
+        return {
+            "kyc_id": kyc_record.kycID,
+            "status": kyc_record.kycStatus,
+            "notes": kyc_record.notes,
+            "reviewed_at": kyc_record.reviewedAt,
+            "submitted_at": kyc_record.createdAt,
+            "files": [
+                {
+                    "id_type": f.idType,
+                    "file_name": f.fileName,
+                    "file_size": f.fileSize,
+                    "uploaded_at": f.uploadedAt
+                } for f in kyc_files
+            ]
+        }
+
+    except Accounts.DoesNotExist:
+        raise ValueError("User not found")
+    except Exception as e:
+        raise ValueError(f"Failed to fetch KYC status: {str(e)}")
+
+
+def get_pending_kyc_submissions():
+    """
+    Get all pending KYC submissions (for admin)
+    """
+    try:
+        pending_kyc = kyc.objects.filter(kycStatus='PENDING').select_related('accountFK')
+        
+        results = []
+        for kyc_record in pending_kyc:
+            files = kycFiles.objects.filter(kycID=kyc_record)
+            results.append({
+                "kyc_id": kyc_record.kycID,
+                "account_id": kyc_record.accountFK.accountID,
+                "email": kyc_record.accountFK.email,
+                "submitted_at": kyc_record.createdAt,
+                "files_count": files.count(),
+                "files": [
+                    {
+                        "file_type": f.fileType,
+                        "id_type": f.idType,
+                        "file_name": f.fileName
+                    } for f in files
+                ]
+            })
+
+        return {"pending_submissions": results}
+
+    except Exception as e:
+        raise ValueError(f"Failed to fetch pending KYC: {str(e)}")
+
+
+def get_user_notifications(user_account_id, limit=50, unread_only=False):
+    """
+    Fetch notifications for a specific user.
+    
+    Args:
+        user_account_id: The account ID of the user
+        limit: Maximum number of notifications to return (default 50)
+        unread_only: If True, only return unread notifications
+        
+    Returns:
+        List of notification dictionaries
+    """
+    from .models import Notification
+    
+    try:
+        queryset = Notification.objects.filter(accountFK__accountID=user_account_id)
+        
+        if unread_only:
+            queryset = queryset.filter(isRead=False)
+        
+        queryset = queryset.order_by('-createdAt')[:limit]
+        
+        notifications = []
+        for notif in queryset:
+            notifications.append({
+                "notificationID": notif.notificationID,
+                "type": notif.notificationType,
+                "title": notif.title,
+                "message": notif.message,
+                "isRead": notif.isRead,
+                "createdAt": notif.createdAt.isoformat(),
+                "readAt": notif.readAt.isoformat() if notif.readAt else None,
+                "relatedKYCLogID": notif.relatedKYCLogID,
+            })
+        
+        return notifications
+        
+    except Exception as e:
+        print(f"❌ Error fetching notifications: {str(e)}")
+        raise
+
+
+def mark_notification_as_read(user_account_id, notification_id):
+    """
+    Mark a specific notification as read.
+    
+    Args:
+        user_account_id: The account ID of the user
+        notification_id: The notification ID to mark as read
+        
+    Returns:
+        Success boolean
+    """
+    from .models import Notification
+    
+    try:
+        notification = Notification.objects.get(
+            notificationID=notification_id,
+            accountFK__accountID=user_account_id
+        )
+        
+        if not notification.isRead:
+            notification.isRead = True
+            notification.readAt = timezone.now()
+            notification.save()
+            print(f"✅ Notification {notification_id} marked as read")
+        
+        return True
+        
+    except Notification.DoesNotExist:
+        raise ValueError("Notification not found")
+    except Exception as e:
+        print(f"❌ Error marking notification as read: {str(e)}")
+        raise
+
+
+def mark_all_notifications_as_read(user_account_id):
+    """
+    Mark all notifications as read for a user.
+    
+    Args:
+        user_account_id: The account ID of the user
+        
+    Returns:
+        Number of notifications marked as read
+    """
+    from .models import Notification
+    
+    try:
+        updated_count = Notification.objects.filter(
+            accountFK__accountID=user_account_id,
+            isRead=False
+        ).update(
+            isRead=True,
+            readAt=timezone.now()
+        )
+        
+        print(f"✅ Marked {updated_count} notifications as read")
+        return updated_count
+        
+    except Exception as e:
+        print(f"❌ Error marking all notifications as read: {str(e)}")
+        raise
+
+
+def get_unread_notification_count(user_account_id):
+    """
+    Get the count of unread notifications for a user.
+    
+    Args:
+        user_account_id: The account ID of the user
+        
+    Returns:
+        Integer count of unread notifications
+    """
+    from .models import Notification
+    
+    try:
+        count = Notification.objects.filter(
+            accountFK__accountID=user_account_id,
+            isRead=False
+        ).count()
+        
+        return count
+        
+    except Exception as e:
+        print(f"❌ Error getting unread notification count: {str(e)}")
+        raise
+
+
+def get_all_workers(client_latitude: float = None, client_longitude: float = None):
+    """
+    Fetch all workers with their profiles and specializations.
+    
+    Args:
+        client_latitude: Optional latitude of the client viewing workers
+        client_longitude: Optional longitude of the client viewing workers
+    
+    Returns:
+        List of worker dictionaries matching WorkerListing interface
+    """
+    from .models import WorkerProfile, Profile, workerSpecialization, Specializations, Accounts
+    
+    try:
+        # Query all worker profiles with related data - ONLY AVAILABLE workers
+        worker_profiles = WorkerProfile.objects.select_related(
+            'profileID',
+            'profileID__accountFK'
+        ).filter(
+            availabilityStatus='AVAILABLE'  # Use string value instead of enum
+        ).all()
+        
+        workers = []
+        
+        for worker_profile in worker_profiles:
+            profile = worker_profile.profileID
+            account = profile.accountFK
+            
+            # Get primary specialization (first one if multiple)
+            worker_spec = workerSpecialization.objects.filter(
+                workerID=worker_profile
+            ).select_related('specializationID').first()
+            
+            specialization_name = "General Worker"
+            experience_years = 0
+            
+            if worker_spec:
+                specialization_name = worker_spec.specializationID.specializationName
+                experience_years = worker_spec.experienceYears
+            
+            # Format experience text
+            if experience_years == 0:
+                experience_text = "New"
+            elif experience_years == 1:
+                experience_text = "1 year"
+            else:
+                experience_text = f"{experience_years}+ years"
+            
+            # Calculate distance if client location is provided
+            distance = None
+            if client_latitude is not None and client_longitude is not None:
+                # Check if worker has location data and has location sharing enabled
+                if (profile.latitude is not None and 
+                    profile.longitude is not None and 
+                    profile.location_sharing_enabled):
+                    distance = calculate_distance(
+                        client_latitude,
+                        client_longitude,
+                        float(profile.latitude),
+                        float(profile.longitude)
+                    )
+                    distance = round(distance, 1)  # Round to 1 decimal place
+            
+            # Use placeholder distance if no location data available
+            if distance is None:
+                distance = 999.9  # High number to sort workers without location data to the end
+            
+            # Build worker data matching WorkerListing interface
+            worker_data = {
+                "id": str(account.accountID),
+                "name": f"{profile.firstName} {profile.lastName}",
+                "avatar": profile.profileImg if profile.profileImg else "/worker1.jpg",
+                "rating": round(worker_profile.workerRating / 20, 1) if worker_profile.workerRating > 0 else 0.0,  # Convert 0-100 to 0-5 scale
+                "reviewCount": 0,  # TODO: Implement review system
+                "startingPrice": "₱500",  # TODO: Add pricing to WorkerProfile model
+                "experience": experience_text,
+                "specialization": specialization_name,
+                "isVerified": account.KYCVerified,
+                "distance": distance
+            }
+            
+            workers.append(worker_data)
+        
+        # Sort by distance
+        workers.sort(key=lambda x: x['distance'])
+        
+        print(f"✅ Fetched {len(workers)} workers (client location: {client_latitude}, {client_longitude})")
+        return workers
+        
+    except Exception as e:
+        print(f"❌ Error fetching workers: {str(e)}")
+        raise
+
+
+def get_worker_by_id(user_id, client_latitude: float = None, client_longitude: float = None):
+    """
+    Fetch a single worker by their account ID.
+    
+    Args:
+        user_id: The account ID of the worker
+        client_latitude: Optional latitude of the client viewing the worker
+        client_longitude: Optional longitude of the client viewing the worker
+        
+    Returns:
+        Worker dictionary matching WorkerListing interface, or None if not found
+    """
+    from .models import WorkerProfile, Profile, workerSpecialization, Specializations, Accounts
+    
+    try:
+        # Get the account
+        account = Accounts.objects.get(accountID=user_id)
+        
+        # Get the profile
+        profile = Profile.objects.get(accountFK=account, profileType=Profile.ProfileType.WORKER)
+        
+        # Get the worker profile
+        worker_profile = WorkerProfile.objects.get(profileID=profile)
+        
+        # Get primary specialization
+        worker_spec = workerSpecialization.objects.filter(
+            workerID=worker_profile
+        ).select_related('specializationID').first()
+        
+        specialization_name = "General Worker"
+        experience_years = 0
+        
+        if worker_spec:
+            specialization_name = worker_spec.specializationID.specializationName
+            experience_years = worker_spec.experienceYears
+        
+        # Format experience text
+        if experience_years == 0:
+            experience_text = "New"
+        elif experience_years == 1:
+            experience_text = "1 year"
+        else:
+            experience_text = f"{experience_years}+ years"
+        
+        # Calculate distance if client location is provided
+        distance = None
+        if client_latitude is not None and client_longitude is not None:
+            # Check if worker has location data and has location sharing enabled
+            if (profile.latitude is not None and 
+                profile.longitude is not None and 
+                profile.location_sharing_enabled):
+                distance = calculate_distance(
+                    client_latitude,
+                    client_longitude,
+                    float(profile.latitude),
+                    float(profile.longitude)
+                )
+                distance = round(distance, 1)  # Round to 1 decimal place
+        
+        # Use placeholder distance if no location data available
+        if distance is None:
+            distance = None  # Return None instead of placeholder to indicate no distance available
+        
+        # Build worker data
+        worker_data = {
+            "id": str(account.accountID),
+            "name": f"{profile.firstName} {profile.lastName}",
+            "avatar": profile.profileImg if profile.profileImg else "/worker1.jpg",
+            "rating": round(worker_profile.workerRating / 20, 1) if worker_profile.workerRating > 0 else 0.0,
+            "reviewCount": 0,  # TODO: Implement review system
+            "startingPrice": "₱500",  # TODO: Add pricing to WorkerProfile model
+            "experience": experience_text,
+            "specialization": specialization_name,
+            "isVerified": account.KYCVerified,
+            "distance": distance  # Will be None if location unavailable
+        }
+        
+        print(f"✅ Fetched worker {user_id} (distance: {distance} km)")
+        return worker_data
+        
+    except Accounts.DoesNotExist:
+        print(f"❌ Account {user_id} not found")
+        return None
+    except Profile.DoesNotExist:
+        print(f"❌ Profile for account {user_id} not found")
+        return None
+    except WorkerProfile.DoesNotExist:
+        print(f"❌ Worker profile for account {user_id} not found")
+        return None
+    except Exception as e:
+        print(f"❌ Error fetching worker {user_id}: {str(e)}")
+        raise
+
+
+def update_worker_availability(user_id, is_available):
+    """
+    Update a worker's availability status.
+    WorkerProfile should already exist from role selection.
+    
+    Args:
+        user_id: The account ID of the worker
+        is_available: Boolean indicating if worker is available (True) or offline (False)
+        
+    Returns:
+        Dictionary with updated availability status
+    """
+    from .models import WorkerProfile, Profile, Accounts
+    
+    try:
+        # Get the account
+        account = Accounts.objects.get(accountID=user_id)
+        
+        # Get the profile
+        profile = Profile.objects.get(accountFK=account, profileType=Profile.ProfileType.WORKER)
+        
+        # Get or create the worker profile (fallback for legacy users)
+        worker_profile, created = WorkerProfile.objects.get_or_create(
+            profileID=profile,
+            defaults={
+                'description': '',
+                'workerRating': 0,
+                'totalEarningGross': 0.00,
+                'availabilityStatus': 'OFFLINE'
+            }
+        )
+        
+        if created:
+            print(f"⚠️ Created WorkerProfile for legacy user {user_id} (should have been created during role selection)")
+        
+        # Update availability status
+        if is_available:
+            worker_profile.availabilityStatus = 'AVAILABLE'
+        else:
+            worker_profile.availabilityStatus = 'OFFLINE'
+        
+        worker_profile.save()
+        
+        print(f"✅ Updated worker {user_id} availability to {worker_profile.availabilityStatus}")
+        
+        return {
+            "accountID": user_id,
+            "availabilityStatus": worker_profile.availabilityStatus,
+            "isAvailable": is_available
+        }
+        
+    except Accounts.DoesNotExist:
+        print(f"❌ Account {user_id} not found")
+        raise ValueError("Account not found")
+    except Profile.DoesNotExist:
+        print(f"❌ Profile for account {user_id} not found or not a worker")
+        raise ValueError("Worker profile not found")
+    except Exception as e:
+        print(f"❌ Error updating worker availability: {str(e)}")
+        raise
+
+
+def get_worker_availability(user_id):
+    """
+    Get a worker's current availability status.
+    WorkerProfile should already exist from role selection.
+    
+    Args:
+        user_id: The account ID of the worker
+        
+    Returns:
+        Dictionary with availability status
+    """
+    from .models import WorkerProfile, Profile, Accounts
+    
+    try:
+        # Get the account
+        account = Accounts.objects.get(accountID=user_id)
+        
+        # Get the profile
+        profile = Profile.objects.get(accountFK=account, profileType=Profile.ProfileType.WORKER)
+        
+        # Get or create the worker profile (fallback for legacy users)
+        worker_profile, created = WorkerProfile.objects.get_or_create(
+            profileID=profile,
+            defaults={
+                'description': '',
+                'workerRating': 0,
+                'totalEarningGross': 0.00,
+                'availabilityStatus': 'OFFLINE'
+            }
+        )
+        
+        if created:
+            print(f"⚠️ Created WorkerProfile for legacy user {user_id} (should have been created during role selection)")
+        
+        is_available = worker_profile.availabilityStatus == 'AVAILABLE'
+        
+        return {
+            "accountID": user_id,
+            "availabilityStatus": worker_profile.availabilityStatus,
+            "isAvailable": is_available
+        }
+        
+    except Exception as e:
+        print(f"❌ Error getting worker availability: {str(e)}")
+        raise
+
+
+#region LOCATION TRACKING SERVICES
+
+def update_user_location(account_id: int, latitude: float, longitude: float):
+    """
+    Update user's GPS location
+    """
+    from django.utils import timezone
+    
+    try:
+        # Get the user's profile
+        profile = Profile.objects.filter(accountFK_id=account_id).first()
+        
+        if not profile:
+            raise ValueError("Profile not found")
+        
+        # Update location
+        profile.latitude = latitude
+        profile.longitude = longitude
+        profile.location_updated_at = timezone.now()
+        
+        # Enable location sharing if not already enabled
+        if not profile.location_sharing_enabled:
+            profile.location_sharing_enabled = True
+        
+        profile.save()
+        
+        return {
+            "profile_id": profile.profileID,
+            "latitude": float(profile.latitude),
+            "longitude": float(profile.longitude),
+            "location_updated_at": profile.location_updated_at.isoformat(),
+            "location_sharing_enabled": profile.location_sharing_enabled,
+            "message": "Location updated successfully"
+        }
+        
+    except Profile.DoesNotExist:
+        raise ValueError("Profile not found")
+    except Exception as e:
+        print(f"❌ Error updating location: {str(e)}")
+        raise
+
+
+def toggle_location_sharing(account_id: int, enabled: bool):
+    """
+    Enable or disable location sharing for a user
+    """
+    try:
+        profile = Profile.objects.filter(accountFK_id=account_id).first()
+        
+        if not profile:
+            raise ValueError("Profile not found")
+        
+        profile.location_sharing_enabled = enabled
+        profile.save()
+        
+        return {
+            "profile_id": profile.profileID,
+            "latitude": float(profile.latitude) if profile.latitude else None,
+            "longitude": float(profile.longitude) if profile.longitude else None,
+            "location_updated_at": profile.location_updated_at.isoformat() if profile.location_updated_at else None,
+            "location_sharing_enabled": profile.location_sharing_enabled,
+            "message": f"Location sharing {'enabled' if enabled else 'disabled'} successfully"
+        }
+        
+    except Profile.DoesNotExist:
+        raise ValueError("Profile not found")
+    except Exception as e:
+        print(f"❌ Error toggling location sharing: {str(e)}")
+        raise
+
+
+def get_user_location(account_id: int):
+    """
+    Get user's current location
+    """
+    try:
+        profile = Profile.objects.filter(accountFK_id=account_id).first()
+        
+        if not profile:
+            raise ValueError("Profile not found")
+        
+        return {
+            "profile_id": profile.profileID,
+            "latitude": float(profile.latitude) if profile.latitude else None,
+            "longitude": float(profile.longitude) if profile.longitude else None,
+            "location_updated_at": profile.location_updated_at.isoformat() if profile.location_updated_at else None,
+            "location_sharing_enabled": profile.location_sharing_enabled,
+            "message": "Location retrieved successfully"
+        }
+        
+    except Profile.DoesNotExist:
+        raise ValueError("Profile not found")
+    except Exception as e:
+        print(f"❌ Error getting location: {str(e)}")
+        raise
+
+
+def calculate_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """
+    Calculate distance between two GPS coordinates using Haversine formula
+    Returns distance in kilometers
+    """
+    from math import radians, cos, sin, asin, sqrt
+    
+    # Convert to radians
+    lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
+    
+    # Haversine formula
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+    a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+    c = 2 * asin(sqrt(a))
+    
+    # Radius of Earth in kilometers
+    r = 6371
+    
+    return c * r
+
+
+def find_nearby_workers(latitude: float, longitude: float, radius_km: float = 10.0, specialization_id: int = None):
+    """
+    Find workers near a specific location
+    """
+    from .models import WorkerProfile, workerSpecialization
+    from django.db.models import Q
+    
+    try:
+        # Get all worker profiles with location sharing enabled
+        workers_query = Profile.objects.filter(
+            profileType='WORKER',
+            location_sharing_enabled=True,
+            latitude__isnull=False,
+            longitude__isnull=False
+        ).select_related('accountFK')
+        
+        nearby_workers = []
+        
+        for profile in workers_query:
+            # Calculate distance
+            distance = calculate_distance(
+                latitude, 
+                longitude, 
+                float(profile.latitude), 
+                float(profile.longitude)
+            )
+            
+            # Check if within radius
+            if distance <= radius_km:
+                try:
+                    # Get worker profile
+                    worker_profile = WorkerProfile.objects.get(profileID=profile)
+                    
+                    # Get specializations
+                    specializations_query = workerSpecialization.objects.filter(
+                        workerID=worker_profile
+                    ).select_related('specializationID')
+                    
+                    specializations = [
+                        {
+                            "id": ws.specializationID.specializationID,
+                            "name": ws.specializationID.specializationName,
+                            "experience_years": ws.experienceYears,
+                            "certification": ws.certification
+                        }
+                        for ws in specializations_query
+                    ]
+                    
+                    # Filter by specialization if provided
+                    if specialization_id:
+                        if not any(s['id'] == specialization_id for s in specializations):
+                            continue
+                    
+                    nearby_workers.append({
+                        "profile_id": profile.profileID,
+                        "worker_id": worker_profile.profileID.profileID,
+                        "first_name": profile.firstName,
+                        "last_name": profile.lastName,
+                        "profile_img": profile.profileImg if profile.profileImg else None,
+                        "latitude": float(profile.latitude),
+                        "longitude": float(profile.longitude),
+                        "distance_km": round(distance, 2),
+                        "availability_status": worker_profile.availabilityStatus,
+                        "specializations": specializations
+                    })
+                    
+                except WorkerProfile.DoesNotExist:
+                    continue
+        
+        # Sort by distance
+        nearby_workers.sort(key=lambda x: x['distance_km'])
+        
+        return {
+            "workers": nearby_workers,
+            "count": len(nearby_workers),
+            "search_location": {
+                "latitude": latitude,
+                "longitude": longitude,
+                "radius_km": radius_km
+            }
+        }
+        
+    except Exception as e:
+        print(f"❌ Error finding nearby workers: {str(e)}")
+        raise
+
+#endregion
+
+#region PROFILE IMAGE UPLOAD
+
+def upload_profile_image_service(user, profile_image_file):
+    """
+    Upload user profile image to Supabase and update Profile model.
+    
+    Args:
+        user: Authenticated user object (Accounts)
+        profile_image_file: Uploaded image file
+    
+    Returns:
+        dict with success status, image URL, and message
+    """
+    try:
+        from iayos_project.utils import upload_profile_image
+        
+        # Validate file
+        allowed_mime_types = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp']
+        max_size = 5 * 1024 * 1024  # 5 MB
+        
+        if profile_image_file.content_type not in allowed_mime_types:
+            raise ValueError("Invalid file type. Allowed: JPEG, PNG, JPG, WEBP")
+        
+        if profile_image_file.size > max_size:
+            raise ValueError("File too large. Maximum size is 5MB")
+        
+        # Get user's profile
+        try:
+            profile = Profile.objects.get(accountFK=user)
+        except Profile.DoesNotExist:
+            raise ValueError("User profile not found")
+        
+        # Upload to Supabase with structure: user_{userID}/profileImage/avatar.png
+        image_url = upload_profile_image(
+            file=profile_image_file,
+            user_id=user.accountID
+        )
+        
+        if not image_url:
+            raise ValueError("Failed to upload image to storage")
+        
+        # Update profile with new image URL
+        profile.profileImg = image_url
+        profile.save()
+        
+        print(f"✅ Profile image uploaded successfully for user {user.accountID}")
+        print(f"   Image URL: {image_url}")
+        
+        return {
+            "success": True,
+            "message": "Profile image uploaded successfully",
+            "image_url": image_url,
+            "accountID": user.accountID
+        }
+        
+    except ValueError as e:
+        print(f"❌ Validation error: {str(e)}")
+        raise
+    except Exception as e:
+        print(f"❌ Error uploading profile image: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise ValueError("Failed to upload profile image")
+
+#endregion

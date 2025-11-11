@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { User } from "@/types";
 import { Camera } from "react-camera-pro";
+import { useToast } from "@/components/ui/toast";
+import NotificationBell from "@/components/notifications/NotificationBell";
 
 interface KYCUser extends User {
   profile_data?: {
@@ -23,37 +25,57 @@ type IDType =
   | "umid"
   | "philhealth";
 
+type ClearanceType = "" | "police" | "nbi";
+
 const KYCPage = () => {
   const { user: authUser, isAuthenticated, isLoading } = useAuth();
   const user = authUser as KYCUser;
   const router = useRouter();
+  const { showToast } = useToast();
 
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedIDType, setSelectedIDType] = useState<IDType>("");
+  const [selectedClearanceType, setSelectedClearanceType] =
+    useState<ClearanceType>("");
   const [frontIDFile, setFrontIDFile] = useState<File | null>(null);
   const [backIDFile, setBackIDFile] = useState<File | null>(null);
+  const [clearanceFile, setClearanceFile] = useState<File | null>(null);
   const [selfieFile, setSelfieFile] = useState<File | null>(null);
   const [frontIDPreview, setFrontIDPreview] = useState<string>("");
   const [backIDPreview, setBackIDPreview] = useState<string>("");
+  const [clearancePreview, setClearancePreview] = useState<string>("");
   const [selfiePreview, setSelfiePreview] = useState<string>("");
   const [showCamera, setShowCamera] = useState(false);
   const [capturedImage, setCapturedImage] = useState<string>("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const cameraRef = useRef<any>(null);
+
+  // Helper function to normalize ID type for backend
+  const normalizeIDType = (idType: IDType): string => {
+    const mapping: Record<string, string> = {
+      drivers_license: "DRIVERSLICENSE",
+      passport: "PASSPORT",
+      national_id: "NATIONALID",
+      umid: "UMID",
+      philhealth: "PHILHEALTH",
+    };
+    return mapping[idType] || idType.toUpperCase();
+  };
+
+  // Helper function to normalize clearance type for backend
+  const normalizeClearanceType = (clearanceType: ClearanceType): string => {
+    return clearanceType.toUpperCase();
+  };
 
   // Authentication check
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.push("/auth/login");
     }
+  }, [isAuthenticated, isLoading, router]);
 
-    // Redirect non-workers
-    if (!isLoading && user?.profile_data?.profileType !== "WORKER") {
-      router.push("/dashboard/home");
-    }
-  }, [isAuthenticated, isLoading, router, user?.profile_data?.profileType]);
-
-  if (isLoading) {
+  if (isLoading || !isAuthenticated) {
     return (
       <div className="min-h-screen bg-blue-50 flex items-center justify-center">
         <div className="flex flex-col items-center space-y-4">
@@ -64,25 +86,170 @@ const KYCPage = () => {
     );
   }
 
-  if (!isAuthenticated || user?.profile_data?.profileType !== "WORKER")
+  const validateFile = (file: File): string | null => {
+    if (!file.type.startsWith("image/")) {
+      return "Please upload an image file";
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      return "File size must be less than 10MB";
+    }
+
     return null;
+  };
+
+  const handleSubmit = async () => {
+    // Validate required files
+    if (
+      !selectedIDType ||
+      !selectedClearanceType ||
+      !frontIDFile ||
+      !backIDFile ||
+      !clearanceFile ||
+      !selfieFile
+    ) {
+      showToast({
+        type: "warning",
+        title: "Incomplete Submission",
+        message: "Please complete all required fields and upload all documents",
+        duration: 4000,
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      // 🔥 Create FormData for file uploads (not JSON!)
+      const formData = new FormData();
+
+      // Add metadata with normalized values
+      formData.append("accountID", user.accountID?.toString() || "");
+      formData.append("IDType", normalizeIDType(selectedIDType));
+      formData.append(
+        "clearanceType",
+        normalizeClearanceType(selectedClearanceType)
+      );
+
+      // 🔥 Append files with proper field names
+      formData.append("frontID", frontIDFile);
+      formData.append("backID", backIDFile);
+      formData.append("clearance", clearanceFile);
+      formData.append("selfie", selfieFile);
+
+      console.log("📤 Uploading KYC documents...");
+
+      const upload = await fetch(
+        "http://localhost:8000/api/accounts/upload/kyc",
+        {
+          method: "POST",
+          credentials: "include",
+          body: formData,
+        }
+      ).catch((err) => {
+        // Network error - backend not reachable
+        console.error("❌ Network error:", err);
+        throw new Error(
+          "Cannot connect to server. Please check your internet connection."
+        );
+      });
+
+      if (!upload) {
+        throw new Error("No response from server");
+      }
+
+      if (!upload.ok) {
+        const errorData = await upload.json().catch(() => ({}));
+        console.error("❌ Upload failed:", errorData);
+
+        // Extract error message from response
+        let errorMsg = "Upload failed";
+
+        if (upload.status === 401) {
+          showToast({
+            type: "error",
+            title: "Authentication Required",
+            message: "Your session has expired. Please log in again.",
+            duration: 5000,
+          });
+          setTimeout(() => router.push("/auth/login"), 2000);
+          return;
+        } else if (upload.status === 413) {
+          errorMsg =
+            "One or more files are too large. Please reduce file size and try again.";
+        } else if (upload.status === 400) {
+          if (
+            errorData.error &&
+            Array.isArray(errorData.error) &&
+            errorData.error[0]?.message
+          ) {
+            errorMsg = errorData.error[0].message;
+          } else if (errorData.message) {
+            errorMsg = errorData.message;
+          } else {
+            errorMsg = "Invalid file format or missing required data";
+          }
+        } else if (upload.status >= 500) {
+          errorMsg = "Server error. Please try again later.";
+        }
+
+        throw new Error(errorMsg);
+      }
+
+      const result = await upload.json();
+      console.log("✅ KYC upload successful:", result);
+
+      showToast({
+        type: "success",
+        title: "Documents Uploaded",
+        message: "Your KYC documents have been submitted successfully!",
+        duration: 5000,
+      });
+
+      // 🔥 ONLY move to next step after successful upload
+      handleNextStep();
+    } catch (error) {
+      console.error("❌ Error uploading KYC data:", error);
+
+      // ✅ Safe error message extraction
+      let errorMessage = "Failed to upload KYC data";
+
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (typeof error === "string") {
+        errorMessage = error;
+      }
+
+      // Only show toast if we haven't already shown an auth error
+      if (!errorMessage.includes("session has expired")) {
+        showToast({
+          type: "error",
+          title: "Upload Failed",
+          message: errorMessage,
+          duration: 6000,
+        });
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const handleFileChange = (
     e: React.ChangeEvent<HTMLInputElement>,
-    type: "front" | "back" | "selfie"
+    type: "front" | "back" | "clearance" | "selfie"
   ) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate file type
-    if (!file.type.startsWith("image/")) {
-      alert("Please upload an image file");
-      return;
-    }
-
-    // Validate file size (max 10MB)
-    if (file.size > 10 * 1024 * 1024) {
-      alert("File size must be less than 10MB");
+    // ✅ Use the validation function
+    const validationError = validateFile(file);
+    if (validationError) {
+      showToast({
+        type: "error",
+        title: "Invalid File",
+        message: validationError,
+        duration: 4000,
+      });
       return;
     }
 
@@ -96,11 +263,25 @@ const KYCPage = () => {
       } else if (type === "back") {
         setBackIDFile(file);
         setBackIDPreview(preview);
+      } else if (type === "clearance") {
+        setClearanceFile(file);
+        setClearancePreview(preview);
       } else if (type === "selfie") {
         setSelfieFile(file);
         setSelfiePreview(preview);
       }
+      // Preview appearing is enough feedback for successful upload
     };
+
+    reader.onerror = () => {
+      showToast({
+        type: "error",
+        title: "Upload Failed",
+        message: "Failed to read file. Please try again.",
+        duration: 4000,
+      });
+    };
+
     reader.readAsDataURL(file);
   };
 
@@ -121,6 +302,16 @@ const KYCPage = () => {
         setSelfiePreview(capturedImage);
         setShowCamera(false);
         setCapturedImage("");
+        // Preview appearing is enough feedback for successful capture
+      })
+      .catch((error) => {
+        console.error("Error converting photo:", error);
+        showToast({
+          type: "error",
+          title: "Photo Error",
+          message: "Failed to save photo. Please try again.",
+          duration: 4000,
+        });
       });
   };
 
@@ -148,6 +339,14 @@ const KYCPage = () => {
       }
       if (!frontIDFile || !backIDFile) {
         alert("Please upload both front and back of your ID");
+        return;
+      }
+      if (!selectedClearanceType) {
+        alert("Please select a clearance type");
+        return;
+      }
+      if (!clearanceFile) {
+        alert("Please upload your clearance document");
         return;
       }
       setCurrentStep(3);
@@ -229,6 +428,20 @@ const KYCPage = () => {
             Valid government ID (Driver&apos;s License, Passport, National ID,
             etc.)
           </li>
+          <li className="flex items-start text-sm text-gray-700">
+            <svg
+              className="w-5 h-5 text-blue-500 mr-2 flex-shrink-0 mt-0.5"
+              fill="currentColor"
+              viewBox="0 0 20 20"
+            >
+              <path
+                fillRule="evenodd"
+                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                clipRule="evenodd"
+              />
+            </svg>
+            Valid clearance (Police Clearance or NBI Clearance)
+          </li>
         </ul>
       </div>
 
@@ -242,150 +455,243 @@ const KYCPage = () => {
   );
 
   const renderStep2 = () => (
-    <div className="text-center max-w-md mx-auto">
+    <div className="text-center max-w-4xl mx-auto">
       <h1 className="text-2xl font-bold text-gray-900 mb-3">
-        Upload Your Valid ID
+        Upload Your Valid ID & Clearance
       </h1>
       <p className="text-gray-600 mb-8">
-        Take a clear photo of your ID in good light, with all corners visible.
+        Take clear photos in good light, with all corners visible.
       </p>
 
-      {/* ID Type Dropdown */}
-      <div className="mb-6 text-left">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Choose type of ID*
-        </label>
-        <select
-          value={selectedIDType}
-          onChange={(e) => setSelectedIDType(e.target.value as IDType)}
-          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-        >
-          <option value="">Select ID type</option>
-          <option value="drivers_license">Driver&apos;s License</option>
-          <option value="passport">Passport</option>
-          <option value="national_id">National ID (PhilSys)</option>
-          <option value="umid">UMID</option>
-          <option value="philhealth">PhilHealth ID</option>
-        </select>
-      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Left Column - ID Upload */}
+        <div className="text-left">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Valid ID</h2>
 
-      {/* Upload ID Section */}
-      <div className="mb-6 text-left">
-        <label className="block text-sm font-medium text-gray-700 mb-3">
-          Upload ID*
-        </label>
+          {/* ID Type Dropdown */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Choose type of ID*
+            </label>
+            <select
+              value={selectedIDType}
+              onChange={(e) => setSelectedIDType(e.target.value as IDType)}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+            >
+              <option value="">Select ID type</option>
+              <option value="drivers_license">Driver&apos;s License</option>
+              <option value="passport">Passport</option>
+              <option value="national_id">National ID (PhilSys)</option>
+              <option value="umid">UMID</option>
+              <option value="philhealth">PhilHealth ID</option>
+            </select>
+          </div>
 
-        {/* Front Side */}
-        <div className="mb-4">
-          <label
-            htmlFor="frontID"
-            className="block border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-blue-500 transition-colors bg-gray-50"
-          >
-            {frontIDPreview ? (
-              <div className="relative">
-                <Image
-                  src={frontIDPreview}
-                  alt="Front ID"
-                  width={300}
-                  height={200}
-                  className="mx-auto rounded-lg object-cover"
-                />
-                <p className="text-sm text-gray-600 mt-2">
-                  Front side uploaded ✓
-                </p>
-              </div>
-            ) : (
-              <>
-                <svg
-                  className="w-8 h-8 text-blue-500 mx-auto mb-2"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                  />
-                </svg>
-                <p className="text-sm font-medium text-gray-700">
-                  Upload Front Side
-                </p>
-                <p className="text-xs text-gray-500 mt-1">
-                  PNG, JPG, PDF (Max 10MB)
-                </p>
-              </>
-            )}
-          </label>
-          <input
-            id="frontID"
-            type="file"
-            accept="image/*"
-            onChange={(e) => handleFileChange(e, "front")}
-            className="hidden"
-          />
+          {/* Upload ID Section */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              Upload ID*
+            </label>
+
+            {/* Front Side */}
+            <div className="mb-4">
+              <label
+                htmlFor="frontID"
+                className="block border-2 border-dashed border-gray-300 rounded-lg p-4 text-center cursor-pointer hover:border-blue-500 transition-colors bg-gray-50"
+              >
+                {frontIDPreview ? (
+                  <div className="relative">
+                    <Image
+                      src={frontIDPreview}
+                      alt="Front ID"
+                      width={250}
+                      height={150}
+                      className="mx-auto rounded-lg object-cover"
+                    />
+                    <p className="text-xs text-gray-600 mt-2">
+                      Front side uploaded ✓
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <svg
+                      className="w-6 h-6 text-blue-500 mx-auto mb-2"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                      />
+                    </svg>
+                    <p className="text-sm font-medium text-gray-700">
+                      Upload Front Side
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      PNG, JPG (Max 10MB)
+                    </p>
+                  </>
+                )}
+              </label>
+              <input
+                id="frontID"
+                type="file"
+                accept="image/*"
+                onChange={(e) => handleFileChange(e, "front")}
+                className="hidden"
+              />
+            </div>
+
+            {/* Back Side */}
+            <div>
+              <label
+                htmlFor="backID"
+                className="block border-2 border-dashed border-gray-300 rounded-lg p-4 text-center cursor-pointer hover:border-blue-500 transition-colors bg-gray-50"
+              >
+                {backIDPreview ? (
+                  <div className="relative">
+                    <Image
+                      src={backIDPreview}
+                      alt="Back ID"
+                      width={250}
+                      height={150}
+                      className="mx-auto rounded-lg object-cover"
+                    />
+                    <p className="text-xs text-gray-600 mt-2">
+                      Back side uploaded ✓
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <svg
+                      className="w-6 h-6 text-blue-500 mx-auto mb-2"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                      />
+                    </svg>
+                    <p className="text-sm font-medium text-gray-700">
+                      Upload Back Side
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      PNG, JPG (Max 10MB)
+                    </p>
+                  </>
+                )}
+              </label>
+              <input
+                id="backID"
+                type="file"
+                accept="image/*"
+                onChange={(e) => handleFileChange(e, "back")}
+                className="hidden"
+              />
+            </div>
+          </div>
         </div>
 
-        {/* Back Side */}
-        <div>
-          <label
-            htmlFor="backID"
-            className="block border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-blue-500 transition-colors bg-gray-50"
-          >
-            {backIDPreview ? (
-              <div className="relative">
-                <Image
-                  src={backIDPreview}
-                  alt="Back ID"
-                  width={300}
-                  height={200}
-                  className="mx-auto rounded-lg object-cover"
-                />
-                <p className="text-sm text-gray-600 mt-2">
-                  Back side uploaded ✓
-                </p>
-              </div>
-            ) : (
-              <>
-                <svg
-                  className="w-8 h-8 text-blue-500 mx-auto mb-2"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+        {/* Right Column - Clearance Upload */}
+        <div className="text-left">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">
+            Clearance Document
+          </h2>
+
+          {/* Clearance Type Dropdown */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Choose type of Clearance*
+            </label>
+            <select
+              value={selectedClearanceType}
+              onChange={(e) =>
+                setSelectedClearanceType(e.target.value as ClearanceType)
+              }
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+            >
+              <option value="">Select clearance type</option>
+              <option value="police">Police Clearance</option>
+              <option value="nbi">NBI Clearance</option>
+            </select>
+          </div>
+
+          {/* Upload Clearance */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              Upload Clearance*
+            </label>
+            <label
+              htmlFor="clearanceDoc"
+              className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-blue-500 transition-colors bg-gray-50 min-h-[200px] flex flex-col items-center justify-center"
+            >
+              {clearancePreview ? (
+                <div className="relative">
+                  <Image
+                    src={clearancePreview}
+                    alt="Clearance"
+                    width={250}
+                    height={200}
+                    className="mx-auto rounded-lg object-cover"
                   />
-                </svg>
-                <p className="text-sm font-medium text-gray-700">
-                  Upload Back Side
-                </p>
-                <p className="text-xs text-gray-500 mt-1">
-                  PNG, JPG, PDF (Max 10MB)
-                </p>
-              </>
-            )}
-          </label>
-          <input
-            id="backID"
-            type="file"
-            accept="image/*"
-            onChange={(e) => handleFileChange(e, "back")}
-            className="hidden"
-          />
+                  <p className="text-xs text-gray-600 mt-2">
+                    Clearance uploaded ✓
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <svg
+                    className="w-8 h-8 text-blue-500 mx-auto mb-2"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                    />
+                  </svg>
+                  <p className="text-sm font-medium text-gray-700">
+                    Upload Clearance Document
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    PNG, JPG (Max 10MB)
+                  </p>
+                </>
+              )}
+            </label>
+            <input
+              id="clearanceDoc"
+              type="file"
+              accept="image/*"
+              onChange={(e) => handleFileChange(e, "clearance")}
+              className="hidden"
+            />
+          </div>
         </div>
       </div>
 
       <button
         onClick={handleNextStep}
-        className="w-full bg-blue-500 text-white px-8 py-3 rounded-full text-base font-semibold hover:bg-blue-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
-        disabled={!selectedIDType || !frontIDFile || !backIDFile}
+        className="w-full max-w-md mx-auto block mt-8 bg-blue-500 text-white px-8 py-3 rounded-full text-base font-semibold hover:bg-blue-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+        disabled={
+          !selectedIDType ||
+          !frontIDFile ||
+          !backIDFile ||
+          !selectedClearanceType ||
+          !clearanceFile
+        }
       >
-        Submit
+        Continue
       </button>
     </div>
   );
@@ -422,15 +728,43 @@ const KYCPage = () => {
                   setSelfieFile(null);
                   setSelfiePreview("");
                 }}
-                className="flex-1 bg-gray-200 text-gray-700 px-6 py-3 rounded-full text-base font-semibold hover:bg-gray-300 transition-colors"
+                disabled={isSubmitting}
+                className="flex-1 bg-gray-200 text-gray-700 px-6 py-3 rounded-full text-base font-semibold hover:bg-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Retake
               </button>
               <button
-                onClick={handleNextStep}
-                className="flex-1 bg-blue-500 text-white px-6 py-3 rounded-full text-base font-semibold hover:bg-blue-600 transition-colors"
+                onClick={handleSubmit}
+                disabled={isSubmitting}
+                className="flex-1 bg-blue-500 text-white px-6 py-3 rounded-full text-base font-semibold hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
               >
-                Submit
+                {isSubmitting ? (
+                  <>
+                    <svg
+                      className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
+                    </svg>
+                    Uploading...
+                  </>
+                ) : (
+                  "Submit"
+                )}
               </button>
             </div>
           </div>
@@ -618,6 +952,11 @@ const KYCPage = () => {
 
   return (
     <div className="min-h-screen bg-blue-50 flex flex-col">
+      {/* Notification Bell - Mobile Only */}
+      <div className="lg:hidden fixed top-4 right-4 z-50">
+        <NotificationBell />
+      </div>
+
       {/* Header with Logo */}
       <div className="bg-white border-b border-gray-200 px-4 py-4">
         <div className="max-w-7xl mx-auto">
@@ -628,37 +967,40 @@ const KYCPage = () => {
 
       {/* Main Content */}
       <div className="flex-1 flex items-center justify-center px-4 py-8">
-        <div className="w-full max-w-2xl">
-          {/* Back Button */}
-          <button
-            onClick={handleBack}
-            className="flex items-center text-gray-600 hover:text-gray-900 transition-colors mb-6"
-          >
-            <svg
-              className="w-5 h-5 mr-1"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+        <div className="w-full max-w-4xl space-y-6">
+          {/* KYC Submission Form */}
+          <div className="w-full max-w-2xl mx-auto">
+            {/* Back Button */}
+            <button
+              onClick={handleBack}
+              className="flex items-center text-gray-600 hover:text-gray-900 transition-colors mb-6"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M10 19l-7-7m0 0l7-7m-7 7h18"
-              />
-            </svg>
-            <span className="text-sm font-medium">Back</span>
-          </button>
+              <svg
+                className="w-5 h-5 mr-1"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M10 19l-7-7m0 0l7-7m-7 7h18"
+                />
+              </svg>
+              <span className="text-sm font-medium">Back</span>
+            </button>
 
-          {/* Progress Bar */}
-          {renderProgressBar()}
+            {/* Progress Bar */}
+            {renderProgressBar()}
 
-          {/* Step Content */}
-          <div className="bg-white rounded-2xl shadow-lg p-8 lg:p-12">
-            {currentStep === 1 && renderStep1()}
-            {currentStep === 2 && renderStep2()}
-            {currentStep === 3 && renderStep3()}
-            {currentStep === 4 && renderStep4()}
+            {/* Step Content */}
+            <div className="bg-white rounded-2xl shadow-lg p-8 lg:p-12">
+              {currentStep === 1 && renderStep1()}
+              {currentStep === 2 && renderStep2()}
+              {currentStep === 3 && renderStep3()}
+              {currentStep === 4 && renderStep4()}
+            </div>
           </div>
         </div>
       </div>

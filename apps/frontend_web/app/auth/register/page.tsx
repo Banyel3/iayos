@@ -19,53 +19,279 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { EmailVerificationAlert } from "@/components/ui/email-verification-alert";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useAuthToast } from "@/components/ui/toast";
+import { Eye, EyeOff } from "lucide-react";
 
-const formSchema = z.object({
-  lastName: z
-    .string()
-    .regex(/^[A-Za-z]+$/, "Name must consist of only letters"),
+const COUNTRIES = [
+  "Afghanistan",
+  "Albania",
+  "Algeria",
+  "Andorra",
+  "Angola",
+  "Antigua and Barbuda",
+  "Argentina",
+  "Armenia",
+  "Australia",
+  "Austria",
+  "Azerbaijan",
+  "Bahamas",
+  "Bahrain",
+  "Bangladesh",
+  "Barbados",
+  "Belarus",
+  "Belgium",
+  "Belize",
+  "Benin",
+  "Bhutan",
+  "Bolivia",
+  "Bosnia and Herzegovina",
+  "Botswana",
+  "Brazil",
+  "Brunei",
+  "Bulgaria",
+  "Burkina Faso",
+  "Burundi",
+  "Cabo Verde",
+  "Cambodia",
+  "Cameroon",
+  "Canada",
+  "Central African Republic",
+  "Chad",
+  "Chile",
+  "China",
+  "Colombia",
+  "Comoros",
+  "Congo",
+  "Costa Rica",
+  "Croatia",
+  "Cuba",
+  "Cyprus",
+  "Czech Republic",
+  "Denmark",
+  "Djibouti",
+  "Dominica",
+  "Dominican Republic",
+  "East Timor",
+  "Ecuador",
+  "Egypt",
+  "El Salvador",
+  "Equatorial Guinea",
+  "Eritrea",
+  "Estonia",
+  "Eswatini",
+  "Ethiopia",
+  "Fiji",
+  "Finland",
+  "France",
+  "Gabon",
+  "Gambia",
+  "Georgia",
+  "Germany",
+  "Ghana",
+  "Greece",
+  "Grenada",
+  "Guatemala",
+  "Guinea",
+  "Guinea-Bissau",
+  "Guyana",
+  "Haiti",
+  "Honduras",
+  "Hungary",
+  "Iceland",
+  "India",
+  "Indonesia",
+  "Iran",
+  "Iraq",
+  "Ireland",
+  "Israel",
+  "Italy",
+  "Jamaica",
+  "Japan",
+  "Jordan",
+  "Kazakhstan",
+  "Kenya",
+  "Kiribati",
+  "Kosovo",
+  "Kuwait",
+  "Kyrgyzstan",
+  "Laos",
+  "Latvia",
+  "Lebanon",
+  "Lesotho",
+  "Liberia",
+  "Libya",
+  "Liechtenstein",
+  "Lithuania",
+  "Luxembourg",
+  "Madagascar",
+  "Malawi",
+  "Malaysia",
+  "Maldives",
+  "Mali",
+  "Malta",
+  "Marshall Islands",
+  "Mauritania",
+  "Mauritius",
+  "Mexico",
+  "Micronesia",
+  "Moldova",
+  "Monaco",
+  "Mongolia",
+  "Montenegro",
+  "Morocco",
+  "Mozambique",
+  "Myanmar",
+  "Namibia",
+  "Nauru",
+  "Nepal",
+  "Netherlands",
+  "New Zealand",
+  "Nicaragua",
+  "Niger",
+  "Nigeria",
+  "North Korea",
+  "North Macedonia",
+  "Norway",
+  "Oman",
+  "Pakistan",
+  "Palau",
+  "Palestine",
+  "Panama",
+  "Papua New Guinea",
+  "Paraguay",
+  "Peru",
+  "Philippines",
+  "Poland",
+  "Portugal",
+  "Qatar",
+  "Romania",
+  "Russia",
+  "Rwanda",
+  "Saint Kitts and Nevis",
+  "Saint Lucia",
+  "Saint Vincent and the Grenadines",
+  "Samoa",
+  "San Marino",
+  "Sao Tome and Principe",
+  "Saudi Arabia",
+  "Senegal",
+  "Serbia",
+  "Seychelles",
+  "Sierra Leone",
+  "Singapore",
+  "Slovakia",
+  "Slovenia",
+  "Solomon Islands",
+  "Somalia",
+  "South Africa",
+  "South Korea",
+  "South Sudan",
+  "Spain",
+  "Sri Lanka",
+  "Sudan",
+  "Suriname",
+  "Sweden",
+  "Switzerland",
+  "Syria",
+  "Taiwan",
+  "Tajikistan",
+  "Tanzania",
+  "Thailand",
+  "Togo",
+  "Tonga",
+  "Trinidad and Tobago",
+  "Tunisia",
+  "Turkey",
+  "Turkmenistan",
+  "Tuvalu",
+  "Uganda",
+  "Ukraine",
+  "United Arab Emirates",
+  "United Kingdom",
+  "United States",
+  "Uruguay",
+  "Uzbekistan",
+  "Vanuatu",
+  "Vatican City",
+  "Venezuela",
+  "Vietnam",
+  "Yemen",
+  "Zambia",
+  "Zimbabwe",
+];
 
-  firstName: z
-    .string()
-    .regex(/^[A-Za-z]+$/, "Name must consist of only letters"),
+const formSchema = z
+  .object({
+    lastName: z
+      .string()
+      .regex(/^[A-Za-z]+$/, "Name must consist of only letters"),
 
-  contactNum: z.string().max(11, "Invalid Mobile Number"),
+    firstName: z
+      .string()
+      .regex(/^[A-Za-z]+$/, "Name must consist of only letters"),
 
-  email: z.string().email("Invalid email address"),
+    middleName: z
+      .string()
+      .regex(/^[A-Za-z]*$/, "Name must consist of only letters")
+      .optional()
+      .or(z.literal("")),
 
-  birthDate: z
-    .string()
-    .min(1, "Date of birth is required")
-    .refine((dateStr) => {
-      const birthDate = new Date(dateStr);
-      const today = new Date();
-      const age = today.getFullYear() - birthDate.getFullYear();
-      const monthDiff = today.getMonth() - birthDate.getMonth();
+    contactNum: z.string().max(11, "Invalid Mobile Number"),
 
-      // Check if birthday has occurred this year
-      if (
-        monthDiff < 0 ||
-        (monthDiff === 0 && today.getDate() < birthDate.getDate())
-      ) {
-        return age - 1 >= 18;
-      }
-      return age >= 18;
-    }, "You must be at least 18 years old to register"),
+    email: z.string().email("Invalid email address"),
 
-  password: z
-    .string()
-    .min(8, "Password must be at least 8 characters")
-    .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
-    .regex(/[0-9]/, "Password must contain at least one number")
-    .regex(
-      /[^A-Za-z0-9]/,
-      "Password must contain at least one special character"
-    ),
-  // turnstileToken: z.string().min(1, "Captcha required"), // ✅ add this
-});
+    birthDate: z
+      .string()
+      .min(1, "Date of birth is required")
+      .refine((dateStr) => {
+        const birthDate = new Date(dateStr);
+        const today = new Date();
+        const age = today.getFullYear() - birthDate.getFullYear();
+        const monthDiff = today.getMonth() - birthDate.getMonth();
+
+        // Check if birthday has occurred this year
+        if (
+          monthDiff < 0 ||
+          (monthDiff === 0 && today.getDate() < birthDate.getDate())
+        ) {
+          return age - 1 >= 18;
+        }
+        return age >= 18;
+      }, "You must be at least 18 years old to register"),
+
+    password: z
+      .string()
+      .min(8, "Password must be at least 8 characters")
+      .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+      .regex(/[0-9]/, "Password must contain at least one number")
+      .regex(
+        /[^A-Za-z0-9]/,
+        "Password must contain at least one special character"
+      ),
+
+    confirmPassword: z.string().min(1, "Please confirm your password"),
+
+    // Address fields
+    street_address: z.string().min(1, "Street address is required"),
+    city: z.string().min(1, "City is required"),
+    province: z.string().min(1, "Province is required"),
+    country: z.string().min(1, "Country is required"),
+    postal_code: z.string().regex(/^\d{4}$/, "Postal code must be 4 digits"),
+    // turnstileToken: z.string().min(1, "Captcha required"), // ✅ add this
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords don't match",
+    path: ["confirmPassword"],
+  });
 
 // Create a separate component that uses useSearchParams
 function RegisterContent() {
@@ -80,15 +306,24 @@ function RegisterContent() {
     defaultValues: {
       lastName: "",
       firstName: "",
+      middleName: "",
       email: "",
       contactNum: "",
       birthDate: "",
       password: "",
+      confirmPassword: "",
+      street_address: "",
+      city: "",
+      province: "",
+      country: "Philippines",
+      postal_code: "",
     },
   });
 
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [showEmailAlert, setShowEmailAlert] = useState(false);
   const [userEmail, setUserEmail] = useState("");
   const router = useRouter();
@@ -98,14 +333,24 @@ function RegisterContent() {
     setIsLoading(true);
     setError(""); // Clear previous errors
     try {
+      // Prepare payload - remove confirmPassword and ensure middleName is always a string
+      const { confirmPassword, ...formValues } = values;
+      const payload = {
+        ...formValues,
+        middleName: formValues.middleName || "", // Ensure middleName is always a string
+      };
+
+      console.log("📤 Sending registration payload:", payload); // Debug log
+
       const res = await fetch("http://localhost:8000/api/accounts/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(values), // Remove contactNum conversion
+        body: JSON.stringify(payload),
         credentials: "include",
       });
 
       const data = await res.json();
+      console.log("📥 Response status:", res.status, "Data:", data); // Debug log
 
       if (!res.ok) {
         // Handle different error response formats
@@ -212,6 +457,28 @@ function RegisterContent() {
                 />
                 <FormField
                   control={form.control}
+                  name="middleName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="font-inter text-sm font-medium text-gray-700">
+                        Middle Name{" "}
+                        <span className="text-gray-500 text-xs">
+                          (Optional)
+                        </span>
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Middle name"
+                          className="h-11"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage className="font-inter text-xs text-red-500" />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
                   name="lastName"
                   render={({ field }) => (
                     <FormItem>
@@ -292,10 +559,178 @@ function RegisterContent() {
                         Password<span className="text-red-500 ml-1">*</span>
                       </FormLabel>
                       <FormControl>
+                        <div className="relative">
+                          <Input
+                            type={showPassword ? "text" : "password"}
+                            placeholder="Create password"
+                            className="h-11 pr-10"
+                            {...field}
+                          />
+                          <button
+                            type="button"
+                            onMouseDown={() => setShowPassword(true)}
+                            onMouseUp={() => setShowPassword(false)}
+                            onMouseLeave={() => setShowPassword(false)}
+                            onTouchStart={() => setShowPassword(true)}
+                            onTouchEnd={() => setShowPassword(false)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                          >
+                            {showPassword ? (
+                              <EyeOff className="h-4 w-4" />
+                            ) : (
+                              <Eye className="h-4 w-4" />
+                            )}
+                          </button>
+                        </div>
+                      </FormControl>
+                      <FormMessage className="font-inter text-xs text-red-500" />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="confirmPassword"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="font-inter text-sm font-medium text-gray-700">
+                        Confirm Password
+                        <span className="text-red-500 ml-1">*</span>
+                      </FormLabel>
+                      <FormControl>
+                        <div className="relative">
+                          <Input
+                            type={showConfirmPassword ? "text" : "password"}
+                            placeholder="Confirm password"
+                            className="h-11 pr-10"
+                            {...field}
+                          />
+                          <button
+                            type="button"
+                            onMouseDown={() => setShowConfirmPassword(true)}
+                            onMouseUp={() => setShowConfirmPassword(false)}
+                            onMouseLeave={() => setShowConfirmPassword(false)}
+                            onTouchStart={() => setShowConfirmPassword(true)}
+                            onTouchEnd={() => setShowConfirmPassword(false)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                          >
+                            {showConfirmPassword ? (
+                              <EyeOff className="h-4 w-4" />
+                            ) : (
+                              <Eye className="h-4 w-4" />
+                            )}
+                          </button>
+                        </div>
+                      </FormControl>
+                      <FormMessage className="font-inter text-xs text-red-500" />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Address Section */}
+                <div className="pt-2">
+                  <h3 className="font-inter text-sm font-semibold text-gray-900 mb-3">
+                    Address Information
+                  </h3>
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name="street_address"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="font-inter text-sm font-medium text-gray-700">
+                        Street Address
+                        <span className="text-red-500 ml-1">*</span>
+                      </FormLabel>
+                      <FormControl>
                         <Input
-                          type="password"
-                          placeholder="Create password"
+                          placeholder="House no., Street name"
                           className="h-11"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage className="font-inter text-xs text-red-500" />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="city"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="font-inter text-sm font-medium text-gray-700">
+                        City<span className="text-red-500 ml-1">*</span>
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="e.g., Zamboanga City"
+                          className="h-11"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage className="font-inter text-xs text-red-500" />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="province"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="font-inter text-sm font-medium text-gray-700">
+                        Province<span className="text-red-500 ml-1">*</span>
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="e.g., Zamboanga del Sur"
+                          className="h-11"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage className="font-inter text-xs text-red-500" />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="country"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="font-inter text-sm font-medium text-gray-700">
+                        Country<span className="text-red-500 ml-1">*</span>
+                      </FormLabel>
+                      <FormControl>
+                        <div>
+                          <Input
+                            value="Philippines"
+                            className="h-11 bg-gray-50 cursor-not-allowed text-gray-700"
+                            readOnly
+                            tabIndex={-1}
+                          />
+                          <input type="hidden" {...field} value="Philippines" />
+                        </div>
+                      </FormControl>
+                      <FormMessage className="font-inter text-xs text-red-500" />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="postal_code"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="font-inter text-sm font-medium text-gray-700">
+                        Postal Code<span className="text-red-500 ml-1">*</span>
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="e.g., 7000"
+                          className="h-11"
+                          maxLength={4}
                           {...field}
                         />
                       </FormControl>
@@ -478,16 +913,18 @@ function RegisterContent() {
                     />
                     <FormField
                       control={form.control}
-                      name="lastName"
+                      name="middleName"
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel className="font-inter text-sm font-medium text-gray-700">
-                            Last Name
-                            <span className="text-red-500 ml-1">*</span>
+                            Middle Name{" "}
+                            <span className="text-gray-500 text-xs">
+                              (Optional)
+                            </span>
                           </FormLabel>
                           <FormControl>
                             <Input
-                              placeholder="Last name"
+                              placeholder="Middle name"
                               className="h-12"
                               {...field}
                             />
@@ -497,6 +934,27 @@ function RegisterContent() {
                       )}
                     />
                   </div>
+
+                  <FormField
+                    control={form.control}
+                    name="lastName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="font-inter text-sm font-medium text-gray-700">
+                          Last Name
+                          <span className="text-red-500 ml-1">*</span>
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="Last name"
+                            className="h-12"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage className="font-inter text-xs text-red-500" />
+                      </FormItem>
+                    )}
+                  />
 
                   <FormField
                     control={form.control}
@@ -569,9 +1027,89 @@ function RegisterContent() {
                           <span className="text-red-500 ml-1">*</span>
                         </FormLabel>
                         <FormControl>
+                          <div className="relative">
+                            <Input
+                              type={showPassword ? "text" : "password"}
+                              placeholder="Create a strong password"
+                              className="h-12 pr-10"
+                              {...field}
+                            />
+                            <button
+                              type="button"
+                              onMouseDown={() => setShowPassword(true)}
+                              onMouseUp={() => setShowPassword(false)}
+                              onMouseLeave={() => setShowPassword(false)}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                            >
+                              {showPassword ? (
+                                <EyeOff className="h-5 w-5" />
+                              ) : (
+                                <Eye className="h-5 w-5" />
+                              )}
+                            </button>
+                          </div>
+                        </FormControl>
+                        <FormMessage className="font-inter text-xs text-red-500" />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="confirmPassword"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="font-inter text-sm font-medium text-gray-700">
+                          Confirm Password
+                          <span className="text-red-500 ml-1">*</span>
+                        </FormLabel>
+                        <FormControl>
+                          <div className="relative">
+                            <Input
+                              type={showConfirmPassword ? "text" : "password"}
+                              placeholder="Confirm your password"
+                              className="h-12 pr-10"
+                              {...field}
+                            />
+                            <button
+                              type="button"
+                              onMouseDown={() => setShowConfirmPassword(true)}
+                              onMouseUp={() => setShowConfirmPassword(false)}
+                              onMouseLeave={() => setShowConfirmPassword(false)}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                            >
+                              {showConfirmPassword ? (
+                                <EyeOff className="h-5 w-5" />
+                              ) : (
+                                <Eye className="h-5 w-5" />
+                              )}
+                            </button>
+                          </div>
+                        </FormControl>
+                        <FormMessage className="font-inter text-xs text-red-500" />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Address Section */}
+                  <div className="pt-4">
+                    <h3 className="font-inter text-base font-semibold text-gray-900 mb-4">
+                      Address Information
+                    </h3>
+                  </div>
+
+                  <FormField
+                    control={form.control}
+                    name="street_address"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="font-inter text-sm font-medium text-gray-700">
+                          Street Address
+                          <span className="text-red-500 ml-1">*</span>
+                        </FormLabel>
+                        <FormControl>
                           <Input
-                            type="password"
-                            placeholder="Create a strong password"
+                            placeholder="House no., Street name, Barangay"
                             className="h-12"
                             {...field}
                           />
@@ -580,6 +1118,103 @@ function RegisterContent() {
                       </FormItem>
                     )}
                   />
+
+                  {/* City and Province Row */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="city"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="font-inter text-sm font-medium text-gray-700">
+                            City
+                            <span className="text-red-500 ml-1">*</span>
+                          </FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="e.g., Zamboanga City"
+                              className="h-12"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage className="font-inter text-xs text-red-500" />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="province"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="font-inter text-sm font-medium text-gray-700">
+                            Province
+                            <span className="text-red-500 ml-1">*</span>
+                          </FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="e.g., Zamboanga del Sur"
+                              className="h-12"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage className="font-inter text-xs text-red-500" />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  {/* Country and Postal Code Row */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="country"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="font-inter text-sm font-medium text-gray-700">
+                            Country
+                            <span className="text-red-500 ml-1">*</span>
+                          </FormLabel>
+                          <FormControl>
+                            <div>
+                              <Input
+                                value="Philippines"
+                                className="h-12 bg-gray-50 cursor-not-allowed text-gray-700"
+                                readOnly
+                                tabIndex={-1}
+                              />
+                              <input
+                                type="hidden"
+                                {...field}
+                                value="Philippines"
+                              />
+                            </div>
+                          </FormControl>
+                          <FormMessage className="font-inter text-xs text-red-500" />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="postal_code"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="font-inter text-sm font-medium text-gray-700">
+                            Postal Code
+                            <span className="text-red-500 ml-1">*</span>
+                          </FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="e.g., 7000"
+                              className="h-12"
+                              maxLength={4}
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage className="font-inter text-xs text-red-500" />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
 
                   {error && (
                     <div className="p-3 bg-red-50 border border-red-200 rounded-lg">

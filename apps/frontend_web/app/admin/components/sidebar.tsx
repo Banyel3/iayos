@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/context/AuthContext";
 import {
   Users,
   UserCheck,
@@ -24,13 +25,41 @@ import {
   Archive,
   Star,
   Flag,
+  ChevronDown,
+  User,
+  Briefcase,
+  ClipboardList,
+  CheckCircle,
+  XCircle,
+  Clock,
+  DollarSign,
+  AlertTriangle,
+  TrendingUp,
+  FileCheck,
+  UserX,
+  Package,
 } from "lucide-react";
 
 interface SidebarProps {
   className?: string;
 }
 
-const navigation = [
+interface NavChild {
+  name: string;
+  href: string;
+  icon: any;
+  description: string;
+}
+
+interface NavItem {
+  name: string;
+  href: string;
+  icon: any;
+  count?: number | null;
+  children?: NavChild[];
+}
+
+const navigation: NavItem[] = [
   {
     name: "Dashboard",
     href: "/admin/dashboard",
@@ -38,19 +67,28 @@ const navigation = [
     count: null,
   },
   {
-    name: "Users Management",
+    name: "Users",
     href: "/admin/users",
     icon: Users,
     count: null,
     children: [
-      { name: "All Users", href: "/admin/users", icon: Users },
-      { name: "Workers", href: "/admin/users/workers", icon: UserCheck },
-      { name: "Clients", href: "/admin/users/clients", icon: Building2 },
-      { name: "Agency", href: "/admin/users/agency", icon: Building2 },
       {
-        name: "Pending Verification",
-        href: "/admin/users/pending",
-        icon: Shield,
+        name: "Clients",
+        href: "/admin/users/clients",
+        icon: User,
+        description: "Client accounts & wallets",
+      },
+      {
+        name: "Workers",
+        href: "/admin/users/workers",
+        icon: UserCheck,
+        description: "Worker accounts & earnings",
+      },
+      {
+        name: "Agencies",
+        href: "/admin/users/agency",
+        icon: Building2,
+        description: "Agency accounts",
       },
     ],
   },
@@ -58,63 +96,71 @@ const navigation = [
     name: "KYC Management",
     href: "/admin/kyc",
     icon: Shield,
-    count: 12,
+    count: 3,
     children: [
-      { name: "Pending Reviews", href: "/admin/kyc/pending", icon: FileText },
-      { name: "Approved", href: "/admin/kyc/approved", icon: UserCheck },
-      { name: "Rejected", href: "/admin/kyc/rejected", icon: Flag },
+      {
+        name: "Pending",
+        href: "/admin/kyc/pending",
+        icon: Clock,
+        description: "Awaiting verification",
+      },
+      {
+        name: "Approved",
+        href: "/admin/kyc/approved",
+        icon: CheckCircle,
+        description: "Verified accounts",
+      },
+      {
+        name: "Rejected",
+        href: "/admin/kyc/rejected",
+        icon: XCircle,
+        description: "Failed verification",
+      },
     ],
   },
   {
-    name: "Analytics",
-    href: "/admin/analytics",
-    icon: BarChart3,
-    count: null,
-  },
-  {
-    name: "Payments",
-    href: "/admin/payments",
-    icon: CreditCard,
+    name: "Jobs",
+    href: "/admin/jobs",
+    icon: Briefcase,
     count: null,
     children: [
       {
-        name: "Transactions",
-        href: "/admin/payments/transactions",
-        icon: CreditCard,
+        name: "Job Listings",
+        href: "/admin/jobs/listings",
+        icon: ClipboardList,
+        description: "All posted jobs",
       },
-      { name: "Disputes", href: "/admin/payments/disputes", icon: Flag },
-      { name: "Refunds", href: "/admin/payments/refunds", icon: Archive },
+      {
+        name: "Active Jobs",
+        href: "/admin/jobs/active",
+        icon: Clock,
+        description: "Ongoing work & payments",
+      },
+      {
+        name: "Completed Jobs",
+        href: "/admin/jobs/completed",
+        icon: CheckCircle,
+        description: "Finished jobs",
+      },
+      {
+        name: "Disputes",
+        href: "/admin/jobs/disputes",
+        icon: AlertTriangle,
+        description: "Issues and conflicts",
+      },
+      {
+        name: "Categories & Rates",
+        href: "/admin/jobs/categories",
+        icon: Package,
+        description: "Job categories and minimum rates",
+      },
     ],
-  },
-  {
-    name: "Services",
-    href: "/admin/services",
-    icon: Star,
-    count: null,
-  },
-  {
-    name: "Messages",
-    href: "/admin/messages",
-    icon: MessageSquare,
-    count: 5,
-  },
-  {
-    name: "Reports",
-    href: "/admin/reports",
-    icon: FileText,
-    count: null,
   },
   {
     name: "Reviews",
     href: "/admin/reviews",
     icon: Star,
     count: null,
-  },
-  {
-    name: "Notifications",
-    href: "/admin/notifications",
-    icon: Bell,
-    count: 3,
   },
 ];
 
@@ -134,7 +180,10 @@ const bottomNavigation = [
 export default function Sidebar({ className }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
+  const [showUserMenu, setShowUserMenu] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
+  const { logout } = useAuth();
 
   const toggleExpanded = (name: string) => {
     setExpandedItems((prev) =>
@@ -157,6 +206,17 @@ export default function Sidebar({ className }: SidebarProps) {
   ) => {
     if (!children) return false;
     return children.some((child) => pathname.startsWith(child.href));
+  };
+
+  const handleLogout = async () => {
+    try {
+      // Use the AuthContext logout function which properly clears state and redirects
+      await logout();
+    } catch (error) {
+      console.error("Logout error:", error);
+      // Fallback: still try to redirect even on error
+      router.push("/auth/login");
+    }
   };
 
   return (
@@ -199,45 +259,74 @@ export default function Sidebar({ className }: SidebarProps) {
           const hasActiveChild = isChildActive(item.href, item.children || []);
 
           return (
-            <div key={item.name}>
+            <div key={item.name} className="mb-1">
               <div className="relative">
                 {item.children ? (
                   <button
                     onClick={() => toggleExpanded(item.name)}
                     className={cn(
-                      "w-full flex items-center justify-between px-2 py-2 rounded-md text-sm font-medium transition-all duration-200",
-                      isItemActive || hasActiveChild
+                      "w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
+                      hasActiveChild
                         ? "bg-blue-50 text-blue-600"
                         : "text-gray-700 hover:bg-gray-100"
                     )}
                   >
-                    <div className="flex items-center space-x-2">
-                      <Icon className="h-4 w-4 text-gray-400" />
+                    <div className="flex items-center space-x-3">
+                      <Icon
+                        className={cn(
+                          "h-4 w-4",
+                          hasActiveChild ? "text-blue-600" : "text-gray-400"
+                        )}
+                      />
                       {!collapsed && (
                         <span className="font-semibold">{item.name}</span>
                       )}
                     </div>
                     {!collapsed && (
-                      <ChevronRight
-                        className={cn(
-                          "h-4 w-4 text-gray-400 transition-transform",
-                          isExpanded && "rotate-90"
-                        )}
-                      />
+                      <div className="flex items-center space-x-2">
+                        {item.count !== undefined &&
+                          item.count !== null &&
+                          item.count > 0 && (
+                            <span className="px-2 py-0.5 text-xs font-medium bg-red-500 text-white rounded-full">
+                              {item.count}
+                            </span>
+                          )}
+                        <ChevronRight
+                          className={cn(
+                            "h-4 w-4 text-gray-400 transition-transform",
+                            isExpanded && "rotate-90"
+                          )}
+                        />
+                      </div>
                     )}
                   </button>
                 ) : (
                   <Link
                     href={item.href}
                     className={cn(
-                      "flex items-center px-2 py-2 rounded-md text-sm font-medium transition-all duration-200",
+                      "flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
                       isItemActive
                         ? "bg-blue-50 text-blue-600"
                         : "text-gray-700 hover:bg-gray-100"
                     )}
                   >
-                    <Icon className="h-4 w-4 text-gray-400 mr-2" />
-                    {!collapsed && <span>{item.name}</span>}
+                    <div className="flex items-center space-x-3">
+                      <Icon
+                        className={cn(
+                          "h-4 w-4",
+                          isItemActive ? "text-blue-600" : "text-gray-400"
+                        )}
+                      />
+                      {!collapsed && <span>{item.name}</span>}
+                    </div>
+                    {!collapsed &&
+                      item.count !== undefined &&
+                      item.count !== null &&
+                      item.count > 0 && (
+                        <span className="px-2 py-0.5 text-xs font-medium bg-red-500 text-white rounded-full">
+                          {item.count}
+                        </span>
+                      )}
                   </Link>
                 )}
               </div>
@@ -254,14 +343,23 @@ export default function Sidebar({ className }: SidebarProps) {
                         key={child.name}
                         href={child.href}
                         className={cn(
-                          "flex items-center space-x-2 px-2 py-1.5 rounded-md text-sm transition-all duration-200",
+                          "group flex items-center space-x-2 px-2 py-2 rounded-md text-sm transition-all duration-200 relative",
                           isChildActiveItem
                             ? "bg-blue-50 text-blue-600 font-medium"
-                            : "text-gray-500 hover:bg-gray-100"
+                            : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
                         )}
+                        title={child.description || child.name}
                       >
-                        <ChildIcon className="h-3 w-3 text-gray-400" />
-                        <span>{child.name}</span>
+                        <ChildIcon
+                          className={cn(
+                            "h-3.5 w-3.5 transition-colors",
+                            isChildActiveItem
+                              ? "text-blue-600"
+                              : "text-gray-400 group-hover:text-gray-600"
+                          )}
+                        />
+                        <span className="flex-1">{child.name}</span>
+                        {/* Optional: Add count badges here if needed */}
                       </Link>
                     );
                   })}
@@ -273,13 +371,66 @@ export default function Sidebar({ className }: SidebarProps) {
       </nav>
 
       {/* Bottom User Card */}
-      <div className="p-4 border-t border-gray-200">
-        <div className="flex items-center space-x-2 p-2 rounded-md bg-blue-50">
-          <div className="w-8 h-8 rounded-full bg-gray-300" />
-          <div className="text-sm font-medium text-gray-700">
-            Vaniel Cornelio
+      <div className="p-4 border-t border-gray-200 relative">
+        <button
+          onClick={() => setShowUserMenu(!showUserMenu)}
+          className={cn(
+            "w-full flex items-center justify-between p-2 rounded-md transition-all duration-200",
+            showUserMenu ? "bg-blue-50" : "hover:bg-gray-100"
+          )}
+        >
+          <div className="flex items-center space-x-2">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-sm font-semibold">
+              VC
+            </div>
+            {!collapsed && (
+              <div className="text-left">
+                <div className="text-sm font-medium text-gray-700">
+                  Vaniel Cornelio
+                </div>
+                <div className="text-xs text-gray-500">Administrator</div>
+              </div>
+            )}
           </div>
-        </div>
+          {!collapsed && (
+            <ChevronDown
+              className={cn(
+                "h-4 w-4 text-gray-400 transition-transform",
+                showUserMenu && "rotate-180"
+              )}
+            />
+          )}
+        </button>
+
+        {/* Dropdown Menu */}
+        {showUserMenu && !collapsed && (
+          <div className="absolute bottom-full left-4 right-4 mb-2 bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden">
+            <Link
+              href="/admin/profile"
+              className="flex items-center space-x-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              onClick={() => setShowUserMenu(false)}
+            >
+              <User className="h-4 w-4 text-gray-400" />
+              <span>Profile</span>
+            </Link>
+            <Link
+              href="/admin/settings"
+              className="flex items-center space-x-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              onClick={() => setShowUserMenu(false)}
+            >
+              <Settings className="h-4 w-4 text-gray-400" />
+              <span>Settings</span>
+            </Link>
+            <div className="border-t border-gray-200"></div>
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center space-x-2 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
+            >
+              <LogOut className="h-4 w-4" />
+              <span>Logout</span>
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

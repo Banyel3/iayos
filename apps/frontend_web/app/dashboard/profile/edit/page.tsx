@@ -1,17 +1,20 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import DesktopNavbar from "@/components/ui/desktop-sidebar";
 import MobileNav from "@/components/ui/mobile-nav";
+import NotificationBell from "@/components/notifications/NotificationBell";
+import { useWorkerAvailability } from "@/lib/hooks/useWorkerAvailability";
 
 interface ProfileData {
   firstName: string;
   lastName: string;
   profileImg: string;
   profileType: "WORKER" | "CLIENT" | null;
+  contactNum: string | null;
+  birthDate: string | null;
 }
 
 interface UserData {
@@ -24,9 +27,16 @@ interface UserData {
 const EditProfilePage = () => {
   const { user: authUser, isAuthenticated, isLoading, logout } = useAuth();
   const router = useRouter();
-  const [isAvailable, setIsAvailable] = useState(true);
   const [isFetching, setIsFetching] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Use the worker availability hook
+  const isWorker = authUser?.profile_data?.profileType === "WORKER";
+  const {
+    isAvailable,
+    isLoading: isLoadingAvailability,
+    handleAvailabilityToggle,
+  } = useWorkerAvailability(isWorker, isAuthenticated);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -39,6 +49,8 @@ const EditProfilePage = () => {
   });
 
   const [profilePreview, setProfilePreview] = useState<string>("");
+  const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   // Authentication check
   useEffect(() => {
@@ -52,7 +64,7 @@ const EditProfilePage = () => {
     const fetchUserData = async () => {
       try {
         setIsFetching(true);
-        const response = await fetch("http://localhost:8000/api/me", {
+        const response = await fetch("http://localhost:8000/api/accounts/me", {
           method: "GET",
           credentials: "include",
           headers: {
@@ -65,14 +77,14 @@ const EditProfilePage = () => {
         }
 
         const data: UserData = await response.json();
-        
+
         // Populate form with fetched data
         setFormData({
           firstName: data.profile_data?.firstName || "",
           lastName: data.profile_data?.lastName || "",
           email: data.email || "",
-          contactNum: "", // Not in current API response
-          birthDate: "", // Not in current API response
+          contactNum: data.profile_data?.contactNum || "",
+          birthDate: data.profile_data?.birthDate || "", // Not in current API response
           profileImg: data.profile_data?.profileImg || "",
         });
 
@@ -118,32 +130,94 @@ const EditProfilePage = () => {
       return;
     }
 
+    // Store the file for upload
+    setSelectedImageFile(file);
+
     // Create preview
     const reader = new FileReader();
     reader.onloadend = () => {
       setProfilePreview(reader.result as string);
     };
     reader.readAsDataURL(file);
+  };
 
-    // Store file name or handle upload logic
-    setFormData((prev) => ({
-      ...prev,
-      profileImg: file.name,
-    }));
+  // Upload profile image to backend
+  const uploadProfileImage = async (): Promise<string | null> => {
+    if (!selectedImageFile) return null;
+
+    setIsUploadingImage(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("profile_image", selectedImageFile);
+
+      const response = await fetch(
+        "http://localhost:8000/api/accounts/upload/profile-image",
+        {
+          method: "POST",
+          credentials: "include",
+          body: formData,
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to upload image");
+      }
+
+      const result = await response.json();
+      console.log("✅ Profile image uploaded:", result);
+
+      return result.image_url;
+    } catch (error) {
+      console.error("❌ Error uploading profile image:", error);
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Failed to upload profile image"
+      );
+      return null;
+    } finally {
+      setIsUploadingImage(false);
+    }
   };
 
   // Handle save (placeholder - backend not implemented yet)
   const handleSave = async () => {
     setIsSaving(true);
-    
-    // Simulate save delay
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    
-    console.log("Form data to save:", formData);
-    alert("Profile update functionality will be implemented in the backend");
-    
-    setIsSaving(false);
-    // router.push("/dashboard/profile"); // Uncomment when backend is ready
+
+    try {
+      // Upload profile image if a new one was selected
+      if (selectedImageFile) {
+        console.log("📤 Uploading profile image...");
+        const imageUrl = await uploadProfileImage();
+
+        if (imageUrl) {
+          // Update form data with new image URL
+          setFormData((prev) => ({
+            ...prev,
+            profileImg: imageUrl,
+          }));
+          console.log("✅ Profile image uploaded successfully:", imageUrl);
+          alert("Profile image updated successfully!");
+        } else {
+          alert("Failed to upload profile image");
+          setIsSaving(false);
+          return;
+        }
+      }
+
+      // TODO: Implement other profile field updates when backend is ready
+      console.log("Form data to save:", formData);
+
+      // Redirect to profile page after successful save
+      router.push("/dashboard/profile");
+    } catch (error) {
+      console.error("❌ Error saving profile:", error);
+      alert("Failed to save profile");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // Handle cancel
@@ -165,17 +239,22 @@ const EditProfilePage = () => {
 
   if (!isAuthenticated) return null;
 
-  const isWorker = authUser?.profile_data?.profileType === "WORKER";
-
   return (
     <div className="min-h-screen bg-blue-50">
+      {/* Notification Bell - Mobile Only */}
+      <div className="lg:hidden fixed top-4 right-4 z-50">
+        <NotificationBell />
+      </div>
+
       {/* Desktop Navbar */}
       <DesktopNavbar
         isWorker={isWorker}
         userName={formData.firstName || "User"}
+        userAvatar={authUser?.profile_data?.profileImg || "/worker1.jpg"}
         onLogout={logout}
         isAvailable={isAvailable}
-        onAvailabilityToggle={() => setIsAvailable(!isAvailable)}
+        isLoadingAvailability={isLoadingAvailability}
+        onAvailabilityToggle={handleAvailabilityToggle}
       />
 
       {/* Desktop Layout */}
@@ -200,11 +279,10 @@ const EditProfilePage = () => {
               <div className="flex items-center space-x-4">
                 <div className="relative">
                   {profilePreview ? (
-                    <Image
+                    <img
                       src={profilePreview}
                       alt="Profile Preview"
-                      width={80}
-                      height={80}
+                      crossOrigin="anonymous"
                       className="w-20 h-20 rounded-full object-cover"
                     />
                   ) : (
@@ -357,10 +435,14 @@ const EditProfilePage = () => {
               </button>
               <button
                 onClick={handleSave}
-                disabled={isSaving}
+                disabled={isSaving || isUploadingImage}
                 className="flex-1 bg-blue-500 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-600 transition-colors disabled:bg-blue-300 disabled:cursor-not-allowed"
               >
-                {isSaving ? "Saving..." : "Save Changes"}
+                {isUploadingImage
+                  ? "Uploading Image..."
+                  : isSaving
+                    ? "Saving..."
+                    : "Save Changes"}
               </button>
             </div>
           </div>
@@ -409,11 +491,10 @@ const EditProfilePage = () => {
               <div className="flex flex-col items-center space-y-3">
                 <div className="relative">
                   {profilePreview ? (
-                    <Image
+                    <img
                       src={profilePreview}
                       alt="Profile Preview"
-                      width={100}
-                      height={100}
+                      crossOrigin="anonymous"
                       className="w-24 h-24 rounded-full object-cover"
                     />
                   ) : (
@@ -558,10 +639,14 @@ const EditProfilePage = () => {
             <div className="flex flex-col gap-3 mt-6">
               <button
                 onClick={handleSave}
-                disabled={isSaving}
+                disabled={isSaving || isUploadingImage}
                 className="w-full bg-blue-500 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-600 transition-colors disabled:bg-blue-300 disabled:cursor-not-allowed"
               >
-                {isSaving ? "Saving..." : "Save Changes"}
+                {isUploadingImage
+                  ? "Uploading Image..."
+                  : isSaving
+                    ? "Saving..."
+                    : "Save Changes"}
               </button>
               <button
                 onClick={handleCancel}

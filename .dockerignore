@@ -1,0 +1,89 @@
+# Node modules
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Next.js
+.next
+out
+dist
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+*.egg-info/
+.pytest_cache/
+.coverage
+
+# IDEs
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment files (security critical)
+.env*
+!.env.docker
+*.key
+*.pem
+*.cert
+*.crt
+secrets/
+config/local/
+*.conf
+# Git
+.git
+.gitignore
+
+# Documentation
+*.md
+!README.md
+
+# Testing
+coverage
+.nyc_output
+
+# Misc
+.turbo
+*.log
+logs/
+tmp/
+temp/
+
+# OS specific
+Thumbs.db
+.DS_Store
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Media files (uploaded by users - should be in volumes)
+media/
+uploads/
+
+# Security-sensitive files
+*.sarif
+vulnerability-reports/
+security-scans/
+docker-scout-*.json
+*.security
+audit-logs/
+
+# Development tools and configs
+Dockerfile*
+docker-compose*.yml
+!docker-compose.yml
+scripts/
+tests/
+.github/

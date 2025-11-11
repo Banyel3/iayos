@@ -154,6 +154,11 @@ body {
   @apply bg-sky-100 border-blue-400;
 }
 
+/* Agency verified theme: when agency is verified, tint cards with a blue accent */
+.agency-verified [data-slot="card"] {
+  @apply bg-sky-50 border-blue-200 shadow-md;
+}
+
 /* PWA Safe Area Support */
 .safe-area-inset-top {
   padding-top: max(1rem, env(safe-area-inset-top));

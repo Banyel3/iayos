@@ -4,12 +4,15 @@ import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { UserProfileType } from "@/types";
+import NotificationBell from "@/components/notifications/NotificationBell";
+import { API_BASE_URL } from "@/lib/api/config";
 
 // Temporary User interface extension for this page
 interface DashboardUser {
   accountID: number;
   email: string;
   role: string;
+  accountType?: string;
   profile_data?: {
     firstName?: string;
     lastName?: string;
@@ -19,21 +22,44 @@ interface DashboardUser {
 }
 
 const TempDashboard = () => {
-  const { user: authUser, isAuthenticated, isLoading, logout } = useAuth();
+  const {
+    user: authUser,
+    isAuthenticated,
+    isLoading,
+    logout,
+    checkAuth,
+  } = useAuth();
   const user = authUser as DashboardUser; // Type assertion for this page
   const router = useRouter();
   const [selectedType, setSelectedType] = useState<UserProfileType>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Redirect agency users to agency dashboard
+  useEffect(() => {
+    if (!isLoading && isAuthenticated && user) {
+      const accountType = (user.accountType || "").toString().toLowerCase();
+      const role = (user.role || "").toString().toUpperCase();
+
+      if (accountType === "agency" || role === "AGENCY") {
+        console.log(
+          "🏢 Dashboard: Agency user detected, redirecting to agency dashboard"
+        );
+        router.replace("/agency/dashboard");
+        return;
+      }
+    }
+  }, [isLoading, isAuthenticated, user, router]);
+
   // Redirect logic for existing profileType
-  // useEffect(() => {
-  //   if (
-  //     user?.profile_data?.profileType === "WORKER" ||
-  //     user?.profile_data?.profileType === "CLIENT"
-  //   ) {
-  //     router.replace("/dashboard/profile");
-  //   }
-  // }, [user?.profile_data?.profileType, router]);
+  useEffect(() => {
+    if (!isLoading && isAuthenticated && user?.profile_data?.profileType) {
+      if (user.profile_data.profileType === "WORKER") {
+        router.replace("/dashboard/profile");
+      } else if (user.profile_data.profileType === "CLIENT") {
+        router.replace("/dashboard/home");
+      }
+    }
+  }, [user?.profile_data?.profileType, isLoading, isAuthenticated, router]);
 
   // Auto-redirect for unauthorized users
   useEffect(() => {
@@ -79,14 +105,11 @@ const TempDashboard = () => {
 
       console.log("Sending request:", values);
 
-      const res = await fetch(
-        "http://localhost:8000/api/accounts/assign-role",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(values),
-        }
-      );
+      const res = await fetch(`${API_BASE_URL}/accounts/assign-role`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(values),
+      });
 
       if (!res.ok) {
         const errorData = await res.json();
@@ -95,9 +118,15 @@ const TempDashboard = () => {
       } else {
         console.log("Profile type assigned successfully");
 
-        // Note: You'll need to implement a way to refresh user data
-        // For now, we'll redirect to profile page
-        router.push("/dashboard/profile");
+        // Refresh user data from server to get updated profileType
+        await checkAuth();
+
+        // Redirect based on the selected type
+        if (selectedType === "WORKER") {
+          router.push("/dashboard/profile");
+        } else if (selectedType === "CLIENT") {
+          router.push("/dashboard/home");
+        }
       }
     } catch (error) {
       console.error("Error updating profile type:", error);
@@ -107,16 +136,22 @@ const TempDashboard = () => {
 
   return (
     <div className="flex justify-center items-center min-h-screen bg-gray-50">
+      {/* Notification Bell - Fixed Top Right */}
+      <div className="fixed top-4 right-4 z-50">
+        <NotificationBell />
+      </div>
+
       <div className="mx-auto max-w-[390px] min-h-screen flex flex-col justify-between">
         {/* Header Section */}
         <div className="flex flex-col justify-center flex-1 px-6">
-          {/* Welcome Message */}
+          {/*Welcome Message */}
           <div className="text-center mb-8">
             <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
               {user?.profile_data?.profileImg ? (
                 <img
                   src={user.profile_data?.profileImg}
                   alt="Profile"
+                  crossOrigin="anonymous"
                   className="w-16 h-16 rounded-full object-cover"
                 />
               ) : (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -19,13 +19,14 @@ import {
   Calendar,
 } from "lucide-react";
 import { Sidebar } from "../../components";
+import { useToast } from "@/components/ui/toast";
 
 interface ApprovedKYC {
   id: string;
   userId: string;
   userName: string;
   userEmail: string;
-  userType: "worker" | "client";
+  userType: "worker" | "client" | "agency";
   submissionDate: string;
   approvalDate: string;
   reviewedBy: string;
@@ -33,52 +34,109 @@ interface ApprovedKYC {
   processingDays: number;
 }
 
-const mockApprovedKYC: ApprovedKYC[] = [
-  {
-    id: "1",
-    userId: "user_2",
-    userName: "Jane Smith",
-    userEmail: "jane.smith@example.com",
-    userType: "client",
-    submissionDate: "2024-03-15",
-    approvalDate: "2024-03-18",
-    reviewedBy: "Admin User",
-    documentsCount: 2,
-    processingDays: 3,
-  },
-  {
-    id: "2",
-    userId: "user_6",
-    userName: "Robert Brown",
-    userEmail: "robert.brown@example.com",
-    userType: "worker",
-    submissionDate: "2024-03-10",
-    approvalDate: "2024-03-14",
-    reviewedBy: "Sarah Admin",
-    documentsCount: 4,
-    processingDays: 4,
-  },
-  {
-    id: "3",
-    userId: "user_7",
-    userName: "Lisa Chen",
-    userEmail: "lisa.chen@example.com",
-    userType: "client",
-    submissionDate: "2024-03-05",
-    approvalDate: "2024-03-08",
-    reviewedBy: "Admin User",
-    documentsCount: 3,
-    processingDays: 3,
-  },
-];
-
 export default function ApprovedKYCPage() {
-  const [approvedKYC] = useState<ApprovedKYC[]>(mockApprovedKYC);
+  const [approvedKYC, setApprovedKYC] = useState<ApprovedKYC[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | "worker" | "client">(
     "all"
   );
   const [reviewerFilter, setReviewerFilter] = useState<string>("all");
+  const { showToast } = useToast();
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Fetch approved KYC logs on component mount
+  useEffect(() => {
+    fetchApprovedKYC();
+  }, []);
+
+  const fetchApprovedKYC = async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(
+        "http://localhost:8000/api/adminpanel/kyc/logs?action=APPROVED&limit=500",
+        {
+          credentials: "include",
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch approved KYC records");
+      }
+
+      const data = await response.json();
+      console.log("✅ Fetched approved KYC response:", data);
+
+      // Handle different response formats
+      let logs = data;
+
+      // If response has an error property
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      // If response is not an array, it might be wrapped
+      if (!Array.isArray(logs)) {
+        // Try to extract array from common wrapper properties
+        if (data.data && Array.isArray(data.data)) {
+          logs = data.data;
+        } else if (data.logs && Array.isArray(data.logs)) {
+          logs = data.logs;
+        } else if (data.results && Array.isArray(data.results)) {
+          logs = data.results;
+        } else {
+          console.warn("⚠️ Response is not an array:", data);
+          logs = [];
+        }
+      }
+
+      console.log("✅ Extracted logs array:", logs);
+
+      // Transform backend data to match frontend interface
+      const transformedData: ApprovedKYC[] = logs.map((log: any) => {
+        const submissionDate = new Date(log.createdAt);
+        const approvalDate = new Date(log.reviewedAt);
+        const processingDays = Math.floor(
+          (approvalDate.getTime() - submissionDate.getTime()) /
+            (1000 * 60 * 60 * 24)
+        );
+        // Map backend kycType to frontend userType
+        let userType: "worker" | "client" | "agency" = "worker";
+        if (log.kycType === "AGENCY") userType = "agency";
+        // If backend provides profileType we can map client/worker accordingly
+        else if (log.profileType && log.profileType.toLowerCase() === "client")
+          userType = "client";
+
+        return {
+          id: log.kycLogID?.toString() || "0",
+          userId: log.userAccountID?.toString() || "0",
+          userName: log.userEmail?.split("@")[0] || "Unknown", // Extract name from email
+          userEmail: log.userEmail || "unknown@email.com",
+          userType: userType,
+          submissionDate: log.createdAt || new Date().toISOString(),
+          approvalDate: log.reviewedAt || new Date().toISOString(),
+          reviewedBy: log.reviewedBy || "System",
+          documentsCount: 0, // Not available in logs, could be enhanced
+          processingDays: isNaN(processingDays) ? 0 : processingDays,
+        };
+      });
+
+      setApprovedKYC(transformedData);
+      console.log("✅ Transformed approved KYC data:", transformedData);
+    } catch (error) {
+      console.error("Error fetching approved KYC:", error);
+      showToast({
+        type: "error",
+        title: "Failed to Load Data",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Unable to fetch approved KYC records",
+        duration: 5000,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const filteredRecords = approvedKYC.filter((record) => {
     const matchesSearch =
@@ -162,10 +220,14 @@ export default function ApprovedKYCPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {Math.round(
-                    approvedKYC.reduce((acc, r) => acc + r.processingDays, 0) /
-                      approvedKYC.length
-                  )}{" "}
+                  {approvedKYC.length > 0
+                    ? Math.round(
+                        approvedKYC.reduce(
+                          (acc, r) => acc + r.processingDays,
+                          0
+                        ) / approvedKYC.length
+                      )
+                    : 0}{" "}
                   days
                 </div>
                 <p className="text-xs text-muted-foreground">
@@ -282,7 +344,7 @@ export default function ApprovedKYCPage() {
                           Documents
                         </p>
                         <p className="text-lg font-semibold">
-                          {record.documentsCount}
+                          {record.documentsCount || 0}
                         </p>
                       </div>
                       <div className="text-center">
@@ -290,7 +352,7 @@ export default function ApprovedKYCPage() {
                           Processing Time
                         </p>
                         <p className="text-lg font-semibold text-green-600">
-                          {record.processingDays} days
+                          {record.processingDays || 0} days
                         </p>
                       </div>
                       <div className="text-center">

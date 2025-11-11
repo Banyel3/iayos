@@ -3,7 +3,8 @@
 import React, { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
+import NotificationBell from "@/components/notifications/NotificationBell";
+import LocationToggle from "@/components/ui/location-toggle";
 
 interface DesktopNavbarProps {
   isWorker?: boolean;
@@ -11,6 +12,7 @@ interface DesktopNavbarProps {
   userAvatar?: string;
   onLogout?: () => void;
   isAvailable?: boolean;
+  isLoadingAvailability?: boolean;
   onAvailabilityToggle?: () => void;
 }
 
@@ -20,11 +22,13 @@ export const DesktopNavbar: React.FC<DesktopNavbarProps> = ({
   userAvatar = "/worker1.jpg",
   onLogout,
   isAvailable = true,
+  isLoadingAvailability = false,
   onAvailabilityToggle,
 }) => {
   const pathname = usePathname();
   const router = useRouter();
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+  const [showLocationDropdown, setShowLocationDropdown] = useState(false);
 
   const navigationItems = [
     {
@@ -32,7 +36,7 @@ export const DesktopNavbar: React.FC<DesktopNavbarProps> = ({
       href: "/dashboard/home",
     },
     {
-      label: isWorker ? "Browse Jobs" : "My Requests",
+      label: isWorker ? "Browse Jobs" : "My Jobs",
       href: "/dashboard/myRequests",
     },
     {
@@ -44,14 +48,6 @@ export const DesktopNavbar: React.FC<DesktopNavbarProps> = ({
       href: "/dashboard/profile",
     },
   ];
-
-  // Add agency link only for workers
-  if (isWorker) {
-    navigationItems.splice(3, 0, {
-      label: "Agency",
-      href: "/dashboard/agency",
-    });
-  }
 
   return (
     <nav className="hidden lg:block bg-white border-b border-gray-200 sticky top-0 z-50">
@@ -86,20 +82,89 @@ export const DesktopNavbar: React.FC<DesktopNavbarProps> = ({
 
           {/* User Menu with Profile Dropdown */}
           <div className="relative flex items-center space-x-3">
+            {/* Notification Bell */}
+            <NotificationBell />
+
+            {/* Location Toggle Button */}
+            <button
+              onClick={() => setShowLocationDropdown(!showLocationDropdown)}
+              className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors relative"
+              title="Location Settings"
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                />
+              </svg>
+            </button>
+
+            {/* Location Dropdown */}
+            {showLocationDropdown && (
+              <div className="absolute right-0 top-full mt-2 w-96 bg-white rounded-lg shadow-xl border border-gray-200 z-50">
+                <LocationToggle
+                  isWorker={isWorker}
+                  onLocationUpdate={(lat, lon) => {
+                    console.log(`📍 Location updated: ${lat}, ${lon}`);
+                  }}
+                />
+              </div>
+            )}
+
             {/* Availability Status - Only for Workers */}
             {isWorker && (
               <div className="flex items-center space-x-2">
-                <div
-                  className={`w-3 h-3 rounded-full ${
-                    isAvailable ? "bg-green-500" : "bg-gray-400"
-                  }`}
-                ></div>
-                <span
-                  className="text-sm font-medium text-gray-700 cursor-pointer hover:text-gray-900"
-                  onClick={onAvailabilityToggle}
-                >
-                  {isAvailable ? "Available" : "Unavailable"}
-                </span>
+                {isLoadingAvailability ? (
+                  // Loading state - prevents flickering
+                  <>
+                    <div className="w-3 h-3 rounded-full bg-gray-300 animate-pulse"></div>
+                    <span className="text-sm font-medium text-gray-400">
+                      Loading...
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <div
+                      className={`w-3 h-3 rounded-full ${
+                        isAvailable ? "bg-green-500" : "bg-gray-400"
+                      }`}
+                    ></div>
+                    <span
+                      className="text-sm font-medium text-gray-700 cursor-pointer hover:text-gray-900"
+                      onClick={() => {
+                        console.log("🔴 CLICK EVENT FIRED");
+                        console.log("isWorker:", isWorker);
+                        console.log(
+                          "onAvailabilityToggle:",
+                          onAvailabilityToggle
+                        );
+                        if (onAvailabilityToggle) {
+                          console.log("🟢 Calling onAvailabilityToggle");
+                          onAvailabilityToggle();
+                        } else {
+                          console.error(
+                            "❌ onAvailabilityToggle is undefined!"
+                          );
+                        }
+                      }}
+                    >
+                      {isAvailable ? "Available" : "Unavailable"}
+                    </span>
+                  </>
+                )}
               </div>
             )}
 
@@ -107,11 +172,10 @@ export const DesktopNavbar: React.FC<DesktopNavbarProps> = ({
               onClick={() => setShowProfileDropdown(!showProfileDropdown)}
               className="flex items-center space-x-2 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors"
             >
-              <Image
+              <img
                 src={userAvatar}
                 alt="Profile"
-                width={32}
-                height={32}
+                crossOrigin="anonymous"
                 className="w-8 h-8 rounded-full object-cover"
               />
               <span>{userName}</span>
@@ -132,7 +196,7 @@ export const DesktopNavbar: React.FC<DesktopNavbarProps> = ({
 
             {/* Dropdown Menu */}
             {showProfileDropdown && (
-              <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+              <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
                 <button
                   onClick={() => {
                     setShowProfileDropdown(false);

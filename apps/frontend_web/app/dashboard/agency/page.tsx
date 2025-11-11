@@ -4,21 +4,44 @@ import { useAuth } from "@/context/AuthContext";
 import { User } from "@/types";
 import { useRouter } from "next/navigation";
 import DesktopNavbar from "@/components/ui/desktop-sidebar";
+import NotificationBell from "@/components/notifications/NotificationBell";
+import { useWorkerAvailability } from "@/lib/hooks/useWorkerAvailability";
 
 // Extended User interface for agency page
 interface AgencyUser extends User {
   firstName?: string;
   lastName?: string;
   profileType?: "WORKER" | "CLIENT" | null;
+  profile_data?: {
+    firstName?: string;
+    lastName?: string;
+    profileImg?: string;
+  };
 }
 
 const WorkerDash = () => {
   const { user: authUser, isAuthenticated, isLoading, logout } = useAuth();
   const user = authUser as AgencyUser;
   const router = useRouter();
-  const [isAvailable, setIsAvailable] = React.useState(true);
 
-  if (isLoading) return <p>Loading...</p>; // strictly loading from backend validation
+  // Use the worker availability hook
+  const isWorker = true; // This is agency page, always worker
+  const {
+    isAvailable,
+    isLoading: isLoadingAvailability,
+    handleAvailabilityToggle,
+  } = useWorkerAvailability(isWorker, isAuthenticated);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="flex flex-col items-center space-y-4">
+          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Authentication check (strictly from backend JWT validation)
   if (!isAuthenticated || !user) {
@@ -29,13 +52,20 @@ const WorkerDash = () => {
   }
   return (
     <div className="min-h-screen bg-blue-50">
+      {/* Notification Bell - Mobile Only */}
+      <div className="lg:hidden fixed top-4 right-4 z-50">
+        <NotificationBell />
+      </div>
+
       {/* Desktop Navbar */}
       <DesktopNavbar
         isWorker={true}
         userName={user?.firstName || "Worker"}
+        userAvatar={user?.profile_data?.profileImg || "/worker1.jpg"}
         onLogout={logout}
         isAvailable={isAvailable}
-        onAvailabilityToggle={() => setIsAvailable(!isAvailable)}
+        isLoadingAvailability={isLoadingAvailability}
+        onAvailabilityToggle={handleAvailabilityToggle}
       />
 
       {/* Content */}

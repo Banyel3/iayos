@@ -31,17 +31,18 @@ load_dotenv(BASE_DIR.parent / ".env.local", override=True)
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-ss_o*cm)=s&gj!mnt)w&6+-20*s+4imz84l1=m_(59s0ztn9y+'
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-ss_o*cm)=s&gj!mnt)w&6+-20*s+4imz84l1=m_(59s0ztn9y+')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']  # Allow all hosts in development (restrict in production)
 
 
 # Application definition
 
 INSTALLED_APPS = [
+    'daphne',  # Must be first for Django Channels
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -49,6 +50,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'corsheaders',
+    'channels',
     'ninja_extra',
     'allauth',
     'allauth.account',
@@ -56,7 +58,10 @@ INSTALLED_APPS = [
     'allauth.socialaccount.providers.google',
     #internal
     'accounts',
-    'adminpanel'
+    'agency',
+    'adminpanel',
+    'jobs',
+    'profiles'
 
 ]
 
@@ -94,18 +99,22 @@ SOCIALACCOUNT_PROVIDERS = {
 
 # CORS Settings - Allow frontend during dev
 # settings.py
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "http://localhost:8000",
-    "http://127.0.0.1:8000",
-]
+CORS_ALLOW_ALL_ORIGINS = True  # Allow all origins in development (restrict in production)
+
+# Legacy CORS settings (kept for reference)
+# CORS_ALLOWED_ORIGINS = [
+#     "http://localhost:3000",
+#     "http://127.0.0.1:3000",
+#     "http://localhost:8000",
+#     "http://127.0.0.1:8000",
+# ]
 
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "http://localhost:8000",
     "http://127.0.0.1:8000",
+    "http://10.0.2.2:8000",  # Android emulator host access
 ]
 
 # Allow credentials (cookies) to be sent
@@ -233,9 +242,58 @@ RESEND_BASE_URL = "https://api.resend.com"
 
 SOCIALACCOUNT_LOGIN_ON_GET = True
 
-from supabase import create_client
+# Import custom Supabase adapter for new secret API keys
+from iayos_project.supabase_adapter import create_supabase_client
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
-SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "")
+SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "")
+# New secret API key format (sb_secret_...) - replaces the old service_role JWT
+SUPABASE_SECRET_KEY = os.getenv("SUPABASE_SECRET_KEY") or os.getenv("SUPABASE_SERVICE_KEY", "")
 
-supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+# Create Supabase client using new secret API keys
+SUPABASE = None
+if SUPABASE_URL and SUPABASE_SECRET_KEY:
+    try:
+        # Use custom adapter that works with new secret API keys
+        SUPABASE = create_supabase_client(
+            url=SUPABASE_URL,
+            secret_key=SUPABASE_SECRET_KEY,
+            anon_key=SUPABASE_ANON_KEY
+        )
+        print("✓ Supabase client initialized successfully with secret API key")
+    except Exception as e:
+        print(f"✗ Failed to initialize Supabase client: {e}")
+        print("File storage features will be disabled.")
+elif SUPABASE_URL and SUPABASE_ANON_KEY:
+    try:
+        # Fallback: use anon key only (limited access)
+        SUPABASE = create_supabase_client(
+            url=SUPABASE_URL,
+            secret_key=SUPABASE_ANON_KEY,
+            anon_key=SUPABASE_ANON_KEY
+        )
+        print("⚠ Supabase initialized with ANON key only (RLS restrictions apply)")
+    except Exception as e:
+        print(f"✗ Failed to initialize Supabase client: {e}")
+else:
+    print("✗ SUPABASE_URL or SUPABASE_SECRET_KEY not set. File storage features will be disabled.")
+
+# Xendit Configuration
+XENDIT_API_KEY = os.getenv("XENDIT_API_KEY")  # Must be set in .env.docker
+XENDIT_WEBHOOK_TOKEN = os.getenv("XENDIT_WEBHOOK_TOKEN", "")  # Optional: for webhook verification
+XENDIT_TEST_MODE = True  # Always True for development
+
+# Frontend URL for redirects
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+
+# Django Channels Configuration
+ASGI_APPLICATION = "iayos_project.asgi.application"
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer"
+    },
+}
+
+# Frontend URL for redirects
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
