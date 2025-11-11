@@ -1,13 +1,20 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useRef } from 'react';
-import { Loader2, AlertCircle, Mail, Clock, CheckCircle, XCircle } from 'lucide-react';
-import InviteJobCard from '@/components/client/jobs/InviteJobCard';
+import { useState, useEffect, useRef } from "react";
+import {
+  Loader2,
+  AlertCircle,
+  Mail,
+  Clock,
+  CheckCircle,
+  XCircle,
+} from "lucide-react";
+import InviteJobCard from "@/components/client/jobs/InviteJobCard";
 
 interface InviteTarget {
   id: number;
   name: string;
-  type: 'AGENCY' | 'WORKER';
+  type: "AGENCY" | "WORKER";
 }
 
 interface Category {
@@ -34,10 +41,10 @@ interface InviteJob {
   createdAt: string;
 }
 
-type TabType = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'ALL';
+type TabType = "PENDING" | "ACCEPTED" | "REJECTED" | "ALL";
 
 export default function MyInviteJobsPage() {
-  const [activeTab, setActiveTab] = useState<TabType>('ALL');
+  const [activeTab, setActiveTab] = useState<TabType>("ALL");
   const [jobs, setJobs] = useState<InviteJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -62,15 +69,16 @@ export default function MyInviteJobsPage() {
       setLoading(true);
       setError(null);
 
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-      const url = activeTab === 'ALL' 
-        ? `${apiUrl}/api/jobs/my-invite-jobs`
-        : `${apiUrl}/api/jobs/my-invite-jobs?invite_status=${activeTab}`;
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const url =
+        activeTab === "ALL"
+          ? `${apiUrl}/api/jobs/my-invite-jobs`
+          : `${apiUrl}/api/jobs/my-invite-jobs?invite_status=${activeTab}`;
 
       const response = await fetch(url, {
-        credentials: 'include',
+        credentials: "include",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
       });
 
@@ -81,8 +89,10 @@ export default function MyInviteJobsPage() {
       const data = await response.json();
       setJobs(data.jobs || []);
     } catch (err) {
-      console.error('Error fetching invite jobs:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load invite jobs');
+      console.error("Error fetching invite jobs:", err);
+      setError(
+        err instanceof Error ? err.message : "Failed to load invite jobs"
+      );
     } finally {
       setLoading(false);
     }
@@ -91,8 +101,8 @@ export default function MyInviteJobsPage() {
   const filteredJobs = jobs;
 
   const getTabCount = (status: TabType) => {
-    if (status === 'ALL') return jobs.length;
-    return jobs.filter(job => job.inviteStatus === status).length;
+    if (status === "ALL") return jobs.length;
+    return jobs.filter((job) => job.inviteStatus === status).length;
   };
 
   // Loading state
@@ -103,7 +113,9 @@ export default function MyInviteJobsPage() {
           <h1 className="text-3xl font-bold mb-6">My Job Invitations</h1>
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-            <span className="ml-3 text-gray-600">Loading your invitations...</span>
+            <span className="ml-3 text-gray-600">
+              Loading your invitations...
+            </span>
           </div>
         </div>
       </div>
@@ -117,13 +129,13 @@ export default function MyInviteJobsPage() {
         <div className="mb-6 bg-white rounded-lg shadow-sm border border-gray-200 px-6 py-3">
           <div className="flex items-center space-x-6">
             <button
-              onClick={() => window.location.href = '/client/agencies'}
+              onClick={() => (window.location.href = "/client/agencies")}
               className="text-gray-600 hover:text-gray-900 pb-1"
             >
               Browse Agencies
             </button>
             <button
-              onClick={() => window.location.href = '/client/my-invite-jobs'}
+              onClick={() => (window.location.href = "/client/my-invite-jobs")}
               className="text-blue-600 font-semibold border-b-2 border-blue-600 pb-1"
             >
               My Invitations
@@ -133,8 +145,12 @@ export default function MyInviteJobsPage() {
 
         {/* Page Header */}
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">My Job Invitations</h1>
-          <p className="text-gray-600">Track the status of your direct job invitations</p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            My Job Invitations
+          </h1>
+          <p className="text-gray-600">
+            Track the status of your direct job invitations
+          </p>
         </div>
 
         {/* Error Message */}
@@ -159,25 +175,25 @@ export default function MyInviteJobsPage() {
             <nav className="-mb-px flex space-x-8">
               {/* All Tab */}
               <button
-                onClick={() => setActiveTab('ALL')}
+                onClick={() => setActiveTab("ALL")}
                 className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                  activeTab === 'ALL'
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  activeTab === "ALL"
+                    ? "border-blue-600 text-blue-600"
+                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                 }`}
               >
                 <div className="flex items-center space-x-2">
                   <Mail className="h-5 w-5" />
                   <span>All Invitations</span>
-                  {getTabCount('ALL') > 0 && (
+                  {getTabCount("ALL") > 0 && (
                     <span
                       className={`px-2 py-0.5 text-xs rounded-full ${
-                        activeTab === 'ALL'
-                          ? 'bg-blue-100 text-blue-600'
-                          : 'bg-gray-100 text-gray-600'
+                        activeTab === "ALL"
+                          ? "bg-blue-100 text-blue-600"
+                          : "bg-gray-100 text-gray-600"
                       }`}
                     >
-                      {getTabCount('ALL')}
+                      {getTabCount("ALL")}
                     </span>
                   )}
                 </div>
@@ -185,25 +201,25 @@ export default function MyInviteJobsPage() {
 
               {/* Pending Tab */}
               <button
-                onClick={() => setActiveTab('PENDING')}
+                onClick={() => setActiveTab("PENDING")}
                 className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                  activeTab === 'PENDING'
-                    ? 'border-yellow-600 text-yellow-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  activeTab === "PENDING"
+                    ? "border-yellow-600 text-yellow-600"
+                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                 }`}
               >
                 <div className="flex items-center space-x-2">
                   <Clock className="h-5 w-5" />
                   <span>Pending</span>
-                  {getTabCount('PENDING') > 0 && (
+                  {getTabCount("PENDING") > 0 && (
                     <span
                       className={`px-2 py-0.5 text-xs rounded-full ${
-                        activeTab === 'PENDING'
-                          ? 'bg-yellow-100 text-yellow-600'
-                          : 'bg-gray-100 text-gray-600'
+                        activeTab === "PENDING"
+                          ? "bg-yellow-100 text-yellow-600"
+                          : "bg-gray-100 text-gray-600"
                       }`}
                     >
-                      {getTabCount('PENDING')}
+                      {getTabCount("PENDING")}
                     </span>
                   )}
                 </div>
@@ -211,25 +227,25 @@ export default function MyInviteJobsPage() {
 
               {/* Accepted Tab */}
               <button
-                onClick={() => setActiveTab('ACCEPTED')}
+                onClick={() => setActiveTab("ACCEPTED")}
                 className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                  activeTab === 'ACCEPTED'
-                    ? 'border-green-600 text-green-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  activeTab === "ACCEPTED"
+                    ? "border-green-600 text-green-600"
+                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                 }`}
               >
                 <div className="flex items-center space-x-2">
                   <CheckCircle className="h-5 w-5" />
                   <span>Accepted</span>
-                  {getTabCount('ACCEPTED') > 0 && (
+                  {getTabCount("ACCEPTED") > 0 && (
                     <span
                       className={`px-2 py-0.5 text-xs rounded-full ${
-                        activeTab === 'ACCEPTED'
-                          ? 'bg-green-100 text-green-600'
-                          : 'bg-gray-100 text-gray-600'
+                        activeTab === "ACCEPTED"
+                          ? "bg-green-100 text-green-600"
+                          : "bg-gray-100 text-gray-600"
                       }`}
                     >
-                      {getTabCount('ACCEPTED')}
+                      {getTabCount("ACCEPTED")}
                     </span>
                   )}
                 </div>
@@ -237,25 +253,25 @@ export default function MyInviteJobsPage() {
 
               {/* Rejected Tab */}
               <button
-                onClick={() => setActiveTab('REJECTED')}
+                onClick={() => setActiveTab("REJECTED")}
                 className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                  activeTab === 'REJECTED'
-                    ? 'border-red-600 text-red-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  activeTab === "REJECTED"
+                    ? "border-red-600 text-red-600"
+                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                 }`}
               >
                 <div className="flex items-center space-x-2">
                   <XCircle className="h-5 w-5" />
                   <span>Rejected</span>
-                  {getTabCount('REJECTED') > 0 && (
+                  {getTabCount("REJECTED") > 0 && (
                     <span
                       className={`px-2 py-0.5 text-xs rounded-full ${
-                        activeTab === 'REJECTED'
-                          ? 'bg-red-100 text-red-600'
-                          : 'bg-gray-100 text-gray-600'
+                        activeTab === "REJECTED"
+                          ? "bg-red-100 text-red-600"
+                          : "bg-gray-100 text-gray-600"
                       }`}
                     >
-                      {getTabCount('REJECTED')}
+                      {getTabCount("REJECTED")}
                     </span>
                   )}
                 </div>
@@ -274,20 +290,24 @@ export default function MyInviteJobsPage() {
           <div className="bg-white rounded-lg shadow-md p-12 text-center">
             <Mail className="h-12 w-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              {activeTab === 'ALL' && 'No Invitations Yet'}
-              {activeTab === 'PENDING' && 'No Pending Invitations'}
-              {activeTab === 'ACCEPTED' && 'No Accepted Invitations'}
-              {activeTab === 'REJECTED' && 'No Rejected Invitations'}
+              {activeTab === "ALL" && "No Invitations Yet"}
+              {activeTab === "PENDING" && "No Pending Invitations"}
+              {activeTab === "ACCEPTED" && "No Accepted Invitations"}
+              {activeTab === "REJECTED" && "No Rejected Invitations"}
             </h3>
             <p className="text-gray-600 max-w-md mx-auto mb-6">
-              {activeTab === 'ALL' && "You haven't sent any job invitations yet. Browse agencies to hire directly."}
-              {activeTab === 'PENDING' && 'All your invitations have been responded to.'}
-              {activeTab === 'ACCEPTED' && "None of your invitations have been accepted yet."}
-              {activeTab === 'REJECTED' && "None of your invitations have been rejected."}
+              {activeTab === "ALL" &&
+                "You haven't sent any job invitations yet. Browse agencies to hire directly."}
+              {activeTab === "PENDING" &&
+                "All your invitations have been responded to."}
+              {activeTab === "ACCEPTED" &&
+                "None of your invitations have been accepted yet."}
+              {activeTab === "REJECTED" &&
+                "None of your invitations have been rejected."}
             </p>
-            {activeTab === 'ALL' && (
+            {activeTab === "ALL" && (
               <button
-                onClick={() => window.location.href = '/client/agencies'}
+                onClick={() => (window.location.href = "/client/agencies")}
                 className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
                 Browse Agencies
@@ -297,7 +317,8 @@ export default function MyInviteJobsPage() {
         ) : (
           <div className="space-y-6">
             <div className="text-sm text-gray-600 mb-4">
-              Showing {filteredJobs.length} {filteredJobs.length === 1 ? 'invitation' : 'invitations'}
+              Showing {filteredJobs.length}{" "}
+              {filteredJobs.length === 1 ? "invitation" : "invitations"}
             </div>
             {filteredJobs.map((job) => (
               <InviteJobCard key={job.jobID} job={job} />

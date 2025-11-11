@@ -128,13 +128,13 @@ export default function AgencyProfilePage() {
         <div className="mb-6 bg-white rounded-lg shadow-sm border border-gray-200 px-6 py-3">
           <div className="flex items-center space-x-6">
             <button
-              onClick={() => router.push('/client/agencies')}
+              onClick={() => router.push("/client/agencies")}
               className="text-blue-600 font-semibold border-b-2 border-blue-600 pb-1"
             >
               Browse Agencies
             </button>
             <button
-              onClick={() => router.push('/client/my-invite-jobs')}
+              onClick={() => router.push("/client/my-invite-jobs")}
               className="text-gray-600 hover:text-gray-900 pb-1"
             >
               My Invitations
