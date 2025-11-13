@@ -34,11 +34,14 @@ interface PendingInviteJob {
   budget: number;
   location: string;
   urgency: string;
+  status: string;
+  jobType: string;
   expectedDuration: string | null;
   preferredStartDate: string | null;
   materialsNeeded?: string[];
   client: Client;
   createdAt: string;
+  updatedAt: string;
   inviteStatus?: string;
 }
 

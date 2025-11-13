@@ -17,10 +17,6 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final _dashboardService = DashboardService();
-  Map<String, dynamic>? _dashboardStats;
-  List<dynamic> _recentJobs = [];
-  bool _isLoadingStats = true;
-  bool _isLoadingJobs = true;
 
   @override
   void initState() {
@@ -33,12 +29,11 @@ class _HomeScreenState extends State<HomeScreen> {
     final statsResult = await _dashboardService.getDashboardStats();
     if (statsResult['success'] && mounted) {
       setState(() {
-        _dashboardStats = statsResult['data'];
-        _isLoadingStats = false;
+        // Stats loaded successfully
       });
     } else if (mounted) {
       setState(() {
-        _isLoadingStats = false;
+        // Stats loading failed
       });
     }
 
@@ -46,12 +41,11 @@ class _HomeScreenState extends State<HomeScreen> {
     final jobsResult = await _dashboardService.getRecentJobs(limit: 5);
     if (jobsResult['success'] && mounted) {
       setState(() {
-        _recentJobs = jobsResult['data']['jobs'] ?? [];
-        _isLoadingJobs = false;
+        // Jobs loaded successfully
       });
     } else if (mounted) {
       setState(() {
-        _isLoadingJobs = false;
+        // Jobs loading failed
       });
     }
   }
@@ -64,7 +58,8 @@ class _HomeScreenState extends State<HomeScreen> {
         child: SingleChildScrollView(
           child: ConstrainedBox(
             constraints: BoxConstraints(
-              minHeight: MediaQuery.of(context).size.height -
+              minHeight:
+                  MediaQuery.of(context).size.height -
                   MediaQuery.of(context).padding.top -
                   MediaQuery.of(context).padding.bottom,
             ),
@@ -103,8 +98,8 @@ class _HomeScreenState extends State<HomeScreen> {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            AppColors.primary.withOpacity(0.1),
-            AppColors.primary.withOpacity(0.05),
+            AppColors.primary.withValues(alpha: 0.1),
+            AppColors.primary.withValues(alpha: 0.05),
           ],
         ),
       ),
@@ -122,7 +117,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: AppColors.primary.withOpacity(0.3),
+                      color: AppColors.primary.withValues(alpha: 0.3),
                       blurRadius: 10,
                       offset: const Offset(0, 4),
                     ),
@@ -197,10 +192,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           color: Colors.red,
                           shape: BoxShape.circle,
                         ),
-                        child: const SizedBox(
-                          width: 6,
-                          height: 6,
-                        ),
+                        child: const SizedBox(width: 6, height: 6),
                       ),
                     ),
                   ],
@@ -220,9 +212,7 @@ class _HomeScreenState extends State<HomeScreen> {
       decoration: BoxDecoration(
         color: Colors.grey.shade100,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Colors.grey.shade300,
-        ),
+        border: Border.all(color: Colors.grey.shade300),
       ),
       child: Row(
         children: [
@@ -249,11 +239,7 @@ class _HomeScreenState extends State<HomeScreen> {
             onPressed: () {
               // TODO: Show filter options
             },
-            icon: Icon(
-              Icons.tune,
-              color: Colors.grey.shade600,
-              size: 22,
-            ),
+            icon: Icon(Icons.tune, color: Colors.grey.shade600, size: 22),
           ),
         ],
       ),
@@ -266,11 +252,7 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.people_outline,
-            size: 80,
-            color: Colors.grey.shade400,
-          ),
+          Icon(Icons.people_outline, size: 80, color: Colors.grey.shade400),
           const SizedBox(height: 20),
           Text(
             'Browse Workers',
@@ -302,7 +284,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => WorkersListScreen(user: widget.user),
+                      builder: (context) =>
+                          WorkersListScreen(user: widget.user),
                     ),
                   );
                 },
@@ -317,7 +300,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 14,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -339,7 +325,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.primary,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 14,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),

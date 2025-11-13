@@ -6,7 +6,7 @@ Tests the API endpoints in accounts/api.py
 from django.test import TestCase, Client
 from django.contrib.auth import get_user_model
 from django.utils import timezone
-from datetime import timedelta
+from datetime import timedelta, date
 from accounts.models import Profile, WorkerProfile, WorkerCertification, WorkerPortfolio
 import json
 
@@ -18,35 +18,48 @@ class WorkerAPIIntegrationTestCase(TestCase):
         """Set up test client and users"""
         self.client = Client()
         
-        # Create worker user
-        self.worker_user = User.objects.create_user(
+        # Create worker user with profile
+        self.worker_user = User.objects.create_user(  # type: ignore[call-arg]
             email="worker@test.com",
             password="testpass123"
         )
         self.worker_profile = Profile.objects.create(
-            user=self.worker_user,
+            accountFK=self.worker_user,
             firstName="Test",
             lastName="Worker",
-            profileType="WORKER"
+            profileType="WORKER",
+            contactNum="09123456789",
+            birthDate=date(1990, 1, 1)
         )
         self.worker_worker_profile = WorkerProfile.objects.create(
-            profile=self.worker_profile
+            profileID=self.worker_profile
         )
         
-        # Create client user (non-worker)
-        self.client_user = User.objects.create_user(
+        # Create client user
+        self.client_user = User.objects.create_user(  # type: ignore[call-arg]
             email="client@test.com",
             password="testpass123"
         )
         self.client_profile = Profile.objects.create(
-            user=self.client_user,
+            accountFK=self.client_user,
             firstName="Test",
             lastName="Client",
-            profileType="CLIENT"
+            profileType="CLIENT",
+            contactNum="09876543210",
+            birthDate=date(1985, 5, 15)
         )
         
-        # Login as worker
-        self.client.force_login(self.worker_user)
+        # Login as worker via API to get JWT cookies
+        self._login_user("worker@test.com", "testpass123")
+    
+    def _login_user(self, email, password):
+        """Helper method to log in via API and get JWT cookies"""
+        response = self.client.post(
+            '/api/accounts/login/',
+            data=json.dumps({"email": email, "password": password}),
+            content_type='application/json'
+        )
+        # Cookies are automatically stored in self.client
 
     def test_update_worker_profile_authenticated(self):
         """Test updating worker profile when authenticated"""
@@ -145,14 +158,14 @@ class WorkerAPIIntegrationTestCase(TestCase):
         """Test listing certifications"""
         # Create some certifications
         WorkerCertification.objects.create(
-            worker_profile=self.worker_worker_profile,
+            workerID=self.worker_worker_profile,
             name="Cert 1",
             issuing_organization="Org 1",
             issue_date=timezone.now().date(),
             certificate_url="https://example.com/cert1.pdf"
         )
         WorkerCertification.objects.create(
-            worker_profile=self.worker_worker_profile,
+            workerID=self.worker_worker_profile,
             name="Cert 2",
             issuing_organization="Org 2",
             issue_date=timezone.now().date(),
@@ -168,7 +181,7 @@ class WorkerAPIIntegrationTestCase(TestCase):
     def test_update_certification_success(self):
         """Test updating certification"""
         cert = WorkerCertification.objects.create(
-            worker_profile=self.worker_worker_profile,
+            workerID=self.worker_worker_profile,
             name="Old Name",
             issuing_organization="Old Org",
             issue_date=timezone.now().date(),
@@ -193,20 +206,22 @@ class WorkerAPIIntegrationTestCase(TestCase):
     def test_update_certification_not_owner(self):
         """Test that user cannot update another user's certification"""
         # Create another worker
-        other_user = User.objects.create_user(
+        other_user = User.objects.create_user(  # type: ignore[call-arg]
             email="other@test.com",
             password="testpass123"
         )
         other_profile = Profile.objects.create(
-            user=other_user,
+            accountFK=other_user,
             firstName="Other",
             lastName="Worker",
-            profileType="WORKER"
+            profileType="WORKER",
+            contactNum="09999999999",
+            birthDate=date(1992, 3, 10)
         )
-        other_worker_profile = WorkerProfile.objects.create(profile=other_profile)
+        other_worker_profile = WorkerProfile.objects.create(profileID=other_profile)
         
         cert = WorkerCertification.objects.create(
-            worker_profile=other_worker_profile,
+            workerID=other_worker_profile,
             name="Other's Cert",
             issuing_organization="Org",
             issue_date=timezone.now().date(),
@@ -226,7 +241,7 @@ class WorkerAPIIntegrationTestCase(TestCase):
     def test_delete_certification_success(self):
         """Test deleting certification"""
         cert = WorkerCertification.objects.create(
-            worker_profile=self.worker_worker_profile,
+            workerID=self.worker_worker_profile,
             name="To Delete",
             issuing_organization="Org",
             issue_date=timezone.now().date(),
@@ -260,13 +275,13 @@ class WorkerAPIIntegrationTestCase(TestCase):
         """Test listing portfolio items"""
         # Create portfolio items
         WorkerPortfolio.objects.create(
-            worker_profile=self.worker_worker_profile,
+            workerID=self.worker_worker_profile,
             image_url="https://example.com/image1.jpg",
             caption="Project 1",
             display_order=1
         )
         WorkerPortfolio.objects.create(
-            worker_profile=self.worker_worker_profile,
+            workerID=self.worker_worker_profile,
             image_url="https://example.com/image2.jpg",
             caption="Project 2",
             display_order=2
@@ -284,7 +299,7 @@ class WorkerAPIIntegrationTestCase(TestCase):
     def test_update_portfolio_caption(self):
         """Test updating portfolio caption"""
         item = WorkerPortfolio.objects.create(
-            worker_profile=self.worker_worker_profile,
+            workerID=self.worker_worker_profile,
             image_url="https://example.com/image1.jpg",
             caption="Old caption",
             display_order=1
@@ -305,17 +320,17 @@ class WorkerAPIIntegrationTestCase(TestCase):
     def test_reorder_portfolio_success(self):
         """Test reordering portfolio items"""
         item1 = WorkerPortfolio.objects.create(
-            worker_profile=self.worker_worker_profile,
+            workerID=self.worker_worker_profile,
             image_url="https://example.com/image1.jpg",
             display_order=1
         )
         item2 = WorkerPortfolio.objects.create(
-            worker_profile=self.worker_worker_profile,
+            workerID=self.worker_worker_profile,
             image_url="https://example.com/image2.jpg",
             display_order=2
         )
         item3 = WorkerPortfolio.objects.create(
-            worker_profile=self.worker_worker_profile,
+            workerID=self.worker_worker_profile,
             image_url="https://example.com/image3.jpg",
             display_order=3
         )
@@ -339,7 +354,7 @@ class WorkerAPIIntegrationTestCase(TestCase):
     def test_reorder_portfolio_invalid_order(self):
         """Test reordering with invalid IDs"""
         item1 = WorkerPortfolio.objects.create(
-            worker_profile=self.worker_worker_profile,
+            workerID=self.worker_worker_profile,
             image_url="https://example.com/image1.jpg",
             display_order=1
         )
@@ -359,7 +374,7 @@ class WorkerAPIIntegrationTestCase(TestCase):
     def test_delete_portfolio_image(self):
         """Test deleting portfolio image"""
         item = WorkerPortfolio.objects.create(
-            worker_profile=self.worker_worker_profile,
+            workerID=self.worker_worker_profile,
             image_url="https://example.com/image1.jpg",
             display_order=1
         )

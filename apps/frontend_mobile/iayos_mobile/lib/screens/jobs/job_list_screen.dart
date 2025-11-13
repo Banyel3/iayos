@@ -252,7 +252,7 @@ class _JobListScreenState extends State<JobListScreen> {
       onSelected: (selected) =>
           _onCategorySelected(selected ? categoryId : null),
       backgroundColor: Colors.grey.shade100,
-      selectedColor: AppColors.primary.withOpacity(0.2),
+      selectedColor: AppColors.primary.withValues(alpha: 0.2),
       checkmarkColor: AppColors.primary,
       labelStyle: GoogleFonts.inter(
         color: isSelected ? AppColors.primary : Colors.black87,
@@ -316,7 +316,7 @@ class _JobListScreenState extends State<JobListScreen> {
                       vertical: 6,
                     ),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.1),
+                      color: AppColors.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(

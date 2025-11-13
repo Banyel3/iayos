@@ -129,9 +129,9 @@ class Agency(models.Model):
 
 class WorkerProfile(models.Model):
     profileID = models.OneToOneField(Profile, on_delete=models.CASCADE)
-    description = models.CharField(max_length=350)
+    description = models.CharField(max_length=350, blank=True, default="")
     workerRating = models.IntegerField(default=0)
-    totalEarningGross = models.DecimalField(max_digits=10, decimal_places=2)
+    totalEarningGross = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
     
     # Worker Phase 1: Profile Enhancement Fields
     bio = models.CharField(

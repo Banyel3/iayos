@@ -29,13 +29,17 @@ class Certification {
     this.verifiedAt,
     DateTime? createdAt,
     DateTime? updatedAt,
-  })  : createdAt = createdAt ?? DateTime.now(),
-        updatedAt = updatedAt ?? DateTime.now();
+  }) : createdAt = createdAt ?? DateTime.now(),
+       updatedAt = updatedAt ?? DateTime.now();
 
   factory Certification.fromJson(Map<String, dynamic> json) {
     return Certification(
       certificationID: json['certificationID'] ?? json['id'],
-      certificationName: json['certificationName'] ?? json['certification'] ?? json['name'] ?? '',
+      certificationName:
+          json['certificationName'] ??
+          json['certification'] ??
+          json['name'] ??
+          '',
       issuingOrganization: json['issuingOrganization'] ?? json['issuer'],
       certificateNumber: json['certificateNumber'] ?? json['number'],
       issueDate: json['issueDate'] != null
@@ -55,9 +59,10 @@ class Certification {
           ? DateTime.tryParse(json['createdAt'])
           : null,
       updatedAt: json['updatedAt'] != null
-          ? DateTime.tryParse(json['updatedAt']) ?? json['uploadedAt'] != null
-              ? DateTime.tryParse(json['uploadedAt'])
-              : null
+          ? DateTime.tryParse(json['updatedAt']) ??
+                (json['uploadedAt'] != null
+                    ? DateTime.tryParse(json['uploadedAt'])
+                    : null)
           : null,
     );
   }

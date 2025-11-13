@@ -72,13 +72,13 @@ class _SetLocationScreenState extends State<SetLocationScreen>
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
-                        const Color(0xFF54B7EC).withOpacity(0.08),
-                        const Color(0xFF54B7EC).withOpacity(0.03),
+                        const Color(0xFF54B7EC).withValues(alpha: 0.08),
+                        const Color(0xFF54B7EC).withValues(alpha: 0.03),
                       ],
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF54B7EC).withOpacity(0.1),
+                        color: const Color(0xFF54B7EC).withValues(alpha: 0.1),
                         blurRadius: 10,
                         offset: const Offset(0, 2),
                       ),
@@ -148,7 +148,7 @@ class _SetLocationScreenState extends State<SetLocationScreen>
                           Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF54B7EC).withOpacity(0.1),
+                              color: const Color(0xFF54B7EC).withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: const Icon(
@@ -178,7 +178,7 @@ class _SetLocationScreenState extends State<SetLocationScreen>
                           vertical: 6,
                         ),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF54B7EC).withOpacity(0.15),
+                          color: const Color(0xFF54B7EC).withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
@@ -294,10 +294,10 @@ class _SetLocationScreenState extends State<SetLocationScreen>
                         Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF54B7EC).withOpacity(0.05),
+                            color: const Color(0xFF54B7EC).withValues(alpha: 0.05),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                              color: const Color(0xFF54B7EC).withOpacity(0.2),
+                              color: const Color(0xFF54B7EC).withValues(alpha: 0.2),
                             ),
                           ),
                           child: Row(
@@ -335,7 +335,7 @@ class _SetLocationScreenState extends State<SetLocationScreen>
                               elevation: 4,
                               shadowColor: const Color(
                                 0xFF54B7EC,
-                              ).withOpacity(0.4),
+                              ).withValues(alpha: 0.4),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(16),
                               ),
@@ -396,16 +396,16 @@ class _SetLocationScreenState extends State<SetLocationScreen>
                 ? LinearGradient(
                     colors: [
                       const Color(0xFF54B7EC),
-                      const Color(0xFF54B7EC).withOpacity(0.7),
+                      const Color(0xFF54B7EC).withValues(alpha: 0.7),
                     ],
                   )
                 : null,
-            color: isActive ? null : const Color(0xFFBCBCBC).withOpacity(0.4),
+            color: isActive ? null : const Color(0xFFBCBCBC).withValues(alpha: 0.4),
             borderRadius: BorderRadius.circular(4),
             boxShadow: isActive
                 ? [
                     BoxShadow(
-                      color: const Color(0xFF54B7EC).withOpacity(0.3),
+                      color: const Color(0xFF54B7EC).withValues(alpha: 0.3),
                       blurRadius: 4,
                       offset: const Offset(0, 2),
                     ),
@@ -425,16 +425,16 @@ class _SetLocationScreenState extends State<SetLocationScreen>
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF54B7EC).withOpacity(0.05),
+        color: const Color(0xFF54B7EC).withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF54B7EC).withOpacity(0.1)),
+        border: Border.all(color: const Color(0xFF54B7EC).withValues(alpha: 0.1)),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: const Color(0xFF54B7EC).withOpacity(0.1),
+              color: const Color(0xFF54B7EC).withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(icon, color: const Color(0xFF54B7EC), size: 20),
@@ -507,7 +507,7 @@ class _SetLocationScreenState extends State<SetLocationScreen>
             border: Border.all(color: Colors.grey.shade300, width: 1.5),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.03),
+                color: Colors.black.withValues(alpha: 0.03),
                 blurRadius: 4,
                 offset: const Offset(0, 2),
               ),

@@ -5,8 +5,19 @@ import { useUpdateWorkerProfile } from "@/lib/hooks/useWorkerProfile";
 import { Button } from "@/components/ui/generic_button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Loader2 } from "lucide-react";
+
+// Local fallback Textarea component — replace with your project's Textarea component if available
+type TextareaProps = React.TextareaHTMLAttributes<HTMLTextAreaElement> & {
+  className?: string;
+  id?: string;
+};
+const Textarea: React.FC<TextareaProps> = ({ className = "", ...props }) => (
+  <textarea
+    {...props}
+    className={`block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary-500 ${className}`}
+  />
+);
 
 interface WorkerProfileEditFormProps {
   initialData?: {
@@ -74,7 +85,9 @@ export function WorkerProfileEditForm({
         <Textarea
           id="bio"
           value={bio}
-          onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setBio(e.target.value.slice(0, maxBioLength))}
+          onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+            setBio(e.target.value.slice(0, maxBioLength))
+          }
           placeholder="Write a brief bio about yourself..."
           className="min-h-[80px]"
           maxLength={maxBioLength}

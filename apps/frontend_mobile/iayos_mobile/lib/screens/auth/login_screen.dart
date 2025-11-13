@@ -73,8 +73,8 @@ class _LoginScreenState extends State<LoginScreen>
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                           colors: [
-                            const Color(0xFF54B7EC).withOpacity(0.1),
-                            const Color(0xFF54B7EC).withOpacity(0.05),
+                            const Color(0xFF54B7EC).withValues(alpha: 0.1),
+                            const Color(0xFF54B7EC).withValues(alpha: 0.05),
                           ],
                         ),
                         borderRadius: BorderRadius.circular(20),
@@ -94,7 +94,7 @@ class _LoginScreenState extends State<LoginScreen>
                                   BoxShadow(
                                     color: const Color(
                                       0xFF54B7EC,
-                                    ).withOpacity(0.3),
+                                    ).withValues(alpha: 0.3),
                                     blurRadius: 20,
                                     spreadRadius: 5,
                                   ),
@@ -168,7 +168,7 @@ class _LoginScreenState extends State<LoginScreen>
                               filled: true,
                               fillColor: const Color(
                                 0xFFD0EAF8,
-                              ).withOpacity(0.3),
+                              ).withValues(alpha: 0.3),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide: BorderSide.none,
@@ -246,7 +246,7 @@ class _LoginScreenState extends State<LoginScreen>
                               filled: true,
                               fillColor: const Color(
                                 0xFFD0EAF8,
-                              ).withOpacity(0.3),
+                              ).withValues(alpha: 0.3),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide: BorderSide.none,
@@ -346,7 +346,7 @@ class _LoginScreenState extends State<LoginScreen>
                                 elevation: 3,
                                 shadowColor: const Color(
                                   0xFF54B7EC,
-                                ).withOpacity(0.4),
+                                ).withValues(alpha: 0.4),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
                                 ),

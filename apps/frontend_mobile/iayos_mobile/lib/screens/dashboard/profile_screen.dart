@@ -118,8 +118,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      AppColors.primary.withOpacity(0.1),
-                      AppColors.primary.withOpacity(0.05),
+                      AppColors.primary.withValues(alpha: 0.1),
+                      AppColors.primary.withValues(alpha: 0.05),
                     ],
                   ),
                 ),
@@ -134,7 +134,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: AppColors.primary.withOpacity(0.3),
+                            color: AppColors.primary.withValues(alpha: 0.3),
                             blurRadius: 20,
                             offset: const Offset(0, 8),
                           ),
@@ -235,7 +235,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                       decoration: BoxDecoration(
                         color: widget.user.isWorker
-                            ? AppColors.primary.withOpacity(0.2)
+                            ? AppColors.primary.withValues(alpha: 0.2)
                             : Colors.green.shade100,
                         borderRadius: BorderRadius.circular(20),
                       ),
@@ -265,13 +265,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       end: Alignment.bottomRight,
                       colors: [
                         AppColors.primary,
-                        AppColors.primary.withOpacity(0.7),
+                        AppColors.primary.withValues(alpha: 0.7),
                       ],
                     ),
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: AppColors.primary.withOpacity(0.3),
+                        color: AppColors.primary.withValues(alpha: 0.3),
                         blurRadius: 20,
                         offset: const Offset(0, 10),
                       ),
@@ -287,12 +287,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             'Wallet Balance',
                             style: GoogleFonts.inter(
                               fontSize: 14,
-                              color: Colors.white.withOpacity(0.9),
+                              color: Colors.white.withValues(alpha: 0.9),
                             ),
                           ),
                           Icon(
                             Icons.account_balance_wallet,
-                            color: Colors.white.withOpacity(0.9),
+                            color: Colors.white.withValues(alpha: 0.9),
                             size: 20,
                           ),
                         ],
@@ -325,7 +325,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
                                 valueColor: AlwaysStoppedAnimation<Color>(
-                                  Colors.white.withOpacity(0.7),
+                                  Colors.white.withValues(alpha: 0.7),
                                 ),
                               ),
                             ),

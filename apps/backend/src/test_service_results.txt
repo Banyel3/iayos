@@ -1,0 +1,245 @@
+﻿python : Using existing test database for alias 'default'...
+At line:1 char:1
++ python manage.py test accounts.tests.test_certification_service accou ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Using existing ...as 'default'...:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+EEEEEEEEF.....E.........EE.......
+======================================================================
+ERROR: test_add_certification_success 
+(accounts.tests.test_certification_service.CertificationServiceTestCase.test_add_certification_success)
+Test adding a certification successfully
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\code\iayos\apps\backend\src\accounts\tests\test_certification_service.py", line 57, in 
+test_add_certification_success
+    result = add_certification(self.worker_profile, **data)
+TypeError: add_certification() got an unexpected keyword argument 'certificate_url'. Did you mean 'certificate_file'?
+
+======================================================================
+ERROR: test_add_certification_with_expiry 
+(accounts.tests.test_certification_service.CertificationServiceTestCase.test_add_certification_with_expiry)
+Test adding certification with expiry date
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\code\iayos\apps\backend\src\accounts\tests\test_certification_service.py", line 74, in 
+test_add_certification_with_expiry
+    result = add_certification(self.worker_profile, **data)
+TypeError: add_certification() got an unexpected keyword argument 'certificate_url'. Did you mean 'certificate_file'?
+
+======================================================================
+ERROR: test_delete_certification_success 
+(accounts.tests.test_certification_service.CertificationServiceTestCase.test_delete_certification_success)
+Test deleting certification
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\code\iayos\apps\backend\src\accounts\tests\test_certification_service.py", line 192, in 
+test_delete_certification_success
+    cert = WorkerCertification.objects.create(
+        worker_profile=self.worker_profile,
+    ...<3 lines>...
+        certificate_url="https://example.com/cert.pdf"
+    )
+  File "C:\code\iayos\apps\backend\venv\Lib\site-packages\django\db\models\manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\code\iayos\apps\backend\venv\Lib\site-packages\django\db\models\query.py", line 663, in create
+    obj = self.model(**kwargs)
+  File "C:\code\iayos\apps\backend\venv\Lib\site-packages\django\db\models\base.py", line 569, in __init__
+    raise TypeError(
+    ...<2 lines>...
+    )
+TypeError: WorkerCertification() got unexpected keyword arguments: 'worker_profile'
+
+======================================================================
+ERROR: test_get_certifications_ordered_by_date 
+(accounts.tests.test_certification_service.CertificationServiceTestCase.test_get_certifications_ordered_by_date)
+Test that certifications are ordered by issue date
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\code\iayos\apps\backend\src\accounts\tests\test_certification_service.py", line 86, in 
+test_get_certifications_ordered_by_date
+    WorkerCertification.objects.create(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        worker_profile=self.worker_profile,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+        certificate_url="https://example.com/cert1.pdf"
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\code\iayos\apps\backend\venv\Lib\site-packages\django\db\models\manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\code\iayos\apps\backend\venv\Lib\site-packages\django\db\models\query.py", line 663, in create
+    obj = self.model(**kwargs)
+  File "C:\code\iayos\apps\backend\venv\Lib\site-packages\django\db\models\base.py", line 569, in __init__
+    raise TypeError(
+    ...<2 lines>...
+    )
+TypeError: WorkerCertification() got unexpected keyword arguments: 'worker_profile'
+
+======================================================================
+ERROR: test_get_expiring_certifications_30_days 
+(accounts.tests.test_certification_service.CertificationServiceTestCase.test_get_expiring_certifications_30_days)
+Test getting certifications expiring within 30 days
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\code\iayos\apps\backend\src\accounts\tests\test_certification_service.py", line 122, in 
+test_get_expiring_certifications_30_days
+    WorkerCertification.objects.create(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        worker_profile=self.worker_profile,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+        certificate_url="https://example.com/cert1.pdf"
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\code\iayos\apps\backend\venv\Lib\site-packages\django\db\models\manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\code\iayos\apps\backend\venv\Lib\site-packages\django\db\models\query.py", line 663, in create
+    obj = self.model(**kwargs)
+  File "C:\code\iayos\apps\backend\venv\Lib\site-packages\django\db\models\base.py", line 569, in __init__
+    raise TypeError(
+    ...<2 lines>...
+    )
+TypeError: WorkerCertification() got unexpected keyword arguments: 'worker_profile'
+
+======================================================================
+ERROR: test_update_certification_not_owner 
+(accounts.tests.test_certification_service.CertificationServiceTestCase.test_update_certification_not_owner)
+Test that user cannot update another user's certification
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\code\iayos\apps\backend\src\accounts\tests\test_certification_service.py", line 179, in 
+test_update_certification_not_owner
+    cert = WorkerCertification.objects.create(
+        worker_profile=other_worker_profile,
+    ...<3 lines>...
+        certificate_url="https://example.com/cert.pdf"
+    )
+  File "C:\code\iayos\apps\backend\venv\Lib\site-packages\django\db\models\manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\code\iayos\apps\backend\venv\Lib\site-packages\django\db\models\query.py", line 663, in create
+    obj = self.model(**kwargs)
+  File "C:\code\iayos\apps\backend\venv\Lib\site-packages\django\db\models\base.py", line 569, in __init__
+    raise TypeError(
+    ...<2 lines>...
+    )
+TypeError: WorkerCertification() got unexpected keyword arguments: 'worker_profile'
+
+======================================================================
+ERROR: test_update_certification_success 
+(accounts.tests.test_certification_service.CertificationServiceTestCase.test_update_certification_success)
+Test updating certification details
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\code\iayos\apps\backend\src\accounts\tests\test_certification_service.py", line 146, in 
+test_update_certification_success
+    cert = WorkerCertification.objects.create(
+        worker_profile=self.worker_profile,
+    ...<3 lines>...
+        certificate_url="https://example.com/cert.pdf"
+    )
+  File "C:\code\iayos\apps\backend\venv\Lib\site-packages\django\db\models\manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\code\iayos\apps\backend\venv\Lib\site-packages\django\db\models\query.py", line 663, in create
+    obj = self.model(**kwargs)
+  File "C:\code\iayos\apps\backend\venv\Lib\site-packages\django\db\models\base.py", line 569, in __init__
+    raise TypeError(
+    ...<2 lines>...
+    )
+TypeError: WorkerCertification() got unexpected keyword arguments: 'worker_profile'
+
+======================================================================
+ERROR: test_verify_certification_admin 
+(accounts.tests.test_certification_service.CertificationServiceTestCase.test_verify_certification_admin)
+Test admin can verify certifications
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\code\iayos\apps\backend\src\accounts\tests\test_certification_service.py", line 208, in 
+test_verify_certification_admin
+    cert = WorkerCertification.objects.create(
+        worker_profile=self.worker_profile,
+    ...<3 lines>...
+        certificate_url="https://example.com/cert.pdf"
+    )
+  File "C:\code\iayos\apps\backend\venv\Lib\site-packages\django\db\models\manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+Γ£ô Supabase client initialized successfully with secret API key
+Found 33 test(s).
+System check identified no issues (0 silenced).
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\code\iayos\apps\backend\venv\Lib\site-packages\django\db\models\query.py", line 663, in create
+    obj = self.model(**kwargs)
+  File "C:\code\iayos\apps\backend\venv\Lib\site-packages\django\db\models\base.py", line 569, in __init__
+    raise TypeError(
+    ...<2 lines>...
+    )
+TypeError: WorkerCertification() got unexpected keyword arguments: 'worker_profile'
+
+======================================================================
+ERROR: test_reorder_portfolio_valid_order 
+(accounts.tests.test_portfolio_service.PortfolioServiceTestCase.test_reorder_portfolio_valid_order)
+Test reordering portfolio items
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\code\iayos\apps\backend\src\accounts\tests\test_portfolio_service.py", line 180, in 
+test_reorder_portfolio_valid_order
+    self.assertEqual(result[2]["display_order"], 2)
+                     ~~~~~~^^^
+KeyError: 2
+
+======================================================================
+ERROR: test_get_profile_completion_new_profile 
+(accounts.tests.test_worker_profile_service.WorkerProfileServiceTestCase.test_get_profile_completion_new_profile)
+Test completion percentage for new profile
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\code\iayos\apps\backend\src\accounts\tests\test_worker_profile_service.py", line 78, in 
+test_get_profile_completion_new_profile
+    completion = get_worker_profile_completion(self.user)
+  File "C:\code\iayos\apps\backend\src\accounts\worker_profile_service.py", line 103, in get_worker_profile_completion
+    if not worker_profile.bio or len(worker_profile.bio.strip()) == 0:
+           ^^^^^^^^^^^^^^^^^^
+AttributeError: 'Accounts' object has no attribute 'bio'
+
+======================================================================
+ERROR: test_get_profile_completion_recommendations 
+(accounts.tests.test_worker_profile_service.WorkerProfileServiceTestCase.test_get_profile_completion_recommendations)
+Test that recommendations are generated correctly
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\code\iayos\apps\backend\src\accounts\tests\test_worker_profile_service.py", line 151, in 
+test_get_profile_completion_recommendations
+    recommendations = get_profile_completion_recommendations(self.user)
+  File "C:\code\iayos\apps\backend\src\accounts\worker_profile_service.py", line 174, in 
+get_profile_completion_recommendations
+    for field in missing_fields:
+                 ^^^^^^^^^^^^^^
+TypeError: 'Accounts' object is not iterable
+
+======================================================================
+FAIL: test_verify_certification_non_admin 
+(accounts.tests.test_certification_service.CertificationServiceTestCase.test_verify_certification_non_admin)
+Test non-admin cannot verify certifications
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\code\iayos\apps\backend\src\accounts\tests\test_certification_service.py", line 230, in 
+test_verify_certification_non_admin
+    with self.assertRaises(PermissionError):
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+AssertionError: PermissionError not raised
+
+----------------------------------------------------------------------
+Ran 33 tests in 47.510s
+
+FAILED (failures=1, errors=11)
+Preserving test database for alias 'default'...
+

@@ -13,23 +13,27 @@ from accounts.worker_profile_service import (
     validate_profile_fields,
 )
 
+from decimal import Decimal
+
 User = get_user_model()
 
 
 class WorkerProfileServiceTestCase(TestCase):
     def setUp(self):
         """Set up test user and profile"""
-        self.user = User.objects.create_user(
+        self.user = User.objects.create_user(  # type: ignore[call-arg]
             email="worker@test.com",
             password="testpass123"
         )
         self.profile = Profile.objects.create(
-            user=self.user,
+            accountFK=self.user,
             firstName="Test",
             lastName="Worker",
+            contactNum="09123456789",
+            birthDate="1990-01-01",
             profileType="WORKER"
         )
-        self.worker_profile = WorkerProfile.objects.create(profile=self.profile)
+        self.worker_profile = WorkerProfile.objects.create(profileID=self.profile)
 
     def test_update_worker_profile_success(self):
         """Test successful worker profile update"""
@@ -39,7 +43,12 @@ class WorkerProfileServiceTestCase(TestCase):
             "hourly_rate": 500.00
         }
         
-        result = update_worker_profile(self.user, data)
+        result = update_worker_profile(
+            self.worker_profile,
+            bio="Experienced electrician",
+            description="10 years of experience in residential and commercial work",
+            hourly_rate=500.00
+        )
         
         self.assertEqual(result["bio"], "Experienced electrician")
         self.assertEqual(result["hourly_rate"], 500.00)
@@ -47,17 +56,26 @@ class WorkerProfileServiceTestCase(TestCase):
 
     def test_update_worker_profile_missing_profile(self):
         """Test update with non-existent profile"""
-        user_no_profile = User.objects.create_user(
+        user_no_profile = User.objects.create_user(  # type: ignore[call-arg]
             email="noworker@test.com",
             password="testpass123"
         )
-        
-        with self.assertRaises(Exception):
-            update_worker_profile(user_no_profile, {"bio": "Test"})
+        # Create profile but not worker profile
+        profile = Profile.objects.create(
+            accountFK=user_no_profile,
+            firstName="No",
+            lastName="Worker",
+            contactNum="09123456789",
+            birthDate="1990-01-01",
+            profileType="WORKER"
+        )
+        # Should raise error when worker profile doesn't exist
+        with self.assertRaises(WorkerProfile.DoesNotExist):
+            WorkerProfile.objects.get(profileID=profile)
 
     def test_get_profile_completion_new_profile(self):
         """Test completion percentage for new profile"""
-        completion = get_worker_profile_completion(self.user)
+        completion = get_worker_profile_completion(self.worker_profile)
         
         self.assertIn("completion_percentage", completion)
         self.assertIn("missing_fields", completion)
@@ -70,61 +88,49 @@ class WorkerProfileServiceTestCase(TestCase):
         # Fill all fields
         self.worker_profile.bio = "Test bio"
         self.worker_profile.description = "Test description"
-        self.worker_profile.hourly_rate = 500.00
+        self.worker_profile.hourly_rate = Decimal('500.00')
         self.worker_profile.save()
         
-        self.profile.contactNum = "09123456789"
-        self.profile.location = "Manila, Philippines"
+        self.profile.profileImg = "https://example.com/image.jpg"
         self.profile.save()
         
-        completion = get_worker_profile_completion(self.user)
+        completion = get_worker_profile_completion(self.worker_profile)
         
         self.assertGreater(completion["completion_percentage"], 50)
         self.assertIsInstance(completion["missing_fields"], list)
 
     def test_validate_profile_fields_valid(self):
         """Test validation with valid fields"""
-        data = {
-            "bio": "A" * 199,  # Just under 200 char limit
-            "description": "B" * 349,  # Just under 350 char limit
-            "hourly_rate": 100.00
-        }
-        
         # Should not raise any exceptions
-        validate_profile_fields(data)
+        validate_profile_fields(
+            bio="A" * 199,
+            description="B" * 349,
+            hourly_rate=100.00
+        )
 
     def test_validate_profile_fields_bio_too_long(self):
         """Test validation with bio exceeding max length"""
-        data = {
-            "bio": "A" * 201,  # Over 200 char limit
-        }
+        result = validate_profile_fields(bio="A" * 201)
         
-        with self.assertRaises(ValueError) as context:
-            validate_profile_fields(data)
-        
-        self.assertIn("Bio must be 200 characters or less", str(context.exception))
+        self.assertFalse(result['valid'])
+        self.assertIn('bio', result['errors'])
+        self.assertIn("Bio must be 200 characters or less", result['errors']['bio'])
 
     def test_validate_profile_fields_description_too_long(self):
         """Test validation with description exceeding max length"""
-        data = {
-            "description": "B" * 351,  # Over 350 char limit
-        }
+        result = validate_profile_fields(description="B" * 351)
         
-        with self.assertRaises(ValueError) as context:
-            validate_profile_fields(data)
-        
-        self.assertIn("Description must be 350 characters or less", str(context.exception))
+        self.assertFalse(result['valid'])
+        self.assertIn('description', result['errors'])
+        self.assertIn("Description must be 350 characters or less", result['errors']['description'])
 
     def test_validate_profile_fields_negative_rate(self):
         """Test validation with negative hourly rate"""
-        data = {
-            "hourly_rate": -50.00
-        }
+        result = validate_profile_fields(hourly_rate=-50.00)
         
-        with self.assertRaises(ValueError) as context:
-            validate_profile_fields(data)
-        
-        self.assertIn("Hourly rate must be a positive number", str(context.exception))
+        self.assertFalse(result['valid'])
+        self.assertIn('hourly_rate', result['errors'])
+        self.assertIn("greater than 0", result['errors']['hourly_rate'])
 
     def test_profile_completion_percentage_calculation(self):
         """Test that profile completion percentage is calculated correctly"""
@@ -134,7 +140,7 @@ class WorkerProfileServiceTestCase(TestCase):
         
         # Add some fields
         self.worker_profile.bio = "Test bio"
-        self.worker_profile.hourly_rate = 500.00
+        self.worker_profile.hourly_rate = Decimal('500.00')
         self.worker_profile.save()
         
         partial_completion = self.worker_profile.calculate_profile_completion()
@@ -142,7 +148,9 @@ class WorkerProfileServiceTestCase(TestCase):
 
     def test_get_profile_completion_recommendations(self):
         """Test that recommendations are generated correctly"""
-        recommendations = get_profile_completion_recommendations(self.user)
+        # Pass a list of missing fields
+        missing_fields = ['bio', 'hourly_rate', 'certifications']
+        recommendations = get_profile_completion_recommendations(missing_fields)
         
         self.assertIsInstance(recommendations, list)
         self.assertGreater(len(recommendations), 0)

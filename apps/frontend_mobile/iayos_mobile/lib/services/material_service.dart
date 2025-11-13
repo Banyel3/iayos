@@ -23,23 +23,14 @@ class MaterialService {
             .map((item) => WorkerMaterial.fromJson(item))
             .toList();
 
-        return {
-          'success': true,
-          'data': materials,
-        };
+        return {'success': true, 'data': materials};
       } else {
         print('Failed to get materials: ${response.body}');
-        return {
-          'success': false,
-          'error': 'Failed to load materials',
-        };
+        return {'success': false, 'error': 'Failed to load materials'};
       }
     } catch (e) {
       print('Error getting materials: $e');
-      return {
-        'success': false,
-        'error': 'Network error: ${e.toString()}',
-      };
+      return {'success': false, 'error': 'Network error: ${e.toString()}'};
     }
   }
 
@@ -92,10 +83,7 @@ class MaterialService {
       }
     } catch (e) {
       print('Error adding material: $e');
-      return {
-        'success': false,
-        'error': 'Network error: ${e.toString()}',
-      };
+      return {'success': false, 'error': 'Network error: ${e.toString()}'};
     }
   }
 
@@ -111,10 +99,7 @@ class MaterialService {
       print('Delete Material Response: ${response.statusCode}');
 
       if (response.statusCode == 200 || response.statusCode == 204) {
-        return {
-          'success': true,
-          'message': 'Material deleted successfully',
-        };
+        return {'success': true, 'message': 'Material deleted successfully'};
       } else {
         final errorData = json.decode(response.body);
         return {
@@ -124,10 +109,7 @@ class MaterialService {
       }
     } catch (e) {
       print('Error deleting material: $e');
-      return {
-        'success': false,
-        'error': 'Network error: ${e.toString()}',
-      };
+      return {'success': false, 'error': 'Network error: ${e.toString()}'};
     }
   }
 
@@ -162,7 +144,9 @@ class MaterialService {
         body: json.encode(body),
       );
 
-      print('Update Material Response: ${response.statusCode} - ${response.body}');
+      print(
+        'Update Material Response: ${response.statusCode} - ${response.body}',
+      );
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -182,10 +166,7 @@ class MaterialService {
       }
     } catch (e) {
       print('Error updating material: $e');
-      return {
-        'success': false,
-        'error': 'Network error: ${e.toString()}',
-      };
+      return {'success': false, 'error': 'Network error: ${e.toString()}'};
     }
   }
 
@@ -207,23 +188,14 @@ class MaterialService {
             .map((item) => WorkerMaterial.fromJson(item))
             .toList();
 
-        return {
-          'success': true,
-          'data': materials,
-        };
+        return {'success': true, 'data': materials};
       } else {
         print('Failed to get worker materials: ${response.body}');
-        return {
-          'success': false,
-          'error': 'Failed to load materials',
-        };
+        return {'success': false, 'error': 'Failed to load materials'};
       }
     } catch (e) {
       print('Error getting worker materials: $e');
-      return {
-        'success': false,
-        'error': 'Network error: ${e.toString()}',
-      };
+      return {'success': false, 'error': 'Network error: ${e.toString()}'};
     }
   }
 }

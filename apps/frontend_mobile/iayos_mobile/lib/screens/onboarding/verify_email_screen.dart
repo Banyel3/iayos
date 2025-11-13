@@ -81,7 +81,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> with SingleTicker
                       borderRadius: BorderRadius.circular(20),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.green.withOpacity(0.3),
+                          color: Colors.green.withValues(alpha: 0.3),
                           blurRadius: 8,
                           offset: const Offset(0, 4),
                         ),
@@ -119,14 +119,14 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> with SingleTicker
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                           colors: [
-                            const Color(0xFF54B7EC).withOpacity(0.2),
-                            const Color(0xFF54B7EC).withOpacity(0.05),
+                            const Color(0xFF54B7EC).withValues(alpha: 0.2),
+                            const Color(0xFF54B7EC).withValues(alpha: 0.05),
                           ],
                         ),
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF54B7EC).withOpacity(0.3),
+                            color: const Color(0xFF54B7EC).withValues(alpha: 0.3),
                             blurRadius: 20,
                             offset: const Offset(0, 8),
                           ),
@@ -182,18 +182,18 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> with SingleTicker
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                         colors: [
-                          const Color(0xFF54B7EC).withOpacity(0.1),
-                          const Color(0xFF54B7EC).withOpacity(0.05),
+                          const Color(0xFF54B7EC).withValues(alpha: 0.1),
+                          const Color(0xFF54B7EC).withValues(alpha: 0.05),
                         ],
                       ),
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: const Color(0xFF54B7EC).withOpacity(0.3),
+                        color: const Color(0xFF54B7EC).withValues(alpha: 0.3),
                         width: 1.5,
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF54B7EC).withOpacity(0.1),
+                          color: const Color(0xFF54B7EC).withValues(alpha: 0.1),
                           blurRadius: 10,
                           offset: const Offset(0, 4),
                         ),
@@ -205,7 +205,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> with SingleTicker
                         Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF54B7EC).withOpacity(0.2),
+                            color: const Color(0xFF54B7EC).withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: const Icon(
@@ -252,7 +252,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> with SingleTicker
                         backgroundColor: const Color(0xFF54B7EC),
                         foregroundColor: Colors.white,
                         elevation: 4,
-                        shadowColor: const Color(0xFF54B7EC).withOpacity(0.4),
+                        shadowColor: const Color(0xFF54B7EC).withValues(alpha: 0.4),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
                         ),
@@ -382,12 +382,12 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> with SingleTicker
                         end: Alignment.bottomRight,
                         colors: [
                           Colors.blue.shade50,
-                          Colors.blue.shade50.withOpacity(0.5),
+                          Colors.blue.shade50.withValues(alpha: 0.5),
                         ],
                       ),
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: const Color(0xFF54B7EC).withOpacity(0.2),
+                        color: const Color(0xFF54B7EC).withValues(alpha: 0.2),
                       ),
                     ),
                     child: Column(
@@ -456,7 +456,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> with SingleTicker
             borderRadius: BorderRadius.circular(4),
             boxShadow: [
               BoxShadow(
-                color: Colors.green.withOpacity(0.3 * value),
+                color: Colors.green.withValues(alpha: 0.3 * value),
                 blurRadius: 6,
                 offset: const Offset(0, 2),
               ),

@@ -1,5 +1,5 @@
 from django.db.models import Q, Avg, Count, Case, When, IntegerField, F
-from accounts.models import Agency, Job, JobReview
+from accounts.models import Agency, Job, JobReview, Profile
 from agency.models import AgencyKYC, AgencyEmployee
 from typing import Optional, List, Dict
 import math
@@ -107,10 +107,10 @@ def browse_agencies(
             "city": agency.city,
             "province": agency.province,
             "contactNumber": agency.contactNumber,
-            "averageRating": float(agency.avg_rating) if agency.avg_rating else None,
-            "totalReviews": agency.total_reviews,
-            "completedJobs": agency.completed_jobs,
-            "activeJobs": agency.active_jobs,
+            "averageRating": float(getattr(agency, 'avg_rating', None) or 0) if getattr(agency, 'avg_rating', None) else None,
+            "totalReviews": getattr(agency, 'total_reviews', 0),
+            "completedJobs": getattr(agency, 'completed_jobs', 0),
+            "activeJobs": getattr(agency, 'active_jobs', 0),
             "kycStatus": kyc_status_val,
             "specializations": [s for s in specializations if s]
         })
@@ -155,7 +155,7 @@ def search_agencies(query: str, limit: int = 20) -> Dict:
                 output_field=IntegerField()
             )
         ),
-        avg_rating=Avg('assigned_jobs__jobreview__agencyRating'),
+        avg_rating=Avg('assigned_jobs__jobreview__rating'),
         total_reviews=Count('assigned_jobs__jobreview', distinct=True)
     ).order_by(F('avg_rating').desc(nulls_last=True))[:limit]
     
@@ -182,10 +182,10 @@ def search_agencies(query: str, limit: int = 20) -> Dict:
             "city": agency.city,
             "province": agency.province,
             "contactNumber": agency.contactNumber,
-            "averageRating": float(agency.avg_rating) if agency.avg_rating else None,
-            "totalReviews": agency.total_reviews,
-            "completedJobs": agency.completed_jobs,
-            "activeJobs": agency.active_jobs,
+            "averageRating": float(getattr(agency, 'avg_rating', None) or 0) if getattr(agency, 'avg_rating', None) else None,
+            "totalReviews": getattr(agency, 'total_reviews', 0),
+            "completedJobs": getattr(agency, 'completed_jobs', 0),
+            "activeJobs": getattr(agency, 'active_jobs', 0),
             "kycStatus": kyc_status_val,
             "specializations": [s for s in specializations if s]
         })
@@ -314,11 +314,15 @@ def get_agency_reviews(agency_id: int, page: int = 1, limit: int = 10) -> Dict:
     # Build response
     reviews_data = []
     for review in reviews_page:
+        # Get client name from reviewer (assuming client reviews agency)
+        reviewer_profile = Profile.objects.filter(accountFK=review.reviewerID).first()
+        client_name = f"{reviewer_profile.firstName} {reviewer_profile.lastName}" if reviewer_profile else "Unknown Client"
+        
         reviews_data.append({
             "reviewId": review.reviewID,
             "jobTitle": review.jobID.title,
-            "clientName": review.clientID.profileID.firstName + " " + review.clientID.profileID.lastName,
-            "rating": float(review.agencyRating) if review.agencyRating else 0.0,
+            "clientName": client_name,
+            "rating": float(review.rating) if review.rating else 0.0,
             "comment": review.comment,
             "createdAt": review.createdAt
         })
@@ -326,7 +330,7 @@ def get_agency_reviews(agency_id: int, page: int = 1, limit: int = 10) -> Dict:
     total_pages = math.ceil(total / limit) if total > 0 else 1
     
     # Calculate average rating
-    avg_rating = reviews_query.aggregate(Avg('agencyRating'))['agencyRating__avg'] or 0.0
+    avg_rating = reviews_query.aggregate(Avg('rating'))['rating__avg'] or 0.0
     
     return {
         "reviews": reviews_data,

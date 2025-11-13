@@ -353,7 +353,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           end: Alignment.bottomRight,
           colors: [
             AppColors.primary,
-            AppColors.primary.withOpacity(0.8),
+            AppColors.primary.withValues(alpha: 0.8),
           ],
         ),
       ),
@@ -388,7 +388,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             width: 120,
             height: 120,
             decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.1),
+              color: AppColors.primary.withValues(alpha: 0.1),
               shape: BoxShape.circle,
               border: Border.all(
                 color: AppColors.primary,
@@ -433,7 +433,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: AppColors.primary.withOpacity(0.3),
+                      color: AppColors.primary.withValues(alpha: 0.3),
                       blurRadius: 8,
                       offset: const Offset(0, 2),
                     ),

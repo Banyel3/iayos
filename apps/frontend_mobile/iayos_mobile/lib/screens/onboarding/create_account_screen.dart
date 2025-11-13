@@ -112,8 +112,8 @@ class _CreateAccountScreenState extends State<CreateAccountScreen>
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      const Color(0xFF54B7EC).withOpacity(0.1),
-                      const Color(0xFF54B7EC).withOpacity(0.05),
+                      const Color(0xFF54B7EC).withValues(alpha: 0.1),
+                      const Color(0xFF54B7EC).withValues(alpha: 0.05),
                     ],
                   ),
                 ),
@@ -132,7 +132,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen>
                             borderRadius: BorderRadius.circular(10),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.05),
+                                color: Colors.black.withValues(alpha: 0.05),
                                 blurRadius: 10,
                                 offset: const Offset(0, 2),
                               ),
@@ -181,7 +181,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen>
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF54B7EC).withOpacity(0.1),
+                            color: const Color(0xFF54B7EC).withValues(alpha: 0.1),
                             shape: BoxShape.circle,
                           ),
                           child: const Icon(
@@ -322,7 +322,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen>
                                 elevation: 4,
                                 shadowColor: const Color(
                                   0xFF54B7EC,
-                                ).withOpacity(0.4),
+                                ).withValues(alpha: 0.4),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(16),
                                 ),
@@ -410,7 +410,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen>
                 ? LinearGradient(
                     colors: [
                       const Color(0xFF54B7EC),
-                      const Color(0xFF54B7EC).withOpacity(0.6),
+                      const Color(0xFF54B7EC).withValues(alpha: 0.6),
                     ],
                   )
                 : null,
@@ -419,7 +419,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen>
             boxShadow: isActive
                 ? [
                     BoxShadow(
-                      color: const Color(0xFF54B7EC).withOpacity(0.3),
+                      color: const Color(0xFF54B7EC).withValues(alpha: 0.3),
                       blurRadius: 8,
                       offset: const Offset(0, 2),
                     ),
@@ -439,16 +439,16 @@ class _CreateAccountScreenState extends State<CreateAccountScreen>
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF54B7EC).withOpacity(0.05),
+        color: const Color(0xFF54B7EC).withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF54B7EC).withOpacity(0.1)),
+        border: Border.all(color: const Color(0xFF54B7EC).withValues(alpha: 0.1)),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: const Color(0xFF54B7EC).withOpacity(0.1),
+              color: const Color(0xFF54B7EC).withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(icon, color: const Color(0xFF54B7EC), size: 20),
@@ -618,7 +618,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen>
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF54B7EC).withOpacity(0.1),
+                    color: const Color(0xFF54B7EC).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: const Icon(
@@ -784,9 +784,9 @@ class _CreateAccountScreenState extends State<CreateAccountScreen>
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: strengthColor.withOpacity(0.1),
+        color: strengthColor.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: strengthColor.withOpacity(0.3)),
+        border: Border.all(color: strengthColor.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [

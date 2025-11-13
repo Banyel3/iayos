@@ -215,9 +215,9 @@ class _ApplicationSubmissionModalState
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.primary.withOpacity(0.05),
+        color: AppColors.primary.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -312,7 +312,7 @@ class _ApplicationSubmissionModalState
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: isSelected
-              ? AppColors.primary.withOpacity(0.1)
+              ? AppColors.primary.withValues(alpha: 0.1)
               : AppColors.surface,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
@@ -563,7 +563,7 @@ class _ApplicationSubmissionModalState
             borderRadius: BorderRadius.circular(12),
           ),
           elevation: 0,
-          disabledBackgroundColor: AppColors.primary.withOpacity(0.5),
+          disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.5),
         ),
         child: _isSubmitting
             ? const SizedBox(

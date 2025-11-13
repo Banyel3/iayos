@@ -134,15 +134,6 @@ export default function AgencyProfilePage() {
           agency={{
             agencyId: agency.agencyId,
             businessName: agency.businessName,
-            businessDesc: agency.businessDesc,
-            city: agency.city,
-            province: agency.province,
-            kycStatus: agency.kycStatus,
-            averageRating: agency.stats.averageRating,
-            totalReviews: agency.stats.totalReviews,
-            completedJobs: agency.stats.completedJobs,
-            activeJobs: agency.stats.activeJobs,
-            specializations: agency.specializations,
           }}
           isOpen={showHireModal}
           onClose={() => setShowHireModal(false)}

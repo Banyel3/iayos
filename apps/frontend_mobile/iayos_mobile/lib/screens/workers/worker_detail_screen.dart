@@ -121,7 +121,7 @@ class _WorkerDetailScreenState extends State<WorkerDetailScreen> {
         icon: Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.3),
+            color: Colors.black.withValues(alpha: 0.3),
             shape: BoxShape.circle,
           ),
           child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
@@ -135,7 +135,7 @@ class _WorkerDetailScreenState extends State<WorkerDetailScreen> {
               end: Alignment.bottomRight,
               colors: [
                 AppColors.primary,
-                AppColors.primary.withOpacity(0.8),
+                AppColors.primary.withValues(alpha: 0.8),
               ],
             ),
           ),
@@ -153,7 +153,7 @@ class _WorkerDetailScreenState extends State<WorkerDetailScreen> {
                   border: Border.all(color: Colors.white, width: 4),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.2),
+                      color: Colors.black.withValues(alpha: 0.2),
                       blurRadius: 12,
                       offset: const Offset(0, 4),
                     ),
@@ -218,7 +218,7 @@ class _WorkerDetailScreenState extends State<WorkerDetailScreen> {
                       ' ($totalReviews review${totalReviews != 1 ? 's' : ''})',
                       style: GoogleFonts.inter(
                         fontSize: 14,
-                        color: Colors.white.withOpacity(0.9),
+                        color: Colors.white.withValues(alpha: 0.9),
                       ),
                     ),
                   ],
@@ -232,7 +232,7 @@ class _WorkerDetailScreenState extends State<WorkerDetailScreen> {
 
   Widget _buildDefaultAvatar(String firstName) {
     return Container(
-      color: AppColors.primary.withOpacity(0.3),
+      color: AppColors.primary.withValues(alpha: 0.3),
       child: Center(
         child: Text(
           firstName.isNotEmpty ? firstName[0].toUpperCase() : '?',
@@ -311,9 +311,9 @@ class _WorkerDetailScreenState extends State<WorkerDetailScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Column(
         children: [
@@ -443,10 +443,10 @@ class _WorkerDetailScreenState extends State<WorkerDetailScreen> {
                   vertical: 10,
                 ),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.1),
+                  color: AppColors.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                    color: AppColors.primary.withOpacity(0.3),
+                    color: AppColors.primary.withValues(alpha: 0.3),
                   ),
                 ),
                 child: Row(
@@ -503,9 +503,9 @@ class _WorkerDetailScreenState extends State<WorkerDetailScreen> {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: AppColors.primary.withOpacity(0.05),
+          color: AppColors.primary.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+          border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -541,7 +541,7 @@ class _WorkerDetailScreenState extends State<WorkerDetailScreen> {
                 vertical: 10,
               ),
               decoration: BoxDecoration(
-                color: availabilityColor.withOpacity(0.1),
+                color: availabilityColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(color: availabilityColor),
               ),
@@ -629,7 +629,7 @@ class _WorkerDetailScreenState extends State<WorkerDetailScreen> {
             Icon(
               Icons.error_outline,
               size: 80,
-              color: AppColors.error.withOpacity(0.5),
+              color: AppColors.error.withValues(alpha: 0.5),
             ),
             const SizedBox(height: 20),
             Text(

@@ -1,4 +1,4 @@
-from ninja import Router, Form
+from ninja import Router
 from ninja.responses import Response
 from accounts.authentication import cookie_auth
 from . import services, schemas
@@ -7,13 +7,13 @@ router = Router()
 
 
 @router.post("/upload", auth=cookie_auth, response=schemas.AgencyKYCUploadResponse)
-def upload_agency_kyc(request,
-                      businessName: str = Form(None),
-                      businessDesc: str = Form(None)):
+def upload_agency_kyc(request):
     """Upload agency KYC documents. Expects multipart/form-data. Files are read from request.FILES to avoid bytes validation errors."""
     try:
         # Get account ID from authenticated user
         account_id = request.auth.accountID
+        businessName = request.POST.get("businessName")
+        businessDesc = request.POST.get("businessDesc")
         
         class Payload:
             def __init__(self, accountID, businessName=None, businessDesc=None):
@@ -70,10 +70,15 @@ def get_employees(request):
 
 
 @router.post("/employees", auth=cookie_auth)
-def add_employee(request, name: str = Form(...), email: str = Form(...), role: str = Form(...), avatar: str = Form(None), rating: float = Form(None)):
+def add_employee(request):
     """Add a new employee to the agency."""
     try:
         account_id = request.auth.accountID
+        name = request.POST.get("name")
+        email = request.POST.get("email")
+        role = request.POST.get("role")
+        avatar = request.POST.get("avatar")
+        rating = float(request.POST.get("rating")) if request.POST.get("rating") else None
         result = services.add_agency_employee(account_id, name, email, role, avatar, rating)
         return result
     except ValueError as e:
@@ -112,13 +117,13 @@ def get_profile(request):
 
 
 @router.post("/profile/update", auth=cookie_auth)
-def update_profile(request, 
-                   business_name: str = Form(None), 
-                   business_description: str = Form(None), 
-                   contact_number: str = Form(None)):
+def update_profile(request):
     """Update agency profile information."""
     try:
         account_id = request.auth.accountID
+        business_name = request.POST.get("business_name")
+        business_description = request.POST.get("business_description")
+        contact_number = request.POST.get("contact_number")
         
         # Debug: print received values
         print(f"Received update request:")
@@ -141,10 +146,12 @@ def update_profile(request,
 
 
 @router.put("/profile", auth=cookie_auth)
-def update_profile(request, business_description: str = Form(None), contact_number: str = Form(None)):
+def update_profile_put(request):
     """Update agency profile information."""
     try:
         account_id = request.auth.accountID
+        business_description = request.POST.get("business_description")
+        contact_number = request.POST.get("contact_number")
         result = services.update_agency_profile(account_id, business_description, contact_number)
         return result
     except ValueError as e:
@@ -157,7 +164,7 @@ def update_profile(request, business_description: str = Form(None), contact_numb
 # Simplified agency job endpoints - Direct invite/hire model
 
 @router.get("/jobs", auth=cookie_auth)
-def get_agency_jobs(request, status: str = None, invite_status: str = None, page: int = 1, limit: int = 20):
+def get_agency_jobs(request, status: str | None = None, invite_status: str | None = None, page: int = 1, limit: int = 20):
     """
     Get all jobs assigned to this agency (direct hires/invites).
     
@@ -228,8 +235,9 @@ def accept_job_invite(request, job_id: int):
         
         # Verify invite is still pending
         if job.inviteStatus != "PENDING":
+            status_text = job.inviteStatus.lower() if job.inviteStatus else "processed"
             return Response(
-                {"error": f"Invite has already been {job.inviteStatus.lower()}"},
+                {"error": f"Invite has already been {status_text}"},
                 status=400
             )
         
@@ -286,7 +294,7 @@ def accept_job_invite(request, job_id: int):
 
 
 @router.post("/jobs/{job_id}/reject", auth=cookie_auth)
-def reject_job_invite(request, job_id: int, reason: str = None):
+def reject_job_invite(request, job_id: int, reason: str | None = None):
     """
     Agency rejects a job invitation
     - Updates inviteStatus to REJECTED
@@ -324,8 +332,9 @@ def reject_job_invite(request, job_id: int, reason: str = None):
         
         # Verify invite is still pending
         if job.inviteStatus != "PENDING":
+            status_text = job.inviteStatus.lower() if job.inviteStatus else "processed"
             return Response(
-                {"error": f"Invite has already been {job.inviteStatus.lower()}"},
+                {"error": f"Invite has already been {status_text}"},
                 status=400
             )
         
@@ -413,7 +422,7 @@ def reject_job_invite(request, job_id: int, reason: str = None):
 # Agency Phase 2 - Employee Management Endpoints
 
 @router.put("/employees/{employee_id}/rating", auth=cookie_auth, response=schemas.UpdateEmployeeRatingResponse)
-def update_employee_rating(request, employee_id: int, rating: float, reason: str = None):
+def update_employee_rating(request, employee_id: int, rating: float, reason: str | None = None):
 	"""
 	Update an employee's rating manually.
 	

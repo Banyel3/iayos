@@ -313,13 +313,13 @@ class _AddFundsScreenState extends State<AddFundsScreen> {
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [
-                    AppColors.primary.withOpacity(0.1),
-                    AppColors.primary.withOpacity(0.05),
+                    AppColors.primary.withValues(alpha: 0.1),
+                    AppColors.primary.withValues(alpha: 0.05),
                   ],
                 ),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: AppColors.primary.withOpacity(0.2),
+                  color: AppColors.primary.withValues(alpha: 0.2),
                   width: 1,
                 ),
               ),
@@ -580,7 +580,7 @@ class _AddFundsScreenState extends State<AddFundsScreen> {
             width: 24,
             height: 24,
             decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.2),
+              color: AppColors.primary.withValues(alpha: 0.2),
               shape: BoxShape.circle,
             ),
             child: Center(

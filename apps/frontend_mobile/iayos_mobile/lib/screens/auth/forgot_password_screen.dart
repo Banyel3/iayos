@@ -114,7 +114,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             width: 100,
             height: 100,
             decoration: BoxDecoration(
-              color: const Color(0xFF54B7EC).withOpacity(0.1),
+              color: const Color(0xFF54B7EC).withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(
@@ -184,7 +184,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     size: 20,
                   ),
                   filled: true,
-                  fillColor: const Color(0xFFD0EAF8).withOpacity(0.3),
+                  fillColor: const Color(0xFFD0EAF8).withValues(alpha: 0.3),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide.none,
@@ -233,7 +233,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               backgroundColor: const Color(0xFF54B7EC),
               foregroundColor: Colors.white,
               elevation: 3,
-              shadowColor: const Color(0xFF54B7EC).withOpacity(0.4),
+              shadowColor: const Color(0xFF54B7EC).withValues(alpha: 0.4),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -297,7 +297,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           width: 120,
           height: 120,
           decoration: BoxDecoration(
-            color: Colors.green.withOpacity(0.1),
+            color: Colors.green.withValues(alpha: 0.1),
             shape: BoxShape.circle,
           ),
           child: Icon(
@@ -332,10 +332,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
           decoration: BoxDecoration(
-            color: const Color(0xFFD0EAF8).withOpacity(0.3),
+            color: const Color(0xFFD0EAF8).withValues(alpha: 0.3),
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
-              color: const Color(0xFF54B7EC).withOpacity(0.3),
+              color: const Color(0xFF54B7EC).withValues(alpha: 0.3),
             ),
           ),
           child: Text(

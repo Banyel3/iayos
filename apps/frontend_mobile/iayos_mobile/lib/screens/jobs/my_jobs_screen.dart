@@ -208,7 +208,7 @@ class _MyJobsScreenState extends State<MyJobsScreen>
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [AppColors.primary, AppColors.primary.withOpacity(0.8)],
+          colors: [AppColors.primary, AppColors.primary.withValues(alpha: 0.8)],
         ),
       ),
       child: Row(
@@ -236,7 +236,7 @@ class _MyJobsScreenState extends State<MyJobsScreen>
                       : 'Jobs you applied to',
                   style: GoogleFonts.inter(
                     fontSize: 13,
-                    color: Colors.white.withOpacity(0.9),
+                    color: Colors.white.withValues(alpha: 0.9),
                   ),
                 ),
               ],
@@ -253,7 +253,7 @@ class _MyJobsScreenState extends State<MyJobsScreen>
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
@@ -295,7 +295,7 @@ class _MyJobsScreenState extends State<MyJobsScreen>
                       vertical: 2,
                     ),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.15),
+                      color: AppColors.primary.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
@@ -347,7 +347,6 @@ class _MyJobsScreenState extends State<MyJobsScreen>
   }
 
   Widget _buildJobCard(dynamic job) {
-    final jobId = job['id'] ?? 0;
     final title = job['title'] ?? 'Untitled Job';
     final description = job['description'] ?? '';
     final budget = job['budget']?.toDouble() ?? 0.0;
@@ -395,7 +394,7 @@ class _MyJobsScreenState extends State<MyJobsScreen>
           border: Border.all(color: AppColors.divider),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -486,7 +485,7 @@ class _MyJobsScreenState extends State<MyJobsScreen>
                     width: 32,
                     height: 32,
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.1),
+                      color: AppColors.primary.withValues(alpha: 0.1),
                       shape: BoxShape.circle,
                     ),
                     child: otherPartyImg != null && otherPartyImg.isNotEmpty
@@ -606,32 +605,32 @@ class _MyJobsScreenState extends State<MyJobsScreen>
 
     switch (status.toUpperCase()) {
       case 'ACTIVE':
-        backgroundColor = AppColors.success.withOpacity(0.1);
+        backgroundColor = AppColors.success.withValues(alpha: 0.1);
         textColor = AppColors.success;
         displayText = 'Active';
         break;
       case 'IN_PROGRESS':
-        backgroundColor = AppColors.primary.withOpacity(0.1);
+        backgroundColor = AppColors.primary.withValues(alpha: 0.1);
         textColor = AppColors.primary;
         displayText = 'In Progress';
         break;
       case 'COMPLETED':
-        backgroundColor = Colors.grey.withOpacity(0.2);
+        backgroundColor = Colors.grey.withValues(alpha: 0.2);
         textColor = Colors.grey.shade700;
         displayText = 'Completed';
         break;
       case 'PENDING':
-        backgroundColor = AppColors.warning.withOpacity(0.1);
+        backgroundColor = AppColors.warning.withValues(alpha: 0.1);
         textColor = AppColors.warning;
         displayText = 'Pending';
         break;
       case 'CANCELLED':
-        backgroundColor = AppColors.error.withOpacity(0.1);
+        backgroundColor = AppColors.error.withValues(alpha: 0.1);
         textColor = AppColors.error;
         displayText = 'Cancelled';
         break;
       default:
-        backgroundColor = AppColors.textHint.withOpacity(0.1);
+        backgroundColor = AppColors.textHint.withValues(alpha: 0.1);
         textColor = AppColors.textHint;
         displayText = status;
     }
@@ -690,7 +689,7 @@ class _MyJobsScreenState extends State<MyJobsScreen>
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),

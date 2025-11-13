@@ -2,7 +2,7 @@
 # ============================================
 # Stage 1: Base Node.js Image (Debian-based)
 # ============================================
-FROM node:20-slim AS base
+FROM node:22-slim AS base
 
 # Install dependencies for native modules
 RUN apt-get update && apt-get install -y \
@@ -169,7 +169,7 @@ COPY apps/backend .
 # ============================================
 # Stage 10: Frontend Production (Secure)
 # ============================================
-FROM node:20-alpine AS frontend-production
+FROM node:22-alpine AS frontend-production
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodegroup \

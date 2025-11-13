@@ -482,7 +482,7 @@ class _PostJobScreenState extends State<PostJobScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          color: isSelected ? color.withOpacity(0.1) : Colors.grey.shade50,
+          color: isSelected ? color.withValues(alpha: 0.1) : Colors.grey.shade50,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: isSelected ? color : Colors.grey.shade300,
@@ -561,7 +561,7 @@ class _PostJobScreenState extends State<PostJobScreen> {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: isSelected
-              ? AppColors.primary.withOpacity(0.1)
+              ? AppColors.primary.withValues(alpha: 0.1)
               : Colors.grey.shade50,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(

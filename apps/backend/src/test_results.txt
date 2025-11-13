@@ -1,0 +1,16 @@
+﻿python : Creating test database for alias 'default'...
+At line:1 char:1
++ python manage.py test accounts.tests 2>&1 | Out-File -Encoding utf8 t ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Creating test d...as 'default'...:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+Got an error creating the test database: database "test_neondb" already exists
+
+
+Γ£ô Supabase client initialized successfully with secret API key
+Found 50 test(s).
+Tests cancelled.
+
+Type 'yes' if you would like to try deleting the test database 'test_neondb', or 'no' to cancel: 

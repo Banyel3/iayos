@@ -150,7 +150,7 @@ class _WorkersListScreenState extends State<WorkersListScreen> {
           end: Alignment.bottomRight,
           colors: [
             AppColors.primary,
-            AppColors.primary.withOpacity(0.8),
+            AppColors.primary.withValues(alpha: 0.8),
           ],
         ),
       ),
@@ -178,7 +178,7 @@ class _WorkersListScreenState extends State<WorkersListScreen> {
                     '${_workers.length} worker${_workers.length != 1 ? 's' : ''} found',
                     style: GoogleFonts.inter(
                       fontSize: 13,
-                      color: Colors.white.withOpacity(0.9),
+                      color: Colors.white.withValues(alpha: 0.9),
                     ),
                   ),
               ],
@@ -237,7 +237,7 @@ class _WorkersListScreenState extends State<WorkersListScreen> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -299,7 +299,7 @@ class _WorkersListScreenState extends State<WorkersListScreen> {
             Icon(
               Icons.error_outline,
               size: 80,
-              color: AppColors.error.withOpacity(0.5),
+              color: AppColors.error.withValues(alpha: 0.5),
             ),
             const SizedBox(height: 20),
             Text(
@@ -414,7 +414,7 @@ class _WorkersListScreenState extends State<WorkersListScreen> {
           border: Border.all(color: AppColors.divider),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -432,7 +432,7 @@ class _WorkersListScreenState extends State<WorkersListScreen> {
                       width: 60,
                       height: 60,
                       decoration: BoxDecoration(
-                        color: AppColors.primary.withOpacity(0.1),
+                        color: AppColors.primary.withValues(alpha: 0.1),
                         shape: BoxShape.circle,
                       ),
                       child: profileImg != null && profileImg.isNotEmpty
@@ -563,7 +563,7 @@ class _WorkersListScreenState extends State<WorkersListScreen> {
                       vertical: 6,
                     ),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.1),
+                      color: AppColors.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(

@@ -119,13 +119,13 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen>
                         end: Alignment.bottomRight,
                         colors: [
                           AppColors.primary,
-                          AppColors.primary.withOpacity(0.7),
+                          AppColors.primary.withValues(alpha: 0.7),
                         ],
                       ),
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: AppColors.primary.withOpacity(0.3),
+                          color: AppColors.primary.withValues(alpha: 0.3),
                           blurRadius: 20,
                           offset: const Offset(0, 10),
                         ),
@@ -215,7 +215,7 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen>
                           backgroundColor: AppColors.primary,
                           foregroundColor: Colors.white,
                           elevation: 4,
-                          shadowColor: AppColors.primary.withOpacity(0.4),
+                          shadowColor: AppColors.primary.withValues(alpha: 0.4),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16),
                           ),
@@ -283,8 +283,8 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen>
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [
-                    color.withOpacity(0.15),
-                    color.withOpacity(0.05),
+                    color.withValues(alpha: 0.15),
+                    color.withValues(alpha: 0.05),
                   ],
                 )
               : null,
@@ -297,7 +297,7 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen>
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: color.withOpacity(0.2),
+                    color: color.withValues(alpha: 0.2),
                     blurRadius: 20,
                     offset: const Offset(0, 8),
                   ),
@@ -314,7 +314,7 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen>
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? color.withOpacity(0.2)
+                        ? color.withValues(alpha: 0.2)
                         : Colors.grey.shade200,
                     borderRadius: BorderRadius.circular(12),
                   ),
