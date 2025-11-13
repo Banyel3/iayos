@@ -120,7 +120,7 @@ def get_agency_kyc_status(account_id):
 		raise ValueError("User not found")
 
 
-def create_agency_kyc_from_paths(account_id: int, file_map: dict, businessName: str = None, businessDesc: str = None):
+def create_agency_kyc_from_paths(account_id: int, file_map: dict, businessName: str | None = None, businessDesc: str | None = None):
 	"""
 	Create an AgencyKYC record and associated AgencyKycFile rows using existing Supabase storage paths.
 
@@ -473,7 +473,7 @@ def get_agency_jobs(account_id, status_filter=None, invite_status_filter=None, p
 				'client': {
 					'id': client_profile.accountFK.accountID,
 					'name': f"{client_profile.firstName} {client_profile.lastName}",
-					'avatar': client_profile.profilePicture,
+					'avatar': client_profile.profileImg,
 					'email': client_profile.accountFK.email,
 				},
 				'createdAt': job.createdAt.isoformat(),
@@ -551,8 +551,8 @@ def update_employee_rating(account_id, employee_id, rating, reason=None):
 			"success": True,
 			"message": "Employee rating updated successfully",
 			"employeeId": employee.employeeID,
-			"rating": float(employee.rating),
-			"lastRatingUpdate": employee.lastRatingUpdate.isoformat(),
+			"rating": float(employee.rating) if employee.rating is not None else 0.0,  # type: ignore[arg-type]
+			"lastRatingUpdate": employee.lastRatingUpdate.isoformat() if employee.lastRatingUpdate else None,  # type: ignore[union-attr]
 		}
 		
 	except Accounts.DoesNotExist:
@@ -609,7 +609,7 @@ def set_employee_of_month(account_id, employee_id, reason):
 			"message": f"{employee.name} is now Employee of the Month!",
 			"employeeId": employee.employeeID,
 			"employeeOfTheMonth": employee.employeeOfTheMonth,
-			"employeeOfTheMonthDate": employee.employeeOfTheMonthDate.isoformat() if employee.employeeOfTheMonthDate else None,
+			"employeeOfTheMonthDate": employee.employeeOfTheMonthDate.isoformat() if employee.employeeOfTheMonthDate else None,  # type: ignore[union-attr]
 			"employeeOfTheMonthReason": employee.employeeOfTheMonthReason,
 		}
 		

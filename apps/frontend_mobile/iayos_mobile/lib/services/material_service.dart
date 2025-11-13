@@ -11,8 +11,8 @@ class MaterialService {
   Future<Map<String, dynamic>> getMaterials() async {
     try {
       final response = await http.get(
-        Uri.parse('${APIConfig.baseURL}/profiles/profile/products/'),
-        headers: APIConfig.headers,
+        Uri.parse('${ApiConfig.baseUrl}/profiles/profile/products/'),
+        headers: {'Content-Type': 'application/json'},
       );
 
       print('Get Materials Response: ${response.statusCode}');
@@ -67,8 +67,8 @@ class MaterialService {
       print('Add Material Request: $body');
 
       final response = await http.post(
-        Uri.parse('${APIConfig.baseURL}/profiles/profile/products/add'),
-        headers: APIConfig.headers,
+        Uri.parse('${ApiConfig.baseUrl}/profiles/profile/products/add'),
+        headers: {'Content-Type': 'application/json'},
         body: body,
       );
 
@@ -104,8 +104,8 @@ class MaterialService {
   Future<Map<String, dynamic>> deleteMaterial(int productID) async {
     try {
       final response = await http.delete(
-        Uri.parse('${APIConfig.baseURL}/profiles/profile/products/$productID'),
-        headers: APIConfig.headers,
+        Uri.parse('${ApiConfig.baseUrl}/profiles/profile/products/$productID'),
+        headers: {'Content-Type': 'application/json'},
       );
 
       print('Delete Material Response: ${response.statusCode}');
@@ -157,8 +157,8 @@ class MaterialService {
       print('Update Material Request: ${json.encode(body)}');
 
       final response = await http.put(
-        Uri.parse('${APIConfig.baseURL}/profiles/profile/products/$productID'),
-        headers: APIConfig.headers,
+        Uri.parse('${ApiConfig.baseUrl}/profiles/profile/products/$productID'),
+        headers: {'Content-Type': 'application/json'},
         body: json.encode(body),
       );
 
@@ -195,8 +195,8 @@ class MaterialService {
   Future<Map<String, dynamic>> getWorkerMaterials(int workerID) async {
     try {
       final response = await http.get(
-        Uri.parse('${APIConfig.baseURL}/profiles/worker/$workerID/products'),
-        headers: APIConfig.headers,
+        Uri.parse('${ApiConfig.baseUrl}/profiles/worker/$workerID/products'),
+        headers: {'Content-Type': 'application/json'},
       );
 
       print('Get Worker Materials Response: ${response.statusCode}');

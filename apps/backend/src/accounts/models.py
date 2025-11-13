@@ -1,5 +1,6 @@
 from django.db import models
 from datetime import datetime
+from decimal import Decimal
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.utils.translation import gettext_lazy as _
 from django.core.exceptions import ValidationError
@@ -151,13 +152,13 @@ class WorkerProfile(models.Model):
         help_text="Profile completion percentage (0-100)"
     )
     
-    class availabilityStatus(models.TextChoices):
+    class AvailabilityStatus(models.TextChoices):
         AVAILABLE = "AVAILABLE", 'available'
         BUSY = "BUSY", 'busy'
         OFFLINE = "OFFLINE", "offline"
 
-    availabilityStatus = models.CharField(
-        max_length=10, choices=availabilityStatus.choices, default="OFFLINE", blank=True
+    availability_status = models.CharField(
+        max_length=10, choices=AvailabilityStatus.choices, default="OFFLINE", blank=True
     )
     
     def calculate_profile_completion(self):
@@ -181,9 +182,9 @@ class WorkerProfile(models.Model):
             completed_fields += 1
         if workerSpecialization.objects.filter(workerID=self).exists():
             completed_fields += 1
-        if hasattr(self, 'certifications') and self.certifications.exists():
+        if hasattr(self, 'certifications') and self.certifications.exists():  # type: ignore[attr-defined]
             completed_fields += 1
-        if hasattr(self, 'portfolio') and self.portfolio.exists():
+        if hasattr(self, 'portfolio') and self.portfolio.exists():  # type: ignore[attr-defined]
             completed_fields += 1
         
         percentage = int((completed_fields / total_fields) * 100)
@@ -206,11 +207,11 @@ class Specializations(models.Model):
     specializationID = models.BigAutoField(primary_key=True)
     specializationName = models.CharField(max_length=250)
     description = models.TextField(blank=True, null=True)
-    minimumRate = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    minimumRate = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
     rateType = models.CharField(max_length=20, default='hourly')  # hourly, daily, fixed
     skillLevel = models.CharField(max_length=20, default='intermediate')  # entry, intermediate, expert
-    averageProjectCostMin = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    averageProjectCostMax = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    averageProjectCostMin = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
+    averageProjectCostMax = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
     
     class Meta:
         db_table = 'specializations'
@@ -372,12 +373,12 @@ class WorkerPortfolio(models.Model):
 class kyc(models.Model):
     kycID = models.BigAutoField(primary_key=True)
     accountFK = models.ForeignKey(Accounts, on_delete=models.CASCADE)
-    class kycStatus(models.TextChoices):
+    class KycStatus(models.TextChoices):
         PENDING = "PENDING", 'pending'
         APPROVED = "APPROVED", 'approved'
         REJECTED = "Rejected", "rejected"
-    kycStatus = models.CharField(
-        max_length=10, choices=kycStatus.choices, default="PENDING", blank=True
+    kyc_status = models.CharField(
+        max_length=10, choices=KycStatus.choices, default="PENDING", blank=True
     )
     reviewedAt = models.DateTimeField(auto_now=True)
     reviewedBy = models.ForeignKey(
@@ -532,7 +533,7 @@ class Job(models.Model):
     escrowAmount = models.DecimalField(
         max_digits=10, 
         decimal_places=2, 
-        default=0.00,
+        default=Decimal('0.00'),
         help_text="Amount held in escrow (50% downpayment)"
     )
     escrowPaid = models.BooleanField(
@@ -543,7 +544,7 @@ class Job(models.Model):
     remainingPayment = models.DecimalField(
         max_digits=10,
         decimal_places=2,
-        default=0.00,
+        default=Decimal('0.00'),
         help_text="Remaining 50% to be paid upon completion"
     )
     remainingPaymentPaid = models.BooleanField(
@@ -703,7 +704,7 @@ class Job(models.Model):
         ]
     
     def __str__(self):
-        return f"{self.title} - {self.clientID.accountFK.email}"
+        return f"{self.title} - {self.clientID.profileID.accountFK.email}"
     
     def save(self, *args, **kwargs):
         """Override save to create job log entry on status change"""
@@ -922,7 +923,7 @@ class JobDispute(models.Model):
     
     # Amounts
     jobAmount = models.DecimalField(max_digits=10, decimal_places=2)
-    disputedAmount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    disputedAmount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
     
     # Resolution
     resolution = models.TextField(blank=True, null=True)
@@ -1044,7 +1045,7 @@ class JobReview(models.Model):
         ]
     
     def __str__(self):
-        return f"Review by {self.reviewerID.firstName} for job #{self.jobID.jobID} - {self.rating}★"
+        return f"Review by {self.reviewerID.email} for job #{self.jobID.jobID} - {self.rating}★"
 
 
 # Backward compatibility - keep old names as aliases
@@ -1067,7 +1068,7 @@ class Wallet(models.Model):
     balance = models.DecimalField(
         max_digits=10,
         decimal_places=2,
-        default=0.00
+        default=Decimal('0.00')
     )
     
     # Timestamps

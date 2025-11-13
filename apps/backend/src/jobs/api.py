@@ -2,9 +2,10 @@ from ninja import Router, File
 from ninja.responses import Response
 from ninja.files import UploadedFile
 from accounts.authentication import cookie_auth
-from accounts.models import ClientProfile, Specializations, Profile, WorkerProfile, JobApplication, JobPhoto, Wallet, Transaction
+from accounts.models import ClientProfile, Specializations, Profile, WorkerProfile, JobApplication, JobPhoto, Wallet, Transaction, Job
 from accounts.xendit_service import XenditService
 from .models import JobPosting
+# Use Job directly for type checking (JobPosting is just an alias)
 from .schemas import CreateJobPostingSchema, JobPostingResponseSchema, JobApplicationSchema, SubmitReviewSchema, ApproveJobCompletionSchema
 from datetime import datetime
 from django.utils import timezone
@@ -426,9 +427,9 @@ def get_my_job_postings(request):
                     "url": photo.photoURL,
                     "file_name": photo.fileName
                 }
-                for photo in job.photos.all()
+                for photo in job.photos.all()  # type: ignore[attr-defined]
             ]
-            
+
             jobs.append({
                 "id": job.jobID,
                 "title": job.title,
@@ -526,7 +527,7 @@ def get_available_jobs(request):
                     "url": photo.photoURL,
                     "file_name": photo.fileName
                 }
-                for photo in job.photos.all()
+                for photo in job.photos.all()  # type: ignore[attr-defined]
             ]
             
             job_data = {
@@ -642,7 +643,7 @@ def get_in_progress_jobs(request):
                         "url": photo.photoURL,
                         "file_name": photo.fileName
                     }
-                    for photo in job.photos.all()
+                    for photo in job.photos.all()  # type: ignore[attr-defined]
                 ]
                 
                 jobs.append({
@@ -693,7 +694,7 @@ def get_in_progress_jobs(request):
                         "url": photo.photoURL,
                         "file_name": photo.fileName
                     }
-                    for photo in job.photos.all()
+                    for photo in job.photos.all()  # type: ignore[attr-defined]
                 ]
                 
                 jobs.append({
@@ -792,7 +793,7 @@ def get_completed_jobs(request):
                         "url": photo.photoURL,
                         "file_name": photo.fileName
                     }
-                    for photo in job.photos.all()
+                    for photo in job.photos.all()  # type: ignore[attr-defined]
                 ]
                 
                 jobs.append({
@@ -843,7 +844,7 @@ def get_completed_jobs(request):
                         "url": photo.photoURL,
                         "file_name": photo.fileName
                     }
-                    for photo in job.photos.all()
+                    for photo in job.photos.all()  # type: ignore[attr-defined]
                 ]
                 
                 jobs.append({
@@ -990,7 +991,7 @@ def get_job_posting(request, job_id: int):
                 "file_name": photo.fileName,
                 "uploaded_at": photo.uploadedAt.isoformat()
             }
-            for photo in job.photos.all()
+            for photo in job.photos.all()  # type: ignore[attr-defined]
         ]
         
         # Get assigned worker info if exists
@@ -1734,7 +1735,7 @@ def reject_application(request, job_id: int, application_id: int):
 #region JOB IMAGE UPLOAD
 
 @router.post("/{job_id}/upload-image", auth=cookie_auth)
-def upload_job_image(request, job_id: int, image: UploadedFile = File(...)):
+def upload_job_image(request, job_id: int, image: UploadedFile = File(...)):  # type: ignore[misc]
     """
     Upload image for a job posting to Supabase storage.
     
@@ -2022,14 +2023,15 @@ def client_approve_job_completion(request, job_id: int, data: ApproveJobCompleti
         # Create notification for the worker
         from accounts.models import Notification
         client_name = f"{client_profile.profileID.firstName} {client_profile.profileID.lastName}"
-        Notification.objects.create(
-            accountFK=job.assignedWorkerID.profileID.accountFK,
-            notificationType="JOB_COMPLETED_CLIENT",
-            title=f"Job Completion Approved! 🎉",
-            message=f"{client_name} has approved the completion of '{job.title}'. Awaiting final payment.",
-            relatedJobID=job.jobID
-        )
-        print(f"📬 Client approval notification sent to worker {job.assignedWorkerID.profileID.accountFK.email}")
+        if job.assignedWorkerID and job.assignedWorkerID.profileID:
+            Notification.objects.create(
+                accountFK=job.assignedWorkerID.profileID.accountFK,
+                notificationType="JOB_COMPLETED_CLIENT",
+                title=f"Job Completion Approved! 🎉",
+                message=f"{client_name} has approved the completion of '{job.title}'. Awaiting final payment.",
+                relatedJobID=job.jobID
+            )
+            print(f"📬 Client approval notification sent to worker {job.assignedWorkerID.profileID.accountFK.email}")
 
         # Broadcast job status update via WebSocket
         broadcast_job_status_update(job_id, {
@@ -2110,14 +2112,15 @@ def client_approve_job_completion(request, job_id: int, data: ApproveJobCompleti
                 print(f"✅ Job {job_id} marked as COMPLETED via WALLET payment")
 
                 # Create payment notification for the worker
-                Notification.objects.create(
-                    accountFK=job.assignedWorkerID.profileID.accountFK,
-                    notificationType="PAYMENT_RELEASED",
-                    title=f"Payment Received! 💰",
-                    message=f"You received ₱{remaining_amount} payment for '{job.title}'. The job is now complete!",
-                    relatedJobID=job.jobID
-                )
-                print(f"📬 Payment notification sent to worker {job.assignedWorkerID.profileID.accountFK.email}")
+                if job.assignedWorkerID and job.assignedWorkerID.profileID:
+                    Notification.objects.create(
+                        accountFK=job.assignedWorkerID.profileID.accountFK,
+                        notificationType="PAYMENT_RELEASED",
+                        title=f"Payment Received! 💰",
+                        message=f"You received ₱{remaining_amount} payment for '{job.title}'. The job is now complete!",
+                        relatedJobID=job.jobID
+                    )
+                    print(f"📬 Payment notification sent to worker {job.assignedWorkerID.profileID.accountFK.email}")
 
                 # Create payment confirmation for the client
                 Notification.objects.create(
@@ -2431,6 +2434,11 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
         
         reviewer_profile = profile
         if is_client:
+            if not job.assignedWorkerID or not job.assignedWorkerID.profileID:
+                return Response(
+                    {"error": "Cannot review: No worker assigned to this job"},
+                    status=400
+                )
             reviewee_profile = job.assignedWorkerID.profileID
             reviewer_type = "CLIENT"
         else:
@@ -2824,7 +2832,13 @@ def create_invite_job(
                 )
                 
                 # Send notification to agency/worker
-                target_account = assigned_agency.accountFK if assigned_agency else assigned_worker.profileID.accountFK
+                if assigned_agency:
+                    target_account = assigned_agency.accountFK
+                elif assigned_worker and assigned_worker.profileID:
+                    target_account = assigned_worker.profileID.accountFK
+                else:
+                    return Response({"error": "Invalid invite target"}, status=400)
+                    
                 Notification.objects.create(
                     accountFK=target_account,
                     notificationType="JOB_INVITE",
@@ -2950,7 +2964,7 @@ def create_invite_job(
 
 
 @router.get("/my-invite-jobs", auth=cookie_auth)
-def get_my_invite_jobs(request, invite_status: str = None, page: int = 1, limit: int = 20):
+def get_my_invite_jobs(request, invite_status: str | None = None, page: int = 1, limit: int = 20):
     """
     Get client's INVITE-type jobs with optional invite status filter
     

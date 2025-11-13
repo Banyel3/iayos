@@ -64,13 +64,13 @@ export function PortfolioManager() {
   };
 
   const handleUpdateCaption = (id: number, caption: string) => {
-    updateCaption.mutate({ id, caption });
+    updateCaption.mutate({ portfolioId: id, caption });
   };
 
   const handleReorder = (newItems: PortfolioItemData[]) => {
     // Create order array with IDs
     const order = newItems.map((item) => item.portfolioID);
-    reorderPortfolio.mutate({ order });
+    reorderPortfolio.mutate(order);
   };
 
   const handleDeleteClick = (id: number) => {

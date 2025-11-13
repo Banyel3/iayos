@@ -74,7 +74,7 @@ export function WorkerProfileEditForm({
         <Textarea
           id="bio"
           value={bio}
-          onChange={(e) => setBio(e.target.value.slice(0, maxBioLength))}
+          onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setBio(e.target.value.slice(0, maxBioLength))}
           placeholder="Write a brief bio about yourself..."
           className="min-h-[80px]"
           maxLength={maxBioLength}
@@ -101,7 +101,7 @@ export function WorkerProfileEditForm({
         <Textarea
           id="description"
           value={description}
-          onChange={(e) =>
+          onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
             setDescription(e.target.value.slice(0, maxDescriptionLength))
           }
           placeholder="Describe your skills, experience, and what makes you stand out..."
