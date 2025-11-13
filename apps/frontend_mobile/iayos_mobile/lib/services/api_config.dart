@@ -22,30 +22,36 @@ class ApiConfig {
   static const String resetPassword = '$mobileBaseUrl/auth/reset-password';
 
   // ========================================
-  // MOBILE JOB ENDPOINTS
+  // MOBILE JOB ENDPOINTS (Using Web API)
   // ========================================
-  static const String jobList = '$mobileBaseUrl/jobs/list';
-  static String jobDetail(int jobId) => '$mobileBaseUrl/jobs/$jobId';
-  static const String createJob = '$mobileBaseUrl/jobs/create';
-  static const String searchJobs = '$mobileBaseUrl/jobs/search';
-  static const String jobCategories = '$mobileBaseUrl/jobs/categories';
+  static const String jobList = '$baseUrl/api/jobs/available';
+  static String jobDetail(int jobId) => '$baseUrl/api/jobs/$jobId';
+  static const String createJob = '$baseUrl/api/jobs/create';
+  static const String searchJobs = '$baseUrl/api/jobs/search';
+  static const String jobCategories = '$baseUrl/api/jobs/categories';
 
   // ========================================
-  // MOBILE APPLICATION ENDPOINTS (Week 3)
+  // MOBILE APPLICATION ENDPOINTS (Using Web API)
   // ========================================
-  static String applyToJob(int jobId) => '$mobileBaseUrl/jobs/$jobId/apply';
-  static const String myApplications = '$mobileBaseUrl/applications/my-applications';
-  static String jobApplications(int jobId) => '$mobileBaseUrl/jobs/$jobId/applications';
-  static String updateApplicationStatus(int appId) => '$mobileBaseUrl/applications/$appId/status';
-  static const String myJobs = '$mobileBaseUrl/jobs/my-jobs';
+  static String applyToJob(int jobId) => '$baseUrl/api/jobs/$jobId/apply';
+  static const String myApplications = '$baseUrl/api/jobs/my-applications';
+  static String jobApplications(int jobId) =>
+      '$baseUrl/api/jobs/$jobId/applications';
+  static String withdrawApplication(int jobId, int appId) =>
+      '$baseUrl/api/jobs/$jobId/application/$appId';
+  static const String myJobs = '$baseUrl/api/jobs/my-jobs';
 
   // ========================================
   // MOBILE PAYMENT ENDPOINTS (Week 4)
   // ========================================
-  static String markJobComplete(int jobId) => '$mobileBaseUrl/jobs/$jobId/mark-complete';
-  static String approveCompletion(int jobId) => '$mobileBaseUrl/jobs/$jobId/approve-completion';
-  static String uploadJobPhotos(int jobId) => '$mobileBaseUrl/jobs/$jobId/upload-photos';
-  static String uploadPaymentProof(int jobId) => '$mobileBaseUrl/jobs/$jobId/upload-payment-proof';
+  static String markJobComplete(int jobId) =>
+      '$mobileBaseUrl/jobs/$jobId/mark-complete';
+  static String approveCompletion(int jobId) =>
+      '$mobileBaseUrl/jobs/$jobId/approve-completion';
+  static String uploadJobPhotos(int jobId) =>
+      '$mobileBaseUrl/jobs/$jobId/upload-photos';
+  static String uploadPaymentProof(int jobId) =>
+      '$mobileBaseUrl/jobs/$jobId/upload-payment-proof';
 
   // ========================================
   // MOBILE WALLET ENDPOINTS (Week 4)
@@ -57,8 +63,10 @@ class ApiConfig {
   // ========================================
   // MOBILE REVIEW ENDPOINTS (Week 5)
   // ========================================
-  static String submitReview(int jobId) => '$mobileBaseUrl/jobs/$jobId/submit-review';
-  static String getUserReviews(int userId) => '$mobileBaseUrl/users/$userId/reviews';
+  static String submitReview(int jobId) =>
+      '$mobileBaseUrl/jobs/$jobId/submit-review';
+  static String getUserReviews(int userId) =>
+      '$mobileBaseUrl/users/$userId/reviews';
 
   // ========================================
   // MOBILE KYC ENDPOINTS (Week 5)
@@ -70,28 +78,34 @@ class ApiConfig {
   // MOBILE CHAT ENDPOINTS (Week 6)
   // ========================================
   static const String conversations = '$mobileBaseUrl/chat/conversations';
-  static String chatMessages(int conversationId) => '$mobileBaseUrl/chat/$conversationId/messages';
-  static String sendMessage(int conversationId) => '$mobileBaseUrl/chat/$conversationId/send';
+  static String chatMessages(int conversationId) =>
+      '$mobileBaseUrl/chat/$conversationId/messages';
+  static String sendMessage(int conversationId) =>
+      '$mobileBaseUrl/chat/$conversationId/send';
 
   // ========================================
   // MOBILE DASHBOARD ENDPOINTS
   // ========================================
   static const String dashboardStats = '$mobileBaseUrl/dashboard/stats';
-  static const String dashboardRecentJobs = '$mobileBaseUrl/dashboard/recent-jobs';
-  static const String dashboardAvailableWorkers = '$mobileBaseUrl/dashboard/available-workers';
+  static const String dashboardRecentJobs =
+      '$mobileBaseUrl/dashboard/recent-jobs';
+  static const String dashboardAvailableWorkers =
+      '$mobileBaseUrl/dashboard/available-workers';
 
   // ========================================
   // MOBILE PROFILE ENDPOINTS
   // ========================================
   static const String getProfile = '$mobileBaseUrl/profile/me';
   static const String updateProfile = '$mobileBaseUrl/profile/update';
-  static const String uploadProfileImage = '$mobileBaseUrl/profile/upload-image';
+  static const String uploadProfileImage =
+      '$mobileBaseUrl/profile/upload-image';
 
   // ========================================
   // MOBILE WORKER & JOB LISTING ENDPOINTS
   // ========================================
   static const String workersList = '$mobileBaseUrl/workers/list';
-  static String workerDetail(int workerId) => '$mobileBaseUrl/workers/$workerId';
+  static String workerDetail(int workerId) =>
+      '$mobileBaseUrl/workers/$workerId';
   static const String myJobsList = '$mobileBaseUrl/jobs/my-jobs';
   static const String availableJobs = '$mobileBaseUrl/jobs/available';
 

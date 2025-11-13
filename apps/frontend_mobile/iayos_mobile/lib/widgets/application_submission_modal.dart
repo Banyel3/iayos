@@ -36,9 +36,11 @@ class _ApplicationSubmissionModalState
   final _formKey = GlobalKey<FormState>();
   final _budgetController = TextEditingController();
   final _messageController = TextEditingController();
+  final _durationController = TextEditingController();
   final _applicationService = ApplicationService();
 
   bool _isSubmitting = false;
+  String _budgetOption = 'ACCEPT'; // Default to accepting original budget
 
   @override
   void initState() {
@@ -51,6 +53,7 @@ class _ApplicationSubmissionModalState
   void dispose() {
     _budgetController.dispose();
     _messageController.dispose();
+    _durationController.dispose();
     super.dispose();
   }
 
@@ -64,12 +67,17 @@ class _ApplicationSubmissionModalState
     });
 
     final proposedBudget = double.tryParse(_budgetController.text) ?? 0.0;
-    final coverMessage = _messageController.text.trim();
+    final proposalMessage = _messageController.text.trim();
+    final estimatedDuration = _durationController.text.trim();
 
     final result = await _applicationService.submitApplication(
       jobId: widget.jobId,
-      proposedBudget: proposedBudget,
-      coverMessage: coverMessage,
+      proposalMessage: proposalMessage,
+      budgetOption: _budgetOption,
+      proposedBudget: _budgetOption == 'NEGOTIATE'
+          ? proposedBudget
+          : widget.originalBudget,
+      estimatedDuration: estimatedDuration,
     );
 
     if (mounted) {
@@ -139,8 +147,18 @@ class _ApplicationSubmissionModalState
                   _buildJobInfo(),
                   const SizedBox(height: 24),
 
-                  // Proposed Budget Input
-                  _buildBudgetInput(),
+                  // Budget Option Selection
+                  _buildBudgetOptionSelection(),
+                  const SizedBox(height: 20),
+
+                  // Proposed Budget Input (only if NEGOTIATE)
+                  if (_budgetOption == 'NEGOTIATE') ...[
+                    _buildBudgetInput(),
+                    const SizedBox(height: 20),
+                  ],
+
+                  // Estimated Duration Input
+                  _buildDurationInput(),
                   const SizedBox(height: 20),
 
                   // Cover Message Input
@@ -199,9 +217,7 @@ class _ApplicationSubmissionModalState
       decoration: BoxDecoration(
         color: AppColors.primary.withOpacity(0.05),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: AppColors.primary.withOpacity(0.2),
-        ),
+        border: Border.all(color: AppColors.primary.withOpacity(0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -238,6 +254,165 @@ class _ApplicationSubmissionModalState
     );
   }
 
+  Widget _buildBudgetOptionSelection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Budget Option',
+          style: GoogleFonts.inter(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _buildBudgetOptionCard(
+                label: 'Accept Original',
+                subtitle: '₱${widget.originalBudget.toStringAsFixed(2)}',
+                value: 'ACCEPT',
+                icon: Icons.check_circle_outline,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildBudgetOptionCard(
+                label: 'Negotiate',
+                subtitle: 'Propose different',
+                value: 'NEGOTIATE',
+                icon: Icons.edit_outlined,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBudgetOptionCard({
+    required String label,
+    required String subtitle,
+    required String value,
+    required IconData icon,
+  }) {
+    final isSelected = _budgetOption == value;
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _budgetOption = value;
+          if (value == 'ACCEPT') {
+            _budgetController.text = widget.originalBudget.toStringAsFixed(2);
+          }
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AppColors.primary.withOpacity(0.1)
+              : AppColors.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? AppColors.primary : AppColors.divider,
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              icon,
+              color: isSelected ? AppColors.primary : AppColors.textSecondary,
+              size: 28,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: isSelected ? AppColors.primary : AppColors.textPrimary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                color: AppColors.textSecondary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDurationInput() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Estimated Duration',
+          style: GoogleFonts.inter(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: _durationController,
+          decoration: InputDecoration(
+            hintText: 'e.g., 2 days, 1 week, 3-5 days',
+            hintStyle: GoogleFonts.inter(color: AppColors.textHint),
+            filled: true,
+            fillColor: AppColors.surface,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: AppColors.divider),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: AppColors.primary, width: 2),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: AppColors.error),
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
+          ),
+          style: GoogleFonts.inter(fontSize: 14, color: AppColors.textPrimary),
+          validator: (value) {
+            if (value == null || value.trim().isEmpty) {
+              return 'Please enter estimated duration';
+            }
+            return null;
+          },
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'How long will it take you to complete this job?',
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            color: AppColors.textSecondary,
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildBudgetInput() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -260,9 +435,7 @@ class _ApplicationSubmissionModalState
           decoration: InputDecoration(
             prefixText: '₱ ',
             hintText: 'Enter your proposed budget',
-            hintStyle: GoogleFonts.inter(
-              color: AppColors.textHint,
-            ),
+            hintStyle: GoogleFonts.inter(color: AppColors.textHint),
             filled: true,
             fillColor: AppColors.surface,
             border: OutlineInputBorder(
@@ -271,22 +444,15 @@ class _ApplicationSubmissionModalState
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(
-                color: AppColors.divider,
-              ),
+              borderSide: BorderSide(color: AppColors.divider),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(
-                color: AppColors.primary,
-                width: 2,
-              ),
+              borderSide: const BorderSide(color: AppColors.primary, width: 2),
             ),
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(
-                color: AppColors.error,
-              ),
+              borderSide: const BorderSide(color: AppColors.error),
             ),
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 16,
@@ -344,9 +510,7 @@ class _ApplicationSubmissionModalState
           decoration: InputDecoration(
             hintText:
                 'Tell the client why you\'re the best fit for this job...',
-            hintStyle: GoogleFonts.inter(
-              color: AppColors.textHint,
-            ),
+            hintStyle: GoogleFonts.inter(color: AppColors.textHint),
             filled: true,
             fillColor: AppColors.surface,
             border: OutlineInputBorder(
@@ -355,22 +519,15 @@ class _ApplicationSubmissionModalState
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(
-                color: AppColors.divider,
-              ),
+              borderSide: BorderSide(color: AppColors.divider),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(
-                color: AppColors.primary,
-                width: 2,
-              ),
+              borderSide: const BorderSide(color: AppColors.primary, width: 2),
             ),
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(
-                color: AppColors.error,
-              ),
+              borderSide: const BorderSide(color: AppColors.error),
             ),
             contentPadding: const EdgeInsets.all(16),
           ),

@@ -43,9 +43,9 @@ class JobService {
       if (maxBudget != null) queryParams['max_budget'] = maxBudget.toString();
       if (location != null) queryParams['location'] = location;
 
-      final uri = Uri.parse(ApiConfig.jobList).replace(
-        queryParameters: queryParams,
-      );
+      final uri = Uri.parse(
+        ApiConfig.jobList,
+      ).replace(queryParameters: queryParams);
 
       final response = await http.get(uri, headers: await _getHeaders());
       final data = jsonDecode(response.body);
@@ -55,7 +55,7 @@ class JobService {
       } else {
         return {
           'success': false,
-          'error': data['error'] ?? 'Failed to fetch jobs'
+          'error': data['error'] ?? 'Failed to fetch jobs',
         };
       }
     } catch (e) {
@@ -79,7 +79,7 @@ class JobService {
       } else {
         return {
           'success': false,
-          'error': data['error'] ?? 'Failed to fetch job details'
+          'error': data['error'] ?? 'Failed to fetch job details',
         };
       }
     } catch (e) {
@@ -125,7 +125,7 @@ class JobService {
       } else {
         return {
           'success': false,
-          'error': data['error'] ?? 'Job creation failed'
+          'error': data['error'] ?? 'Job creation failed',
         };
       }
     } catch (e) {
@@ -143,7 +143,7 @@ class JobService {
       if (query.length < 2) {
         return {
           'success': false,
-          'error': 'Search query must be at least 2 characters'
+          'error': 'Search query must be at least 2 characters',
         };
       }
 
@@ -182,7 +182,7 @@ class JobService {
       } else {
         return {
           'success': false,
-          'error': data['error'] ?? 'Failed to fetch categories'
+          'error': data['error'] ?? 'Failed to fetch categories',
         };
       }
     } catch (e) {
@@ -191,10 +191,10 @@ class JobService {
   }
 
   // ===========================
-  // WEEK 3: JOB APPLICATIONS (Placeholder)
+  // WEEK 3: JOB APPLICATIONS (IMPLEMENTED)
   // ===========================
 
-  /// Apply to a job (Week 3)
+  /// Apply to a job
   Future<Map<String, dynamic>> applyToJob({
     required int jobId,
     required String proposalMessage,
@@ -202,41 +202,214 @@ class JobService {
     double? proposedBudget,
     required String estimatedDuration,
   }) async {
-    // TODO: Implement in Week 3
-    return {'success': false, 'error': 'Not implemented yet'};
+    try {
+      // Validate budget option
+      if (budgetOption != 'ACCEPT' && budgetOption != 'NEGOTIATE') {
+        return {
+          'success': false,
+          'error': 'Budget option must be either ACCEPT or NEGOTIATE',
+        };
+      }
+
+      // If negotiating, proposed budget is required
+      if (budgetOption == 'NEGOTIATE' && proposedBudget == null) {
+        return {
+          'success': false,
+          'error': 'Proposed budget is required when negotiating',
+        };
+      }
+
+      final response = await http.post(
+        Uri.parse(ApiConfig.applyToJob(jobId)),
+        headers: await _getHeaders(),
+        body: jsonEncode({
+          'proposal_message': proposalMessage,
+          'budget_option': budgetOption,
+          'proposed_budget': proposedBudget,
+          'estimated_duration': estimatedDuration,
+        }),
+      );
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return {'success': true, 'data': data};
+      } else {
+        return {
+          'success': false,
+          'error': data['error'] ?? 'Failed to submit application',
+        };
+      }
+    } catch (e) {
+      return {'success': false, 'error': 'Network error: ${e.toString()}'};
+    }
   }
 
-  /// Get my applications as worker (Week 3)
+  /// Get my applications as worker
   Future<Map<String, dynamic>> getMyApplications({
     String? status,
     int page = 1,
   }) async {
-    // TODO: Implement in Week 3
-    return {'success': false, 'error': 'Not implemented yet'};
+    try {
+      final queryParams = <String, String>{'page': page.toString()};
+
+      if (status != null) {
+        queryParams['status'] = status;
+      }
+
+      final uri = Uri.parse(
+        ApiConfig.myApplications,
+      ).replace(queryParameters: queryParams);
+
+      final response = await http.get(uri, headers: await _getHeaders());
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return {'success': true, 'data': data};
+      } else {
+        return {
+          'success': false,
+          'error': data['error'] ?? 'Failed to fetch applications',
+        };
+      }
+    } catch (e) {
+      return {'success': false, 'error': 'Network error: ${e.toString()}'};
+    }
   }
 
-  /// Get applications for a job as client (Week 3)
+  /// Get applications for a job as client
   Future<Map<String, dynamic>> getJobApplications(int jobId) async {
-    // TODO: Implement in Week 3
-    return {'success': false, 'error': 'Not implemented yet'};
+    try {
+      final response = await http.get(
+        Uri.parse(ApiConfig.jobApplications(jobId)),
+        headers: await _getHeaders(),
+      );
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return {'success': true, 'data': data};
+      } else if (response.statusCode == 404) {
+        return {'success': false, 'error': 'Job not found'};
+      } else if (response.statusCode == 403) {
+        return {
+          'success': false,
+          'error': 'You can only view applications for your own jobs',
+        };
+      } else {
+        return {
+          'success': false,
+          'error': data['error'] ?? 'Failed to fetch applications',
+        };
+      }
+    } catch (e) {
+      return {'success': false, 'error': 'Network error: ${e.toString()}'};
+    }
   }
 
-  /// Accept or reject an application (Week 3)
+  /// Withdraw an application as worker
+  Future<Map<String, dynamic>> withdrawApplication({
+    required int jobId,
+    required int applicationId,
+  }) async {
+    try {
+      final response = await http.patch(
+        Uri.parse(ApiConfig.withdrawApplication(jobId, applicationId)),
+        headers: await _getHeaders(),
+        body: jsonEncode({'status': 'WITHDRAWN'}),
+      );
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return {'success': true, 'data': data};
+      } else if (response.statusCode == 404) {
+        return {'success': false, 'error': 'Application not found'};
+      } else if (response.statusCode == 403) {
+        return {
+          'success': false,
+          'error': 'You can only withdraw your own applications',
+        };
+      } else {
+        return {
+          'success': false,
+          'error': data['error'] ?? 'Failed to withdraw application',
+        };
+      }
+    } catch (e) {
+      return {'success': false, 'error': 'Network error: ${e.toString()}'};
+    }
+  }
+
+  /// Accept or reject an application (for clients)
   Future<Map<String, dynamic>> updateApplicationStatus({
+    required int jobId,
     required int applicationId,
     required String status,
   }) async {
-    // TODO: Implement in Week 3
-    return {'success': false, 'error': 'Not implemented yet'};
+    try {
+      // Validate status
+      if (!['ACCEPTED', 'REJECTED'].contains(status)) {
+        return {
+          'success': false,
+          'error': 'Status must be either ACCEPTED or REJECTED',
+        };
+      }
+
+      final response = await http.patch(
+        Uri.parse(ApiConfig.withdrawApplication(jobId, applicationId)),
+        headers: await _getHeaders(),
+        body: jsonEncode({'status': status}),
+      );
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return {'success': true, 'data': data};
+      } else if (response.statusCode == 404) {
+        return {'success': false, 'error': 'Application not found'};
+      } else if (response.statusCode == 403) {
+        return {
+          'success': false,
+          'error': 'You can only update applications for your own jobs',
+        };
+      } else {
+        return {
+          'success': false,
+          'error': data['error'] ?? 'Failed to update application status',
+        };
+      }
+    } catch (e) {
+      return {'success': false, 'error': 'Network error: ${e.toString()}'};
+    }
   }
 
-  /// Get my posted jobs as client (Week 3)
-  Future<Map<String, dynamic>> getMyJobs({
-    String? status,
-    int page = 1,
-  }) async {
-    // TODO: Implement in Week 3
-    return {'success': false, 'error': 'Not implemented yet'};
+  /// Get my posted jobs as client
+  Future<Map<String, dynamic>> getMyJobs({String? status, int page = 1}) async {
+    try {
+      final queryParams = <String, String>{'page': page.toString()};
+
+      if (status != null) {
+        queryParams['status'] = status;
+      }
+
+      final uri = Uri.parse(
+        ApiConfig.myJobs,
+      ).replace(queryParameters: queryParams);
+
+      final response = await http.get(uri, headers: await _getHeaders());
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return {'success': true, 'data': data};
+      } else {
+        return {
+          'success': false,
+          'error': data['error'] ?? 'Failed to fetch your jobs',
+        };
+      }
+    } catch (e) {
+      return {'success': false, 'error': 'Network error: ${e.toString()}'};
+    }
   }
 
   // ===========================

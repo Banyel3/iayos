@@ -34,32 +34,52 @@ class ApplicationService {
   ///
   /// Parameters:
   /// - [jobId]: The ID of the job to apply to
-  /// - [proposedBudget]: The budget proposed by the worker (optional if accepting original)
-  /// - [coverMessage]: Cover message/proposal text
+  /// - [proposalMessage]: Proposal message explaining why you're suitable
+  /// - [budgetOption]: 'ACCEPT' or 'NEGOTIATE'
+  /// - [proposedBudget]: The budget proposed by the worker (required if NEGOTIATE)
+  /// - [estimatedDuration]: Estimated time to complete (e.g., "2 days", "1 week")
   ///
   /// Returns: {'success': bool, 'data': {...}, 'error': string?}
   Future<Map<String, dynamic>> submitApplication({
     required int jobId,
-    required double proposedBudget,
-    required String coverMessage,
+    required String proposalMessage,
+    required String budgetOption,
+    double? proposedBudget,
+    required String estimatedDuration,
   }) async {
     try {
+      // Validate budget option
+      if (budgetOption != 'ACCEPT' && budgetOption != 'NEGOTIATE') {
+        return {
+          'success': false,
+          'error': 'Budget option must be either ACCEPT or NEGOTIATE',
+        };
+      }
+
+      // If negotiating, proposed budget is required
+      if (budgetOption == 'NEGOTIATE' &&
+          (proposedBudget == null || proposedBudget <= 0)) {
+        return {
+          'success': false,
+          'error': 'Proposed budget is required when negotiating',
+        };
+      }
+
       final response = await http.post(
         Uri.parse(ApiConfig.applyToJob(jobId)),
         headers: await _getHeaders(),
         body: jsonEncode({
+          'proposal_message': proposalMessage,
+          'budget_option': budgetOption,
           'proposed_budget': proposedBudget,
-          'cover_message': coverMessage,
+          'estimated_duration': estimatedDuration,
         }),
       );
 
       final data = jsonDecode(response.body);
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        return {
-          'success': true,
-          'data': data['data'] ?? data,
-        };
+        return {'success': true, 'data': data['data'] ?? data};
       } else if (response.statusCode == 400) {
         return {
           'success': false,
@@ -82,10 +102,7 @@ class ApplicationService {
         };
       }
     } catch (e) {
-      return {
-        'success': false,
-        'error': 'Network error: ${e.toString()}',
-      };
+      return {'success': false, 'error': 'Network error: ${e.toString()}'};
     }
   }
 
@@ -112,9 +129,9 @@ class ApplicationService {
         queryParams['status'] = status;
       }
 
-      final uri = Uri.parse(ApiConfig.myApplications).replace(
-        queryParameters: queryParams,
-      );
+      final uri = Uri.parse(
+        ApiConfig.myApplications,
+      ).replace(queryParameters: queryParams);
 
       final response = await http.get(uri, headers: await _getHeaders());
       final data = jsonDecode(response.body);
@@ -139,10 +156,7 @@ class ApplicationService {
         };
       }
     } catch (e) {
-      return {
-        'success': false,
-        'error': 'Network error: ${e.toString()}',
-      };
+      return {'success': false, 'error': 'Network error: ${e.toString()}'};
     }
   }
 
@@ -172,10 +186,7 @@ class ApplicationService {
           'error': 'Only job owners can view applications',
         };
       } else if (response.statusCode == 404) {
-        return {
-          'success': false,
-          'error': 'Job not found',
-        };
+        return {'success': false, 'error': 'Job not found'};
       } else {
         return {
           'success': false,
@@ -183,21 +194,20 @@ class ApplicationService {
         };
       }
     } catch (e) {
-      return {
-        'success': false,
-        'error': 'Network error: ${e.toString()}',
-      };
+      return {'success': false, 'error': 'Network error: ${e.toString()}'};
     }
   }
 
   /// Update application status (accept or reject) - Client only
   ///
   /// Parameters:
+  /// - [jobId]: The ID of the job
   /// - [applicationId]: The ID of the application
   /// - [status]: New status ('ACCEPTED' or 'REJECTED')
   ///
   /// Returns: {'success': bool, 'data': {...}, 'error': string?}
   Future<Map<String, dynamic>> updateApplicationStatus({
+    required int jobId,
     required int applicationId,
     required String status,
   }) async {
@@ -209,36 +219,25 @@ class ApplicationService {
         };
       }
 
-      final response = await http.put(
-        Uri.parse(ApiConfig.updateApplicationStatus(applicationId)),
+      final response = await http.patch(
+        Uri.parse(ApiConfig.withdrawApplication(jobId, applicationId)),
         headers: await _getHeaders(),
-        body: jsonEncode({
-          'status': status,
-        }),
+        body: jsonEncode({'status': status}),
       );
 
       final data = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
-        return {
-          'success': true,
-          'data': data['data'] ?? data,
-        };
+        return {'success': true, 'data': data['data'] ?? data};
       } else if (response.statusCode == 403) {
         return {
           'success': false,
           'error': 'Only job owners can update application status',
         };
       } else if (response.statusCode == 404) {
-        return {
-          'success': false,
-          'error': 'Application not found',
-        };
+        return {'success': false, 'error': 'Application not found'};
       } else if (response.statusCode == 400) {
-        return {
-          'success': false,
-          'error': data['error'] ?? 'Invalid request',
-        };
+        return {'success': false, 'error': data['error'] ?? 'Invalid request'};
       } else {
         return {
           'success': false,
@@ -246,10 +245,7 @@ class ApplicationService {
         };
       }
     } catch (e) {
-      return {
-        'success': false,
-        'error': 'Network error: ${e.toString()}',
-      };
+      return {'success': false, 'error': 'Network error: ${e.toString()}'};
     }
   }
 
@@ -269,15 +265,9 @@ class ApplicationService {
       final data = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
-        return {
-          'success': true,
-          'data': data['data'] ?? data,
-        };
+        return {'success': true, 'data': data['data'] ?? data};
       } else if (response.statusCode == 404) {
-        return {
-          'success': false,
-          'error': 'Application not found',
-        };
+        return {'success': false, 'error': 'Application not found'};
       } else {
         return {
           'success': false,
@@ -285,10 +275,7 @@ class ApplicationService {
         };
       }
     } catch (e) {
-      return {
-        'success': false,
-        'error': 'Network error: ${e.toString()}',
-      };
+      return {'success': false, 'error': 'Network error: ${e.toString()}'};
     }
   }
 
