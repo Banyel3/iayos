@@ -2331,14 +2331,14 @@ def upload_cash_payment_proof(request, job_id: int):
             file_name = f"cash_proofs/{job_id}_{uuid.uuid4().hex}.{file_extension}"
             
             # Upload file
-            result = supabase.storage.from_('job-images').upload(
+            result = supabase.storage().from_('job-images').upload(
                 file_name,
                 proof_image.read(),
                 {'content-type': proof_image.content_type}
             )
             
             # Get public URL
-            proof_url = supabase.storage.from_('job-images').get_public_url(file_name)
+            proof_url = supabase.storage().from_('job-images').get_public_url(file_name)
             
             # Save proof URL to job
             job.cashPaymentProofUrl = proof_url

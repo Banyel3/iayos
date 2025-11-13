@@ -19,9 +19,10 @@ class SupabaseStorageAdapter:
         self.anon_key = anon_key
 
         # Use secret key for authenticated requests (bypasses RLS)
+        # For new secret API keys (sb_secret_*), use apikey header only (no Bearer token)
         self.headers = {
-            'apikey': self.anon_key or self.secret_key,
-            'Authorization': f'Bearer {self.secret_key}',
+            'apikey': self.secret_key,  # Secret key in apikey header
+            'Authorization': f'Bearer {self.secret_key}',  # Also in Authorization for compatibility
         }
 
     def storage(self):

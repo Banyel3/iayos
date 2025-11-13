@@ -12,7 +12,8 @@ def upload_file(file, bucket: str, path: str, public: bool = True, custom_name: 
 
     try:
         # Upload with upsert option to overwrite if file exists
-        result = settings.SUPABASE.storage.from_(bucket).upload(
+        # Note: storage() is a method, not a property
+        result = settings.SUPABASE.storage().from_(bucket).upload(
             full_path, 
             file_bytes,
             {"upsert": "true"}
@@ -30,7 +31,7 @@ def upload_file(file, bucket: str, path: str, public: bool = True, custom_name: 
             
             # Success - get public URL
             if public:
-                public_url = settings.SUPABASE.storage.from_(bucket).get_public_url(full_path)
+                public_url = settings.SUPABASE.storage().from_(bucket).get_public_url(full_path)
                 # Remove trailing '?' if present (Supabase SDK sometimes adds this)
                 if public_url and public_url.endswith('?'):
                     public_url = public_url.rstrip('?')

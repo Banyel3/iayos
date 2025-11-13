@@ -251,7 +251,7 @@ const ProfilePage = () => {
   const workerData: WorkerProfile = {
     name: user?.profile_data?.firstName || "John Reyes",
     isVerified: user?.kycVerified || false,
-    avatar: user?.profile_data?.profileImg || "/worker1.jpg",
+    avatar: user?.profile_data?.profileImg || "",
     jobTitle: "Appliance Repair Technician",
     startingRate: "₱380",
     experience: "2+ years of experience",
@@ -270,7 +270,7 @@ const ProfilePage = () => {
   const clientData: ClientProfile = {
     name: user?.profile_data?.firstName || "Crissy Santos",
     isVerified: user?.kycVerified || false,
-    avatar: user?.profile_data?.profileImg || "/worker2.jpg", // Using available images for now
+    avatar: user?.profile_data?.profileImg || "",
     location: "Quezon City, Metro Manila",
     memberSince: "January 2024",
     totalJobs: 3,
@@ -344,12 +344,18 @@ const ProfilePage = () => {
           {/* Avatar and Basic Info */}
           <div className="flex items-center space-x-3 mb-3">
             <div className="relative">
-              <img
-                src={workerData.avatar}
-                alt={workerData.name}
-                crossOrigin="anonymous"
-                className="w-12 h-12 rounded-full object-cover"
-              />
+              {workerData.avatar ? (
+                <img
+                  src={workerData.avatar}
+                  alt={workerData.name}
+                  crossOrigin="anonymous"
+                  className="w-12 h-12 rounded-full object-cover"
+                />
+              ) : (
+                <div className="w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center text-white font-semibold text-lg">
+                  {workerData.name.charAt(0).toUpperCase()}
+                </div>
+              )}
             </div>
             <div className="flex-1">
               <h1 className="text-base font-semibold text-gray-900 mb-0">
@@ -593,12 +599,18 @@ const ProfilePage = () => {
           {/* Avatar and Basic Info */}
           <div className="flex items-center space-x-3 mb-3">
             <div className="relative">
-              <img
-                src={clientData.avatar}
-                alt={clientData.name}
-                crossOrigin="anonymous"
-                className="w-12 h-12 rounded-full object-cover"
-              />
+              {clientData.avatar ? (
+                <img
+                  src={clientData.avatar}
+                  alt={clientData.name}
+                  crossOrigin="anonymous"
+                  className="w-12 h-12 rounded-full object-cover"
+                />
+              ) : (
+                <div className="w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center text-white font-semibold text-lg">
+                  {clientData.name.charAt(0).toUpperCase()}
+                </div>
+              )}
             </div>
             <div className="flex-1">
               <h1 className="text-base font-semibold text-gray-900 mb-0">
@@ -739,12 +751,20 @@ const ProfilePage = () => {
             <div className="lg:col-span-1">
               <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6 sticky top-24">
                 <div className="flex flex-col items-center text-center mb-4">
-                  <img
-                    src={isWorker ? workerData.avatar : clientData.avatar}
-                    alt={isWorker ? workerData.name : clientData.name}
-                    crossOrigin="anonymous"
-                    className="w-24 h-24 rounded-full object-cover mb-3"
-                  />
+                  {(isWorker ? workerData.avatar : clientData.avatar) ? (
+                    <img
+                      src={isWorker ? workerData.avatar : clientData.avatar}
+                      alt={isWorker ? workerData.name : clientData.name}
+                      crossOrigin="anonymous"
+                      className="w-24 h-24 rounded-full object-cover mb-3"
+                    />
+                  ) : (
+                    <div className="w-24 h-24 rounded-full bg-blue-500 flex items-center justify-center text-white font-semibold text-3xl mb-3">
+                      {(isWorker ? workerData.name : clientData.name)
+                        .charAt(0)
+                        .toUpperCase()}
+                    </div>
+                  )}
                   <h2 className="text-lg font-semibold text-gray-900">
                     {isWorker ? workerData.name : clientData.name}
                   </h2>

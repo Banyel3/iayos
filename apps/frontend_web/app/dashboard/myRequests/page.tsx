@@ -138,10 +138,8 @@ const MyRequestsPage = () => {
   );
   const { data: inProgressJobs = [], isLoading: isLoadingInProgress } =
     useInProgressJobs(isAuthenticated && activeTab === "inProgress");
-  const {
-    data: completedJobsData = [],
-    isLoading: isLoadingCompleted,
-  } = useCompletedJobs(isAuthenticated && activeTab === "pastRequests");
+  const { data: completedJobsData = [], isLoading: isLoadingCompleted } =
+    useCompletedJobs(isAuthenticated && activeTab === "pastRequests");
 
   // Map completed jobs to JobRequest format
   const completedJobs = completedJobsData.map((job) => ({
@@ -874,7 +872,7 @@ const MyRequestsPage = () => {
   // Authentication check
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
-      router.push(\"/auth/login\");
+      router.push("/auth/login");
     }
   }, [isAuthenticated, isLoading, router]);
 

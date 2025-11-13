@@ -166,7 +166,7 @@ def review_kyc_items(request):
     try:
         def _create_signed(bucket_name, path):
             try:
-                return settings.SUPABASE.storage.from_(bucket_name).create_signed_url(path, expires_in=60 * 60)
+                return settings.SUPABASE.storage().from_(bucket_name).create_signed_url(path, expires_in=60 * 60)
             except Exception as e:
                 print(f"âŒ Error creating signed URL for {bucket_name}:{path}: {e}")
                 return None
@@ -205,7 +205,7 @@ def review_kyc_items(request):
             else:
                 # fallback to public url if available
                 try:
-                    return settings.SUPABASE.storage.from_(bucket).get_public_url(path)
+                    return settings.SUPABASE.storage().from_(bucket).get_public_url(path)
                 except Exception:
                     return ""
         # Use _resolve_link for each incoming field
