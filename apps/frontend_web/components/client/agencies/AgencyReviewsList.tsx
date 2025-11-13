@@ -2,6 +2,7 @@
 
 import { Star, ChevronLeft, ChevronRight, MessageSquare } from "lucide-react";
 import { useState, useEffect } from "react";
+import { API_BASE_URL } from "@/lib/api/config";
 
 interface Review {
   reviewId: number;
@@ -37,7 +38,7 @@ export default function AgencyReviewsList({
 
     try {
       const response = await fetch(
-        `/api/client/agencies/${agencyId}/reviews?page=${page}&limit=${limit}`,
+        `${API_BASE_URL}/client/agencies/${agencyId}/reviews?page=${page}&limit=${limit}`,
         { credentials: "include" }
       );
 

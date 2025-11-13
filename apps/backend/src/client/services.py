@@ -302,7 +302,7 @@ def get_agency_reviews(agency_id: int, page: int = 1, limit: int = 10) -> Dict:
     # Get reviews
     reviews_query = JobReview.objects.filter(
         jobID__assignedAgencyFK=agency
-    ).select_related('jobID', 'clientID').order_by('-createdAt')
+    ).select_related('jobID', 'reviewerID').order_by('-createdAt')
     
     total = reviews_query.count()
     
