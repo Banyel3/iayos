@@ -10,7 +10,6 @@ build/
 /**/build/
 
 # Pub
-.packages
 pubspec.lock
 .pub-cache/
 .pub/
