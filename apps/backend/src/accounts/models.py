@@ -131,6 +131,26 @@ class WorkerProfile(models.Model):
     description = models.CharField(max_length=350)
     workerRating = models.IntegerField(default=0)
     totalEarningGross = models.DecimalField(max_digits=10, decimal_places=2)
+    
+    # Worker Phase 1: Profile Enhancement Fields
+    bio = models.CharField(
+        max_length=200,
+        blank=True,
+        default="",
+        help_text="Short bio/tagline (max 200 chars)"
+    )
+    hourly_rate = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Worker's hourly rate in PHP"
+    )
+    profile_completion_percentage = models.IntegerField(
+        default=0,
+        help_text="Profile completion percentage (0-100)"
+    )
+    
     class availabilityStatus(models.TextChoices):
         AVAILABLE = "AVAILABLE", 'available'
         BUSY = "BUSY", 'busy'
@@ -139,6 +159,41 @@ class WorkerProfile(models.Model):
     availabilityStatus = models.CharField(
         max_length=10, choices=availabilityStatus.choices, default="OFFLINE", blank=True
     )
+    
+    def calculate_profile_completion(self):
+        """
+        Calculate profile completion percentage based on filled fields.
+        Returns: int (0-100)
+        """
+        total_fields = 7
+        completed_fields = 0
+        
+        # Check each field
+        if self.bio and len(self.bio.strip()) > 0:
+            completed_fields += 1
+        if self.description and len(self.description.strip()) > 0:
+            completed_fields += 1
+        if self.hourly_rate and self.hourly_rate > 0:
+            completed_fields += 1
+        
+        # Check related fields
+        if self.profileID.profileImg:
+            completed_fields += 1
+        if workerSpecialization.objects.filter(workerID=self).exists():
+            completed_fields += 1
+        if hasattr(self, 'certifications') and self.certifications.exists():
+            completed_fields += 1
+        if hasattr(self, 'portfolio') and self.portfolio.exists():
+            completed_fields += 1
+        
+        percentage = int((completed_fields / total_fields) * 100)
+        return percentage
+    
+    def update_profile_completion(self):
+        """Update and save the profile completion percentage"""
+        self.profile_completion_percentage = self.calculate_profile_completion()
+        self.save(update_fields=['profile_completion_percentage'])
+        return self.profile_completion_percentage
 
 class ClientProfile(models.Model):
     profileID = models.OneToOneField(Profile, on_delete=models.CASCADE)
@@ -170,6 +225,149 @@ class workerSpecialization(models.Model):
     specializationID = models.ForeignKey(Specializations, on_delete=models.CASCADE)
     experienceYears = models.IntegerField()
     certification = models.CharField(max_length=120)
+
+
+# Worker Phase 1: Profile Enhancement Models
+
+class WorkerCertification(models.Model):
+    """
+    Professional certifications and licenses for workers.
+    Examples: TESDA certificates, professional licenses, training completion
+    """
+    certificationID = models.BigAutoField(primary_key=True)
+    workerID = models.ForeignKey(
+        WorkerProfile,
+        on_delete=models.CASCADE,
+        related_name='certifications'
+    )
+    
+    name = models.CharField(
+        max_length=255,
+        help_text="Certificate name (e.g., 'TESDA Plumbing NC II')"
+    )
+    issuing_organization = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="Organization that issued the certificate (e.g., 'TESDA')"
+    )
+    issue_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Date when certification was issued"
+    )
+    expiry_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Expiration date (null if does not expire)"
+    )
+    certificate_url = models.CharField(
+        max_length=1000,
+        blank=True,
+        default="",
+        help_text="Supabase URL to certificate image/PDF"
+    )
+    
+    # Verification status (for future admin verification)
+    is_verified = models.BooleanField(
+        default=False,
+        help_text="Whether admin has verified this certification"
+    )
+    verified_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When certification was verified by admin"
+    )
+    verified_by = models.ForeignKey(
+        Accounts,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='verified_certifications',
+        help_text="Admin who verified the certification"
+    )
+    
+    createdAt = models.DateTimeField(auto_now_add=True)
+    updatedAt = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'worker_certifications'
+        ordering = ['-issue_date', '-createdAt']
+        indexes = [
+            models.Index(fields=['workerID', '-issue_date']),
+            models.Index(fields=['expiry_date']),  # For expiry alerts
+        ]
+    
+    def __str__(self):
+        return f"{self.name} - {self.workerID.profileID.firstName}"
+    
+    def is_expired(self):
+        """Check if certification has expired"""
+        if self.expiry_date:
+            from django.utils import timezone
+            return self.expiry_date < timezone.now().date()
+        return False
+    
+    def clean(self):
+        """Validate dates"""
+        if self.issue_date and self.expiry_date:
+            if self.expiry_date < self.issue_date:
+                raise ValidationError({
+                    'expiry_date': 'Expiry date cannot be before issue date'
+                })
+
+
+class WorkerPortfolio(models.Model):
+    """
+    Portfolio images/work samples for workers to showcase their work.
+    Helps clients see the quality and style of worker's previous projects.
+    """
+    portfolioID = models.BigAutoField(primary_key=True)
+    workerID = models.ForeignKey(
+        WorkerProfile,
+        on_delete=models.CASCADE,
+        related_name='portfolio'
+    )
+    
+    image_url = models.CharField(
+        max_length=1000,
+        help_text="Supabase URL to portfolio image"
+    )
+    caption = models.TextField(
+        blank=True,
+        default="",
+        max_length=500,
+        help_text="Description of the work shown (max 500 chars)"
+    )
+    display_order = models.IntegerField(
+        default=0,
+        help_text="Order in which to display (0 = first)"
+    )
+    
+    # Image metadata
+    file_name = models.CharField(
+        max_length=255,
+        blank=True,
+        default=""
+    )
+    file_size = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="File size in bytes"
+    )
+    
+    createdAt = models.DateTimeField(auto_now_add=True)
+    updatedAt = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'worker_portfolio'
+        ordering = ['display_order', '-createdAt']
+        indexes = [
+            models.Index(fields=['workerID', 'display_order']),
+        ]
+    
+    def __str__(self):
+        return f"Portfolio {self.portfolioID} - {self.workerID.profileID.firstName}"
 
 class kyc(models.Model):
     kycID = models.BigAutoField(primary_key=True)
