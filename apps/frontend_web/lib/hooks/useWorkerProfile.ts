@@ -28,14 +28,17 @@ export const workerProfileKeys = {
 
 /**
  * Hook to get profile completion data
+ * Tier 2: Semi-static data - 1 hour background refresh
  */
 export function useProfileCompletion(enabled: boolean = true) {
   return useQuery({
     queryKey: workerProfileKeys.completion(),
     queryFn: getProfileCompletion,
     enabled,
-    staleTime: 30 * 1000, // 30 seconds
-    gcTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: Infinity, // Use cache indefinitely
+    gcTime: 24 * 60 * 60 * 1000, // 24 hours
+    refetchInterval: 60 * 60 * 1000, // Background refresh every 1 hour
+    refetchIntervalInBackground: true,
   });
 }
 
@@ -66,14 +69,16 @@ export function useUpdateWorkerProfile() {
 
 /**
  * Hook to get all certifications
+ * Tier 1: Static data - cache forever, manual refresh only
  */
 export function useCertifications(enabled: boolean = true) {
   return useQuery({
     queryKey: workerProfileKeys.certifications(),
     queryFn: getCertifications,
     enabled,
-    staleTime: 60 * 1000, // 1 minute
-    gcTime: 10 * 60 * 1000, // 10 minutes
+    staleTime: Infinity, // Never auto-refetch
+    gcTime: 24 * 60 * 60 * 1000, // 24 hours
+    refetchInterval: false, // No background refresh
   });
 }
 
@@ -162,14 +167,16 @@ export function useDeleteCertification() {
 
 /**
  * Hook to get all portfolio images
+ * Tier 1: Static data - cache forever, manual refresh only
  */
 export function usePortfolio(enabled: boolean = true) {
   return useQuery({
     queryKey: workerProfileKeys.portfolio(),
     queryFn: getPortfolio,
     enabled,
-    staleTime: 60 * 1000, // 1 minute
-    gcTime: 10 * 60 * 1000, // 10 minutes
+    staleTime: Infinity, // Never auto-refetch
+    gcTime: 24 * 60 * 60 * 1000, // 24 hours
+    refetchInterval: false, // No background refresh
   });
 }
 

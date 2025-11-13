@@ -11,6 +11,13 @@ const nextConfig: NextConfig = {
   devIndicators: false,
   reactStrictMode: true,
   outputFileTracingRoot: path.join(__dirname, "../../"),
+  // Enable experimental features for better caching
+  experimental: {
+    staleTimes: {
+      dynamic: 30, // 30 seconds for dynamic pages
+      static: 180, // 3 minutes for static pages
+    },
+  },
   images: {
     remotePatterns: [
       {

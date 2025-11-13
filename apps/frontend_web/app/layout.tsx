@@ -5,6 +5,7 @@ import "./globals.css";
 import { ToastProvider } from "@/components/ui/toast";
 import { AuthProvider } from "@/context/AuthContext";
 import QueryProvider from "@/lib/providers/QueryProvider";
+import { ServiceWorkerRegistration } from "./components/ServiceWorkerRegistration";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -46,6 +47,7 @@ export default async function RootLayout({
         <meta name="apple-mobile-web-app-title" content="iAyos" />
         <meta name="mobile-web-app-capable" content="yes" />
         <link rel="apple-touch-icon" href="/icons/logo.png" />
+        <link rel="manifest" href="/manifest.json" />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
@@ -53,7 +55,10 @@ export default async function RootLayout({
         <QueryProvider>
           <ToastProvider>
             <AuthProvider>
-              <Providers>{children}</Providers>
+              <Providers>
+                {children}
+                <ServiceWorkerRegistration />
+              </Providers>
             </AuthProvider>
           </ToastProvider>
         </QueryProvider>

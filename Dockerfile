@@ -180,11 +180,19 @@ WORKDIR /app
 # Set environment to production
 ENV NODE_ENV=production
 
-# Copy built application from frontend-builder with proper ownership
+# Copy only package.json files first
+COPY --from=frontend-builder --chown=nodeuser:nodegroup /app/apps/frontend_web/package.json ./apps/frontend_web/package.json
+COPY --from=frontend-builder --chown=nodeuser:nodegroup /app/package.json ./package.json
+
+# Install ONLY production dependencies (much smaller)
+RUN npm install --production --legacy-peer-deps \
+    && cd apps/frontend_web \
+    && npm install --production --legacy-peer-deps \
+    && npm cache clean --force
+
+# Copy built application from frontend-builder
 COPY --from=frontend-builder --chown=nodeuser:nodegroup /app/apps/frontend_web/.next ./apps/frontend_web/.next
 COPY --from=frontend-builder --chown=nodeuser:nodegroup /app/apps/frontend_web/public ./apps/frontend_web/public
-COPY --from=frontend-builder --chown=nodeuser:nodegroup /app/apps/frontend_web/package.json ./apps/frontend_web/package.json
-COPY --from=deps --chown=nodeuser:nodegroup /app/node_modules ./node_modules
 
 WORKDIR /app/apps/frontend_web
 

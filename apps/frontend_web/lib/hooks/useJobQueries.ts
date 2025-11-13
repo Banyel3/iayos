@@ -18,53 +18,57 @@ export const jobKeys = {
 
 /**
  * Hook to fetch available job postings for workers
+ * Session storage: Instant load + background refresh
  */
 export function useAvailableJobs(enabled: boolean = true) {
   return useQuery({
     queryKey: jobKeys.available(),
     queryFn: fetchAvailableJobs,
     enabled,
-    staleTime: 2 * 60 * 1000, // 2 minutes
-    gcTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 0, // Always refetch in background
+    gcTime: 24 * 60 * 60 * 1000, // 24 hours
   });
 }
 
 /**
  * Hook to fetch job categories
+ * Session storage: Instant load + background refresh
  */
 export function useJobCategories(enabled: boolean = true) {
   return useQuery({
     queryKey: jobKeys.categories(),
     queryFn: fetchJobCategories,
     enabled,
-    staleTime: 10 * 60 * 1000, // 10 minutes (categories rarely change)
-    gcTime: 30 * 60 * 1000, // 30 minutes
+    staleTime: 0, // Always refetch in background
+    gcTime: 24 * 60 * 60 * 1000, // 24 hours
   });
 }
 
 /**
  * Hook to fetch workers near user
+ * Session storage: Instant load + background refresh
  */
 export function useWorkers(enabled: boolean = true) {
   return useQuery({
     queryKey: jobKeys.workers(),
     queryFn: fetchWorkers,
     enabled,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 10 * 60 * 1000, // 10 minutes
+    staleTime: 0, // Always refetch in background
+    gcTime: 24 * 60 * 60 * 1000, // 24 hours
   });
 }
 
 /**
  * Hook to fetch worker's applications
+ * Session storage: Instant load + background refresh
  */
 export function useMyApplications(enabled: boolean = true) {
   return useQuery({
     queryKey: jobKeys.applications(),
     queryFn: fetchMyApplications,
     enabled,
-    staleTime: 1 * 60 * 1000, // 1 minute
-    gcTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 0, // Always refetch in background
+    gcTime: 24 * 60 * 60 * 1000, // 24 hours
   });
 }
 

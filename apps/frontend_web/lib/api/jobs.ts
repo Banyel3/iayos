@@ -121,6 +121,7 @@ const formatTimeAgo = (dateString: string) => {
 export async function fetchAvailableJobs(): Promise<JobPosting[]> {
   const response = await fetch(`${API_BASE_URL}/jobs/available`, {
     credentials: "include",
+    next: { revalidate: 120 }, // Cache for 2 minutes
   });
 
   if (!response.ok) {
@@ -160,6 +161,7 @@ export async function fetchAvailableJobs(): Promise<JobPosting[]> {
 export async function fetchJobCategories(): Promise<JobCategory[]> {
   const response = await fetch(`${API_BASE_URL}/adminpanel/jobs/categories`, {
     credentials: "include",
+    next: { revalidate: 600 }, // Cache for 10 minutes (categories rarely change)
   });
 
   if (!response.ok) {
@@ -240,11 +242,18 @@ export async function fetchWorkers(): Promise<WorkerListing[]> {
     method: "GET",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
+    next: { revalidate: 300 }, // Cache for 5 minutes
   });
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({ error: "Failed to fetch workers" }));
-    throw new Error(errorData.error || errorData.message || `Failed to fetch workers: ${response.status}`);
+    const errorData = await response
+      .json()
+      .catch(() => ({ error: "Failed to fetch workers" }));
+    throw new Error(
+      errorData.error ||
+        errorData.message ||
+        `Failed to fetch workers: ${response.status}`
+    );
   }
 
   const data = await response.json();
@@ -422,4 +431,171 @@ export async function fetchAgencyProfile(
 
   const data = await response.json();
   return data;
+}
+
+// My Jobs / My Requests page types
+export interface MyJobRequest {
+  id: string;
+  title: string;
+  price: string;
+  date: string;
+  status: "ACTIVE" | "COMPLETED" | "PENDING" | "IN_PROGRESS";
+  description?: string;
+  location?: string;
+  client?: {
+    name: string;
+    avatar: string;
+    rating: number;
+    city?: string;
+  };
+  worker?: {
+    name: string;
+    avatar: string;
+    rating: number;
+  };
+  assignedWorker?: {
+    id: string;
+    name: string;
+    avatar: string;
+    rating: number;
+    city?: string;
+  };
+  category?: string;
+  postedDate?: string;
+  completedDate?: string;
+  paymentStatus?: "PENDING" | "DOWNPAYMENT_PAID" | "FULLY_PAID";
+  downpaymentMethod?: "WALLET" | "GCASH" | "MAYA" | "CARD" | "BANK_TRANSFER";
+  finalPaymentMethod?:
+    | "WALLET"
+    | "GCASH"
+    | "MAYA"
+    | "CARD"
+    | "BANK_TRANSFER"
+    | "CASH";
+  downpaymentAmount?: string;
+  finalPaymentAmount?: string;
+  totalAmount?: string;
+  photos?: Array<{
+    id: number;
+    url: string;
+    file_name?: string;
+  }>;
+}
+
+/**
+ * Fetch client's job postings (my-jobs endpoint)
+ */
+export async function fetchMyJobs(): Promise<MyJobRequest[]> {
+  const response = await fetch(`${API_BASE_URL}/jobs/my-jobs`, {
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    console.error(`Failed to fetch job postings: ${response.status}`);
+    return [];
+  }
+
+  const data = await response.json();
+
+  if (data.success && data.jobs) {
+    return data.jobs.map((job: any) => {
+      const paymentInfo = job.payment_info || {};
+      const escrowAmount = parseFloat(paymentInfo.escrow_amount || 0);
+      const remainingAmount = parseFloat(paymentInfo.remaining_payment || 0);
+      const totalBudget = parseFloat(job.budget);
+
+      let paymentStatus: "PENDING" | "DOWNPAYMENT_PAID" | "FULLY_PAID" =
+        "PENDING";
+      if (paymentInfo.escrow_paid && paymentInfo.remaining_payment_paid) {
+        paymentStatus = "FULLY_PAID";
+      } else if (paymentInfo.escrow_paid) {
+        paymentStatus = "DOWNPAYMENT_PAID";
+      }
+
+      let downpaymentMethod: "WALLET" | "GCASH" | undefined;
+      if (paymentInfo.escrow_paid) {
+        downpaymentMethod = "WALLET";
+      }
+
+      return {
+        id: job.id.toString(),
+        title: job.title,
+        price: `₱${totalBudget.toFixed(2)}`,
+        date: new Date(job.created_at).toLocaleDateString(),
+        status: job.status as "ACTIVE" | "COMPLETED" | "PENDING",
+        description: job.description,
+        location: job.location,
+        category: job.category?.name || "Uncategorized",
+        postedDate: job.created_at,
+        photos: (job.photos || []).map((photo: any) => ({
+          id: photo.id,
+          url: photo.url,
+          file_name: photo.file_name,
+        })),
+        paymentStatus,
+        downpaymentMethod,
+        finalPaymentMethod: paymentInfo.final_payment_method as
+          | "WALLET"
+          | "GCASH"
+          | "CASH"
+          | undefined,
+        downpaymentAmount: `₱${escrowAmount.toFixed(2)}`,
+        finalPaymentAmount: `₱${remainingAmount.toFixed(2)}`,
+        totalAmount: `₱${totalBudget.toFixed(2)}`,
+      };
+    });
+  }
+
+  return [];
+}
+
+/**
+ * Fetch in-progress jobs for client or worker
+ */
+export async function fetchInProgressJobs(): Promise<MyJobRequest[]> {
+  const response = await fetch(`${API_BASE_URL}/jobs/in-progress`, {
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    console.error(`Failed to fetch in-progress jobs: ${response.status}`);
+    return [];
+  }
+
+  const data = await response.json();
+
+  if (data.success && data.jobs) {
+    return data.jobs.map((job: any) => ({
+      id: job.id.toString(),
+      title: job.title,
+      price: `₱${parseFloat(job.budget).toFixed(2)}`,
+      date: new Date(job.created_at).toLocaleDateString(),
+      status: "IN_PROGRESS" as const,
+      description: job.description,
+      location: job.location,
+      category: job.category?.name || "Uncategorized",
+      client: job.client
+        ? {
+            name: job.client.name,
+            avatar: job.client.avatar,
+            rating: job.client.rating || 0,
+            city: job.client.city,
+          }
+        : undefined,
+      worker: job.worker
+        ? {
+            name: job.worker.name,
+            avatar: job.worker.avatar,
+            rating: job.worker.rating || 0,
+          }
+        : undefined,
+      photos: (job.photos || []).map((photo: any) => ({
+        id: photo.id,
+        url: photo.url,
+        file_name: photo.file_name,
+      })),
+    }));
+  }
+
+  return [];
 }

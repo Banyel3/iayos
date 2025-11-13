@@ -10,6 +10,11 @@ import NotificationBell from "@/components/notifications/NotificationBell";
 import { useWorkerAvailability } from "@/lib/hooks/useWorkerAvailability";
 import WorkerMaterials from "@/components/worker/WorkerMaterials";
 import { API_BASE_URL } from "@/lib/api/config";
+import {
+  useWalletBalance,
+  useWalletTransactions,
+} from "@/lib/hooks/useHomeData";
+import { useQueryClient } from "@tanstack/react-query";
 
 // Extended User interface for profile page
 interface ProfileUser extends User {
@@ -72,18 +77,21 @@ const ProfilePage = () => {
     handleAvailabilityToggle,
   } = useWorkerAvailability(isWorker, isAuthenticated);
 
-  // Wallet state
-  const [walletBalance, setWalletBalance] = useState<number>(0);
-  const [isLoadingWallet, setIsLoadingWallet] = useState(false);
+  // Query client for cache invalidation
+  const queryClient = useQueryClient();
+
+  // React Query hooks for wallet with sessionStorage
+  const { data: walletBalance = 0, isLoading: isLoadingWallet } =
+    useWalletBalance(isAuthenticated);
+  const { data: transactions = [], isLoading: isLoadingTransactions } =
+    useWalletTransactions(isAuthenticated && activeTab === "transaction");
+
+  // Modal states
   const [showAddFundsModal, setShowAddFundsModal] = useState(false);
   const [showCashOutModal, setShowCashOutModal] = useState(false);
   const [fundAmount, setFundAmount] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
-
-  // Transaction history
-  const [transactions, setTransactions] = useState<any[]>([]);
-  const [isLoadingTransactions, setIsLoadingTransactions] = useState(false);
 
   // Detect client viewport (only run on client) so we mount WorkerMaterials exactly once
   const [isClientMobile, setIsClientMobile] = useState<boolean | null>(null);
@@ -119,8 +127,8 @@ const ProfilePage = () => {
 
     if (paymentStatus === "success") {
       alert("Payment completed! Your balance will be updated shortly.");
-      // Refresh balance
-      fetchWalletBalance();
+      // Invalidate and refetch wallet balance
+      queryClient.invalidateQueries({ queryKey: ["walletBalance"] });
       // Clear URL params
       window.history.replaceState({}, "", window.location.pathname);
     } else if (paymentStatus === "failed") {
@@ -128,80 +136,7 @@ const ProfilePage = () => {
       // Clear URL params
       window.history.replaceState({}, "", window.location.pathname);
     }
-  }, [isAuthenticated]);
-
-  // Fetch wallet balance function (moved outside useEffect so we can call it)
-  const fetchWalletBalance = async () => {
-    if (!isAuthenticated) return;
-
-    try {
-      setIsLoadingWallet(true);
-      const response = await fetch(`${API_BASE_URL}/accounts/wallet/balance`, {
-        method: "GET",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setWalletBalance(data.balance || 0);
-      } else {
-        console.error("Failed to fetch wallet balance");
-        setWalletBalance(0);
-      }
-    } catch (error) {
-      console.error("Error fetching wallet balance:", error);
-      setWalletBalance(0);
-    } finally {
-      setIsLoadingWallet(false);
-    }
-  };
-
-  // Fetch wallet balance on mount
-  useEffect(() => {
-    fetchWalletBalance();
-  }, [isAuthenticated]);
-
-  // Fetch transactions
-  const fetchTransactions = async () => {
-    if (!isAuthenticated) return;
-
-    try {
-      setIsLoadingTransactions(true);
-      const response = await fetch(
-        `${API_BASE_URL}/accounts/wallet/transactions`,
-        {
-          method: "GET",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
-      );
-
-      if (response.ok) {
-        const data = await response.json();
-        setTransactions(data.transactions || []);
-      } else {
-        console.error("Failed to fetch transactions");
-        setTransactions([]);
-      }
-    } catch (error) {
-      console.error("Error fetching transactions:", error);
-      setTransactions([]);
-    } finally {
-      setIsLoadingTransactions(false);
-    }
-  };
-
-  // Fetch transactions when transaction tab is active
-  useEffect(() => {
-    if (activeTab === "transaction" && isAuthenticated) {
-      fetchTransactions();
-    }
-  }, [activeTab, isAuthenticated]);
+  }, [isAuthenticated, queryClient]);
 
   // Handle Add Funds (for clients)
   const handleAddFunds = async () => {
@@ -232,6 +167,8 @@ const ProfilePage = () => {
         alert(
           `✅ ₱${fundAmount} added to your wallet!\nYou'll be redirected to the Xendit payment page.\nYour new balance: ₱${data.new_balance}`
         );
+        // Invalidate wallet balance cache
+        queryClient.invalidateQueries({ queryKey: ["walletBalance"] });
         window.location.href = data.payment_url;
       } else {
         alert(data.error || "Failed to add funds. Please try again.");
@@ -280,10 +217,8 @@ const ProfilePage = () => {
         alert(
           `Withdrawal request submitted successfully! Amount: ₱${withdrawAmount}`
         );
-        // Update local balance
-        setWalletBalance(
-          data.new_balance || walletBalance - Number(withdrawAmount)
-        );
+        // Invalidate wallet balance cache to refetch
+        queryClient.invalidateQueries({ queryKey: ["walletBalance"] });
       } else {
         alert(data.error || "Failed to process withdrawal. Please try again.");
       }

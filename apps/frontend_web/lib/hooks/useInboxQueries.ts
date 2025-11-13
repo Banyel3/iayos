@@ -16,26 +16,31 @@ export const inboxKeys = {
 
 /**
  * Hook to fetch and cache all conversations
+ * Tier 3: Dynamic data - 10 minute background refresh
  */
 export function useConversations() {
   return useQuery({
     queryKey: inboxKeys.conversations(),
     queryFn: () => fetchConversations("all"),
-    staleTime: 2 * 60 * 1000, // 2 minutes
-    gcTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: Infinity, // Use cache indefinitely
+    gcTime: 24 * 60 * 60 * 1000, // 24 hours
+    refetchInterval: 10 * 60 * 1000, // Background refresh every 10 minutes
+    refetchIntervalInBackground: true,
   });
 }
 
 /**
  * Hook to fetch and cache messages for a specific conversation
+ * Tier 4: Real-time data - WebSocket updates only, no auto-refresh
  */
 export function useConversationMessages(conversationId: number | null) {
   return useQuery({
     queryKey: inboxKeys.messages(conversationId!),
     queryFn: () => fetchMessages(conversationId!),
     enabled: conversationId !== null,
-    staleTime: 30 * 1000, // 30 seconds
-    gcTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: Infinity, // Never auto-refetch (WebSocket handles updates)
+    gcTime: 24 * 60 * 60 * 1000, // 24 hours
+    refetchInterval: false, // No background refresh (WebSocket only)
     // Return the full response (messages + conversation metadata)
   });
 }

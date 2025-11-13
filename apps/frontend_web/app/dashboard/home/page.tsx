@@ -10,14 +10,14 @@ import DesktopNavbar from "@/components/ui/desktop-sidebar";
 import NotificationBell from "@/components/notifications/NotificationBell";
 import { useWorkerAvailability } from "@/lib/hooks/useWorkerAvailability";
 import { LocationToggle } from "@/components/ui/location-toggle";
+import { submitJobApplication } from "@/lib/api/jobs";
 import {
-  fetchAvailableJobs,
-  fetchJobCategories,
-  fetchWorkers,
-  fetchMyApplications,
-  submitJobApplication,
-  fetchAgencies,
-} from "@/lib/api/jobs";
+  useAvailableJobs,
+  useJobCategories,
+  useMyApplications,
+} from "@/lib/hooks/useJobQueries";
+import { useHomeWorkers, useHomeAgencies } from "@/lib/hooks/useHomeData";
+import { useQueryClient } from "@tanstack/react-query";
 import type {
   JobPosting,
   JobCategory,
@@ -30,6 +30,7 @@ import {
   canAcceptJobsDirectly,
 } from "@/lib/utils/agency";
 import AgencyCard from "@/components/ui/agency-card";
+import { RefreshButton } from "@/components/ui/refresh-button";
 
 interface HomeUser extends User {
   profile_data?: {
@@ -44,6 +45,7 @@ const HomePage = () => {
   const { user: authUser, isAuthenticated, isLoading, logout } = useAuth();
   const user = authUser as HomeUser;
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -65,18 +67,6 @@ const HomePage = () => {
   const [applicationError, setApplicationError] = useState("");
   const [isSubmittingApplication, setIsSubmittingApplication] = useState(false);
 
-  // State for fetched data
-  const [jobPostings, setJobPostings] = useState<JobPosting[]>([]);
-  const [jobCategories, setJobCategories] = useState<JobCategory[]>([]);
-  const [workerListings, setWorkerListings] = useState<WorkerListing[]>([]);
-  const [agencyListings, setAgencyListings] = useState<AgencyListing[]>([]);
-  const [appliedJobs, setAppliedJobs] = useState<Set<string>>(new Set());
-  const [isLoadingJobs, setIsLoadingJobs] = useState(false);
-  const [isLoadingCategories, setIsLoadingCategories] = useState(false);
-  const [isLoadingWorkers, setIsLoadingWorkers] = useState(false);
-  const [isLoadingAgencies, setIsLoadingAgencies] = useState(false);
-  const [isLoadingApplications, setIsLoadingApplications] = useState(false);
-
   // Tab state for client view (Workers vs Agencies)
   const [clientViewTab, setClientViewTab] = useState<"workers" | "agencies">(
     "workers"
@@ -89,91 +79,27 @@ const HomePage = () => {
   const canApply = canApplyToJobs(user);
   const canAcceptDirectly = canAcceptJobsDirectly(user);
 
+  // React Query hooks for cached data with sessionStorage (after isWorker/isClient are defined)
+  const { data: jobPostings = [], isLoading: isLoadingJobs } = useAvailableJobs(
+    isAuthenticated && isWorker
+  );
+  const { data: jobCategories = [], isLoading: isLoadingCategories } =
+    useJobCategories(isAuthenticated && isClient);
+  const { data: workerListings = [], isLoading: isLoadingWorkers } =
+    useHomeWorkers(isAuthenticated && isClient);
+  const { data: agencyListings = [], isLoading: isLoadingAgencies } =
+    useHomeAgencies(isAuthenticated && isClient, {
+      limit: 12,
+      sortBy: "rating",
+    });
+  const { data: appliedJobs = new Set(), isLoading: isLoadingApplications } =
+    useMyApplications(isAuthenticated && isWorker);
+
   const {
     isAvailable,
     isLoading: isLoadingAvailability,
     handleAvailabilityToggle,
   } = useWorkerAvailability(isWorker && !isAgency, isAuthenticated);
-
-  // Fetch jobs for workers
-  useEffect(() => {
-    if (isAuthenticated && isWorker) {
-      setIsLoadingJobs(true);
-      fetchAvailableJobs()
-        .then((jobs) => {
-          setJobPostings(jobs);
-          setIsLoadingJobs(false);
-        })
-        .catch((error) => {
-          console.error("Error fetching jobs:", error);
-          setIsLoadingJobs(false);
-        });
-    }
-  }, [isAuthenticated, isWorker]);
-
-  // Fetch categories for clients
-  useEffect(() => {
-    if (isAuthenticated && isClient) {
-      setIsLoadingCategories(true);
-      fetchJobCategories()
-        .then((categories) => {
-          setJobCategories(categories);
-          setIsLoadingCategories(false);
-        })
-        .catch((error) => {
-          console.error("Error fetching categories:", error);
-          setIsLoadingCategories(false);
-        });
-    }
-  }, [isAuthenticated, isClient]);
-
-  // Fetch workers for clients
-  useEffect(() => {
-    if (isAuthenticated && isClient) {
-      setIsLoadingWorkers(true);
-      fetchWorkers()
-        .then((workers) => {
-          setWorkerListings(workers);
-          setIsLoadingWorkers(false);
-        })
-        .catch((error) => {
-          console.error("Error fetching workers:", error);
-          setIsLoadingWorkers(false);
-        });
-    }
-  }, [isAuthenticated, isClient]);
-
-  // Fetch agencies for clients
-  useEffect(() => {
-    if (isAuthenticated && isClient) {
-      setIsLoadingAgencies(true);
-      fetchAgencies({ limit: 12, sortBy: "rating" })
-        .then((agencies) => {
-          setAgencyListings(agencies);
-          setIsLoadingAgencies(false);
-        })
-        .catch((error) => {
-          console.error("Error fetching agencies:", error);
-          setIsLoadingAgencies(false);
-        });
-    }
-  }, [isAuthenticated, isClient]);
-
-  // Fetch applied jobs for workers
-  useEffect(() => {
-    if (isAuthenticated && isWorker) {
-      setIsLoadingApplications(true);
-      fetchMyApplications()
-        .then((applications) => {
-          setAppliedJobs(applications);
-          setIsLoadingApplications(false);
-        })
-        .catch((error) => {
-          console.error("Error fetching applications:", error);
-          setIsLoadingApplications(false);
-        });
-    }
-  }, [isAuthenticated, isWorker]);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -269,10 +195,8 @@ const HomePage = () => {
         setEstimatedDuration("");
         setBudgetOption("ACCEPT");
         setIsSubmittingApplication(false);
-        // Refresh applied jobs
-        fetchMyApplications().then((applications) => {
-          setAppliedJobs(applications);
-        });
+        // Refresh applied jobs via React Query
+        queryClient.invalidateQueries({ queryKey: ["jobs", "applications"] });
       })
       .catch((error) => {
         setApplicationError(
@@ -319,15 +243,33 @@ const HomePage = () => {
           />
         </div>
 
+        {/* Desktop Header with Refresh */}
+        <div className="hidden lg:block pt-6 px-8">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">
+                Available Jobs
+              </h1>
+              <p className="text-gray-600 mt-1">Sorted by closest first</p>
+            </div>
+            <RefreshButton scope="page" showLabel size="md" />
+          </div>
+        </div>
+
         {/* Mobile View */}
         <div className="lg:hidden pb-16">
           <div className="bg-white px-4 py-4 border-b border-gray-100">
-            <h1 className="text-xl font-semibold text-gray-900">
-              Available Jobs
-            </h1>
-            <p className="text-sm text-gray-600 mt-1">
-              Sorted by closest first
-            </p>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex-1">
+                <h1 className="text-xl font-semibold text-gray-900">
+                  Available Jobs
+                </h1>
+                <p className="text-sm text-gray-600 mt-1">
+                  Sorted by closest first
+                </p>
+              </div>
+              <RefreshButton scope="page" size="sm" />
+            </div>
           </div>
           <div className="bg-white px-4 py-3 border-b border-gray-100">
             <div className="relative">
@@ -1174,12 +1116,30 @@ const HomePage = () => {
           />
         </div>
 
+        {/* Desktop Header with Refresh */}
+        <div className="hidden lg:block pt-6 px-8">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">
+                Find Service Providers
+              </h1>
+              <p className="text-gray-600 mt-1">
+                Browse skilled professionals and agencies
+              </p>
+            </div>
+            <RefreshButton scope="page" showLabel size="md" />
+          </div>
+        </div>
+
         {/* Mobile View */}
         <div className="lg:hidden pb-16">
           <div className="bg-white px-4 py-4 border-b border-gray-100">
-            <h1 className="text-xl font-semibold text-gray-900">
-              Find Service Providers
-            </h1>
+            <div className="flex items-center justify-between mb-2">
+              <h1 className="text-xl font-semibold text-gray-900">
+                Find Service Providers
+              </h1>
+              <RefreshButton scope="page" size="sm" />
+            </div>
             <p className="text-sm text-gray-600 mt-1">
               Browse workers or agencies
             </p>

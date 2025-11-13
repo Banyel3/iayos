@@ -10,7 +10,11 @@ import DesktopNavbar from "@/components/ui/desktop-sidebar";
 import NotificationBell from "@/components/notifications/NotificationBell";
 import { useWorkerAvailability } from "@/lib/hooks/useWorkerAvailability";
 import { API_BASE_URL } from "@/lib/api/config";
-import { fetchCompletedJobs } from "@/lib/api/jobs";
+import {
+  useMyJobs,
+  useInProgressJobs,
+  useCompletedJobs,
+} from "@/lib/hooks/useHomeData";
 
 // Extended User interface for requests page
 interface RequestsUser extends User {
@@ -119,17 +123,55 @@ const MyRequestsPage = () => {
   }
   const [jobCategories, setJobCategories] = useState<JobCategory[]>([]);
 
-  // State for job requests - moved up to maintain hooks order
-  const [jobRequests, setJobRequests] = useState<JobRequest[]>([]);
-  const [isLoadingRequests, setIsLoadingRequests] = useState(true);
+  // Worker availability hook - must be called before any early returns
+  const isWorker = user?.profile_data?.profileType === "WORKER";
+  const isClient = user?.profile_data?.profileType === "CLIENT";
+  const {
+    isAvailable,
+    isLoading: isLoadingAvailability,
+    handleAvailabilityToggle,
+  } = useWorkerAvailability(isWorker, isAuthenticated);
 
-  // State for in-progress jobs
-  const [inProgressJobs, setInProgressJobs] = useState<JobRequest[]>([]);
-  const [isLoadingInProgress, setIsLoadingInProgress] = useState(false);
+  // React Query hooks with sessionStorage (after isWorker/isClient are defined)
+  const { data: jobRequests = [], isLoading: isLoadingRequests } = useMyJobs(
+    isAuthenticated && isClient
+  );
+  const { data: inProgressJobs = [], isLoading: isLoadingInProgress } =
+    useInProgressJobs(isAuthenticated && activeTab === "inProgress");
+  const {
+    data: completedJobsData = [],
+    isLoading: isLoadingCompleted,
+  } = useCompletedJobs(isAuthenticated && activeTab === "pastRequests");
 
-  // State for completed jobs
-  const [completedJobs, setCompletedJobs] = useState<JobRequest[]>([]);
-  const [isLoadingCompleted, setIsLoadingCompleted] = useState(false);
+  // Map completed jobs to JobRequest format
+  const completedJobs = completedJobsData.map((job) => ({
+    id: job.id,
+    title: job.title,
+    price: job.budget,
+    date: job.postedAt,
+    status: "COMPLETED" as const,
+    description: job.description,
+    location: job.location,
+    category: job.category,
+    postedDate: job.postedAt,
+    photos: job.photos,
+    ...(isWorker
+      ? {
+          client: {
+            name: job.postedBy.name,
+            avatar: job.postedBy.avatar,
+            rating: job.postedBy.rating,
+          },
+        }
+      : {
+          assignedWorker: {
+            id: job.id,
+            name: job.postedBy.name,
+            avatar: job.postedBy.avatar,
+            rating: job.postedBy.rating,
+          },
+        }),
+  }));
 
   // State for cancel confirmation dialog
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
@@ -147,15 +189,6 @@ const MyRequestsPage = () => {
   // State for wallet balance
   const [walletBalance, setWalletBalance] = useState<number>(0);
   const [isLoadingWallet, setIsLoadingWallet] = useState(false);
-
-  // Worker availability hook - must be called before any early returns
-  const isWorker = user?.profile_data?.profileType === "WORKER";
-  const isClient = user?.profile_data?.profileType === "CLIENT";
-  const {
-    isAvailable,
-    isLoading: isLoadingAvailability,
-    handleAvailabilityToggle,
-  } = useWorkerAvailability(isWorker, isAuthenticated);
 
   // Fetch wallet balance for clients
   useEffect(() => {
@@ -841,267 +874,9 @@ const MyRequestsPage = () => {
   // Authentication check
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
-      router.push("/auth/login");
+      router.push(\"/auth/login\");
     }
   }, [isAuthenticated, isLoading, router]);
-
-  // Fetch job requests/applications based on user type
-  useEffect(() => {
-    const fetchJobRequests = async () => {
-      if (!isAuthenticated) return;
-
-      try {
-        setIsLoadingRequests(true);
-
-        if (isClient) {
-          // For clients: Fetch their job postings
-          const response = await fetch(`${API_BASE_URL}/jobs/my-jobs`, {
-            credentials: "include",
-          });
-
-          if (!response.ok) {
-            console.error(`Failed to fetch job postings: ${response.status}`);
-            setJobRequests([]);
-            return;
-          }
-
-          const data = await response.json();
-
-          if (data.success && data.jobs) {
-            // Debug: Log first job's photos to check structure
-            if (data.jobs.length > 0) {
-              console.log("📦 First job from API:", data.jobs[0]);
-              if (data.jobs[0].photos) {
-                console.log("📸 Job photos from API:", data.jobs[0].photos);
-                console.log(
-                  "📸 Photo URLs:",
-                  data.jobs[0].photos.map((p: any) => p.url)
-                );
-              }
-            }
-
-            // Map backend data to frontend format
-            const mappedJobs = data.jobs.map((job: any) => {
-              const paymentInfo = job.payment_info || {};
-              const escrowAmount = parseFloat(paymentInfo.escrow_amount || 0);
-              const remainingAmount = parseFloat(
-                paymentInfo.remaining_payment || 0
-              );
-              const totalBudget = parseFloat(job.budget);
-
-              // Determine payment status
-              let paymentStatus: "PENDING" | "DOWNPAYMENT_PAID" | "FULLY_PAID" =
-                "PENDING";
-              if (
-                paymentInfo.escrow_paid &&
-                paymentInfo.remaining_payment_paid
-              ) {
-                paymentStatus = "FULLY_PAID";
-              } else if (paymentInfo.escrow_paid) {
-                paymentStatus = "DOWNPAYMENT_PAID";
-              }
-
-              // Determine downpayment method (for escrow)
-              // Since we're tracking payment method on final payment, we'll infer from transaction
-              let downpaymentMethod: "WALLET" | "GCASH" | undefined;
-              if (paymentInfo.escrow_paid) {
-                // We need to check if there's a Xendit invoice or if it was wallet payment
-                // For now, we'll default to showing the payment was made
-                downpaymentMethod = "WALLET"; // This could be improved by checking transaction details
-              }
-
-              return {
-                id: job.id.toString(),
-                title: job.title,
-                price: `₱${totalBudget.toFixed(2)}`,
-                date: new Date(job.created_at).toLocaleDateString(),
-                status: job.status as "ACTIVE" | "COMPLETED" | "PENDING",
-                description: job.description,
-                location: job.location,
-                category: job.category?.name || "Uncategorized",
-                postedDate: job.created_at,
-                photos: (job.photos || []).map((photo: any) => ({
-                  id: photo.id,
-                  url: photo.url,
-                  file_name: photo.file_name,
-                })),
-                // Payment information
-                paymentStatus,
-                downpaymentMethod,
-                finalPaymentMethod: paymentInfo.final_payment_method as
-                  | "WALLET"
-                  | "GCASH"
-                  | "CASH"
-                  | undefined,
-                downpaymentAmount: `₱${escrowAmount.toFixed(2)}`,
-                finalPaymentAmount: `₱${remainingAmount.toFixed(2)}`,
-                totalAmount: `₱${totalBudget.toFixed(2)}`,
-              };
-            });
-            setJobRequests(mappedJobs);
-          } else {
-            setJobRequests([]);
-          }
-        } else if (isWorker) {
-          // For workers: Fetch their job applications
-          // TODO: Implement GET /api/jobs/my-applications
-          setJobRequests([]);
-        } else {
-          setJobRequests([]);
-        }
-      } catch (error) {
-        console.error("Error fetching job requests:", error);
-        setJobRequests([]);
-      } finally {
-        setIsLoadingRequests(false);
-      }
-    };
-
-    fetchJobRequests();
-  }, [isAuthenticated, activeTab, isClient, isWorker]);
-
-  // Fetch in-progress jobs when tab is active
-  useEffect(() => {
-    const fetchInProgressJobs = async () => {
-      if (!isAuthenticated || activeTab !== "inProgress") return;
-
-      try {
-        setIsLoadingInProgress(true);
-
-        const response = await fetch(`${API_BASE_URL}/jobs/in-progress`, {
-          credentials: "include",
-        });
-
-        if (!response.ok) {
-          console.error(`Failed to fetch in-progress jobs: ${response.status}`);
-          setInProgressJobs([]);
-          return;
-        }
-
-        const data = await response.json();
-
-        if (data.success && data.jobs) {
-          // Map backend data to frontend format
-          const mappedJobs = data.jobs.map((job: any) => {
-            const paymentInfo = job.payment_info || {};
-            const escrowAmount = parseFloat(paymentInfo.escrow_amount || 0);
-            const remainingAmount = parseFloat(
-              paymentInfo.remaining_payment || 0
-            );
-            const totalBudget = parseFloat(job.budget);
-
-            // Determine payment status
-            let paymentStatus: "PENDING" | "DOWNPAYMENT_PAID" | "FULLY_PAID" =
-              "PENDING";
-            if (paymentInfo.escrow_paid && paymentInfo.remaining_payment_paid) {
-              paymentStatus = "FULLY_PAID";
-            } else if (paymentInfo.escrow_paid) {
-              paymentStatus = "DOWNPAYMENT_PAID";
-            }
-
-            // Determine downpayment method (for escrow)
-            let downpaymentMethod: "WALLET" | "GCASH" | undefined;
-            if (paymentInfo.escrow_paid) {
-              downpaymentMethod = "WALLET"; // Could be improved by checking transaction details
-            }
-
-            return {
-              id: job.id.toString(),
-              title: job.title,
-              price: `₱${totalBudget.toFixed(2)}`,
-              date: new Date(job.updated_at).toLocaleDateString(),
-              status: job.status as "IN_PROGRESS",
-              description: job.description,
-              location: job.location,
-              category: job.category?.name || "Uncategorized",
-              postedDate: job.created_at,
-              // Include worker or client info depending on user type
-              assignedWorker: job.assigned_worker,
-              client: job.client,
-              photos: (job.photos || []).map((photo: any) => ({
-                id: photo.id,
-                url: photo.url,
-                file_name: photo.file_name,
-              })),
-              // Payment information
-              paymentStatus,
-              downpaymentMethod,
-              finalPaymentMethod: paymentInfo.final_payment_method as
-                | "WALLET"
-                | "GCASH"
-                | "CASH"
-                | undefined,
-              downpaymentAmount: `₱${escrowAmount.toFixed(2)}`,
-              finalPaymentAmount: `₱${remainingAmount.toFixed(2)}`,
-              totalAmount: `₱${totalBudget.toFixed(2)}`,
-            };
-          });
-          setInProgressJobs(mappedJobs);
-        } else {
-          setInProgressJobs([]);
-        }
-      } catch (error) {
-        console.error("Error fetching in-progress jobs:", error);
-        setInProgressJobs([]);
-      } finally {
-        setIsLoadingInProgress(false);
-      }
-    };
-
-    fetchInProgressJobs();
-  }, [isAuthenticated, activeTab]);
-
-  // Fetch completed jobs when tab is active
-  useEffect(() => {
-    const fetchCompletedJobsData = async () => {
-      if (!isAuthenticated || activeTab !== "pastRequests") return;
-
-      try {
-        setIsLoadingCompleted(true);
-        const jobs = await fetchCompletedJobs();
-
-        // Map to JobRequest format
-        const mappedJobs: JobRequest[] = jobs.map((job) => ({
-          id: job.id,
-          title: job.title,
-          price: job.budget,
-          date: job.postedAt,
-          status: "COMPLETED",
-          description: job.description,
-          location: job.location,
-          category: job.category,
-          postedDate: job.postedAt,
-          photos: job.photos,
-          // Include client or worker info depending on user type
-          ...(isWorker
-            ? {
-                client: {
-                  name: job.postedBy.name,
-                  avatar: job.postedBy.avatar,
-                  rating: job.postedBy.rating,
-                },
-              }
-            : {
-                assignedWorker: {
-                  id: job.id, // Use job ID as fallback
-                  name: job.postedBy.name,
-                  avatar: job.postedBy.avatar,
-                  rating: job.postedBy.rating,
-                },
-              }),
-        }));
-
-        setCompletedJobs(mappedJobs);
-      } catch (error) {
-        console.error("Error fetching completed jobs:", error);
-        setCompletedJobs([]);
-      } finally {
-        setIsLoadingCompleted(false);
-      }
-    };
-
-    fetchCompletedJobsData();
-  }, [isAuthenticated, activeTab, isWorker]);
 
   // Loading state
   if (isLoading) {
