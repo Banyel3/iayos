@@ -155,3 +155,93 @@ class SendMessageMobileSchema(Schema):
 class AssignRoleMobileSchema(Schema):
     """Mobile-specific schema for assigning role (uses authenticated user)"""
     profile_type: str  # 'WORKER' | 'CLIENT'
+
+# ========================================
+# WORKER PHASE 1 SCHEMAS - Profile Enhancement
+# ========================================
+
+class WorkerProfileUpdateSchema(Schema):
+    """Schema for updating worker profile"""
+    bio: Optional[str] = None
+    description: Optional[str] = None
+    hourly_rate: Optional[float] = None
+
+class WorkerProfileResponse(Schema):
+    """Response schema for worker profile update"""
+    success: bool
+    message: str
+    profile_completion_percentage: int
+    bio: str
+    description: str
+    hourly_rate: Optional[float]
+
+class ProfileCompletionResponse(Schema):
+    """Schema for profile completion details"""
+    completion_percentage: int
+    missing_fields: list
+    recommendations: list
+    completed_fields: list
+
+class CertificationSchema(Schema):
+    """Schema for certification data"""
+    certificationID: int
+    name: str
+    issuing_organization: str
+    issue_date: Optional[str]
+    expiry_date: Optional[str]
+    certificate_url: str
+    is_verified: bool
+    is_expired: bool
+    days_until_expiry: Optional[int]
+    verified_at: Optional[str]
+    createdAt: str
+    updatedAt: str
+
+class AddCertificationRequest(Schema):
+    """Schema for adding certification (form data)"""
+    name: str
+    organization: Optional[str] = None
+    issue_date: Optional[str] = None
+    expiry_date: Optional[str] = None
+
+class UpdateCertificationRequest(Schema):
+    """Schema for updating certification"""
+    name: Optional[str] = None
+    organization: Optional[str] = None
+    issue_date: Optional[str] = None
+    expiry_date: Optional[str] = None
+
+class CertificationResponse(Schema):
+    """Response schema for certification operations"""
+    success: bool
+    message: str
+    certification: Optional[CertificationSchema] = None
+
+class PortfolioItemSchema(Schema):
+    """Schema for portfolio item data"""
+    portfolioID: int
+    image_url: str
+    caption: str
+    display_order: int
+    file_name: str
+    file_size: Optional[int]
+    createdAt: str
+    updatedAt: str
+
+class UploadPortfolioRequest(Schema):
+    """Schema for portfolio upload (form data)"""
+    caption: Optional[str] = None
+
+class UpdatePortfolioCaptionRequest(Schema):
+    """Schema for updating portfolio caption"""
+    caption: str
+
+class PortfolioItemResponse(Schema):
+    """Response schema for portfolio operations"""
+    success: bool
+    message: str
+    portfolio_item: Optional[PortfolioItemSchema] = None
+
+class ReorderPortfolioRequest(Schema):
+    """Schema for reordering portfolio"""
+    portfolio_id_order: list  # List of portfolio IDs in desired order

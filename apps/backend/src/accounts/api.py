@@ -6,7 +6,12 @@ from .schemas import (
     KYCUploadSchema, KYCStatusResponse, KYCUploadResponse,
     UpdateLocationSchema, LocationResponseSchema, 
     ToggleLocationSharingSchema, NearbyWorkersSchema,
-    DepositFundsSchema
+    DepositFundsSchema,
+    # Worker Phase 1 schemas
+    WorkerProfileUpdateSchema, WorkerProfileResponse, ProfileCompletionResponse,
+    CertificationSchema, AddCertificationRequest, UpdateCertificationRequest, CertificationResponse,
+    PortfolioItemSchema, UploadPortfolioRequest, UpdatePortfolioCaptionRequest,
+    PortfolioItemResponse, ReorderPortfolioRequest
 )
 from .services import (
     create_account_individ, create_account_agency, login_account, 
@@ -14,6 +19,18 @@ from .services import (
     logout_account, refresh_token, fetch_currentUser, generateCookie, 
     assign_role, upload_kyc_document, get_kyc_status, get_pending_kyc_submissions,
     update_user_location, toggle_location_sharing, get_user_location, find_nearby_workers
+)
+# Worker Phase 1 service imports
+from .worker_profile_service import (
+    update_worker_profile, get_worker_profile_completion
+)
+from .certification_service import (
+    add_certification, get_certifications, get_expiring_certifications,
+    update_certification, delete_certification, verify_certification
+)
+from .portfolio_service import (
+    upload_portfolio_image, get_portfolio, update_portfolio_caption,
+    reorder_portfolio, delete_portfolio_image
 )
 from ninja.responses import Response
 from .authentication import cookie_auth
@@ -1089,6 +1106,587 @@ def check_payment_status(request, transaction_id: int):
         traceback.print_exc()
         return Response(
             {"error": "Failed to check payment status"},
+            status=500
+        )
+
+#endregion
+
+
+
+
+#region WORKER PHASE 1 - PROFILE ENHANCEMENT API
+# ===========================================================================
+# WORKER PROFILE ENHANCEMENT ENDPOINTS
+# Profile management, certifications, and portfolio for workers
+# ===========================================================================
+
+@router.post("/worker/profile", auth=cookie_auth, response=WorkerProfileResponse)
+def update_worker_profile_endpoint(request, payload: WorkerProfileUpdateSchema):
+    """
+    Update worker profile fields (bio, description, hourly_rate).
+    
+    Updates profile completion percentage automatically.
+    """
+    try:
+        # Get authenticated user
+        account = request.auth
+        
+        # Verify user has a profile
+        if not hasattr(account, 'profile'):
+            return Response(
+                {"error": "User profile not found"},
+                status=404
+            )
+        
+        # Verify user is a worker
+        if not hasattr(account.profile, 'worker_profile'):
+            return Response(
+                {"error": "Only workers can update worker profile"},
+                status=403
+            )
+        
+        worker_profile = account.profile.worker_profile
+        
+        # Call service function
+        result = update_worker_profile(
+            worker_profile=worker_profile,
+            bio=payload.bio,
+            description=payload.description,
+            hourly_rate=payload.hourly_rate
+        )
+        
+        return result
+        
+    except ValueError as e:
+        return Response(
+            {"error": str(e)},
+            status=400
+        )
+    except Exception as e:
+        print(f"❌ Error updating worker profile: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to update profile"},
+            status=500
+        )
+
+
+@router.get("/worker/profile-completion", auth=cookie_auth, response=ProfileCompletionResponse)
+def get_profile_completion_endpoint(request):
+    """
+    Get profile completion percentage and recommendations.
+    
+    Returns detailed information about completed/missing fields.
+    """
+    try:
+        # Get authenticated user
+        account = request.auth
+        
+        # Verify user has a profile
+        if not hasattr(account, 'profile'):
+            return Response(
+                {"error": "User profile not found"},
+                status=404
+            )
+        
+        # Verify user is a worker
+        if not hasattr(account.profile, 'worker_profile'):
+            return Response(
+                {"error": "Only workers can check profile completion"},
+                status=403
+            )
+        
+        worker_profile = account.profile.worker_profile
+        
+        # Call service function
+        result = get_worker_profile_completion(worker_profile)
+        
+        return result
+        
+    except Exception as e:
+        print(f"❌ Error getting profile completion: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to get profile completion"},
+            status=500
+        )
+
+
+# ===========================
+# CERTIFICATION ENDPOINTS
+# ===========================
+
+@router.post("/worker/certifications", auth=cookie_auth, response=CertificationResponse)
+def add_certification_endpoint(
+    request,
+    name: str = Form(...),
+    organization: str = Form(None),
+    issue_date: str = Form(None),
+    expiry_date: str = Form(None),
+    certificate_file: UploadedFile = File(None)
+):
+    """
+    Add a new certification with optional file upload.
+    
+    Form fields:
+    - name (required): Certificate name
+    - organization: Issuing organization
+    - issue_date: Issue date (YYYY-MM-DD)
+    - expiry_date: Expiry date (YYYY-MM-DD)
+    - certificate_file: Certificate document/image
+    """
+    try:
+        # Get authenticated user
+        account = request.auth
+        
+        # Verify user has a profile
+        if not hasattr(account, 'profile'):
+            return Response(
+                {"error": "User profile not found"},
+                status=404
+            )
+        
+        # Verify user is a worker
+        if not hasattr(account.profile, 'worker_profile'):
+            return Response(
+                {"error": "Only workers can add certifications"},
+                status=403
+            )
+        
+        worker_profile = account.profile.worker_profile
+        
+        # Call service function
+        certification = add_certification(
+            worker_profile=worker_profile,
+            name=name,
+            organization=organization,
+            issue_date=issue_date,
+            expiry_date=expiry_date,
+            certificate_file=certificate_file
+        )
+        
+        return {
+            "success": True,
+            "message": "Certification added successfully",
+            "certification": certification
+        }
+        
+    except ValueError as e:
+        return Response(
+            {"error": str(e)},
+            status=400
+        )
+    except Exception as e:
+        print(f"❌ Error adding certification: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to add certification"},
+            status=500
+        )
+
+
+@router.get("/worker/certifications", auth=cookie_auth, response=list[CertificationSchema])
+def list_certifications_endpoint(request):
+    """
+    List all worker's certifications with expiry status.
+    
+    Includes is_expired flag and days_until_expiry.
+    """
+    try:
+        # Get authenticated user
+        account = request.auth
+        
+        # Verify user has a profile
+        if not hasattr(account, 'profile'):
+            return Response(
+                {"error": "User profile not found"},
+                status=404
+            )
+        
+        # Verify user is a worker
+        if not hasattr(account.profile, 'worker_profile'):
+            return Response(
+                {"error": "Only workers can list certifications"},
+                status=403
+            )
+        
+        worker_profile = account.profile.worker_profile
+        
+        # Call service function
+        certifications = get_certifications(worker_profile)
+        
+        return certifications
+        
+    except Exception as e:
+        print(f"❌ Error listing certifications: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to list certifications"},
+            status=500
+        )
+
+
+@router.put("/worker/certifications/{certification_id}", auth=cookie_auth, response=CertificationResponse)
+def update_certification_endpoint(request, certification_id: int, payload: UpdateCertificationRequest):
+    """
+    Update certification fields.
+    
+    Only the worker who owns the certification can update it.
+    """
+    try:
+        # Get authenticated user
+        account = request.auth
+        
+        # Verify user has a profile
+        if not hasattr(account, 'profile'):
+            return Response(
+                {"error": "User profile not found"},
+                status=404
+            )
+        
+        # Verify user is a worker
+        if not hasattr(account.profile, 'worker_profile'):
+            return Response(
+                {"error": "Only workers can update certifications"},
+                status=403
+            )
+        
+        worker_profile = account.profile.worker_profile
+        
+        # Call service function
+        certification = update_certification(
+            worker_profile=worker_profile,
+            certification_id=certification_id,
+            name=payload.name,
+            organization=payload.organization,
+            issue_date=payload.issue_date,
+            expiry_date=payload.expiry_date
+        )
+        
+        return {
+            "success": True,
+            "message": "Certification updated successfully",
+            "certification": certification
+        }
+        
+    except ValueError as e:
+        return Response(
+            {"error": str(e)},
+            status=400
+        )
+    except Exception as e:
+        print(f"❌ Error updating certification: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to update certification"},
+            status=500
+        )
+
+
+@router.delete("/worker/certifications/{certification_id}", auth=cookie_auth)
+def delete_certification_endpoint(request, certification_id: int):
+    """
+    Delete a certification.
+    
+    Only the worker who owns the certification can delete it.
+    """
+    try:
+        # Get authenticated user
+        account = request.auth
+        
+        # Verify user has a profile
+        if not hasattr(account, 'profile'):
+            return Response(
+                {"error": "User profile not found"},
+                status=404
+            )
+        
+        # Verify user is a worker
+        if not hasattr(account.profile, 'worker_profile'):
+            return Response(
+                {"error": "Only workers can delete certifications"},
+                status=403
+            )
+        
+        worker_profile = account.profile.worker_profile
+        
+        # Call service function
+        result = delete_certification(worker_profile, certification_id)
+        
+        return result
+        
+    except ValueError as e:
+        return Response(
+            {"error": str(e)},
+            status=400
+        )
+    except Exception as e:
+        print(f"❌ Error deleting certification: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to delete certification"},
+            status=500
+        )
+
+
+# ===========================
+# PORTFOLIO ENDPOINTS
+# ===========================
+
+@router.post("/worker/portfolio", auth=cookie_auth, response=PortfolioItemResponse)
+def upload_portfolio_endpoint(
+    request,
+    image: UploadedFile = File(...),
+    caption: str = Form(None)
+):
+    """
+    Upload a portfolio image with optional caption.
+    
+    Validates file size (5MB max) and format (JPEG/PNG).
+    """
+    try:
+        # Get authenticated user
+        account = request.auth
+        
+        # Verify user has a profile
+        if not hasattr(account, 'profile'):
+            return Response(
+                {"error": "User profile not found"},
+                status=404
+            )
+        
+        # Verify user is a worker
+        if not hasattr(account.profile, 'worker_profile'):
+            return Response(
+                {"error": "Only workers can upload portfolio images"},
+                status=403
+            )
+        
+        worker_profile = account.profile.worker_profile
+        
+        # Call service function
+        portfolio_item = upload_portfolio_image(
+            worker_profile=worker_profile,
+            image_file=image,
+            caption=caption
+        )
+        
+        return {
+            "success": True,
+            "message": "Portfolio image uploaded successfully",
+            "portfolio_item": portfolio_item
+        }
+        
+    except ValueError as e:
+        return Response(
+            {"error": str(e)},
+            status=400
+        )
+    except Exception as e:
+        print(f"❌ Error uploading portfolio: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to upload portfolio image"},
+            status=500
+        )
+
+
+@router.get("/worker/portfolio", auth=cookie_auth, response=list[PortfolioItemSchema])
+def list_portfolio_endpoint(request):
+    """
+    List all worker's portfolio images ordered by display_order.
+    """
+    try:
+        # Get authenticated user
+        account = request.auth
+        
+        # Verify user has a profile
+        if not hasattr(account, 'profile'):
+            return Response(
+                {"error": "User profile not found"},
+                status=404
+            )
+        
+        # Verify user is a worker
+        if not hasattr(account.profile, 'worker_profile'):
+            return Response(
+                {"error": "Only workers can list portfolio"},
+                status=403
+            )
+        
+        worker_profile = account.profile.worker_profile
+        
+        # Call service function
+        portfolio = get_portfolio(worker_profile)
+        
+        return portfolio
+        
+    except Exception as e:
+        print(f"❌ Error listing portfolio: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to list portfolio"},
+            status=500
+        )
+
+
+@router.put("/worker/portfolio/{portfolio_id}/caption", auth=cookie_auth, response=PortfolioItemResponse)
+def update_portfolio_caption_endpoint(request, portfolio_id: int, payload: UpdatePortfolioCaptionRequest):
+    """
+    Update caption for a portfolio image.
+    
+    Only the worker who owns the portfolio item can update it.
+    """
+    try:
+        # Get authenticated user
+        account = request.auth
+        
+        # Verify user has a profile
+        if not hasattr(account, 'profile'):
+            return Response(
+                {"error": "User profile not found"},
+                status=404
+            )
+        
+        # Verify user is a worker
+        if not hasattr(account.profile, 'worker_profile'):
+            return Response(
+                {"error": "Only workers can update portfolio"},
+                status=403
+            )
+        
+        worker_profile = account.profile.worker_profile
+        
+        # Call service function
+        portfolio_item = update_portfolio_caption(
+            worker_profile=worker_profile,
+            portfolio_id=portfolio_id,
+            caption=payload.caption
+        )
+        
+        return {
+            "success": True,
+            "message": "Caption updated successfully",
+            "portfolio_item": portfolio_item
+        }
+        
+    except ValueError as e:
+        return Response(
+            {"error": str(e)},
+            status=400
+        )
+    except Exception as e:
+        print(f"❌ Error updating caption: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to update caption"},
+            status=500
+        )
+
+
+@router.put("/worker/portfolio/reorder", auth=cookie_auth)
+def reorder_portfolio_endpoint(request, payload: ReorderPortfolioRequest):
+    """
+    Reorder portfolio images by providing list of portfolio IDs in desired order.
+    
+    Example: [3, 1, 5, 2, 4] will set display_order to 0, 1, 2, 3, 4 respectively.
+    """
+    try:
+        # Get authenticated user
+        account = request.auth
+        
+        # Verify user has a profile
+        if not hasattr(account, 'profile'):
+            return Response(
+                {"error": "User profile not found"},
+                status=404
+            )
+        
+        # Verify user is a worker
+        if not hasattr(account.profile, 'worker_profile'):
+            return Response(
+                {"error": "Only workers can reorder portfolio"},
+                status=403
+            )
+        
+        worker_profile = account.profile.worker_profile
+        
+        # Call service function
+        result = reorder_portfolio(
+            worker_profile=worker_profile,
+            portfolio_id_order=payload.portfolio_id_order
+        )
+        
+        return result
+        
+    except ValueError as e:
+        return Response(
+            {"error": str(e)},
+            status=400
+        )
+    except Exception as e:
+        print(f"❌ Error reordering portfolio: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to reorder portfolio"},
+            status=500
+        )
+
+
+@router.delete("/worker/portfolio/{portfolio_id}", auth=cookie_auth)
+def delete_portfolio_endpoint(request, portfolio_id: int):
+    """
+    Delete a portfolio image.
+    
+    Only the worker who owns the portfolio item can delete it.
+    Remaining items are automatically reordered.
+    """
+    try:
+        # Get authenticated user
+        account = request.auth
+        
+        # Verify user has a profile
+        if not hasattr(account, 'profile'):
+            return Response(
+                {"error": "User profile not found"},
+                status=404
+            )
+        
+        # Verify user is a worker
+        if not hasattr(account.profile, 'worker_profile'):
+            return Response(
+                {"error": "Only workers can delete portfolio images"},
+                status=403
+            )
+        
+        worker_profile = account.profile.worker_profile
+        
+        # Call service function
+        result = delete_portfolio_image(worker_profile, portfolio_id)
+        
+        return result
+        
+    except ValueError as e:
+        return Response(
+            {"error": str(e)},
+            status=400
+        )
+    except Exception as e:
+        print(f"❌ Error deleting portfolio: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to delete portfolio image"},
             status=500
         )
 
