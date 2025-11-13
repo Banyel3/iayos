@@ -503,3 +503,216 @@ def get_agency_jobs(account_id, status_filter=None, invite_status_filter=None, p
 		
 	except Accounts.DoesNotExist:
 		raise ValueError("User not found")
+
+
+# Agency Phase 2 - Employee Management Services
+
+def update_employee_rating(account_id, employee_id, rating, reason=None):
+	"""
+	Update employee rating manually.
+	
+	Args:
+		account_id: Agency owner's account ID
+		employee_id: Employee ID to update
+		rating: New rating (0.00 to 5.00)
+		reason: Optional reason for the rating update
+	
+	Returns:
+		Dictionary with updated employee info
+	"""
+	try:
+		user = Accounts.objects.get(accountID=account_id)
+		
+		# Get employee and verify ownership
+		try:
+			employee = AgencyEmployee.objects.get(employeeID=employee_id, agency=user)
+		except AgencyEmployee.DoesNotExist:
+			raise ValueError("Employee not found or not owned by this agency")
+		
+		# Validate rating range
+		if rating < 0.0 or rating > 5.0:
+			raise ValueError("Rating must be between 0.00 and 5.00")
+		
+		# Update rating and timestamp
+		from decimal import Decimal
+		employee.rating = Decimal(str(rating))
+		employee.lastRatingUpdate = timezone.now()
+		employee.save(update_fields=['rating', 'lastRatingUpdate', 'updatedAt'])
+		
+		# Create notification for the rating update
+		Notification.objects.create(
+			accountFK=user,
+			notificationType="EMPLOYEE_RATING_UPDATED",
+			title=f"Rating Updated: {employee.name}",
+			message=f"Updated {employee.name}'s rating to {rating}/5.0" + (f". Reason: {reason}" if reason else ""),
+		)
+		
+		return {
+			"success": True,
+			"message": "Employee rating updated successfully",
+			"employeeId": employee.employeeID,
+			"rating": float(employee.rating),
+			"lastRatingUpdate": employee.lastRatingUpdate.isoformat(),
+		}
+		
+	except Accounts.DoesNotExist:
+		raise ValueError("User not found")
+
+
+def set_employee_of_month(account_id, employee_id, reason):
+	"""
+	Set an employee as Employee of the Month.
+	Only one employee can be EOTM per agency at a time.
+	
+	Args:
+		account_id: Agency owner's account ID
+		employee_id: Employee ID to set as EOTM
+		reason: Reason for selection (required)
+	
+	Returns:
+		Dictionary with updated employee info
+	"""
+	try:
+		user = Accounts.objects.get(accountID=account_id)
+		
+		# Get employee and verify ownership
+		try:
+			employee = AgencyEmployee.objects.get(employeeID=employee_id, agency=user)
+		except AgencyEmployee.DoesNotExist:
+			raise ValueError("Employee not found or not owned by this agency")
+		
+		# Validate reason
+		if not reason or not reason.strip():
+			raise ValueError("Reason is required for Employee of the Month selection")
+		
+		# Clear previous EOTM for this agency (only one at a time)
+		AgencyEmployee.objects.filter(agency=user, employeeOfTheMonth=True).update(
+			employeeOfTheMonth=False
+		)
+		
+		# Set new EOTM
+		employee.employeeOfTheMonth = True
+		employee.employeeOfTheMonthDate = timezone.now()
+		employee.employeeOfTheMonthReason = reason
+		employee.save(update_fields=['employeeOfTheMonth', 'employeeOfTheMonthDate', 'employeeOfTheMonthReason', 'updatedAt'])
+		
+		# Create notification
+		Notification.objects.create(
+			accountFK=user,
+			notificationType="EMPLOYEE_OF_MONTH_SET",
+			title=f"Employee of the Month: {employee.name}",
+			message=f"{employee.name} has been selected as Employee of the Month! Reason: {reason}",
+		)
+		
+		return {
+			"success": True,
+			"message": f"{employee.name} is now Employee of the Month!",
+			"employeeId": employee.employeeID,
+			"employeeOfTheMonth": employee.employeeOfTheMonth,
+			"employeeOfTheMonthDate": employee.employeeOfTheMonthDate.isoformat() if employee.employeeOfTheMonthDate else None,
+			"employeeOfTheMonthReason": employee.employeeOfTheMonthReason,
+		}
+		
+	except Accounts.DoesNotExist:
+		raise ValueError("User not found")
+
+
+def get_employee_performance(account_id, employee_id):
+	"""
+	Get comprehensive performance statistics for an employee.
+	
+	Args:
+		account_id: Agency owner's account ID
+		employee_id: Employee ID to get performance for
+	
+	Returns:
+		Dictionary with performance statistics
+	"""
+	try:
+		user = Accounts.objects.get(accountID=account_id)
+		
+		# Get employee and verify ownership
+		try:
+			employee = AgencyEmployee.objects.get(employeeID=employee_id, agency=user)
+		except AgencyEmployee.DoesNotExist:
+			raise ValueError("Employee not found or not owned by this agency")
+		
+		# Get performance stats using model method
+		stats = employee.get_performance_stats()
+		
+		return {
+			"employeeId": employee.employeeID,
+			"name": employee.name,
+			"email": employee.email,
+			"role": employee.role,
+			"avatar": employee.avatar,
+			"rating": float(employee.rating) if employee.rating else None,
+			"totalJobsCompleted": stats['total_jobs'],
+			"totalEarnings": stats['total_earnings'],
+			"isActive": stats['is_active'],
+			"employeeOfTheMonth": stats['is_employee_of_month'],
+			"employeeOfTheMonthDate": employee.employeeOfTheMonthDate.isoformat() if employee.employeeOfTheMonthDate else None,
+			"employeeOfTheMonthReason": employee.employeeOfTheMonthReason,
+			"lastRatingUpdate": employee.lastRatingUpdate.isoformat() if employee.lastRatingUpdate else None,
+			"jobsHistory": stats['jobs_history'],
+		}
+		
+	except Accounts.DoesNotExist:
+		raise ValueError("User not found")
+
+
+def get_employee_leaderboard(account_id, sort_by='rating'):
+	"""
+	Get employee leaderboard sorted by various metrics.
+	Only includes active employees.
+	
+	Args:
+		account_id: Agency owner's account ID
+		sort_by: Sort metric ('rating', 'jobs', 'earnings')
+	
+	Returns:
+		Dictionary with leaderboard data
+	"""
+	try:
+		user = Accounts.objects.get(accountID=account_id)
+		
+		# Validate sort_by parameter
+		valid_sorts = ['rating', 'jobs', 'earnings']
+		if sort_by not in valid_sorts:
+			raise ValueError(f"Invalid sort_by parameter. Must be one of: {', '.join(valid_sorts)}")
+		
+		# Build query for active employees
+		employees = AgencyEmployee.objects.filter(agency=user, isActive=True)
+		
+		# Sort based on parameter
+		if sort_by == 'rating':
+			employees = employees.order_by('-rating', 'name')
+		elif sort_by == 'jobs':
+			employees = employees.order_by('-totalJobsCompleted', 'name')
+		elif sort_by == 'earnings':
+			employees = employees.order_by('-totalEarnings', 'name')
+		
+		# Format response with rank
+		leaderboard_data = []
+		for rank, employee in enumerate(employees, start=1):
+			leaderboard_data.append({
+				"employeeId": employee.employeeID,
+				"name": employee.name,
+				"email": employee.email,
+				"role": employee.role,
+				"avatar": employee.avatar,
+				"rating": float(employee.rating) if employee.rating else None,
+				"totalJobsCompleted": employee.totalJobsCompleted,
+				"totalEarnings": float(employee.totalEarnings),
+				"employeeOfTheMonth": employee.employeeOfTheMonth,
+				"rank": rank,
+			})
+		
+		return {
+			"employees": leaderboard_data,
+			"sortBy": sort_by,
+			"totalCount": len(leaderboard_data),
+		}
+		
+	except Accounts.DoesNotExist:
+		raise ValueError("User not found")

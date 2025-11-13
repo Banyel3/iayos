@@ -408,3 +408,98 @@ def reject_job_invite(request, job_id: int, reason: str = None):
             {"error": f"Failed to reject job invite: {str(e)}"},
             status=500
         )
+
+
+# Agency Phase 2 - Employee Management Endpoints
+
+@router.put("/employees/{employee_id}/rating", auth=cookie_auth, response=schemas.UpdateEmployeeRatingResponse)
+def update_employee_rating(request, employee_id: int, rating: float, reason: str = None):
+	"""
+	Update an employee's rating manually.
+	
+	Args:
+		employee_id: ID of the employee to update
+		rating: New rating (0.00 to 5.00)
+		reason: Optional reason for the rating update
+	
+	Returns:
+		Updated employee rating info
+	"""
+	try:
+		account_id = request.auth.accountID
+		result = services.update_employee_rating(account_id, employee_id, rating, reason)
+		return result
+	except ValueError as e:
+		return Response({"error": str(e)}, status=400)
+	except Exception as e:
+		print(f"Error updating employee rating: {str(e)}")
+		return Response({"error": "Internal server error"}, status=500)
+
+
+@router.post("/employees/{employee_id}/set-eotm", auth=cookie_auth, response=schemas.SetEmployeeOfMonthResponse)
+def set_employee_of_month(request, employee_id: int, reason: str):
+	"""
+	Set an employee as Employee of the Month.
+	Only one employee can be EOTM per agency at a time.
+	
+	Args:
+		employee_id: ID of the employee to set as EOTM
+		reason: Reason for selection (required)
+	
+	Returns:
+		Updated employee EOTM info
+	"""
+	try:
+		account_id = request.auth.accountID
+		result = services.set_employee_of_month(account_id, employee_id, reason)
+		return result
+	except ValueError as e:
+		return Response({"error": str(e)}, status=400)
+	except Exception as e:
+		print(f"Error setting employee of month: {str(e)}")
+		return Response({"error": "Internal server error"}, status=500)
+
+
+@router.get("/employees/{employee_id}/performance", auth=cookie_auth, response=schemas.EmployeePerformanceResponse)
+def get_employee_performance(request, employee_id: int):
+	"""
+	Get comprehensive performance statistics for an employee.
+	
+	Args:
+		employee_id: ID of the employee
+	
+	Returns:
+		Employee performance statistics including jobs, earnings, ratings
+	"""
+	try:
+		account_id = request.auth.accountID
+		result = services.get_employee_performance(account_id, employee_id)
+		return result
+	except ValueError as e:
+		return Response({"error": str(e)}, status=400)
+	except Exception as e:
+		print(f"Error fetching employee performance: {str(e)}")
+		return Response({"error": "Internal server error"}, status=500)
+
+
+@router.get("/employees/leaderboard", auth=cookie_auth, response=schemas.EmployeeLeaderboardResponse)
+def get_employee_leaderboard(request, sort_by: str = 'rating'):
+	"""
+	Get employee leaderboard sorted by various metrics.
+	Only includes active employees.
+	
+	Query Parameters:
+		sort_by: Sort metric ('rating', 'jobs', 'earnings') - default: 'rating'
+	
+	Returns:
+		Ranked list of employees with their performance metrics
+	"""
+	try:
+		account_id = request.auth.accountID
+		result = services.get_employee_leaderboard(account_id, sort_by)
+		return result
+	except ValueError as e:
+		return Response({"error": str(e)}, status=400)
+	except Exception as e:
+		print(f"Error fetching employee leaderboard: {str(e)}")
+		return Response({"error": "Internal server error"}, status=500)
