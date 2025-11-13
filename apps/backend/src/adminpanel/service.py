@@ -1,4 +1,4 @@
-from django.conf import settings
+﻿from django.conf import settings
 from django.utils import timezone
 from datetime import timedelta
 import hashlib
@@ -131,7 +131,7 @@ def fetchAll_kyc(request):
             ]
         })
     except Exception as e:
-        print(f"⚠️ Warning: failed to include agency KYC in admin response: {e}")
+        print(f"âš ï¸ Warning: failed to include agency KYC in admin response: {e}")
 
     return data
 
@@ -139,14 +139,14 @@ def fetchAll_kyc(request):
 def review_kyc_items(request):
     import json
     
-    print("🔍 review_kyc_items called")
+    print("ðŸ” review_kyc_items called")
     
     # Parse JSON body from request
     try:
         body = json.loads(request.body.decode('utf-8'))
-        print(f"📥 Request body: {body}")
+        print(f"ðŸ“¥ Request body: {body}")
     except Exception as e:
-        print(f"❌ Error parsing request body: {str(e)}")
+        print(f"âŒ Error parsing request body: {str(e)}")
         raise
     
     front_id_link = body.get("frontIDLink")
@@ -154,7 +154,7 @@ def review_kyc_items(request):
     clearance_link = body.get("clearanceLink")
     selfie_link = body.get("selfieLink")
 
-    print(f"📂 File URLs received:")
+    print(f"ðŸ“‚ File URLs received:")
     print(f"  - frontIDLink: {front_id_link}")
     print(f"  - backIDLink: {back_id_link}")
     print(f"  - clearanceLink: {clearance_link}")
@@ -168,7 +168,7 @@ def review_kyc_items(request):
             try:
                 return settings.SUPABASE.storage.from_(bucket_name).create_signed_url(path, expires_in=60 * 60)
             except Exception as e:
-                print(f"❌ Error creating signed URL for {bucket_name}:{path}: {e}")
+                print(f"âŒ Error creating signed URL for {bucket_name}:{path}: {e}")
                 return None
 
         def _resolve_link(link, default_bucket="kyc-docs"):
@@ -217,10 +217,10 @@ def review_kyc_items(request):
         address_link = body.get("addressProofLink")
         urls["addressProofLink"] = _resolve_link(address_link, default_bucket="kyc-docs") if address_link else ""
 
-        print(f"✅ Final URLs: {urls}")
+        print(f"âœ… Final URLs: {urls}")
         return urls
     except Exception as e:
-        print(f"❌ Error creating signed URLs: {str(e)}")
+        print(f"âŒ Error creating signed URLs: {str(e)}")
         import traceback
         traceback.print_exc()
         raise
@@ -242,7 +242,7 @@ def approve_kyc(request):
         body = json.loads(request.body.decode('utf-8'))
         kyc_id = body.get("kycID")
         
-        print(f"🔍 approve_kyc called for KYC ID: {kyc_id}")
+        print(f"ðŸ” approve_kyc called for KYC ID: {kyc_id}")
         
         if not kyc_id:
             raise ValueError("kycID is required")
@@ -250,21 +250,21 @@ def approve_kyc(request):
         # Get the KYC record
         kyc_record = kyc.objects.select_related('accountFK').get(kycID=kyc_id)
         
-        print(f"📋 Found KYC record for user: {kyc_record.accountFK.email}")
+        print(f"ðŸ“‹ Found KYC record for user: {kyc_record.accountFK.email}")
         
         # Check if already approved
-        if kyc_record.kycStatus == "APPROVED":
+        if kyc_record.kyc_status == "APPROVED":
             return {
                 "success": True,
                 "message": "KYC already approved",
                 "kycID": kyc_id,
                 "accountID": kyc_record.accountFK.accountID,
-                "kycStatus": kyc_record.kycStatus,
+                "kycStatus": kyc_record.kyc_status,
                 "kycVerified": bool(kyc_record.accountFK.KYCVerified),
             }
         
         # Update KYC status to APPROVED
-        kyc_record.kycStatus = "APPROVED"
+        kyc_record.kyc_status = "APPROVED"
         kyc_record.reviewedAt = timezone.now()
         
         # Get the authenticated admin user from request.auth (set by CookieJWTAuth)
@@ -272,9 +272,9 @@ def approve_kyc(request):
         if hasattr(request, 'auth') and request.auth:
             reviewer = request.auth
             kyc_record.reviewedBy = reviewer
-            print(f"👤 Reviewed by admin: {reviewer.email} (ID: {reviewer.accountID})")
+            print(f"ðŸ‘¤ Reviewed by admin: {reviewer.email} (ID: {reviewer.accountID})")
         else:
-            print(f"⚠️  Warning: No authenticated user found in request.auth")
+            print(f"âš ï¸  Warning: No authenticated user found in request.auth")
         
         kyc_record.save()
         
@@ -300,12 +300,12 @@ def approve_kyc(request):
         Notification.objects.create(
             accountFK=user_account,
             notificationType="KYC_APPROVED",
-            title="KYC Verification Approved! ✅",
+            title="KYC Verification Approved! âœ…",
             message=f"Congratulations! Your KYC verification has been approved. You can now access all features of iAyos.",
             relatedKYCLogID=kyc_log.kycLogID,
         )
         
-        print(f"✅ KYC approved successfully!")
+        print(f"âœ… KYC approved successfully!")
         print(f"   - KYC ID: {kyc_id}")
         print(f"   - User: {user_account.email}")
         print(f"   - Account ID: {user_account.accountID}")
@@ -318,7 +318,7 @@ def approve_kyc(request):
         # so the approved/rejected history remains visible in the admin UI.
         # If you still want to remove storage artifacts for privacy later,
         # consider a background retention/cleanup job.
-        print("ℹ️ Retaining KYC DB record and kycFiles for audit/history")
+        print("â„¹ï¸ Retaining KYC DB record and kycFiles for audit/history")
         
         return {
             "success": True,
@@ -326,15 +326,15 @@ def approve_kyc(request):
             "kycID": kyc_id,
             "accountID": user_account.accountID,
             "userEmail": user_account.email,
-            "kycStatus": kyc_record.kycStatus,
+            "kycStatus": kyc_record.kyc_status,
             "kycVerified": bool(user_account.KYCVerified),
         }
         
     except kyc.DoesNotExist:
-        print(f"❌ KYC record not found: {kyc_id}")
+        print(f"âŒ KYC record not found: {kyc_id}")
         raise ValueError(f"KYC record with ID {kyc_id} not found")
     except Exception as e:
-        print(f"❌ Error approving KYC: {str(e)}")
+        print(f"âŒ Error approving KYC: {str(e)}")
         import traceback
         traceback.print_exc()
         raise
@@ -358,7 +358,7 @@ def reject_kyc(request):
         kyc_id = body.get("kycID")
         reason = body.get("reason", "Documents did not meet verification requirements")
         
-        print(f"🔍 reject_kyc called for KYC ID: {kyc_id}")
+        print(f"ðŸ” reject_kyc called for KYC ID: {kyc_id}")
         
         if not kyc_id:
             raise ValueError("kycID is required")
@@ -366,10 +366,10 @@ def reject_kyc(request):
         # Get the KYC record
         kyc_record = kyc.objects.select_related('accountFK').get(kycID=kyc_id)
         
-        print(f"📋 Found KYC record for user: {kyc_record.accountFK.email}")
+        print(f"ðŸ“‹ Found KYC record for user: {kyc_record.accountFK.email}")
         
         # Update KYC status to REJECTED
-        kyc_record.kycStatus = "Rejected"
+        kyc_record.kyc_status = "Rejected"
         kyc_record.reviewedAt = timezone.now()
         
         # Get the authenticated admin user from request.auth (set by CookieJWTAuth)
@@ -377,9 +377,9 @@ def reject_kyc(request):
         if hasattr(request, 'auth') and request.auth:
             reviewer = request.auth
             kyc_record.reviewedBy = reviewer
-            print(f"👤 Reviewed by admin: {reviewer.email} (ID: {reviewer.accountID})")
+            print(f"ðŸ‘¤ Reviewed by admin: {reviewer.email} (ID: {reviewer.accountID})")
         else:
-            print(f"⚠️  Warning: No authenticated user found in request.auth")
+            print(f"âš ï¸  Warning: No authenticated user found in request.auth")
         
         kyc_record.save()
         
@@ -410,7 +410,7 @@ def reject_kyc(request):
             relatedKYCLogID=kyc_log.kycLogID,
         )
         
-        print(f"✅ KYC rejected successfully!")
+        print(f"âœ… KYC rejected successfully!")
         print(f"   - KYC ID: {kyc_id}")
         print(f"   - User: {user_account.email}")
         print(f"   - Account ID: {user_account.accountID}")
@@ -421,7 +421,7 @@ def reject_kyc(request):
         # NOTE: Keep the rejected KYC record and kycFiles so the user can
         # see the rejection reason and history. We no longer delete DB
         # records during reject flow.
-        print("ℹ️ Retaining rejected KYC DB record and kycFiles for audit/history")
+        print("â„¹ï¸ Retaining rejected KYC DB record and kycFiles for audit/history")
         
         return {
             "success": True,
@@ -429,16 +429,16 @@ def reject_kyc(request):
             "kycID": kyc_id,
             "accountID": user_account.accountID,
             "userEmail": user_account.email,
-            "kycStatus": kyc_record.kycStatus,
+            "kycStatus": kyc_record.kyc_status,
             "kycVerified": bool(user_account.KYCVerified),
             "reason": reason,
         }
         
     except kyc.DoesNotExist:
-        print(f"❌ KYC record not found: {kyc_id}")
+        print(f"âŒ KYC record not found: {kyc_id}")
         raise ValueError(f"KYC record with ID {kyc_id} not found")
     except Exception as e:
-        print(f"❌ Error rejecting KYC: {str(e)}")
+        print(f"âŒ Error rejecting KYC: {str(e)}")
         import traceback
         traceback.print_exc()
         raise
@@ -457,7 +457,7 @@ def approve_agency_kyc(request):
         body = json.loads(request.body.decode('utf-8'))
         agency_kyc_id = body.get("agencyKycID")
 
-        print(f"🔍 approve_agency_kyc called for AgencyKYC ID: {agency_kyc_id}")
+        print(f"ðŸ” approve_agency_kyc called for AgencyKYC ID: {agency_kyc_id}")
 
         if not agency_kyc_id:
             raise ValueError("agencyKycID is required")
@@ -484,9 +484,9 @@ def approve_agency_kyc(request):
         if hasattr(request, 'auth') and request.auth:
             reviewer = request.auth
             agency_record.reviewedBy = reviewer
-            print(f"👤 Reviewed by admin: {reviewer.email} (ID: {reviewer.accountID})")
+            print(f"ðŸ‘¤ Reviewed by admin: {reviewer.email} (ID: {reviewer.accountID})")
         else:
-            print(f"⚠️  Warning: No authenticated user found in request.auth")
+            print(f"âš ï¸  Warning: No authenticated user found in request.auth")
 
         agency_record.save()
 
@@ -507,7 +507,7 @@ def approve_agency_kyc(request):
         Notification.objects.create(
             accountFK=account,
             notificationType="AGENCY_KYC_APPROVED",
-            title="Agency KYC Verification Approved ✅",
+            title="Agency KYC Verification Approved âœ…",
             message=f"Your agency KYC verification has been approved.",
             relatedKYCLogID=kyc_log.kycLogID,
         )
@@ -516,11 +516,11 @@ def approve_agency_kyc(request):
         try:
             account.KYCVerified = True
             account.save()
-            print(f"   ✅ Account KYCVerified set to True for account {account.accountID}")
+            print(f"   âœ… Account KYCVerified set to True for account {account.accountID}")
         except Exception as e:
-            print(f"   ⚠️ Warning: Could not set account KYCVerified: {e}")
+            print(f"   âš ï¸ Warning: Could not set account KYCVerified: {e}")
 
-        print(f"✅ Agency KYC approved: {agency_kyc_id} for account {account.email}")
+        print(f"âœ… Agency KYC approved: {agency_kyc_id} for account {account.email}")
 
         # After approval we remove stored submission artifacts for privacy.
         # Attempt to delete files; failures are non-fatal and logged.
@@ -528,7 +528,7 @@ def approve_agency_kyc(request):
         # records after approval so history is available in the admin UI.
         # If storage cleanup is desired later, implement a retention policy
         # or background task to remove older artifacts.
-        print("ℹ️ Retaining AgencyKYC DB record and AgencyKycFile records for audit/history")
+        print("â„¹ï¸ Retaining AgencyKYC DB record and AgencyKycFile records for audit/history")
 
         return {
             "success": True,
@@ -541,10 +541,10 @@ def approve_agency_kyc(request):
         }
 
     except AgencyKYC.DoesNotExist:
-        print(f"❌ AgencyKYC record not found: {agency_kyc_id}")
+        print(f"âŒ AgencyKYC record not found: {agency_kyc_id}")
         raise ValueError(f"AgencyKYC record with ID {agency_kyc_id} not found")
     except Exception as e:
-        print(f"❌ Error approving AgencyKYC: {str(e)}")
+        print(f"âŒ Error approving AgencyKYC: {str(e)}")
         import traceback
         traceback.print_exc()
         raise
@@ -565,7 +565,7 @@ def reject_agency_kyc(request):
         agency_kyc_id = body.get("agencyKycID")
         reason = body.get("reason", "Agency documents did not meet verification requirements")
 
-        print(f"🔍 reject_agency_kyc called for AgencyKYC ID: {agency_kyc_id}")
+        print(f"ðŸ” reject_agency_kyc called for AgencyKYC ID: {agency_kyc_id}")
 
         if not agency_kyc_id:
             raise ValueError("agencyKycID is required")
@@ -581,9 +581,9 @@ def reject_agency_kyc(request):
         if hasattr(request, 'auth') and request.auth:
             reviewer = request.auth
             agency_record.reviewedBy = reviewer
-            print(f"👤 Reviewed by admin: {reviewer.email} (ID: {reviewer.accountID})")
+            print(f"ðŸ‘¤ Reviewed by admin: {reviewer.email} (ID: {reviewer.accountID})")
         else:
-            print(f"⚠️  Warning: No authenticated user found in request.auth")
+            print(f"âš ï¸  Warning: No authenticated user found in request.auth")
 
         agency_record.save()
 
@@ -609,24 +609,24 @@ def reject_agency_kyc(request):
             relatedKYCLogID=kyc_log.kycLogID,
         )
 
-        print(f"✅ Agency KYC rejected: {agency_kyc_id} for account {account.email}")
+        print(f"âœ… Agency KYC rejected: {agency_kyc_id} for account {account.email}")
 
-        # Do not delete agency files or the record here — keep submission so the agency
+        # Do not delete agency files or the record here â€” keep submission so the agency
         # can view the rejection reason and resubmit. Mark account as unverified.
         try:
             account.KYCVerified = False
             account.save()
-            print(f"   ✅ Account KYCVerified set to False for account {account.accountID}")
+            print(f"   âœ… Account KYCVerified set to False for account {account.accountID}")
         except Exception as e:
-            print(f"   ⚠️ Warning: Could not set account KYCVerified: {e}")
+            print(f"   âš ï¸ Warning: Could not set account KYCVerified: {e}")
 
         # Attach reason to AgencyKYC notes for frontend display
         try:
             agency_record.notes = reason
             agency_record.save()
-            print(f"   ✍️  Wrote rejection notes to AgencyKYC {agency_record.agencyKycID}")
+            print(f"   âœï¸  Wrote rejection notes to AgencyKYC {agency_record.agencyKycID}")
         except Exception as e:
-            print(f"   ⚠️ Warning: Could not write notes to AgencyKYC: {e}")
+            print(f"   âš ï¸ Warning: Could not write notes to AgencyKYC: {e}")
 
         return {
             "success": True,
@@ -640,10 +640,10 @@ def reject_agency_kyc(request):
         }
 
     except AgencyKYC.DoesNotExist:
-        print(f"❌ AgencyKYC record not found: {agency_kyc_id}")
+        print(f"âŒ AgencyKYC record not found: {agency_kyc_id}")
         raise ValueError(f"AgencyKYC record with ID {agency_kyc_id} not found")
     except Exception as e:
-        print(f"❌ Error rejecting AgencyKYC: {str(e)}")
+        print(f"âŒ Error rejecting AgencyKYC: {str(e)}")
         import traceback
         traceback.print_exc()
         raise
@@ -687,11 +687,11 @@ def fetch_kyc_logs(action_filter=None, limit=100):
                 "createdAt": log.createdAt.isoformat(),
             })
         
-        print(f"📊 Fetched {len(logs)} KYC logs")
+        print(f"ðŸ“Š Fetched {len(logs)} KYC logs")
         return logs
         
     except Exception as e:
-        print(f"❌ Error fetching KYC logs: {str(e)}")
+        print(f"âŒ Error fetching KYC logs: {str(e)}")
         import traceback
         traceback.print_exc()
         raise
@@ -717,7 +717,7 @@ def get_user_kyc_history(user_account_id):
         # Check if user has an active/pending KYC submission
         active_kyc = kyc.objects.filter(
             accountFK__accountID=user_account_id,
-            kycStatus="PENDING"
+            kyc_status="PENDING"
         ).first()
         
         # Get all KYC logs for this user (ordered by most recent first)
@@ -753,7 +753,7 @@ def get_user_kyc_history(user_account_id):
             "totalApplications": len(history),
         }
         
-        print(f"📋 User KYC History for Account ID {user_account_id}:")
+        print(f"ðŸ“‹ User KYC History for Account ID {user_account_id}:")
         print(f"   - Active KYC: {result['hasActiveKYC']}")
         print(f"   - Total Applications: {result['totalApplications']}")
         print(f"   - Can Resubmit: {result['canResubmit']}")
@@ -761,7 +761,7 @@ def get_user_kyc_history(user_account_id):
         return result
         
     except Exception as e:
-        print(f"❌ Error fetching user KYC history: {str(e)}")
+        print(f"âŒ Error fetching user KYC history: {str(e)}")
         import traceback
         traceback.print_exc()
         raise
@@ -787,7 +787,7 @@ def get_admin_dashboard_stats():
         active_users = Accounts.objects.filter(isVerified=True).count()
         
         # KYC statistics
-        pending_kyc = kyc.objects.filter(kycStatus='PENDING').count()
+        pending_kyc = kyc.objects.filter(kyc_status='PENDING').count()
         pending_agency_kyc = AgencyKYC.objects.filter(status='PENDING').count()
         total_pending_kyc = pending_kyc + pending_agency_kyc
         
@@ -848,7 +848,7 @@ def get_admin_dashboard_stats():
         }
         
     except Exception as e:
-        print(f"❌ Error fetching admin dashboard stats: {str(e)}")
+        print(f"âŒ Error fetching admin dashboard stats: {str(e)}")
         import traceback
         traceback.print_exc()
         raise
@@ -904,7 +904,7 @@ def get_clients_list(page: int = 1, page_size: int = 50, search: str = None, sta
                     # No log entry - check if KYC exists and is pending
                     try:
                         kyc_obj = kyc.objects.get(accountFK=account)
-                        kyc_status = kyc_obj.kycStatus  # PENDING
+                        kyc_status = kyc_obj.kyc_status  # PENDING
                     except kyc.DoesNotExist:
                         kyc_status = 'NOT_SUBMITTED'
             except Exception as e:
@@ -934,7 +934,7 @@ def get_clients_list(page: int = 1, page_size: int = 50, search: str = None, sta
         }
         
     except Exception as e:
-        print(f"❌ Error fetching clients list: {str(e)}")
+        print(f"âŒ Error fetching clients list: {str(e)}")
         import traceback
         traceback.print_exc()
         raise
@@ -990,7 +990,7 @@ def get_workers_list(page: int = 1, page_size: int = 50, search: str = None, sta
                     # No log entry - check if KYC exists and is pending
                     try:
                         kyc_obj = kyc.objects.get(accountFK=account)
-                        kyc_status = kyc_obj.kycStatus  # PENDING
+                        kyc_status = kyc_obj.kyc_status  # PENDING
                     except kyc.DoesNotExist:
                         kyc_status = 'NOT_SUBMITTED'
             except Exception as e:
@@ -1034,7 +1034,7 @@ def get_workers_list(page: int = 1, page_size: int = 50, search: str = None, sta
         }
         
     except Exception as e:
-        print(f"❌ Error fetching workers list: {str(e)}")
+        print(f"âŒ Error fetching workers list: {str(e)}")
         import traceback
         traceback.print_exc()
         raise
@@ -1070,7 +1070,7 @@ def get_worker_detail(account_id: str):
                 # No log entry - check if KYC exists and is pending
                 try:
                     kyc_obj = kyc.objects.get(accountFK=account)
-                    kyc_status = kyc_obj.kycStatus  # PENDING
+                    kyc_status = kyc_obj.kyc_status  # PENDING
                 except kyc.DoesNotExist:
                     kyc_status = 'NOT_SUBMITTED'
         except Exception as e:
@@ -1115,7 +1115,7 @@ def get_worker_detail(account_id: str):
             # Get worker-specific data
             worker_description = worker_profile.description or ''
             worker_rating = worker_profile.workerRating or 0
-            availability_status = worker_profile.availabilityStatus
+            availability_status = worker_profile.availability_status
             total_earnings = float(worker_profile.totalEarningGross) if worker_profile.totalEarningGross else 0.0
         except WorkerProfile.DoesNotExist:
             skills = []
@@ -1124,7 +1124,7 @@ def get_worker_detail(account_id: str):
             availability_status = 'OFFLINE'
             total_earnings = 0.0
         except Exception as e:
-            print(f"❌ Error fetching worker profile details: {str(e)}")
+            print(f"âŒ Error fetching worker profile details: {str(e)}")
             skills = []
             worker_description = ''
             worker_rating = 0
@@ -1175,7 +1175,7 @@ def get_worker_detail(account_id: str):
         }
         
     except Exception as e:
-        print(f"❌ Error fetching worker detail: {str(e)}")
+        print(f"âŒ Error fetching worker detail: {str(e)}")
         import traceback
         traceback.print_exc()
         raise
@@ -1211,7 +1211,7 @@ def get_client_detail(account_id: str):
                 # No log entry - check if KYC exists and is pending
                 try:
                     kyc_obj = kyc.objects.get(accountFK=account)
-                    kyc_status = kyc_obj.kycStatus  # PENDING
+                    kyc_status = kyc_obj.kyc_status  # PENDING
                 except kyc.DoesNotExist:
                     kyc_status = 'NOT_SUBMITTED'
         except Exception as e:
@@ -1290,7 +1290,7 @@ def get_client_detail(account_id: str):
         }
         
     except Exception as e:
-        print(f"❌ Error fetching client detail: {str(e)}")
+        print(f"âŒ Error fetching client detail: {str(e)}")
         import traceback
         traceback.print_exc()
         raise
@@ -1399,7 +1399,7 @@ def get_agency_detail(account_id: str):
         }
         
     except Exception as e:
-        print(f"❌ Error fetching agency detail: {str(e)}")
+        print(f"âŒ Error fetching agency detail: {str(e)}")
         import traceback
         traceback.print_exc()
         raise
@@ -1507,7 +1507,7 @@ def get_agencies_list(page: int = 1, page_size: int = 50, search: str = None, st
         }
         
     except Exception as e:
-        print(f"❌ Error fetching agencies list: {str(e)}")
+        print(f"âŒ Error fetching agencies list: {str(e)}")
         import traceback
         traceback.print_exc()
         raise
@@ -1602,7 +1602,7 @@ def get_jobs_list(page: int = 1, page_size: int = 20, status: str = None, catego
         }
         
     except Exception as e:
-        print(f"❌ Error fetching jobs list: {str(e)}")
+        print(f"âŒ Error fetching jobs list: {str(e)}")
         import traceback
         traceback.print_exc()
         raise
@@ -1673,7 +1673,7 @@ def get_job_applications_list(page: int = 1, page_size: int = 20, status: str = 
         }
         
     except Exception as e:
-        print(f"❌ Error fetching applications list: {str(e)}")
+        print(f"âŒ Error fetching applications list: {str(e)}")
         import traceback
         traceback.print_exc()
         raise
@@ -1724,7 +1724,7 @@ def get_jobs_dashboard_stats():
         }
         
     except Exception as e:
-        print(f"❌ Error fetching jobs dashboard stats: {str(e)}")
+        print(f"âŒ Error fetching jobs dashboard stats: {str(e)}")
         import traceback
         traceback.print_exc()
         raise
@@ -1765,7 +1765,7 @@ def get_job_categories_list():
         return categories_data
         
     except Exception as e:
-        print(f"❌ Error fetching job categories: {str(e)}")
+        print(f"âŒ Error fetching job categories: {str(e)}")
         import traceback
         traceback.print_exc()
         raise
@@ -1864,7 +1864,7 @@ def get_job_disputes_list(page=1, page_size=20, status=None, priority=None):
         }
         
     except Exception as e:
-        print(f"❌ Error fetching job disputes: {str(e)}")
+        print(f"âŒ Error fetching job disputes: {str(e)}")
         import traceback
         traceback.print_exc()
         raise
@@ -1922,7 +1922,7 @@ def get_disputes_dashboard_stats():
         }
         
     except Exception as e:
-        print(f"❌ Error fetching disputes dashboard stats: {str(e)}")
+        print(f"âŒ Error fetching disputes dashboard stats: {str(e)}")
         import traceback
         traceback.print_exc()
         raise
@@ -2004,7 +2004,7 @@ def get_all_reviews_list(page=1, page_size=20, status=None, reviewer_type=None, 
         }
         
     except Exception as e:
-        print(f"❌ Error fetching all reviews: {str(e)}")
+        print(f"âŒ Error fetching all reviews: {str(e)}")
         import traceback
         traceback.print_exc()
         raise
@@ -2115,7 +2115,7 @@ def get_job_reviews_list(page=1, page_size=20, status=None):
         }
         
     except Exception as e:
-        print(f"❌ Error fetching job reviews: {str(e)}")
+        print(f"âŒ Error fetching job reviews: {str(e)}")
         import traceback
         traceback.print_exc()
         raise
@@ -2182,7 +2182,7 @@ def get_reviews_dashboard_stats():
         }
         
     except Exception as e:
-        print(f"❌ Error fetching reviews dashboard stats: {str(e)}")
+        print(f"âŒ Error fetching reviews dashboard stats: {str(e)}")
         import traceback
         traceback.print_exc()
         raise
@@ -2262,10 +2262,11 @@ def get_flagged_reviews_list(page=1, page_size=20):
         }
         
     except Exception as e:
-        print(f"❌ Error fetching flagged reviews: {str(e)}")
+        print(f"âŒ Error fetching flagged reviews: {str(e)}")
         import traceback
         traceback.print_exc()
         raise
+
 
 
 

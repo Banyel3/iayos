@@ -508,14 +508,14 @@ def upload_kyc_document(payload, frontID, backID, clearance, selfie):
         # Get or create KYC record
         kyc_record, created = kyc.objects.get_or_create(
             accountFK=user,
-            defaults={'kycStatus': 'PENDING', 'notes': ''}
+            defaults={'kyc_status': 'PENDING', 'notes': ''}
         )
 
         # If KYC record already exists, delete old files to avoid duplicates
         # and reset status to PENDING for re-review
         if not created:
             kycFiles.objects.filter(kycID=kyc_record).delete()
-            kyc_record.kycStatus = 'PENDING'
+            kyc_record.kyc_status = 'PENDING'
             kyc_record.notes = 'Re-submitted'
             kyc_record.save()
 
@@ -594,7 +594,7 @@ def get_kyc_status(user_id):
 
         return {
             "kyc_id": kyc_record.kycID,
-            "status": kyc_record.kycStatus,
+            "status": kyc_record.kyc_status,
             "notes": kyc_record.notes,
             "reviewed_at": kyc_record.reviewedAt,
             "submitted_at": kyc_record.createdAt,
@@ -619,7 +619,7 @@ def get_pending_kyc_submissions():
     Get all pending KYC submissions (for admin)
     """
     try:
-        pending_kyc = kyc.objects.filter(kycStatus='PENDING').select_related('accountFK')
+        pending_kyc = kyc.objects.filter(kyc_status='PENDING').select_related('accountFK')
         
         results = []
         for kyc_record in pending_kyc:
@@ -794,7 +794,7 @@ def get_all_workers(client_latitude: float = None, client_longitude: float = Non
             'profileID',
             'profileID__accountFK'
         ).filter(
-            availabilityStatus='AVAILABLE'  # Use string value instead of enum
+            availability_status='AVAILABLE'  # Use string value instead of enum
         ).all()
         
         workers = []
@@ -991,7 +991,7 @@ def update_worker_availability(user_id, is_available):
                 'description': '',
                 'workerRating': 0,
                 'totalEarningGross': 0.00,
-                'availabilityStatus': 'OFFLINE'
+                'availability_status': 'OFFLINE'
             }
         )
         
@@ -1000,17 +1000,17 @@ def update_worker_availability(user_id, is_available):
         
         # Update availability status
         if is_available:
-            worker_profile.availabilityStatus = 'AVAILABLE'
+            worker_profile.availability_status = 'AVAILABLE'
         else:
-            worker_profile.availabilityStatus = 'OFFLINE'
+            worker_profile.availability_status = 'OFFLINE'
         
         worker_profile.save()
         
-        print(f"✅ Updated worker {user_id} availability to {worker_profile.availabilityStatus}")
+        print(f"✅ Updated worker {user_id} availability to {worker_profile.availability_status}")
         
         return {
             "accountID": user_id,
-            "availabilityStatus": worker_profile.availabilityStatus,
+            "availabilityStatus": worker_profile.availability_status,
             "isAvailable": is_available
         }
         
@@ -1052,18 +1052,18 @@ def get_worker_availability(user_id):
                 'description': '',
                 'workerRating': 0,
                 'totalEarningGross': 0.00,
-                'availabilityStatus': 'OFFLINE'
+                'availability_status': 'OFFLINE'
             }
         )
         
         if created:
             print(f"⚠️ Created WorkerProfile for legacy user {user_id} (should have been created during role selection)")
         
-        is_available = worker_profile.availabilityStatus == 'AVAILABLE'
+        is_available = worker_profile.availability_status == 'AVAILABLE'
         
         return {
             "accountID": user_id,
-            "availabilityStatus": worker_profile.availabilityStatus,
+            "availabilityStatus": worker_profile.availability_status,
             "isAvailable": is_available
         }
         

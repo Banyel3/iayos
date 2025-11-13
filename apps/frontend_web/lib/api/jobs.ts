@@ -243,7 +243,8 @@ export async function fetchWorkers(): Promise<WorkerListing[]> {
   });
 
   if (!response.ok) {
-    throw new Error("Failed to fetch workers");
+    const errorData = await response.json().catch(() => ({ error: "Failed to fetch workers" }));
+    throw new Error(errorData.error || errorData.message || `Failed to fetch workers: ${response.status}`);
   }
 
   const data = await response.json();
