@@ -404,6 +404,48 @@ export default function EditProfileScreen() {
           <Text style={styles.hint}>Separate multiple skills with commas</Text>
         </View>
 
+        {/* Certifications Section */}
+        <View style={styles.managementSection}>
+          <View style={styles.managementHeader}>
+            <View>
+              <Text style={styles.sectionTitle}>Certifications</Text>
+              <Text style={styles.managementHint}>
+                Add professional certifications
+              </Text>
+            </View>
+            <Ionicons name="ribbon" size={32} color={Colors.primary} />
+          </View>
+          <Pressable
+            style={styles.manageButton}
+            onPress={() => router.push("/profile/certifications" as any)}
+          >
+            <Ionicons name="settings-outline" size={20} color={Colors.primary} />
+            <Text style={styles.manageButtonText}>Manage Certifications</Text>
+            <Ionicons name="chevron-forward" size={20} color={Colors.primary} />
+          </Pressable>
+        </View>
+
+        {/* Materials Management */}
+        <View style={styles.managementSection}>
+          <View style={styles.managementHeader}>
+            <View>
+              <Text style={styles.sectionTitle}>Materials & Products</Text>
+              <Text style={styles.managementHint}>
+                List materials or products you offer
+              </Text>
+            </View>
+            <Ionicons name="cube" size={32} color={Colors.primary} />
+          </View>
+          <Pressable
+            style={styles.manageButton}
+            onPress={() => router.push("/profile/materials" as any)}
+          >
+            <Ionicons name="settings-outline" size={20} color={Colors.primary} />
+            <Text style={styles.manageButtonText}>Manage Materials</Text>
+            <Ionicons name="chevron-forward" size={20} color={Colors.primary} />
+          </Pressable>
+        </View>
+
         {/* Portfolio Section */}
         <View style={styles.portfolioSection}>
           <View style={styles.portfolioHeader}>
@@ -795,6 +837,42 @@ const styles = StyleSheet.create({
   },
   portfolioGrid: {
     marginTop: Spacing.md,
+  },
+
+  // Management Section (Certifications)
+  managementSection: {
+    marginBottom: Spacing.lg,
+    padding: Spacing.md,
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.large,
+    ...Shadows.small,
+  },
+  managementHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+  managementHint: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+    marginTop: Spacing.xs,
+  },
+  manageButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    backgroundColor: Colors.primaryLight,
+    borderRadius: BorderRadius.medium,
+  },
+  manageButtonText: {
+    ...Typography.body.medium,
+    color: Colors.primary,
+    fontWeight: "600",
+    flex: 1,
+    marginLeft: Spacing.sm,
   },
 
   // Caption Edit Modal

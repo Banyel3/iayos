@@ -24,10 +24,14 @@ import {
 import { ENDPOINTS } from "@/lib/api/config";
 import { PortfolioGrid } from "@/components/PortfolioGrid";
 import { ImageViewer } from "@/components/ImageViewer";
+import CertificationCard from "@/components/CertificationCard";
+import MaterialCard from "@/components/MaterialCard";
 import {
   usePortfolioManagement,
   type PortfolioImage,
 } from "@/lib/hooks/usePortfolioManagement";
+import { useCertifications } from "@/lib/hooks/useCertifications";
+import { useMaterials } from "@/lib/hooks/useMaterials";
 
 // ===== TYPES =====
 
@@ -143,6 +147,12 @@ export default function ProfileScreen() {
 
   // Fetch portfolio images
   const { images: portfolioImages } = usePortfolioManagement();
+
+  // Fetch certifications
+  const { data: certifications = [] } = useCertifications();
+
+  // Fetch materials
+  const { data: materials = [] } = useMaterials();
 
   // Handle avatar tap
   const handleAvatarPress = () => {
@@ -464,6 +474,114 @@ export default function ProfileScreen() {
           </View>
         </View>
       )}
+
+      {/* Certifications Section */}
+      <View style={styles.section}>
+        <View style={styles.portfolioHeader}>
+          <Text style={styles.sectionTitle}>Certifications</Text>
+          {certifications.length > 0 && (
+            <Pressable onPress={() => router.push("/profile/certifications" as any)}>
+              <Text style={styles.viewAllText}>View All ({certifications.length})</Text>
+            </Pressable>
+          )}
+        </View>
+        {certifications.length > 0 ? (
+          <>
+            {certifications.slice(0, 3).map((cert) => (
+              <View key={cert.id} style={styles.certificationItem}>
+                <CertificationCard
+                  certification={cert}
+                  compact={true}
+                  showActions={false}
+                  onPress={() => router.push("/profile/certifications" as any)}
+                />
+              </View>
+            ))}
+            {certifications.length > 3 && (
+              <Pressable
+                style={styles.viewAllButton}
+                onPress={() => router.push("/profile/certifications" as any)}
+              >
+                <Text style={styles.viewAllButtonText}>
+                  View All {certifications.length} Certifications
+                </Text>
+                <Ionicons name="chevron-forward" size={20} color={Colors.primary} />
+              </Pressable>
+            )}
+          </>
+        ) : (
+          <>
+            <Text style={styles.emptyText}>
+              Add professional certifications to build credibility
+            </Text>
+            <Pressable
+              style={styles.addButton}
+              onPress={() => router.push("/profile/certifications" as any)}
+            >
+              <Ionicons
+                name="add-circle-outline"
+                size={20}
+                color={Colors.primary}
+              />
+              <Text style={styles.addButtonText}>Add Certifications</Text>
+            </Pressable>
+          </>
+        )}
+      </View>
+
+      {/* Materials/Products Section */}
+      <View style={styles.section}>
+        <View style={styles.portfolioHeader}>
+          <Text style={styles.sectionTitle}>Materials & Products</Text>
+          {materials.length > 0 && (
+            <Pressable onPress={() => router.push("/profile/materials" as any)}>
+              <Text style={styles.viewAllText}>View All ({materials.length})</Text>
+            </Pressable>
+          )}
+        </View>
+        {materials.length > 0 ? (
+          <>
+            {materials.slice(0, 3).map((material) => (
+              <View key={material.id} style={styles.certificationItem}>
+                <MaterialCard
+                  material={material}
+                  compact={true}
+                  showActions={false}
+                  onPress={() => router.push("/profile/materials" as any)}
+                />
+              </View>
+            ))}
+            {materials.length > 3 && (
+              <Pressable
+                style={styles.viewAllButton}
+                onPress={() => router.push("/profile/materials" as any)}
+              >
+                <Text style={styles.viewAllButtonText}>
+                  View All {materials.length} Materials
+                </Text>
+                <Ionicons name="chevron-forward" size={20} color={Colors.primary} />
+              </Pressable>
+            )}
+          </>
+        ) : (
+          <>
+            <Text style={styles.emptyText}>
+              List materials or products you offer to clients
+            </Text>
+            <Pressable
+              style={styles.addButton}
+              onPress={() => router.push("/profile/materials" as any)}
+            >
+              <Ionicons
+                name="add-circle-outline"
+                size={20}
+                color={Colors.primary}
+              />
+              <Text style={styles.addButtonText}>Add Materials</Text>
+            </Pressable>
+          </>
+        )}
+      </View>
 
       {/* Portfolio Section */}
       <View style={styles.section}>
@@ -804,6 +922,31 @@ const styles = StyleSheet.create({
   portfolioCount: {
     ...Typography.body.small,
     color: Colors.textSecondary,
+    fontWeight: "600",
+  },
+
+  // Certifications Section
+  certificationItem: {
+    marginBottom: Spacing.sm,
+  },
+  viewAllText: {
+    ...Typography.body.small,
+    color: Colors.primary,
+    fontWeight: "600",
+  },
+  viewAllButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.xs,
+    paddingVertical: Spacing.sm,
+    marginTop: Spacing.xs,
+    backgroundColor: Colors.primaryLight,
+    borderRadius: BorderRadius.medium,
+  },
+  viewAllButtonText: {
+    ...Typography.body.medium,
+    color: Colors.primary,
     fontWeight: "600",
   },
 });
