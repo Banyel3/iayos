@@ -507,7 +507,7 @@ export default function ProfileScreen() {
         images={portfolioImages}
         initialIndex={viewerIndex}
         onClose={() => setViewerVisible(false)}
-        editable={false}
+        showActions={false}
       />
     </ScrollView>
   );
