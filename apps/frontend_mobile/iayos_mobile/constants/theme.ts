@@ -27,6 +27,7 @@ export const Colors = {
 
   // Other
   divider: "#E0E0E0",
+  border: "#E0E0E0",
   white: "#FFFFFF",
   black: "#000000",
 

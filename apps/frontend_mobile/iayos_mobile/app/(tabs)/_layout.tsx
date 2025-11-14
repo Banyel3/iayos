@@ -50,6 +50,13 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="applications"
+        options={{
+          title: "Applications",
+          href: null, // Hidden from tab bar
+        }}
+      />
+      <Tabs.Screen
         name="messages"
         options={{
           title: "Messages",
