@@ -180,16 +180,6 @@ export default function PaymentMethodScreen() {
             onPress={() => handleMethodSelect("wallet")}
             disabled={!isWalletSufficient}
           />
-
-          {/* Cash */}
-          <PaymentMethodButton
-            method="cash"
-            label="Cash"
-            description="Pay with cash and upload proof"
-            icon="cash"
-            selected={selectedMethod === "cash"}
-            onPress={() => handleMethodSelect("cash")}
-          />
         </View>
 
         {/* Info Box */}
@@ -201,8 +191,8 @@ export default function PaymentMethodScreen() {
             style={styles.infoIcon}
           />
           <Text style={styles.infoText}>
-            Cash payments require admin verification and may take 1-2 business
-            days to approve.
+            This is the escrow payment (50% downpayment). Online payment only.
+            Cash payment is available for the final 50% after job completion.
           </Text>
         </View>
       </ScrollView>

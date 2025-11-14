@@ -44,7 +44,9 @@ export default function FinalPaymentCard({
         {/* Platform Fee */}
         <View style={styles.breakdownRow}>
           <View style={styles.labelWithIcon}>
-            <Text style={styles.breakdownLabel}>Platform Fee (5%)</Text>
+            <Text style={styles.breakdownLabel}>
+              Platform Fee (5% of payment)
+            </Text>
             <Ionicons
               name="information-circle-outline"
               size={16}
@@ -80,7 +82,7 @@ export default function FinalPaymentCard({
             </Text>
           </View>
           <Text style={styles.workerNote}>
-            Worker receives 95% of total payments (platform fee deducted)
+            Worker receives the full listing price (platform fee paid by client)
           </Text>
         </View>
       )}

@@ -54,7 +54,7 @@ export default function PaymentSummaryCard({
 
             {/* Platform Fee (5%) */}
             <View style={styles.row}>
-              <Text style={styles.label}>Platform Fee (5%)</Text>
+              <Text style={styles.label}>Platform Fee (5% of escrow)</Text>
               <Text style={styles.value}>{formatCurrency(platformFee)}</Text>
             </View>
 
@@ -74,7 +74,8 @@ export default function PaymentSummaryCard({
       <View style={styles.infoBox}>
         <Text style={styles.infoText}>
           💡 You pay 50% now to secure the worker. The remaining 50% is paid
-          after job completion.
+          after job completion. Worker receives the full listing price (platform
+          fee is your burden).
         </Text>
       </View>
     </View>

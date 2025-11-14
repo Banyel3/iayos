@@ -44,10 +44,11 @@ export default function FinalPaymentScreen() {
   const { data: paymentStatus } = useJobPaymentStatus(jobId);
   const createFinalPaymentMutation = useCreateFinalPayment();
 
-  // Calculate final payment (remaining 50%)
-  const halfBudget = budget / 2;
-  const platformFee = halfBudget * 0.05;
-  const totalAmount = halfBudget + platformFee;
+  // Calculate final payment (remaining 50% + 5% fee on that 50%)
+  // Worker receives full budget, client pays platform fee on top
+  const halfBudget = budget / 2; // 50% to worker
+  const platformFee = halfBudget * 0.05; // 5% of the 50% (2.5% of total budget)
+  const totalAmount = halfBudget + platformFee; // Total client pays
 
   const paymentBreakdown = {
     halfBudget,
@@ -298,8 +299,9 @@ export default function FinalPaymentScreen() {
             style={styles.infoIcon}
           />
           <Text style={styles.infoText}>
-            The worker will receive their earnings minus the platform fee (5%)
-            once your payment is confirmed.
+            This is the final payment (remaining 50%). Cash payment is accepted
+            here. The worker will receive the full listing price. Platform fee
+            is charged to you on top of the payment.
           </Text>
         </View>
       </ScrollView>
