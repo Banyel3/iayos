@@ -11,10 +11,16 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
-import { useQuery, useMutation, useQueryClient } from "@tantml:invoke>
-<parameter name="Ionicons } from "@expo/vector-icons";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { Colors, Typography, Spacing, BorderRadius, Shadows } from "@/constants/theme";
+import {
+  Colors,
+  Typography,
+  Spacing,
+  BorderRadius,
+  Shadows,
+} from "@/constants/theme";
 import { ENDPOINTS } from "@/lib/api/config";
 
 // ===== TYPES =====
@@ -127,7 +133,11 @@ export default function ApplicationDetailScreen() {
   const queryClient = useQueryClient();
 
   // Fetch application detail
-  const { data: application, isLoading, error } = useQuery<ApplicationDetail>({
+  const {
+    data: application,
+    isLoading,
+    error,
+  } = useQuery<ApplicationDetail>({
     queryKey: ["application-detail", id],
     queryFn: async () => {
       const response = await fetch(ENDPOINTS.APPLICATION_DETAIL(Number(id)), {
@@ -158,7 +168,7 @@ export default function ApplicationDetailScreen() {
       // Invalidate queries
       queryClient.invalidateQueries({ queryKey: ["application-detail", id] });
       queryClient.invalidateQueries({ queryKey: ["applications", "my"] });
-      
+
       Alert.alert("Success", "Application withdrawn successfully", [
         {
           text: "OK",
@@ -221,16 +231,25 @@ export default function ApplicationDetailScreen() {
         <Pressable style={styles.backIcon} onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
         </Pressable>
-        
-        <View style={[styles.statusBadgeLarge, { backgroundColor: statusStyle.bg }]}>
-          <Ionicons name={statusStyle.icon} size={24} color={statusStyle.text} />
+
+        <View
+          style={[styles.statusBadgeLarge, { backgroundColor: statusStyle.bg }]}
+        >
+          <Ionicons
+            name={statusStyle.icon}
+            size={24}
+            color={statusStyle.text}
+          />
           <Text style={[styles.statusTextLarge, { color: statusStyle.text }]}>
             {statusStyle.label}
           </Text>
         </View>
       </View>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Job Information */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Job Information</Text>
@@ -238,18 +257,30 @@ export default function ApplicationDetailScreen() {
             <Text style={styles.jobTitle}>{application.jobTitle}</Text>
             <View style={styles.jobMeta}>
               <View style={styles.metaItem}>
-                <Ionicons name="pricetag-outline" size={16} color={Colors.textSecondary} />
+                <Ionicons
+                  name="pricetag-outline"
+                  size={16}
+                  color={Colors.textSecondary}
+                />
                 <Text style={styles.metaText}>{application.jobCategory}</Text>
               </View>
               <View style={styles.metaItem}>
-                <Ionicons name="location-outline" size={16} color={Colors.textSecondary} />
+                <Ionicons
+                  name="location-outline"
+                  size={16}
+                  color={Colors.textSecondary}
+                />
                 <Text style={styles.metaText}>{application.jobLocation}</Text>
               </View>
             </View>
-            <Text style={styles.jobDescription}>{application.jobDescription}</Text>
+            <Text style={styles.jobDescription}>
+              {application.jobDescription}
+            </Text>
             <View style={styles.budgetRow}>
               <Text style={styles.budgetLabel}>Job Budget:</Text>
-              <Text style={styles.budgetValue}>{formatCurrency(application.jobBudget)}</Text>
+              <Text style={styles.budgetValue}>
+                {formatCurrency(application.jobBudget)}
+              </Text>
             </View>
           </View>
         </View>
@@ -266,13 +297,25 @@ export default function ApplicationDetailScreen() {
             </View>
             {application.estimatedDuration && (
               <View style={styles.durationRow}>
-                <Ionicons name="time-outline" size={16} color={Colors.textSecondary} />
-                <Text style={styles.durationText}>{application.estimatedDuration}</Text>
+                <Ionicons
+                  name="time-outline"
+                  size={16}
+                  color={Colors.textSecondary}
+                />
+                <Text style={styles.durationText}>
+                  {application.estimatedDuration}
+                </Text>
               </View>
             )}
-            <Text style={styles.proposalMessage}>{application.proposalMessage}</Text>
+            <Text style={styles.proposalMessage}>
+              {application.proposalMessage}
+            </Text>
             <View style={styles.appliedInfo}>
-              <Ionicons name="calendar-outline" size={16} color={Colors.textSecondary} />
+              <Ionicons
+                name="calendar-outline"
+                size={16}
+                color={Colors.textSecondary}
+              />
               <Text style={styles.appliedText}>
                 Applied {formatTimeAgo(application.appliedAt)}
               </Text>
@@ -287,14 +330,24 @@ export default function ApplicationDetailScreen() {
             <View style={styles.clientRow}>
               <View style={styles.clientAvatar}>
                 {application.client.avatar ? (
-                  <Ionicons name="person" size={24} color={Colors.textSecondary} />
+                  <Ionicons
+                    name="person"
+                    size={24}
+                    color={Colors.textSecondary}
+                  />
                 ) : (
-                  <Ionicons name="person-outline" size={24} color={Colors.textSecondary} />
+                  <Ionicons
+                    name="person-outline"
+                    size={24}
+                    color={Colors.textSecondary}
+                  />
                 )}
               </View>
               <View style={styles.clientInfo}>
                 <Text style={styles.clientName}>{application.client.name}</Text>
-                <Text style={styles.clientEmail}>{application.client.email}</Text>
+                <Text style={styles.clientEmail}>
+                  {application.client.email}
+                </Text>
               </View>
             </View>
           </View>
@@ -305,7 +358,7 @@ export default function ApplicationDetailScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Timeline</Text>
             <View style={styles.card}>
-              {application.timeline.map((event, index) => (
+              {application.timeline.map((event: any, index: number) => (
                 <View key={event.id} style={styles.timelineItem}>
                   <View style={styles.timelineDot}>
                     <View style={styles.dotInner} />
@@ -315,7 +368,9 @@ export default function ApplicationDetailScreen() {
                   )}
                   <View style={styles.timelineContent}>
                     <Text style={styles.timelineAction}>{event.action}</Text>
-                    <Text style={styles.timelineDescription}>{event.description}</Text>
+                    <Text style={styles.timelineDescription}>
+                      {event.description}
+                    </Text>
                     <Text style={styles.timelineTime}>
                       {formatTimeAgo(event.timestamp)}
                     </Text>
@@ -330,7 +385,7 @@ export default function ApplicationDetailScreen() {
         <View style={styles.actionsSection}>
           <Pressable
             style={styles.viewJobButton}
-            onPress={() => router.push(`/jobs/${application.jobId}`)}
+            onPress={() => router.push(`/jobs/${application.jobId}` as any)}
           >
             <Ionicons name="eye-outline" size={20} color={Colors.primary} />
             <Text style={styles.viewJobButtonText}>View Job</Text>
@@ -338,14 +393,21 @@ export default function ApplicationDetailScreen() {
 
           {application.status === "ACCEPTED" && (
             <Pressable style={styles.contactButton}>
-              <Ionicons name="chatbubble-outline" size={20} color={Colors.textLight} />
+              <Ionicons
+                name="chatbubble-outline"
+                size={20}
+                color={Colors.textLight}
+              />
               <Text style={styles.contactButtonText}>Contact Client</Text>
             </Pressable>
           )}
 
           {canWithdraw && (
             <Pressable
-              style={[styles.withdrawButton, withdrawMutation.isPending && styles.buttonDisabled]}
+              style={[
+                styles.withdrawButton,
+                withdrawMutation.isPending && styles.buttonDisabled,
+              ]}
               onPress={handleWithdraw}
               disabled={withdrawMutation.isPending}
             >
@@ -353,8 +415,14 @@ export default function ApplicationDetailScreen() {
                 <ActivityIndicator size="small" color={Colors.error} />
               ) : (
                 <>
-                  <Ionicons name="close-circle-outline" size={20} color={Colors.error} />
-                  <Text style={styles.withdrawButtonText}>Withdraw Application</Text>
+                  <Ionicons
+                    name="close-circle-outline"
+                    size={20}
+                    color={Colors.error}
+                  />
+                  <Text style={styles.withdrawButtonText}>
+                    Withdraw Application
+                  </Text>
                 </>
               )}
             </Pressable>

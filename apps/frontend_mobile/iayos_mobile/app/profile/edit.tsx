@@ -17,7 +17,13 @@ import {
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { Colors, Typography, Spacing, BorderRadius, Shadows } from "@/constants/theme";
+import {
+  Colors,
+  Typography,
+  Spacing,
+  BorderRadius,
+  Shadows,
+} from "@/constants/theme";
 import { ENDPOINTS } from "@/lib/api/config";
 
 // ===== TYPES =====
@@ -126,7 +132,8 @@ export default function EditProfileScreen() {
 
     const changed =
       bio !== (profile.bio || "") ||
-      hourlyRate !== (profile.hourlyRate ? profile.hourlyRate.toString() : "") ||
+      hourlyRate !==
+        (profile.hourlyRate ? profile.hourlyRate.toString() : "") ||
       phoneNumber !== (profile.user.phoneNumber || "") ||
       skills !== profile.skills.join(", ");
 
@@ -211,7 +218,11 @@ export default function EditProfileScreen() {
         "You have unsaved changes. Are you sure you want to go back?",
         [
           { text: "Cancel", style: "cancel" },
-          { text: "Discard", style: "destructive", onPress: () => router.back() },
+          {
+            text: "Discard",
+            style: "destructive",
+            onPress: () => router.back(),
+          },
         ]
       );
     } else {
@@ -250,7 +261,8 @@ export default function EditProfileScreen() {
           <Pressable
             style={[
               styles.saveButton,
-              (!hasChanges || updateMutation.isPending) && styles.saveButtonDisabled,
+              (!hasChanges || updateMutation.isPending) &&
+                styles.saveButtonDisabled,
             ]}
             onPress={handleSave}
             disabled={!hasChanges || updateMutation.isPending}
@@ -309,7 +321,10 @@ export default function EditProfileScreen() {
           <View style={styles.inputWithIcon}>
             <Text style={styles.currencySymbol}>₱</Text>
             <TextInput
-              style={[styles.input, hourlyRate.length > 0 && styles.inputActive]}
+              style={[
+                styles.input,
+                hourlyRate.length > 0 && styles.inputActive,
+              ]}
               value={hourlyRate}
               onChangeText={setHourlyRate}
               placeholder="0.00"
@@ -327,7 +342,11 @@ export default function EditProfileScreen() {
             Phone Number <Text style={styles.optional}>(optional)</Text>
           </Text>
           <View style={styles.inputWithIcon}>
-            <Ionicons name="call-outline" size={20} color={Colors.textSecondary} />
+            <Ionicons
+              name="call-outline"
+              size={20}
+              color={Colors.textSecondary}
+            />
             <TextInput
               style={[
                 styles.input,
@@ -377,7 +396,9 @@ export default function EditProfileScreen() {
               <View style={styles.previewItem}>
                 <Text style={styles.previewLabel}>Hourly Rate:</Text>
                 <Text style={styles.previewValue}>
-                  {hourlyRate ? `₱${parseFloat(hourlyRate).toFixed(2)}/hour` : "Not set"}
+                  {hourlyRate
+                    ? `₱${parseFloat(hourlyRate).toFixed(2)}/hour`
+                    : "Not set"}
                 </Text>
               </View>
             )}

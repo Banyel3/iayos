@@ -348,10 +348,16 @@ export default function MyApplicationsScreen() {
                   <View style={styles.cardActions}>
                     <TouchableOpacity
                       style={styles.viewDetailsButton}
-                      onPress={() => router.push(`/applications/${application.id}` as any)}
+                      onPress={() =>
+                        router.push(`/applications/${application.id}` as any)
+                      }
                       activeOpacity={0.8}
                     >
-                      <Ionicons name="eye-outline" size={16} color={Colors.primary} />
+                      <Ionicons
+                        name="eye-outline"
+                        size={16}
+                        color={Colors.primary}
+                      />
                       <Text style={styles.viewDetailsText}>View Details</Text>
                     </TouchableOpacity>
                     <TouchableOpacity

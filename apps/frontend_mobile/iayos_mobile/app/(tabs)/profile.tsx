@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -8,11 +8,17 @@ import {
   SafeAreaView,
   Image,
   Alert,
-} from 'react-native';
-import { useAuth } from '@/context/AuthContext';
-import { useRouter } from 'expo-router';
-import { Colors, Typography, Spacing, BorderRadius, Shadows } from '@/constants/theme';
-import { Ionicons } from '@expo/vector-icons';
+} from "react-native";
+import { useAuth } from "@/context/AuthContext";
+import { useRouter } from "expo-router";
+import {
+  Colors,
+  Typography,
+  Spacing,
+  BorderRadius,
+  Shadows,
+} from "@/constants/theme";
+import { Ionicons } from "@expo/vector-icons";
 
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
@@ -20,19 +26,25 @@ export default function ProfileScreen() {
   const [balance] = useState(0); // TODO: Connect to wallet API
 
   const handleLogout = () => {
-    Alert.alert('Logout', 'Are you sure you want to logout?', [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert("Logout", "Are you sure you want to logout?", [
+      { text: "Cancel", style: "cancel" },
       {
-        text: 'Logout',
-        style: 'destructive',
+        text: "Logout",
+        style: "destructive",
         onPress: () => logout(),
       },
     ]);
   };
 
-  const isWorker = user?.profile_data?.profileType === 'WORKER';
-  const fullName = `${user?.profile_data?.firstName || ''} ${user?.profile_data?.lastName || ''}`.trim() || 'User';
-  const initial = (user?.profile_data?.firstName?.[0] || user?.email?.[0] || 'U').toUpperCase();
+  const isWorker = user?.profile_data?.profileType === "WORKER";
+  const fullName =
+    `${user?.profile_data?.firstName || ""} ${user?.profile_data?.lastName || ""}`.trim() ||
+    "User";
+  const initial = (
+    user?.profile_data?.firstName?.[0] ||
+    user?.email?.[0] ||
+    "U"
+  ).toUpperCase();
 
   return (
     <SafeAreaView style={styles.container}>
@@ -43,7 +55,10 @@ export default function ProfileScreen() {
             {/* Avatar */}
             <View style={styles.avatarContainer}>
               {user?.profile_data?.profileImg ? (
-                <Image source={{ uri: user.profile_data.profileImg }} style={styles.avatarImage} />
+                <Image
+                  source={{ uri: user.profile_data.profileImg }}
+                  style={styles.avatarImage}
+                />
               ) : (
                 <View style={styles.avatarPlaceholder}>
                   <Text style={styles.avatarText}>{initial}</Text>
@@ -53,28 +68,46 @@ export default function ProfileScreen() {
 
             {/* Name & Email */}
             <Text style={styles.userName}>{fullName}</Text>
-            <Text style={styles.userEmail}>{user?.email || ''}</Text>
+            <Text style={styles.userEmail}>{user?.email || ""}</Text>
 
             {/* Role Badge */}
-            <View style={[styles.roleBadge, isWorker ? styles.workerBadge : styles.clientBadge]}>
-              <Text style={[styles.roleText, isWorker ? styles.workerText : styles.clientText]}>
-                {isWorker ? 'Worker' : 'Client'}
+            <View
+              style={[
+                styles.roleBadge,
+                isWorker ? styles.workerBadge : styles.clientBadge,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.roleText,
+                  isWorker ? styles.workerText : styles.clientText,
+                ]}
+              >
+                {isWorker ? "Worker" : "Client"}
               </Text>
             </View>
 
             {/* View/Edit Profile Button */}
             {isWorker ? (
-              <TouchableOpacity 
-                style={styles.editButton} 
+              <TouchableOpacity
+                style={styles.editButton}
                 activeOpacity={0.8}
-                onPress={() => router.push('/profile')}
+                onPress={() => router.push("/profile")}
               >
-                <Ionicons name="person-outline" size={18} color={Colors.primary} />
+                <Ionicons
+                  name="person-outline"
+                  size={18}
+                  color={Colors.primary}
+                />
                 <Text style={styles.editButtonText}>View Full Profile</Text>
               </TouchableOpacity>
             ) : (
               <TouchableOpacity style={styles.editButton} activeOpacity={0.8}>
-                <Ionicons name="create-outline" size={18} color={Colors.primary} />
+                <Ionicons
+                  name="create-outline"
+                  size={18}
+                  color={Colors.primary}
+                />
                 <Text style={styles.editButtonText}>Edit Profile</Text>
               </TouchableOpacity>
             )}
@@ -87,7 +120,11 @@ export default function ProfileScreen() {
           <View style={styles.walletCard}>
             <View style={styles.walletHeader}>
               <View style={styles.walletIconContainer}>
-                <Ionicons name="wallet-outline" size={24} color={Colors.primary} />
+                <Ionicons
+                  name="wallet-outline"
+                  size={24}
+                  color={Colors.primary}
+                />
               </View>
               <View style={styles.walletInfo}>
                 <Text style={styles.walletLabel}>Current Balance</Text>
@@ -95,7 +132,11 @@ export default function ProfileScreen() {
               </View>
             </View>
             <TouchableOpacity style={styles.addFundsButton} activeOpacity={0.8}>
-              <Ionicons name="add-circle-outline" size={20} color={Colors.white} />
+              <Ionicons
+                name="add-circle-outline"
+                size={20}
+                color={Colors.white}
+              />
               <Text style={styles.addFundsText}>Add Funds</Text>
             </TouchableOpacity>
           </View>
@@ -105,11 +146,15 @@ export default function ProfileScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Account Information</Text>
           <View style={styles.infoCard}>
-            <InfoRow icon="mail-outline" label="Email" value={user?.email || 'Not set'} />
+            <InfoRow
+              icon="mail-outline"
+              label="Email"
+              value={user?.email || "Not set"}
+            />
             <InfoRow
               icon="checkmark-circle-outline"
               label="Email Verified"
-              value={user?.isVerified ? 'Yes' : 'No'}
+              value={user?.isVerified ? "Yes" : "No"}
               valueColor={user?.isVerified ? Colors.success : Colors.warning}
             />
             <InfoRow
@@ -129,10 +174,18 @@ export default function ProfileScreen() {
               <InfoRow
                 icon="location-outline"
                 label="Profile Type"
-                value={user?.profile_data?.profileType || 'Not set'}
+                value={user?.profile_data?.profileType || "Not set"}
               />
-              <InfoRow icon="star-outline" label="Rating" value="No ratings yet" />
-              <InfoRow icon="briefcase-outline" label="Jobs Completed" value="0" />
+              <InfoRow
+                icon="star-outline"
+                label="Rating"
+                value="No ratings yet"
+              />
+              <InfoRow
+                icon="briefcase-outline"
+                label="Jobs Completed"
+                value="0"
+              />
             </View>
           </View>
         )}
@@ -141,16 +194,36 @@ export default function ProfileScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Settings</Text>
           <View style={styles.menuCard}>
-            <MenuItem icon="notifications-outline" label="Notifications" onPress={() => {}} />
-            <MenuItem icon="shield-outline" label="Privacy & Security" onPress={() => {}} />
-            <MenuItem icon="help-circle-outline" label="Help & Support" onPress={() => {}} />
-            <MenuItem icon="information-circle-outline" label="About" onPress={() => {}} />
+            <MenuItem
+              icon="notifications-outline"
+              label="Notifications"
+              onPress={() => {}}
+            />
+            <MenuItem
+              icon="shield-outline"
+              label="Privacy & Security"
+              onPress={() => {}}
+            />
+            <MenuItem
+              icon="help-circle-outline"
+              label="Help & Support"
+              onPress={() => {}}
+            />
+            <MenuItem
+              icon="information-circle-outline"
+              label="About"
+              onPress={() => {}}
+            />
           </View>
         </View>
 
         {/* Logout Button */}
         <View style={styles.section}>
-          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} activeOpacity={0.8}>
+          <TouchableOpacity
+            style={styles.logoutButton}
+            onPress={handleLogout}
+            activeOpacity={0.8}
+          >
             <Ionicons name="log-out-outline" size={22} color={Colors.error} />
             <Text style={styles.logoutText}>Logout</Text>
           </TouchableOpacity>
@@ -188,9 +261,21 @@ function InfoRow({
   );
 }
 
-function MenuItem({ icon, label, onPress }: { icon: string; label: string; onPress: () => void }) {
+function MenuItem({
+  icon,
+  label,
+  onPress,
+}: {
+  icon: string;
+  label: string;
+  onPress: () => void;
+}) {
   return (
-    <TouchableOpacity style={styles.menuItem} onPress={onPress} activeOpacity={0.7}>
+    <TouchableOpacity
+      style={styles.menuItem}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
       <View style={styles.menuLeft}>
         <Ionicons name={icon as any} size={22} color={Colors.textSecondary} />
         <Text style={styles.menuLabel}>{label}</Text>
@@ -207,11 +292,11 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: Colors.primaryLight,
-    paddingVertical: Spacing['3xl'],
-    paddingHorizontal: Spacing['2xl'],
+    paddingVertical: Spacing["3xl"],
+    paddingHorizontal: Spacing["2xl"],
   },
   headerContent: {
-    alignItems: 'center',
+    alignItems: "center",
   },
   avatarContainer: {
     marginBottom: Spacing.lg,
@@ -226,8 +311,8 @@ const styles = StyleSheet.create({
     height: 100,
     borderRadius: 50,
     backgroundColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     ...Shadows.primary,
   },
   avatarText: {
@@ -236,7 +321,7 @@ const styles = StyleSheet.create({
     color: Colors.white,
   },
   userName: {
-    fontSize: Typography.fontSize['2xl'],
+    fontSize: Typography.fontSize["2xl"],
     fontWeight: Typography.fontWeight.bold,
     color: Colors.textPrimary,
     marginBottom: Spacing.xs,
@@ -269,8 +354,8 @@ const styles = StyleSheet.create({
     color: Colors.success,
   },
   editButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: Colors.white,
     paddingHorizontal: Spacing.xl,
     paddingVertical: Spacing.md,
@@ -285,7 +370,7 @@ const styles = StyleSheet.create({
   },
   section: {
     paddingHorizontal: Spacing.xl,
-    paddingTop: Spacing['2xl'],
+    paddingTop: Spacing["2xl"],
   },
   sectionTitle: {
     fontSize: Typography.fontSize.lg,
@@ -300,8 +385,8 @@ const styles = StyleSheet.create({
     ...Shadows.md,
   },
   walletHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: Spacing.lg,
   },
   walletIconContainer: {
@@ -309,8 +394,8 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 24,
     backgroundColor: Colors.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: Spacing.md,
   },
   walletInfo: {
@@ -322,14 +407,14 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   walletBalance: {
-    fontSize: Typography.fontSize['2xl'],
+    fontSize: Typography.fontSize["2xl"],
     fontWeight: Typography.fontWeight.bold,
     color: Colors.textPrimary,
   },
   addFundsButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     backgroundColor: Colors.primary,
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.md,
@@ -347,16 +432,16 @@ const styles = StyleSheet.create({
     ...Shadows.sm,
   },
   infoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingVertical: Spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: Colors.divider,
   },
   infoLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.md,
   },
   infoLabel: {
@@ -373,17 +458,17 @@ const styles = StyleSheet.create({
     ...Shadows.sm,
   },
   menuItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingVertical: Spacing.lg,
     paddingHorizontal: Spacing.lg,
     borderBottomWidth: 1,
     borderBottomColor: Colors.divider,
   },
   menuLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.md,
   },
   menuLabel: {
@@ -391,9 +476,9 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
   },
   logoutButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     backgroundColor: Colors.white,
     paddingVertical: Spacing.lg,
     borderRadius: BorderRadius.lg,
@@ -408,8 +493,8 @@ const styles = StyleSheet.create({
     color: Colors.error,
   },
   footer: {
-    alignItems: 'center',
-    paddingVertical: Spacing['4xl'],
+    alignItems: "center",
+    paddingVertical: Spacing["4xl"],
   },
   footerText: {
     fontSize: Typography.fontSize.sm,

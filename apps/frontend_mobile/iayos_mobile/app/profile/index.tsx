@@ -14,7 +14,13 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { Colors, Typography, Spacing, BorderRadius, Shadows } from "@/constants/theme";
+import {
+  Colors,
+  Typography,
+  Spacing,
+  BorderRadius,
+  Shadows,
+} from "@/constants/theme";
 import { ENDPOINTS } from "@/lib/api/config";
 
 // ===== TYPES =====
@@ -62,31 +68,32 @@ const formatCurrency = (amount: number): string => {
  */
 const calculateProfileCompletion = (profile: WorkerProfile): number => {
   let completed = 0;
-  
+
   // 1. Avatar (12.5%)
   if (profile.hasAvatar) completed += 12.5;
-  
+
   // 2. Bio (12.5%)
   if (profile.bio && profile.bio.length >= 50) completed += 12.5;
-  
+
   // 3. Hourly Rate (12.5%)
   if (profile.hourlyRate && profile.hourlyRate > 0) completed += 12.5;
-  
+
   // 4. Skills/Categories (12.5%)
-  if (profile.skills.length >= 3 || profile.categories.length >= 2) completed += 12.5;
-  
+  if (profile.skills.length >= 3 || profile.categories.length >= 2)
+    completed += 12.5;
+
   // 5. Phone Verified (12.5%)
   if (profile.isPhoneVerified) completed += 12.5;
-  
+
   // 6. Service Areas (12.5%)
   if (profile.serviceAreas.length >= 1) completed += 12.5;
-  
+
   // 7. Certifications (12.5%)
   if (profile.hasCertifications) completed += 12.5;
-  
+
   // 8. Portfolio (12.5%)
   if (profile.hasPortfolio) completed += 12.5;
-  
+
   return Math.round(completed);
 };
 
@@ -105,7 +112,12 @@ export default function ProfileScreen() {
   const router = useRouter();
 
   // Fetch profile data
-  const { data: profile, isLoading, error, refetch } = useQuery<WorkerProfile>({
+  const {
+    data: profile,
+    isLoading,
+    error,
+    refetch,
+  } = useQuery<WorkerProfile>({
     queryKey: ["worker-profile"],
     queryFn: async () => {
       const response = await fetch(ENDPOINTS.WORKER_PROFILE, {
@@ -155,11 +167,19 @@ export default function ProfileScreen() {
           <View style={styles.avatarContainer}>
             {profile.hasAvatar ? (
               <View style={styles.avatar}>
-                <Ionicons name="person" size={48} color={Colors.textSecondary} />
+                <Ionicons
+                  name="person"
+                  size={48}
+                  color={Colors.textSecondary}
+                />
               </View>
             ) : (
               <View style={[styles.avatar, styles.avatarPlaceholder]}>
-                <Ionicons name="person-outline" size={48} color={Colors.textSecondary} />
+                <Ionicons
+                  name="person-outline"
+                  size={48}
+                  color={Colors.textSecondary}
+                />
               </View>
             )}
           </View>
@@ -167,7 +187,7 @@ export default function ProfileScreen() {
           {/* Edit Button */}
           <Pressable
             style={styles.editButton}
-            onPress={() => router.push("/profile/edit")}
+            onPress={() => router.push("/profile/edit" as any)}
           >
             <Ionicons name="pencil" size={20} color={Colors.primary} />
             <Text style={styles.editButtonText}>Edit</Text>
@@ -181,15 +201,27 @@ export default function ProfileScreen() {
 
         {/* Contact Info */}
         <View style={styles.contactInfo}>
-          <Ionicons name="mail-outline" size={16} color={Colors.textSecondary} />
+          <Ionicons
+            name="mail-outline"
+            size={16}
+            color={Colors.textSecondary}
+          />
           <Text style={styles.contactText}>{profile.user.email}</Text>
         </View>
         {profile.user.phoneNumber && (
           <View style={styles.contactInfo}>
-            <Ionicons name="call-outline" size={16} color={Colors.textSecondary} />
+            <Ionicons
+              name="call-outline"
+              size={16}
+              color={Colors.textSecondary}
+            />
             <Text style={styles.contactText}>{profile.user.phoneNumber}</Text>
             {profile.isPhoneVerified && (
-              <Ionicons name="checkmark-circle" size={16} color={Colors.success} />
+              <Ionicons
+                name="checkmark-circle"
+                size={16}
+                color={Colors.success}
+              />
             )}
           </View>
         )}
@@ -204,19 +236,23 @@ export default function ProfileScreen() {
               Alert.alert(
                 "Profile Checklist",
                 `Complete your profile to attract more clients:\n\n` +
-                `${profile.hasAvatar ? "✓" : "○"} Profile Photo\n` +
-                `${profile.bio && profile.bio.length >= 50 ? "✓" : "○"} Bio (50+ characters)\n` +
-                `${profile.hourlyRate && profile.hourlyRate > 0 ? "✓" : "○"} Hourly Rate\n` +
-                `${profile.skills.length >= 3 || profile.categories.length >= 2 ? "✓" : "○"} Skills/Categories\n` +
-                `${profile.isPhoneVerified ? "✓" : "○"} Phone Verified\n` +
-                `${profile.serviceAreas.length >= 1 ? "✓" : "○"} Service Areas\n` +
-                `${profile.hasCertifications ? "✓" : "○"} Certifications\n` +
-                `${profile.hasPortfolio ? "✓" : "○"} Portfolio`,
+                  `${profile.hasAvatar ? "✓" : "○"} Profile Photo\n` +
+                  `${profile.bio && profile.bio.length >= 50 ? "✓" : "○"} Bio (50+ characters)\n` +
+                  `${profile.hourlyRate && profile.hourlyRate > 0 ? "✓" : "○"} Hourly Rate\n` +
+                  `${profile.skills.length >= 3 || profile.categories.length >= 2 ? "✓" : "○"} Skills/Categories\n` +
+                  `${profile.isPhoneVerified ? "✓" : "○"} Phone Verified\n` +
+                  `${profile.serviceAreas.length >= 1 ? "✓" : "○"} Service Areas\n` +
+                  `${profile.hasCertifications ? "✓" : "○"} Certifications\n` +
+                  `${profile.hasPortfolio ? "✓" : "○"} Portfolio`,
                 [{ text: "OK" }]
               );
             }}
           >
-            <Ionicons name="information-circle-outline" size={20} color={Colors.textSecondary} />
+            <Ionicons
+              name="information-circle-outline"
+              size={20}
+              color={Colors.textSecondary}
+            />
           </Pressable>
         </View>
 
@@ -267,7 +303,9 @@ export default function ProfileScreen() {
 
         <View style={styles.statCard}>
           <Ionicons name="cash" size={24} color={Colors.success} />
-          <Text style={styles.statValue}>{formatCurrency(profile.stats.totalEarnings)}</Text>
+          <Text style={styles.statValue}>
+            {formatCurrency(profile.stats.totalEarnings)}
+          </Text>
           <Text style={styles.statLabel}>Earned</Text>
         </View>
 
@@ -296,9 +334,13 @@ export default function ProfileScreen() {
           </Text>
           <Pressable
             style={styles.addButton}
-            onPress={() => router.push("/profile/edit")}
+            onPress={() => router.push("/profile/edit" as any)}
           >
-            <Ionicons name="add-circle-outline" size={20} color={Colors.primary} />
+            <Ionicons
+              name="add-circle-outline"
+              size={20}
+              color={Colors.primary}
+            />
             <Text style={styles.addButtonText}>Add Bio</Text>
           </Pressable>
         </View>
@@ -318,9 +360,13 @@ export default function ProfileScreen() {
           <Text style={styles.emptyText}>Set your hourly rate</Text>
           <Pressable
             style={styles.addButton}
-            onPress={() => router.push("/profile/edit")}
+            onPress={() => router.push("/profile/edit" as any)}
           >
-            <Ionicons name="add-circle-outline" size={20} color={Colors.primary} />
+            <Ionicons
+              name="add-circle-outline"
+              size={20}
+              color={Colors.primary}
+            />
             <Text style={styles.addButtonText}>Set Rate</Text>
           </Pressable>
         </View>
@@ -341,12 +387,18 @@ export default function ProfileScreen() {
       ) : (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Skills</Text>
-          <Text style={styles.emptyText}>Add skills to showcase your expertise</Text>
+          <Text style={styles.emptyText}>
+            Add skills to showcase your expertise
+          </Text>
           <Pressable
             style={styles.addButton}
-            onPress={() => router.push("/profile/edit")}
+            onPress={() => router.push("/profile/edit" as any)}
           >
-            <Ionicons name="add-circle-outline" size={20} color={Colors.primary} />
+            <Ionicons
+              name="add-circle-outline"
+              size={20}
+              color={Colors.primary}
+            />
             <Text style={styles.addButtonText}>Add Skills</Text>
           </Pressable>
         </View>
@@ -373,7 +425,11 @@ export default function ProfileScreen() {
           <View style={styles.areasContainer}>
             {profile.serviceAreas.map((area, index) => (
               <View key={index} style={styles.areaItem}>
-                <Ionicons name="location-outline" size={16} color={Colors.textSecondary} />
+                <Ionicons
+                  name="location-outline"
+                  size={16}
+                  color={Colors.textSecondary}
+                />
                 <Text style={styles.areaText}>{area}</Text>
               </View>
             ))}

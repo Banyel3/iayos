@@ -14,7 +14,9 @@ export const Colors = {
   success: "#4CAF50",
   successLight: "#E8F5E9",
   warning: "#FFA726",
+  warningLight: "#FFF3E0",
   error: "#BD0000",
+  errorLight: "#FFEBEE",
 
   // Background Colors
   background: "#FFFFFF",
@@ -26,6 +28,7 @@ export const Colors = {
   textPrimary: "#212121",
   textSecondary: "#757575",
   textHint: "#BDBDBD",
+  textLight: "#FFFFFF",
 
   // Other
   divider: "#E0E0E0",
@@ -133,8 +136,11 @@ export const Spacing = {
 
 export const BorderRadius = {
   sm: 8,
+  small: 8,
   md: 12,
+  medium: 12,
   lg: 16,
+  large: 16,
   xl: 20,
   "2xl": 24,
   pill: 25,
