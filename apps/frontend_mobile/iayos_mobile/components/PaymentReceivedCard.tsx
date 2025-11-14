@@ -34,7 +34,11 @@ export default function PaymentReceivedCard({
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <View style={styles.successIcon}>
-            <Ionicons name="checkmark-circle" size={24} color={Colors.success} />
+            <Ionicons
+              name="checkmark-circle"
+              size={24}
+              color={Colors.success}
+            />
           </View>
           <View>
             <Text style={styles.headerTitle}>Payment Received</Text>
@@ -57,7 +61,9 @@ export default function PaymentReceivedCard({
       <View style={styles.breakdownSection}>
         <View style={styles.breakdownRow}>
           <Text style={styles.breakdownLabel}>Total Payment</Text>
-          <Text style={styles.breakdownValue}>₱{formatAmount(grossAmount)}</Text>
+          <Text style={styles.breakdownValue}>
+            ₱{formatAmount(grossAmount)}
+          </Text>
         </View>
 
         <View style={styles.breakdownRow}>

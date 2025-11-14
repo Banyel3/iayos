@@ -10,7 +10,12 @@ import {
 } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { Colors, Spacing, Typography, BorderRadius } from "../../constants/theme";
+import {
+  Colors,
+  Spacing,
+  Typography,
+  BorderRadius,
+} from "../../constants/theme";
 import { useJobEarnings } from "../../lib/hooks/useFinalPayment";
 import { useWalletBalance } from "../../lib/hooks/usePayments";
 import { format } from "date-fns";
@@ -84,7 +89,11 @@ Thank you for using iAyos!
         {/* Success Header */}
         <View style={styles.successHeader}>
           <View style={styles.successIconContainer}>
-            <Ionicons name="checkmark-circle" size={80} color={Colors.success} />
+            <Ionicons
+              name="checkmark-circle"
+              size={80}
+              color={Colors.success}
+            />
           </View>
           <Text style={styles.successTitle}>Payment Received!</Text>
           <Text style={styles.successSubtitle}>
@@ -96,7 +105,11 @@ Thank you for using iAyos!
         {earnings && (
           <View style={styles.breakdownCard}>
             <View style={styles.breakdownHeader}>
-              <Ionicons name="receipt-outline" size={24} color={Colors.primary} />
+              <Ionicons
+                name="receipt-outline"
+                size={24}
+                color={Colors.primary}
+              />
               <Text style={styles.breakdownTitle}>Earnings Breakdown</Text>
             </View>
 
@@ -145,7 +158,11 @@ Thank you for using iAyos!
 
             {/* Date */}
             <View style={styles.dateRow}>
-              <Ionicons name="calendar-outline" size={14} color={Colors.textSecondary} />
+              <Ionicons
+                name="calendar-outline"
+                size={14}
+                color={Colors.textSecondary}
+              />
               <Text style={styles.dateText}>
                 {format(new Date(), "MMMM dd, yyyy 'at' hh:mm a")}
               </Text>
@@ -191,7 +208,8 @@ Thank you for using iAyos!
             style={styles.infoIcon}
           />
           <Text style={styles.infoText}>
-            You can withdraw your earnings anytime from your wallet. Minimum withdrawal amount is ₱100.
+            You can withdraw your earnings anytime from your wallet. Minimum
+            withdrawal amount is ₱100.
           </Text>
         </View>
       </ScrollView>

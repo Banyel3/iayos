@@ -84,8 +84,14 @@ export default function EarningsHistoryItem({
       disabled={!onPress}
     >
       <View style={styles.leftSection}>
-        <View style={[styles.statusIcon, { backgroundColor: statusConfig.bgColor }]}>
-          <Ionicons name={statusConfig.icon} size={24} color={statusConfig.color} />
+        <View
+          style={[styles.statusIcon, { backgroundColor: statusConfig.bgColor }]}
+        >
+          <Ionicons
+            name={statusConfig.icon}
+            size={24}
+            color={statusConfig.color}
+          />
         </View>
 
         <View style={styles.infoSection}>
@@ -103,8 +109,15 @@ export default function EarningsHistoryItem({
             </Text>
           </View>
 
-          <View style={[styles.statusBadge, { backgroundColor: statusConfig.bgColor }]}>
-            <Text style={[styles.statusBadgeText, { color: statusConfig.color }]}>
+          <View
+            style={[
+              styles.statusBadge,
+              { backgroundColor: statusConfig.bgColor },
+            ]}
+          >
+            <Text
+              style={[styles.statusBadgeText, { color: statusConfig.color }]}
+            >
               {statusConfig.label}
             </Text>
           </View>
@@ -113,7 +126,9 @@ export default function EarningsHistoryItem({
 
       <View style={styles.rightSection}>
         <Text style={styles.amountText}>₱{formatAmount(amount)}</Text>
-        <Text style={styles.netAmountText}>Net: ₱{formatAmount(netAmount)}</Text>
+        <Text style={styles.netAmountText}>
+          Net: ₱{formatAmount(netAmount)}
+        </Text>
         <Text style={styles.feeText}>Fee: ₱{formatAmount(platformFee)}</Text>
 
         {onPress && (

@@ -13,13 +13,7 @@ export default function PaymentTimelineConnector({
 }: PaymentTimelineConnectorProps) {
   return (
     <View style={styles.container}>
-      <View
-        style={[
-          styles.line,
-          { height },
-          isActive && styles.lineActive,
-        ]}
-      />
+      <View style={[styles.line, { height }, isActive && styles.lineActive]} />
     </View>
   );
 }

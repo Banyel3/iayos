@@ -10,13 +10,24 @@ import {
 } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { Colors, Spacing, Typography, BorderRadius } from "../../constants/theme";
-import { useEarningsSummary, useEarningsHistory, EarningsHistoryItem } from "../../lib/hooks/useWorkerEarnings";
+import {
+  Colors,
+  Spacing,
+  Typography,
+  BorderRadius,
+} from "../../constants/theme";
+import {
+  useEarningsSummary,
+  useEarningsHistory,
+  EarningsHistoryItem,
+} from "../../lib/hooks/useWorkerEarnings";
 import { format } from "date-fns";
 
 export default function WorkerEarningsScreen() {
   const router = useRouter();
-  const [filterPeriod, setFilterPeriod] = useState<"week" | "month" | "all">("month");
+  const [filterPeriod, setFilterPeriod] = useState<"week" | "month" | "all">(
+    "month"
+  );
 
   const {
     data: summary,
@@ -249,7 +260,9 @@ export default function WorkerEarningsScreen() {
                       <View
                         style={[
                           styles.statusBadge,
-                          { backgroundColor: `${getStatusColor(item.status)}20` },
+                          {
+                            backgroundColor: `${getStatusColor(item.status)}20`,
+                          },
                         ]}
                       >
                         <Text

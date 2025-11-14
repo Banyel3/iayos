@@ -60,7 +60,9 @@ export default function EarningsStatsCard({
       <View style={styles.statsGrid}>
         {stats.map((stat, index) => (
           <View key={index} style={styles.statCard}>
-            <View style={[styles.statIcon, { backgroundColor: `${stat.color}20` }]}>
+            <View
+              style={[styles.statIcon, { backgroundColor: `${stat.color}20` }]}
+            >
               <Ionicons name={stat.icon} size={24} color={stat.color} />
             </View>
             <Text style={styles.statLabel}>{stat.label}</Text>

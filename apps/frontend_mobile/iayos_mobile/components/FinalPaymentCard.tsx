@@ -51,7 +51,9 @@ export default function FinalPaymentCard({
               color={Colors.textSecondary}
             />
           </View>
-          <Text style={styles.breakdownValue}>₱{formatAmount(platformFee)}</Text>
+          <Text style={styles.breakdownValue}>
+            ₱{formatAmount(platformFee)}
+          </Text>
         </View>
 
         {/* Divider */}
@@ -73,7 +75,9 @@ export default function FinalPaymentCard({
           </View>
           <View style={styles.workerAmountRow}>
             <Text style={styles.workerAmountLabel}>Total Earnings</Text>
-            <Text style={styles.workerAmountValue}>₱{formatAmount(workerReceives)}</Text>
+            <Text style={styles.workerAmountValue}>
+              ₱{formatAmount(workerReceives)}
+            </Text>
           </View>
           <Text style={styles.workerNote}>
             Worker receives 95% of total payments (platform fee deducted)
@@ -83,9 +87,14 @@ export default function FinalPaymentCard({
 
       {/* Info Note */}
       <View style={styles.infoNote}>
-        <Ionicons name="information-circle" size={16} color={Colors.textSecondary} />
+        <Ionicons
+          name="information-circle"
+          size={16}
+          color={Colors.textSecondary}
+        />
         <Text style={styles.infoNoteText}>
-          This is the final 50% payment. Funds will be released to the worker upon confirmation.
+          This is the final 50% payment. Funds will be released to the worker
+          upon confirmation.
         </Text>
       </View>
     </View>

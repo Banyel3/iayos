@@ -94,7 +94,9 @@ export const useCreateFinalPayment = () => {
       });
 
       // Invalidate relevant queries
-      queryClient.invalidateQueries({ queryKey: ["jobPaymentStatus", variables.jobId] });
+      queryClient.invalidateQueries({
+        queryKey: ["jobPaymentStatus", variables.jobId],
+      });
       queryClient.invalidateQueries({ queryKey: ["walletBalance"] });
       queryClient.invalidateQueries({ queryKey: ["paymentHistory"] });
       queryClient.invalidateQueries({ queryKey: ["activeJobs"] });

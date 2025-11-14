@@ -10,7 +10,12 @@ import {
 } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { Colors, Spacing, Typography, BorderRadius } from "../../../constants/theme";
+import {
+  Colors,
+  Spacing,
+  Typography,
+  BorderRadius,
+} from "../../../constants/theme";
 import { usePaymentTimeline } from "../../../lib/hooks/useFinalPayment";
 import { format, formatDistanceToNow } from "date-fns";
 
@@ -39,7 +44,10 @@ export default function PaymentTimelineScreen() {
       case "final_payment_created":
         return { name: "wallet" as const, color: Colors.primary };
       case "final_payment_paid":
-        return { name: "checkmark-done-circle" as const, color: Colors.success };
+        return {
+          name: "checkmark-done-circle" as const,
+          color: Colors.success,
+        };
       case "payment_released":
         return { name: "send" as const, color: Colors.success };
       case "payment_failed":
@@ -116,7 +124,10 @@ export default function PaymentTimelineScreen() {
           <Ionicons name="alert-circle" size={64} color={Colors.error} />
           <Text style={styles.errorTitle}>Failed to load timeline</Text>
           <Text style={styles.errorText}>Please try again later</Text>
-          <TouchableOpacity style={styles.retryButton} onPress={() => refetch()}>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={() => refetch()}
+          >
             <Text style={styles.retryButtonText}>Retry</Text>
           </TouchableOpacity>
         </View>

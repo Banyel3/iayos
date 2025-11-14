@@ -35,7 +35,8 @@ export default function CashPaymentPendingCard({
         <View style={styles.headerText}>
           <Text style={styles.title}>Payment Pending Verification</Text>
           <Text style={styles.subtitle}>
-            Submitted {formatDistanceToNow(new Date(submittedDate), { addSuffix: true })}
+            Submitted{" "}
+            {formatDistanceToNow(new Date(submittedDate), { addSuffix: true })}
           </Text>
         </View>
       </View>
@@ -62,7 +63,8 @@ export default function CashPaymentPendingCard({
           <Text style={styles.statusTitle}>Verification in Progress</Text>
         </View>
         <Text style={styles.statusText}>
-          Our admin team is verifying your cash payment proof. This usually takes {estimatedTime}.
+          Our admin team is verifying your cash payment proof. This usually
+          takes {estimatedTime}.
         </Text>
       </View>
 
@@ -94,9 +96,14 @@ export default function CashPaymentPendingCard({
 
       {/* Info Note */}
       <View style={styles.infoNote}>
-        <Ionicons name="information-circle" size={16} color={Colors.textSecondary} />
+        <Ionicons
+          name="information-circle"
+          size={16}
+          color={Colors.textSecondary}
+        />
         <Text style={styles.infoNoteText}>
-          You'll receive a notification once the payment is verified and released to your wallet.
+          You'll receive a notification once the payment is verified and
+          released to your wallet.
         </Text>
       </View>
     </View>

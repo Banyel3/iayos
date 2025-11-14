@@ -10,12 +10,20 @@ import {
 } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { Colors, Spacing, Typography, BorderRadius } from "../../constants/theme";
+import {
+  Colors,
+  Spacing,
+  Typography,
+  BorderRadius,
+} from "../../constants/theme";
 import PaymentSummaryCard from "../../components/PaymentSummaryCard";
 import PaymentMethodButton from "../../components/PaymentMethodButton";
 import WalletBalanceCard from "../../components/WalletBalanceCard";
 import { useWalletBalance } from "../../lib/hooks/usePayments";
-import { useCreateFinalPayment, useJobPaymentStatus } from "../../lib/hooks/useFinalPayment";
+import {
+  useCreateFinalPayment,
+  useJobPaymentStatus,
+} from "../../lib/hooks/useFinalPayment";
 
 export default function FinalPaymentScreen() {
   const router = useRouter();
@@ -24,9 +32,15 @@ export default function FinalPaymentScreen() {
   const budget = parseFloat(params.budget as string);
   const jobTitle = (params.title as string) || "Job";
 
-  const [selectedMethod, setSelectedMethod] = useState<"gcash" | "wallet" | "cash" | null>(null);
+  const [selectedMethod, setSelectedMethod] = useState<
+    "gcash" | "wallet" | "cash" | null
+  >(null);
 
-  const { data: walletBalance, isLoading: loadingBalance, refetch: refetchBalance } = useWalletBalance();
+  const {
+    data: walletBalance,
+    isLoading: loadingBalance,
+    refetch: refetchBalance,
+  } = useWalletBalance();
   const { data: paymentStatus } = useJobPaymentStatus(jobId);
   const createFinalPaymentMutation = useCreateFinalPayment();
 
@@ -41,23 +55,31 @@ export default function FinalPaymentScreen() {
     total: totalAmount,
   };
 
-  const insufficientBalance = walletBalance && walletBalance.balance < totalAmount;
+  const insufficientBalance =
+    walletBalance && walletBalance.balance < totalAmount;
 
   const handleProceed = () => {
     if (!selectedMethod) {
-      Alert.alert("Select Payment Method", "Please select a payment method to continue.");
+      Alert.alert(
+        "Select Payment Method",
+        "Please select a payment method to continue."
+      );
       return;
     }
 
     // Check wallet balance if wallet selected
     if (selectedMethod === "wallet" && insufficientBalance) {
-      Alert.alert("Insufficient Balance", "Your wallet balance is insufficient. Please deposit funds or choose another payment method.", [
-        {
-          text: "Deposit Funds",
-          onPress: () => router.push("/payments/deposit" as any),
-        },
-        { text: "Cancel", style: "cancel" },
-      ]);
+      Alert.alert(
+        "Insufficient Balance",
+        "Your wallet balance is insufficient. Please deposit funds or choose another payment method.",
+        [
+          {
+            text: "Deposit Funds",
+            onPress: () => router.push("/payments/deposit" as any),
+          },
+          { text: "Cancel", style: "cancel" },
+        ]
+      );
       return;
     }
 
@@ -66,33 +88,33 @@ export default function FinalPaymentScreen() {
       case "gcash":
         router.push({
           pathname: "/payments/gcash" as any,
-          params: { 
-            jobId: jobId.toString(), 
-            budget: budget.toString(), 
+          params: {
+            jobId: jobId.toString(),
+            budget: budget.toString(),
             title: jobTitle,
-            paymentType: "final" // Mark as final payment
+            paymentType: "final", // Mark as final payment
           },
         });
         break;
       case "wallet":
         router.push({
           pathname: "/payments/wallet" as any,
-          params: { 
-            jobId: jobId.toString(), 
-            budget: budget.toString(), 
+          params: {
+            jobId: jobId.toString(),
+            budget: budget.toString(),
             title: jobTitle,
-            paymentType: "final"
+            paymentType: "final",
           },
         });
         break;
       case "cash":
         router.push({
           pathname: "/payments/cash" as any,
-          params: { 
-            jobId: jobId.toString(), 
-            budget: budget.toString(), 
+          params: {
+            jobId: jobId.toString(),
+            budget: budget.toString(),
             title: jobTitle,
-            paymentType: "final"
+            paymentType: "final",
           },
         });
         break;
@@ -118,7 +140,11 @@ export default function FinalPaymentScreen() {
         {/* Header Info */}
         <View style={styles.headerSection}>
           <View style={styles.headerIcon}>
-            <Ionicons name="checkmark-circle" size={48} color={Colors.success} />
+            <Ionicons
+              name="checkmark-circle"
+              size={48}
+              color={Colors.success}
+            />
           </View>
           <Text style={styles.headerTitle}>Job Completed!</Text>
           <Text style={styles.headerSubtitle}>
@@ -130,7 +156,11 @@ export default function FinalPaymentScreen() {
         <View style={styles.jobInfoCard}>
           <Text style={styles.jobTitle}>{jobTitle}</Text>
           <View style={styles.jobMetaRow}>
-            <Ionicons name="calendar-outline" size={16} color={Colors.textSecondary} />
+            <Ionicons
+              name="calendar-outline"
+              size={16}
+              color={Colors.textSecondary}
+            />
             <Text style={styles.jobMetaText}>Completed today</Text>
           </View>
         </View>
@@ -141,16 +171,29 @@ export default function FinalPaymentScreen() {
           <Text style={styles.breakdownTitle}>Final Payment Breakdown</Text>
           <View style={styles.breakdownRow}>
             <Text style={styles.breakdownLabel}>Remaining Payment (50%)</Text>
-            <Text style={styles.breakdownValue}>₱{halfBudget.toLocaleString("en-US", { minimumFractionDigits: 2 })}</Text>
+            <Text style={styles.breakdownValue}>
+              ₱
+              {halfBudget.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+            </Text>
           </View>
           <View style={styles.breakdownRow}>
             <Text style={styles.breakdownLabel}>Platform Fee (5%)</Text>
-            <Text style={styles.breakdownValue}>₱{platformFee.toLocaleString("en-US", { minimumFractionDigits: 2 })}</Text>
+            <Text style={styles.breakdownValue}>
+              ₱
+              {platformFee.toLocaleString("en-US", {
+                minimumFractionDigits: 2,
+              })}
+            </Text>
           </View>
           <View style={styles.divider} />
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Total Amount</Text>
-            <Text style={styles.totalValue}>₱{totalAmount.toLocaleString("en-US", { minimumFractionDigits: 2 })}</Text>
+            <Text style={styles.totalValue}>
+              ₱
+              {totalAmount.toLocaleString("en-US", {
+                minimumFractionDigits: 2,
+              })}
+            </Text>
           </View>
         </View>
 
@@ -158,11 +201,19 @@ export default function FinalPaymentScreen() {
         {paymentStatus?.escrowPaid && (
           <View style={styles.previousPaymentCard}>
             <View style={styles.previousPaymentRow}>
-              <Ionicons name="checkmark-circle" size={20} color={Colors.success} />
+              <Ionicons
+                name="checkmark-circle"
+                size={20}
+                color={Colors.success}
+              />
               <Text style={styles.previousPaymentLabel}>Escrow Payment</Text>
             </View>
             <Text style={styles.previousPaymentAmount}>
-              ₱{paymentStatus.escrowAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              ₱
+              {paymentStatus.escrowAmount.toLocaleString("en-US", {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
             </Text>
             <Text style={styles.previousPaymentDate}>
               Paid on {new Date(paymentStatus.escrowDate).toLocaleDateString()}
@@ -216,9 +267,16 @@ export default function FinalPaymentScreen() {
           <View style={styles.warningBox}>
             <Ionicons name="warning" size={20} color={Colors.error} />
             <View style={styles.warningTextContainer}>
-              <Text style={styles.warningTitle}>Insufficient wallet balance</Text>
+              <Text style={styles.warningTitle}>
+                Insufficient wallet balance
+              </Text>
               <Text style={styles.warningText}>
-                You need ₱{(totalAmount - (walletBalance?.balance || 0)).toLocaleString("en-US", { minimumFractionDigits: 2 })} more to complete this payment
+                You need ₱
+                {(totalAmount - (walletBalance?.balance || 0)).toLocaleString(
+                  "en-US",
+                  { minimumFractionDigits: 2 }
+                )}{" "}
+                more to complete this payment
               </Text>
               <TouchableOpacity
                 onPress={() => router.push("/payments/deposit" as any)}
@@ -240,7 +298,8 @@ export default function FinalPaymentScreen() {
             style={styles.infoIcon}
           />
           <Text style={styles.infoText}>
-            The worker will receive their earnings minus the platform fee (5%) once your payment is confirmed.
+            The worker will receive their earnings minus the platform fee (5%)
+            once your payment is confirmed.
           </Text>
         </View>
       </ScrollView>
@@ -250,11 +309,15 @@ export default function FinalPaymentScreen() {
         <TouchableOpacity
           style={[
             styles.proceedButton,
-            (!selectedMethod || (selectedMethod === "wallet" && insufficientBalance)) &&
+            (!selectedMethod ||
+              (selectedMethod === "wallet" && insufficientBalance)) &&
               styles.proceedButtonDisabled,
           ]}
           onPress={handleProceed}
-          disabled={!selectedMethod || (selectedMethod === "wallet" && insufficientBalance)}
+          disabled={
+            !selectedMethod ||
+            (selectedMethod === "wallet" && insufficientBalance)
+          }
         >
           {createFinalPaymentMutation.isPending ? (
             <ActivityIndicator color="#fff" />
