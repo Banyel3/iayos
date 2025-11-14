@@ -1,7 +1,10 @@
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { Colors, Typography, BorderRadius, Spacing } from "../constants/theme";
-import { formatCurrency, calculateEscrowAmount } from "../lib/hooks/usePayments";
+import {
+  formatCurrency,
+  calculateEscrowAmount,
+} from "../lib/hooks/usePayments";
 
 interface PaymentSummaryCardProps {
   jobBudget: number;

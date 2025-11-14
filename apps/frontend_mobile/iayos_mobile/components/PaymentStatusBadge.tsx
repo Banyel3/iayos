@@ -1,10 +1,10 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { Colors, Typography, Spacing, BorderRadius } from '../constants/theme';
+import React from "react";
+import { View, Text, StyleSheet } from "react-native";
+import { Colors, Typography, Spacing, BorderRadius } from "../constants/theme";
 
 /**
  * PaymentStatusBadge Component
- * 
+ *
  * Color-coded status badge for payment status:
  * - Pending: Yellow
  * - Completed: Green
@@ -13,47 +13,55 @@ import { Colors, Typography, Spacing, BorderRadius } from '../constants/theme';
  * - Refunded: Purple
  */
 
-export type PaymentStatus = 'pending' | 'completed' | 'failed' | 'verifying' | 'refunded';
+export type PaymentStatus =
+  | "pending"
+  | "completed"
+  | "failed"
+  | "verifying"
+  | "refunded";
 
 interface PaymentStatusBadgeProps {
   status: PaymentStatus;
-  size?: 'small' | 'medium' | 'large';
+  size?: "small" | "medium" | "large";
 }
 
 const statusConfig = {
   pending: {
-    label: 'Pending',
-    backgroundColor: '#FEF3C7',
-    textColor: '#92400E',
-    icon: '⏳',
+    label: "Pending",
+    backgroundColor: "#FEF3C7",
+    textColor: "#92400E",
+    icon: "⏳",
   },
   completed: {
-    label: 'Completed',
-    backgroundColor: '#D1FAE5',
-    textColor: '#065F46',
-    icon: '✓',
+    label: "Completed",
+    backgroundColor: "#D1FAE5",
+    textColor: "#065F46",
+    icon: "✓",
   },
   failed: {
-    label: 'Failed',
-    backgroundColor: '#FEE2E2',
-    textColor: '#991B1B',
-    icon: '✗',
+    label: "Failed",
+    backgroundColor: "#FEE2E2",
+    textColor: "#991B1B",
+    icon: "✗",
   },
   verifying: {
-    label: 'Verifying',
-    backgroundColor: '#DBEAFE',
-    textColor: '#1E40AF',
-    icon: '🔍',
+    label: "Verifying",
+    backgroundColor: "#DBEAFE",
+    textColor: "#1E40AF",
+    icon: "🔍",
   },
   refunded: {
-    label: 'Refunded',
-    backgroundColor: '#E9D5FF',
-    textColor: '#6B21A8',
-    icon: '↩',
+    label: "Refunded",
+    backgroundColor: "#E9D5FF",
+    textColor: "#6B21A8",
+    icon: "↩",
   },
 };
 
-export default function PaymentStatusBadge({ status, size = 'medium' }: PaymentStatusBadgeProps) {
+export default function PaymentStatusBadge({
+  status,
+  size = "medium",
+}: PaymentStatusBadgeProps) {
   const config = statusConfig[status];
 
   const sizeStyles = {
@@ -103,7 +111,7 @@ export default function PaymentStatusBadge({ status, size = 'medium' }: PaymentS
 const styles = StyleSheet.create({
   badge: {
     borderRadius: BorderRadius.full,
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
   },
   badgeText: {
     fontWeight: Typography.fontWeight.semiBold as any,

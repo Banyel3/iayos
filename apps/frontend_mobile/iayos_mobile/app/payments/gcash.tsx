@@ -24,7 +24,7 @@ export default function GCashPaymentScreen() {
 
   const jobId = params.jobId ? parseInt(params.jobId as string) : null;
   const jobBudget = params.budget ? parseFloat(params.budget as string) : 0;
-  const jobTitle = params.title as string || "Untitled Job";
+  const jobTitle = (params.title as string) || "Untitled Job";
 
   const [xenditUrl, setXenditUrl] = useState<string | null>(null);
   const [paymentCompleted, setPaymentCompleted] = useState(false);
@@ -61,7 +61,10 @@ export default function GCashPaymentScreen() {
     // Check if payment is completed (Xendit success callback)
     if (url.includes("/payment/success") || url.includes("/callback/success")) {
       handlePaymentSuccess();
-    } else if (url.includes("/payment/failed") || url.includes("/callback/failed")) {
+    } else if (
+      url.includes("/payment/failed") ||
+      url.includes("/callback/failed")
+    ) {
       handlePaymentFailure();
     }
   };
@@ -85,7 +88,8 @@ export default function GCashPaymentScreen() {
             [
               {
                 text: "View Status",
-                onPress: () => router.push(`/payments/status?jobId=${jobId}`),
+                onPress: () =>
+                  router.push(`/payments/status?jobId=${jobId}` as any),
               },
             ]
           );
@@ -148,7 +152,11 @@ export default function GCashPaymentScreen() {
 
       {/* Payment Summary */}
       <View style={styles.summaryContainer}>
-        <PaymentSummaryCard jobBudget={jobBudget} showBreakdown={false} compact />
+        <PaymentSummaryCard
+          jobBudget={jobBudget}
+          showBreakdown={false}
+          compact
+        />
       </View>
 
       {/* WebView or Loading */}

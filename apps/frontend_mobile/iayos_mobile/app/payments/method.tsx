@@ -10,7 +10,12 @@ import {
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { Colors, Typography, BorderRadius, Spacing } from "../../constants/theme";
+import {
+  Colors,
+  Typography,
+  BorderRadius,
+  Spacing,
+} from "../../constants/theme";
 import PaymentSummaryCard from "../../components/PaymentSummaryCard";
 import PaymentMethodButton from "../../components/PaymentMethodButton";
 import WalletBalanceCard from "../../components/WalletBalanceCard";
@@ -21,13 +26,15 @@ type PaymentMethod = "gcash" | "wallet" | "cash";
 export default function PaymentMethodScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  
+
   // Get job details from params
   const jobId = params.jobId ? parseInt(params.jobId as string) : null;
   const jobBudget = params.budget ? parseFloat(params.budget as string) : 0;
-  const jobTitle = params.title as string || "Untitled Job";
+  const jobTitle = (params.title as string) || "Untitled Job";
 
-  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
+  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(
+    null
+  );
 
   // Fetch wallet balance
   const {
@@ -39,7 +46,7 @@ export default function PaymentMethodScreen() {
   const walletBalance = walletData?.balance || 0;
 
   // Check if wallet has sufficient balance
-  const isWalletSufficient = walletBalance >= (jobBudget * 0.55); // 50% + 5% fee
+  const isWalletSufficient = walletBalance >= jobBudget * 0.55; // 50% + 5% fee
 
   const handleMethodSelect = (method: PaymentMethod) => {
     if (method === "wallet" && !isWalletSufficient) {
@@ -49,7 +56,7 @@ export default function PaymentMethodScreen() {
         [
           {
             text: "Deposit Funds",
-            onPress: () => router.push("/payments/deposit"),
+            onPress: () => router.push("/payments/deposit" as any),
           },
           { text: "Cancel", style: "cancel" },
         ]
@@ -61,7 +68,10 @@ export default function PaymentMethodScreen() {
 
   const handleProceed = () => {
     if (!selectedMethod) {
-      Alert.alert("Select Payment Method", "Please select a payment method to continue.");
+      Alert.alert(
+        "Select Payment Method",
+        "Please select a payment method to continue."
+      );
       return;
     }
 
@@ -74,19 +84,19 @@ export default function PaymentMethodScreen() {
     switch (selectedMethod) {
       case "gcash":
         router.push({
-          pathname: "/payments/gcash",
+          pathname: "/payments/gcash" as any,
           params: { jobId, budget: jobBudget, title: jobTitle },
         });
         break;
       case "wallet":
         router.push({
-          pathname: "/payments/wallet",
+          pathname: "/payments/wallet" as any,
           params: { jobId, budget: jobBudget, title: jobTitle },
         });
         break;
       case "cash":
         router.push({
-          pathname: "/payments/cash",
+          pathname: "/payments/cash" as any,
           params: { jobId, budget: jobBudget, title: jobTitle },
         });
         break;
@@ -94,7 +104,7 @@ export default function PaymentMethodScreen() {
   };
 
   const handleDeposit = () => {
-    router.push("/payments/deposit");
+    router.push("/payments/deposit" as any);
   };
 
   if (!jobId || !jobBudget) {
@@ -187,11 +197,12 @@ export default function PaymentMethodScreen() {
           <Ionicons
             name="information-circle"
             size={20}
-            color={Colors.info}
+            color={Colors.primary}
             style={styles.infoIcon}
           />
           <Text style={styles.infoText}>
-            Cash payments require admin verification and may take 1-2 business days to approve.
+            Cash payments require admin verification and may take 1-2 business
+            days to approve.
           </Text>
         </View>
       </ScrollView>

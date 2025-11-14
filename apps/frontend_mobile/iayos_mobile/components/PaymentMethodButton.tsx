@@ -58,13 +58,20 @@ export default function PaymentMethodButton({
     >
       {/* Radio Circle */}
       <View style={styles.radioContainer}>
-        <View style={[styles.radioOuter, selected && styles.radioOuterSelected]}>
+        <View
+          style={[styles.radioOuter, selected && styles.radioOuterSelected]}
+        >
           {selected && <View style={styles.radioInner} />}
         </View>
       </View>
 
       {/* Icon */}
-      <View style={[styles.iconContainer, { backgroundColor: getIconColor() + "20" }]}>
+      <View
+        style={[
+          styles.iconContainer,
+          { backgroundColor: getIconColor() + "20" },
+        ]}
+      >
         <Ionicons name={icon} size={28} color={getIconColor()} />
       </View>
 
@@ -73,7 +80,9 @@ export default function PaymentMethodButton({
         <Text style={[styles.label, disabled && styles.labelDisabled]}>
           {label}
         </Text>
-        <Text style={[styles.description, disabled && styles.descriptionDisabled]}>
+        <Text
+          style={[styles.description, disabled && styles.descriptionDisabled]}
+        >
           {description}
         </Text>
       </View>

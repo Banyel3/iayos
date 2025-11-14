@@ -1,5 +1,11 @@
 import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from "react-native";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  ActivityIndicator,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors, Typography, BorderRadius, Spacing } from "../constants/theme";
 import { formatCurrency } from "../lib/hooks/usePayments";
@@ -48,7 +54,11 @@ export default function WalletBalanceCard({
           onPress={onDeposit}
           activeOpacity={0.8}
         >
-          <Ionicons name="add-circle-outline" size={20} color={Colors.primary} />
+          <Ionicons
+            name="add-circle-outline"
+            size={20}
+            color={Colors.primary}
+          />
           <Text style={styles.depositText}>Deposit Funds</Text>
         </TouchableOpacity>
       )}

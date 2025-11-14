@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -8,34 +8,48 @@ import {
   Image,
   Alert,
   ActivityIndicator,
-} from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
-import { Colors, Typography, Spacing, BorderRadius } from '../../constants/theme';
-import { useUploadCashProof, useCreateEscrowPayment, formatCurrency, calculateEscrowAmount } from '../../lib/hooks/usePayments';
-import PaymentSummaryCard from '../../components/PaymentSummaryCard';
+} from "react-native";
+import { useRouter, useLocalSearchParams } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
+import {
+  Colors,
+  Typography,
+  Spacing,
+  BorderRadius,
+} from "../../constants/theme";
+import {
+  useUploadCashProof,
+  useCreateEscrowPayment,
+  formatCurrency,
+  calculateEscrowAmount,
+} from "../../lib/hooks/usePayments";
+import PaymentSummaryCard from "../../components/PaymentSummaryCard";
 
 /**
  * Cash Payment Screen
- * 
+ *
  * Allows users to upload proof of cash payment:
  * - Display payment instructions
  * - Camera/gallery picker for proof of payment
  * - Image preview with remove option
  * - Upload progress indicator
  * - Create escrow payment after upload
- * 
+ *
  * Route params: jobId, budget, title
  */
 
 export default function CashPaymentScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ jobId: string; budget: string; title: string }>();
-  
+  const params = useLocalSearchParams<{
+    jobId: string;
+    budget: string;
+    title: string;
+  }>();
+
   const jobId = parseInt(params.jobId);
   const budget = parseFloat(params.budget);
-  const jobTitle = params.title || 'Job';
+  const jobTitle = params.title || "Job";
 
   const [proofImage, setProofImage] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -44,21 +58,28 @@ export default function CashPaymentScreen() {
   const uploadCashProofMutation = useUploadCashProof();
   const createEscrowPaymentMutation = useCreateEscrowPayment();
 
-  const { escrowAmount, platformFee, totalAmount } = calculateEscrowAmount(budget);
+  const { halfBudget, platformFee, total } = calculateEscrowAmount(budget);
 
   // Request camera/gallery permissions
   const requestPermissions = async () => {
     const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
-    const galleryPermission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    
-    return cameraPermission.status === 'granted' && galleryPermission.status === 'granted';
+    const galleryPermission =
+      await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+    return (
+      cameraPermission.status === "granted" &&
+      galleryPermission.status === "granted"
+    );
   };
 
   // Pick image from camera
   const pickImageFromCamera = async () => {
     const hasPermissions = await requestPermissions();
     if (!hasPermissions) {
-      Alert.alert('Permissions Required', 'Please grant camera and gallery permissions to upload proof of payment.');
+      Alert.alert(
+        "Permissions Required",
+        "Please grant camera and gallery permissions to upload proof of payment."
+      );
       return;
     }
 
@@ -78,7 +99,10 @@ export default function CashPaymentScreen() {
   const pickImageFromGallery = async () => {
     const hasPermissions = await requestPermissions();
     if (!hasPermissions) {
-      Alert.alert('Permissions Required', 'Please grant gallery permissions to upload proof of payment.');
+      Alert.alert(
+        "Permissions Required",
+        "Please grant gallery permissions to upload proof of payment."
+      );
       return;
     }
 
@@ -96,37 +120,29 @@ export default function CashPaymentScreen() {
 
   // Show image source picker
   const showImagePicker = () => {
-    Alert.alert(
-      'Upload Proof of Payment',
-      'Choose image source',
-      [
-        { text: 'Camera', onPress: pickImageFromCamera },
-        { text: 'Gallery', onPress: pickImageFromGallery },
-        { text: 'Cancel', style: 'cancel' },
-      ]
-    );
+    Alert.alert("Upload Proof of Payment", "Choose image source", [
+      { text: "Camera", onPress: pickImageFromCamera },
+      { text: "Gallery", onPress: pickImageFromGallery },
+      { text: "Cancel", style: "cancel" },
+    ]);
   };
 
   // Remove selected image
   const removeImage = () => {
-    Alert.alert(
-      'Remove Image',
-      'Are you sure you want to remove this image?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Remove', 
-          style: 'destructive',
-          onPress: () => setProofImage(null)
-        },
-      ]
-    );
+    Alert.alert("Remove Image", "Are you sure you want to remove this image?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Remove",
+        style: "destructive",
+        onPress: () => setProofImage(null),
+      },
+    ]);
   };
 
   // Submit cash proof
   const handleSubmit = async () => {
     if (!proofImage) {
-      Alert.alert('Error', 'Please upload proof of payment before continuing.');
+      Alert.alert("Error", "Please upload proof of payment before continuing.");
       return;
     }
 
@@ -134,18 +150,9 @@ export default function CashPaymentScreen() {
       setIsUploading(true);
       setUploadProgress(0);
 
-      // Upload proof image
-      const formData = new FormData();
-      formData.append('job_id', jobId.toString());
-      formData.append('image', {
-        uri: proofImage,
-        type: 'image/jpeg',
-        name: `cash_proof_${jobId}_${Date.now()}.jpg`,
-      } as any);
-
       // Simulate upload progress
       const progressInterval = setInterval(() => {
-        setUploadProgress(prev => {
+        setUploadProgress((prev) => {
           if (prev >= 90) {
             clearInterval(progressInterval);
             return 90;
@@ -154,32 +161,42 @@ export default function CashPaymentScreen() {
         });
       }, 200);
 
-      await uploadCashProofMutation.mutateAsync(formData);
-      
+      // Upload proof image with proper type
+      await uploadCashProofMutation.mutateAsync({
+        jobId,
+        image: {
+          uri: proofImage,
+          type: "image/jpeg",
+          name: `cash_proof_${jobId}_${Date.now()}.jpg`,
+        },
+      });
+
       clearInterval(progressInterval);
       setUploadProgress(100);
 
       // Create escrow payment record
       await createEscrowPaymentMutation.mutateAsync({
-        job_id: jobId,
-        amount: totalAmount,
-        payment_method: 'cash',
+        jobId,
+        amount: total,
+        paymentMethod: "cash",
       });
 
       // Navigate to payment status
       setTimeout(() => {
         router.replace({
-          pathname: '/payments/status',
-          params: { 
+          pathname: "/payments/status" as any,
+          params: {
             jobId: jobId.toString(),
-            status: 'verifying',
-            method: 'cash',
+            status: "verifying",
+            method: "cash",
           },
         });
       }, 500);
-
     } catch (error) {
-      Alert.alert('Upload Failed', 'Failed to upload proof of payment. Please try again.');
+      Alert.alert(
+        "Upload Failed",
+        "Failed to upload proof of payment. Please try again."
+      );
       setUploadProgress(0);
     } finally {
       setIsUploading(false);
@@ -189,14 +206,14 @@ export default function CashPaymentScreen() {
   // Cancel payment
   const handleCancel = () => {
     Alert.alert(
-      'Cancel Payment',
-      'Are you sure you want to cancel this payment?',
+      "Cancel Payment",
+      "Are you sure you want to cancel this payment?",
       [
-        { text: 'No', style: 'cancel' },
-        { 
-          text: 'Yes, Cancel', 
-          style: 'destructive',
-          onPress: () => router.back()
+        { text: "No", style: "cancel" },
+        {
+          text: "Yes, Cancel",
+          style: "destructive",
+          onPress: () => router.back(),
         },
       ]
     );
@@ -215,7 +232,7 @@ export default function CashPaymentScreen() {
         </View>
       </View>
 
-      <ScrollView 
+      <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -226,17 +243,22 @@ export default function CashPaymentScreen() {
         {/* Instructions */}
         <View style={styles.instructionsCard}>
           <View style={styles.instructionHeader}>
-            <Ionicons name="information-circle" size={24} color={Colors.primary} />
+            <Ionicons
+              name="information-circle"
+              size={24}
+              color={Colors.primary}
+            />
             <Text style={styles.instructionTitle}>Payment Instructions</Text>
           </View>
-          
+
           <View style={styles.instructionsList}>
             <View style={styles.instructionItem}>
               <View style={styles.stepNumber}>
                 <Text style={styles.stepNumberText}>1</Text>
               </View>
               <Text style={styles.instructionText}>
-                Prepare cash payment of <Text style={styles.amountText}>{formatCurrency(totalAmount)}</Text>
+                Prepare cash payment of{" "}
+                <Text style={styles.amountText}>{formatCurrency(total)}</Text>
               </Text>
             </View>
 
@@ -245,7 +267,8 @@ export default function CashPaymentScreen() {
                 <Text style={styles.stepNumberText}>2</Text>
               </View>
               <Text style={styles.instructionText}>
-                Take a clear photo of your proof of payment (receipt, bank deposit slip, etc.)
+                Take a clear photo of your proof of payment (receipt, bank
+                deposit slip, etc.)
               </Text>
             </View>
 
@@ -271,7 +294,8 @@ export default function CashPaymentScreen() {
           <View style={styles.warningBox}>
             <Ionicons name="warning" size={20} color={Colors.warning} />
             <Text style={styles.warningText}>
-              Cash payments require admin verification and may take 24-48 hours to process.
+              Cash payments require admin verification and may take 24-48 hours
+              to process.
             </Text>
           </View>
         </View>
@@ -284,31 +308,37 @@ export default function CashPaymentScreen() {
           </Text>
 
           {!proofImage ? (
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.uploadButton}
               onPress={showImagePicker}
               disabled={isUploading}
             >
               <Ionicons name="camera" size={40} color={Colors.primary} />
-              <Text style={styles.uploadButtonText}>Take Photo or Choose from Gallery</Text>
+              <Text style={styles.uploadButtonText}>
+                Take Photo or Choose from Gallery
+              </Text>
               <Text style={styles.uploadButtonHint}>JPG or PNG, max 10MB</Text>
             </TouchableOpacity>
           ) : (
             <View style={styles.imagePreviewContainer}>
               <Image source={{ uri: proofImage }} style={styles.imagePreview} />
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.removeImageButton}
                 onPress={removeImage}
                 disabled={isUploading}
               >
                 <Ionicons name="close-circle" size={32} color={Colors.error} />
               </TouchableOpacity>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.changeImageButton}
                 onPress={showImagePicker}
                 disabled={isUploading}
               >
-                <Ionicons name="camera" size={20} color={Colors.textSecondary} />
+                <Ionicons
+                  name="camera"
+                  size={20}
+                  color={Colors.textSecondary}
+                />
                 <Text style={styles.changeImageText}>Change Photo</Text>
               </TouchableOpacity>
             </View>
@@ -318,9 +348,13 @@ export default function CashPaymentScreen() {
           {isUploading && (
             <View style={styles.progressContainer}>
               <View style={styles.progressBar}>
-                <View style={[styles.progressFill, { width: `${uploadProgress}%` }]} />
+                <View
+                  style={[styles.progressFill, { width: `${uploadProgress}%` }]}
+                />
               </View>
-              <Text style={styles.progressText}>Uploading... {uploadProgress}%</Text>
+              <Text style={styles.progressText}>
+                Uploading... {uploadProgress}%
+              </Text>
             </View>
           )}
         </View>
@@ -338,7 +372,9 @@ export default function CashPaymentScreen() {
             <ActivityIndicator color={Colors.white} />
           ) : (
             <>
-              <Text style={styles.submitButtonText}>Submit for Verification</Text>
+              <Text style={styles.submitButtonText}>
+                Submit for Verification
+              </Text>
               <Ionicons name="arrow-forward" size={20} color={Colors.white} />
             </>
           )}
@@ -363,8 +399,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
     backgroundColor: Colors.white,
@@ -403,8 +439,8 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
   },
   instructionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: Spacing.md,
   },
   instructionTitle: {
@@ -417,16 +453,16 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   instructionItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
   },
   stepNumber: {
     width: 28,
     height: 28,
     borderRadius: 14,
     backgroundColor: Colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginRight: Spacing.sm,
   },
   stepNumberText: {
@@ -445,8 +481,8 @@ const styles = StyleSheet.create({
     color: Colors.primary,
   },
   warningBox: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
     backgroundColor: Colors.warningLight,
     padding: Spacing.sm,
     borderRadius: BorderRadius.md,
@@ -477,11 +513,11 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     borderWidth: 2,
     borderColor: Colors.primary,
-    borderStyle: 'dashed',
+    borderStyle: "dashed",
     borderRadius: BorderRadius.lg,
     padding: Spacing.xl,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     minHeight: 200,
   },
   uploadButtonText: {
@@ -489,7 +525,7 @@ const styles = StyleSheet.create({
     fontWeight: Typography.fontWeight.semiBold as any,
     color: Colors.primary,
     marginTop: Spacing.md,
-    textAlign: 'center',
+    textAlign: "center",
   },
   uploadButtonHint: {
     fontSize: Typography.fontSize.sm,
@@ -497,29 +533,29 @@ const styles = StyleSheet.create({
     marginTop: Spacing.xs,
   },
   imagePreviewContainer: {
-    position: 'relative',
+    position: "relative",
     backgroundColor: Colors.white,
     borderRadius: BorderRadius.lg,
-    overflow: 'hidden',
+    overflow: "hidden",
     borderWidth: 1,
     borderColor: Colors.border,
   },
   imagePreview: {
-    width: '100%',
+    width: "100%",
     height: 300,
-    resizeMode: 'cover',
+    resizeMode: "cover",
   },
   removeImageButton: {
-    position: 'absolute',
+    position: "absolute",
     top: Spacing.sm,
     right: Spacing.sm,
     backgroundColor: Colors.white,
     borderRadius: 16,
   },
   changeImageButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     padding: Spacing.md,
     backgroundColor: Colors.backgroundSecondary,
     gap: Spacing.xs,
@@ -535,25 +571,25 @@ const styles = StyleSheet.create({
     height: 8,
     backgroundColor: Colors.backgroundSecondary,
     borderRadius: 4,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   progressFill: {
-    height: '100%',
+    height: "100%",
     backgroundColor: Colors.primary,
   },
   progressText: {
     fontSize: Typography.fontSize.sm,
     color: Colors.textSecondary,
-    textAlign: 'center',
+    textAlign: "center",
     marginTop: Spacing.xs,
   },
   submitButton: {
-    flexDirection: 'row',
+    flexDirection: "row",
     backgroundColor: Colors.primary,
     padding: Spacing.md,
     borderRadius: BorderRadius.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginTop: Spacing.xl,
     gap: Spacing.sm,
   },
@@ -567,7 +603,7 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     padding: Spacing.md,
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: Spacing.md,
     marginBottom: Spacing.xl,
   },

@@ -10,7 +10,12 @@ import {
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { Colors, Typography, BorderRadius, Spacing } from "../../constants/theme";
+import {
+  Colors,
+  Typography,
+  BorderRadius,
+  Spacing,
+} from "../../constants/theme";
 import PaymentSummaryCard from "../../components/PaymentSummaryCard";
 import WalletBalanceCard from "../../components/WalletBalanceCard";
 import {
@@ -26,7 +31,7 @@ export default function WalletPaymentScreen() {
 
   const jobId = params.jobId ? parseInt(params.jobId as string) : null;
   const jobBudget = params.budget ? parseFloat(params.budget as string) : 0;
-  const jobTitle = params.title as string || "Untitled Job";
+  const jobTitle = (params.title as string) || "Untitled Job";
 
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -51,7 +56,7 @@ export default function WalletPaymentScreen() {
         [
           {
             text: "Deposit Funds",
-            onPress: () => router.push("/payments/deposit"),
+            onPress: () => router.push("/payments/deposit" as any),
           },
           { text: "Cancel", style: "cancel" },
         ]
@@ -89,7 +94,8 @@ export default function WalletPaymentScreen() {
             [
               {
                 text: "View Status",
-                onPress: () => router.push(`/payments/status?jobId=${jobId}`),
+                onPress: () =>
+                  router.push(`/payments/status?jobId=${jobId}` as any),
               },
             ]
           );
@@ -102,7 +108,7 @@ export default function WalletPaymentScreen() {
   };
 
   const handleDeposit = () => {
-    router.push("/payments/deposit");
+    router.push("/payments/deposit" as any);
   };
 
   if (!jobId || !jobBudget) {
@@ -203,7 +209,8 @@ export default function WalletPaymentScreen() {
             style={styles.infoIcon}
           />
           <Text style={styles.infoText}>
-            The payment will be instantly deducted from your wallet balance upon confirmation.
+            The payment will be instantly deducted from your wallet balance upon
+            confirmation.
           </Text>
         </View>
       </ScrollView>
@@ -213,7 +220,8 @@ export default function WalletPaymentScreen() {
         <TouchableOpacity
           style={[
             styles.confirmButton,
-            (!isBalanceSufficient || isProcessing) && styles.confirmButtonDisabled,
+            (!isBalanceSufficient || isProcessing) &&
+              styles.confirmButtonDisabled,
           ]}
           onPress={handleConfirmPayment}
           disabled={!isBalanceSufficient || isProcessing}

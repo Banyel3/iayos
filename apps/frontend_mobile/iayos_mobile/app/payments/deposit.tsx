@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -7,24 +7,33 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
-} from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { WebView } from 'react-native-webview';
-import { Colors, Typography, Spacing, BorderRadius } from '../../constants/theme';
-import { useWalletDeposit, useWalletBalance, formatCurrency } from '../../lib/hooks/usePayments';
-import WalletBalanceCard from '../../components/WalletBalanceCard';
+} from "react-native";
+import { useRouter, useLocalSearchParams } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { WebView } from "react-native-webview";
+import {
+  Colors,
+  Typography,
+  Spacing,
+  BorderRadius,
+} from "../../constants/theme";
+import {
+  useWalletDeposit,
+  useWalletBalance,
+  formatCurrency,
+} from "../../lib/hooks/usePayments";
+import WalletBalanceCard from "../../components/WalletBalanceCard";
 
 /**
  * Wallet Deposit Screen
- * 
+ *
  * Allows users to deposit funds to wallet via Xendit:
  * - Enter deposit amount
  * - Create Xendit invoice
  * - Display WebView for payment
  * - Detect payment success/failure
  * - Update wallet balance
- * 
+ *
  * Route params: amount (optional)
  */
 
@@ -32,7 +41,7 @@ export default function WalletDepositScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ amount?: string }>();
 
-  const [depositAmount, setDepositAmount] = useState(params.amount || '');
+  const [depositAmount, setDepositAmount] = useState(params.amount || "");
   const [xenditUrl, setXenditUrl] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -50,32 +59,32 @@ export default function WalletDepositScreen() {
     const amount = parseFloat(depositAmount);
 
     if (!amount || amount <= 0) {
-      Alert.alert('Invalid Amount', 'Please enter a valid deposit amount.');
+      Alert.alert("Invalid Amount", "Please enter a valid deposit amount.");
       return;
     }
 
     if (amount < 100) {
-      Alert.alert('Minimum Amount', 'Minimum deposit amount is ₱100.');
+      Alert.alert("Minimum Amount", "Minimum deposit amount is ₱100.");
       return;
     }
 
     if (amount > 100000) {
-      Alert.alert('Maximum Amount', 'Maximum deposit amount is ₱100,000.');
+      Alert.alert("Maximum Amount", "Maximum deposit amount is ₱100,000.");
       return;
     }
 
     try {
       setIsProcessing(true);
 
-      const response = await depositMutation.mutateAsync({ amount });
+      const response = await depositMutation.mutateAsync(amount);
 
-      if (response.invoice_url) {
-        setXenditUrl(response.invoice_url);
+      if (response.invoiceUrl) {
+        setXenditUrl(response.invoiceUrl);
       } else {
-        throw new Error('Failed to create payment invoice');
+        throw new Error("Failed to create payment invoice");
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to initiate deposit. Please try again.');
+      Alert.alert("Error", "Failed to initiate deposit. Please try again.");
       setIsProcessing(false);
     }
   };
@@ -84,16 +93,16 @@ export default function WalletDepositScreen() {
     const url = navState.url;
 
     // Check for success callback
-    if (url.includes('/payment/success') || url.includes('/callback/success')) {
+    if (url.includes("/payment/success") || url.includes("/callback/success")) {
       setIsProcessing(false);
       setXenditUrl(null);
-      
+
       Alert.alert(
-        'Deposit Successful',
+        "Deposit Successful",
         `₱${depositAmount} has been added to your wallet!`,
         [
           {
-            text: 'OK',
+            text: "OK",
             onPress: () => {
               refetchBalance();
               router.back();
@@ -104,14 +113,14 @@ export default function WalletDepositScreen() {
     }
 
     // Check for failure callback
-    if (url.includes('/payment/failed') || url.includes('/callback/failed')) {
+    if (url.includes("/payment/failed") || url.includes("/callback/failed")) {
       setIsProcessing(false);
       setXenditUrl(null);
-      
+
       Alert.alert(
-        'Deposit Failed',
-        'Your deposit could not be processed. Please try again.',
-        [{ text: 'OK' }]
+        "Deposit Failed",
+        "Your deposit could not be processed. Please try again.",
+        [{ text: "OK" }]
       );
     }
   };
@@ -119,13 +128,13 @@ export default function WalletDepositScreen() {
   const handleCancel = () => {
     if (xenditUrl) {
       Alert.alert(
-        'Cancel Deposit',
-        'Are you sure you want to cancel this deposit?',
+        "Cancel Deposit",
+        "Are you sure you want to cancel this deposit?",
         [
-          { text: 'No', style: 'cancel' },
+          { text: "No", style: "cancel" },
           {
-            text: 'Yes, Cancel',
-            style: 'destructive',
+            text: "Yes, Cancel",
+            style: "destructive",
             onPress: () => {
               setXenditUrl(null);
               setIsProcessing(false);
@@ -157,7 +166,9 @@ export default function WalletDepositScreen() {
           renderLoading={() => (
             <View style={styles.webViewLoading}>
               <ActivityIndicator size="large" color={Colors.primary} />
-              <Text style={styles.webViewLoadingText}>Loading payment page...</Text>
+              <Text style={styles.webViewLoadingText}>
+                Loading payment page...
+              </Text>
             </View>
           )}
         />
@@ -169,20 +180,23 @@ export default function WalletDepositScreen() {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backButton}
+        >
           <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Deposit Funds</Text>
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView 
+      <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
         {/* Current Balance */}
-        <WalletBalanceCard 
+        <WalletBalanceCard
           balance={walletBalance?.balance || 0}
           isLoading={!walletBalance}
           onRefresh={refetchBalance}
@@ -191,11 +205,13 @@ export default function WalletDepositScreen() {
         {/* Deposit Amount Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Enter Amount</Text>
-          <Text style={styles.sectionSubtitle}>Minimum ₱100, Maximum ₱100,000</Text>
+          <Text style={styles.sectionSubtitle}>
+            Minimum ₱100, Maximum ₱100,000
+          </Text>
 
           <View style={styles.amountInputContainer}>
             <Text style={styles.currencySymbol}>₱</Text>
-            <Text style={styles.amountInput}>{depositAmount || '0'}</Text>
+            <Text style={styles.amountInput}>{depositAmount || "0"}</Text>
           </View>
 
           {/* Preset Amounts */}
@@ -205,14 +221,16 @@ export default function WalletDepositScreen() {
                 key={amount}
                 style={[
                   styles.presetButton,
-                  depositAmount === amount.toString() && styles.presetButtonActive,
+                  depositAmount === amount.toString() &&
+                    styles.presetButtonActive,
                 ]}
                 onPress={() => handlePresetAmount(amount)}
               >
                 <Text
                   style={[
                     styles.presetButtonText,
-                    depositAmount === amount.toString() && styles.presetButtonTextActive,
+                    depositAmount === amount.toString() &&
+                      styles.presetButtonTextActive,
                   ]}
                 >
                   ₱{amount}
@@ -226,42 +244,56 @@ export default function WalletDepositScreen() {
             style={styles.customAmountButton}
             onPress={() => {
               Alert.prompt(
-                'Enter Custom Amount',
-                'Minimum ₱100, Maximum ₱100,000',
+                "Enter Custom Amount",
+                "Minimum ₱100, Maximum ₱100,000",
                 [
-                  { text: 'Cancel', style: 'cancel' },
+                  { text: "Cancel", style: "cancel" },
                   {
-                    text: 'OK',
-                    onPress: (value) => {
+                    text: "OK",
+                    onPress: (value?: string) => {
                       if (value) {
                         const amount = parseFloat(value);
-                        if (!isNaN(amount) && amount >= 100 && amount <= 100000) {
+                        if (
+                          !isNaN(amount) &&
+                          amount >= 100 &&
+                          amount <= 100000
+                        ) {
                           setDepositAmount(amount.toString());
                         } else {
-                          Alert.alert('Invalid Amount', 'Please enter a valid amount between ₱100 and ₱100,000.');
+                          Alert.alert(
+                            "Invalid Amount",
+                            "Please enter a valid amount between ₱100 and ₱100,000."
+                          );
                         }
                       }
                     },
                   },
                 ],
-                'plain-text',
+                "plain-text",
                 depositAmount
               );
             }}
           >
             <Ionicons name="create-outline" size={20} color={Colors.primary} />
-            <Text style={styles.customAmountButtonText}>Enter Custom Amount</Text>
+            <Text style={styles.customAmountButtonText}>
+              Enter Custom Amount
+            </Text>
           </TouchableOpacity>
         </View>
 
         {/* Payment Method Info */}
         <View style={styles.infoCard}>
           <View style={styles.infoHeader}>
-            <Ionicons name="information-circle" size={24} color={Colors.primary} />
+            <Ionicons
+              name="information-circle"
+              size={24}
+              color={Colors.primary}
+            />
             <Text style={styles.infoTitle}>Payment Method</Text>
           </View>
           <Text style={styles.infoText}>
-            You will be redirected to Xendit's secure payment page to complete your deposit via GCash, bank transfer, or other payment methods.
+            You will be redirected to Xendit's secure payment page to complete
+            your deposit via GCash, bank transfer, or other payment methods.
           </Text>
         </View>
 
@@ -279,7 +311,10 @@ export default function WalletDepositScreen() {
           ) : (
             <>
               <Text style={styles.depositButtonText}>
-                Deposit {depositAmount ? formatCurrency(parseFloat(depositAmount)) : '₱0'}
+                Deposit{" "}
+                {depositAmount
+                  ? formatCurrency(parseFloat(depositAmount))
+                  : "₱0"}
               </Text>
               <Ionicons name="arrow-forward" size={20} color={Colors.white} />
             </>
@@ -305,9 +340,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
     backgroundColor: Colors.white,
@@ -343,9 +378,9 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
   amountInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     backgroundColor: Colors.white,
     padding: Spacing.lg,
     borderRadius: BorderRadius.lg,
@@ -365,18 +400,18 @@ const styles = StyleSheet.create({
     color: Colors.primary,
   },
   presetGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: Spacing.sm,
     marginBottom: Spacing.md,
   },
   presetButton: {
     flex: 1,
-    minWidth: '30%',
+    minWidth: "30%",
     backgroundColor: Colors.white,
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
-    alignItems: 'center',
+    alignItems: "center",
     borderWidth: 1,
     borderColor: Colors.border,
   },
@@ -393,15 +428,15 @@ const styles = StyleSheet.create({
     color: Colors.white,
   },
   customAmountButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     backgroundColor: Colors.white,
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderStyle: 'dashed',
+    borderStyle: "dashed",
     gap: Spacing.sm,
   },
   customAmountButtonText: {
@@ -416,8 +451,8 @@ const styles = StyleSheet.create({
     marginTop: Spacing.lg,
   },
   infoHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: Spacing.sm,
     gap: Spacing.xs,
   },
@@ -432,12 +467,12 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   depositButton: {
-    flexDirection: 'row',
+    flexDirection: "row",
     backgroundColor: Colors.primary,
     padding: Spacing.md,
     borderRadius: BorderRadius.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginTop: Spacing.xl,
     gap: Spacing.sm,
   },
@@ -451,7 +486,7 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     padding: Spacing.md,
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: Spacing.md,
     marginBottom: Spacing.xl,
   },
@@ -460,13 +495,13 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
   webViewLoading: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     backgroundColor: Colors.background,
   },
   webViewLoadingText: {

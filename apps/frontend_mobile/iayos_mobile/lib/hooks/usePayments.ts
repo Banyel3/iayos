@@ -101,7 +101,7 @@ export const useCreateEscrowPayment = () => {
       // Invalidate relevant queries
       queryClient.invalidateQueries({ queryKey: ["walletBalance"] });
       queryClient.invalidateQueries({ queryKey: ["paymentHistory"] });
-      
+
       Toast.show({
         type: "success",
         text1: "Payment Initiated",
@@ -176,7 +176,7 @@ export const useUploadCashProof = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["paymentHistory"] });
-      
+
       Toast.show({
         type: "success",
         text1: "Cash Proof Uploaded",
@@ -214,8 +214,9 @@ export const usePaymentStatus = (paymentId: number | null) => {
       return response.json();
     },
     enabled: !!paymentId,
-    refetchInterval: (data) => {
+    refetchInterval: (query) => {
       // Poll every 5 seconds if payment is pending
+      const data = query.state.data;
       if (data?.status === "pending" || data?.status === "verifying") {
         return 5000;
       }
@@ -280,7 +281,7 @@ export const useWalletDeposit = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["walletBalance"] });
-      
+
       Toast.show({
         type: "success",
         text1: "Deposit Initiated",

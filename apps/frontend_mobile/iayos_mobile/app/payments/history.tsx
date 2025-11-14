@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -7,18 +7,23 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
-} from 'react-native';
-import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { Colors, Typography, Spacing, BorderRadius } from '../../constants/theme';
-import { usePaymentHistory } from '../../lib/hooks/usePayments';
-import TransactionCard from '../../components/TransactionCard';
-import PaymentReceiptModal from '../../components/PaymentReceiptModal';
-import { PaymentStatus } from '../../components/PaymentStatusBadge';
+} from "react-native";
+import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import {
+  Colors,
+  Typography,
+  Spacing,
+  BorderRadius,
+} from "../../constants/theme";
+import { usePaymentHistory } from "../../lib/hooks/usePayments";
+import TransactionCard from "../../components/TransactionCard";
+import PaymentReceiptModal from "../../components/PaymentReceiptModal";
+import { PaymentStatus } from "../../components/PaymentStatusBadge";
 
 /**
  * Transaction History Screen
- * 
+ *
  * Displays list of all payment transactions:
  * - Transaction cards with details
  * - Filter by status (all/pending/completed/failed)
@@ -27,45 +32,36 @@ import { PaymentStatus } from '../../components/PaymentStatusBadge';
  * - Tap transaction to view receipt
  */
 
-type FilterOption = 'all' | 'pending' | 'completed' | 'failed' | 'verifying';
+type FilterOption = "all" | "pending" | "completed" | "failed" | "verifying";
 
 const filterOptions: { label: string; value: FilterOption }[] = [
-  { label: 'All', value: 'all' },
-  { label: 'Pending', value: 'pending' },
-  { label: 'Completed', value: 'completed' },
-  { label: 'Verifying', value: 'verifying' },
-  { label: 'Failed', value: 'failed' },
+  { label: "All", value: "all" },
+  { label: "Pending", value: "pending" },
+  { label: "Completed", value: "completed" },
+  { label: "Verifying", value: "verifying" },
+  { label: "Failed", value: "failed" },
 ];
 
 export default function TransactionHistoryScreen() {
   const router = useRouter();
-  const [selectedFilter, setSelectedFilter] = useState<FilterOption>('all');
+  const [selectedFilter, setSelectedFilter] = useState<FilterOption>("all");
   const [selectedReceipt, setSelectedReceipt] = useState<any>(null);
   const [receiptModalVisible, setReceiptModalVisible] = useState(false);
 
-  const {
-    data,
-    isLoading,
-    isRefreshing,
-    hasNextPage,
-    isFetchingNextPage,
-    refetch,
-    fetchNextPage,
-  } = usePaymentHistory({
-    status: selectedFilter === 'all' ? undefined : selectedFilter,
+  const { data, isLoading, refetch } = usePaymentHistory({
+    status: selectedFilter === "all" ? undefined : selectedFilter,
     limit: 20,
   });
 
-  const transactions = data?.pages.flatMap(page => page.results) || [];
+  const transactions = data?.transactions || [];
 
   const handleRefresh = () => {
     refetch();
   };
 
   const handleLoadMore = () => {
-    if (hasNextPage && !isFetchingNextPage) {
-      fetchNextPage();
-    }
+    // Pagination disabled for now - using simple query
+    return;
   };
 
   const handleTransactionPress = (transaction: any) => {
@@ -74,8 +70,8 @@ export default function TransactionHistoryScreen() {
   };
 
   const renderTransaction = ({ item }: { item: any }) => (
-    <TransactionCard 
-      transaction={item} 
+    <TransactionCard
+      transaction={item}
       onPress={() => handleTransactionPress(item)}
     />
   );
@@ -88,8 +84,8 @@ export default function TransactionHistoryScreen() {
         <Ionicons name="receipt-outline" size={80} color={Colors.textLight} />
         <Text style={styles.emptyTitle}>No Transactions Yet</Text>
         <Text style={styles.emptySubtitle}>
-          {selectedFilter === 'all'
-            ? 'Your payment history will appear here'
+          {selectedFilter === "all"
+            ? "Your payment history will appear here"
             : `No ${selectedFilter} transactions found`}
         </Text>
       </View>
@@ -97,21 +93,18 @@ export default function TransactionHistoryScreen() {
   };
 
   const renderFooter = () => {
-    if (!isFetchingNextPage) return null;
-
-    return (
-      <View style={styles.footerLoader}>
-        <ActivityIndicator size="small" color={Colors.primary} />
-        <Text style={styles.footerLoaderText}>Loading more...</Text>
-      </View>
-    );
+    // Pagination disabled
+    return null;
   };
 
   return (
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backButton}
+        >
           <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Transaction History</Text>
@@ -151,7 +144,8 @@ export default function TransactionHistoryScreen() {
       {!isLoading && transactions.length > 0 && (
         <View style={styles.countContainer}>
           <Text style={styles.countText}>
-            {transactions.length} transaction{transactions.length !== 1 ? 's' : ''}
+            {transactions.length} transaction
+            {transactions.length !== 1 ? "s" : ""}
           </Text>
         </View>
       )}
@@ -175,7 +169,7 @@ export default function TransactionHistoryScreen() {
           onEndReachedThreshold={0.5}
           refreshControl={
             <RefreshControl
-              refreshing={isRefreshing}
+              refreshing={isLoading}
               onRefresh={handleRefresh}
               colors={[Colors.primary]}
               tintColor={Colors.primary}
@@ -203,9 +197,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
     backgroundColor: Colors.white,
@@ -261,8 +255,8 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     padding: Spacing.xl,
   },
   loadingText: {
@@ -276,8 +270,8 @@ const styles = StyleSheet.create({
   },
   emptyContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     paddingHorizontal: Spacing.xl,
     paddingVertical: Spacing.xl * 2,
   },
@@ -291,13 +285,13 @@ const styles = StyleSheet.create({
   emptySubtitle: {
     fontSize: Typography.fontSize.base,
     color: Colors.textSecondary,
-    textAlign: 'center',
+    textAlign: "center",
     lineHeight: 22,
   },
   footerLoader: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
     paddingVertical: Spacing.md,
     gap: Spacing.sm,
   },

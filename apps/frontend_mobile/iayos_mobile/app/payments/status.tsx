@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect } from "react";
 import {
   View,
   Text,
@@ -6,39 +6,53 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-} from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { Colors, Typography, Spacing, BorderRadius } from '../../constants/theme';
-import { usePaymentStatus, formatCurrency } from '../../lib/hooks/usePayments';
-import PaymentStatusBadge, { PaymentStatus } from '../../components/PaymentStatusBadge';
+} from "react-native";
+import { useRouter, useLocalSearchParams } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import {
+  Colors,
+  Typography,
+  Spacing,
+  BorderRadius,
+} from "../../constants/theme";
+import { usePaymentStatus, formatCurrency } from "../../lib/hooks/usePayments";
+import PaymentStatusBadge, {
+  PaymentStatus,
+} from "../../components/PaymentStatusBadge";
 
 /**
  * Payment Status Screen
- * 
+ *
  * Displays payment status with polling:
  * - Payment status badge (pending/completed/failed/verifying)
  * - Job details
  * - Payment details (amount, method, date)
  * - Status timeline
  * - Auto-refresh every 5 seconds if pending/verifying
- * 
+ *
  * Route params: jobId, status, method
  */
 
 export default function PaymentStatusScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ jobId: string; status?: string; method?: string }>();
-  
+  const params = useLocalSearchParams<{
+    jobId: string;
+    status?: string;
+    method?: string;
+  }>();
+
   const jobId = parseInt(params.jobId);
-  const initialStatus = (params.status as PaymentStatus) || 'pending';
-  const paymentMethod = params.method || 'unknown';
+  const initialStatus = (params.status as PaymentStatus) || "pending";
+  const paymentMethod = params.method || "unknown";
 
   const { data: paymentData, isLoading, refetch } = usePaymentStatus(jobId);
 
   // Auto-refresh for pending/verifying payments
   useEffect(() => {
-    if (paymentData?.status === 'pending' || paymentData?.status === 'verifying') {
+    if (
+      paymentData?.status === "pending" ||
+      paymentData?.status === "verifying"
+    ) {
       const interval = setInterval(() => {
         refetch();
       }, 5000); // Poll every 5 seconds
@@ -54,50 +68,50 @@ export default function PaymentStatusScreen() {
   };
 
   const handleGoHome = () => {
-    router.replace('/(tabs)/');
+    router.replace("/" as any);
   };
 
   const getStatusMessage = () => {
     switch (status) {
-      case 'pending':
-        return 'Your payment is being processed. This usually takes a few minutes.';
-      case 'verifying':
-        return 'Your cash proof is being verified by our admin team. This may take 24-48 hours.';
-      case 'completed':
-        return 'Your payment has been confirmed! The job is now active.';
-      case 'failed':
-        return 'Your payment could not be processed. Please try again or contact support.';
-      case 'refunded':
-        return 'Your payment has been refunded to your account.';
+      case "pending":
+        return "Your payment is being processed. This usually takes a few minutes.";
+      case "verifying":
+        return "Your cash proof is being verified by our admin team. This may take 24-48 hours.";
+      case "completed":
+        return "Your payment has been confirmed! The job is now active.";
+      case "failed":
+        return "Your payment could not be processed. Please try again or contact support.";
+      case "refunded":
+        return "Your payment has been refunded to your account.";
       default:
-        return 'Payment status unknown.';
+        return "Payment status unknown.";
     }
   };
 
   const getStatusIcon = () => {
     switch (status) {
-      case 'pending':
-        return 'time-outline';
-      case 'verifying':
-        return 'search-outline';
-      case 'completed':
-        return 'checkmark-circle';
-      case 'failed':
-        return 'close-circle';
-      case 'refunded':
-        return 'arrow-undo-circle';
+      case "pending":
+        return "time-outline";
+      case "verifying":
+        return "search-outline";
+      case "completed":
+        return "checkmark-circle";
+      case "failed":
+        return "close-circle";
+      case "refunded":
+        return "arrow-undo-circle";
       default:
-        return 'help-circle';
+        return "help-circle";
     }
   };
 
   const getStatusColor = () => {
     switch (status) {
-      case 'completed':
+      case "completed":
         return Colors.success;
-      case 'failed':
+      case "failed":
         return Colors.error;
-      case 'verifying':
+      case "verifying":
         return Colors.primary;
       default:
         return Colors.warning;
@@ -124,14 +138,23 @@ export default function PaymentStatusScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView 
+      <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
         {/* Status Icon */}
-        <View style={[styles.statusIconContainer, { backgroundColor: getStatusColor() + '20' }]}>
-          <Ionicons name={getStatusIcon() as any} size={80} color={getStatusColor()} />
+        <View
+          style={[
+            styles.statusIconContainer,
+            { backgroundColor: getStatusColor() + "20" },
+          ]}
+        >
+          <Ionicons
+            name={getStatusIcon() as any}
+            size={80}
+            color={getStatusColor()}
+          />
         </View>
 
         {/* Status Badge */}
@@ -145,7 +168,7 @@ export default function PaymentStatusScreen() {
         {/* Payment Details Card */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Payment Details</Text>
-          
+
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Amount Paid</Text>
             <Text style={styles.detailValue}>
@@ -156,46 +179,45 @@ export default function PaymentStatusScreen() {
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Payment Method</Text>
             <Text style={styles.detailValue}>
-              {paymentData?.payment_method || paymentMethod}
+              {paymentData?.paymentMethod || paymentMethod}
             </Text>
           </View>
 
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Transaction ID</Text>
             <Text style={styles.detailValueMono}>
-              {paymentData?.transaction_id || 'N/A'}
+              {paymentData?.id ? `TXN-${paymentData.id}` : "N/A"}
             </Text>
           </View>
 
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Date & Time</Text>
             <Text style={styles.detailValue}>
-              {paymentData?.created_at 
-                ? new Date(paymentData.created_at).toLocaleString()
-                : 'Just now'
-              }
+              {paymentData?.createdAt
+                ? new Date(paymentData.createdAt).toLocaleString()
+                : "Just now"}
             </Text>
           </View>
         </View>
 
         {/* Job Details Card */}
-        {paymentData?.job && (
+        {paymentData?.jobTitle && (
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Job Details</Text>
-            
+
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Job Title</Text>
-              <Text style={styles.detailValue}>{paymentData.job.title}</Text>
+              <Text style={styles.detailValue}>{paymentData.jobTitle}</Text>
             </View>
 
             <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Budget</Text>
+              <Text style={styles.detailLabel}>Job Budget</Text>
               <Text style={styles.detailValue}>
-                {formatCurrency(paymentData.job.budget)}
+                {formatCurrency(paymentData.amount * 2)}
               </Text>
             </View>
 
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.viewJobButton}
               onPress={handleViewJob}
             >
@@ -208,61 +230,64 @@ export default function PaymentStatusScreen() {
         {/* Timeline */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Status Timeline</Text>
-          
+
           <View style={styles.timeline}>
             <View style={styles.timelineItem}>
               <View style={[styles.timelineDot, styles.timelineDotCompleted]} />
               <View style={styles.timelineContent}>
                 <Text style={styles.timelineTitle}>Payment Initiated</Text>
                 <Text style={styles.timelineDate}>
-                  {paymentData?.created_at 
-                    ? new Date(paymentData.created_at).toLocaleString()
-                    : 'Just now'
-                  }
+                  {paymentData?.createdAt
+                    ? new Date(paymentData.createdAt).toLocaleString()
+                    : "Just now"}
                 </Text>
               </View>
             </View>
 
-            {(status === 'verifying' || status === 'completed' || status === 'refunded') && (
+            {(status === "verifying" ||
+              status === "completed" ||
+              status === "refunded") && (
               <View style={styles.timelineItem}>
-                <View style={[styles.timelineDot, styles.timelineDotCompleted]} />
+                <View
+                  style={[styles.timelineDot, styles.timelineDotCompleted]}
+                />
                 <View style={styles.timelineContent}>
                   <Text style={styles.timelineTitle}>Verification Started</Text>
                   <Text style={styles.timelineDate}>
-                    {paymentData?.updated_at 
-                      ? new Date(paymentData.updated_at).toLocaleString()
-                      : 'In progress'
-                    }
+                    {paymentData?.updatedAt
+                      ? new Date(paymentData.updatedAt).toLocaleString()
+                      : "In progress"}
                   </Text>
                 </View>
               </View>
             )}
 
-            {status === 'completed' && (
+            {status === "completed" && (
               <View style={styles.timelineItem}>
-                <View style={[styles.timelineDot, styles.timelineDotCompleted]} />
+                <View
+                  style={[styles.timelineDot, styles.timelineDotCompleted]}
+                />
                 <View style={styles.timelineContent}>
                   <Text style={styles.timelineTitle}>Payment Confirmed</Text>
                   <Text style={styles.timelineDate}>
-                    {paymentData?.completed_at 
-                      ? new Date(paymentData.completed_at).toLocaleString()
-                      : 'Completed'
-                    }
+                    {paymentData?.status === "completed" &&
+                    paymentData?.updatedAt
+                      ? new Date(paymentData.updatedAt).toLocaleString()
+                      : "Completed"}
                   </Text>
                 </View>
               </View>
             )}
 
-            {status === 'failed' && (
+            {status === "failed" && (
               <View style={styles.timelineItem}>
                 <View style={[styles.timelineDot, styles.timelineDotFailed]} />
                 <View style={styles.timelineContent}>
                   <Text style={styles.timelineTitle}>Payment Failed</Text>
                   <Text style={styles.timelineDate}>
-                    {paymentData?.updated_at 
-                      ? new Date(paymentData.updated_at).toLocaleString()
-                      : 'Just now'
-                    }
+                    {paymentData?.updatedAt
+                      ? new Date(paymentData.updatedAt).toLocaleString()
+                      : "Just now"}
                   </Text>
                 </View>
               </View>
@@ -271,7 +296,7 @@ export default function PaymentStatusScreen() {
         </View>
 
         {/* Action Buttons */}
-        {status === 'completed' && (
+        {status === "completed" && (
           <TouchableOpacity
             style={styles.primaryButton}
             onPress={handleViewJob}
@@ -281,7 +306,7 @@ export default function PaymentStatusScreen() {
           </TouchableOpacity>
         )}
 
-        {status === 'failed' && (
+        {status === "failed" && (
           <TouchableOpacity
             style={styles.primaryButton}
             onPress={() => router.back()}
@@ -291,10 +316,7 @@ export default function PaymentStatusScreen() {
           </TouchableOpacity>
         )}
 
-        <TouchableOpacity
-          style={styles.secondaryButton}
-          onPress={handleGoHome}
-        >
+        <TouchableOpacity style={styles.secondaryButton} onPress={handleGoHome}>
           <Text style={styles.secondaryButtonText}>Back to Home</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -309,8 +331,8 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     backgroundColor: Colors.background,
   },
   loadingText: {
@@ -319,9 +341,9 @@ const styles = StyleSheet.create({
     marginTop: Spacing.md,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
     backgroundColor: Colors.white,
@@ -341,14 +363,14 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: Spacing.md,
-    alignItems: 'center',
+    alignItems: "center",
   },
   statusIconContainer: {
     width: 160,
     height: 160,
     borderRadius: 80,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginTop: Spacing.xl,
     marginBottom: Spacing.md,
   },
@@ -358,13 +380,13 @@ const styles = StyleSheet.create({
   statusMessage: {
     fontSize: Typography.fontSize.base,
     color: Colors.textSecondary,
-    textAlign: 'center',
+    textAlign: "center",
     lineHeight: 22,
     marginBottom: Spacing.xl,
     paddingHorizontal: Spacing.md,
   },
   card: {
-    width: '100%',
+    width: "100%",
     backgroundColor: Colors.white,
     borderRadius: BorderRadius.lg,
     padding: Spacing.md,
@@ -379,9 +401,9 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
   detailRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingVertical: Spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
@@ -394,7 +416,7 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.base,
     fontWeight: Typography.fontWeight.semiBold as any,
     color: Colors.textPrimary,
-    textAlign: 'right',
+    textAlign: "right",
     flex: 1,
     marginLeft: Spacing.md,
   },
@@ -402,15 +424,15 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.sm,
     fontWeight: Typography.fontWeight.medium as any,
     color: Colors.textPrimary,
-    fontFamily: 'monospace',
-    textAlign: 'right',
+    fontFamily: "monospace",
+    textAlign: "right",
     flex: 1,
     marginLeft: Spacing.md,
   },
   viewJobButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     marginTop: Spacing.md,
     padding: Spacing.sm,
     gap: Spacing.xs,
@@ -424,9 +446,9 @@ const styles = StyleSheet.create({
     paddingLeft: Spacing.sm,
   },
   timelineItem: {
-    flexDirection: 'row',
+    flexDirection: "row",
     paddingBottom: Spacing.md,
-    position: 'relative',
+    position: "relative",
   },
   timelineDot: {
     width: 16,
@@ -455,13 +477,13 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
   primaryButton: {
-    flexDirection: 'row',
-    width: '100%',
+    flexDirection: "row",
+    width: "100%",
     backgroundColor: Colors.primary,
     padding: Spacing.md,
     borderRadius: BorderRadius.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginTop: Spacing.md,
     gap: Spacing.sm,
   },
@@ -471,9 +493,9 @@ const styles = StyleSheet.create({
     color: Colors.white,
   },
   secondaryButton: {
-    width: '100%',
+    width: "100%",
     padding: Spacing.md,
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: Spacing.sm,
     marginBottom: Spacing.xl,
   },

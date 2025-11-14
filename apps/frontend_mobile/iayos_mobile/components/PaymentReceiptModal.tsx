@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -8,15 +8,15 @@ import {
   TouchableOpacity,
   Share,
   Alert,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { Colors, Typography, Spacing, BorderRadius } from '../constants/theme';
-import PaymentStatusBadge, { PaymentStatus } from './PaymentStatusBadge';
-import { formatCurrency } from '../lib/hooks/usePayments';
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { Colors, Typography, Spacing, BorderRadius } from "../constants/theme";
+import PaymentStatusBadge, { PaymentStatus } from "./PaymentStatusBadge";
+import { formatCurrency } from "../lib/hooks/usePayments";
 
 /**
  * PaymentReceiptModal Component
- * 
+ *
  * Full-screen modal for payment receipt:
  * - Transaction details
  * - Job information
@@ -75,17 +75,17 @@ Method: ${receipt.payment_method.toUpperCase()}
 Status: ${receipt.status.toUpperCase()}
 Date: ${new Date(receipt.created_at).toLocaleString()}
 
-${receipt.job ? `Job: ${receipt.job.title}` : ''}
+${receipt.job ? `Job: ${receipt.job.title}` : ""}
 
 Thank you for using iAyos!
       `.trim();
 
       await Share.share({
         message,
-        title: 'Payment Receipt',
+        title: "Payment Receipt",
       });
     } catch (error) {
-      Alert.alert('Error', 'Failed to share receipt');
+      Alert.alert("Error", "Failed to share receipt");
     } finally {
       setIsSharing(false);
     }
@@ -105,8 +105,8 @@ Thank you for using iAyos!
             <Ionicons name="close" size={24} color={Colors.textPrimary} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Payment Receipt</Text>
-          <TouchableOpacity 
-            onPress={handleShare} 
+          <TouchableOpacity
+            onPress={handleShare}
             style={styles.shareButton}
             disabled={isSharing}
           >
@@ -114,7 +114,7 @@ Thank you for using iAyos!
           </TouchableOpacity>
         </View>
 
-        <ScrollView 
+        <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
@@ -132,44 +132,56 @@ Thank you for using iAyos!
           {/* Total Amount */}
           <View style={styles.amountContainer}>
             <Text style={styles.amountLabel}>Total Amount</Text>
-            <Text style={styles.amountValue}>{formatCurrency(receipt.total_amount)}</Text>
+            <Text style={styles.amountValue}>
+              {formatCurrency(receipt.total_amount)}
+            </Text>
           </View>
 
           {/* Transaction ID */}
           <View style={styles.transactionIdContainer}>
             <Text style={styles.transactionIdLabel}>Transaction ID</Text>
-            <Text style={styles.transactionIdValue}>{receipt.transaction_id}</Text>
+            <Text style={styles.transactionIdValue}>
+              {receipt.transaction_id}
+            </Text>
           </View>
 
           {/* Payment Breakdown */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Payment Breakdown</Text>
-            
+
             <View style={styles.row}>
               <Text style={styles.rowLabel}>Job Budget (50%)</Text>
-              <Text style={styles.rowValue}>{formatCurrency(receipt.amount)}</Text>
+              <Text style={styles.rowValue}>
+                {formatCurrency(receipt.amount)}
+              </Text>
             </View>
 
             <View style={styles.row}>
               <Text style={styles.rowLabel}>Platform Fee (5%)</Text>
-              <Text style={styles.rowValue}>{formatCurrency(receipt.platform_fee)}</Text>
+              <Text style={styles.rowValue}>
+                {formatCurrency(receipt.platform_fee)}
+              </Text>
             </View>
 
             <View style={styles.divider} />
 
             <View style={styles.row}>
               <Text style={styles.rowLabelBold}>Total Paid</Text>
-              <Text style={styles.rowValueBold}>{formatCurrency(receipt.total_amount)}</Text>
+              <Text style={styles.rowValueBold}>
+                {formatCurrency(receipt.total_amount)}
+              </Text>
             </View>
           </View>
 
           {/* Payment Details */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Payment Details</Text>
-            
+
             <View style={styles.row}>
               <Text style={styles.rowLabel}>Payment Method</Text>
-              <Text style={styles.rowValue}>{receipt.payment_method.toUpperCase()}</Text>
+              <Text style={styles.rowValue}>
+                {receipt.payment_method.toUpperCase()}
+              </Text>
             </View>
 
             <View style={styles.row}>
@@ -191,7 +203,7 @@ Thank you for using iAyos!
           {receipt.job && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Job Details</Text>
-              
+
               <View style={styles.row}>
                 <Text style={styles.rowLabel}>Job Title</Text>
                 <Text style={styles.rowValue} numberOfLines={2}>
@@ -217,7 +229,7 @@ Thank you for using iAyos!
           {receipt.worker && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Worker Details</Text>
-              
+
               <View style={styles.row}>
                 <Text style={styles.rowLabel}>Worker Name</Text>
                 <Text style={styles.rowValue}>{receipt.worker.name}</Text>
@@ -232,9 +244,14 @@ Thank you for using iAyos!
 
           {/* Footer Note */}
           <View style={styles.footerNote}>
-            <Ionicons name="information-circle" size={20} color={Colors.textSecondary} />
+            <Ionicons
+              name="information-circle"
+              size={20}
+              color={Colors.textSecondary}
+            />
             <Text style={styles.footerNoteText}>
-              This is an official receipt from iAyos. Keep this for your records.
+              This is an official receipt from iAyos. Keep this for your
+              records.
             </Text>
           </View>
         </ScrollView>
@@ -249,9 +266,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
     backgroundColor: Colors.white,
@@ -276,15 +293,15 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
   },
   iconContainer: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: Spacing.md,
   },
   statusContainer: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: Spacing.lg,
   },
   amountContainer: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: Spacing.sm,
   },
   amountLabel: {
@@ -298,7 +315,7 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
   },
   transactionIdContainer: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: Spacing.xl,
     paddingBottom: Spacing.xl,
     borderBottomWidth: 1,
@@ -313,7 +330,7 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.sm,
     fontWeight: Typography.fontWeight.medium as any,
     color: Colors.textPrimary,
-    fontFamily: 'monospace',
+    fontFamily: "monospace",
   },
   section: {
     backgroundColor: Colors.white,
@@ -330,9 +347,9 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
   row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingVertical: Spacing.sm,
   },
   rowLabel: {
@@ -343,7 +360,7 @@ const styles = StyleSheet.create({
   rowValue: {
     fontSize: Typography.fontSize.base,
     color: Colors.textPrimary,
-    textAlign: 'right',
+    textAlign: "right",
     flex: 1,
   },
   rowLabelBold: {
@@ -356,7 +373,7 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.base,
     fontWeight: Typography.fontWeight.bold as any,
     color: Colors.textPrimary,
-    textAlign: 'right',
+    textAlign: "right",
     flex: 1,
   },
   divider: {
@@ -365,8 +382,8 @@ const styles = StyleSheet.create({
     marginVertical: Spacing.sm,
   },
   footerNote: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
     backgroundColor: Colors.backgroundSecondary,
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
