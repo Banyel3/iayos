@@ -118,6 +118,20 @@ export const ENDPOINTS = {
   PAYMENT_RECEIPT: (id: number) =>
     `${API_BASE_URL.replace("/api", "")}/api/mobile/payments/receipt/${id}`,
 
+  // Phase 4: Final Payment System (8 endpoints)
+  CREATE_FINAL_PAYMENT: `${API_BASE_URL.replace("/api", "")}/api/mobile/payments/final`,
+  JOB_PAYMENT_STATUS: (id: number) =>
+    `${API_BASE_URL.replace("/api", "")}/api/jobs/${id}/payment-status`,
+  JOB_EARNINGS: (id: number) =>
+    `${API_BASE_URL.replace("/api", "")}/api/jobs/${id}/earnings`,
+  PAYMENT_TIMELINE: (id: number) =>
+    `${API_BASE_URL.replace("/api", "")}/api/jobs/${id}/payment-timeline`,
+  EARNINGS_SUMMARY: `${API_BASE_URL.replace("/api", "")}/api/accounts/earnings/summary`,
+  EARNINGS_HISTORY: `${API_BASE_URL.replace("/api", "")}/api/accounts/earnings/history`,
+  CASH_PAYMENT_STATUS: (id: number) =>
+    `${API_BASE_URL.replace("/api", "")}/api/mobile/payments/cash-status/${id}`,
+  CREATE_PAYMENT_NOTIFICATION: `${API_BASE_URL.replace("/api", "")}/api/notifications/payment`,
+
   // Notifications
   NOTIFICATIONS: `${API_BASE_URL}/accounts/notifications`,
   MARK_READ: (id: number) =>
