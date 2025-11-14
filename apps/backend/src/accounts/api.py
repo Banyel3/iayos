@@ -158,10 +158,13 @@ def forgot_password_verify(request, payload: resetPasswordSchema, verifyToken: s
     except Exception as e:
         return {"error": [{"message": "Password reset failed"}]}
     
-@router.post("/upload/kyc")
+@router.post("/upload/kyc", auth=cookie_auth)
 def upload_kyc(request):
     try:
-        accountID = int(request.POST.get("accountID"))
+        # 🔥 Use authenticated user's ID instead of trusting client
+        user = request.auth
+        accountID = user.accountID
+        
         IDType = request.POST.get("IDType")
         clearanceType = request.POST.get("clearanceType")
         frontID = request.FILES.get("frontID")
