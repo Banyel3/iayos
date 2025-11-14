@@ -17,7 +17,7 @@ export default function ConversationCard({
   conversation,
 }: ConversationCardProps) {
   const handlePress = () => {
-    router.push(`/messages/${conversation.id}`);
+    router.push(`/messages/${conversation.id}` as any);
   };
 
   // Format timestamp

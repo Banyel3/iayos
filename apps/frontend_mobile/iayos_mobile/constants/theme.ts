@@ -120,6 +120,13 @@ export const Typography = {
       lineHeight: 16,
     },
   },
+
+  // Caption
+  caption: {
+    fontSize: 12,
+    fontWeight: "400" as const,
+    lineHeight: 16,
+  },
 };
 
 export const Spacing = {

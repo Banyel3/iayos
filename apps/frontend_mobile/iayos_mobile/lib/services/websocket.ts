@@ -270,7 +270,7 @@ class WebSocketService {
           this.stopHeartbeat();
         }
       }
-    }, 30000); // Every 30 seconds
+    }, 30000) as any; // Every 30 seconds
   }
 
   // Stop heartbeat
@@ -300,7 +300,7 @@ class WebSocketService {
       this.connect().catch((error) => {
         console.error("[WebSocket] ❌ Reconnection failed:", error);
       });
-    }, this.reconnectDelay);
+    }, this.reconnectDelay) as any;
 
     // Exponential backoff: 1s → 2s → 4s → 8s → 16s → 30s (max)
     this.reconnectDelay = Math.min(

@@ -188,7 +188,7 @@ export default function ConversationsScreen() {
       );
     }
 
-    if (!isConnected && connectionState !== "connecting") {
+    if (!isConnected && connectionState === "disconnected") {
       return (
         <View style={[styles.connectionBanner, styles.connectionBannerError]}>
           <Ionicons
@@ -318,7 +318,7 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.border,
   },
   headerTitle: {
-    ...Typography.h2,
+    ...Typography.heading.h2,
     fontSize: 28,
     fontWeight: "700",
     color: Colors.textPrimary,
@@ -437,7 +437,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.xl,
   },
   emptyText: {
-    ...Typography.h3,
+    ...Typography.heading.h3,
     fontSize: 20,
     fontWeight: "600",
     color: Colors.textPrimary,
@@ -445,7 +445,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   emptySubtext: {
-    ...Typography.body,
+    ...Typography.body.medium,
     fontSize: 15,
     color: Colors.textSecondary,
     marginTop: Spacing.sm,

@@ -96,8 +96,8 @@ export function useSendMessage() {
         "[useSendMessage] WebSocket unavailable, using HTTP fallback"
       );
       try {
-        const { SEND_MESSAGE } = await import("../api/config");
-        const response = await fetch(SEND_MESSAGE, {
+        const { ENDPOINTS } = await import("../api/config");
+        const response = await fetch(ENDPOINTS.SEND_MESSAGE, {
           method: "POST",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
@@ -158,7 +158,9 @@ export function useMessageListener(conversationId?: number) {
       }
     });
 
-    return unsubscribe;
+    return () => {
+      unsubscribe();
+    };
   }, [conversationId, queryClient]);
 
   return { latestMessage };
@@ -192,7 +194,7 @@ export function useTypingIndicator(conversationId: number) {
           typingTimeoutRef.current = setTimeout(() => {
             setIsTyping(false);
             setTypingUserId(null);
-          }, 5000);
+          }, 5000) as any;
         }
       }
     });
@@ -264,7 +266,9 @@ export function useUserStatus(userId?: number) {
       }
     });
 
-    return unsubscribe;
+    return () => {
+      unsubscribe();
+    };
   }, [userId]);
 
   return { isOnline, lastSeen };
