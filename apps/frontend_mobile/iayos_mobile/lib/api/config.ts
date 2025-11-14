@@ -132,6 +132,14 @@ export const ENDPOINTS = {
     `${API_BASE_URL.replace("/api", "")}/api/mobile/payments/cash-status/${id}`,
   CREATE_PAYMENT_NOTIFICATION: `${API_BASE_URL.replace("/api", "")}/api/notifications/payment`,
 
+  // Phase 5: Real-Time Chat & Messaging (4 endpoints)
+  CONVERSATIONS: `${API_BASE_URL.replace("/api", "")}/api/profiles/chat/conversations`,
+  CONVERSATION_MESSAGES: (id: number) =>
+    `${API_BASE_URL.replace("/api", "")}/api/profiles/chat/conversations/${id}`,
+  SEND_MESSAGE: `${API_BASE_URL.replace("/api", "")}/api/profiles/chat/messages`,
+  UPLOAD_MESSAGE_IMAGE: (conversationId: number) =>
+    `${API_BASE_URL.replace("/api", "")}/api/profiles/chat/${conversationId}/upload-image`,
+
   // Notifications
   NOTIFICATIONS: `${API_BASE_URL}/accounts/notifications`,
   MARK_READ: (id: number) =>
