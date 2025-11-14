@@ -13,7 +13,7 @@ import {
   TextInput,
   Alert,
 } from "react-native";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
 import {
   Colors,
@@ -24,7 +24,7 @@ import {
 } from "@/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { API_ENDPOINTS } from "@/lib/api/config";
+import { ENDPOINTS } from "@/lib/api/config";
 
 const { width } = Dimensions.get("window");
 
@@ -81,7 +81,7 @@ export default function JobDetailScreen() {
   } = useQuery<JobDetail>({
     queryKey: ["jobs", id],
     queryFn: async () => {
-      const response = await fetch(`${API_ENDPOINTS.AVAILABLE_JOBS}/${id}`, {
+      const response = await fetch(`${ENDPOINTS.AVAILABLE_JOBS}/${id}`, {
         credentials: "include",
       });
 
@@ -98,12 +98,9 @@ export default function JobDetailScreen() {
   const { data: hasApplied = false } = useQuery<boolean>({
     queryKey: ["jobs", id, "applied"],
     queryFn: async () => {
-      const response = await fetch(
-        `${API_ENDPOINTS.AVAILABLE_JOBS}/my-applications`,
-        {
-          credentials: "include",
-        }
-      );
+      const response = await fetch(`${ENDPOINTS.MY_APPLICATIONS}`, {
+        credentials: "include",
+      });
 
       if (!response.ok) return false;
 
@@ -126,15 +123,12 @@ export default function JobDetailScreen() {
       estimated_duration: string | null;
       budget_option: "ACCEPT" | "NEGOTIATE";
     }) => {
-      const response = await fetch(
-        `${API_ENDPOINTS.AVAILABLE_JOBS}/${id}/apply`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify(applicationData),
-        }
-      );
+      const response = await fetch(`${ENDPOINTS.APPLY_JOB(parseInt(id))}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(applicationData),
+      });
 
       if (!response.ok) {
         const errorData = await response.json();
