@@ -4,7 +4,7 @@ from datetime import timedelta
 import hashlib
 import uuid
 
-from accounts.models import Accounts, kyc, kycFiles, Profile, Notification, Agency
+from accounts.models import Accounts, kyc, kycFiles, Profile, Notification, Agency, WorkerProfile
 from agency.models import AgencyKYC, AgencyKycFile
 from adminpanel.models import SystemRoles, KYCLogs
 
@@ -33,8 +33,10 @@ def create_admin_account(email: str, password: str, role: str = "ADMIN"):
     # name; accessing SystemRoles.systemRole directly returns a DeferredAttribute
     # (the model field). Use _meta.get_field(...) to get the choices tuples.
     try:
-        raw_choices = SystemRoles._meta.get_field('systemRole').choices
-        allowed = {c[0] for c in raw_choices}
+        field = SystemRoles._meta.get_field('systemRole')
+        # choices might be a callable or a list
+        raw_choices = field.choices() if callable(field.choices) else field.choices
+        allowed = {c[0] for c in raw_choices} if raw_choices else {"ADMIN", "CLIENT"}
     except Exception:
         # Fallback to a conservative set if reflection fails
         allowed = {"ADMIN", "CLIENT"}
@@ -47,7 +49,7 @@ def create_admin_account(email: str, password: str, role: str = "ADMIN"):
         raise ValueError("Email already registered")
 
     # Create user via model manager (uses create_user to hash password)
-    user = Accounts.objects.create_user(email=email, password=password)
+    user = Accounts.objects.create_user(email=email, password=password)  # type: ignore
 
     # Optionally set verification token & expiry so account can be tested as verified
     user.isVerified = True
@@ -237,6 +239,7 @@ def approve_kyc(request):
     """
     import json
     
+    kyc_id = None
     try:
         # Parse request body
         body = json.loads(request.body.decode('utf-8'))
@@ -352,6 +355,7 @@ def reject_kyc(request):
     """
     import json
     
+    kyc_id = None
     try:
         # Parse request body
         body = json.loads(request.body.decode('utf-8'))
@@ -453,6 +457,7 @@ def approve_agency_kyc(request):
     """
     import json
 
+    agency_kyc_id = None
     try:
         body = json.loads(request.body.decode('utf-8'))
         agency_kyc_id = body.get("agencyKycID")
@@ -560,6 +565,7 @@ def reject_agency_kyc(request):
     """
     import json
 
+    agency_kyc_id = None
     try:
         body = json.loads(request.body.decode('utf-8'))
         agency_kyc_id = body.get("agencyKycID")
@@ -854,7 +860,7 @@ def get_admin_dashboard_stats():
         raise
 
 
-def get_clients_list(page: int = 1, page_size: int = 50, search: str = None, status_filter: str = None):
+def get_clients_list(page: int = 1, page_size: int = 50, search: str | None = None, status_filter: str | None = None):
     """Get paginated list of client accounts with their details."""
     from django.db.models import Q, Count
     from django.core.paginator import Paginator
@@ -940,7 +946,7 @@ def get_clients_list(page: int = 1, page_size: int = 50, search: str = None, sta
         raise
 
 
-def get_workers_list(page: int = 1, page_size: int = 50, search: str = None, status_filter: str = None):
+def get_workers_list(page: int = 1, page_size: int = 50, search: str | None = None, status_filter: str | None = None):
     """Get paginated list of worker accounts with their details."""
     from django.db.models import Q, Avg
     from django.core.paginator import Paginator
@@ -1094,8 +1100,8 @@ def get_worker_detail(account_id: str):
             active_jobs = 0
         
         # Get worker specializations/skills
+        from accounts.models import workerSpecialization, Specializations
         try:
-            from accounts.models import WorkerProfile, workerSpecialization, Specializations
             worker_profile = WorkerProfile.objects.get(profileID=profile)
             
             # Get specializations
@@ -1405,7 +1411,7 @@ def get_agency_detail(account_id: str):
         raise
 
 
-def get_agencies_list(page: int = 1, page_size: int = 50, search: str = None, status_filter: str = None):
+def get_agencies_list(page: int = 1, page_size: int = 50, search: str | None = None, status_filter: str | None = None):
     """Get paginated list of agency accounts with their details."""
     from django.db.models import Q, Count
     from django.core.paginator import Paginator
@@ -1517,7 +1523,7 @@ def get_agencies_list(page: int = 1, page_size: int = 50, search: str = None, st
 # JOBS MANAGEMENT FUNCTIONS
 # ==========================================
 
-def get_jobs_list(page: int = 1, page_size: int = 20, status: str = None, category_id: int = None):
+def get_jobs_list(page: int = 1, page_size: int = 20, status: str | None = None, category_id: int | None = None):
     """
     Get paginated list of all jobs with filtering options
     """
@@ -1608,7 +1614,7 @@ def get_jobs_list(page: int = 1, page_size: int = 20, status: str = None, catego
         raise
 
 
-def get_job_applications_list(page: int = 1, page_size: int = 20, status: str = None):
+def get_job_applications_list(page: int = 1, page_size: int = 20, status: str | None = None):
     """
     Get paginated list of all job applications
     """
@@ -1757,9 +1763,9 @@ def get_job_categories_list():
                 'skill_level': category.skillLevel,
                 'average_project_cost_min': float(category.averageProjectCostMin),
                 'average_project_cost_max': float(category.averageProjectCostMax),
-                'jobs_count': category.jobs_count,
-                'workers_count': category.workers_count,
-                'clients_count': category.clients_count,
+                'jobs_count': getattr(category, 'jobs_count', 0),
+                'workers_count': getattr(category, 'workers_count', 0),
+                'clients_count': getattr(category, 'clients_count', 0),
             })
         
         return categories_data

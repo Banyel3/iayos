@@ -462,7 +462,11 @@ def assign_role(data):
 
 def upload_kyc_document(payload, frontID, backID, clearance, selfie):
     try:
+        print(f"🔍 Starting KYC document upload for accountID: {payload.accountID}")
+        print(f"   IDType: {payload.IDType}, ClearanceType: {payload.clearanceType}")
+        
         user = Accounts.objects.get(accountID=payload.accountID)
+        print(f"✅ User found: {user.email}")
 
         # Define image inputs
         images = {
@@ -471,6 +475,14 @@ def upload_kyc_document(payload, frontID, backID, clearance, selfie):
             'CLEARANCE': clearance,
             'SELFIE': selfie
         }
+        
+        # Log which files were received
+        received_files = [key for key, file in images.items() if file]
+        print(f"📎 Files received: {', '.join(received_files) if received_files else 'NONE'}")
+        
+        if not received_files:
+            print("❌ CRITICAL: No files received in upload request!")
+            raise ValueError("No files were provided for upload")
 
         allowed_mime_types = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf']
         max_size = 5 * 1024 * 1024  # 5 MB
@@ -510,14 +522,23 @@ def upload_kyc_document(payload, frontID, backID, clearance, selfie):
             accountFK=user,
             defaults={'kyc_status': 'PENDING', 'notes': ''}
         )
+        
+        if created:
+            print(f"✅ New KYC record created: kycID={kyc_record.kycID}")
+        else:
+            print(f"ℹ️  Existing KYC record found: kycID={kyc_record.kycID}, status={kyc_record.kyc_status}")
 
         # If KYC record already exists, delete old files to avoid duplicates
         # and reset status to PENDING for re-review
         if not created:
+            old_files_count = kycFiles.objects.filter(kycID=kyc_record).count()
             kycFiles.objects.filter(kycID=kyc_record).delete()
+            print(f"🗑️  Deleted {old_files_count} old kycFiles records for re-submission")
+            
             kyc_record.kyc_status = 'PENDING'
             kyc_record.notes = 'Re-submitted'
             kyc_record.save()
+            print(f"♻️  KYC status reset to PENDING for re-review")
 
         uploaded_files = []
 
@@ -533,11 +554,20 @@ def upload_kyc_document(payload, frontID, backID, clearance, selfie):
                 raise ValueError(f"{key}: File too large. Maximum size is 5MB")
 
             unique_filename = unique_names[key]
+            print(f"📤 Uploading {key}: filename={unique_filename}, size={file.size} bytes")
+            
             file_url = upload_kyc_doc(
                 file=file,
                 user_id=user.accountID,
                 file_name=unique_filename
             )
+
+            # Check if upload succeeded
+            if not file_url:
+                print(f"❌ CRITICAL: File upload failed for {key}! No URL returned from Supabase.")
+                raise ValueError(f"Failed to upload {key} to Supabase storage. Please try again.")
+
+            print(f"✅ Upload successful for {key}: {file_url}")
 
             # Assign proper ID type or clearance type
             id_type = None
@@ -546,6 +576,8 @@ def upload_kyc_document(payload, frontID, backID, clearance, selfie):
             elif key == 'CLEARANCE':
                 id_type = payload.clearanceType.upper()
 
+            print(f"💾 Creating kycFiles record: idType={id_type}, fileURL={file_url}")
+            
             kycFiles.objects.create(
                 kycID=kyc_record,
                 idType=id_type,
@@ -553,6 +585,8 @@ def upload_kyc_document(payload, frontID, backID, clearance, selfie):
                 fileName=unique_filename,
                 fileSize=file.size
             )
+            
+            print(f"✅ kycFiles record created successfully for {key}")
 
             uploaded_files.append({
                 "file_type": key.lower(),
@@ -560,6 +594,13 @@ def upload_kyc_document(payload, frontID, backID, clearance, selfie):
                 "file_name": unique_filename,
                 "file_size": file.size
             })
+
+        # Verify all files were saved
+        saved_files_count = kycFiles.objects.filter(kycID=kyc_record).count()
+        print(f"✅ KYC upload complete! kycID={kyc_record.kycID}, Files saved: {saved_files_count}/{len(uploaded_files)}")
+        
+        if saved_files_count != len(uploaded_files):
+            print(f"⚠️  WARNING: Mismatch between uploaded ({len(uploaded_files)}) and saved ({saved_files_count}) files!")
 
         return {
             "message": "KYC documents uploaded successfully",
@@ -632,9 +673,9 @@ def get_pending_kyc_submissions():
                 "files_count": files.count(),
                 "files": [
                     {
-                        "file_type": f.fileType,
                         "id_type": f.idType,
-                        "file_name": f.fileName
+                        "file_name": f.fileName,
+                        "file_url": f.fileURL
                     } for f in files
                 ]
             })
