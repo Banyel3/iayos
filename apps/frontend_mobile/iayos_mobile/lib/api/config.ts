@@ -79,6 +79,14 @@ export const ENDPOINTS = {
   PORTFOLIO_DELETE: (id: number) =>
     `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/portfolio/${id}`,
 
+  // Phase 6: Certifications & Materials
+  CERTIFICATIONS: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/certifications`,
+  CERTIFICATION_DETAIL: (id: number) =>
+    `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/certifications/${id}`,
+  MATERIALS: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/materials`,
+  MATERIAL_DETAIL: (id: number) =>
+    `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/materials/${id}`,
+
   // Profile
   PROFILE: (id: number) => `${API_BASE_URL}/profiles/${id}`,
   UPDATE_PROFILE: (id: number) => `${API_BASE_URL}/profiles/${id}`,
