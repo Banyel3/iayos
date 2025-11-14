@@ -24,6 +24,11 @@ export const ENDPOINTS = {
   JOB_DETAILS: (id: number) => `${API_BASE_URL}/jobs/${id}`,
   APPLY_JOB: (id: number) => `${API_BASE_URL}/jobs/${id}/apply`,
   MY_APPLICATIONS: `${API_BASE_URL}/jobs/my-applications`,
+  MARK_COMPLETE: (id: number) => `${API_BASE_URL}/jobs/${id}/mark-complete`,
+  APPROVE_COMPLETION: (id: number) =>
+    `${API_BASE_URL}/jobs/${id}/approve-completion`,
+  ACTIVE_JOBS: `${API_BASE_URL}/jobs/my-active-jobs`,
+  UPLOAD_JOB_PHOTOS: (id: number) => `${API_BASE_URL}/jobs/${id}/upload-photos`,
 
   // Profile
   PROFILE: (id: number) => `${API_BASE_URL}/profiles/${id}`,

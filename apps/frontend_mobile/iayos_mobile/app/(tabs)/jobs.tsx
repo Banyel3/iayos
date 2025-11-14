@@ -139,18 +139,32 @@ export default function JobsScreen() {
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Available Jobs</Text>
-          <TouchableOpacity
-            style={styles.applicationsButton}
-            onPress={handleViewApplications}
-            activeOpacity={0.7}
-          >
-            <Ionicons
-              name="document-text-outline"
-              size={20}
-              color={Colors.primary}
-            />
-            <Text style={styles.applicationsButtonText}>My Applications</Text>
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={styles.activeJobsButton}
+              onPress={() => router.push("/jobs/active" as any)}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name="construct-outline"
+                size={20}
+                color={Colors.success}
+              />
+              <Text style={styles.activeJobsButtonText}>Active</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.applicationsButton}
+              onPress={handleViewApplications}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name="document-text-outline"
+                size={20}
+                color={Colors.primary}
+              />
+              <Text style={styles.applicationsButtonText}>My Applications</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Search Bar */}
@@ -577,5 +591,23 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     textAlign: "center",
     paddingHorizontal: Spacing.xl,
+  },
+  headerActions: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+  },
+  activeJobsButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.success + "20",
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.md,
+    gap: 4,
+  },
+  activeJobsButtonText: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: "600",
+    color: Colors.success,
   },
 });
