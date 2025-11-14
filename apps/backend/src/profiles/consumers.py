@@ -57,37 +57,42 @@ class InboxConsumer(AsyncWebsocketConsumer):
         try:
             print(f"[InboxWS] 📩 Received data: {text_data}")
             data = json.loads(text_data)
-            
+
             # Check if this is a message history request
             action = data.get('action')
             if action == 'get_messages':
                 await self.handle_get_messages(data)
                 return
-            
+
+            # Check if this is a typing indicator
+            if action == 'typing':
+                await self.handle_typing_indicator(data)
+                return
+
             conversation_id = data.get('conversation_id')
             message_text = data.get('message', '')
             message_type = data.get('type', 'TEXT')
-            
+
             print(f"[InboxWS] Conversation: {conversation_id}, Message: '{message_text}', Type: {message_type}")
-            
+
             if not conversation_id:
                 print("[InboxWS] ⚠️ No conversation_id provided, skipping")
                 return
-            
+
             if not message_text:
                 print("[InboxWS] ⚠️ Empty message, skipping")
                 return
-            
+
             # Verify user has access to this conversation
             has_access = await self.verify_conversation_access(conversation_id)
             if not has_access:
                 print(f"[InboxWS] ⚠️ User does not have access to conversation {conversation_id}")
                 return
-            
+
             print(f"[InboxWS] 💾 Saving message to database...")
             message = await self.save_message(conversation_id, message_text, message_type)
             print(f"[InboxWS] ✅ Message saved with ID: {message.messageID}")
-            
+
             # Broadcast to conversation group
             room_group_name = f'chat_{conversation_id}'
             await self.channel_layer.group_send(
@@ -118,6 +123,68 @@ class InboxConsumer(AsyncWebsocketConsumer):
         message = event['message']
         print(f"[InboxWS] 📤 Sending message for conversation {message.get('conversation_id')}")
         await self.send(text_data=json.dumps(message))
+
+    async def typing_indicator(self, event):
+        """Send typing indicator to WebSocket"""
+        data = event['data']
+        print(f"[InboxWS] 📤 Sending typing indicator for conversation {data.get('conversation_id')}")
+        await self.send(text_data=json.dumps({
+            'action': 'typing',
+            'conversation_id': data['conversation_id'],
+            'user_id': data['user_id'],
+            'user_name': data['user_name'],
+            'is_typing': data['is_typing']
+        }))
+
+    async def handle_typing_indicator(self, data):
+        """Handle typing indicator events"""
+        conversation_id = data.get('conversation_id')
+        is_typing = data.get('is_typing', True)
+
+        if not conversation_id:
+            print("[InboxWS] ⚠️ No conversation_id in typing event")
+            return
+
+        # Verify access
+        has_access = await self.verify_conversation_access(conversation_id)
+        if not has_access:
+            print(f"[InboxWS] ⚠️ User does not have access to conversation {conversation_id}")
+            return
+
+        # Get user info
+        user_info = await self.get_user_info()
+
+        print(f"[InboxWS] 👀 Broadcasting typing indicator: User {user_info['name']} {'is' if is_typing else 'stopped'} typing")
+
+        # Broadcast typing indicator to conversation group
+        room_group_name = f'chat_{conversation_id}'
+        await self.channel_layer.group_send(
+            room_group_name,
+            {
+                'type': 'typing_indicator',
+                'data': {
+                    'conversation_id': int(conversation_id),
+                    'user_id': user_info['id'],
+                    'user_name': user_info['name'],
+                    'is_typing': is_typing
+                }
+            }
+        )
+
+    @database_sync_to_async
+    def get_user_info(self):
+        """Get current user's profile information"""
+        try:
+            profile = Profile.objects.get(accountFK=self.user)
+            return {
+                'id': profile.profileID,
+                'name': f"{profile.firstName} {profile.lastName}"
+            }
+        except Profile.DoesNotExist:
+            return {
+                'id': 0,
+                'name': 'Unknown'
+            }
 
     @database_sync_to_async
     def get_user_profile(self):

@@ -118,7 +118,6 @@ export function useConversation(conversationId: number) {
 
 /**
  * Archive/unarchive a conversation
- * Note: Backend API endpoint needed - placeholder for now
  */
 export function useArchiveConversation() {
   const queryClient = useQueryClient();
@@ -131,20 +130,41 @@ export function useArchiveConversation() {
       conversationId: number;
       archive: boolean;
     }) => {
-      // TODO: Implement backend endpoint
-      // For now, just invalidate cache
       console.log(
         `[useArchiveConversation] ${archive ? "Archiving" : "Unarchiving"} conversation ${conversationId}`
       );
 
-      // Placeholder - would call:
-      // PUT /api/profiles/chat/conversations/{id}/archive
-      // Body: { archived: true/false }
+      // Call backend toggle archive endpoint
+      const response = await fetch(
+        `${API_CONFIG.BASE_URL}/api/profiles/chat/conversations/${conversationId}/toggle-archive`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
 
-      return { success: true };
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to toggle archive status");
+      }
+
+      const data = await response.json();
+      console.log(
+        `[useArchiveConversation] Success: ${data.message}`,
+        data
+      );
+
+      return data;
     },
     onSuccess: () => {
+      // Invalidate conversations queries to reflect archive status change
       queryClient.invalidateQueries({ queryKey: ["conversations"] });
+    },
+    onError: (error) => {
+      console.error("[useArchiveConversation] Error:", error);
     },
   });
 }

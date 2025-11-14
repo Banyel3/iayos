@@ -1095,13 +1095,148 @@ def toggle_conversation_archive(request, conversation_id: int):
             "conversation_id": conversation_id,
             "message": "Conversation archived" if is_archived else "Conversation unarchived"
         }
-        
+
     except Exception as e:
         print(f"❌ Error toggling archive status: {str(e)}")
         import traceback
         traceback.print_exc()
         return Response(
             {"error": f"Failed to toggle archive status: {str(e)}"},
+            status=500
+        )
+
+
+@router.post("/chat/{conversation_id}/upload-image", auth=cookie_auth)
+def upload_chat_image(request, conversation_id: int, image: UploadedFile = File(...)):
+    """
+    Upload an image to a chat conversation.
+    Creates a new IMAGE type message with the uploaded image URL.
+
+    Args:
+        conversation_id: ID of the conversation
+        image: Image file (JPEG, PNG, JPG, max 5MB)
+
+    Returns:
+        message_id: int
+        image_url: string (public URL)
+        uploaded_at: datetime
+    """
+    try:
+        from accounts.supabase_config import supabase
+        import os
+
+        # Get sender's profile
+        try:
+            sender_profile = Profile.objects.get(accountFK=request.auth)
+        except Profile.DoesNotExist:
+            return Response(
+                {"error": "Profile not found"},
+                status=400
+            )
+
+        # Get the conversation
+        try:
+            conversation = Conversation.objects.select_related(
+                'client',
+                'worker'
+            ).get(conversationID=conversation_id)
+        except Conversation.DoesNotExist:
+            return Response(
+                {"error": "Conversation not found"},
+                status=404
+            )
+
+        # Verify sender is a participant
+        is_client = conversation.client == sender_profile
+        is_worker = conversation.worker == sender_profile
+
+        if not (is_client or is_worker):
+            return Response(
+                {"error": "You are not a participant in this conversation"},
+                status=403
+            )
+
+        # Validate file size (5MB max)
+        if image.size > 5 * 1024 * 1024:
+            return Response(
+                {"error": "Image size must be less than 5MB"},
+                status=400
+            )
+
+        # Validate file type
+        allowed_types = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp']
+        if image.content_type not in allowed_types:
+            return Response(
+                {"error": "Invalid file type. Allowed: JPEG, PNG, JPG, WEBP"},
+                status=400
+            )
+
+        # Generate unique filename
+        timestamp = timezone.now().strftime('%Y%m%d_%H%M%S')
+        file_extension = os.path.splitext(image.name)[1]
+        filename = f"message_{timestamp}_{sender_profile.profileID}{file_extension}"
+
+        # Upload to Supabase
+        # Path: chat/conversation_{id}/images/{filename}
+        storage_path = f"chat/conversation_{conversation_id}/images/{filename}"
+
+        try:
+            # Read file content
+            file_content = image.read()
+
+            # Upload to Supabase storage
+            upload_response = supabase.storage.from_('iayos_files').upload(
+                storage_path,
+                file_content,
+                {
+                    "content-type": image.content_type,
+                    "cache-control": "3600"
+                }
+            )
+
+            # Get public URL
+            public_url = supabase.storage.from_('iayos_files').get_public_url(storage_path)
+
+            # Create IMAGE type message
+            message = Message.objects.create(
+                conversationID=conversation,
+                sender=sender_profile,
+                messageText="",  # Empty text for image messages
+                messageType="IMAGE"
+            )
+
+            # Create message attachment record
+            MessageAttachment.objects.create(
+                messageID=message,
+                fileURL=public_url,
+                fileType="IMAGE"
+            )
+
+            print(f"✅ Chat image uploaded: {public_url}")
+
+            return {
+                "success": True,
+                "message_id": message.messageID,
+                "image_url": public_url,
+                "uploaded_at": message.createdAt.isoformat(),
+                "conversation_id": conversation_id
+            }
+
+        except Exception as upload_error:
+            print(f"❌ Supabase upload error: {str(upload_error)}")
+            import traceback
+            traceback.print_exc()
+            return Response(
+                {"error": f"Failed to upload image to storage: {str(upload_error)}"},
+                status=500
+            )
+
+    except Exception as e:
+        print(f"❌ Error uploading chat image: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": f"Failed to upload image: {str(e)}"},
             status=500
         )
 
