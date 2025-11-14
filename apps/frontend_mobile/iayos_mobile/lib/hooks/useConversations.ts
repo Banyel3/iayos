@@ -44,7 +44,9 @@ export type ConversationsResponse = {
  * Fetch conversations with optional filter
  * @param filter - 'all', 'unread', or 'archived'
  */
-export function useConversations(filter: "all" | "unread" | "archived" = "all") {
+export function useConversations(
+  filter: "all" | "unread" | "archived" = "all"
+) {
   return useQuery({
     queryKey: ["conversations", filter],
     queryFn: async (): Promise<ConversationsResponse> => {
@@ -57,7 +59,9 @@ export function useConversations(filter: "all" | "unread" | "archived" = "all") 
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch conversations: ${response.statusText}`);
+        throw new Error(
+          `Failed to fetch conversations: ${response.statusText}`
+        );
       }
 
       return response.json();

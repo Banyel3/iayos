@@ -33,7 +33,9 @@ export async function getQueuedMessages(): Promise<QueuedMessage[]> {
 /**
  * Add message to offline queue
  */
-export async function addToQueue(message: Omit<QueuedMessage, "id" | "timestamp" | "retryCount" | "status">): Promise<QueuedMessage> {
+export async function addToQueue(
+  message: Omit<QueuedMessage, "id" | "timestamp" | "retryCount" | "status">
+): Promise<QueuedMessage> {
   try {
     const queue = await getQueuedMessages();
     const queuedMessage: QueuedMessage = {
@@ -73,7 +75,10 @@ export async function removeFromQueue(messageId: string): Promise<void> {
 /**
  * Update message status in queue
  */
-export async function updateQueuedMessage(messageId: string, updates: Partial<QueuedMessage>): Promise<void> {
+export async function updateQueuedMessage(
+  messageId: string,
+  updates: Partial<QueuedMessage>
+): Promise<void> {
   try {
     const queue = await getQueuedMessages();
     const index = queue.findIndex((msg) => msg.id === messageId);
@@ -91,7 +96,9 @@ export async function updateQueuedMessage(messageId: string, updates: Partial<Qu
 /**
  * Get pending messages for a conversation
  */
-export async function getPendingMessages(conversationId: number): Promise<QueuedMessage[]> {
+export async function getPendingMessages(
+  conversationId: number
+): Promise<QueuedMessage[]> {
   const queue = await getQueuedMessages();
   return queue.filter(
     (msg) => msg.conversationId === conversationId && msg.status === "pending"
@@ -126,7 +133,9 @@ export async function processOfflineQueue(
     return;
   }
 
-  console.log(`[OfflineQueue] 📝 Processing ${pendingMessages.length} messages...`);
+  console.log(
+    `[OfflineQueue] 📝 Processing ${pendingMessages.length} messages...`
+  );
 
   for (const message of pendingMessages) {
     try {
@@ -148,13 +157,17 @@ export async function processOfflineQueue(
             status: "failed",
             retryCount,
           });
-          console.log(`[OfflineQueue] ❌ Message ${message.id} failed after 3 retries`);
+          console.log(
+            `[OfflineQueue] ❌ Message ${message.id} failed after 3 retries`
+          );
         } else {
           await updateQueuedMessage(message.id, {
             status: "pending",
             retryCount,
           });
-          console.log(`[OfflineQueue] ⚠️ Message ${message.id} retry ${retryCount}/3`);
+          console.log(
+            `[OfflineQueue] ⚠️ Message ${message.id} retry ${retryCount}/3`
+          );
         }
       }
     } catch (error) {

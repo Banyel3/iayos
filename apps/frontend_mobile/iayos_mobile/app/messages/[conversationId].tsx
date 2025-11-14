@@ -18,16 +18,32 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, router, Stack } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { useMessages, useSendMessageMutation } from "../../lib/hooks/useMessages";
-import { useMessageListener, useTypingIndicator, useWebSocketConnection } from "../../lib/hooks/useWebSocket";
+import {
+  useMessages,
+  useSendMessageMutation,
+} from "../../lib/hooks/useMessages";
+import {
+  useMessageListener,
+  useTypingIndicator,
+  useWebSocketConnection,
+} from "../../lib/hooks/useWebSocket";
 import { useImageUpload } from "../../lib/hooks/useImageUpload";
 import MessageBubble from "../../components/MessageBubble";
 import MessageInput from "../../components/MessageInput";
 import { ImageMessage } from "../../components/ImageMessage";
 import { TypingIndicator } from "../../components/TypingIndicator";
-import { Colors, Typography, Spacing, BorderRadius } from "../../constants/theme";
+import {
+  Colors,
+  Typography,
+  Spacing,
+  BorderRadius,
+} from "../../constants/theme";
 import { isSameDay, format } from "date-fns";
-import { addToQueue, getPendingMessages, isOnline } from "../../lib/services/offline-queue";
+import {
+  addToQueue,
+  getPendingMessages,
+  isOnline,
+} from "../../lib/services/offline-queue";
 import * as ImagePicker from "expo-image-picker";
 
 export default function ChatScreen() {
@@ -39,7 +55,11 @@ export default function ChatScreen() {
   const [pendingMessages, setPendingMessages] = useState<any[]>([]);
 
   // Fetch conversation and messages
-  const { data: conversation, isLoading, refetch } = useMessages(conversationId);
+  const {
+    data: conversation,
+    isLoading,
+    refetch,
+  } = useMessages(conversationId);
 
   // Send message mutation
   const sendMutation = useSendMessageMutation();
@@ -54,7 +74,12 @@ export default function ChatScreen() {
   const { isTyping, sendTyping } = useTypingIndicator(conversationId);
 
   // Image upload
-  const { uploadAsync, isUploading, progress: uploadProgress, resetProgress } = useImageUpload();
+  const {
+    uploadAsync,
+    isUploading,
+    progress: uploadProgress,
+    resetProgress,
+  } = useImageUpload();
 
   // Load pending messages from offline queue
   useEffect(() => {
@@ -133,7 +158,10 @@ export default function ChatScreen() {
   const pickImageFromCamera = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert("Permission Denied", "Camera permission is required to take photos.");
+      Alert.alert(
+        "Permission Denied",
+        "Camera permission is required to take photos."
+      );
       return;
     }
 
@@ -153,7 +181,10 @@ export default function ChatScreen() {
   const pickImageFromGallery = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert("Permission Denied", "Gallery permission is required to choose photos.");
+      Alert.alert(
+        "Permission Denied",
+        "Gallery permission is required to choose photos."
+      );
       return;
     }
 
@@ -246,7 +277,12 @@ export default function ChatScreen() {
       <View>
         {showDateSeparator && renderDateSeparator(currentDate)}
         {item.message_type === "IMAGE" && item.image_url ? (
-          <View style={[styles.imageContainer, item.is_mine && styles.imageContainerMine]}>
+          <View
+            style={[
+              styles.imageContainer,
+              item.is_mine && styles.imageContainerMine,
+            ]}
+          >
             <ImageMessage
               imageUrl={item.image_url}
               isMine={item.is_mine}
@@ -254,16 +290,18 @@ export default function ChatScreen() {
               height={200}
             />
             {showTimestamp && (
-              <Text style={[styles.imageTimestamp, item.is_mine && styles.imageTimestampMine]}>
+              <Text
+                style={[
+                  styles.imageTimestamp,
+                  item.is_mine && styles.imageTimestampMine,
+                ]}
+              >
                 {format(new Date(item.created_at), "h:mm a")}
               </Text>
             )}
           </View>
         ) : (
-          <MessageBubble
-            message={item}
-            showTimestamp={showTimestamp}
-          />
+          <MessageBubble message={item} showTimestamp={showTimestamp} />
         )}
       </View>
     );
@@ -341,7 +379,11 @@ export default function ChatScreen() {
           }}
         />
         <View style={styles.loadingContainer}>
-          <Ionicons name="alert-circle-outline" size={64} color={Colors.error} />
+          <Ionicons
+            name="alert-circle-outline"
+            size={64}
+            color={Colors.error}
+          />
           <Text style={styles.errorText}>Conversation not found</Text>
           <TouchableOpacity
             style={styles.retryButton}
@@ -369,7 +411,11 @@ export default function ChatScreen() {
               }}
               style={styles.headerButton}
             >
-              <Ionicons name="information-circle-outline" size={24} color={Colors.primary} />
+              <Ionicons
+                name="information-circle-outline"
+                size={24}
+                color={Colors.primary}
+              />
             </TouchableOpacity>
           ),
         }}
@@ -390,15 +436,23 @@ export default function ChatScreen() {
           activeOpacity={0.7}
         >
           <View style={styles.jobInfo}>
-            <Ionicons name="briefcase-outline" size={16} color={Colors.primary} />
+            <Ionicons
+              name="briefcase-outline"
+              size={16}
+              color={Colors.primary}
+            />
             <Text style={styles.jobTitle} numberOfLines={1}>
               {conversation.job.title}
             </Text>
           </View>
           <View style={styles.jobMeta}>
-            <Text style={styles.jobBudget}>₱{conversation.job.budget.toLocaleString()}</Text>
+            <Text style={styles.jobBudget}>
+              ₱{conversation.job.budget.toLocaleString()}
+            </Text>
             <Text style={styles.jobRole}>
-              {conversation.my_role === "CLIENT" ? "You're the client" : "You're the worker"}
+              {conversation.my_role === "CLIENT"
+                ? "You're the client"
+                : "You're the worker"}
             </Text>
           </View>
         </TouchableOpacity>

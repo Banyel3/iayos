@@ -31,13 +31,15 @@ export default function MessageBubble({
     <View style={[styles.container, isMine && styles.containerMine]}>
       {/* Avatar (only for received messages) */}
       {!isMine && (
-        <Image
-          source={{ uri: message.sender_avatar }}
-          style={styles.avatar}
-        />
+        <Image source={{ uri: message.sender_avatar }} style={styles.avatar} />
       )}
 
-      <View style={[styles.bubble, isMine ? styles.bubbleMine : styles.bubbleTheirs]}>
+      <View
+        style={[
+          styles.bubble,
+          isMine ? styles.bubbleMine : styles.bubbleTheirs,
+        ]}
+      >
         {/* Sender Name (only for received messages) */}
         {!isMine && (
           <Text style={styles.senderName}>{message.sender_name}</Text>

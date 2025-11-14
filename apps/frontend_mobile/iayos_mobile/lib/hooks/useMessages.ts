@@ -1,7 +1,12 @@
 // React Query Hooks for Messages Management
 // Handles fetching and sending messages
 
-import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from "@tanstack/react-query";
+import {
+  useQuery,
+  useMutation,
+  useQueryClient,
+  useInfiniteQuery,
+} from "@tanstack/react-query";
 import { ENDPOINTS } from "../api/config";
 import { useSendMessage } from "./useWebSocket";
 
@@ -124,7 +129,7 @@ export function useUploadImageMessage() {
       fileName: string;
     }) => {
       const formData = new FormData();
-      
+
       // Create file object from URI
       const file = {
         uri: imageUri,
@@ -167,7 +172,8 @@ export function useMessageStats(conversationId: number) {
     unread: data?.messages.filter((m) => !m.is_read && !m.is_mine).length || 0,
     mine: data?.messages.filter((m) => m.is_mine).length || 0,
     theirs: data?.messages.filter((m) => !m.is_mine).length || 0,
-    images: data?.messages.filter((m) => m.message_type === "IMAGE").length || 0,
+    images:
+      data?.messages.filter((m) => m.message_type === "IMAGE").length || 0,
   };
 
   return stats;

@@ -116,7 +116,10 @@ export function useSendMessage() {
           return true;
         }
 
-        console.error("[useSendMessage] HTTP fallback failed:", response.status);
+        console.error(
+          "[useSendMessage] HTTP fallback failed:",
+          response.status
+        );
         return false;
       } catch (error) {
         console.error("[useSendMessage] HTTP fallback error:", error);
@@ -147,10 +150,7 @@ export function useMessageListener(conversationId?: number) {
         queryClient.invalidateQueries({ queryKey: ["conversations"] });
 
         // Update messages cache if we're in this conversation
-        if (
-          conversationId &&
-          message.conversation_id === conversationId
-        ) {
+        if (conversationId && message.conversation_id === conversationId) {
           queryClient.invalidateQueries({
             queryKey: ["messages", conversationId],
           });

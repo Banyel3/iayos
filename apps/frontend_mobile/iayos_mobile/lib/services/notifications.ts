@@ -28,7 +28,9 @@ export type NotificationData = {
  */
 export async function requestNotificationPermissions(): Promise<boolean> {
   if (!Device.isDevice) {
-    console.warn("[Notifications] ⚠️ Must use physical device for push notifications");
+    console.warn(
+      "[Notifications] ⚠️ Must use physical device for push notifications"
+    );
     return false;
   }
 
@@ -145,8 +147,9 @@ export function setupNotificationListeners(
   onNotificationTapped: (response: Notifications.NotificationResponse) => void
 ) {
   // Listen for notifications when app is open
-  const receivedListener =
-    Notifications.addNotificationReceivedListener(onNotificationReceived);
+  const receivedListener = Notifications.addNotificationReceivedListener(
+    onNotificationReceived
+  );
 
   // Listen for notification taps
   const responseListener =

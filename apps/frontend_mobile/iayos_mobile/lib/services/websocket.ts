@@ -23,7 +23,11 @@ export type ChatMessage = {
   message_id?: number;
 };
 
-export type ConnectionState = "connecting" | "connected" | "disconnected" | "error";
+export type ConnectionState =
+  | "connecting"
+  | "connected"
+  | "disconnected"
+  | "error";
 
 class WebSocketService {
   private ws: WebSocket | null = null;
@@ -132,7 +136,11 @@ class WebSocketService {
   }
 
   // Send message via WebSocket
-  sendMessage(conversationId: number, text: string, type: "TEXT" | "IMAGE" = "TEXT"): boolean {
+  sendMessage(
+    conversationId: number,
+    text: string,
+    type: "TEXT" | "IMAGE" = "TEXT"
+  ): boolean {
     if (!this.isConnected()) {
       console.warn("[WebSocket] ⚠️ Not connected, cannot send message");
       return false;
@@ -146,7 +154,9 @@ class WebSocketService {
       };
 
       this.ws!.send(JSON.stringify(payload));
-      console.log(`[WebSocket] 📤 Message sent to conversation ${conversationId}`);
+      console.log(
+        `[WebSocket] 📤 Message sent to conversation ${conversationId}`
+      );
       return true;
     } catch (error) {
       console.error("[WebSocket] ❌ Failed to send message:", error);
@@ -165,7 +175,9 @@ class WebSocketService {
       };
 
       this.ws!.send(JSON.stringify(payload));
-      console.log(`[WebSocket] ⌨️ Typing indicator sent for conversation ${conversationId}`);
+      console.log(
+        `[WebSocket] ⌨️ Typing indicator sent for conversation ${conversationId}`
+      );
     } catch (error) {
       console.error("[WebSocket] ❌ Failed to send typing indicator:", error);
     }
@@ -291,7 +303,10 @@ class WebSocketService {
     }, this.reconnectDelay);
 
     // Exponential backoff: 1s → 2s → 4s → 8s → 16s → 30s (max)
-    this.reconnectDelay = Math.min(this.reconnectDelay * 2, this.maxReconnectDelay);
+    this.reconnectDelay = Math.min(
+      this.reconnectDelay * 2,
+      this.maxReconnectDelay
+    );
   }
 
   // Clear reconnect timeout

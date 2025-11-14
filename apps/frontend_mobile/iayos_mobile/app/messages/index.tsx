@@ -14,11 +14,20 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useConversations, useConversationSearch } from "../../lib/hooks/useConversations";
-import { useWebSocketConnection, useMessageListener } from "../../lib/hooks/useWebSocket";
+import {
+  useConversations,
+  useConversationSearch,
+} from "../../lib/hooks/useConversations";
+import {
+  useWebSocketConnection,
+  useMessageListener,
+} from "../../lib/hooks/useWebSocket";
 import ConversationCard from "../../components/ConversationCard";
 import { Colors, Typography, Spacing } from "../../constants/theme";
-import { setupNetworkListener, processOfflineQueue } from "../../lib/services/offline-queue";
+import {
+  setupNetworkListener,
+  processOfflineQueue,
+} from "../../lib/services/offline-queue";
 
 type FilterType = "all" | "unread" | "archived";
 
@@ -124,7 +133,11 @@ export default function ConversationsScreen() {
     if (searchQuery.trim()) {
       return (
         <View style={styles.emptyContainer}>
-          <Ionicons name="search-outline" size={64} color={Colors.textSecondary} />
+          <Ionicons
+            name="search-outline"
+            size={64}
+            color={Colors.textSecondary}
+          />
           <Text style={styles.emptyText}>No conversations found</Text>
           <Text style={styles.emptySubtext}>
             Try searching for a different name or job title
@@ -136,7 +149,11 @@ export default function ConversationsScreen() {
     if (activeFilter === "archived") {
       return (
         <View style={styles.emptyContainer}>
-          <Ionicons name="archive-outline" size={64} color={Colors.textSecondary} />
+          <Ionicons
+            name="archive-outline"
+            size={64}
+            color={Colors.textSecondary}
+          />
           <Text style={styles.emptyText}>No archived conversations</Text>
           <Text style={styles.emptySubtext}>
             Archived conversations will appear here
@@ -174,7 +191,11 @@ export default function ConversationsScreen() {
     if (!isConnected && connectionState !== "connecting") {
       return (
         <View style={[styles.connectionBanner, styles.connectionBannerError]}>
-          <Ionicons name="cloud-offline-outline" size={16} color={Colors.white} />
+          <Ionicons
+            name="cloud-offline-outline"
+            size={16}
+            color={Colors.white}
+          />
           <Text style={styles.connectionText}>
             Offline - Messages will be sent when reconnected
           </Text>
@@ -223,7 +244,11 @@ export default function ConversationsScreen() {
             onPress={() => setSearchQuery("")}
             style={styles.clearButton}
           >
-            <Ionicons name="close-circle" size={20} color={Colors.textSecondary} />
+            <Ionicons
+              name="close-circle"
+              size={20}
+              color={Colors.textSecondary}
+            />
           </TouchableOpacity>
         )}
       </View>
@@ -235,7 +260,8 @@ export default function ConversationsScreen() {
           {renderFilterButton(
             "unread",
             "Unread",
-            conversationsData?.conversations.filter((c) => c.unread_count > 0).length
+            conversationsData?.conversations.filter((c) => c.unread_count > 0)
+              .length
           )}
           {renderFilterButton("archived", "Archived")}
         </View>
@@ -266,7 +292,9 @@ export default function ConversationsScreen() {
         <View style={styles.resultsBar}>
           <Text style={styles.resultsText}>
             {displayedConversations.length}{" "}
-            {displayedConversations.length === 1 ? "conversation" : "conversations"}
+            {displayedConversations.length === 1
+              ? "conversation"
+              : "conversations"}
           </Text>
         </View>
       )}

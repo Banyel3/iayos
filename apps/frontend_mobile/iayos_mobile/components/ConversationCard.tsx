@@ -13,7 +13,9 @@ type ConversationCardProps = {
   conversation: Conversation;
 };
 
-export default function ConversationCard({ conversation }: ConversationCardProps) {
+export default function ConversationCard({
+  conversation,
+}: ConversationCardProps) {
   const handlePress = () => {
     router.push(`/messages/${conversation.id}`);
   };
@@ -62,7 +64,9 @@ export default function ConversationCard({ conversation }: ConversationCardProps
         {conversation.unread_count > 0 && (
           <View style={styles.unreadBadge}>
             <Text style={styles.unreadText}>
-              {conversation.unread_count > 99 ? "99+" : conversation.unread_count}
+              {conversation.unread_count > 99
+                ? "99+"
+                : conversation.unread_count}
             </Text>
           </View>
         )}
@@ -81,9 +85,7 @@ export default function ConversationCard({ conversation }: ConversationCardProps
           >
             {conversation.other_participant.name}
           </Text>
-          {formattedTime && (
-            <Text style={styles.time}>{formattedTime}</Text>
-          )}
+          {formattedTime && <Text style={styles.time}>{formattedTime}</Text>}
         </View>
 
         {/* Job Title */}
@@ -96,7 +98,9 @@ export default function ConversationCard({ conversation }: ConversationCardProps
           <Text style={styles.jobTitle} numberOfLines={1}>
             {conversation.job.title}
           </Text>
-          <View style={[styles.statusDot, { backgroundColor: getStatusColor() }]} />
+          <View
+            style={[styles.statusDot, { backgroundColor: getStatusColor() }]}
+          />
         </View>
 
         {/* Last Message */}
@@ -118,7 +122,9 @@ export default function ConversationCard({ conversation }: ConversationCardProps
               size={14}
               color={Colors.textSecondary}
             />
-            <Text style={styles.budget}>₱{conversation.job.budget.toLocaleString()}</Text>
+            <Text style={styles.budget}>
+              ₱{conversation.job.budget.toLocaleString()}
+            </Text>
           </View>
           {conversation.job.location && (
             <View style={styles.locationContainer}>

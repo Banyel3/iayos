@@ -81,10 +81,7 @@ export default function MessageInput({
 
         {/* Send Button */}
         <TouchableOpacity
-          style={[
-            styles.sendButton,
-            canSend && styles.sendButtonActive,
-          ]}
+          style={[styles.sendButton, canSend && styles.sendButtonActive]}
           onPress={handleSend}
           disabled={!canSend}
           activeOpacity={0.7}

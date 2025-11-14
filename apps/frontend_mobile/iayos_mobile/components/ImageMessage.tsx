@@ -64,7 +64,11 @@ export function ImageMessage({
 
         {hasError ? (
           <View style={styles.errorContainer}>
-            <Ionicons name="image-outline" size={40} color={Colors.textSecondary} />
+            <Ionicons
+              name="image-outline"
+              size={40}
+              color={Colors.textSecondary}
+            />
           </View>
         ) : (
           <Image
@@ -92,7 +96,10 @@ export function ImageMessage({
           <Pressable style={styles.modalBackground} onPress={closeFullScreen} />
 
           {/* Close button */}
-          <TouchableOpacity style={styles.closeButton} onPress={closeFullScreen}>
+          <TouchableOpacity
+            style={styles.closeButton}
+            onPress={closeFullScreen}
+          >
             <Ionicons name="close" size={30} color={Colors.white} />
           </TouchableOpacity>
 
