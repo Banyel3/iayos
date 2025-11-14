@@ -30,6 +30,36 @@ export const ENDPOINTS = {
   ACTIVE_JOBS: `${API_BASE_URL}/jobs/my-active-jobs`,
   UPLOAD_JOB_PHOTOS: (id: number) => `${API_BASE_URL}/jobs/${id}/upload-photos`,
 
+  // Phase 3: Job Browsing & Filtering
+  JOB_CATEGORIES: `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/categories`,
+  JOB_SEARCH: (query: string, page = 1, limit = 20) =>
+    `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/search?query=${encodeURIComponent(query)}&page=${page}&limit=${limit}`,
+  JOB_LIST_FILTERED: (filters: {
+    category?: number;
+    minBudget?: number;
+    maxBudget?: number;
+    location?: string;
+    page?: number;
+    limit?: number;
+  }) => {
+    const params = new URLSearchParams();
+    if (filters.category)
+      params.append("category", filters.category.toString());
+    if (filters.minBudget)
+      params.append("min_budget", filters.minBudget.toString());
+    if (filters.maxBudget)
+      params.append("max_budget", filters.maxBudget.toString());
+    if (filters.location) params.append("location", filters.location);
+    params.append("page", filters.page?.toString() || "1");
+    params.append("limit", filters.limit?.toString() || "20");
+    return `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/list?${params.toString()}`;
+  },
+  SAVE_JOB: (id: number) =>
+    `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/${id}/save`,
+  UNSAVE_JOB: (id: number) =>
+    `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/${id}/save`,
+  SAVED_JOBS: `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/saved`,
+
   // Profile
   PROFILE: (id: number) => `${API_BASE_URL}/profiles/${id}`,
   UPDATE_PROFILE: (id: number) => `${API_BASE_URL}/profiles/${id}`,

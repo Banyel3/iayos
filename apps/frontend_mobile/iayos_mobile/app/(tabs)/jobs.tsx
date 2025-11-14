@@ -141,6 +141,32 @@ export default function JobsScreen() {
           <Text style={styles.headerTitle}>Available Jobs</Text>
           <View style={styles.headerActions}>
             <TouchableOpacity
+              style={styles.iconButton}
+              onPress={() => router.push("/jobs/search" as any)}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name="search-outline"
+                size={22}
+                color={Colors.primary}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={() => router.push("/jobs/saved" as any)}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="heart-outline" size={22} color={Colors.error} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.categoriesButton}
+              onPress={() => router.push("/jobs/categories" as any)}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="grid-outline" size={20} color={Colors.primary} />
+              <Text style={styles.categoriesButtonText}>Categories</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
               style={styles.activeJobsButton}
               onPress={() => router.push("/jobs/active" as any)}
               activeOpacity={0.7}
@@ -595,6 +621,30 @@ const styles = StyleSheet.create({
   headerActions: {
     flexDirection: "row",
     gap: Spacing.sm,
+  },
+  iconButton: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  categoriesButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.primary + "20",
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.md,
+    gap: 4,
+  },
+  categoriesButtonText: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: "600",
+    color: Colors.primary,
   },
   activeJobsButton: {
     flexDirection: "row",

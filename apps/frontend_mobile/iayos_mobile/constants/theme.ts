@@ -12,11 +12,13 @@ export const Colors = {
 
   // Status Colors
   success: "#4CAF50",
+  successLight: "#E8F5E9",
   warning: "#FFA726",
   error: "#BD0000",
 
   // Background Colors
   background: "#FFFFFF",
+  backgroundSecondary: "#F5F5F5",
   surface: "#F5F5F5",
   surfaceLight: "#FAFAFA",
 
@@ -71,6 +73,49 @@ export const Typography = {
     medium: "500" as const,
     semiBold: "600" as const,
     bold: "700" as const,
+  },
+
+  // Headings
+  heading: {
+    h1: {
+      fontSize: 32,
+      fontWeight: "700" as const,
+      lineHeight: 40,
+    },
+    h2: {
+      fontSize: 28,
+      fontWeight: "700" as const,
+      lineHeight: 36,
+    },
+    h3: {
+      fontSize: 20,
+      fontWeight: "600" as const,
+      lineHeight: 28,
+    },
+    h4: {
+      fontSize: 18,
+      fontWeight: "600" as const,
+      lineHeight: 24,
+    },
+  },
+
+  // Body Text
+  body: {
+    large: {
+      fontSize: 16,
+      fontWeight: "400" as const,
+      lineHeight: 24,
+    },
+    medium: {
+      fontSize: 14,
+      fontWeight: "400" as const,
+      lineHeight: 20,
+    },
+    small: {
+      fontSize: 12,
+      fontWeight: "400" as const,
+      lineHeight: 16,
+    },
   },
 };
 

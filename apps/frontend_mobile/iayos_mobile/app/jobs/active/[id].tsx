@@ -107,14 +107,14 @@ export default function ActiveJobDetailScreen() {
 
         // Create FormData for photo upload
         const formData = new FormData();
-        
+
         // Get file extension from URI
-        const uriParts = photoUri.split('.');
+        const uriParts = photoUri.split(".");
         const fileExtension = uriParts[uriParts.length - 1];
         const fileName = `completion_photo_${Date.now()}_${i}.${fileExtension}`;
 
         // Append file to FormData
-        formData.append('image', {
+        formData.append("image", {
           uri: photoUri,
           type: `image/${fileExtension}`,
           name: fileName,
@@ -124,8 +124,8 @@ export default function ActiveJobDetailScreen() {
         const response = await fetch(
           `${ENDPOINTS.AVAILABLE_JOBS}/${jobId}/upload-image`,
           {
-            method: 'POST',
-            credentials: 'include',
+            method: "POST",
+            credentials: "include",
             body: formData,
           }
         );
@@ -142,7 +142,7 @@ export default function ActiveJobDetailScreen() {
 
       return true;
     } catch (error) {
-      console.error('Photo upload error:', error);
+      console.error("Photo upload error:", error);
       return false;
     } finally {
       setIsUploading(false);
@@ -172,7 +172,9 @@ export default function ActiveJobDetailScreen() {
       if (uploadedPhotos.length > 0) {
         const uploadSuccess = await uploadPhotos(id);
         if (!uploadSuccess) {
-          throw new Error('Job marked complete, but some photos failed to upload');
+          throw new Error(
+            "Job marked complete, but some photos failed to upload"
+          );
         }
       }
 
@@ -679,7 +681,7 @@ export default function ActiveJobDetailScreen() {
                 <View style={styles.buttonLoadingContainer}>
                   <ActivityIndicator size="small" color={Colors.white} />
                   <Text style={[styles.submitButtonText, { marginLeft: 8 }]}>
-                    {isUploading ? 'Uploading...' : 'Submitting...'}
+                    {isUploading ? "Uploading..." : "Submitting..."}
                   </Text>
                 </View>
               ) : (

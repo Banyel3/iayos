@@ -25,6 +25,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ENDPOINTS } from "@/lib/api/config";
+import { SaveButton } from "@/components/SaveButton";
 
 const { width } = Dimensions.get("window");
 
@@ -239,6 +240,7 @@ export default function JobDetailScreen() {
   }
 
   const urgencyColors = getUrgencyColor(job.urgency);
+  const [isSaved, setIsSaved] = useState(false);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -251,7 +253,12 @@ export default function JobDetailScreen() {
           <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Job Details</Text>
-        <View style={{ width: 24 }} />
+        <SaveButton
+          jobId={parseInt(id)}
+          isSaved={isSaved}
+          size={24}
+          onToggle={setIsSaved}
+        />
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false}>
