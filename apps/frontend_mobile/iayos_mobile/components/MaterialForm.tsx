@@ -104,7 +104,8 @@ export default function MaterialForm({
   const [price, setPrice] = useState("");
   const [unit, setUnit] = useState("");
   const [isAvailable, setIsAvailable] = useState(true);
-  const [materialImage, setMaterialImage] = useState<ImagePicker.ImagePickerAsset | null>(null);
+  const [materialImage, setMaterialImage] =
+    useState<ImagePicker.ImagePickerAsset | null>(null);
   const [errors, setErrors] = useState<FormErrors>({});
 
   // Initialize form with material data (edit mode)
@@ -263,7 +264,10 @@ export default function MaterialForm({
           </View>
 
           {/* Form */}
-          <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            style={styles.scrollView}
+            showsVerticalScrollIndicator={false}
+          >
             {/* Material Name */}
             <View style={styles.formGroup}>
               <Text style={styles.label}>
@@ -280,7 +284,9 @@ export default function MaterialForm({
                 placeholderTextColor={Colors.textSecondary}
                 editable={!isLoading}
               />
-              {errors.name && <Text style={styles.errorText}>{errors.name}</Text>}
+              {errors.name && (
+                <Text style={styles.errorText}>{errors.name}</Text>
+              )}
             </View>
 
             {/* Description */}
@@ -333,7 +339,8 @@ export default function MaterialForm({
                     // Allow only numbers and decimal point
                     const cleaned = text.replace(/[^0-9.]/g, "");
                     setPrice(cleaned);
-                    if (errors.price) setErrors({ ...errors, price: undefined });
+                    if (errors.price)
+                      setErrors({ ...errors, price: undefined });
                   }}
                   placeholder="0.00"
                   placeholderTextColor={Colors.textSecondary}
@@ -341,7 +348,9 @@ export default function MaterialForm({
                   editable={!isLoading}
                 />
               </View>
-              {errors.price && <Text style={styles.errorText}>{errors.price}</Text>}
+              {errors.price && (
+                <Text style={styles.errorText}>{errors.price}</Text>
+              )}
             </View>
 
             {/* Unit */}
@@ -360,7 +369,9 @@ export default function MaterialForm({
                 placeholderTextColor={Colors.textSecondary}
                 editable={!isLoading}
               />
-              {errors.unit && <Text style={styles.errorText}>{errors.unit}</Text>}
+              {errors.unit && (
+                <Text style={styles.errorText}>{errors.unit}</Text>
+              )}
               <Text style={styles.hint}>
                 How the material is sold (per kg, per bag, per piece, etc.)
               </Text>
@@ -373,12 +384,23 @@ export default function MaterialForm({
                 onPress={() => setIsAvailable(!isAvailable)}
                 disabled={isLoading}
               >
-                <View style={[styles.checkbox, isAvailable && styles.checkboxChecked]}>
+                <View
+                  style={[
+                    styles.checkbox,
+                    isAvailable && styles.checkboxChecked,
+                  ]}
+                >
                   {isAvailable && (
-                    <Ionicons name="checkmark" size={16} color={Colors.textLight} />
+                    <Ionicons
+                      name="checkmark"
+                      size={16}
+                      color={Colors.textLight}
+                    />
                   )}
                 </View>
-                <Text style={styles.checkboxLabel}>Material is currently available</Text>
+                <Text style={styles.checkboxLabel}>
+                  Material is currently available
+                </Text>
               </Pressable>
             </View>
 
@@ -398,7 +420,11 @@ export default function MaterialForm({
                       onPress={() => setMaterialImage(null)}
                       disabled={isLoading}
                     >
-                      <Ionicons name="close-circle" size={24} color={Colors.error} />
+                      <Ionicons
+                        name="close-circle"
+                        size={24}
+                        color={Colors.error}
+                      />
                     </Pressable>
                   </View>
                 ) : (
@@ -407,7 +433,11 @@ export default function MaterialForm({
                     onPress={handlePickImage}
                     disabled={isLoading}
                   >
-                    <Ionicons name="cloud-upload-outline" size={32} color={Colors.primary} />
+                    <Ionicons
+                      name="cloud-upload-outline"
+                      size={32}
+                      color={Colors.primary}
+                    />
                     <Text style={styles.uploadButtonText}>Upload Image</Text>
                     <Text style={styles.uploadButtonHint}>
                       Tap to select image from gallery
@@ -428,7 +458,11 @@ export default function MaterialForm({
               <Text style={styles.cancelButtonText}>Cancel</Text>
             </Pressable>
             <Pressable
-              style={[styles.button, styles.submitButton, isLoading && styles.buttonDisabled]}
+              style={[
+                styles.button,
+                styles.submitButton,
+                isLoading && styles.buttonDisabled,
+              ]}
               onPress={handleSubmit}
               disabled={isLoading}
             >

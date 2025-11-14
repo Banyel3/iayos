@@ -480,8 +480,12 @@ export default function ProfileScreen() {
         <View style={styles.portfolioHeader}>
           <Text style={styles.sectionTitle}>Certifications</Text>
           {certifications.length > 0 && (
-            <Pressable onPress={() => router.push("/profile/certifications" as any)}>
-              <Text style={styles.viewAllText}>View All ({certifications.length})</Text>
+            <Pressable
+              onPress={() => router.push("/profile/certifications" as any)}
+            >
+              <Text style={styles.viewAllText}>
+                View All ({certifications.length})
+              </Text>
             </Pressable>
           )}
         </View>
@@ -505,7 +509,11 @@ export default function ProfileScreen() {
                 <Text style={styles.viewAllButtonText}>
                   View All {certifications.length} Certifications
                 </Text>
-                <Ionicons name="chevron-forward" size={20} color={Colors.primary} />
+                <Ionicons
+                  name="chevron-forward"
+                  size={20}
+                  color={Colors.primary}
+                />
               </Pressable>
             )}
           </>
@@ -535,7 +543,9 @@ export default function ProfileScreen() {
           <Text style={styles.sectionTitle}>Materials & Products</Text>
           {materials.length > 0 && (
             <Pressable onPress={() => router.push("/profile/materials" as any)}>
-              <Text style={styles.viewAllText}>View All ({materials.length})</Text>
+              <Text style={styles.viewAllText}>
+                View All ({materials.length})
+              </Text>
             </Pressable>
           )}
         </View>
@@ -559,7 +569,11 @@ export default function ProfileScreen() {
                 <Text style={styles.viewAllButtonText}>
                   View All {materials.length} Materials
                 </Text>
-                <Ionicons name="chevron-forward" size={20} color={Colors.primary} />
+                <Ionicons
+                  name="chevron-forward"
+                  size={20}
+                  color={Colors.primary}
+                />
               </Pressable>
             )}
           </>

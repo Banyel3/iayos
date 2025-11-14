@@ -11,10 +11,7 @@ import {
   BorderRadius,
   Shadows,
 } from "@/constants/theme";
-import {
-  type Material,
-  formatPricePerUnit,
-} from "@/lib/hooks/useMaterials";
+import { type Material, formatPricePerUnit } from "@/lib/hooks/useMaterials";
 
 // ===== PROPS =====
 
@@ -117,7 +114,9 @@ export default function MaterialCard({
               onPress={() => onToggleAvailability(material)}
             >
               <Ionicons
-                name={material.isAvailable ? "checkmark-circle" : "close-circle"}
+                name={
+                  material.isAvailable ? "checkmark-circle" : "close-circle"
+                }
                 size={24}
                 color={material.isAvailable ? Colors.success : Colors.error}
               />

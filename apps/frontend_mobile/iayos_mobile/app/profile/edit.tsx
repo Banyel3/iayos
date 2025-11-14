@@ -419,7 +419,11 @@ export default function EditProfileScreen() {
             style={styles.manageButton}
             onPress={() => router.push("/profile/certifications" as any)}
           >
-            <Ionicons name="settings-outline" size={20} color={Colors.primary} />
+            <Ionicons
+              name="settings-outline"
+              size={20}
+              color={Colors.primary}
+            />
             <Text style={styles.manageButtonText}>Manage Certifications</Text>
             <Ionicons name="chevron-forward" size={20} color={Colors.primary} />
           </Pressable>
@@ -440,7 +444,11 @@ export default function EditProfileScreen() {
             style={styles.manageButton}
             onPress={() => router.push("/profile/materials" as any)}
           >
-            <Ionicons name="settings-outline" size={20} color={Colors.primary} />
+            <Ionicons
+              name="settings-outline"
+              size={20}
+              color={Colors.primary}
+            />
             <Text style={styles.manageButtonText}>Manage Materials</Text>
             <Ionicons name="chevron-forward" size={20} color={Colors.primary} />
           </Pressable>

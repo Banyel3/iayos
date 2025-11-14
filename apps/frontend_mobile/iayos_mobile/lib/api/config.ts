@@ -104,6 +104,20 @@ export const ENDPOINTS = {
   TRANSACTIONS: `${API_BASE_URL}/accounts/wallet/transactions`,
   DEPOSIT: `${API_BASE_URL}/accounts/wallet/deposit`,
 
+  // Phase 3: Escrow Payment System (10 endpoints)
+  CREATE_ESCROW_PAYMENT: `${API_BASE_URL.replace("/api", "")}/api/mobile/payments/escrow`,
+  CREATE_XENDIT_INVOICE: `${API_BASE_URL.replace("/api", "")}/api/mobile/payments/xendit/invoice`,
+  UPLOAD_CASH_PROOF: `${API_BASE_URL.replace("/api", "")}/api/mobile/payments/cash-proof`,
+  PAYMENT_STATUS: (id: number) =>
+    `${API_BASE_URL.replace("/api", "")}/api/mobile/payments/status/${id}`,
+  PAYMENT_HISTORY: `${API_BASE_URL.replace("/api", "")}/api/mobile/payments/history`,
+  WALLET_DEPOSIT: `${API_BASE_URL}/accounts/wallet/deposit`,
+  WALLET_TRANSACTIONS: `${API_BASE_URL}/accounts/wallet/transactions`,
+  CREATE_JOB_WITH_PAYMENT: `${API_BASE_URL}/jobs/create`,
+  XENDIT_WEBHOOK: `${API_BASE_URL.replace("/api", "")}/api/payments/xendit/callback`,
+  PAYMENT_RECEIPT: (id: number) =>
+    `${API_BASE_URL.replace("/api", "")}/api/mobile/payments/receipt/${id}`,
+
   // Notifications
   NOTIFICATIONS: `${API_BASE_URL}/accounts/notifications`,
   MARK_READ: (id: number) =>

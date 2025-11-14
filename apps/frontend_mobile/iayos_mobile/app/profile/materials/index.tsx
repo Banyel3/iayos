@@ -39,7 +39,9 @@ export default function MaterialsScreen() {
   const toggleAvailability = useToggleMaterialAvailability();
   const [refreshing, setRefreshing] = useState(false);
   const [formVisible, setFormVisible] = useState(false);
-  const [editingMaterial, setEditingMaterial] = useState<Material | undefined>();
+  const [editingMaterial, setEditingMaterial] = useState<
+    Material | undefined
+  >();
 
   // Handle pull-to-refresh
   const onRefresh = async () => {
@@ -226,38 +228,38 @@ export default function MaterialsScreen() {
         onClose={handleFormClose}
         material={editingMaterial}
       />
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>Materials & Products</Text>
-          <Text style={styles.headerSubtitle}>
-            {materials.length}{" "}
-            {materials.length === 1 ? "material" : "materials"}
-          </Text>
+      <View style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.headerTitle}>Materials & Products</Text>
+            <Text style={styles.headerSubtitle}>
+              {materials.length}{" "}
+              {materials.length === 1 ? "material" : "materials"}
+            </Text>
+          </View>
+          <Pressable style={styles.addHeaderButton} onPress={handleAdd}>
+            <Ionicons name="add-circle" size={24} color={Colors.primary} />
+          </Pressable>
         </View>
-        <Pressable style={styles.addHeaderButton} onPress={handleAdd}>
-          <Ionicons name="add-circle" size={24} color={Colors.primary} />
-        </Pressable>
-      </View>
 
-      {/* List */}
-      <FlatList
-        data={materials}
-        renderItem={renderMaterial}
-        keyExtractor={(item) => item.id.toString()}
-        contentContainerStyle={styles.listContent}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={[Colors.primary]}
-            tintColor={Colors.primary}
-          />
-        }
-        ItemSeparatorComponent={() => <View style={styles.separator} />}
-      />
-    </View>
+        {/* List */}
+        <FlatList
+          data={materials}
+          renderItem={renderMaterial}
+          keyExtractor={(item) => item.id.toString()}
+          contentContainerStyle={styles.listContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[Colors.primary]}
+              tintColor={Colors.primary}
+            />
+          }
+          ItemSeparatorComponent={() => <View style={styles.separator} />}
+        />
+      </View>
     </>
   );
 }
