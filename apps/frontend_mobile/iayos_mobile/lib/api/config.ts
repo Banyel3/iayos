@@ -68,6 +68,17 @@ export const ENDPOINTS = {
   WITHDRAW_APPLICATION: (id: number) =>
     `${API_BASE_URL.replace("/api", "")}/api/mobile/applications/${id}/withdraw`,
 
+  // Phase 5: Photo Upload (Avatar & Portfolio)
+  UPLOAD_AVATAR: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/avatar`,
+  DELETE_AVATAR: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/avatar`,
+  UPLOAD_PORTFOLIO_IMAGE: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/portfolio`,
+  PORTFOLIO_LIST: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/portfolio`,
+  PORTFOLIO_UPDATE: (id: number) =>
+    `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/portfolio/${id}`,
+  PORTFOLIO_REORDER: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/portfolio/reorder`,
+  PORTFOLIO_DELETE: (id: number) =>
+    `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/portfolio/${id}`,
+
   // Profile
   PROFILE: (id: number) => `${API_BASE_URL}/profiles/${id}`,
   UPDATE_PROFILE: (id: number) => `${API_BASE_URL}/profiles/${id}`,

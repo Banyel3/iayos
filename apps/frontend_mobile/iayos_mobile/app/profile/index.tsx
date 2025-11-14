@@ -1,7 +1,7 @@
 // Worker Profile Screen
 // Shows worker's professional profile with stats, completion widget, and edit button
 
-import React from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -22,6 +22,12 @@ import {
   Shadows,
 } from "@/constants/theme";
 import { ENDPOINTS } from "@/lib/api/config";
+import { PortfolioGrid } from "@/components/PortfolioGrid";
+import { ImageViewer } from "@/components/ImageViewer";
+import {
+  usePortfolioManagement,
+  type PortfolioImage,
+} from "@/lib/hooks/usePortfolioManagement";
 
 // ===== TYPES =====
 
@@ -111,6 +117,10 @@ const getCompletionColor = (percentage: number): string => {
 export default function ProfileScreen() {
   const router = useRouter();
 
+  // Portfolio viewer state
+  const [viewerVisible, setViewerVisible] = useState(false);
+  const [viewerIndex, setViewerIndex] = useState(0);
+
   // Fetch profile data
   const {
     data: profile,
@@ -130,6 +140,20 @@ export default function ProfileScreen() {
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
+
+  // Fetch portfolio images
+  const { images: portfolioImages } = usePortfolioManagement();
+
+  // Handle avatar tap
+  const handleAvatarPress = () => {
+    router.push("/profile/avatar" as any);
+  };
+
+  // Handle portfolio image tap
+  const handlePortfolioImageTap = (image: PortfolioImage, index: number) => {
+    setViewerIndex(index);
+    setViewerVisible(true);
+  };
 
   // ===== LOADING STATE =====
   if (isLoading) {
@@ -164,7 +188,7 @@ export default function ProfileScreen() {
       {/* Header Section */}
       <View style={styles.header}>
         <View style={styles.headerTop}>
-          <View style={styles.avatarContainer}>
+          <Pressable style={styles.avatarContainer} onPress={handleAvatarPress}>
             {profile.hasAvatar ? (
               <View style={styles.avatar}>
                 <Ionicons
@@ -182,7 +206,11 @@ export default function ProfileScreen() {
                 />
               </View>
             )}
-          </View>
+            {/* Edit overlay on avatar */}
+            <View style={styles.avatarEditOverlay}>
+              <Ionicons name="camera" size={16} color={Colors.textLight} />
+            </View>
+          </Pressable>
 
           {/* Edit Button */}
           <Pressable
@@ -436,6 +464,51 @@ export default function ProfileScreen() {
           </View>
         </View>
       )}
+
+      {/* Portfolio Section */}
+      <View style={styles.section}>
+        <View style={styles.portfolioHeader}>
+          <Text style={styles.sectionTitle}>Portfolio</Text>
+          {portfolioImages.length > 0 && (
+            <Text style={styles.portfolioCount}>
+              {portfolioImages.length} / 10
+            </Text>
+          )}
+        </View>
+        {portfolioImages.length > 0 ? (
+          <PortfolioGrid
+            images={portfolioImages}
+            onImageTap={handlePortfolioImageTap}
+            editable={false}
+          />
+        ) : (
+          <>
+            <Text style={styles.emptyText}>
+              Showcase your work with portfolio images
+            </Text>
+            <Pressable
+              style={styles.addButton}
+              onPress={() => router.push("/profile/edit" as any)}
+            >
+              <Ionicons
+                name="add-circle-outline"
+                size={20}
+                color={Colors.primary}
+              />
+              <Text style={styles.addButtonText}>Add Portfolio Images</Text>
+            </Pressable>
+          </>
+        )}
+      </View>
+
+      {/* Image Viewer Modal */}
+      <ImageViewer
+        visible={viewerVisible}
+        images={portfolioImages}
+        initialIndex={viewerIndex}
+        onClose={() => setViewerVisible(false)}
+        editable={false}
+      />
     </ScrollView>
   );
 }
@@ -705,5 +778,32 @@ const styles = StyleSheet.create({
   areaText: {
     ...Typography.body.medium,
     color: Colors.textSecondary,
+  },
+
+  // Avatar Edit Overlay
+  avatarEditOverlay: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 40,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderBottomLeftRadius: 80,
+    borderBottomRightRadius: 80,
+  },
+
+  // Portfolio Section
+  portfolioHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.sm,
+  },
+  portfolioCount: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+    fontWeight: "600",
   },
 });

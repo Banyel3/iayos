@@ -1,12 +1,12 @@
 // lib/utils/image-utils.ts
-import * as FileSystem from 'expo-file-system';
-import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
+import * as FileSystem from "expo-file-system";
+import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 
 export interface CompressionOptions {
   maxWidth?: number;
   maxHeight?: number;
   quality?: number; // 0-1
-  format?: 'jpeg' | 'png';
+  format?: "jpeg" | "png";
 }
 
 export interface CompressedImage {
@@ -27,29 +27,26 @@ export const compressImage = async (
     maxWidth = 1200,
     maxHeight = 1200,
     quality = 0.8,
-    format = 'jpeg',
+    format = "jpeg",
   } = options ?? {};
 
   try {
     // Get original file info
     const fileInfo = await FileSystem.getInfoAsync(uri);
-    const originalSize = fileInfo.exists && 'size' in fileInfo ? fileInfo.size : 0;
+    const originalSize =
+      fileInfo.exists && "size" in fileInfo ? fileInfo.size : 0;
 
     // If already small enough (<2MB), skip heavy compression
     if (originalSize < 2 * 1024 * 1024) {
       // Light compression only
-      const manipResult = await manipulateAsync(
-        uri,
-        [],
-        {
-          compress: quality,
-          format: format === 'jpeg' ? SaveFormat.JPEG : SaveFormat.PNG,
-        }
-      );
+      const manipResult = await manipulateAsync(uri, [], {
+        compress: quality,
+        format: format === "jpeg" ? SaveFormat.JPEG : SaveFormat.PNG,
+      });
 
       const compressedInfo = await FileSystem.getInfoAsync(manipResult.uri);
       const compressedSize =
-        compressedInfo.exists && 'size' in compressedInfo
+        compressedInfo.exists && "size" in compressedInfo
           ? compressedInfo.size
           : originalSize;
 
@@ -74,13 +71,13 @@ export const compressImage = async (
       ],
       {
         compress: quality,
-        format: format === 'jpeg' ? SaveFormat.JPEG : SaveFormat.PNG,
+        format: format === "jpeg" ? SaveFormat.JPEG : SaveFormat.PNG,
       }
     );
 
     const compressedInfo = await FileSystem.getInfoAsync(manipResult.uri);
     const compressedSize =
-      compressedInfo.exists && 'size' in compressedInfo
+      compressedInfo.exists && "size" in compressedInfo
         ? compressedInfo.size
         : originalSize;
 
@@ -91,10 +88,10 @@ export const compressImage = async (
       height: manipResult.height,
     };
   } catch (error) {
-    console.error('Image compression error:', error);
+    console.error("Image compression error:", error);
     // Return original if compression fails
     const fileInfo = await FileSystem.getInfoAsync(uri);
-    const size = fileInfo.exists && 'size' in fileInfo ? fileInfo.size : 0;
+    const size = fileInfo.exists && "size" in fileInfo ? fileInfo.size : 0;
 
     return {
       uri,
@@ -109,7 +106,7 @@ export const compressImage = async (
  * Format file size for display (e.g., "2.5 MB")
  */
 export const formatFileSize = (bytes: number): string => {
-  if (bytes === 0) return '0 B';
+  if (bytes === 0) return "0 B";
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
@@ -126,8 +123,8 @@ export const isFileSizeValid = (bytes: number, maxMB: number = 5): boolean => {
  * Get file extension from URI
  */
 export const getFileExtension = (uri: string): string => {
-  const parts = uri.split('.');
-  return parts.length > 1 ? parts[parts.length - 1].toLowerCase() : '';
+  const parts = uri.split(".");
+  return parts.length > 1 ? parts[parts.length - 1].toLowerCase() : "";
 };
 
 /**
@@ -136,16 +133,18 @@ export const getFileExtension = (uri: string): string => {
 export const isValidImageType = (fileName?: string | null): boolean => {
   if (!fileName) return true; // Assume valid if no filename
   const extension = getFileExtension(fileName);
-  return ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(extension);
+  return ["jpg", "jpeg", "png", "gif", "webp"].includes(extension);
 };
 
 /**
  * Generate unique filename for upload
  */
-export const generateUploadFilename = (originalName?: string | null): string => {
+export const generateUploadFilename = (
+  originalName?: string | null
+): string => {
   const timestamp = Date.now();
   const random = Math.random().toString(36).substring(7);
-  const extension = originalName ? getFileExtension(originalName) : 'jpg';
+  const extension = originalName ? getFileExtension(originalName) : "jpg";
   return `upload_${timestamp}_${random}.${extension}`;
 };
 

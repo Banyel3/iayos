@@ -1,7 +1,7 @@
 // lib/hooks/useImageUpload.ts
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState, useCallback } from 'react';
-import { compressImage } from '@/lib/utils/image-utils';
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState, useCallback } from "react";
+import { compressImage } from "@/lib/utils/image-utils";
 
 export interface UploadProgress {
   loaded: number;
@@ -44,7 +44,7 @@ export const useImageUpload = () => {
       const {
         uri,
         endpoint,
-        fieldName = 'image',
+        fieldName = "image",
         additionalData,
         onProgress,
         compress = true,
@@ -66,10 +66,10 @@ export const useImageUpload = () => {
         const formData = new FormData();
 
         // Add image
-        const filename = uri.split('/').pop() || 'upload.jpg';
+        const filename = uri.split("/").pop() || "upload.jpg";
         formData.append(fieldName, {
           uri: uploadUri,
-          type: 'image/jpeg',
+          type: "image/jpeg",
           name: filename,
         } as any);
 
@@ -121,37 +121,37 @@ export const useImageUpload = () => {
 
           // Handle errors
           xhr.onerror = () => {
-            reject(new Error('Network error during upload'));
+            reject(new Error("Network error during upload"));
           };
 
           xhr.ontimeout = () => {
-            reject(new Error('Upload timed out'));
+            reject(new Error("Upload timed out"));
           };
 
           // Configure and send request
-          xhr.open('POST', endpoint);
+          xhr.open("POST", endpoint);
           xhr.timeout = 60000; // 60 second timeout
-          xhr.setRequestHeader('Accept', 'application/json');
+          xhr.setRequestHeader("Accept", "application/json");
           // Note: credentials must be handled by the endpoint configuration
           xhr.send(formData);
         });
       } catch (error) {
-        console.error('Upload error:', error);
+        console.error("Upload error:", error);
         return {
           success: false,
-          error: error instanceof Error ? error.message : 'Upload failed',
+          error: error instanceof Error ? error.message : "Upload failed",
         };
       }
     },
     onSuccess: (result, variables) => {
       resetProgress();
-      
+
       // Invalidate relevant queries based on endpoint
-      if (variables.endpoint.includes('/avatar')) {
-        queryClient.invalidateQueries({ queryKey: ['workerProfile'] });
-      } else if (variables.endpoint.includes('/portfolio')) {
-        queryClient.invalidateQueries({ queryKey: ['portfolio'] });
-        queryClient.invalidateQueries({ queryKey: ['workerProfile'] });
+      if (variables.endpoint.includes("/avatar")) {
+        queryClient.invalidateQueries({ queryKey: ["workerProfile"] });
+      } else if (variables.endpoint.includes("/portfolio")) {
+        queryClient.invalidateQueries({ queryKey: ["portfolio"] });
+        queryClient.invalidateQueries({ queryKey: ["workerProfile"] });
       }
     },
     onError: () => {
@@ -214,15 +214,15 @@ export const useMultiImageUpload = () => {
           const compressed = await compressImage(uri);
           const formData = new FormData();
 
-          const filename = uri.split('/').pop() || `upload_${i}.jpg`;
-          formData.append('image', {
+          const filename = uri.split("/").pop() || `upload_${i}.jpg`;
+          formData.append("image", {
             uri: compressed.uri,
-            type: 'image/jpeg',
+            type: "image/jpeg",
             name: filename,
           } as any);
 
           if (caption) {
-            formData.append('caption', caption);
+            formData.append("caption", caption);
           }
 
           const result = await new Promise<UploadResult>((resolve) => {
@@ -230,7 +230,9 @@ export const useMultiImageUpload = () => {
 
             xhr.upload.onprogress = (event) => {
               if (event.lengthComputable && onProgress) {
-                const percentage = Math.round((event.loaded / event.total) * 100);
+                const percentage = Math.round(
+                  (event.loaded / event.total) * 100
+                );
                 onProgress(i, {
                   loaded: event.loaded,
                   total: event.total,
@@ -256,11 +258,11 @@ export const useMultiImageUpload = () => {
             };
 
             xhr.onerror = () =>
-              resolve({ success: false, error: 'Network error' });
+              resolve({ success: false, error: "Network error" });
 
-            xhr.open('POST', endpoint);
+            xhr.open("POST", endpoint);
             xhr.timeout = 60000;
-            xhr.setRequestHeader('Accept', 'application/json');
+            xhr.setRequestHeader("Accept", "application/json");
             xhr.send(formData);
           });
 
@@ -274,7 +276,7 @@ export const useMultiImageUpload = () => {
         } catch (error) {
           results.push({
             success: false,
-            error: error instanceof Error ? error.message : 'Unknown error',
+            error: error instanceof Error ? error.message : "Unknown error",
           });
           setFailedIndexes((prev) => [...prev, i]);
         }

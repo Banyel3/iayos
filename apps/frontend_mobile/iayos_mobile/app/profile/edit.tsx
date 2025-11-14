@@ -25,6 +25,13 @@ import {
   Shadows,
 } from "@/constants/theme";
 import { ENDPOINTS } from "@/lib/api/config";
+import { PortfolioUpload } from "@/components/PortfolioUpload";
+import { PortfolioGrid } from "@/components/PortfolioGrid";
+import { ImageViewer } from "@/components/ImageViewer";
+import {
+  usePortfolioManagement,
+  type PortfolioImage,
+} from "@/lib/hooks/usePortfolioManagement";
 
 // ===== TYPES =====
 
@@ -59,6 +66,25 @@ export default function EditProfileScreen() {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [skills, setSkills] = useState("");
   const [hasChanges, setHasChanges] = useState(false);
+
+  // Portfolio state
+  const [viewerVisible, setViewerVisible] = useState(false);
+  const [viewerIndex, setViewerIndex] = useState(0);
+  const [editingCaption, setEditingCaption] = useState<{
+    id: number;
+    caption: string;
+  } | null>(null);
+
+  // Portfolio management
+  const {
+    images: portfolioImages,
+    isLoading: portfolioLoading,
+    updateCaption,
+    reorderImages,
+    deleteImage,
+    canAddMore,
+    remainingSlots,
+  } = usePortfolioManagement();
 
   // Fetch current profile
   const { data: profile, isLoading } = useQuery<WorkerProfile>({
@@ -378,7 +404,129 @@ export default function EditProfileScreen() {
           <Text style={styles.hint}>Separate multiple skills with commas</Text>
         </View>
 
-        {/* Preview Section */}
+        {/* Portfolio Section */}
+        <View style={styles.portfolioSection}>
+          <View style={styles.portfolioHeader}>
+            <Text style={styles.sectionTitle}>Portfolio</Text>
+            <Text style={styles.portfolioCount}>
+              {portfolioImages.length} / 10
+            </Text>
+          </View>
+          <Text style={styles.portfolioHint}>
+            Showcase your work with up to 10 images
+          </Text>
+
+          {/* Upload Component */}
+          {canAddMore && (
+            <View style={styles.uploadContainer}>
+              <PortfolioUpload
+                maxImages={10}
+                disabled={!canAddMore}
+                onUploadComplete={() => {
+                  queryClient.invalidateQueries({
+                    queryKey: ["worker-profile"],
+                  });
+                }}
+              />
+              {remainingSlots > 0 && (
+                <Text style={styles.uploadHint}>
+                  {remainingSlots} {remainingSlots === 1 ? "slot" : "slots"}{" "}
+                  remaining
+                </Text>
+              )}
+            </View>
+          )}
+
+          {/* Portfolio Grid */}
+          {portfolioImages.length > 0 && (
+            <View style={styles.portfolioGrid}>
+              <PortfolioGrid
+                images={portfolioImages}
+                onImageTap={(image, index) => {
+                  setViewerIndex(index);
+                  setViewerVisible(true);
+                }}
+                onEdit={(image) => {
+                  setEditingCaption({
+                    id: image.id,
+                    caption: image.caption || "",
+                  });
+                }}
+                onDelete={(image) => {
+                  deleteImage.mutate(image.id);
+                }}
+                onReorder={(newOrder) => {
+                  reorderImages.mutate(newOrder);
+                }}
+                editable={true}
+              />
+            </View>
+          )}
+        </View>
+
+        {/* Edit Caption Modal */}
+        {editingCaption && (
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Edit Caption</Text>
+              <TextInput
+                style={styles.captionInput}
+                value={editingCaption.caption}
+                onChangeText={(text) =>
+                  setEditingCaption({ ...editingCaption, caption: text })
+                }
+                placeholder="Enter caption (optional)"
+                placeholderTextColor={Colors.textSecondary}
+                multiline
+                maxLength={200}
+              />
+              <Text style={styles.captionCharCount}>
+                {editingCaption.caption.length}/200
+              </Text>
+              <View style={styles.modalButtons}>
+                <Pressable
+                  style={[styles.modalButton, styles.modalButtonCancel]}
+                  onPress={() => setEditingCaption(null)}
+                >
+                  <Text style={styles.modalButtonTextCancel}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.modalButton, styles.modalButtonSave]}
+                  onPress={() => {
+                    if (editingCaption) {
+                      updateCaption.mutate({
+                        id: editingCaption.id,
+                        caption: editingCaption.caption,
+                      });
+                      setEditingCaption(null);
+                    }
+                  }}
+                >
+                  <Text style={styles.modalButtonTextSave}>Save</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* Image Viewer */}
+        <ImageViewer
+          visible={viewerVisible}
+          images={portfolioImages}
+          initialIndex={viewerIndex}
+          onClose={() => setViewerVisible(false)}
+          onEdit={(image: PortfolioImage) => {
+            setViewerVisible(false);
+            setEditingCaption({ id: image.id, caption: image.caption || "" });
+          }}
+          onDelete={(image: PortfolioImage) => {
+            setViewerVisible(false);
+            deleteImage.mutate(image.id);
+          }}
+          showActions={true}
+        />
+
+        {/* Preview Changes */}
         {hasChanges && (
           <View style={styles.previewContainer}>
             <Text style={styles.previewTitle}>Preview Changes</Text>
@@ -604,5 +752,121 @@ const styles = StyleSheet.create({
   previewValue: {
     ...Typography.body.medium,
     color: Colors.textPrimary,
+  },
+
+  // Portfolio Section
+  portfolioSection: {
+    marginTop: Spacing.xl,
+    marginHorizontal: Spacing.md,
+    padding: Spacing.md,
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.large,
+    ...Shadows.small,
+  },
+  portfolioHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  sectionTitle: {
+    ...Typography.heading.h4,
+    color: Colors.textPrimary,
+    fontWeight: "bold",
+  },
+  portfolioCount: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+    fontWeight: "600",
+  },
+  portfolioHint: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+    marginTop: Spacing.xs,
+    marginBottom: Spacing.md,
+  },
+  uploadContainer: {
+    marginBottom: Spacing.md,
+  },
+  uploadHint: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+    textAlign: "center",
+    marginTop: Spacing.xs,
+  },
+  portfolioGrid: {
+    marginTop: Spacing.md,
+  },
+
+  // Caption Edit Modal
+  modalOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 1000,
+  },
+  modalContent: {
+    width: "85%",
+    backgroundColor: Colors.background,
+    borderRadius: BorderRadius.large,
+    padding: Spacing.lg,
+    ...Shadows.medium,
+  },
+  modalTitle: {
+    ...Typography.heading.h3,
+    color: Colors.textPrimary,
+    marginBottom: Spacing.md,
+    textAlign: "center",
+  },
+  captionInput: {
+    ...Typography.body.medium,
+    color: Colors.textPrimary,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.medium,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    minHeight: 100,
+    textAlignVertical: "top",
+  },
+  captionCharCount: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+    textAlign: "right",
+    marginTop: Spacing.xs,
+  },
+  modalButtons: {
+    flexDirection: "row",
+    marginTop: Spacing.lg,
+    gap: Spacing.md,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.medium,
+    alignItems: "center",
+  },
+  modalButtonCancel: {
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  modalButtonSave: {
+    backgroundColor: Colors.primary,
+  },
+  modalButtonTextCancel: {
+    ...Typography.body.medium,
+    color: Colors.textPrimary,
+    fontWeight: "600",
+  },
+  modalButtonTextSave: {
+    ...Typography.body.medium,
+    color: Colors.textLight,
+    fontWeight: "600",
   },
 });
