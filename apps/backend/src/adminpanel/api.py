@@ -143,7 +143,7 @@ def create_agency_kyc_from_paths(request):
         return {"success": False, "error": str(e)}
 
 @router.get("/kyc/logs")
-def get_kyc_logs(request, action: str = None, limit: int = 100):
+def get_kyc_logs(request, action: str | None = None, limit: int = 100):
     """
     Get KYC audit logs with optional filtering.
     
@@ -167,7 +167,7 @@ def get_kyc_logs(request, action: str = None, limit: int = 100):
 
 
 @router.get("/users/clients")
-def get_clients(request, page: int = 1, page_size: int = 50, search: str = None, status: str = None):
+def get_clients(request, page: int = 1, page_size: int = 50, search: str | None = None, status: str | None = None):
     """
     Get paginated list of client accounts.
     
@@ -208,7 +208,7 @@ def get_client_by_id(request, account_id: str):
 
 
 @router.get("/users/workers")
-def get_workers(request, page: int = 1, page_size: int = 50, search: str = None, status: str = None):
+def get_workers(request, page: int = 1, page_size: int = 50, search: str | None = None, status: str | None = None):
     """
     Get paginated list of worker accounts.
     
@@ -249,7 +249,7 @@ def get_worker_by_id(request, account_id: str):
 
 
 @router.get("/users/agencies")
-def get_agencies(request, page: int = 1, page_size: int = 50, search: str = None, status: str = None):
+def get_agencies(request, page: int = 1, page_size: int = 50, search: str | None = None, status: str | None = None):
     """
     Get paginated list of agency accounts.
     
@@ -309,7 +309,7 @@ def get_jobs_dashboard_statistics(request):
 
 
 @router.get("/jobs/listings")
-def get_job_listings(request, page: int = 1, page_size: int = 20, status: str = None, category_id: int = None):
+def get_job_listings(request, page: int = 1, page_size: int = 20, status: str | None = None, category_id: int | None = None):
     """
     Get paginated list of all job listings.
     
@@ -330,7 +330,7 @@ def get_job_listings(request, page: int = 1, page_size: int = 20, status: str = 
 
 
 @router.get("/jobs/applications")
-def get_job_applications(request, page: int = 1, page_size: int = 20, status: str = None):
+def get_job_applications(request, page: int = 1, page_size: int = 20, status: str | None = None):
     """
     Get paginated list of all job applications.
     
@@ -380,7 +380,7 @@ def get_disputes_stats(request):
 
 
 @router.get("/jobs/disputes")
-def get_disputes(request, page: int = 1, page_size: int = 20, status: str = None, priority: str = None):
+def get_disputes(request, page: int = 1, page_size: int = 20, status: str | None = None, priority: str | None = None):
     """
     Get paginated list of job disputes.
     
@@ -416,7 +416,7 @@ def get_reviews_stats(request):
 
 
 @router.get("/reviews/all")
-def get_all_reviews(request, page: int = 1, page_size: int = 20, status: str = None, reviewer_type: str = None, min_rating: float = None):
+def get_all_reviews(request, page: int = 1, page_size: int = 20, status: str | None = None, reviewer_type: str | None = None, min_rating: float | None = None):
     """
     Get paginated list of all general user reviews.
     
@@ -438,7 +438,7 @@ def get_all_reviews(request, page: int = 1, page_size: int = 20, status: str = N
 
 
 @router.get("/reviews/by-job")
-def get_reviews_by_job(request, page: int = 1, page_size: int = 20, status: str = None):
+def get_reviews_by_job(request, page: int = 1, page_size: int = 20, status: str | None = None):
     """
     Get paginated list of reviews grouped by job.
     Shows both client and worker reviews for each completed job.

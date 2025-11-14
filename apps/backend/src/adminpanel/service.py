@@ -69,6 +69,15 @@ def create_admin_account(email: str, password: str, role: str = "ADMIN"):
 def fetchAll_kyc(request):
     kyc_records = kyc.objects.all().order_by('-createdAt')
     kyc_files = kycFiles.objects.filter(kycID__in=kyc_records)
+    
+    # Debug: Show pending records specifically
+    pending_kyc = kyc_records.filter(kyc_status='PENDING')
+    print(f"[ADMIN KYC] Total KYC records: {kyc_records.count()}")
+    print(f"[ADMIN KYC] Pending KYC records: {pending_kyc.count()}")
+    print(f"[ADMIN KYC] Pending KYC IDs: {[k.kycID for k in pending_kyc]}")
+    for pending in pending_kyc:
+        file_count = kycFiles.objects.filter(kycID=pending).count()
+        print(f"[ADMIN KYC] Pending kycID={pending.kycID} has {file_count} files")
 
     # Collect all user IDs linked to KYC records
     user_ids = kyc_records.values_list('accountFK', flat=True)
@@ -88,9 +97,34 @@ def fetchAll_kyc(request):
         for p in profiles
     }
 
+    # Serialize KYC records with proper field naming for frontend (camelCase)
+    kyc_serialized = []
+    for record in kyc_records:
+        kyc_serialized.append({
+            "kycID": record.kycID,
+            "accountFK_id": record.accountFK.accountID,
+            "kycStatus": record.kyc_status,  # Convert snake_case to camelCase
+            "reviewedAt": record.reviewedAt.isoformat() if record.reviewedAt else None,
+            "reviewedBy_id": record.reviewedBy.accountID if record.reviewedBy else None,
+            "notes": record.notes,
+            "createdAt": record.createdAt.isoformat() if record.createdAt else None,
+            "updatedAt": record.updatedAt.isoformat() if record.updatedAt else None,
+        })
+
+    # Serialize KYC files with proper field naming
+    kyc_files_serialized = []
+    for file in kyc_files:
+        kyc_files_serialized.append({
+            "kycFileID": file.kycFileID,
+            "kycID_id": file.kycID.kycID,
+            "idType": file.idType,
+            "fileName": file.fileName,
+            "fileURL": file.fileURL,
+        })
+
     data = {
-        "kyc": list(kyc_records.values()),
-        "kyc_files": list(kyc_files.values()),
+        "kyc": kyc_serialized,
+        "kyc_files": kyc_files_serialized,
         "users": [
             {
                 "accountID": user.accountID,
@@ -120,9 +154,36 @@ def fetchAll_kyc(request):
             for a in agencies
         }
 
+        # Serialize agency KYC records (note: status not kyc_status)
+        agency_kyc_serialized = []
+        for record in agency_records:
+            agency_kyc_serialized.append({
+                "agencyKycID": record.agencyKycID,
+                "accountFK_id": record.accountFK.accountID,
+                "status": record.status,  # Already correct field name
+                "reviewedAt": record.reviewedAt.isoformat() if record.reviewedAt else None,
+                "reviewedBy_id": record.reviewedBy.accountID if record.reviewedBy else None,
+                "notes": record.notes,
+                "createdAt": record.createdAt.isoformat() if record.createdAt else None,
+                "updatedAt": record.updatedAt.isoformat() if record.updatedAt else None,
+            })
+
+        # Serialize agency KYC files
+        agency_files_serialized = []
+        for file in agency_files:
+            agency_files_serialized.append({
+                "fileID": file.fileID,
+                "agencyKyc_id": file.agencyKyc.agencyKycID,
+                "fileType": file.fileType,
+                "fileName": file.fileName,
+                "fileURL": file.fileURL,
+                "fileSize": file.fileSize,
+                "uploadedAt": file.uploadedAt.isoformat() if file.uploadedAt else None,
+            })
+
         data.update({
-            "agency_kyc": list(agency_records.values()),
-            "agency_kyc_files": list(agency_files.values()),
+            "agency_kyc": agency_kyc_serialized,
+            "agency_kyc_files": agency_files_serialized,
             "agencies": [
                 {
                     "accountID": a.accountFK.accountID,
@@ -655,7 +716,7 @@ def reject_agency_kyc(request):
         raise
 
 
-def fetch_kyc_logs(action_filter=None, limit=100):
+def fetch_kyc_logs(action_filter: str | None = None, limit: int = 100):
     """
     Fetch KYC audit logs with optional filtering.
     
