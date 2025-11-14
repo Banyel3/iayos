@@ -60,6 +60,14 @@ export const ENDPOINTS = {
     `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/${id}/save`,
   SAVED_JOBS: `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/saved`,
 
+  // Phase 4: Worker Profile & Application Management
+  WORKER_PROFILE: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile`,
+  UPDATE_WORKER_PROFILE: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile`,
+  APPLICATION_DETAIL: (id: number) =>
+    `${API_BASE_URL.replace("/api", "")}/api/mobile/applications/${id}`,
+  WITHDRAW_APPLICATION: (id: number) =>
+    `${API_BASE_URL.replace("/api", "")}/api/mobile/applications/${id}/withdraw`,
+
   // Profile
   PROFILE: (id: number) => `${API_BASE_URL}/profiles/${id}`,
   UPDATE_PROFILE: (id: number) => `${API_BASE_URL}/profiles/${id}`,

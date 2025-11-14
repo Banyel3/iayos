@@ -342,11 +342,30 @@ export default function MyApplicationsScreen() {
                         Applied {application.applied_at}
                       </Text>
                     </View>
-                    <Ionicons
-                      name="chevron-forward"
-                      size={20}
-                      color={Colors.textSecondary}
-                    />
+                  </View>
+
+                  {/* Actions */}
+                  <View style={styles.cardActions}>
+                    <TouchableOpacity
+                      style={styles.viewDetailsButton}
+                      onPress={() => router.push(`/applications/${application.id}` as any)}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="eye-outline" size={16} color={Colors.primary} />
+                      <Text style={styles.viewDetailsText}>View Details</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.viewJobButton}
+                      onPress={() => handleViewJob(application.job_id)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.viewJobText}>View Job</Text>
+                      <Ionicons
+                        name="chevron-forward"
+                        size={16}
+                        color={Colors.textSecondary}
+                      />
+                    </TouchableOpacity>
                   </View>
                 </TouchableOpacity>
               );
@@ -504,6 +523,46 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.xs,
     color: Colors.textSecondary,
     marginTop: 2,
+  },
+  cardActions: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    marginTop: Spacing.md,
+    paddingTop: Spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  viewDetailsButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.xs,
+    paddingVertical: Spacing.sm,
+    backgroundColor: Colors.primaryLight,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+  },
+  viewDetailsText: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: "600",
+    color: Colors.primary,
+  },
+  viewJobButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.xs,
+    paddingVertical: Spacing.sm,
+    backgroundColor: Colors.backgroundSecondary,
+    borderRadius: BorderRadius.md,
+  },
+  viewJobText: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: "600",
+    color: Colors.textSecondary,
   },
   loadingContainer: {
     flex: 1,

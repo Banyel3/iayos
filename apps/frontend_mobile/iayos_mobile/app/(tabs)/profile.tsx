@@ -10,11 +10,13 @@ import {
   Alert,
 } from 'react-native';
 import { useAuth } from '@/context/AuthContext';
+import { useRouter } from 'expo-router';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
+  const router = useRouter();
   const [balance] = useState(0); // TODO: Connect to wallet API
 
   const handleLogout = () => {
@@ -60,11 +62,22 @@ export default function ProfileScreen() {
               </Text>
             </View>
 
-            {/* Edit Profile Button */}
-            <TouchableOpacity style={styles.editButton} activeOpacity={0.8}>
-              <Ionicons name="create-outline" size={18} color={Colors.primary} />
-              <Text style={styles.editButtonText}>Edit Profile</Text>
-            </TouchableOpacity>
+            {/* View/Edit Profile Button */}
+            {isWorker ? (
+              <TouchableOpacity 
+                style={styles.editButton} 
+                activeOpacity={0.8}
+                onPress={() => router.push('/profile')}
+              >
+                <Ionicons name="person-outline" size={18} color={Colors.primary} />
+                <Text style={styles.editButtonText}>View Full Profile</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity style={styles.editButton} activeOpacity={0.8}>
+                <Ionicons name="create-outline" size={18} color={Colors.primary} />
+                <Text style={styles.editButtonText}>Edit Profile</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
