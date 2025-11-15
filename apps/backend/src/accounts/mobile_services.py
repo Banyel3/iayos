@@ -3,11 +3,11 @@
 
 from .models import (
     Accounts, Profile, WorkerProfile, ClientProfile,
-    JobPosting, JobApplication, Specializations, JobPhoto
+    JobPosting, JobApplication, Specializations, JobPhoto, JobReview, Job
 )
 from django.db.models import Q, Count, Avg, Prefetch
 from django.utils import timezone
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 from .services import generateCookie
 from decimal import Decimal
@@ -1099,3 +1099,651 @@ def get_available_jobs_mobile(user, page=1, limit=20):
             'success': False,
             'error': f'Failed to fetch available jobs: {str(e)}'
         }
+
+
+# ===========================================================================
+# REVIEW & RATING SERVICES (Phase 8)
+# ===========================================================================
+
+def submit_review_mobile(user: Accounts, job_id: int, rating: int, comment: str, review_type: str) -> Dict[str, Any]:
+    """
+    Submit a review for a completed job
+
+    Args:
+        user: Current authenticated user (reviewer)
+        job_id: ID of the job being reviewed
+        rating: Rating from 1-5
+        comment: Review text
+        review_type: 'CLIENT_TO_WORKER' or 'WORKER_TO_CLIENT'
+
+    Returns:
+        Success response with review data or error
+    """
+    try:
+        # Validate job exists and is completed
+        try:
+            job = Job.objects.get(jobID=job_id)
+        except Job.DoesNotExist:
+            return {'success': False, 'error': 'Job not found'}
+
+        if job.status != 'COMPLETED':
+            return {'success': False, 'error': 'Can only review completed jobs'}
+
+        # Determine reviewer and reviewee based on review type
+        if review_type == 'CLIENT_TO_WORKER':
+            # Client reviewing worker
+            reviewer_type = 'CLIENT'
+            if not job.clientID or job.clientID.profileID.accountFK.accountID != user.accountID:
+                return {'success': False, 'error': 'You are not the client for this job'}
+            if not job.workerID:
+                return {'success': False, 'error': 'No worker assigned to this job'}
+            reviewee = job.workerID.profileID.accountFK
+        elif review_type == 'WORKER_TO_CLIENT':
+            # Worker reviewing client
+            reviewer_type = 'WORKER'
+            if not job.workerID or job.workerID.profileID.accountFK.accountID != user.accountID:
+                return {'success': False, 'error': 'You are not the worker for this job'}
+            if not job.clientID:
+                return {'success': False, 'error': 'No client for this job'}
+            reviewee = job.clientID.profileID.accountFK
+        else:
+            return {'success': False, 'error': 'Invalid review type'}
+
+        # Check if review already exists
+        existing_review = JobReview.objects.filter(
+            jobID=job,
+            reviewerID=user
+        ).first()
+
+        if existing_review:
+            return {'success': False, 'error': 'You have already reviewed this job'}
+
+        # Validate rating
+        if rating < 1 or rating > 5:
+            return {'success': False, 'error': 'Rating must be between 1 and 5'}
+
+        # Create review
+        review = JobReview.objects.create(
+            jobID=job,
+            reviewerID=user,
+            revieweeID=reviewee,
+            reviewerType=reviewer_type,
+            rating=Decimal(str(rating)),
+            comment=comment.strip(),
+            status='ACTIVE'
+        )
+
+        # Format response
+        reviewer_profile = user.profile if hasattr(user, 'profile') else None
+        reviewer_name = "Anonymous"
+        reviewer_img = None
+
+        if reviewer_profile:
+            reviewer_name = f"{reviewer_profile.firstName} {reviewer_profile.lastName}".strip()
+            reviewer_img = reviewer_profile.profileImg
+
+        return {
+            'success': True,
+            'data': {
+                'review_id': review.reviewID,
+                'job_id': job.jobID,
+                'reviewer_id': user.accountID,
+                'reviewer_name': reviewer_name,
+                'reviewer_profile_img': reviewer_img,
+                'reviewee_id': reviewee.accountID,
+                'reviewer_type': reviewer_type,
+                'rating': float(review.rating),
+                'comment': review.comment,
+                'status': review.status,
+                'is_flagged': review.isFlagged,
+                'helpful_count': review.helpfulCount,
+                'created_at': review.createdAt.isoformat(),
+                'updated_at': review.updatedAt.isoformat(),
+                'can_edit': True,  # Just created, so can edit for 24 hours
+            }
+        }
+
+    except Exception as e:
+        print(f"❌ [Mobile] Submit review error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {'success': False, 'error': f'Failed to submit review: {str(e)}'}
+
+
+def get_worker_reviews_mobile(worker_id: int, page: int = 1, limit: int = 20) -> Dict[str, Any]:
+    """
+    Get all reviews for a specific worker
+
+    Args:
+        worker_id: Account ID of the worker
+        page: Page number
+        limit: Reviews per page
+
+    Returns:
+        Paginated list of reviews
+    """
+    try:
+        # Get worker account
+        try:
+            worker_account = Accounts.objects.get(accountID=worker_id)
+        except Accounts.DoesNotExist:
+            return {'success': False, 'error': 'Worker not found'}
+
+        # Get reviews where worker is reviewee
+        reviews_qs = JobReview.objects.filter(
+            revieweeID=worker_account,
+            status='ACTIVE'
+        ).select_related(
+            'reviewerID__profile',
+            'jobID'
+        ).order_by('-createdAt')
+
+        total_count = reviews_qs.count()
+
+        # Pagination
+        offset = (page - 1) * limit
+        reviews = reviews_qs[offset:offset + limit]
+
+        # Format reviews
+        review_list = []
+        for review in reviews:
+            reviewer_profile = review.reviewerID.profile if hasattr(review.reviewerID, 'profile') else None
+            reviewer_name = "Anonymous"
+            reviewer_img = None
+
+            if reviewer_profile:
+                reviewer_name = f"{reviewer_profile.firstName} {reviewer_profile.lastName}".strip()
+                reviewer_img = reviewer_profile.profileImg
+
+            # Check if can edit (within 24 hours)
+            can_edit = False
+            if (timezone.now() - review.createdAt) <= timedelta(hours=24):
+                can_edit = True
+
+            review_list.append({
+                'review_id': review.reviewID,
+                'job_id': review.jobID.jobID,
+                'reviewer_id': review.reviewerID.accountID,
+                'reviewer_name': reviewer_name,
+                'reviewer_profile_img': reviewer_img,
+                'reviewee_id': review.revieweeID.accountID,
+                'reviewer_type': review.reviewerType,
+                'rating': float(review.rating),
+                'comment': review.comment,
+                'status': review.status,
+                'is_flagged': review.isFlagged,
+                'helpful_count': review.helpfulCount,
+                'created_at': review.createdAt.isoformat(),
+                'updated_at': review.updatedAt.isoformat(),
+                'can_edit': can_edit,
+            })
+
+        return {
+            'success': True,
+            'data': {
+                'reviews': review_list,
+                'total_count': total_count,
+                'page': page,
+                'limit': limit,
+                'total_pages': (total_count + limit - 1) // limit
+            }
+        }
+
+    except Exception as e:
+        print(f"❌ [Mobile] Get worker reviews error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {'success': False, 'error': f'Failed to fetch worker reviews: {str(e)}'}
+
+
+def get_job_reviews_mobile(job_id: int) -> Dict[str, Any]:
+    """
+    Get all reviews for a specific job (both worker and client reviews)
+
+    Args:
+        job_id: ID of the job
+
+    Returns:
+        List of reviews for the job
+    """
+    try:
+        # Get job
+        try:
+            job = Job.objects.get(jobID=job_id)
+        except Job.DoesNotExist:
+            return {'success': False, 'error': 'Job not found'}
+
+        # Get all reviews for this job
+        reviews_qs = JobReview.objects.filter(
+            jobID=job,
+            status='ACTIVE'
+        ).select_related('reviewerID__profile').order_by('-createdAt')
+
+        review_list = []
+        for review in reviews_qs:
+            reviewer_profile = review.reviewerID.profile if hasattr(review.reviewerID, 'profile') else None
+            reviewer_name = "Anonymous"
+            reviewer_img = None
+
+            if reviewer_profile:
+                reviewer_name = f"{reviewer_profile.firstName} {reviewer_profile.lastName}".strip()
+                reviewer_img = reviewer_profile.profileImg
+
+            can_edit = (timezone.now() - review.createdAt) <= timedelta(hours=24)
+
+            review_list.append({
+                'review_id': review.reviewID,
+                'job_id': review.jobID.jobID,
+                'reviewer_id': review.reviewerID.accountID,
+                'reviewer_name': reviewer_name,
+                'reviewer_profile_img': reviewer_img,
+                'reviewee_id': review.revieweeID.accountID,
+                'reviewer_type': review.reviewerType,
+                'rating': float(review.rating),
+                'comment': review.comment,
+                'status': review.status,
+                'is_flagged': review.isFlagged,
+                'helpful_count': review.helpfulCount,
+                'created_at': review.createdAt.isoformat(),
+                'updated_at': review.updatedAt.isoformat(),
+                'can_edit': can_edit,
+            })
+
+        return {
+            'success': True,
+            'data': {
+                'reviews': review_list,
+                'worker_review': next((r for r in review_list if r['reviewer_type'] == 'CLIENT'), None),
+                'client_review': next((r for r in review_list if r['reviewer_type'] == 'WORKER'), None),
+            }
+        }
+
+    except Exception as e:
+        print(f"❌ [Mobile] Get job reviews error: {str(e)}")
+        return {'success': False, 'error': f'Failed to fetch job reviews: {str(e)}'}
+
+
+def get_my_reviews_mobile(user: Accounts, review_type: str = 'given', page: int = 1, limit: int = 20) -> Dict[str, Any]:
+    """
+    Get reviews given or received by current user
+
+    Args:
+        user: Current authenticated user
+        review_type: 'given' or 'received'
+        page: Page number
+        limit: Reviews per page
+
+    Returns:
+        Paginated list of reviews
+    """
+    try:
+        if review_type == 'given':
+            reviews_qs = JobReview.objects.filter(
+                reviewerID=user,
+                status='ACTIVE'
+            ).select_related('revieweeID__profile', 'jobID')
+        else:  # received
+            reviews_qs = JobReview.objects.filter(
+                revieweeID=user,
+                status='ACTIVE'
+            ).select_related('reviewerID__profile', 'jobID')
+
+        reviews_qs = reviews_qs.order_by('-createdAt')
+
+        total_count = reviews_qs.count()
+
+        # Pagination
+        offset = (page - 1) * limit
+        reviews = reviews_qs[offset:offset + limit]
+
+        # Format reviews
+        review_list = []
+        for review in reviews:
+            if review_type == 'given':
+                # Show reviewee info
+                profile = review.revieweeID.profile if hasattr(review.revieweeID, 'profile') else None
+                profile_name = "Anonymous"
+                profile_img = None
+                if profile:
+                    profile_name = f"{profile.firstName} {profile.lastName}".strip()
+                    profile_img = profile.profileImg
+            else:
+                # Show reviewer info
+                profile = review.reviewerID.profile if hasattr(review.reviewerID, 'profile') else None
+                profile_name = "Anonymous"
+                profile_img = None
+                if profile:
+                    profile_name = f"{profile.firstName} {profile.lastName}".strip()
+                    profile_img = profile.profileImg
+
+            can_edit = (timezone.now() - review.createdAt) <= timedelta(hours=24)
+
+            review_list.append({
+                'review_id': review.reviewID,
+                'job_id': review.jobID.jobID,
+                'reviewer_id': review.reviewerID.accountID,
+                'reviewer_name': profile_name,
+                'reviewer_profile_img': profile_img,
+                'reviewee_id': review.revieweeID.accountID,
+                'reviewer_type': review.reviewerType,
+                'rating': float(review.rating),
+                'comment': review.comment,
+                'status': review.status,
+                'is_flagged': review.isFlagged,
+                'helpful_count': review.helpfulCount,
+                'created_at': review.createdAt.isoformat(),
+                'updated_at': review.updatedAt.isoformat(),
+                'can_edit': can_edit and review_type == 'given',  # Can only edit own reviews
+            })
+
+        return {
+            'success': True,
+            'data': {
+                'reviews': review_list,
+                'total_count': total_count,
+                'page': page,
+                'limit': limit,
+                'total_pages': (total_count + limit - 1) // limit
+            }
+        }
+
+    except Exception as e:
+        print(f"❌ [Mobile] Get my reviews error: {str(e)}")
+        return {'success': False, 'error': f'Failed to fetch reviews: {str(e)}'}
+
+
+def get_review_stats_mobile(worker_id: int) -> Dict[str, Any]:
+    """
+    Get review statistics for a worker
+
+    Args:
+        worker_id: Account ID of the worker
+
+    Returns:
+        Review statistics including average rating, total reviews, breakdown
+    """
+    try:
+        # Get worker account
+        try:
+            worker_account = Accounts.objects.get(accountID=worker_id)
+        except Accounts.DoesNotExist:
+            return {'success': False, 'error': 'Worker not found'}
+
+        # Get all active reviews
+        reviews = JobReview.objects.filter(
+            revieweeID=worker_account,
+            status='ACTIVE'
+        )
+
+        # Calculate average rating
+        avg_rating = reviews.aggregate(Avg('rating'))['rating__avg'] or 0.0
+        total_reviews = reviews.count()
+
+        # Rating breakdown
+        breakdown = {
+            'five_star': reviews.filter(rating__gte=4.5).count(),
+            'four_star': reviews.filter(rating__gte=3.5, rating__lt=4.5).count(),
+            'three_star': reviews.filter(rating__gte=2.5, rating__lt=3.5).count(),
+            'two_star': reviews.filter(rating__gte=1.5, rating__lt=2.5).count(),
+            'one_star': reviews.filter(rating__lt=1.5).count(),
+        }
+
+        # Recent reviews (last 5)
+        recent_reviews = reviews.select_related('reviewerID__profile').order_by('-createdAt')[:5]
+        recent_list = []
+
+        for review in recent_reviews:
+            reviewer_profile = review.reviewerID.profile if hasattr(review.reviewerID, 'profile') else None
+            reviewer_name = "Anonymous"
+            reviewer_img = None
+
+            if reviewer_profile:
+                reviewer_name = f"{reviewer_profile.firstName} {reviewer_profile.lastName}".strip()
+                reviewer_img = reviewer_profile.profileImg
+
+            recent_list.append({
+                'review_id': review.reviewID,
+                'job_id': review.jobID.jobID,
+                'reviewer_id': review.reviewerID.accountID,
+                'reviewer_name': reviewer_name,
+                'reviewer_profile_img': reviewer_img,
+                'reviewee_id': review.revieweeID.accountID,
+                'reviewer_type': review.reviewerType,
+                'rating': float(review.rating),
+                'comment': review.comment,
+                'status': review.status,
+                'is_flagged': review.isFlagged,
+                'helpful_count': review.helpfulCount,
+                'created_at': review.createdAt.isoformat(),
+                'updated_at': review.updatedAt.isoformat(),
+                'can_edit': False,
+            })
+
+        return {
+            'success': True,
+            'data': {
+                'average_rating': float(avg_rating),
+                'total_reviews': total_reviews,
+                'rating_breakdown': breakdown,
+                'recent_reviews': recent_list
+            }
+        }
+
+    except Exception as e:
+        print(f"❌ [Mobile] Get review stats error: {str(e)}")
+        return {'success': False, 'error': f'Failed to fetch review stats: {str(e)}'}
+
+
+def edit_review_mobile(user: Accounts, review_id: int, rating: int, comment: str) -> Dict[str, Any]:
+    """
+    Edit an existing review (only allowed within 24 hours)
+
+    Args:
+        user: Current authenticated user
+        review_id: ID of the review to edit
+        rating: New rating (1-5)
+        comment: New comment text
+
+    Returns:
+        Updated review data or error
+    """
+    try:
+        # Get review
+        try:
+            review = JobReview.objects.get(reviewID=review_id)
+        except JobReview.DoesNotExist:
+            return {'success': False, 'error': 'Review not found'}
+
+        # Check ownership
+        if review.reviewerID.accountID != user.accountID:
+            return {'success': False, 'error': 'You can only edit your own reviews'}
+
+        # Check 24-hour window
+        time_since_creation = timezone.now() - review.createdAt
+        if time_since_creation > timedelta(hours=24):
+            return {'success': False, 'error': 'Can only edit reviews within 24 hours of creation'}
+
+        # Validate rating
+        if rating < 1 or rating > 5:
+            return {'success': False, 'error': 'Rating must be between 1 and 5'}
+
+        # Update review
+        review.rating = Decimal(str(rating))
+        review.comment = comment.strip()
+        review.save()
+
+        # Format response
+        reviewer_profile = user.profile if hasattr(user, 'profile') else None
+        reviewer_name = "Anonymous"
+        reviewer_img = None
+
+        if reviewer_profile:
+            reviewer_name = f"{reviewer_profile.firstName} {reviewer_profile.lastName}".strip()
+            reviewer_img = reviewer_profile.profileImg
+
+        can_edit = (timezone.now() - review.createdAt) <= timedelta(hours=24)
+
+        return {
+            'success': True,
+            'data': {
+                'review_id': review.reviewID,
+                'job_id': review.jobID.jobID,
+                'reviewer_id': user.accountID,
+                'reviewer_name': reviewer_name,
+                'reviewer_profile_img': reviewer_img,
+                'reviewee_id': review.revieweeID.accountID,
+                'reviewer_type': review.reviewerType,
+                'rating': float(review.rating),
+                'comment': review.comment,
+                'status': review.status,
+                'is_flagged': review.isFlagged,
+                'helpful_count': review.helpfulCount,
+                'created_at': review.createdAt.isoformat(),
+                'updated_at': review.updatedAt.isoformat(),
+                'can_edit': can_edit,
+            }
+        }
+
+    except Exception as e:
+        print(f"❌ [Mobile] Edit review error: {str(e)}")
+        return {'success': False, 'error': f'Failed to edit review: {str(e)}'}
+
+
+def report_review_mobile(user: Accounts, review_id: int, reason: str) -> Dict[str, Any]:
+    """
+    Report a review for inappropriate content
+
+    Args:
+        user: Current authenticated user (reporter)
+        review_id: ID of the review to report
+        reason: Reason for reporting (spam, offensive, misleading, other)
+
+    Returns:
+        Success message or error
+    """
+    try:
+        # Get review
+        try:
+            review = JobReview.objects.get(reviewID=review_id)
+        except JobReview.DoesNotExist:
+            return {'success': False, 'error': 'Review not found'}
+
+        # Mark review as flagged
+        review.isFlagged = True
+        review.flagReason = reason
+        review.flaggedBy = user
+        review.flaggedAt = timezone.now()
+        review.save()
+
+        return {
+            'success': True,
+            'data': {
+                'message': 'Review reported successfully',
+                'review_id': review_id
+            }
+        }
+
+    except Exception as e:
+        print(f"❌ [Mobile] Report review error: {str(e)}")
+        return {'success': False, 'error': f'Failed to report review: {str(e)}'}
+
+
+def get_pending_reviews_mobile(user: Accounts) -> Dict[str, Any]:
+    """
+    Get list of jobs that need reviews from the current user
+    Returns completed jobs where user hasn't submitted a review yet
+
+    Args:
+        user: Current authenticated user
+
+    Returns:
+        List of jobs pending review
+    """
+    try:
+        # Get user's profile
+        try:
+            profile = user.profile
+        except Profile.DoesNotExist:
+            return {'success': False, 'error': 'Profile not found'}
+
+        # Get completed jobs where user was client or worker
+        worker_profile = None
+        client_profile = None
+
+        if hasattr(profile, 'workerprofile'):
+            worker_profile = profile.workerprofile
+        if hasattr(profile, 'clientprofile'):
+            client_profile = profile.clientprofile
+
+        pending_jobs = []
+
+        # Check jobs where user was worker
+        if worker_profile:
+            worker_jobs = Job.objects.filter(
+                workerID=worker_profile,
+                status='COMPLETED'
+            ).select_related('clientID__profileID')
+
+            for job in worker_jobs:
+                # Check if worker already reviewed this job
+                existing_review = JobReview.objects.filter(
+                    jobID=job,
+                    reviewerID=user
+                ).exists()
+
+                if not existing_review and job.clientID:
+                    client_account = job.clientID.profileID.accountFK
+                    client_name = f"{job.clientID.profileID.firstName} {job.clientID.profileID.lastName}".strip()
+
+                    pending_jobs.append({
+                        'job_id': job.jobID,
+                        'job_title': job.title,
+                        'completed_at': job.updatedAt.isoformat() if job.updatedAt else None,
+                        'reviewee_id': client_account.accountID,
+                        'reviewee_name': client_name,
+                        'review_type': 'WORKER_TO_CLIENT'
+                    })
+
+        # Check jobs where user was client
+        if client_profile:
+            client_jobs = Job.objects.filter(
+                clientID=client_profile,
+                status='COMPLETED'
+            ).select_related('workerID__profileID')
+
+            for job in client_jobs:
+                # Check if client already reviewed this job
+                existing_review = JobReview.objects.filter(
+                    jobID=job,
+                    reviewerID=user
+                ).exists()
+
+                if not existing_review and job.workerID:
+                    worker_account = job.workerID.profileID.accountFK
+                    worker_name = f"{job.workerID.profileID.firstName} {job.workerID.profileID.lastName}".strip()
+
+                    pending_jobs.append({
+                        'job_id': job.jobID,
+                        'job_title': job.title,
+                        'completed_at': job.updatedAt.isoformat() if job.updatedAt else None,
+                        'reviewee_id': worker_account.accountID,
+                        'reviewee_name': worker_name,
+                        'review_type': 'CLIENT_TO_WORKER'
+                    })
+
+        # Sort by completed date (most recent first)
+        pending_jobs.sort(key=lambda x: x['completed_at'] or '', reverse=True)
+
+        return {
+            'success': True,
+            'data': {
+                'pending_reviews': pending_jobs,
+                'count': len(pending_jobs)
+            }
+        }
+
+    except Exception as e:
+        print(f"❌ [Mobile] Get pending reviews error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {'success': False, 'error': f'Failed to fetch pending reviews: {str(e)}'}

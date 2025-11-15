@@ -140,16 +140,34 @@ export const ENDPOINTS = {
   UPLOAD_MESSAGE_IMAGE: (conversationId: number) =>
     `${API_BASE_URL.replace("/api", "")}/api/profiles/chat/${conversationId}/upload-image`,
 
-  // Notifications
-  NOTIFICATIONS: `${API_BASE_URL}/accounts/notifications`,
-  MARK_READ: (id: number) =>
-    `${API_BASE_URL}/accounts/notifications/${id}/read`,
-  UNREAD_COUNT: `${API_BASE_URL}/accounts/unread-count`,
+  // Phase 9: Push Notifications & Notification Management (8 endpoints)
+  NOTIFICATIONS: `${API_BASE_URL.replace("/api", "")}/api/accounts/notifications`,
+  MARK_NOTIFICATION_READ: (id: number) =>
+    `${API_BASE_URL.replace("/api", "")}/api/accounts/notifications/${id}/mark-read`,
+  MARK_ALL_NOTIFICATIONS_READ: `${API_BASE_URL.replace("/api", "")}/api/accounts/notifications/mark-all-read`,
+  UNREAD_NOTIFICATIONS_COUNT: `${API_BASE_URL.replace("/api", "")}/api/accounts/notifications/unread-count`,
+  REGISTER_PUSH_TOKEN: `${API_BASE_URL.replace("/api", "")}/api/accounts/register-push-token`,
+  UPDATE_NOTIFICATION_SETTINGS: `${API_BASE_URL.replace("/api", "")}/api/accounts/notification-settings`,
+  GET_NOTIFICATION_SETTINGS: `${API_BASE_URL.replace("/api", "")}/api/accounts/notification-settings`,
+  DELETE_NOTIFICATION: (id: number) =>
+    `${API_BASE_URL.replace("/api", "")}/api/accounts/notifications/${id}/delete`,
 
   // Phase 7: KYC Document Upload & Verification (3 endpoints)
   KYC_STATUS: `${API_BASE_URL.replace("/api", "")}/api/accounts/kyc-status`,
   UPLOAD_KYC: `${API_BASE_URL.replace("/api", "")}/api/accounts/upload-kyc`,
   KYC_APPLICATION_HISTORY: `${API_BASE_URL.replace("/api", "")}/api/accounts/kyc-application-history`,
+
+  // Phase 8: Reviews & Ratings (6 endpoints)
+  SUBMIT_REVIEW: `${API_BASE_URL.replace("/api", "")}/api/accounts/reviews/submit`,
+  WORKER_REVIEWS: (workerId: number, page = 1, limit = 20, sort = "latest") =>
+    `${API_BASE_URL.replace("/api", "")}/api/accounts/reviews/worker/${workerId}?page=${page}&limit=${limit}&sort=${sort}`,
+  REVIEW_STATS: (workerId: number) =>
+    `${API_BASE_URL.replace("/api", "")}/api/accounts/reviews/stats/${workerId}`,
+  MY_REVIEWS: `${API_BASE_URL.replace("/api", "")}/api/accounts/reviews/my-reviews`,
+  EDIT_REVIEW: (reviewId: number) =>
+    `${API_BASE_URL.replace("/api", "")}/api/accounts/reviews/${reviewId}`,
+  REPORT_REVIEW: (reviewId: number) =>
+    `${API_BASE_URL.replace("/api", "")}/api/accounts/reviews/${reviewId}/report`,
 };
 
 // HTTP Request helper with credentials

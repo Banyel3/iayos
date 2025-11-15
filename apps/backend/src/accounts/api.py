@@ -1,10 +1,10 @@
 from ninja import Router, Form, File
 from ninja.files import UploadedFile
 from .schemas import (
-    createAccountSchema, logInSchema, createAgencySchema, 
-    forgotPasswordSchema, resetPasswordSchema, assignRoleSchema, 
+    createAccountSchema, logInSchema, createAgencySchema,
+    forgotPasswordSchema, resetPasswordSchema, assignRoleSchema,
     KYCUploadSchema, KYCStatusResponse, KYCUploadResponse,
-    UpdateLocationSchema, LocationResponseSchema, 
+    UpdateLocationSchema, LocationResponseSchema,
     ToggleLocationSharingSchema, NearbyWorkersSchema,
     DepositFundsSchema,
     # Worker Phase 1 schemas
@@ -12,6 +12,11 @@ from .schemas import (
     CertificationSchema, AddCertificationRequest, UpdateCertificationRequest, CertificationResponse,
     PortfolioItemSchema, UploadPortfolioRequest, UpdatePortfolioCaptionRequest,
     PortfolioItemResponse, ReorderPortfolioRequest
+)
+# Phase 8: Review schemas
+from .review_schemas import (
+    SubmitReviewRequest, ReviewResponse, ReviewListRequest, ReviewListResponse,
+    ReviewStatsResponse, AddReviewResponseRequest, ReportReviewRequest, MyReviewsResponse
 )
 from .services import (
     create_account_individ, create_account_agency, login_account, 
@@ -31,6 +36,11 @@ from .certification_service import (
 from .portfolio_service import (
     upload_portfolio_image, get_portfolio, update_portfolio_caption,
     reorder_portfolio, delete_portfolio_image
+)
+# Phase 8: Review service imports
+from .review_service import (
+    submit_review, get_reviews_for_worker, get_review_stats,
+    get_my_reviews, edit_review, report_review
 )
 from ninja.responses import Response
 from .authentication import cookie_auth
@@ -297,17 +307,166 @@ def get_unread_count(request):
     """
     try:
         from .services import get_unread_notification_count
-        
+
         user = request.auth
         count = get_unread_notification_count(user.accountID)
-        
-        return {"success": True, "unreadCount": count}
-        
+
+        return {"success": True, "unread_count": count}
+
     except Exception as e:
         print(f"❌ Error getting unread count: {str(e)}")
         import traceback
         traceback.print_exc()
         return {"success": False, "error": "Failed to get unread count"}
+
+
+@router.post("/register-push-token", auth=cookie_auth)
+def register_push_token(request, pushToken: str, deviceType: str = "android"):
+    """
+    Register or update an Expo push token for the authenticated user.
+
+    Parameters:
+        pushToken: Expo push token (ExponentPushToken[...])
+        deviceType: 'ios' or 'android' (default: 'android')
+    """
+    try:
+        from .services import register_push_token_service
+
+        user = request.auth
+        token = register_push_token_service(user.accountID, pushToken, deviceType)
+
+        return {
+            "success": True,
+            "message": "Push token registered successfully",
+            "tokenID": token.tokenID
+        }
+
+    except Exception as e:
+        print(f"❌ Error registering push token: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": "Failed to register push token"}
+
+
+@router.get("/notification-settings", auth=cookie_auth)
+def get_notification_settings(request):
+    """
+    Get notification settings for the authenticated user.
+    """
+    try:
+        from .services import get_notification_settings_service
+
+        user = request.auth
+        settings = get_notification_settings_service(user.accountID)
+
+        return {
+            "success": True,
+            "settings": {
+                "pushEnabled": settings.pushEnabled,
+                "soundEnabled": settings.soundEnabled,
+                "jobUpdates": settings.jobUpdates,
+                "messages": settings.messages,
+                "payments": settings.payments,
+                "reviews": settings.reviews,
+                "kycUpdates": settings.kycUpdates,
+                "doNotDisturbStart": settings.doNotDisturbStart.strftime("%H:%M") if settings.doNotDisturbStart else None,
+                "doNotDisturbEnd": settings.doNotDisturbEnd.strftime("%H:%M") if settings.doNotDisturbEnd else None,
+            }
+        }
+
+    except Exception as e:
+        print(f"❌ Error fetching notification settings: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": "Failed to fetch notification settings"}
+
+
+@router.put("/notification-settings", auth=cookie_auth)
+def update_notification_settings(request,
+                                 pushEnabled: bool = None,
+                                 soundEnabled: bool = None,
+                                 jobUpdates: bool = None,
+                                 messages: bool = None,
+                                 payments: bool = None,
+                                 reviews: bool = None,
+                                 kycUpdates: bool = None,
+                                 doNotDisturbStart: str = None,
+                                 doNotDisturbEnd: str = None):
+    """
+    Update notification settings for the authenticated user.
+    Only provided fields will be updated.
+    """
+    try:
+        from .services import update_notification_settings_service
+
+        user = request.auth
+        settings_data = {}
+
+        if pushEnabled is not None:
+            settings_data['pushEnabled'] = pushEnabled
+        if soundEnabled is not None:
+            settings_data['soundEnabled'] = soundEnabled
+        if jobUpdates is not None:
+            settings_data['jobUpdates'] = jobUpdates
+        if messages is not None:
+            settings_data['messages'] = messages
+        if payments is not None:
+            settings_data['payments'] = payments
+        if reviews is not None:
+            settings_data['reviews'] = reviews
+        if kycUpdates is not None:
+            settings_data['kycUpdates'] = kycUpdates
+        if doNotDisturbStart is not None:
+            settings_data['doNotDisturbStart'] = doNotDisturbStart
+        if doNotDisturbEnd is not None:
+            settings_data['doNotDisturbEnd'] = doNotDisturbEnd
+
+        settings = update_notification_settings_service(user.accountID, settings_data)
+
+        return {
+            "success": True,
+            "message": "Notification settings updated successfully",
+            "settings": {
+                "pushEnabled": settings.pushEnabled,
+                "soundEnabled": settings.soundEnabled,
+                "jobUpdates": settings.jobUpdates,
+                "messages": settings.messages,
+                "payments": settings.payments,
+                "reviews": settings.reviews,
+                "kycUpdates": settings.kycUpdates,
+                "doNotDisturbStart": settings.doNotDisturbStart.strftime("%H:%M") if settings.doNotDisturbStart else None,
+                "doNotDisturbEnd": settings.doNotDisturbEnd.strftime("%H:%M") if settings.doNotDisturbEnd else None,
+            }
+        }
+
+    except Exception as e:
+        print(f"❌ Error updating notification settings: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": "Failed to update notification settings"}
+
+
+@router.delete("/notifications/{notification_id}/delete", auth=cookie_auth)
+def delete_notification(request, notification_id: int):
+    """
+    Delete a specific notification for the authenticated user.
+    """
+    try:
+        from .services import delete_notification_service
+
+        user = request.auth
+        success = delete_notification_service(user.accountID, notification_id)
+
+        if success:
+            return {"success": True, "message": "Notification deleted successfully"}
+        else:
+            return {"success": False, "error": "Notification not found or unauthorized"}
+
+    except Exception as e:
+        print(f"❌ Error deleting notification: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": "Failed to delete notification"}
 
 
 #region WORKER ENDPOINTS
@@ -1696,6 +1855,180 @@ def delete_portfolio_endpoint(request, portfolio_id: int):
 #endregion
 
 
+#region REVIEWS & RATINGS API
+# ===========================================================================
+# PHASE 8: REVIEWS & RATINGS SYSTEM
+# ===========================================================================
+
+@router.post("/reviews/submit", auth=cookie_auth, response=ReviewResponse)
+def submit_review_endpoint(request, payload: SubmitReviewRequest):
+    """
+    Submit a review for a completed job.
+
+    - Job must be completed
+    - Reviewer must be client or worker on the job
+    - Cannot review yourself
+    - Cannot review same job twice
+    - Rating: 1.0 to 5.0
+    """
+    try:
+        reviewer = request.auth
+        review = submit_review(reviewer, payload)
+        return review
+    except ValueError as e:
+        return Response(
+            {"error": str(e)},
+            status=400
+        )
+    except Exception as e:
+        print(f"❌ Error submitting review: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to submit review"},
+            status=500
+        )
+
+
+@router.get("/reviews/worker/{worker_id}", response=ReviewListResponse)
+def get_worker_reviews(request, worker_id: int, page: int = 1, limit: int = 20, sort: str = "latest"):
+    """
+    Get all reviews for a specific worker.
+
+    Query params:
+    - page: Page number (default: 1)
+    - limit: Reviews per page (default: 20)
+    - sort: "latest", "highest", "lowest" (default: "latest")
+    """
+    try:
+        reviews = get_reviews_for_worker(worker_id, page, limit, sort)
+        return reviews
+    except ValueError as e:
+        return Response(
+            {"error": str(e)},
+            status=404
+        )
+    except Exception as e:
+        print(f"❌ Error fetching reviews: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to fetch reviews"},
+            status=500
+        )
+
+
+@router.get("/reviews/stats/{worker_id}", response=ReviewStatsResponse)
+def get_worker_review_stats(request, worker_id: int):
+    """
+    Get review statistics for a worker.
+
+    Returns:
+    - Average rating
+    - Total review count
+    - Rating breakdown (5-star, 4-star, etc.)
+    - Recent reviews (last 5)
+    """
+    try:
+        stats = get_review_stats(worker_id)
+        return stats
+    except ValueError as e:
+        return Response(
+            {"error": str(e)},
+            status=404
+        )
+    except Exception as e:
+        print(f"❌ Error fetching review stats: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to fetch review statistics"},
+            status=500
+        )
+
+
+@router.get("/reviews/my-reviews", auth=cookie_auth, response=MyReviewsResponse)
+def get_my_reviews_endpoint(request):
+    """
+    Get reviews given and received by current user.
+
+    Returns:
+    - Reviews given by user
+    - Reviews received by user
+    - User's rating statistics
+    """
+    try:
+        user = request.auth
+        my_reviews = get_my_reviews(user)
+        return my_reviews
+    except Exception as e:
+        print(f"❌ Error fetching my reviews: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to fetch your reviews"},
+            status=500
+        )
+
+
+@router.put("/reviews/{review_id}", auth=cookie_auth, response=ReviewResponse)
+def edit_review_endpoint(request, review_id: int, comment: str, rating: float):
+    """
+    Edit a review (only within 24 hours of creation).
+
+    - Must be your own review
+    - Within 24-hour window
+    - Rating: 1.0 to 5.0
+    """
+    try:
+        user = request.auth
+        updated_review = edit_review(review_id, user, comment, rating)
+        return updated_review
+    except ValueError as e:
+        return Response(
+            {"error": str(e)},
+            status=400
+        )
+    except Exception as e:
+        print(f"❌ Error editing review: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to edit review"},
+            status=500
+        )
+
+
+@router.post("/reviews/{review_id}/report", auth=cookie_auth)
+def report_review_endpoint(request, review_id: int, payload: ReportReviewRequest):
+    """
+    Report a review as inappropriate.
+
+    Reasons:
+    - spam
+    - offensive
+    - misleading
+    - other
+    """
+    try:
+        reporter = request.auth
+        result = report_review(review_id, reporter, payload)
+        return result
+    except ValueError as e:
+        return Response(
+            {"error": str(e)},
+            status=400
+        )
+    except Exception as e:
+        print(f"❌ Error reporting review: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to report review"},
+            status=500
+        )
+
+#endregion
 
 
 #region MOBILE API ROUTER

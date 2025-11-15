@@ -505,6 +505,67 @@ class Notification(models.Model):
         return f"{self.notificationType} - {self.accountFK.email} - {self.title}"
 
 
+class PushToken(models.Model):
+    """
+    Stores Expo push tokens for mobile devices to send push notifications
+    """
+    tokenID = models.BigAutoField(primary_key=True)
+    accountFK = models.ForeignKey(
+        Accounts,
+        on_delete=models.CASCADE,
+        related_name='push_tokens'
+    )
+    pushToken = models.CharField(max_length=500, unique=True)
+    deviceType = models.CharField(max_length=20, choices=[('ios', 'iOS'), ('android', 'Android')], default='android')
+    isActive = models.BooleanField(default=True)
+    createdAt = models.DateTimeField(auto_now_add=True)
+    updatedAt = models.DateTimeField(auto_now=True)
+    lastUsed = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-lastUsed']
+        indexes = [
+            models.Index(fields=['accountFK', 'isActive']),
+            models.Index(fields=['pushToken']),
+        ]
+
+    def __str__(self):
+        return f"{self.accountFK.email} - {self.deviceType} - {self.pushToken[:20]}..."
+
+
+class NotificationSettings(models.Model):
+    """
+    User preferences for notification delivery
+    """
+    settingsID = models.BigAutoField(primary_key=True)
+    accountFK = models.OneToOneField(
+        Accounts,
+        on_delete=models.CASCADE,
+        related_name='notification_settings'
+    )
+
+    # Global settings
+    pushEnabled = models.BooleanField(default=True)
+    soundEnabled = models.BooleanField(default=True)
+
+    # Category-specific settings
+    jobUpdates = models.BooleanField(default=True)
+    messages = models.BooleanField(default=True)
+    payments = models.BooleanField(default=True)
+    reviews = models.BooleanField(default=True)
+    kycUpdates = models.BooleanField(default=True)
+
+    # Do not disturb schedule (24-hour format HH:MM)
+    doNotDisturbStart = models.TimeField(null=True, blank=True)
+    doNotDisturbEnd = models.TimeField(null=True, blank=True)
+
+    createdAt = models.DateTimeField(auto_now_add=True)
+    updatedAt = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Notification Settings - {self.accountFK.email}"
+
+
 class Job(models.Model):
     """
     Jobs created by clients to hire workers

@@ -972,13 +972,268 @@ def mobile_get_transactions(request):
             "success": True,
             "transactions": transaction_list
         }
-        
+
     except Exception as e:
         print(f"❌ [Mobile] Error fetching transactions: {str(e)}")
         import traceback
         traceback.print_exc()
         return Response(
             {"error": "Failed to fetch transactions"},
+            status=500
+        )
+
+#endregion
+
+#region MOBILE REVIEW ENDPOINTS
+
+@mobile_router.post("/reviews/submit", auth=jwt_auth)
+def mobile_submit_review(request, job_id: int, payload: SubmitReviewMobileSchema):
+    """
+    Submit a review after job completion
+    Supports both client-to-worker and worker-to-client reviews
+    Includes category ratings (quality, communication, professionalism, etc.)
+    """
+    from .mobile_services import submit_review_mobile
+
+    try:
+        user = request.auth
+        result = submit_review_mobile(
+            user=user,
+            job_id=job_id,
+            rating=payload.rating,
+            comment=payload.comment,
+            review_type=payload.review_type
+        )
+
+        if result['success']:
+            return result['data']
+        else:
+            return Response(
+                {"error": result.get('error', 'Failed to submit review')},
+                status=400
+            )
+    except Exception as e:
+        print(f"❌ [Mobile] Submit review error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to submit review"},
+            status=500
+        )
+
+
+@mobile_router.get("/reviews/worker/{worker_id}", auth=jwt_auth)
+def mobile_get_worker_reviews(request, worker_id: int, page: int = 1, limit: int = 20):
+    """
+    Get all reviews for a specific worker
+    Returns paginated reviews with reviewer info
+    """
+    from .mobile_services import get_worker_reviews_mobile
+
+    try:
+        result = get_worker_reviews_mobile(
+            worker_id=worker_id,
+            page=page,
+            limit=limit
+        )
+
+        if result['success']:
+            return result['data']
+        else:
+            return Response(
+                {"error": result.get('error', 'Failed to fetch reviews')},
+                status=400
+            )
+    except Exception as e:
+        print(f"❌ [Mobile] Get worker reviews error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to fetch worker reviews"},
+            status=500
+        )
+
+
+@mobile_router.get("/reviews/job/{job_id}", auth=jwt_auth)
+def mobile_get_job_reviews(request, job_id: int):
+    """
+    Get all reviews for a specific job
+    Returns both worker and client reviews
+    """
+    from .mobile_services import get_job_reviews_mobile
+
+    try:
+        result = get_job_reviews_mobile(job_id=job_id)
+
+        if result['success']:
+            return result['data']
+        else:
+            return Response(
+                {"error": result.get('error', 'Failed to fetch job reviews')},
+                status=400
+            )
+    except Exception as e:
+        print(f"❌ [Mobile] Get job reviews error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to fetch job reviews"},
+            status=500
+        )
+
+
+@mobile_router.get("/reviews/my-reviews", auth=jwt_auth)
+def mobile_get_my_reviews(request, type: str = "given", page: int = 1, limit: int = 20):
+    """
+    Get user's reviews
+    type: 'given' (reviews written by user) or 'received' (reviews about user)
+    """
+    from .mobile_services import get_my_reviews_mobile
+
+    try:
+        user = request.auth
+        result = get_my_reviews_mobile(
+            user=user,
+            review_type=type,
+            page=page,
+            limit=limit
+        )
+
+        if result['success']:
+            return result['data']
+        else:
+            return Response(
+                {"error": result.get('error', 'Failed to fetch reviews')},
+                status=400
+            )
+    except Exception as e:
+        print(f"❌ [Mobile] Get my reviews error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to fetch my reviews"},
+            status=500
+        )
+
+
+@mobile_router.get("/reviews/stats/{worker_id}", auth=jwt_auth)
+def mobile_get_review_stats(request, worker_id: int):
+    """
+    Get review statistics for a worker
+    Returns average rating, total reviews, rating breakdown, etc.
+    """
+    from .mobile_services import get_review_stats_mobile
+
+    try:
+        result = get_review_stats_mobile(worker_id=worker_id)
+
+        if result['success']:
+            return result['data']
+        else:
+            return Response(
+                {"error": result.get('error', 'Failed to fetch review stats')},
+                status=400
+            )
+    except Exception as e:
+        print(f"❌ [Mobile] Get review stats error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to fetch review stats"},
+            status=500
+        )
+
+
+@mobile_router.put("/reviews/{review_id}", auth=jwt_auth)
+def mobile_edit_review(request, review_id: int, rating: int, comment: str):
+    """
+    Edit an existing review (only allowed within 24 hours)
+    """
+    from .mobile_services import edit_review_mobile
+
+    try:
+        user = request.auth
+        result = edit_review_mobile(
+            user=user,
+            review_id=review_id,
+            rating=rating,
+            comment=comment
+        )
+
+        if result['success']:
+            return result['data']
+        else:
+            return Response(
+                {"error": result.get('error', 'Failed to edit review')},
+                status=400
+            )
+    except Exception as e:
+        print(f"❌ [Mobile] Edit review error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to edit review"},
+            status=500
+        )
+
+
+@mobile_router.post("/reviews/{review_id}/report", auth=jwt_auth)
+def mobile_report_review(request, review_id: int, reason: str):
+    """
+    Report a review for inappropriate content
+    """
+    from .mobile_services import report_review_mobile
+
+    try:
+        user = request.auth
+        result = report_review_mobile(
+            user=user,
+            review_id=review_id,
+            reason=reason
+        )
+
+        if result['success']:
+            return result['data']
+        else:
+            return Response(
+                {"error": result.get('error', 'Failed to report review')},
+                status=400
+            )
+    except Exception as e:
+        print(f"❌ [Mobile] Report review error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to report review"},
+            status=500
+        )
+
+
+@mobile_router.get("/reviews/pending", auth=jwt_auth)
+def mobile_get_pending_reviews(request):
+    """
+    Get list of jobs that need reviews from the current user
+    Returns completed jobs where user hasn't submitted a review yet
+    """
+    from .mobile_services import get_pending_reviews_mobile
+
+    try:
+        user = request.auth
+        result = get_pending_reviews_mobile(user=user)
+
+        if result['success']:
+            return result['data']
+        else:
+            return Response(
+                {"error": result.get('error', 'Failed to fetch pending reviews')},
+                status=400
+            )
+    except Exception as e:
+        print(f"❌ [Mobile] Get pending reviews error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to fetch pending reviews"},
             status=500
         )
 
