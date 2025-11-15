@@ -794,25 +794,195 @@ def mark_all_notifications_as_read(user_account_id):
 def get_unread_notification_count(user_account_id):
     """
     Get the count of unread notifications for a user.
-    
+
     Args:
         user_account_id: The account ID of the user
-        
+
     Returns:
         Integer count of unread notifications
     """
     from .models import Notification
-    
+
     try:
         count = Notification.objects.filter(
             accountFK__accountID=user_account_id,
             isRead=False
         ).count()
-        
+
         return count
-        
+
     except Exception as e:
         print(f"❌ Error getting unread notification count: {str(e)}")
+        raise
+
+
+def register_push_token_service(user_account_id, push_token, device_type="android"):
+    """
+    Register or update an Expo push token for a user.
+    If the token already exists, update its lastUsed timestamp.
+
+    Args:
+        user_account_id: The account ID of the user
+        push_token: Expo push token string
+        device_type: 'ios' or 'android'
+
+    Returns:
+        PushToken instance
+    """
+    from .models import PushToken, Accounts
+
+    try:
+        user = Accounts.objects.get(accountID=user_account_id)
+
+        # Check if this token already exists
+        token, created = PushToken.objects.update_or_create(
+            pushToken=push_token,
+            defaults={
+                'accountFK': user,
+                'deviceType': device_type,
+                'isActive': True,
+                'lastUsed': timezone.now()
+            }
+        )
+
+        if not created:
+            # Token already existed, just update lastUsed
+            token.lastUsed = timezone.now()
+            token.isActive = True
+            token.save()
+
+        print(f"✅ Push token registered for user {user.email}: {push_token[:20]}...")
+        return token
+
+    except Exception as e:
+        print(f"❌ Error registering push token: {str(e)}")
+        raise
+
+
+def get_notification_settings_service(user_account_id):
+    """
+    Get or create notification settings for a user.
+
+    Args:
+        user_account_id: The account ID of the user
+
+    Returns:
+        NotificationSettings instance
+    """
+    from .models import NotificationSettings, Accounts
+
+    try:
+        user = Accounts.objects.get(accountID=user_account_id)
+
+        # Get or create notification settings with defaults
+        settings, created = NotificationSettings.objects.get_or_create(
+            accountFK=user,
+            defaults={
+                'pushEnabled': True,
+                'soundEnabled': True,
+                'jobUpdates': True,
+                'messages': True,
+                'payments': True,
+                'reviews': True,
+                'kycUpdates': True,
+            }
+        )
+
+        if created:
+            print(f"✅ Created default notification settings for user {user.email}")
+
+        return settings
+
+    except Exception as e:
+        print(f"❌ Error getting notification settings: {str(e)}")
+        raise
+
+
+def update_notification_settings_service(user_account_id, settings_data):
+    """
+    Update notification settings for a user.
+
+    Args:
+        user_account_id: The account ID of the user
+        settings_data: Dictionary of settings to update
+
+    Returns:
+        Updated NotificationSettings instance
+    """
+    from .models import NotificationSettings, Accounts
+    from datetime import datetime
+
+    try:
+        user = Accounts.objects.get(accountID=user_account_id)
+        settings, created = NotificationSettings.objects.get_or_create(
+            accountFK=user
+        )
+
+        # Update boolean fields
+        for field in ['pushEnabled', 'soundEnabled', 'jobUpdates', 'messages', 'payments', 'reviews', 'kycUpdates']:
+            if field in settings_data:
+                setattr(settings, field, settings_data[field])
+
+        # Update time fields
+        if 'doNotDisturbStart' in settings_data:
+            if settings_data['doNotDisturbStart']:
+                try:
+                    time_obj = datetime.strptime(settings_data['doNotDisturbStart'], "%H:%M").time()
+                    settings.doNotDisturbStart = time_obj
+                except ValueError:
+                    pass
+            else:
+                settings.doNotDisturbStart = None
+
+        if 'doNotDisturbEnd' in settings_data:
+            if settings_data['doNotDisturbEnd']:
+                try:
+                    time_obj = datetime.strptime(settings_data['doNotDisturbEnd'], "%H:%M").time()
+                    settings.doNotDisturbEnd = time_obj
+                except ValueError:
+                    pass
+            else:
+                settings.doNotDisturbEnd = None
+
+        settings.save()
+        print(f"✅ Updated notification settings for user {user.email}")
+        return settings
+
+    except Exception as e:
+        print(f"❌ Error updating notification settings: {str(e)}")
+        raise
+
+
+def delete_notification_service(user_account_id, notification_id):
+    """
+    Delete a notification for a user.
+
+    Args:
+        user_account_id: The account ID of the user
+        notification_id: The ID of the notification to delete
+
+    Returns:
+        Boolean indicating success
+    """
+    from .models import Notification
+
+    try:
+        # Only allow users to delete their own notifications
+        notification = Notification.objects.filter(
+            notificationID=notification_id,
+            accountFK__accountID=user_account_id
+        ).first()
+
+        if notification:
+            notification.delete()
+            print(f"✅ Deleted notification {notification_id} for user {user_account_id}")
+            return True
+        else:
+            print(f"⚠️ Notification {notification_id} not found for user {user_account_id}")
+            return False
+
+    except Exception as e:
+        print(f"❌ Error deleting notification: {str(e)}")
         raise
 
 

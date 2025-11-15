@@ -19,11 +19,16 @@ import {
   Shadows,
 } from "@/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
+import { Badge } from "react-native-paper";
+import { useUnreadNotificationsCount } from "@/lib/hooks/useNotifications";
 
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
   const router = useRouter();
   const [balance] = useState(0); // TODO: Connect to wallet API
+
+  // Get unread notifications count
+  const { data: unreadCount = 0 } = useUnreadNotificationsCount();
 
   const handleLogout = () => {
     Alert.alert("Logout", "Are you sure you want to logout?", [
@@ -48,6 +53,21 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Notification Bell Icon */}
+      <View style={styles.notificationIconContainer}>
+        <TouchableOpacity
+          onPress={() => router.push("/notifications" as any)}
+          style={styles.notificationButton}
+        >
+          <Ionicons name="notifications-outline" size={26} color="#007AFF" />
+          {unreadCount > 0 && (
+            <Badge style={styles.notificationBadge} size={18}>
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </Badge>
+          )}
+        </TouchableOpacity>
+      </View>
+
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Header with Profile Info */}
         <View style={styles.header}>
@@ -289,6 +309,28 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
+  },
+  notificationIconContainer: {
+    position: "absolute",
+    top: 10,
+    right: 16,
+    zIndex: 100,
+  },
+  notificationButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+    ...Shadows.sm,
+  },
+  notificationBadge: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    backgroundColor: "#FF3B30",
+    fontSize: 10,
   },
   header: {
     backgroundColor: Colors.primaryLight,
