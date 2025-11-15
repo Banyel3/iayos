@@ -129,6 +129,15 @@ export const Typography = {
   },
 };
 
+// Compatibility: fontFamily definitions used across components
+// Default to system fonts; replace with actual font family names if custom fonts are added.
+Typography.fontFamily = {
+  regular: "System",
+  medium: "System",
+  semiBold: "System",
+  bold: "System",
+};
+
 export const Spacing = {
   xs: 4,
   sm: 8,

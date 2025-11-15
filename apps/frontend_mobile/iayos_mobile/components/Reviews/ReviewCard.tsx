@@ -42,7 +42,7 @@ export default function ReviewCard({
               source={
                 review.reviewer_profile_img
                   ? { uri: review.reviewer_profile_img }
-                  : require("@/assets/images/default-avatar.png")
+                  : require("../../assets/images/icon.png")
               }
             />
             <View style={styles.reviewerDetails}>
@@ -76,10 +76,7 @@ export default function ReviewCard({
           <Text style={styles.ratingText}>{review.rating.toFixed(1)}</Text>
           <Chip
             mode="outlined"
-            style={[
-              styles.typeChip,
-              { borderColor: getReviewerTypeColor() },
-            ]}
+            style={[styles.typeChip, { borderColor: getReviewerTypeColor() }]}
             textStyle={{ color: getReviewerTypeColor(), fontSize: 10 }}
           >
             {review.reviewer_type}

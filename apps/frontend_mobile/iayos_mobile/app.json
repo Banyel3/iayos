@@ -3,6 +3,7 @@
     "name": "iayos_mobile",
     "slug": "iayos_mobile",
     "version": "1.0.0",
+    "projectId": "9aefe802-18a0-41ab-9d65-c112999529f8",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "iayosmobile",
@@ -52,7 +53,6 @@
         {
           "icon": "./assets/images/notification-icon.png",
           "color": "#007AFF",
-          "sounds": ["./assets/sounds/notification.wav"],
           "mode": "production"
         }
       ]
@@ -60,6 +60,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "9aefe802-18a0-41ab-9d65-c112999529f8"
+      }
+    },
+    "owner": "banyel"
   }
 }

@@ -63,7 +63,7 @@ const styles = StyleSheet.create({
   documentLabel: {
     fontSize: Typography.fontSize.sm,
     fontFamily: Typography.fontFamily.medium,
-    color: Colors.text.primary,
+    color: Colors.textPrimary,
   },
   percentage: {
     fontSize: Typography.fontSize.sm,
@@ -73,12 +73,12 @@ const styles = StyleSheet.create({
   progressBar: {
     height: 8,
     borderRadius: 4,
-    backgroundColor: Colors.background.secondary,
+    backgroundColor: Colors.backgroundSecondary,
   },
   sizeInfo: {
     fontSize: Typography.fontSize.xs,
     fontFamily: Typography.fontFamily.regular,
-    color: Colors.text.secondary,
+    color: Colors.textSecondary,
     marginTop: Spacing.xs / 2,
   },
 });
@@ -99,7 +99,8 @@ export const MultiUploadProgress: React.FC<MultiUploadProgressProps> = ({
   currentDocument,
   currentProgress = 0,
 }) => {
-  const overallProgress = totalDocuments > 0 ? uploadedCount / totalDocuments : 0;
+  const overallProgress =
+    totalDocuments > 0 ? uploadedCount / totalDocuments : 0;
 
   return (
     <View style={styles.multiContainer}>
@@ -136,7 +137,7 @@ export const MultiUploadProgress: React.FC<MultiUploadProgressProps> = ({
 const multiStyles = StyleSheet.create({
   multiContainer: {
     padding: Spacing.md,
-    backgroundColor: Colors.background.primary,
+    backgroundColor: Colors.background,
     borderRadius: 12,
     marginVertical: Spacing.md,
   },
@@ -149,7 +150,7 @@ const multiStyles = StyleSheet.create({
   multiTitle: {
     fontSize: Typography.fontSize.md,
     fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.text.primary,
+    color: Colors.textPrimary,
   },
   multiCount: {
     fontSize: Typography.fontSize.md,
@@ -159,29 +160,29 @@ const multiStyles = StyleSheet.create({
   overallProgress: {
     height: 10,
     borderRadius: 5,
-    backgroundColor: Colors.background.secondary,
+    backgroundColor: Colors.backgroundSecondary,
   },
   currentUpload: {
     marginTop: Spacing.md,
     paddingTop: Spacing.md,
     borderTopWidth: 1,
-    borderTopColor: Colors.background.secondary,
+    borderTopColor: Colors.backgroundSecondary,
   },
   currentLabel: {
     fontSize: Typography.fontSize.sm,
     fontFamily: Typography.fontFamily.medium,
-    color: Colors.text.secondary,
+    color: Colors.textSecondary,
     marginBottom: Spacing.xs,
   },
   currentProgress: {
     height: 6,
     borderRadius: 3,
-    backgroundColor: Colors.background.secondary,
+    backgroundColor: Colors.backgroundSecondary,
   },
   currentPercentage: {
     fontSize: Typography.fontSize.xs,
     fontFamily: Typography.fontFamily.medium,
-    color: Colors.text.tertiary,
+    color: Colors.textHint,
     marginTop: Spacing.xs / 2,
     textAlign: "right",
   },

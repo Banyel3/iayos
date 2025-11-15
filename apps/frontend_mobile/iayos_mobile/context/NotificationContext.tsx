@@ -3,15 +3,25 @@
  * Handles push notification initialization, listeners, and badge updates
  */
 
-import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
-import * as Notifications from 'expo-notifications';
-import { Platform } from 'react-native';
-import { router } from 'expo-router';
-import { useQueryClient } from '@tanstack/react-query';
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import * as Notifications from "expo-notifications";
+import { Platform } from "react-native";
+import { router } from "expo-router";
+import { useQueryClient } from "@tanstack/react-query";
 
-import NotificationService from '@/lib/services/notificationService';
-import { useRegisterPushToken, useUnreadNotificationsCount } from '@/lib/hooks/useNotifications';
-import { handleNotificationDeepLink } from '@/lib/utils/deepLinkHandler';
+import NotificationService from "@/lib/services/notificationService";
+import {
+  useRegisterPushToken,
+  useUnreadNotificationsCount,
+} from "@/lib/hooks/useNotifications";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { handleNotificationDeepLink } from "@/lib/utils/deepLinkHandler";
 
 interface NotificationContextType {
   expoPushToken: string | null;
@@ -27,7 +37,11 @@ const NotificationContext = createContext<NotificationContextType>({
 
 export const useNotificationContext = () => useContext(NotificationContext);
 
-export function NotificationProvider({ children }: { children: React.ReactNode }) {
+export function NotificationProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
   const notificationListener = useRef<Notifications.Subscription>();
   const responseListener = useRef<Notifications.Subscription>();
@@ -51,18 +65,35 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         setExpoPushToken(token);
 
         // Register token with backend
-        const deviceType = Platform.OS === 'ios' ? 'ios' : 'android';
+        // Only attempt backend registration if user is authenticated
+        const accessToken = await AsyncStorage.getItem("access_token");
+        if (!accessToken) {
+          console.warn(
+            "Skipping backend push token registration: user not authenticated"
+          );
+          return;
+        }
+
+        const deviceType = Platform.OS === "ios" ? "ios" : "android";
         registerPushTokenMutation.mutate(token, {
           onSuccess: () => {
-            console.log('✅ Push token registered with backend');
+            console.log("✅ Push token registered with backend");
           },
-          onError: (error) => {
-            console.error('❌ Failed to register push token:', error);
+          onError: (error: any) => {
+            // Log more detail when available
+            try {
+              console.error(
+                "❌ Failed to register push token:",
+                error?.message || error
+              );
+            } catch (e) {
+              console.error("❌ Failed to register push token (unknown error)");
+            }
           },
         });
       }
     } catch (error) {
-      console.error('Error registering for push notifications:', error);
+      console.error("Error registering for push notifications:", error);
     }
   };
 
@@ -71,56 +102,63 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     registerForPushNotifications();
 
     // Notification received listener (when app is in foreground)
-    notificationListener.current = NotificationService.addNotificationReceivedListener(
-      (notification) => {
-        console.log('🔔 Notification received in foreground:', notification);
+    notificationListener.current =
+      NotificationService.addNotificationReceivedListener((notification) => {
+        console.log("🔔 Notification received in foreground:", notification);
 
         // Invalidate notifications query to refetch
-        queryClient.invalidateQueries({ queryKey: ['notifications'] });
-        queryClient.invalidateQueries({ queryKey: ['unreadNotificationsCount'] });
+        queryClient.invalidateQueries({ queryKey: ["notifications"] });
+        queryClient.invalidateQueries({
+          queryKey: ["unreadNotificationsCount"],
+        });
 
         // Update badge count
-        queryClient.invalidateQueries({ queryKey: ['unreadNotificationsCount'] });
-      }
-    );
+        queryClient.invalidateQueries({
+          queryKey: ["unreadNotificationsCount"],
+        });
+      });
 
     // Notification tapped listener (when user taps notification)
-    responseListener.current = NotificationService.addNotificationResponseReceivedListener(
-      (response) => {
-        console.log('👆 Notification tapped:', response);
+    responseListener.current =
+      NotificationService.addNotificationResponseReceivedListener(
+        (response) => {
+          console.log("👆 Notification tapped:", response);
 
-        const notificationData = response.notification.request.content.data;
+          const notificationData = response.notification.request.content.data;
 
-        // Handle deep linking based on notification data
-        if (notificationData) {
-          try {
-            // Parse notification data
-            const notification = {
-              notificationID: notificationData.notificationID || 0,
-              notificationType: notificationData.notificationType || '',
-              title: notificationData.title || '',
-              message: notificationData.message || '',
-              isRead: false,
-              createdAt: new Date().toISOString(),
-              readAt: null,
-              relatedJobID: notificationData.relatedJobID || null,
-              relatedApplicationID: notificationData.relatedApplicationID || null,
-              relatedKYCLogID: notificationData.relatedKYCLogID || null,
-            };
+          // Handle deep linking based on notification data
+          if (notificationData) {
+            try {
+              // Parse notification data
+              const notification = {
+                notificationID: notificationData.notificationID || 0,
+                notificationType: notificationData.notificationType || "",
+                title: notificationData.title || "",
+                message: notificationData.message || "",
+                isRead: false,
+                createdAt: new Date().toISOString(),
+                readAt: null,
+                relatedJobID: notificationData.relatedJobID || null,
+                relatedApplicationID:
+                  notificationData.relatedApplicationID || null,
+                relatedKYCLogID: notificationData.relatedKYCLogID || null,
+              };
 
-            // Navigate to appropriate screen
-            handleNotificationDeepLink(notification);
-          } catch (error) {
-            console.error('Error handling notification tap:', error);
-            router.push('/notifications' as any);
+              // Navigate to appropriate screen
+              handleNotificationDeepLink(notification);
+            } catch (error) {
+              console.error("Error handling notification tap:", error);
+              router.push("/notifications" as any);
+            }
           }
-        }
 
-        // Invalidate queries to refresh data
-        queryClient.invalidateQueries({ queryKey: ['notifications'] });
-        queryClient.invalidateQueries({ queryKey: ['unreadNotificationsCount'] });
-      }
-    );
+          // Invalidate queries to refresh data
+          queryClient.invalidateQueries({ queryKey: ["notifications"] });
+          queryClient.invalidateQueries({
+            queryKey: ["unreadNotificationsCount"],
+          });
+        }
+      );
 
     // Cleanup listeners on unmount
     return () => {

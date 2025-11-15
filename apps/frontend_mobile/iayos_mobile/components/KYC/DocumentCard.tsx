@@ -2,13 +2,7 @@
 // Display KYC document status and information
 
 import React from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Image,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Card } from "react-native-paper";
 import type { KYCFile, KYCDocumentType } from "@/lib/types/kyc";
@@ -37,7 +31,7 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
   const statusColors = {
     uploaded: Colors.success,
     pending: Colors.warning,
-    missing: Colors.text.tertiary,
+    missing: Colors.textHint,
   };
 
   const statusIcons = {
@@ -137,7 +131,7 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
               <Ionicons
                 name="chevron-forward"
                 size={20}
-                color={Colors.text.tertiary}
+                color={Colors.textHint}
               />
             )}
           </View>
@@ -161,7 +155,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
     borderRadius: 12,
     elevation: 2,
-    backgroundColor: Colors.background.primary,
+    backgroundColor: Colors.background,
   },
   cardContent: {
     flexDirection: "row",
@@ -193,13 +187,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: Typography.fontSize.md,
     fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.text.primary,
+    color: Colors.textPrimary,
     marginBottom: Spacing.xs / 2,
   },
   description: {
     fontSize: Typography.fontSize.sm,
     fontFamily: Typography.fontFamily.regular,
-    color: Colors.text.secondary,
+    color: Colors.textSecondary,
     marginBottom: Spacing.xs,
   },
   statusBadge: {
@@ -217,13 +211,13 @@ const styles = StyleSheet.create({
   uploadDate: {
     fontSize: Typography.fontSize.xs,
     fontFamily: Typography.fontFamily.regular,
-    color: Colors.text.tertiary,
+    color: Colors.textHint,
     marginTop: Spacing.xs / 2,
   },
   fileSize: {
     fontSize: Typography.fontSize.xs,
     fontFamily: Typography.fontFamily.regular,
-    color: Colors.text.tertiary,
+    color: Colors.textHint,
   },
   actionsContainer: {
     flexDirection: "row",

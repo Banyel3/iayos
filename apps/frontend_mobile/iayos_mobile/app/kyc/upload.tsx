@@ -16,7 +16,10 @@ import { Stack, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Button, Card, Chip } from "react-native-paper";
 import { DocumentUploader } from "@/components/KYC/DocumentUploader";
-import { UploadProgressBar, MultiUploadProgress } from "@/components/KYC/UploadProgressBar";
+import {
+  UploadProgressBar,
+  MultiUploadProgress,
+} from "@/components/KYC/UploadProgressBar";
 import { useKYCUpload } from "@/lib/hooks/useKYCUpload";
 import { Colors, Typography, Spacing } from "@/constants/theme";
 import type {
@@ -30,17 +33,27 @@ import {
   getRequiredDocuments,
 } from "@/lib/types/kyc";
 
-type UploadStep = "select_id" | "upload_documents" | "review" | "uploading" | "complete";
+type UploadStep =
+  | "select_id"
+  | "upload_documents"
+  | "review"
+  | "uploading"
+  | "complete";
 
 export default function KYCUploadScreen() {
   const router = useRouter();
-  const { upload, isUploading, isSuccess, isError, error, progress } = useKYCUpload();
+  const { upload, isUploading, isSuccess, isError, error, progress } =
+    useKYCUpload();
 
   // State
   const [currentStep, setCurrentStep] = useState<UploadStep>("select_id");
-  const [selectedIDType, setSelectedIDType] = useState<KYCDocumentType>("NATIONALID");
-  const [selectedClearanceType, setSelectedClearanceType] = useState<KYCDocumentType | null>(null);
-  const [capturedDocuments, setCapturedDocuments] = useState<DocumentCaptureResult[]>([]);
+  const [selectedIDType, setSelectedIDType] =
+    useState<KYCDocumentType>("NATIONALID");
+  const [selectedClearanceType, setSelectedClearanceType] =
+    useState<KYCDocumentType | null>(null);
+  const [capturedDocuments, setCapturedDocuments] = useState<
+    DocumentCaptureResult[]
+  >([]);
 
   // Required documents based on selection
   const requiredDocuments = getRequiredDocuments();
@@ -65,17 +78,25 @@ export default function KYCUploadScreen() {
   /**
    * Remove captured document
    */
-  const handleRemoveDocument = useCallback((type: KYCDocumentType, side?: "FRONT" | "BACK") => {
-    setCapturedDocuments((prev) =>
-      prev.filter((doc) => !(doc.type === type && doc.side === side))
-    );
-  }, []);
+  const handleRemoveDocument = useCallback(
+    (type: KYCDocumentType, side?: "FRONT" | "BACK") => {
+      setCapturedDocuments((prev) =>
+        prev.filter((doc) => !(doc.type === type && doc.side === side))
+      );
+    },
+    []
+  );
 
   /**
    * Get captured document by type and side
    */
-  const getCapturedDocument = (type: KYCDocumentType, side?: "FRONT" | "BACK") => {
-    return capturedDocuments.find((doc) => doc.type === type && doc.side === side);
+  const getCapturedDocument = (
+    type: KYCDocumentType,
+    side?: "FRONT" | "BACK"
+  ) => {
+    return capturedDocuments.find(
+      (doc) => doc.type === type && doc.side === side
+    );
   };
 
   /**
@@ -84,11 +105,15 @@ export default function KYCUploadScreen() {
   const hasAllRequiredDocuments = () => {
     // Check for ID (front required, back if applicable)
     const hasFrontID = capturedDocuments.some(
-      (doc) => doc.type === selectedIDType && (!idConfig.requiresBothSides || doc.side === "FRONT")
+      (doc) =>
+        doc.type === selectedIDType &&
+        (!idConfig.requiresBothSides || doc.side === "FRONT")
     );
-    const hasBackID = !idConfig.requiresBothSides || capturedDocuments.some(
-      (doc) => doc.type === selectedIDType && doc.side === "BACK"
-    );
+    const hasBackID =
+      !idConfig.requiresBothSides ||
+      capturedDocuments.some(
+        (doc) => doc.type === selectedIDType && doc.side === "BACK"
+      );
 
     // Check for selfie (required)
     const hasSelfie = capturedDocuments.some((doc) => doc.type === "SELFIE");
@@ -241,9 +266,7 @@ export default function KYCUploadScreen() {
         </View>
 
         {/* Optional Clearance Selection */}
-        <Text style={styles.sectionTitle}>
-          Additional Documents (Optional)
-        </Text>
+        <Text style={styles.sectionTitle}>Additional Documents (Optional)</Text>
         <Text style={styles.sectionDescription}>
           Upload clearance certificates to increase your trustworthiness
         </Text>
@@ -341,7 +364,8 @@ export default function KYCUploadScreen() {
       <View style={styles.stepContent}>
         <Text style={styles.stepTitle}>Review Your Documents</Text>
         <Text style={styles.stepDescription}>
-          Please review your documents before submission. Make sure all images are clear and readable.
+          Please review your documents before submission. Make sure all images
+          are clear and readable.
         </Text>
 
         <Card style={styles.reviewCard}>
@@ -363,14 +387,17 @@ export default function KYCUploadScreen() {
 
         <Card style={styles.warningCard}>
           <View style={styles.warningHeader}>
-            <Ionicons name="information-circle" size={24} color={Colors.warning} />
+            <Ionicons
+              name="information-circle"
+              size={24}
+              color={Colors.warning}
+            />
             <Text style={styles.warningTitle}>Important</Text>
           </View>
           <Text style={styles.warningText}>
-            • Ensure all documents are valid and not expired{"\n"}
-            • All text must be clearly visible{"\n"}
-            • Photos should be well-lit and in focus{"\n"}
-            • Review typically takes 1-3 business days
+            • Ensure all documents are valid and not expired{"\n"}• All text
+            must be clearly visible{"\n"}• Photos should be well-lit and in
+            focus{"\n"}• Review typically takes 1-3 business days
           </Text>
         </Card>
       </View>
@@ -383,7 +410,11 @@ export default function KYCUploadScreen() {
   const renderUploadingStep = () => {
     return (
       <View style={styles.uploadingContainer}>
-        <Ionicons name="cloud-upload-outline" size={80} color={Colors.primary} />
+        <Ionicons
+          name="cloud-upload-outline"
+          size={80}
+          color={Colors.primary}
+        />
         <Text style={styles.uploadingTitle}>Uploading Documents...</Text>
         <Text style={styles.uploadingDescription}>
           Please wait while we securely upload your documents
@@ -407,7 +438,8 @@ export default function KYCUploadScreen() {
         <Ionicons name="checkmark-circle" size={100} color={Colors.success} />
         <Text style={styles.completeTitle}>Documents Submitted!</Text>
         <Text style={styles.completeDescription}>
-          Your KYC documents have been successfully uploaded. Our team will review them within 1-3 business days.
+          Your KYC documents have been successfully uploaded. Our team will
+          review them within 1-3 business days.
         </Text>
       </View>
     );
@@ -422,13 +454,16 @@ export default function KYCUploadScreen() {
         options={{
           title: "KYC Verification",
           headerShown: true,
-          headerBackVisible: currentStep !== "uploading" && currentStep !== "complete",
+          headerBackVisible:
+            currentStep !== "uploading" && currentStep !== "complete",
         }}
       />
 
       <View style={styles.container}>
         {/* Step Indicator */}
-        {currentStep !== "uploading" && currentStep !== "complete" && renderStepIndicator()}
+        {currentStep !== "uploading" &&
+          currentStep !== "complete" &&
+          renderStepIndicator()}
 
         {/* Step Content */}
         <ScrollView
@@ -507,7 +542,7 @@ const TouchableIDCard: React.FC<TouchableIDCardProps> = ({
           <Ionicons
             name={config.icon}
             size={32}
-            color={selected ? Colors.primary : Colors.text.secondary}
+            color={selected ? Colors.primary : Colors.textSecondary}
           />
         </View>
         <View style={styles.idTextContainer}>
@@ -529,16 +564,16 @@ const TouchableIDCard: React.FC<TouchableIDCardProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background.secondary,
+    backgroundColor: Colors.backgroundSecondary,
   },
   stepIndicator: {
     flexDirection: "row",
     justifyContent: "space-between",
     paddingHorizontal: Spacing.xl,
     paddingVertical: Spacing.md,
-    backgroundColor: Colors.background.primary,
+    backgroundColor: Colors.background,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.background.secondary,
+    borderBottomColor: Colors.backgroundSecondary,
   },
   stepItem: {
     alignItems: "center",
@@ -548,7 +583,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: Colors.background.secondary,
+    backgroundColor: Colors.backgroundSecondary,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: Spacing.xs,
@@ -559,7 +594,7 @@ const styles = StyleSheet.create({
   stepNumber: {
     fontSize: Typography.fontSize.sm,
     fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.text.tertiary,
+    color: Colors.textHint,
   },
   stepNumberActive: {
     color: Colors.white,
@@ -567,7 +602,7 @@ const styles = StyleSheet.create({
   stepLabel: {
     fontSize: Typography.fontSize.xs,
     fontFamily: Typography.fontFamily.regular,
-    color: Colors.text.tertiary,
+    color: Colors.textHint,
   },
   stepLabelActive: {
     fontFamily: Typography.fontFamily.semiBold,
@@ -585,26 +620,26 @@ const styles = StyleSheet.create({
   stepTitle: {
     fontSize: Typography.fontSize.xxl,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.text.primary,
+    color: Colors.textPrimary,
     marginBottom: Spacing.sm,
   },
   stepDescription: {
     fontSize: Typography.fontSize.md,
     fontFamily: Typography.fontFamily.regular,
-    color: Colors.text.secondary,
+    color: Colors.textSecondary,
     marginBottom: Spacing.lg,
   },
   sectionTitle: {
     fontSize: Typography.fontSize.lg,
     fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.text.primary,
+    color: Colors.textPrimary,
     marginTop: Spacing.md,
     marginBottom: Spacing.sm,
   },
   sectionDescription: {
     fontSize: Typography.fontSize.sm,
     fontFamily: Typography.fontFamily.regular,
-    color: Colors.text.secondary,
+    color: Colors.textSecondary,
     marginBottom: Spacing.md,
   },
   section: {
@@ -616,7 +651,7 @@ const styles = StyleSheet.create({
   },
   idCard: {
     borderRadius: 12,
-    backgroundColor: Colors.background.primary,
+    backgroundColor: Colors.background,
     borderWidth: 2,
     borderColor: "transparent",
   },
@@ -633,7 +668,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 12,
-    backgroundColor: Colors.background.secondary,
+    backgroundColor: Colors.backgroundSecondary,
     alignItems: "center",
     justifyContent: "center",
     marginRight: Spacing.md,
@@ -647,7 +682,7 @@ const styles = StyleSheet.create({
   idTitle: {
     fontSize: Typography.fontSize.md,
     fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.text.primary,
+    color: Colors.textPrimary,
     marginBottom: Spacing.xs / 2,
   },
   idTitleSelected: {
@@ -656,7 +691,7 @@ const styles = StyleSheet.create({
   idDescription: {
     fontSize: Typography.fontSize.sm,
     fontFamily: Typography.fontFamily.regular,
-    color: Colors.text.secondary,
+    color: Colors.textSecondary,
   },
   chipContainer: {
     flexDirection: "row",
@@ -670,12 +705,12 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     borderRadius: 12,
     marginBottom: Spacing.md,
-    backgroundColor: Colors.background.primary,
+    backgroundColor: Colors.background,
   },
   reviewLabel: {
     fontSize: Typography.fontSize.md,
     fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.text.primary,
+    color: Colors.textPrimary,
     marginBottom: Spacing.sm,
   },
   reviewItem: {
@@ -687,7 +722,7 @@ const styles = StyleSheet.create({
   reviewText: {
     fontSize: Typography.fontSize.md,
     fontFamily: Typography.fontFamily.regular,
-    color: Colors.text.primary,
+    color: Colors.textPrimary,
   },
   warningCard: {
     padding: Spacing.md,
@@ -705,12 +740,12 @@ const styles = StyleSheet.create({
   warningTitle: {
     fontSize: Typography.fontSize.md,
     fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.text.primary,
+    color: Colors.textPrimary,
   },
   warningText: {
     fontSize: Typography.fontSize.sm,
     fontFamily: Typography.fontFamily.regular,
-    color: Colors.text.primary,
+    color: Colors.textPrimary,
     lineHeight: 20,
   },
   uploadingContainer: {
@@ -721,21 +756,21 @@ const styles = StyleSheet.create({
   uploadingTitle: {
     fontSize: Typography.fontSize.xl,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.text.primary,
+    color: Colors.textPrimary,
     marginTop: Spacing.lg,
     marginBottom: Spacing.sm,
   },
   uploadingDescription: {
     fontSize: Typography.fontSize.md,
     fontFamily: Typography.fontFamily.regular,
-    color: Colors.text.secondary,
+    color: Colors.textSecondary,
     textAlign: "center",
     marginBottom: Spacing.xl,
   },
   uploadingNote: {
     fontSize: Typography.fontSize.sm,
     fontFamily: Typography.fontFamily.regular,
-    color: Colors.text.tertiary,
+    color: Colors.textHint,
     textAlign: "center",
     marginTop: Spacing.lg,
   },
@@ -754,7 +789,7 @@ const styles = StyleSheet.create({
   completeDescription: {
     fontSize: Typography.fontSize.md,
     fontFamily: Typography.fontFamily.regular,
-    color: Colors.text.primary,
+    color: Colors.textPrimary,
     textAlign: "center",
     paddingHorizontal: Spacing.xl,
   },
@@ -762,9 +797,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     padding: Spacing.md,
     gap: Spacing.sm,
-    backgroundColor: Colors.background.primary,
+    backgroundColor: Colors.background,
     borderTopWidth: 1,
-    borderTopColor: Colors.background.secondary,
+    borderTopColor: Colors.backgroundSecondary,
   },
   backButton: {
     flex: 1,

@@ -58,7 +58,10 @@ export default function KYCStatusScreen() {
     );
   };
 
-  const handleViewDocument = (documentType: KYCDocumentType, fileURL: string) => {
+  const handleViewDocument = (
+    documentType: KYCDocumentType,
+    fileURL: string
+  ) => {
     router.push({
       pathname: "/kyc/preview",
       params: { documentType, fileURL },
@@ -116,11 +119,7 @@ export default function KYCStatusScreen() {
               onPress={() => refetch()}
               style={styles.refreshButton}
             >
-              <Ionicons
-                name="refresh"
-                size={24}
-                color={Colors.primary}
-              />
+              <Ionicons name="refresh" size={24} color={Colors.primary} />
             </TouchableOpacity>
           ),
         }}
@@ -149,9 +148,7 @@ export default function KYCStatusScreen() {
             <KYCStatusBadge status={kycStatus} size="large" showIcon={false} />
           </View>
 
-          <Text style={styles.statusDescription}>
-            {statusInfo.description}
-          </Text>
+          <Text style={styles.statusDescription}>{statusInfo.description}</Text>
 
           {/* Submission Date */}
           {submissionDate && (
@@ -159,7 +156,7 @@ export default function KYCStatusScreen() {
               <Ionicons
                 name="calendar-outline"
                 size={16}
-                color={Colors.text.secondary}
+                color={Colors.textSecondary}
               />
               <Text style={styles.dateText}>
                 Submitted: {new Date(submissionDate).toLocaleDateString()}
@@ -173,7 +170,7 @@ export default function KYCStatusScreen() {
               <Ionicons
                 name="checkmark-circle-outline"
                 size={16}
-                color={Colors.text.secondary}
+                color={Colors.textSecondary}
               />
               <Text style={styles.dateText}>
                 Reviewed: {new Date(reviewDate).toLocaleDateString()}
@@ -199,18 +196,9 @@ export default function KYCStatusScreen() {
                 icon="shield-checkmark"
                 text="Increased trust from clients"
               />
-              <BenefitItem
-                icon="briefcase"
-                text="Access to premium jobs"
-              />
-              <BenefitItem
-                icon="star"
-                text="Higher visibility in search"
-              />
-              <BenefitItem
-                icon="cash"
-                text="Faster payment processing"
-              />
+              <BenefitItem icon="briefcase" text="Access to premium jobs" />
+              <BenefitItem icon="star" text="Higher visibility in search" />
+              <BenefitItem icon="cash" text="Faster payment processing" />
             </View>
           </Card>
         )}
@@ -250,7 +238,8 @@ export default function KYCStatusScreen() {
             <View style={styles.pendingInfo}>
               <Ionicons name="time-outline" size={20} color={Colors.warning} />
               <Text style={styles.pendingText}>
-                Your documents are being reviewed. This usually takes 1-3 business days.
+                Your documents are being reviewed. This usually takes 1-3
+                business days.
               </Text>
             </View>
           )}
@@ -275,7 +264,8 @@ export default function KYCStatusScreen() {
                 color={Colors.success}
               />
               <Text style={styles.verifiedText}>
-                Your identity has been verified! You can now access all features.
+                Your identity has been verified! You can now access all
+                features.
               </Text>
             </View>
           )}
@@ -303,38 +293,38 @@ const BenefitItem: React.FC<BenefitItemProps> = ({ icon, text }) => (
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background.secondary,
+    backgroundColor: Colors.backgroundSecondary,
   },
   loadingContainer: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: Colors.background.secondary,
+    backgroundColor: Colors.backgroundSecondary,
   },
   loadingText: {
     marginTop: Spacing.md,
     fontSize: Typography.fontSize.md,
     fontFamily: Typography.fontFamily.regular,
-    color: Colors.text.secondary,
+    color: Colors.textSecondary,
   },
   errorContainer: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
     padding: Spacing.xl,
-    backgroundColor: Colors.background.secondary,
+    backgroundColor: Colors.backgroundSecondary,
   },
   errorTitle: {
     fontSize: Typography.fontSize.xl,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.text.primary,
+    color: Colors.textPrimary,
     marginTop: Spacing.md,
     marginBottom: Spacing.sm,
   },
   errorMessage: {
     fontSize: Typography.fontSize.md,
     fontFamily: Typography.fontFamily.regular,
-    color: Colors.text.secondary,
+    color: Colors.textSecondary,
     textAlign: "center",
     marginBottom: Spacing.xl,
   },
@@ -355,7 +345,7 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     borderRadius: 12,
     marginBottom: Spacing.md,
-    backgroundColor: Colors.background.primary,
+    backgroundColor: Colors.background,
   },
   statusHeader: {
     alignItems: "center",
@@ -364,13 +354,13 @@ const styles = StyleSheet.create({
   statusTitle: {
     fontSize: Typography.fontSize.xxl,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.text.primary,
+    color: Colors.textPrimary,
     marginVertical: Spacing.sm,
   },
   statusDescription: {
     fontSize: Typography.fontSize.md,
     fontFamily: Typography.fontFamily.regular,
-    color: Colors.text.secondary,
+    color: Colors.textSecondary,
     textAlign: "center",
     marginBottom: Spacing.md,
   },
@@ -384,7 +374,7 @@ const styles = StyleSheet.create({
   dateText: {
     fontSize: Typography.fontSize.sm,
     fontFamily: Typography.fontFamily.regular,
-    color: Colors.text.secondary,
+    color: Colors.textSecondary,
   },
   rejectionContainer: {
     marginTop: Spacing.md,
@@ -403,18 +393,18 @@ const styles = StyleSheet.create({
   rejectionReason: {
     fontSize: Typography.fontSize.md,
     fontFamily: Typography.fontFamily.regular,
-    color: Colors.text.primary,
+    color: Colors.textPrimary,
   },
   benefitsCard: {
     padding: Spacing.lg,
     borderRadius: 12,
     marginBottom: Spacing.md,
-    backgroundColor: Colors.background.primary,
+    backgroundColor: Colors.background,
   },
   benefitsTitle: {
     fontSize: Typography.fontSize.lg,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.text.primary,
+    color: Colors.textPrimary,
     marginBottom: Spacing.md,
   },
   benefitsList: {
@@ -428,7 +418,7 @@ const styles = StyleSheet.create({
   benefitText: {
     fontSize: Typography.fontSize.md,
     fontFamily: Typography.fontFamily.regular,
-    color: Colors.text.primary,
+    color: Colors.textPrimary,
     flex: 1,
   },
   documentsSection: {
@@ -437,7 +427,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: Typography.fontSize.lg,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.text.primary,
+    color: Colors.textPrimary,
     marginBottom: Spacing.md,
   },
   actionsContainer: {
@@ -462,7 +452,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: Typography.fontSize.sm,
     fontFamily: Typography.fontFamily.regular,
-    color: Colors.text.primary,
+    color: Colors.textPrimary,
   },
   verifiedInfo: {
     flexDirection: "row",
@@ -476,6 +466,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: Typography.fontSize.sm,
     fontFamily: Typography.fontFamily.regular,
-    color: Colors.text.primary,
+    color: Colors.textPrimary,
   },
 });

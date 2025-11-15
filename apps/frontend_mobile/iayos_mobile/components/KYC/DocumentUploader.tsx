@@ -92,7 +92,8 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({
           type: documentType,
           uri: result.uri,
           fileName:
-            result.fileName || `${documentType}_${side || "DOC"}_${Date.now()}.jpg`,
+            result.fileName ||
+            `${documentType}_${side || "DOC"}_${Date.now()}.jpg`,
           fileSize: result.fileSize || 0,
           side,
         };
@@ -135,26 +136,22 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({
   const handleRemove = () => {
     if (disabled) return;
 
-    Alert.alert(
-      "Remove Document",
-      `Remove ${displayLabel}?`,
-      [
-        {
-          text: "Cancel",
-          style: "cancel",
+    Alert.alert("Remove Document", `Remove ${displayLabel}?`, [
+      {
+        text: "Cancel",
+        style: "cancel",
+      },
+      {
+        text: "Remove",
+        style: "destructive",
+        onPress: () => {
+          setLocalUri(null);
+          if (onRemove) {
+            onRemove();
+          }
         },
-        {
-          text: "Remove",
-          style: "destructive",
-          onPress: () => {
-            setLocalUri(null);
-            if (onRemove) {
-              onRemove();
-            }
-          },
-        },
-      ]
-    );
+      },
+    ]);
   };
 
   const hasDocument = !!localUri;
@@ -169,13 +166,17 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({
           style={styles.previewContainer}
         >
           {hasDocument ? (
-            <Image source={{ uri: localUri }} style={styles.preview} resizeMode="cover" />
+            <Image
+              source={{ uri: localUri }}
+              style={styles.preview}
+              resizeMode="cover"
+            />
           ) : (
             <View style={styles.placeholder}>
               <Ionicons
                 name={config.icon as any}
                 size={48}
-                color={Colors.text.tertiary}
+                color={Colors.textHint}
               />
               <Text style={styles.placeholderText}>Tap to upload</Text>
             </View>
@@ -252,7 +253,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
     borderRadius: 12,
     elevation: 2,
-    backgroundColor: Colors.background.primary,
+    backgroundColor: Colors.background,
   },
   container: {
     flexDirection: "row",
@@ -264,7 +265,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     overflow: "hidden",
     marginRight: Spacing.md,
-    backgroundColor: Colors.background.secondary,
+    backgroundColor: Colors.backgroundSecondary,
     position: "relative",
   },
   preview: {
@@ -276,11 +277,11 @@ const styles = StyleSheet.create({
     height: "100%",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: Colors.background.secondary,
+    backgroundColor: Colors.backgroundSecondary,
   },
   placeholderText: {
     fontSize: Typography.fontSize.xs,
-    color: Colors.text.tertiary,
+    color: Colors.textHint,
     marginTop: Spacing.xs / 2,
     fontFamily: Typography.fontFamily.regular,
   },
@@ -296,13 +297,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: Typography.fontSize.md,
     fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.text.primary,
+    color: Colors.textPrimary,
     marginBottom: Spacing.xs / 2,
   },
   description: {
     fontSize: Typography.fontSize.sm,
     fontFamily: Typography.fontFamily.regular,
-    color: Colors.text.secondary,
+    color: Colors.textSecondary,
     marginBottom: Spacing.sm,
   },
   requiredBadge: {

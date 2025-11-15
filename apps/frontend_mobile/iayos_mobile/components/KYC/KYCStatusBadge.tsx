@@ -61,11 +61,7 @@ export const KYCStatusBadge: React.FC<KYCStatusBadgeProps> = ({
           />
         )}
         <Text
-          style={[
-            styles.text,
-            currentSize.text,
-            { color: statusInfo.color },
-          ]}
+          style={[styles.text, currentSize.text, { color: statusInfo.color }]}
         >
           {statusInfo.label}
         </Text>
@@ -119,7 +115,7 @@ const styles = StyleSheet.create({
   description: {
     marginTop: Spacing.xs,
     fontSize: Typography.fontSize.sm,
-    color: Colors.text.secondary,
+    color: Colors.textSecondary,
     fontFamily: Typography.fontFamily.regular,
   },
 });

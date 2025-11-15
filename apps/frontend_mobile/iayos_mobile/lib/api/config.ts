@@ -171,18 +171,56 @@ export const ENDPOINTS = {
 };
 
 // HTTP Request helper with credentials
+// API request helper with built-in timeout using AbortController
+export const DEFAULT_REQUEST_TIMEOUT = 15000; // 15 seconds
+
 export const apiRequest = async (
   url: string,
-  options: RequestInit = {}
+  options: RequestInit & { timeout?: number } = {}
 ): Promise<Response> => {
+  const {
+    timeout = DEFAULT_REQUEST_TIMEOUT,
+    signal: userSignal,
+    ...rest
+  } = options as any;
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+  // If consumer passed a signal, forward aborts
+  if (userSignal) {
+    if (userSignal.aborted) {
+      controller.abort();
+    } else {
+      const onAbort = () => controller.abort();
+      userSignal.addEventListener("abort", onAbort);
+      // cleanup listener after request finishes
+      const cleanup = () => userSignal.removeEventListener("abort", onAbort);
+      // attach cleanup to controller.signal's abort
+      controller.signal.addEventListener("abort", cleanup);
+    }
+  }
+
   const defaultOptions: RequestInit = {
     credentials: "include", // Important: Send cookies with requests
     headers: {
       "Content-Type": "application/json",
-      ...options.headers,
+      ...rest.headers,
     },
-    ...options,
+    signal: controller.signal,
+    ...rest,
   };
 
-  return fetch(url, defaultOptions);
+  try {
+    const resp = await fetch(url, defaultOptions);
+    return resp;
+  } catch (err: any) {
+    if (err.name === "AbortError") {
+      // Provide clearer error for timeouts
+      throw new Error(`Network request timed out after ${timeout}ms`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 };

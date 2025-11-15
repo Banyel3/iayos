@@ -3,10 +3,10 @@
  * Handles push token registration, notification permissions, and notification handling
  */
 
-import * as Notifications from 'expo-notifications';
-import * as Device from 'expo-device';
-import { Platform } from 'react-native';
-import Constants from 'expo-constants';
+import * as Notifications from "expo-notifications";
+import * as Device from "expo-device";
+import { Platform } from "react-native";
+import Constants from "expo-constants";
 
 // Configure how notifications are handled when app is in foreground
 Notifications.setNotificationHandler({
@@ -31,20 +31,21 @@ export class NotificationService {
    */
   static async requestPermissions(): Promise<boolean> {
     if (!Device.isDevice) {
-      console.warn('Push notifications only work on physical devices');
+      console.warn("Push notifications only work on physical devices");
       return false;
     }
 
-    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    const { status: existingStatus } =
+      await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
 
-    if (existingStatus !== 'granted') {
+    if (existingStatus !== "granted") {
       const { status } = await Notifications.requestPermissionsAsync();
       finalStatus = status;
     }
 
-    if (finalStatus !== 'granted') {
-      console.warn('Failed to get push token for push notification!');
+    if (finalStatus !== "granted") {
+      console.warn("Failed to get push token for push notification!");
       return false;
     }
 
@@ -57,7 +58,7 @@ export class NotificationService {
   static async getExpoPushToken(): Promise<string | null> {
     try {
       if (!Device.isDevice) {
-        console.warn('Must use physical device for Push Notifications');
+        console.warn("Must use physical device for Push Notifications");
         return null;
       }
 
@@ -66,18 +67,25 @@ export class NotificationService {
         return null;
       }
 
-      // Get the project ID from app.json or Constants
-      const projectId = Constants.expoConfig?.extra?.eas?.projectId ??
-                       Constants.easConfig?.projectId;
+      // Resolve projectId from multiple possible locations in the manifest
+      const projectId =
+        Constants.expoConfig?.projectId ??
+        Constants.expoConfig?.extra?.eas?.projectId ??
+        Constants.easConfig?.projectId;
 
-      const token = await Notifications.getExpoPushTokenAsync({
-        projectId: projectId,
-      });
+      if (!projectId) {
+        console.warn(
+          "No Expo projectId found in manifest. Skipping push token request."
+        );
+        return null;
+      }
 
-      console.log('Expo Push Token:', token.data);
+      const token = await Notifications.getExpoPushTokenAsync({ projectId });
+
+      console.log("Expo Push Token:", token.data);
       return token.data;
     } catch (error) {
-      console.error('Error getting push token:', error);
+      console.error("Error getting push token:", error);
       return null;
     }
   }
@@ -86,64 +94,65 @@ export class NotificationService {
    * Configure notification channels for Android
    */
   static async configureNotificationChannels() {
-    if (Platform.OS === 'android') {
+    if (Platform.OS === "android") {
       // Default channel
-      await Notifications.setNotificationChannelAsync('default', {
-        name: 'Default',
+      await Notifications.setNotificationChannelAsync("default", {
+        name: "Default",
         importance: Notifications.AndroidImportance.HIGH,
         vibrationPattern: [0, 250, 250, 250],
-        lightColor: '#007AFF',
-        sound: 'notification.wav',
+        lightColor: "#007AFF",
+        sound: "notification.wav",
       });
 
       // Job updates channel
-      await Notifications.setNotificationChannelAsync('job-updates', {
-        name: 'Job Updates',
+      await Notifications.setNotificationChannelAsync("job-updates", {
+        name: "Job Updates",
         importance: Notifications.AndroidImportance.HIGH,
         vibrationPattern: [0, 250, 250, 250],
-        lightColor: '#007AFF',
-        sound: 'notification.wav',
-        description: 'Notifications for job applications, status changes, and completions',
+        lightColor: "#007AFF",
+        sound: "notification.wav",
+        description:
+          "Notifications for job applications, status changes, and completions",
       });
 
       // Messages channel
-      await Notifications.setNotificationChannelAsync('messages', {
-        name: 'Messages',
+      await Notifications.setNotificationChannelAsync("messages", {
+        name: "Messages",
         importance: Notifications.AndroidImportance.HIGH,
         vibrationPattern: [0, 250, 250, 250],
-        lightColor: '#007AFF',
-        sound: 'notification.wav',
-        description: 'New messages from clients and workers',
+        lightColor: "#007AFF",
+        sound: "notification.wav",
+        description: "New messages from clients and workers",
       });
 
       // Payments channel
-      await Notifications.setNotificationChannelAsync('payments', {
-        name: 'Payments',
+      await Notifications.setNotificationChannelAsync("payments", {
+        name: "Payments",
         importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 250, 250, 250],
-        lightColor: '#4CAF50',
-        sound: 'notification.wav',
-        description: 'Payment confirmations and updates',
+        lightColor: "#4CAF50",
+        sound: "notification.wav",
+        description: "Payment confirmations and updates",
       });
 
       // Reviews channel
-      await Notifications.setNotificationChannelAsync('reviews', {
-        name: 'Reviews',
+      await Notifications.setNotificationChannelAsync("reviews", {
+        name: "Reviews",
         importance: Notifications.AndroidImportance.DEFAULT,
         vibrationPattern: [0, 250, 250, 250],
-        lightColor: '#FFC107',
-        sound: 'notification.wav',
-        description: 'New reviews and ratings',
+        lightColor: "#FFC107",
+        sound: "notification.wav",
+        description: "New reviews and ratings",
       });
 
       // KYC channel
-      await Notifications.setNotificationChannelAsync('kyc', {
-        name: 'KYC Verification',
+      await Notifications.setNotificationChannelAsync("kyc", {
+        name: "KYC Verification",
         importance: Notifications.AndroidImportance.HIGH,
         vibrationPattern: [0, 250, 250, 250],
-        lightColor: '#9C27B0',
-        sound: 'notification.wav',
-        description: 'KYC verification status updates',
+        lightColor: "#9C27B0",
+        sound: "notification.wav",
+        description: "KYC verification status updates",
       });
     }
   }
@@ -173,14 +182,14 @@ export class NotificationService {
     title: string,
     body: string,
     data?: any,
-    channelId: string = 'default'
+    channelId: string = "default"
   ) {
     await Notifications.scheduleNotificationAsync({
       content: {
         title,
         body,
         data,
-        sound: 'notification.wav',
+        sound: "notification.wav",
       },
       trigger: null, // Show immediately
     });
@@ -192,43 +201,43 @@ export class NotificationService {
   static getChannelForNotificationType(type: string): string {
     const typeMap: Record<string, string> = {
       // KYC
-      KYC_APPROVED: 'kyc',
-      KYC_REJECTED: 'kyc',
-      AGENCY_KYC_APPROVED: 'kyc',
-      AGENCY_KYC_REJECTED: 'kyc',
+      KYC_APPROVED: "kyc",
+      KYC_REJECTED: "kyc",
+      AGENCY_KYC_APPROVED: "kyc",
+      AGENCY_KYC_REJECTED: "kyc",
 
       // Job Applications
-      APPLICATION_RECEIVED: 'job-updates',
-      APPLICATION_ACCEPTED: 'job-updates',
-      APPLICATION_REJECTED: 'job-updates',
+      APPLICATION_RECEIVED: "job-updates",
+      APPLICATION_ACCEPTED: "job-updates",
+      APPLICATION_REJECTED: "job-updates",
 
       // Job Status
-      JOB_STARTED: 'job-updates',
-      JOB_COMPLETED_WORKER: 'job-updates',
-      JOB_COMPLETED_CLIENT: 'job-updates',
-      JOB_CANCELLED: 'job-updates',
+      JOB_STARTED: "job-updates",
+      JOB_COMPLETED_WORKER: "job-updates",
+      JOB_COMPLETED_CLIENT: "job-updates",
+      JOB_CANCELLED: "job-updates",
 
       // Payments
-      PAYMENT_RECEIVED: 'payments',
-      ESCROW_PAID: 'payments',
-      REMAINING_PAYMENT_PAID: 'payments',
-      PAYMENT_RELEASED: 'payments',
+      PAYMENT_RECEIVED: "payments",
+      ESCROW_PAID: "payments",
+      REMAINING_PAYMENT_PAID: "payments",
+      PAYMENT_RELEASED: "payments",
 
       // Messages
-      MESSAGE: 'messages',
+      MESSAGE: "messages",
 
       // Reviews
-      REVIEW_RECEIVED: 'reviews',
+      REVIEW_RECEIVED: "reviews",
     };
 
-    return typeMap[type] || 'default';
+    return typeMap[type] || "default";
   }
 
   /**
    * Set badge count (iOS)
    */
   static async setBadgeCount(count: number) {
-    if (Platform.OS === 'ios') {
+    if (Platform.OS === "ios") {
       await Notifications.setBadgeCountAsync(count);
     }
   }
@@ -257,7 +266,7 @@ export class NotificationService {
       const token = await this.getExpoPushToken();
       return token;
     } catch (error) {
-      console.error('Error initializing notification service:', error);
+      console.error("Error initializing notification service:", error);
       return null;
     }
   }

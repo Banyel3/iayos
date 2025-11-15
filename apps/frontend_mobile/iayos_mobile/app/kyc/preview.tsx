@@ -63,7 +63,7 @@ export default function DocumentPreviewScreen() {
           title: config?.label || "Document Preview",
           headerShown: true,
           headerStyle: {
-            backgroundColor: Colors.background.primary,
+            backgroundColor: Colors.background,
           },
         }}
       />
@@ -79,7 +79,11 @@ export default function DocumentPreviewScreen() {
 
         {imageError ? (
           <View style={styles.errorContainer}>
-            <Ionicons name="alert-circle-outline" size={64} color={Colors.error} />
+            <Ionicons
+              name="alert-circle-outline"
+              size={64}
+              color={Colors.error}
+            />
             <Text style={styles.errorTitle}>Failed to Load Document</Text>
             <Text style={styles.errorMessage}>
               The document image could not be loaded
@@ -120,7 +124,7 @@ export default function DocumentPreviewScreen() {
               <Ionicons
                 name="remove-circle-outline"
                 size={32}
-                color={imageScale <= 0.5 ? Colors.text.tertiary : Colors.primary}
+                color={imageScale <= 0.5 ? Colors.textHint : Colors.primary}
               />
             </TouchableOpacity>
 
@@ -128,7 +132,9 @@ export default function DocumentPreviewScreen() {
               onPress={handleZoomReset}
               style={styles.controlButton}
             >
-              <Text style={styles.zoomText}>{Math.round(imageScale * 100)}%</Text>
+              <Text style={styles.zoomText}>
+                {Math.round(imageScale * 100)}%
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -139,7 +145,7 @@ export default function DocumentPreviewScreen() {
               <Ionicons
                 name="add-circle-outline"
                 size={32}
-                color={imageScale >= 3 ? Colors.text.tertiary : Colors.primary}
+                color={imageScale >= 3 ? Colors.textHint : Colors.primary}
               />
             </TouchableOpacity>
           </View>
@@ -165,7 +171,7 @@ export default function DocumentPreviewScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background.primary,
+    backgroundColor: Colors.background,
   },
   imageContainer: {
     flex: 1,
@@ -202,7 +208,7 @@ const styles = StyleSheet.create({
   errorMessage: {
     fontSize: Typography.fontSize.md,
     fontFamily: Typography.fontFamily.regular,
-    color: Colors.text.secondary,
+    color: Colors.textSecondary,
     textAlign: "center",
     marginBottom: Spacing.xl,
   },
@@ -210,11 +216,11 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
   },
   controls: {
-    backgroundColor: Colors.background.primary,
+    backgroundColor: Colors.background,
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.lg,
     borderTopWidth: 1,
-    borderTopColor: Colors.background.secondary,
+    borderTopColor: Colors.backgroundSecondary,
   },
   zoomControls: {
     flexDirection: "row",
@@ -234,7 +240,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   infoContainer: {
-    backgroundColor: Colors.background.secondary,
+    backgroundColor: Colors.backgroundSecondary,
     padding: Spacing.md,
     borderRadius: 8,
   },
@@ -247,11 +253,11 @@ const styles = StyleSheet.create({
   infoLabel: {
     fontSize: Typography.fontSize.md,
     fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.text.primary,
+    color: Colors.textPrimary,
   },
   infoDescription: {
     fontSize: Typography.fontSize.sm,
     fontFamily: Typography.fontFamily.regular,
-    color: Colors.text.secondary,
+    color: Colors.textSecondary,
   },
 });
