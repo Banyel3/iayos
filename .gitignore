@@ -215,7 +215,6 @@ key.properties
 **/*.keystore
 **/*.jks
 
-/docs
 /apps/frontend_web/.next/*
 /apps/frontend_web/.next/server
 acli.exe
