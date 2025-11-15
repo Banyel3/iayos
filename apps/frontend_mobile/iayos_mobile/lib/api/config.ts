@@ -145,6 +145,11 @@ export const ENDPOINTS = {
   MARK_READ: (id: number) =>
     `${API_BASE_URL}/accounts/notifications/${id}/read`,
   UNREAD_COUNT: `${API_BASE_URL}/accounts/unread-count`,
+
+  // Phase 7: KYC Document Upload & Verification (3 endpoints)
+  KYC_STATUS: `${API_BASE_URL.replace("/api", "")}/api/accounts/kyc-status`,
+  UPLOAD_KYC: `${API_BASE_URL.replace("/api", "")}/api/accounts/upload-kyc`,
+  KYC_APPLICATION_HISTORY: `${API_BASE_URL.replace("/api", "")}/api/accounts/kyc-application-history`,
 };
 
 // HTTP Request helper with credentials
