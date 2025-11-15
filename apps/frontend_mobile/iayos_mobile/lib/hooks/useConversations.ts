@@ -135,16 +135,13 @@ export function useArchiveConversation() {
       );
 
       // Call backend toggle archive endpoint
-      const response = await fetch(
-        `${API_CONFIG.BASE_URL}/api/profiles/chat/conversations/${conversationId}/toggle-archive`,
-        {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
-      );
+      const response = await fetch(`${ENDPOINTS.CONVERSATIONS}/${conversationId}/toggle-archive`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
