@@ -235,3 +235,27 @@ export const apiRequest = async (
     clearTimeout(timeoutId);
   }
 };
+
+// Typed JSON fetch helper. Use this when you expect JSON and want a typed result.
+export async function fetchJson<T = any>(
+  url: string,
+  options: RequestInit & { timeout?: number } = {}
+): Promise<T> {
+  const resp = await apiRequest(url, options);
+  const text = await resp.text();
+  // Try to parse JSON safely; fallback to null on parse error
+  let data: unknown = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch (e) {
+    // If parsing fails, rethrow with context
+    throw new Error(`Failed to parse JSON response from ${url}: ${e}`);
+  }
+
+  if (!resp.ok) {
+    const err = data as any;
+    throw new Error(err?.message || err?.error || `Request to ${url} failed`);
+  }
+
+  return data as T;
+}

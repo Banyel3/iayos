@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ENDPOINTS } from "../api/config";
+import { ENDPOINTS, fetchJson } from "../api/config";
 import { Alert } from "react-native";
 import Toast from "react-native-toast-message";
 
@@ -58,17 +58,10 @@ export interface CashProofUpload {
 export const useWalletBalance = () => {
   return useQuery<WalletBalance>({
     queryKey: ["walletBalance"],
-    queryFn: async () => {
-      const response = await fetch(ENDPOINTS.WALLET_BALANCE, {
+    queryFn: async (): Promise<WalletBalance> => {
+      return fetchJson<WalletBalance>(ENDPOINTS.WALLET_BALANCE, {
         credentials: "include",
       });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Failed to fetch wallet balance");
-      }
-
-      return response.json();
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
     retry: 2,
@@ -81,7 +74,7 @@ export const useCreateEscrowPayment = () => {
 
   return useMutation({
     mutationFn: async (payment: EscrowPayment) => {
-      const response = await fetch(ENDPOINTS.CREATE_ESCROW_PAYMENT, {
+      return fetchJson<any>(ENDPOINTS.CREATE_ESCROW_PAYMENT, {
         method: "POST",
         credentials: "include",
         headers: {
@@ -89,13 +82,6 @@ export const useCreateEscrowPayment = () => {
         },
         body: JSON.stringify(payment),
       });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Failed to create escrow payment");
-      }
-
-      return response.json();
     },
     onSuccess: (data, variables) => {
       // Invalidate relevant queries
@@ -124,7 +110,7 @@ export const useCreateEscrowPayment = () => {
 export const useCreateXenditInvoice = () => {
   return useMutation({
     mutationFn: async (data: { jobId: number; amount: number }) => {
-      const response = await fetch(ENDPOINTS.CREATE_XENDIT_INVOICE, {
+      return fetchJson<XenditInvoice>(ENDPOINTS.CREATE_XENDIT_INVOICE, {
         method: "POST",
         credentials: "include",
         headers: {
@@ -132,13 +118,6 @@ export const useCreateXenditInvoice = () => {
         },
         body: JSON.stringify(data),
       });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Failed to create Xendit invoice");
-      }
-
-      return response.json() as Promise<XenditInvoice>;
     },
     onError: (error: Error) => {
       Toast.show({
@@ -199,19 +178,11 @@ export const useUploadCashProof = () => {
 export const usePaymentStatus = (paymentId: number | null) => {
   return useQuery<PaymentStatus>({
     queryKey: ["paymentStatus", paymentId],
-    queryFn: async () => {
+    queryFn: async (): Promise<PaymentStatus> => {
       if (!paymentId) throw new Error("Payment ID is required");
-
-      const response = await fetch(ENDPOINTS.PAYMENT_STATUS(paymentId), {
+      return fetchJson<PaymentStatus>(ENDPOINTS.PAYMENT_STATUS(paymentId), {
         credentials: "include",
       });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Failed to fetch payment status");
-      }
-
-      return response.json();
     },
     enabled: !!paymentId,
     refetchInterval: (query) => {
@@ -242,16 +213,9 @@ export const usePaymentHistory = (filters?: {
   return useQuery<{ transactions: Transaction[]; total: number }>({
     queryKey: ["paymentHistory", filters],
     queryFn: async () => {
-      const response = await fetch(url, {
+      return fetchJson<{ transactions: Transaction[]; total: number }>(url, {
         credentials: "include",
       });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Failed to fetch payment history");
-      }
-
-      return response.json();
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
@@ -263,7 +227,7 @@ export const useWalletDeposit = () => {
 
   return useMutation({
     mutationFn: async (amount: number) => {
-      const response = await fetch(ENDPOINTS.WALLET_DEPOSIT, {
+      return fetchJson<XenditInvoice>(ENDPOINTS.WALLET_DEPOSIT, {
         method: "POST",
         credentials: "include",
         headers: {
@@ -271,13 +235,6 @@ export const useWalletDeposit = () => {
         },
         body: JSON.stringify({ amount }),
       });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Failed to initiate deposit");
-      }
-
-      return response.json() as Promise<XenditInvoice>;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["walletBalance"] });

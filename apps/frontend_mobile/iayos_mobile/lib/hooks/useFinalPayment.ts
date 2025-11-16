@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ENDPOINTS } from "../api/config";
+import { ENDPOINTS, fetchJson } from "../api/config";
 import { Alert } from "react-native";
 import Toast from "react-native-toast-message";
 
@@ -65,7 +65,7 @@ export const useCreateFinalPayment = () => {
 
   return useMutation({
     mutationFn: async (payment: FinalPayment) => {
-      const response = await fetch(ENDPOINTS.CREATE_FINAL_PAYMENT, {
+      return fetchJson<any>(ENDPOINTS.CREATE_FINAL_PAYMENT, {
         method: "POST",
         credentials: "include",
         headers: {
@@ -78,13 +78,6 @@ export const useCreateFinalPayment = () => {
           transaction_id: payment.transactionId,
         }),
       });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Failed to create final payment");
-      }
-
-      return response.json();
     },
     onSuccess: (data, variables) => {
       Toast.show({
@@ -115,19 +108,11 @@ export const useCreateFinalPayment = () => {
 export const useJobPaymentStatus = (jobId?: number) => {
   return useQuery<JobPaymentStatus>({
     queryKey: ["jobPaymentStatus", jobId],
-    queryFn: async () => {
+    queryFn: async (): Promise<JobPaymentStatus> => {
       if (!jobId) throw new Error("Job ID is required");
-
-      const response = await fetch(ENDPOINTS.JOB_PAYMENT_STATUS(jobId), {
+      return fetchJson<JobPaymentStatus>(ENDPOINTS.JOB_PAYMENT_STATUS(jobId), {
         credentials: "include",
       });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Failed to fetch payment status");
-      }
-
-      return response.json();
     },
     enabled: !!jobId,
     staleTime: 1 * 60 * 1000, // 1 minute
@@ -138,19 +123,11 @@ export const useJobPaymentStatus = (jobId?: number) => {
 export const useJobEarnings = (jobId?: number) => {
   return useQuery<JobEarnings>({
     queryKey: ["jobEarnings", jobId],
-    queryFn: async () => {
+    queryFn: async (): Promise<JobEarnings> => {
       if (!jobId) throw new Error("Job ID is required");
-
-      const response = await fetch(ENDPOINTS.JOB_EARNINGS(jobId), {
+      return fetchJson<JobEarnings>(ENDPOINTS.JOB_EARNINGS(jobId), {
         credentials: "include",
       });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Failed to fetch earnings");
-      }
-
-      return response.json();
     },
     enabled: !!jobId,
     staleTime: 5 * 60 * 1000, // 5 minutes
@@ -161,19 +138,14 @@ export const useJobEarnings = (jobId?: number) => {
 export const usePaymentTimeline = (jobId?: number) => {
   return useQuery<PaymentTimelineResponse>({
     queryKey: ["paymentTimeline", jobId],
-    queryFn: async () => {
+    queryFn: async (): Promise<PaymentTimelineResponse> => {
       if (!jobId) throw new Error("Job ID is required");
-
-      const response = await fetch(ENDPOINTS.PAYMENT_TIMELINE(jobId), {
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Failed to fetch payment timeline");
-      }
-
-      return response.json();
+      return fetchJson<PaymentTimelineResponse>(
+        ENDPOINTS.PAYMENT_TIMELINE(jobId),
+        {
+          credentials: "include",
+        }
+      );
     },
     enabled: !!jobId,
     staleTime: 2 * 60 * 1000, // 2 minutes
@@ -184,19 +156,14 @@ export const usePaymentTimeline = (jobId?: number) => {
 export const useCashPaymentStatus = (paymentId?: number) => {
   return useQuery<CashPaymentStatus>({
     queryKey: ["cashPaymentStatus", paymentId],
-    queryFn: async () => {
+    queryFn: async (): Promise<CashPaymentStatus> => {
       if (!paymentId) throw new Error("Payment ID is required");
-
-      const response = await fetch(ENDPOINTS.CASH_PAYMENT_STATUS(paymentId), {
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Failed to fetch cash payment status");
-      }
-
-      return response.json();
+      return fetchJson<CashPaymentStatus>(
+        ENDPOINTS.CASH_PAYMENT_STATUS(paymentId),
+        {
+          credentials: "include",
+        }
+      );
     },
     enabled: !!paymentId,
     refetchInterval: (query) => {

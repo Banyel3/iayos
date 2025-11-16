@@ -79,9 +79,9 @@ export default function JobDetailScreen() {
     data: job,
     isLoading,
     error,
-  } = useQuery<JobDetail>({
+  } = useQuery<JobDetail, unknown, JobDetail>({
     queryKey: ["jobs", id],
-    queryFn: async () => {
+    queryFn: async (): Promise<JobDetail> => {
       const response = await fetch(`${ENDPOINTS.AVAILABLE_JOBS}/${id}`, {
         credentials: "include",
       });
@@ -90,22 +90,22 @@ export default function JobDetailScreen() {
         throw new Error("Failed to fetch job details");
       }
 
-      const data = await response.json();
-      return data.job;
+      const data = (await response.json()) as any;
+      return data.job as JobDetail;
     },
   });
 
   // Check if already applied
-  const { data: hasApplied = false } = useQuery<boolean>({
+  const { data: hasApplied = false } = useQuery<boolean, unknown, boolean>({
     queryKey: ["jobs", id, "applied"],
-    queryFn: async () => {
+    queryFn: async (): Promise<boolean> => {
       const response = await fetch(`${ENDPOINTS.MY_APPLICATIONS}`, {
         credentials: "include",
       });
 
       if (!response.ok) return false;
 
-      const data = await response.json();
+      const data = (await response.json()) as any;
       if (data.success && data.applications) {
         return data.applications.some(
           (app: any) => app.job_id.toString() === id
@@ -132,8 +132,8 @@ export default function JobDetailScreen() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to submit application");
+        const errorData = (await response.json().catch(() => null)) as any;
+        throw new Error(errorData?.error || "Failed to submit application");
       }
 
       return response.json();

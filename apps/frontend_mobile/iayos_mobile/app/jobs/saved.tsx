@@ -69,11 +69,12 @@ export default function SavedJobsScreen() {
     if (!searchQuery.trim()) return savedJobs;
 
     const query = searchQuery.toLowerCase();
-    return savedJobs.filter((job) =>
-      job.title.toLowerCase().includes(query) ||
-      job.description.toLowerCase().includes(query) ||
-      job.category_name.toLowerCase().includes(query) ||
-      job.location.toLowerCase().includes(query)
+    return savedJobs.filter(
+      (job) =>
+        job.title.toLowerCase().includes(query) ||
+        job.description.toLowerCase().includes(query) ||
+        job.category_name.toLowerCase().includes(query) ||
+        job.location.toLowerCase().includes(query)
     );
   }, [savedJobs, searchQuery]);
 

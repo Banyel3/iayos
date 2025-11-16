@@ -2,7 +2,7 @@
 // React Query hooks for managing worker materials/products
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ENDPOINTS } from "@/lib/api/config";
+import { ENDPOINTS, fetchJson } from "@/lib/api/config";
 
 // ===== TYPES =====
 
@@ -47,14 +47,10 @@ export interface UpdateMaterialRequest {
 export function useMaterials() {
   return useQuery<Material[]>({
     queryKey: ["materials"],
-    queryFn: async () => {
-      const response = await fetch(ENDPOINTS.MATERIALS, {
+    queryFn: async (): Promise<Material[]> => {
+      return fetchJson<Material[]>(ENDPOINTS.MATERIALS, {
         credentials: "include",
       });
-      if (!response.ok) {
-        throw new Error("Failed to fetch materials");
-      }
-      return response.json();
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
@@ -66,14 +62,10 @@ export function useMaterials() {
 export function useMaterial(id: number) {
   return useQuery<Material>({
     queryKey: ["materials", id],
-    queryFn: async () => {
-      const response = await fetch(ENDPOINTS.MATERIAL_DETAIL(id), {
+    queryFn: async (): Promise<Material> => {
+      return fetchJson<Material>(ENDPOINTS.MATERIAL_DETAIL(id), {
         credentials: "include",
       });
-      if (!response.ok) {
-        throw new Error("Failed to fetch material");
-      }
-      return response.json();
     },
     enabled: !!id,
     staleTime: 5 * 60 * 1000,

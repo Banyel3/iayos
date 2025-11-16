@@ -54,9 +54,9 @@ export default function ActiveJobsScreen() {
     isLoading,
     error,
     refetch,
-  } = useQuery<ActiveJob[]>({
+  } = useQuery<ActiveJob[], unknown, ActiveJob[]>({
     queryKey: ["jobs", "active"],
-    queryFn: async () => {
+    queryFn: async (): Promise<ActiveJob[]> => {
       const endpoint = isWorker
         ? ENDPOINTS.ACTIVE_JOBS
         : `${ENDPOINTS.AVAILABLE_JOBS}/my-posted-jobs?status=IN_PROGRESS,ASSIGNED`;
@@ -69,7 +69,7 @@ export default function ActiveJobsScreen() {
         throw new Error("Failed to fetch active jobs");
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as any;
       return data.jobs || [];
     },
     enabled: !!user,

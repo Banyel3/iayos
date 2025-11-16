@@ -14,7 +14,7 @@ import {
   UseQueryOptions,
 } from "@tanstack/react-query";
 import type { InfiniteData } from "@tanstack/query-core";
-import { ENDPOINTS, apiRequest } from "@/lib/api/config";
+import { ENDPOINTS, apiRequest, fetchJson } from "@/lib/api/config";
 
 export interface Job {
   id: number;
@@ -78,16 +78,7 @@ export function useJobs(
     queryKey: ["jobs", "available", filters],
     queryFn: async (): Promise<JobsResponse> => {
       const url = ENDPOINTS.JOB_LIST_FILTERED(filters);
-      const response = await apiRequest(url, {
-        method: "GET",
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch jobs");
-      }
-
-      const data = (await response.json()) as JobsResponse;
-      return data;
+      return fetchJson<JobsResponse>(url, { method: "GET" });
     },
     staleTime: 1000 * 60 * 5, // 5 minutes
     ...options,
@@ -105,16 +96,7 @@ export function useInfiniteJobs(filters: Omit<JobFilters, "page"> = {}) {
         ...filters,
         page: pageParam as number,
       });
-      const response = await apiRequest(url, {
-        method: "GET",
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch jobs");
-      }
-
-      const data = (await response.json()) as JobsResponse;
-      return data;
+      return fetchJson<JobsResponse>(url, { method: "GET" });
     },
     initialPageParam: 1,
     getNextPageParam: (lastPage) => {
@@ -137,18 +119,8 @@ export function useJobDetail(
   return useQuery<Job>({
     queryKey: ["jobs", jobId],
     queryFn: async () => {
-      const response = await apiRequest(
-        ENDPOINTS.JOB_DETAILS(parseInt(jobId.toString())),
-        {
-          method: "GET",
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch job details");
-      }
-
-      const data = await response.json();
+      const url = ENDPOINTS.JOB_DETAILS(parseInt(jobId.toString()));
+      const data = await fetchJson<any>(url, { method: "GET" });
       return data.job || data;
     },
     staleTime: 1000 * 60 * 3, // 3 minutes
@@ -164,19 +136,19 @@ export function useHasApplied(jobId: number | string) {
   return useQuery<boolean>({
     queryKey: ["jobs", jobId, "applied"],
     queryFn: async () => {
-      const response = await apiRequest(ENDPOINTS.MY_APPLICATIONS, {
-        method: "GET",
-      });
-
-      if (!response.ok) return false;
-
-      const data = await response.json();
-      if (data.success && data.applications) {
-        return data.applications.some(
-          (app: any) => app.job_id?.toString() === jobId.toString()
-        );
+      try {
+        const data = await fetchJson<any>(ENDPOINTS.MY_APPLICATIONS, {
+          method: "GET",
+        });
+        if (data?.success && data.applications) {
+          return data.applications.some(
+            (app: any) => app.job_id?.toString() === jobId.toString()
+          );
+        }
+        return false;
+      } catch (e) {
+        return false;
       }
-      return false;
     },
     staleTime: 1000 * 60 * 2, // 2 minutes
     enabled: !!jobId,

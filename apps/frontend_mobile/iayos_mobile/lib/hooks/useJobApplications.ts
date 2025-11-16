@@ -5,7 +5,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { API_BASE_URL, apiRequest } from "@/lib/api/config";
+import { API_BASE_URL, apiRequest, fetchJson } from "@/lib/api/config";
 
 interface Worker {
   id: number;
@@ -39,15 +39,8 @@ export function useJobApplications(jobId: number) {
   return useQuery<JobApplicationsResponse>({
     queryKey: ["job-applications", jobId],
     queryFn: async () => {
-      const response = await apiRequest(
-        `${API_BASE_URL}/jobs/${jobId}/applications`
-      );
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch job applications");
-      }
-
-      return response.json();
+      const url = `${API_BASE_URL}/jobs/${jobId}/applications`;
+      return fetchJson<JobApplicationsResponse>(url);
     },
     enabled: !!jobId && jobId > 0,
     staleTime: 1000 * 60, // 1 minute
@@ -71,20 +64,17 @@ export function useManageApplication() {
       applicationId: number;
       action: "ACCEPTED" | "REJECTED";
     }) => {
-      const response = await apiRequest(
-        `${API_BASE_URL}/jobs/${jobId}/application/${applicationId}`,
-        {
+      const url = `${API_BASE_URL}/jobs/${jobId}/application/${applicationId}`;
+      try {
+        return await fetchJson<any>(url, {
           method: "PUT",
           body: JSON.stringify({ status: action }),
-        }
-      );
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || `Failed to ${action.toLowerCase()} application`);
+        });
+      } catch (e: any) {
+        throw new Error(
+          e?.message || `Failed to ${action.toLowerCase()} application`
+        );
       }
-
-      return response.json();
     },
     onSuccess: (_, variables) => {
       // Invalidate job applications list

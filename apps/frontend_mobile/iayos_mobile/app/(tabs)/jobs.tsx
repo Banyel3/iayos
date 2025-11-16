@@ -55,9 +55,9 @@ export default function JobsScreen() {
     isLoading,
     error,
     refetch,
-  } = useQuery<Job[]>({
+  } = useQuery<Job[], unknown, Job[]>({
     queryKey: ["jobs", "available"],
-    queryFn: async () => {
+    queryFn: async (): Promise<Job[]> => {
       const response = await fetch(ENDPOINTS.AVAILABLE_JOBS, {
         credentials: "include",
       });
@@ -66,7 +66,7 @@ export default function JobsScreen() {
         throw new Error("Failed to fetch jobs");
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as any;
       return data.jobs || [];
     },
     enabled: isWorker,

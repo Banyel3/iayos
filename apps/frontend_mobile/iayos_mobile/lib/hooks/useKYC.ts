@@ -40,14 +40,10 @@ const fetchKYCStatus = async (): Promise<KYCStatusResponse> => {
 export const useKYC = () => {
   const queryClient = useQueryClient();
 
-  const {
-    data,
-    isLoading,
-    isError,
-    error,
-    refetch,
-    isFetching,
-  } = useQuery<KYCStatusResponse, Error>({
+  const { data, isLoading, isError, error, refetch, isFetching } = useQuery<
+    KYCStatusResponse,
+    Error
+  >({
     queryKey: ["kycStatus"],
     queryFn: fetchKYCStatus,
     staleTime: 1000 * 60 * 5, // 5 minutes
