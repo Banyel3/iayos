@@ -2,10 +2,8 @@ import React, { useState } from "react";
 import {
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   StyleSheet,
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -22,12 +20,13 @@ import {
   Shadows,
 } from "@/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
+import Button from "@/components/ui/Button";
+import Input from "@/components/ui/Input";
 
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
   const { login } = useAuth();
   const router = useRouter();
 
@@ -63,73 +62,40 @@ export default function LoginScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* Gradient Header with Logo */}
+          {/* Clean Header with Logo */}
           <View style={styles.headerContainer}>
             <View style={styles.logoCircle}>
               <Text style={styles.logoText}>i</Text>
             </View>
-            <Text style={styles.headerTitle}>Welcome Back!</Text>
+            <Text style={styles.headerTitle}>Welcome to iAyos</Text>
             <Text style={styles.headerSubtitle}>
-              Sign in to continue to iAyos
+              May sira? May iAyos.
             </Text>
           </View>
 
           <View style={styles.formContainer}>
-            {/* Email Field */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Email Address</Text>
-              <View style={styles.inputWrapper}>
-                <Ionicons
-                  name="mail-outline"
-                  size={20}
-                  color={Colors.primary}
-                  style={styles.inputIcon}
-                />
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter your email"
-                  placeholderTextColor={Colors.textHint}
-                  value={email}
-                  onChangeText={setEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  editable={!isLoading}
-                />
-              </View>
-            </View>
+            {/* Email Input */}
+            <Input
+              label="Email Address"
+              placeholder="Enter your email"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              editable={!isLoading}
+              iconLeft={<Ionicons name="mail-outline" size={20} color={Colors.primary} />}
+            />
 
-            {/* Password Field */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Password</Text>
-              <View style={styles.inputWrapper}>
-                <Ionicons
-                  name="lock-closed-outline"
-                  size={20}
-                  color={Colors.primary}
-                  style={styles.inputIcon}
-                />
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter your password"
-                  placeholderTextColor={Colors.textHint}
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry={!showPassword}
-                  editable={!isLoading}
-                />
-                <TouchableOpacity
-                  onPress={() => setShowPassword(!showPassword)}
-                  style={styles.eyeIcon}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons
-                    name={showPassword ? "eye-outline" : "eye-off-outline"}
-                    size={20}
-                    color={Colors.textSecondary}
-                  />
-                </TouchableOpacity>
-              </View>
-            </View>
+            {/* Password Input */}
+            <Input
+              label="Password"
+              placeholder="Enter your password"
+              value={password}
+              onChangeText={setPassword}
+              isPassword
+              editable={!isLoading}
+              iconLeft={<Ionicons name="lock-closed-outline" size={20} color={Colors.primary} />}
+            />
 
             {/* Forgot Password */}
             <TouchableOpacity
@@ -141,21 +107,16 @@ export default function LoginScreen() {
             </TouchableOpacity>
 
             {/* Login Button */}
-            <TouchableOpacity
-              style={[
-                styles.loginButton,
-                isLoading && styles.loginButtonDisabled,
-              ]}
+            <Button
               onPress={handleLogin}
               disabled={isLoading}
-              activeOpacity={0.8}
+              loading={isLoading}
+              variant="primary"
+              size="lg"
+              fullWidth
             >
-              {isLoading ? (
-                <ActivityIndicator color={Colors.white} />
-              ) : (
-                <Text style={styles.loginButtonText}>Login</Text>
-              )}
-            </TouchableOpacity>
+              Login
+            </Button>
 
             {/* Register Link */}
             <View style={styles.registerContainer}>
@@ -187,112 +148,62 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   headerContainer: {
-    backgroundColor: Colors.primary,
-    paddingTop: Spacing.xl * 2,
-    paddingBottom: Spacing.xl * 2,
+    backgroundColor: Colors.white,
+    paddingTop: Spacing["6xl"],
+    paddingBottom: Spacing["4xl"],
     alignItems: "center",
-    borderBottomLeftRadius: BorderRadius.xl,
-    borderBottomRightRadius: BorderRadius.xl,
-    ...Shadows.medium,
   },
   logoCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: Colors.white,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: Colors.primary,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: Spacing.lg,
-    ...Shadows.medium,
+    marginBottom: Spacing["2xl"],
+    ...Shadows.md,
   },
   logoText: {
-    fontSize: 48,
-    fontWeight: "700",
-    color: Colors.primary,
-  },
-  headerTitle: {
-    fontSize: Typography.fontSize.xxl,
+    fontSize: 64,
     fontWeight: "700",
     color: Colors.white,
+  },
+  headerTitle: {
+    fontSize: Typography.fontSize["3xl"],
+    fontWeight: "700",
+    color: Colors.textPrimary,
     marginBottom: Spacing.xs,
   },
   headerSubtitle: {
-    fontSize: Typography.fontSize.md,
-    color: Colors.white,
-    opacity: 0.9,
+    fontSize: Typography.fontSize.base,
+    color: Colors.textSecondary,
   },
   formContainer: {
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.xl * 1.5,
-  },
-  inputGroup: {
-    marginBottom: Spacing.lg,
-  },
-  label: {
-    fontSize: Typography.fontSize.md,
-    fontWeight: "600",
-    color: Colors.textPrimary,
-    marginBottom: Spacing.sm,
-  },
-  inputWrapper: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: Colors.background,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    paddingHorizontal: Spacing.md,
-    height: 50,
-  },
-  inputIcon: {
-    marginRight: Spacing.sm,
-  },
-  input: {
-    flex: 1,
-    fontSize: Typography.fontSize.md,
-    color: Colors.textPrimary,
-    height: "100%",
-  },
-  eyeIcon: {
-    padding: Spacing.xs,
+    paddingHorizontal: Spacing["2xl"],
+    paddingTop: Spacing["2xl"],
   },
   forgotPassword: {
     alignSelf: "flex-end",
-    marginBottom: Spacing.xl,
+    marginBottom: Spacing["2xl"],
+    marginTop: -Spacing.sm, // Negative margin to bring closer to password input
   },
   forgotPasswordText: {
     fontSize: Typography.fontSize.sm,
     color: Colors.primary,
     fontWeight: "600",
   },
-  loginButton: {
-    backgroundColor: Colors.primary,
-    borderRadius: BorderRadius.md,
-    height: 50,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: Spacing.lg,
-    ...Shadows.small,
-  },
-  loginButtonDisabled: {
-    opacity: 0.6,
-  },
-  loginButtonText: {
-    fontSize: Typography.fontSize.lg,
-    fontWeight: "700",
-    color: Colors.white,
-  },
   registerContainer: {
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
+    marginTop: Spacing["2xl"],
   },
   registerText: {
-    fontSize: Typography.fontSize.md,
+    fontSize: Typography.fontSize.base,
     color: Colors.textSecondary,
   },
   registerLink: {
-    fontSize: Typography.fontSize.md,
+    fontSize: Typography.fontSize.base,
     color: Colors.primary,
     fontWeight: "700",
   },

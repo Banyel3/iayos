@@ -14,6 +14,9 @@ Notifications.setNotificationHandler({
     shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: true,
+    // Newer versions of Expo expect these fields as well
+    shouldShowBanner: true,
+    shouldShowList: true,
   }),
 });
 
@@ -68,10 +71,13 @@ export class NotificationService {
       }
 
       // Resolve projectId from multiple possible locations in the manifest
+      // Access projectId defensively; manifest typings may not include projectId
+      const expoCfg: any = Constants.expoConfig;
+      const easCfg: any = Constants.easConfig;
       const projectId =
-        Constants.expoConfig?.projectId ??
-        Constants.expoConfig?.extra?.eas?.projectId ??
-        Constants.easConfig?.projectId;
+        expoCfg?.projectId ??
+        expoCfg?.extra?.eas?.projectId ??
+        easCfg?.projectId;
 
       if (!projectId) {
         console.warn(

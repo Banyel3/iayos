@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   View,
   Text,
@@ -21,6 +21,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ENDPOINTS } from "@/lib/api/config";
+import SearchBar from "@/components/ui/SearchBar";
 
 interface Job {
   job_id: number;
@@ -42,6 +43,7 @@ export default function SavedJobsScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Fetch saved jobs
   const {
@@ -61,6 +63,19 @@ export default function SavedJobsScreen() {
   });
 
   const savedJobs: Job[] = savedJobsData?.jobs || [];
+
+  // Filter jobs based on search query
+  const filteredJobs = useMemo(() => {
+    if (!searchQuery.trim()) return savedJobs;
+
+    const query = searchQuery.toLowerCase();
+    return savedJobs.filter((job) =>
+      job.title.toLowerCase().includes(query) ||
+      job.description.toLowerCase().includes(query) ||
+      job.category_name.toLowerCase().includes(query) ||
+      job.location.toLowerCase().includes(query)
+    );
+  }, [savedJobs, searchQuery]);
 
   // Unsave job mutation
   const unsaveMutation = useMutation({
@@ -293,6 +308,17 @@ export default function SavedJobsScreen() {
         <View style={{ width: 40 }} />
       </View>
 
+      {/* Search Bar */}
+      {savedJobs.length > 0 && (
+        <View style={styles.searchContainer}>
+          <SearchBar
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder="Search saved jobs..."
+          />
+        </View>
+      )}
+
       {/* Content */}
       {isLoading ? (
         <View style={styles.loadingContainer}>
@@ -337,6 +363,25 @@ export default function SavedJobsScreen() {
             <Text style={styles.browseButtonText}>Browse Jobs</Text>
           </TouchableOpacity>
         </View>
+      ) : filteredJobs.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Ionicons
+            name="search-outline"
+            size={64}
+            color={Colors.textSecondary}
+          />
+          <Text style={styles.emptyStateText}>No results found</Text>
+          <Text style={styles.emptyStateSubtext}>
+            Try adjusting your search query
+          </Text>
+          <TouchableOpacity
+            style={styles.browseButton}
+            onPress={() => setSearchQuery("")}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.browseButtonText}>Clear Search</Text>
+          </TouchableOpacity>
+        </View>
       ) : (
         <ScrollView
           showsVerticalScrollIndicator={false}
@@ -345,7 +390,7 @@ export default function SavedJobsScreen() {
           }
           contentContainerStyle={styles.listContainer}
         >
-          {savedJobs.map((job) => renderJobCard(job))}
+          {filteredJobs.map((job) => renderJobCard(job))}
         </ScrollView>
       )}
     </SafeAreaView>
@@ -391,6 +436,13 @@ const styles = StyleSheet.create({
     ...Typography.body.small,
     color: Colors.white,
     fontWeight: "700",
+  },
+  searchContainer: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    backgroundColor: Colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
   },
   listContainer: {
     padding: Spacing.md,

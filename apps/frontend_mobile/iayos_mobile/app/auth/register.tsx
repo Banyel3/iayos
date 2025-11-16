@@ -2,10 +2,8 @@ import React, { useState } from 'react';
 import {
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   StyleSheet,
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -16,6 +14,8 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
+import Button from '@/components/ui/Button';
+import Input from '@/components/ui/Input';
 
 export default function RegisterScreen() {
   const [firstName, setFirstName] = useState('');
@@ -24,8 +24,6 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const { register } = useAuth();
   const router = useRouter();
 
@@ -77,7 +75,7 @@ export default function RegisterScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* Header with Gradient */}
+          {/* Header */}
           <View style={styles.headerContainer}>
             {/* Back Button */}
             <TouchableOpacity
@@ -85,182 +83,90 @@ export default function RegisterScreen() {
               onPress={() => router.back()}
               disabled={isLoading}
             >
-              <Ionicons name="arrow-back-ios" size={16} color={Colors.primary} />
-              <Text style={styles.backButtonText}>Back</Text>
+              <Ionicons name="arrow-back" size={24} color={Colors.primary} />
             </TouchableOpacity>
 
-            {/* Progress Indicators */}
-            <View style={styles.progressContainer}>
-              <View style={[styles.progressDot, styles.progressDotActive]}>
-                <Text style={styles.progressNumber}>1</Text>
-              </View>
-              <View style={styles.progressLine} />
-              <View style={styles.progressDot}>
-                <Text style={styles.progressNumberInactive}>2</Text>
-              </View>
-              <View style={styles.progressLine} />
-              <View style={styles.progressDot}>
-                <Text style={styles.progressNumberInactive}>3</Text>
-              </View>
+            {/* Title */}
+            <View style={styles.logoCircle}>
+              <Text style={styles.logoText}>i</Text>
             </View>
-
-            {/* Title Section */}
-            <View style={styles.titleSection}>
-              <View style={styles.iconCircle}>
-                <Ionicons name="person-add" size={28} color={Colors.primary} />
-              </View>
-              <View style={styles.titleTextContainer}>
-                <Text style={styles.headerTitle}>Create Account</Text>
-                <Text style={styles.headerSubtitle}>Step 1 of 3 • Personal Details</Text>
-              </View>
-            </View>
+            <Text style={styles.headerTitle}>Create Account</Text>
+            <Text style={styles.headerSubtitle}>Join iAyos today</Text>
           </View>
 
           <View style={styles.formContainer}>
-            {/* Section Header */}
-            <View style={styles.sectionHeader}>
-              <Ionicons name="person-outline" size={20} color={Colors.primary} />
-              <View style={styles.sectionHeaderText}>
-                <Text style={styles.sectionTitle}>Personal Information</Text>
-                <Text style={styles.sectionSubtitle}>Enter your basic details</Text>
-              </View>
-            </View>
-
             {/* First Name */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>
-                First Name <Text style={styles.required}>*</Text>
-              </Text>
-              <View style={styles.inputWrapper}>
-                <Ionicons name="person-outline" size={20} color={Colors.primary} style={styles.inputIcon} />
-                <TextInput
-                  style={styles.input}
-                  placeholder="Juan"
-                  placeholderTextColor={Colors.textHint}
-                  value={firstName}
-                  onChangeText={setFirstName}
-                  editable={!isLoading}
-                />
-              </View>
-            </View>
+            <Input
+              label="First Name"
+              placeholder="Juan"
+              value={firstName}
+              onChangeText={setFirstName}
+              editable={!isLoading}
+              iconLeft={<Ionicons name="person-outline" size={20} color={Colors.primary} />}
+            />
 
             {/* Last Name */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>
-                Last Name <Text style={styles.required}>*</Text>
-              </Text>
-              <View style={styles.inputWrapper}>
-                <Ionicons name="person-outline" size={20} color={Colors.primary} style={styles.inputIcon} />
-                <TextInput
-                  style={styles.input}
-                  placeholder="Dela Cruz"
-                  placeholderTextColor={Colors.textHint}
-                  value={lastName}
-                  onChangeText={setLastName}
-                  editable={!isLoading}
-                />
-              </View>
-            </View>
+            <Input
+              label="Last Name"
+              placeholder="Dela Cruz"
+              value={lastName}
+              onChangeText={setLastName}
+              editable={!isLoading}
+              iconLeft={<Ionicons name="person-outline" size={20} color={Colors.primary} />}
+            />
 
             {/* Email */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>
-                Email Address <Text style={styles.required}>*</Text>
-              </Text>
-              <View style={styles.inputWrapper}>
-                <Ionicons name="mail-outline" size={20} color={Colors.primary} style={styles.inputIcon} />
-                <TextInput
-                  style={styles.input}
-                  placeholder="juan@example.com"
-                  placeholderTextColor={Colors.textHint}
-                  value={email}
-                  onChangeText={setEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  editable={!isLoading}
-                />
-              </View>
-            </View>
+            <Input
+              label="Email Address"
+              placeholder="juan@example.com"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              editable={!isLoading}
+              required
+              iconLeft={<Ionicons name="mail-outline" size={20} color={Colors.primary} />}
+            />
 
             {/* Password */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>
-                Password <Text style={styles.required}>*</Text>
-              </Text>
-              <View style={styles.inputWrapper}>
-                <Ionicons name="lock-closed-outline" size={20} color={Colors.primary} style={styles.inputIcon} />
-                <TextInput
-                  style={[styles.input, styles.passwordInput]}
-                  placeholder="Minimum 6 characters"
-                  placeholderTextColor={Colors.textHint}
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry={!showPassword}
-                  autoCapitalize="none"
-                  editable={!isLoading}
-                />
-                <TouchableOpacity
-                  onPress={() => setShowPassword(!showPassword)}
-                  style={styles.eyeIcon}
-                  disabled={isLoading}
-                >
-                  <Ionicons
-                    name={showPassword ? 'eye-outline' : 'eye-off-outline'}
-                    size={20}
-                    color={Colors.textSecondary}
-                  />
-                </TouchableOpacity>
-              </View>
-            </View>
+            <Input
+              label="Password"
+              placeholder="Minimum 6 characters"
+              value={password}
+              onChangeText={setPassword}
+              isPassword
+              autoCapitalize="none"
+              editable={!isLoading}
+              required
+              iconLeft={<Ionicons name="lock-closed-outline" size={20} color={Colors.primary} />}
+            />
 
             {/* Confirm Password */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>
-                Confirm Password <Text style={styles.required}>*</Text>
-              </Text>
-              <View style={styles.inputWrapper}>
-                <Ionicons name="lock-closed-outline" size={20} color={Colors.primary} style={styles.inputIcon} />
-                <TextInput
-                  style={[styles.input, styles.passwordInput]}
-                  placeholder="Re-enter password"
-                  placeholderTextColor={Colors.textHint}
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  secureTextEntry={!showConfirmPassword}
-                  autoCapitalize="none"
-                  editable={!isLoading}
-                />
-                <TouchableOpacity
-                  onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-                  style={styles.eyeIcon}
-                  disabled={isLoading}
-                >
-                  <Ionicons
-                    name={showConfirmPassword ? 'eye-outline' : 'eye-off-outline'}
-                    size={20}
-                    color={Colors.textSecondary}
-                  />
-                </TouchableOpacity>
-              </View>
-            </View>
+            <Input
+              label="Confirm Password"
+              placeholder="Re-enter password"
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              isPassword
+              autoCapitalize="none"
+              editable={!isLoading}
+              required
+              iconLeft={<Ionicons name="lock-closed-outline" size={20} color={Colors.primary} />}
+            />
 
             {/* Register Button */}
-            <TouchableOpacity
-              style={[styles.registerButton, isLoading && styles.buttonDisabled]}
+            <Button
               onPress={handleRegister}
               disabled={isLoading}
-              activeOpacity={0.8}
+              loading={isLoading}
+              variant="primary"
+              size="lg"
+              fullWidth
+              iconRight={<Ionicons name="arrow-forward" size={20} color={Colors.white} />}
             >
-              {isLoading ? (
-                <ActivityIndicator color={Colors.white} />
-              ) : (
-                <View style={styles.buttonContent}>
-                  <Text style={styles.registerButtonText}>Continue</Text>
-                  <Ionicons name="arrow-forward" size={20} color={Colors.white} />
-                </View>
-              )}
-            </TouchableOpacity>
+              Create Account
+            </Button>
 
             {/* Login Link */}
             <TouchableOpacity
@@ -282,7 +188,7 @@ export default function RegisterScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.white,
   },
   keyboardView: {
     flex: 1,
@@ -291,177 +197,48 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   headerContainer: {
-    paddingHorizontal: Spacing.xl,
-    paddingTop: Spacing.xl,
-    paddingBottom: Spacing['2xl'],
-    backgroundColor: Colors.primaryLight,
-    borderBottomLeftRadius: BorderRadius.xl,
-    borderBottomRightRadius: BorderRadius.xl,
+    paddingHorizontal: Spacing['2xl'],
+    paddingTop: Spacing['2xl'],
+    paddingBottom: Spacing['4xl'],
+    backgroundColor: Colors.white,
+    alignItems: 'center',
+    position: 'relative',
   },
   backButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.white,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.sm + 2,
-    alignSelf: 'flex-start',
-    ...Shadows.sm,
-  },
-  backButtonText: {
-    fontSize: Typography.fontSize.base,
-    color: Colors.primary,
-    fontWeight: Typography.fontWeight.semiBold,
-    marginLeft: Spacing.xs,
-  },
-  progressContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: Spacing.xl,
-    marginBottom: Spacing.xl,
-  },
-  progressDot: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: Colors.white,
-    borderWidth: 2,
-    borderColor: Colors.divider,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  progressDotActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
-  },
-  progressNumber: {
-    fontSize: Typography.fontSize.md,
-    fontWeight: Typography.fontWeight.bold,
-    color: Colors.white,
-  },
-  progressNumberInactive: {
-    fontSize: Typography.fontSize.md,
-    fontWeight: Typography.fontWeight.medium,
-    color: Colors.textHint,
-  },
-  progressLine: {
-    width: 30,
-    height: 2,
-    backgroundColor: Colors.divider,
-    marginHorizontal: Spacing.sm,
-  },
-  titleSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  iconCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: `${Colors.primary}15`,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  titleTextContainer: {
-    marginLeft: Spacing.lg,
-  },
-  headerTitle: {
-    fontSize: Typography.fontSize['3xl'] - 2,
-    fontWeight: Typography.fontWeight.bold,
-    color: Colors.textPrimary,
-  },
-  headerSubtitle: {
-    fontSize: Typography.fontSize.sm,
-    color: Colors.textSecondary,
-    marginTop: 2,
-  },
-  formContainer: {
-    paddingHorizontal: Spacing['2xl'],
-    paddingTop: Spacing['3xl'],
-    paddingBottom: Spacing['4xl'],
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: Spacing.xl,
-    paddingBottom: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.divider,
-  },
-  sectionHeaderText: {
-    marginLeft: Spacing.md,
-  },
-  sectionTitle: {
-    fontSize: Typography.fontSize.lg,
-    fontWeight: Typography.fontWeight.semiBold,
-    color: Colors.textPrimary,
-  },
-  sectionSubtitle: {
-    fontSize: Typography.fontSize.sm,
-    color: Colors.textSecondary,
-  },
-  inputGroup: {
-    marginBottom: Spacing.lg,
-  },
-  label: {
-    fontSize: Typography.fontSize.base,
-    fontWeight: Typography.fontWeight.medium,
-    color: Colors.textPrimary,
-    marginBottom: Spacing.sm,
-  },
-  required: {
-    color: Colors.error,
-  },
-  inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: `${Colors.primaryLight}30`,
-    borderWidth: 1,
-    borderColor: '#E5E5E5',
-    borderRadius: BorderRadius.md,
-    paddingHorizontal: Spacing.lg,
-    height: 54,
-  },
-  inputIcon: {
-    marginRight: Spacing.md,
-  },
-  input: {
-    flex: 1,
-    fontSize: Typography.fontSize.base,
-    color: Colors.textPrimary,
-    paddingVertical: Spacing.md,
-  },
-  passwordInput: {
-    paddingRight: Spacing['5xl'],
-  },
-  eyeIcon: {
     position: 'absolute',
-    right: Spacing.lg,
-    padding: Spacing.sm,
+    left: Spacing['2xl'],
+    top: Spacing['2xl'],
+    zIndex: 1,
   },
-  registerButton: {
-    height: 54,
+  logoCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     backgroundColor: Colors.primary,
-    borderRadius: BorderRadius.pill,
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.xl,
     marginTop: Spacing['2xl'],
     ...Shadows.md,
   },
-  buttonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  registerButtonText: {
-    fontSize: Typography.fontSize.base + 1,
-    fontWeight: Typography.fontWeight.bold,
+  logoText: {
+    fontSize: 48,
+    fontWeight: '700',
     color: Colors.white,
   },
-  buttonDisabled: {
-    opacity: 0.6,
+  headerTitle: {
+    fontSize: Typography.fontSize['3xl'],
+    fontWeight: '700',
+    color: Colors.textPrimary,
+    marginBottom: Spacing.xs,
+  },
+  headerSubtitle: {
+    fontSize: Typography.fontSize.base,
+    color: Colors.textSecondary,
+  },
+  formContainer: {
+    paddingHorizontal: Spacing['2xl'],
+    paddingBottom: Spacing['4xl'],
   },
   loginLink: {
     alignItems: 'center',
@@ -472,7 +249,7 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
   loginTextBold: {
-    fontWeight: Typography.fontWeight.bold,
+    fontWeight: '700',
     color: Colors.primary,
   },
 });
