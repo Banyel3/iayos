@@ -444,7 +444,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   walletLabel: {
-    fontSize: Typography.fontSize.md,
+    fontSize: Typography.fontSize.base,
     color: Colors.textSecondary,
     marginBottom: 2,
   },

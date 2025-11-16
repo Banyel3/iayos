@@ -161,6 +161,7 @@ export const Typography = {
 };
 
 // Font Family (Inter if available, fallback to system)
+// @ts-ignore - Adding fontFamily property dynamically
 // Note: To use Inter, install: npx expo install expo-font @expo-google-fonts/inter
 Typography.fontFamily = {
   regular: "Inter_400Regular", // Or "System" if Inter not loaded
@@ -175,6 +176,7 @@ Typography.fontFamily = {
   }),
 };
 
+// @ts-ignore - Adding presets property dynamically
 // Typography Presets (NEW - for common patterns matching Next.js)
 Typography.presets = {
   // Headings
@@ -258,24 +260,25 @@ export const Spacing = {
   "7xl": 56, // NEW
   "8xl": 64, // NEW
 };
+// @ts-ignore - Adding container property dynamically
 
 // Component-Specific Spacing (NEW)
-Spacing.container = {
+(Spacing as any).container = {
   horizontal: 16, // Default horizontal padding for screens
   vertical: 20, // Default vertical padding
 };
 
-Spacing.card = {
+(Spacing as any).card = {
   padding: 16, // Card internal padding
   gap: 12, // Gap between card elements
 };
 
-Spacing.form = {
+(Spacing as any).form = {
   fieldGap: 16, // Gap between form fields
   sectionGap: 24, // Gap between form sections
 };
 
-Spacing.list = {
+(Spacing as any).list = {
   itemGap: 8, // Gap between list items
   sectionGap: 16, // Gap between list sections
 };
@@ -298,7 +301,7 @@ export const BorderRadius = {
 };
 
 // Component-specific radius (NEW)
-BorderRadius.components = {
+(BorderRadius as any).components = {
   button: BorderRadius.md, // 8px for buttons
   input: BorderRadius.md, // 8px for inputs
   card: BorderRadius.lg, // 10px for cards

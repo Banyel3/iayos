@@ -14,6 +14,7 @@ import {
   StyleSheet,
   Animated,
   ViewStyle,
+  DimensionValue,
 } from 'react-native';
 import { Colors, Spacing, BorderRadius, Shadows } from '@/constants/theme';
 
@@ -21,7 +22,7 @@ interface SkeletonCardProps {
   // Styling
   style?: ViewStyle;
   height?: number;
-  width?: number | string;
+  width?: DimensionValue;
 
   // Variant
   variant?: 'job' | 'conversation' | 'profile' | 'default';
@@ -30,7 +31,7 @@ interface SkeletonCardProps {
 export default function SkeletonCard({
   style,
   height = 180,
-  width = '100%',
+  width = '100%' as DimensionValue,
   variant = 'default',
 }: SkeletonCardProps) {
 

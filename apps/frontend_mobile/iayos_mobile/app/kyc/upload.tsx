@@ -593,7 +593,6 @@ const styles = StyleSheet.create({
   },
   stepNumber: {
     fontSize: Typography.fontSize.sm,
-    fontFamily: Typography.fontFamily.semiBold,
     color: Colors.textHint,
   },
   stepNumberActive: {
@@ -601,11 +600,10 @@ const styles = StyleSheet.create({
   },
   stepLabel: {
     fontSize: Typography.fontSize.xs,
-    fontFamily: Typography.fontFamily.regular,
+    
     color: Colors.textHint,
   },
   stepLabelActive: {
-    fontFamily: Typography.fontFamily.semiBold,
     color: Colors.primary,
   },
   scrollView: {
@@ -618,27 +616,26 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.xl,
   },
   stepTitle: {
-    fontSize: Typography.fontSize.xxl,
-    fontFamily: Typography.fontFamily.bold,
+    fontSize: Typography.fontSize.xl,
+    
     color: Colors.textPrimary,
     marginBottom: Spacing.sm,
   },
   stepDescription: {
-    fontSize: Typography.fontSize.md,
-    fontFamily: Typography.fontFamily.regular,
+    fontSize: Typography.fontSize.base,
+    
     color: Colors.textSecondary,
     marginBottom: Spacing.lg,
   },
   sectionTitle: {
     fontSize: Typography.fontSize.lg,
-    fontFamily: Typography.fontFamily.semiBold,
     color: Colors.textPrimary,
     marginTop: Spacing.md,
     marginBottom: Spacing.sm,
   },
   sectionDescription: {
     fontSize: Typography.fontSize.sm,
-    fontFamily: Typography.fontFamily.regular,
+    
     color: Colors.textSecondary,
     marginBottom: Spacing.md,
   },
@@ -680,8 +677,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   idTitle: {
-    fontSize: Typography.fontSize.md,
-    fontFamily: Typography.fontFamily.semiBold,
+    fontSize: Typography.fontSize.base,
     color: Colors.textPrimary,
     marginBottom: Spacing.xs / 2,
   },
@@ -690,7 +686,7 @@ const styles = StyleSheet.create({
   },
   idDescription: {
     fontSize: Typography.fontSize.sm,
-    fontFamily: Typography.fontFamily.regular,
+    
     color: Colors.textSecondary,
   },
   chipContainer: {
@@ -708,8 +704,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   reviewLabel: {
-    fontSize: Typography.fontSize.md,
-    fontFamily: Typography.fontFamily.semiBold,
+    fontSize: Typography.fontSize.base,
     color: Colors.textPrimary,
     marginBottom: Spacing.sm,
   },
@@ -720,8 +715,8 @@ const styles = StyleSheet.create({
     marginVertical: Spacing.xs / 2,
   },
   reviewText: {
-    fontSize: Typography.fontSize.md,
-    fontFamily: Typography.fontFamily.regular,
+    fontSize: Typography.fontSize.base,
+    
     color: Colors.textPrimary,
   },
   warningCard: {
@@ -738,38 +733,37 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
   },
   warningTitle: {
-    fontSize: Typography.fontSize.md,
-    fontFamily: Typography.fontFamily.semiBold,
+    fontSize: Typography.fontSize.base,
     color: Colors.textPrimary,
   },
   warningText: {
     fontSize: Typography.fontSize.sm,
-    fontFamily: Typography.fontFamily.regular,
+    
     color: Colors.textPrimary,
     lineHeight: 20,
   },
   uploadingContainer: {
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: Spacing.xxl,
+    paddingVertical: Spacing.xl,
   },
   uploadingTitle: {
     fontSize: Typography.fontSize.xl,
-    fontFamily: Typography.fontFamily.bold,
+    
     color: Colors.textPrimary,
     marginTop: Spacing.lg,
     marginBottom: Spacing.sm,
   },
   uploadingDescription: {
-    fontSize: Typography.fontSize.md,
-    fontFamily: Typography.fontFamily.regular,
+    fontSize: Typography.fontSize.base,
+    
     color: Colors.textSecondary,
     textAlign: "center",
     marginBottom: Spacing.xl,
   },
   uploadingNote: {
     fontSize: Typography.fontSize.sm,
-    fontFamily: Typography.fontFamily.regular,
+    
     color: Colors.textHint,
     textAlign: "center",
     marginTop: Spacing.lg,
@@ -777,18 +771,18 @@ const styles = StyleSheet.create({
   completeContainer: {
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: Spacing.xxl,
+    paddingVertical: Spacing.xl,
   },
   completeTitle: {
-    fontSize: Typography.fontSize.xxl,
-    fontFamily: Typography.fontFamily.bold,
+    fontSize: Typography.fontSize.xl,
+    
     color: Colors.success,
     marginTop: Spacing.lg,
     marginBottom: Spacing.sm,
   },
   completeDescription: {
-    fontSize: Typography.fontSize.md,
-    fontFamily: Typography.fontFamily.regular,
+    fontSize: Typography.fontSize.base,
+    
     color: Colors.textPrimary,
     textAlign: "center",
     paddingHorizontal: Spacing.xl,

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -15,18 +15,40 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQueryClient } from '@tanstack/react-query';
 import * as Application from 'expo-application';
 import * as Linking from 'expo-linking';
+import ProfileMenuItem from '@/components/profile/ProfileMenuItem';
+import { useLogout } from '@/lib/hooks/useLogout';
+import { useUserProfile } from '@/lib/hooks/useUserProfile';
 
 const THEME_STORAGE_KEY = '@iayos_theme';
 const LANGUAGE_STORAGE_KEY = '@iayos_language';
 
 export default function SettingsScreen() {
   const queryClient = useQueryClient();
+  const { data: userProfile, isLoading } = useUserProfile();
+  const logout = useLogout();
+
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [language, setLanguage] = useState<'en' | 'tl'>('en');
 
   const appVersion = Application.nativeApplicationVersion || '1.0.0';
   const buildNumber = Application.nativeBuildVersion || '1';
+
+  useEffect(() => {
+    loadSettings();
+  }, []);
+
+  const loadSettings = async () => {
+    try {
+      const theme = await AsyncStorage.getItem(THEME_STORAGE_KEY);
+      const lang = await AsyncStorage.getItem(LANGUAGE_STORAGE_KEY);
+
+      if (theme) setIsDarkMode(theme === 'dark');
+      if (lang) setLanguage(lang as 'en' | 'tl');
+    } catch (error) {
+      console.error('Failed to load settings:', error);
+    }
+  };
 
   const toggleTheme = async () => {
     const newTheme = !isDarkMode;
@@ -125,30 +147,49 @@ export default function SettingsScreen() {
     Linking.openURL(url);
   };
 
+  const handleLogout = () => {
+    Alert.alert('Logout', 'Are you sure you want to logout?', [
+      {
+        text: 'Logout',
+        style: 'destructive',
+        onPress: () => logout.mutate(),
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
+
   return (
     <ScrollView style={styles.container}>
+      {/* Profile Header */}
+      {userProfile && (
+        <View style={styles.profileHeader}>
+          <View style={styles.profileAvatar}>
+            <Ionicons name="person" size={40} color="#3B82F6" />
+          </View>
+          <View style={styles.profileInfo}>
+            <Text style={styles.profileName}>
+              {userProfile.firstName} {userProfile.lastName}
+            </Text>
+            <Text style={styles.profileEmail}>{userProfile.email}</Text>
+          </View>
+        </View>
+      )}
+
       {/* Account Section */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Account</Text>
 
-        <SettingsItem
+        <ProfileMenuItem
           icon="person-outline"
-          label="Edit Profile"
+          title="Edit Profile"
           onPress={() => navigateTo('/profile/edit')}
           showChevron
         />
 
-        <SettingsItem
-          icon="shield-checkmark-outline"
-          label="Privacy & Security"
-          onPress={() => navigateTo('/settings/privacy')}
-          showChevron
-        />
-
-        <SettingsItem
+        <ProfileMenuItem
           icon="lock-closed-outline"
-          label="Change Password"
-          onPress={() => navigateTo('/settings/password')}
+          title="Change Password"
+          onPress={() => navigateTo('/settings/change-password')}
           showChevron
         />
       </View>
@@ -157,9 +198,12 @@ export default function SettingsScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Preferences</Text>
 
-        <SettingsItem
+        <ProfileMenuItem
           icon="moon-outline"
-          label="Dark Mode"
+          title="Dark Mode"
+          subtitle="Toggle between light and dark theme"
+          onPress={() => {}}
+          showChevron={false}
           rightElement={
             <Switch
               value={isDarkMode}
@@ -170,9 +214,12 @@ export default function SettingsScreen() {
           }
         />
 
-        <SettingsItem
+        <ProfileMenuItem
           icon="notifications-outline"
-          label="Notifications"
+          title="Notifications"
+          subtitle="Manage notification preferences"
+          onPress={() => {}}
+          showChevron={false}
           rightElement={
             <Switch
               value={notificationsEnabled}
@@ -183,63 +230,104 @@ export default function SettingsScreen() {
           }
         />
 
-        <SettingsItem
+        <ProfileMenuItem
           icon="language-outline"
-          label="Language"
+          title="Language"
           subtitle={language === 'en' ? 'English' : 'Filipino (Tagalog)'}
           onPress={changeLanguage}
           showChevron
         />
       </View>
 
-      {/* Support Section */}
+      {/* Help & Support Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Support</Text>
+        <Text style={styles.sectionTitle}>Help & Support</Text>
 
-        <SettingsItem
+        <ProfileMenuItem
           icon="help-circle-outline"
-          label="Help Center"
+          title="Help Center / FAQ"
+          subtitle="Find answers to common questions"
           onPress={() => navigateTo('/help/faq')}
           showChevron
         />
 
-        <SettingsItem
+        <ProfileMenuItem
           icon="chatbubble-outline"
-          label="Contact Support"
+          title="Contact Support"
+          subtitle="Get help from our team"
           onPress={() => navigateTo('/help/contact')}
           showChevron
         />
 
-        <SettingsItem
+        <ProfileMenuItem
           icon="flag-outline"
-          label="Report a Problem"
-          onPress={() => navigateTo('/dispute/create')}
+          title="Report a Bug"
+          subtitle="Help us improve the app"
+          onPress={() => navigateTo('/help/contact')}
           showChevron
         />
       </View>
 
-      {/* Legal Section */}
+      {/* Privacy Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Legal</Text>
+        <Text style={styles.sectionTitle}>Privacy & Legal</Text>
 
-        <SettingsItem
-          icon="document-text-outline"
-          label="Terms of Service"
-          onPress={() => openURL('https://iayos.com/terms')}
-          showChevron
-        />
-
-        <SettingsItem
+        <ProfileMenuItem
           icon="shield-outline"
-          label="Privacy Policy"
+          title="Privacy Policy"
           onPress={() => openURL('https://iayos.com/privacy')}
           showChevron
         />
 
-        <SettingsItem
+        <ProfileMenuItem
+          icon="document-text-outline"
+          title="Terms of Service"
+          onPress={() => openURL('https://iayos.com/terms')}
+          showChevron
+        />
+
+        <ProfileMenuItem
+          icon="lock-closed-outline"
+          title="Data & Privacy"
+          subtitle="Manage your data and privacy settings"
+          onPress={() => navigateTo('/settings/privacy')}
+          showChevron
+        />
+      </View>
+
+      {/* About Section */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>About</Text>
+
+        <ProfileMenuItem
           icon="information-circle-outline"
-          label="Licenses"
-          onPress={() => navigateTo('/settings/licenses')}
+          title="App Version"
+          value={`${appVersion} (${buildNumber})`}
+          onPress={() => {}}
+          showChevron={false}
+        />
+
+        <ProfileMenuItem
+          icon="star-outline"
+          title="Rate Us"
+          subtitle="Love the app? Give us a rating!"
+          onPress={() => {
+            // Platform specific app store URL
+            const url = Platform.OS === 'ios'
+              ? 'https://apps.apple.com/app/iayos'
+              : 'https://play.google.com/store/apps/details?id=com.iayos';
+            openURL(url);
+          }}
+          showChevron
+        />
+
+        <ProfileMenuItem
+          icon="share-social-outline"
+          title="Share App"
+          subtitle="Invite friends to join iAyos"
+          onPress={() => {
+            Alert.alert('Share iAyos', 'Share feature coming soon!');
+          }}
           showChevron
         />
       </View>
@@ -248,46 +336,29 @@ export default function SettingsScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Data & Storage</Text>
 
-        <SettingsItem
+        <ProfileMenuItem
           icon="trash-outline"
-          label="Clear Cache"
+          title="Clear Cache"
           subtitle="Free up storage space"
           onPress={clearCache}
           showChevron
         />
       </View>
 
-      {/* Danger Zone */}
+      {/* Logout Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Danger Zone</Text>
-
-        <SettingsItem
+        <ProfileMenuItem
           icon="log-out-outline"
-          label="Logout"
-          onPress={() => {
-            Alert.alert(
-              'Logout',
-              'Are you sure you want to logout?',
-              [
-                {
-                  text: 'Logout',
-                  style: 'destructive',
-                  onPress: () => {
-                    // TODO: Implement logout
-                    router.replace('/auth/login' as any);
-                  },
-                },
-                { text: 'Cancel', style: 'cancel' },
-              ]
-            );
-          }}
+          title="Logout"
+          subtitle="Sign out of your account"
+          onPress={handleLogout}
           showChevron
           danger
         />
 
-        <SettingsItem
+        <ProfileMenuItem
           icon="trash-bin-outline"
-          label="Delete Account"
+          title="Delete Account"
           subtitle="Permanently delete your account"
           onPress={deleteAccount}
           showChevron
@@ -298,74 +369,46 @@ export default function SettingsScreen() {
       {/* App Info */}
       <View style={styles.footer}>
         <Text style={styles.footerText}>iAyos Mobile</Text>
-        <Text style={styles.footerText}>
-          Version {appVersion} ({buildNumber})
-        </Text>
         <Text style={styles.footerText}>© 2025 iAyos. All rights reserved.</Text>
       </View>
     </ScrollView>
   );
 }
 
-interface SettingsItemProps {
-  icon: keyof typeof Ionicons.glyphMap;
-  label: string;
-  subtitle?: string;
-  onPress?: () => void;
-  rightElement?: React.ReactNode;
-  showChevron?: boolean;
-  danger?: boolean;
-}
-
-function SettingsItem({
-  icon,
-  label,
-  subtitle,
-  onPress,
-  rightElement,
-  showChevron,
-  danger,
-}: SettingsItemProps) {
-  const content = (
-    <View style={styles.settingsItem}>
-      <View style={styles.settingsItemLeft}>
-        <Ionicons
-          name={icon}
-          size={24}
-          color={danger ? '#EF4444' : '#6B7280'}
-          style={styles.settingsItemIcon}
-        />
-        <View style={styles.settingsItemText}>
-          <Text style={[styles.settingsItemLabel, danger && styles.dangerText]}>
-            {label}
-          </Text>
-          {subtitle && <Text style={styles.settingsItemSubtitle}>{subtitle}</Text>}
-        </View>
-      </View>
-      <View style={styles.settingsItemRight}>
-        {rightElement}
-        {showChevron && (
-          <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
-        )}
-      </View>
-    </View>
-  );
-
-  if (onPress) {
-    return (
-      <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
-        {content}
-      </TouchableOpacity>
-    );
-  }
-
-  return content;
-}
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F9FAFB',
+  },
+  profileHeader: {
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 24,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  profileAvatar: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  profileInfo: {
+    flex: 1,
+  },
+  profileName: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  profileEmail: {
+    fontSize: 14,
+    color: '#6B7280',
   },
   section: {
     marginBottom: 24,
@@ -380,44 +423,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 8,
-  },
-  settingsItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  settingsItemLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  settingsItemIcon: {
-    marginRight: 12,
-  },
-  settingsItemText: {
-    flex: 1,
-  },
-  settingsItemLabel: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#111827',
-    marginBottom: 2,
-  },
-  settingsItemSubtitle: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
-  settingsItemRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  dangerText: {
-    color: '#EF4444',
   },
   footer: {
     alignItems: 'center',

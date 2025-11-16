@@ -355,7 +355,7 @@ const styles = StyleSheet.create({
     padding: Spacing.xl,
     width: "100%",
     maxWidth: 400,
-    ...Shadows.large,
+    ...Shadows.lg,
   },
   modalHeader: {
     alignItems: "center",

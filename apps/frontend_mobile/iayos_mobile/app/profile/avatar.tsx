@@ -263,7 +263,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: Spacing.md,
-    fontSize: Typography.fontSize.md,
+    fontSize: Typography.fontSize.base,
     color: Colors.textSecondary,
   },
   header: {
@@ -325,7 +325,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
   cardTitle: {
-    fontSize: Typography.fontSize.md,
+    fontSize: Typography.fontSize.base,
     fontWeight: Typography.fontWeight.bold as any,
     color: Colors.textPrimary,
     marginLeft: Spacing.sm,
@@ -365,7 +365,7 @@ const styles = StyleSheet.create({
   },
   removeButtonText: {
     marginLeft: Spacing.sm,
-    fontSize: Typography.fontSize.md,
+    fontSize: Typography.fontSize.base,
     fontWeight: Typography.fontWeight.medium as any,
     color: Colors.error,
   },

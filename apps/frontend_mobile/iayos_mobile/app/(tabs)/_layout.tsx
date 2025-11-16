@@ -6,6 +6,19 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useAuth } from "@/context/AuthContext";
+// Debug imports at runtime to detect undefined exports
+try {
+  // eslint-disable-next-line no-console
+  console.log("[TabsLayout] Imports:", {
+    Tabs: typeof Tabs !== "undefined" ? "defined" : "undefined",
+    HapticTab: typeof HapticTab !== "undefined" ? "defined" : "undefined",
+    IconSymbol: typeof IconSymbol !== "undefined" ? "defined" : "undefined",
+    Colors: typeof Colors !== "undefined" ? "defined" : "undefined",
+    useColorScheme:
+      typeof useColorScheme !== "undefined" ? "defined" : "undefined",
+    useAuth: typeof useAuth !== "undefined" ? "defined" : "undefined",
+  });
+} catch (e) {}
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
@@ -26,6 +39,8 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
+        // Disable tab animations to avoid keyboard / input focus issues
+        // (some platforms/versions cause TextInput to lose focus when tabs animate)
         tabBarActiveTintColor: Colors[colorScheme ?? "light"].tint,
         headerShown: false,
         tabBarButton: HapticTab,

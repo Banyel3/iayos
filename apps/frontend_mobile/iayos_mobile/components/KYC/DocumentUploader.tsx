@@ -65,11 +65,19 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({
       }
 
       if (result) {
+        // Get the first item if result is an array
+        const imageResult = Array.isArray(result) ? result[0] : result;
+
+        if (!imageResult) {
+          Alert.alert("Error", "No image selected");
+          return;
+        }
+
         // Validate the document
         const validation = validateDocumentFile(
           {
-            uri: result.uri,
-            size: result.fileSize || 0,
+            uri: imageResult.uri,
+            size: imageResult.fileSize || 0,
             type: "image/jpeg",
           },
           documentType
@@ -85,16 +93,16 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({
           Alert.alert("Notice", validation.warnings.join("\n"));
         }
 
-        setLocalUri(result.uri);
+        setLocalUri(imageResult.uri);
 
         // Create capture result
         const captureResult: DocumentCaptureResult = {
           type: documentType,
-          uri: result.uri,
+          uri: imageResult.uri,
           fileName:
-            result.fileName ||
+            imageResult.fileName ||
             `${documentType}_${side || "DOC"}_${Date.now()}.jpg`,
-          fileSize: result.fileSize || 0,
+          fileSize: imageResult.fileSize || 0,
           side,
         };
 
@@ -283,7 +291,7 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.xs,
     color: Colors.textHint,
     marginTop: Spacing.xs / 2,
-    fontFamily: Typography.fontFamily.regular,
+    
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
@@ -295,14 +303,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   title: {
-    fontSize: Typography.fontSize.md,
-    fontFamily: Typography.fontFamily.semiBold,
+    fontSize: Typography.fontSize.base,
     color: Colors.textPrimary,
     marginBottom: Spacing.xs / 2,
   },
   description: {
     fontSize: Typography.fontSize.sm,
-    fontFamily: Typography.fontFamily.regular,
+    
     color: Colors.textSecondary,
     marginBottom: Spacing.sm,
   },
@@ -316,7 +323,7 @@ const styles = StyleSheet.create({
   },
   requiredText: {
     fontSize: Typography.fontSize.xs,
-    fontFamily: Typography.fontFamily.medium,
+    
     color: Colors.primary,
   },
   actions: {

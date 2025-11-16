@@ -259,7 +259,7 @@ export default function BrowseJobsScreen() {
 
   // Loading state
   if (jobsLoading && !jobs.length) {
-    return <LoadingScreen message="Loading jobs..." />;
+    return <LoadingScreen text="Loading jobs..." />;
   }
 
   // Error state

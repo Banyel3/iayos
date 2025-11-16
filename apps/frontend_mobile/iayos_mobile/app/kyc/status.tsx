@@ -303,8 +303,8 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: Spacing.md,
-    fontSize: Typography.fontSize.md,
-    fontFamily: Typography.fontFamily.regular,
+    fontSize: Typography.fontSize.base,
+    
     color: Colors.textSecondary,
   },
   errorContainer: {
@@ -316,14 +316,14 @@ const styles = StyleSheet.create({
   },
   errorTitle: {
     fontSize: Typography.fontSize.xl,
-    fontFamily: Typography.fontFamily.bold,
+    
     color: Colors.textPrimary,
     marginTop: Spacing.md,
     marginBottom: Spacing.sm,
   },
   errorMessage: {
-    fontSize: Typography.fontSize.md,
-    fontFamily: Typography.fontFamily.regular,
+    fontSize: Typography.fontSize.base,
+    
     color: Colors.textSecondary,
     textAlign: "center",
     marginBottom: Spacing.xl,
@@ -352,14 +352,14 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
   statusTitle: {
-    fontSize: Typography.fontSize.xxl,
-    fontFamily: Typography.fontFamily.bold,
+    fontSize: Typography.fontSize.xl,
+    
     color: Colors.textPrimary,
     marginVertical: Spacing.sm,
   },
   statusDescription: {
-    fontSize: Typography.fontSize.md,
-    fontFamily: Typography.fontFamily.regular,
+    fontSize: Typography.fontSize.base,
+    
     color: Colors.textSecondary,
     textAlign: "center",
     marginBottom: Spacing.md,
@@ -373,7 +373,7 @@ const styles = StyleSheet.create({
   },
   dateText: {
     fontSize: Typography.fontSize.sm,
-    fontFamily: Typography.fontFamily.regular,
+    
     color: Colors.textSecondary,
   },
   rejectionContainer: {
@@ -386,13 +386,12 @@ const styles = StyleSheet.create({
   },
   rejectionLabel: {
     fontSize: Typography.fontSize.sm,
-    fontFamily: Typography.fontFamily.semiBold,
     color: Colors.error,
     marginBottom: Spacing.xs,
   },
   rejectionReason: {
-    fontSize: Typography.fontSize.md,
-    fontFamily: Typography.fontFamily.regular,
+    fontSize: Typography.fontSize.base,
+    
     color: Colors.textPrimary,
   },
   benefitsCard: {
@@ -403,7 +402,7 @@ const styles = StyleSheet.create({
   },
   benefitsTitle: {
     fontSize: Typography.fontSize.lg,
-    fontFamily: Typography.fontFamily.bold,
+    
     color: Colors.textPrimary,
     marginBottom: Spacing.md,
   },
@@ -416,8 +415,8 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   benefitText: {
-    fontSize: Typography.fontSize.md,
-    fontFamily: Typography.fontFamily.regular,
+    fontSize: Typography.fontSize.base,
+    
     color: Colors.textPrimary,
     flex: 1,
   },
@@ -426,7 +425,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: Typography.fontSize.lg,
-    fontFamily: Typography.fontFamily.bold,
+    
     color: Colors.textPrimary,
     marginBottom: Spacing.md,
   },
@@ -451,7 +450,7 @@ const styles = StyleSheet.create({
   pendingText: {
     flex: 1,
     fontSize: Typography.fontSize.sm,
-    fontFamily: Typography.fontFamily.regular,
+    
     color: Colors.textPrimary,
   },
   verifiedInfo: {
@@ -465,7 +464,7 @@ const styles = StyleSheet.create({
   verifiedText: {
     flex: 1,
     fontSize: Typography.fontSize.sm,
-    fontFamily: Typography.fontFamily.regular,
+    
     color: Colors.textPrimary,
   },
 });

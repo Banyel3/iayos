@@ -7,7 +7,7 @@ import {
   ImageProps,
   ImageStyle,
 } from 'react-native';
-import { Image as ExpoImage } from 'expo-image';
+import { Image as ExpoImage, ImageContentFit } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 
 interface OptimizedImageProps {
@@ -17,7 +17,7 @@ interface OptimizedImageProps {
   blurhash?: string;
   lazy?: boolean;
   fallbackIcon?: keyof typeof Ionicons.glyphMap;
-  resizeMode?: 'cover' | 'contain' | 'stretch' | 'center';
+  resizeMode?: ImageContentFit;
   onLoad?: () => void;
   onError?: () => void;
 }

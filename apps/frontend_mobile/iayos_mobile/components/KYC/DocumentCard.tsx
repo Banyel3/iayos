@@ -185,14 +185,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   title: {
-    fontSize: Typography.fontSize.md,
-    fontFamily: Typography.fontFamily.semiBold,
+    fontSize: Typography.fontSize.base,
     color: Colors.textPrimary,
     marginBottom: Spacing.xs / 2,
   },
   description: {
     fontSize: Typography.fontSize.sm,
-    fontFamily: Typography.fontFamily.regular,
+    
     color: Colors.textSecondary,
     marginBottom: Spacing.xs,
   },
@@ -206,17 +205,17 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: Typography.fontSize.xs,
-    fontFamily: Typography.fontFamily.medium,
+    
   },
   uploadDate: {
     fontSize: Typography.fontSize.xs,
-    fontFamily: Typography.fontFamily.regular,
+    
     color: Colors.textHint,
     marginTop: Spacing.xs / 2,
   },
   fileSize: {
     fontSize: Typography.fontSize.xs,
-    fontFamily: Typography.fontFamily.regular,
+    
     color: Colors.textHint,
   },
   actionsContainer: {

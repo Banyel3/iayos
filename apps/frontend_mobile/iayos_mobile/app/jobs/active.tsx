@@ -399,7 +399,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
   },
   userName: {
-    fontSize: Typography.fontSize.md,
+    fontSize: Typography.fontSize.base,
     fontWeight: "600",
     color: Colors.textPrimary,
   },
@@ -446,7 +446,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: Spacing.md,
-    fontSize: Typography.fontSize.md,
+    fontSize: Typography.fontSize.base,
     color: Colors.textSecondary,
   },
   errorContainer: {
@@ -456,7 +456,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     marginTop: Spacing.md,
-    fontSize: Typography.fontSize.md,
+    fontSize: Typography.fontSize.base,
     color: Colors.error,
   },
   retryButton: {
@@ -467,7 +467,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
   },
   retryButtonText: {
-    fontSize: Typography.fontSize.md,
+    fontSize: Typography.fontSize.base,
     fontWeight: "600",
     color: Colors.white,
   },
@@ -479,7 +479,7 @@ const styles = StyleSheet.create({
   emptyStateText: {
     marginTop: Spacing.md,
     marginBottom: Spacing.lg,
-    fontSize: Typography.fontSize.md,
+    fontSize: Typography.fontSize.base,
     color: Colors.textSecondary,
     textAlign: "center",
     paddingHorizontal: Spacing.xl,
@@ -491,7 +491,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
   },
   browseButtonText: {
-    fontSize: Typography.fontSize.md,
+    fontSize: Typography.fontSize.base,
     fontWeight: "700",
     color: Colors.white,
   },

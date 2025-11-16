@@ -62,6 +62,21 @@ export default function Input({
   const [isFocused, setIsFocused] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
+  // Debug: log mount/unmount to detect unexpected remounts
+  React.useEffect(() => {
+    try {
+      // label may be undefined for some inputs
+      // eslint-disable-next-line no-console
+      console.log('[Input] mounted', { label });
+    } catch (e) {}
+    return () => {
+      try {
+        // eslint-disable-next-line no-console
+        console.log('[Input] unmounted', { label });
+      } catch (e) {}
+    };
+  }, [label]);
+
   const hasError = touched && error;
 
   return (
@@ -89,8 +104,16 @@ export default function Input({
         <RNTextInput
           style={[styles.input, inputStyle]}
           placeholderTextColor={Colors.textHint}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
+          onFocus={() => {
+            // eslint-disable-next-line no-console
+            console.log('[Input] onFocus', { label });
+            setIsFocused(true);
+          }}
+          onBlur={() => {
+            // eslint-disable-next-line no-console
+            console.log('[Input] onBlur', { label });
+            setIsFocused(false);
+          }}
           secureTextEntry={isPassword && !showPassword}
           {...textInputProps}
         />

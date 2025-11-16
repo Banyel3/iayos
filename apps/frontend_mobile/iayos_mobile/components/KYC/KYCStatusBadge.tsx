@@ -101,7 +101,7 @@ const styles = StyleSheet.create({
     marginRight: Spacing.xs,
   },
   text: {
-    fontFamily: Typography.fontFamily.medium,
+    
   },
   textSmall: {
     fontSize: Typography.fontSize.xs,
@@ -110,12 +110,12 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.sm,
   },
   textLarge: {
-    fontSize: Typography.fontSize.md,
+    fontSize: Typography.fontSize.base,
   },
   description: {
     marginTop: Spacing.xs,
     fontSize: Typography.fontSize.sm,
     color: Colors.textSecondary,
-    fontFamily: Typography.fontFamily.regular,
+    
   },
 });

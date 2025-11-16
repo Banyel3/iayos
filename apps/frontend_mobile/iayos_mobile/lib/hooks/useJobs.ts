@@ -8,8 +8,13 @@
  * - Optimistic updates
  */
 
-import { useQuery, useInfiniteQuery, UseQueryOptions } from '@tanstack/react-query';
-import { ENDPOINTS, apiRequest } from '@/lib/api/config';
+import {
+  useQuery,
+  useInfiniteQuery,
+  UseQueryOptions,
+} from "@tanstack/react-query";
+import type { InfiniteData } from "@tanstack/query-core";
+import { ENDPOINTS, apiRequest } from "@/lib/api/config";
 
 export interface Job {
   id: number;
@@ -22,8 +27,8 @@ export interface Job {
   latitude?: number;
   longitude?: number;
   distance?: number;
-  status: 'ACTIVE' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
-  urgency: 'LOW' | 'MEDIUM' | 'HIGH';
+  status: "ACTIVE" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
+  urgency: "LOW" | "MEDIUM" | "HIGH";
   postedAt: string;
   postedBy: {
     id: number;
@@ -57,7 +62,7 @@ export interface JobFilters {
   minBudget?: number;
   maxBudget?: number;
   location?: string;
-  urgency?: 'LOW' | 'MEDIUM' | 'HIGH';
+  urgency?: "LOW" | "MEDIUM" | "HIGH";
   page?: number;
   limit?: number;
 }
@@ -65,20 +70,23 @@ export interface JobFilters {
 /**
  * Hook to fetch available jobs with optional filters
  */
-export function useJobs(filters: JobFilters = {}, options?: UseQueryOptions<JobsResponse>) {
-  return useQuery<JobsResponse>({
-    queryKey: ['jobs', 'available', filters],
-    queryFn: async () => {
+export function useJobs(
+  filters: JobFilters = {},
+  options?: UseQueryOptions<JobsResponse, Error, JobsResponse>
+) {
+  return useQuery<JobsResponse, Error, JobsResponse>({
+    queryKey: ["jobs", "available", filters],
+    queryFn: async (): Promise<JobsResponse> => {
       const url = ENDPOINTS.JOB_LIST_FILTERED(filters);
       const response = await apiRequest(url, {
-        method: 'GET',
+        method: "GET",
       });
 
       if (!response.ok) {
-        throw new Error('Failed to fetch jobs');
+        throw new Error("Failed to fetch jobs");
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as JobsResponse;
       return data;
     },
     staleTime: 1000 * 60 * 5, // 5 minutes
@@ -89,20 +97,23 @@ export function useJobs(filters: JobFilters = {}, options?: UseQueryOptions<Jobs
 /**
  * Hook to fetch jobs with infinite scroll pagination
  */
-export function useInfiniteJobs(filters: Omit<JobFilters, 'page'> = {}) {
-  return useInfiniteQuery<JobsResponse>({
-    queryKey: ['jobs', 'available', 'infinite', filters],
-    queryFn: async ({ pageParam = 1 }) => {
-      const url = ENDPOINTS.JOB_LIST_FILTERED({ ...filters, page: pageParam as number });
+export function useInfiniteJobs(filters: Omit<JobFilters, "page"> = {}) {
+  return useInfiniteQuery<JobsResponse, Error, InfiniteData<JobsResponse>>({
+    queryKey: ["jobs", "available", "infinite", filters],
+    queryFn: async ({ pageParam = 1 }): Promise<JobsResponse> => {
+      const url = ENDPOINTS.JOB_LIST_FILTERED({
+        ...filters,
+        page: pageParam as number,
+      });
       const response = await apiRequest(url, {
-        method: 'GET',
+        method: "GET",
       });
 
       if (!response.ok) {
-        throw new Error('Failed to fetch jobs');
+        throw new Error("Failed to fetch jobs");
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as JobsResponse;
       return data;
     },
     initialPageParam: 1,
@@ -119,16 +130,22 @@ export function useInfiniteJobs(filters: Omit<JobFilters, 'page'> = {}) {
 /**
  * Hook to fetch a single job's details
  */
-export function useJobDetail(jobId: number | string, options?: UseQueryOptions<Job>) {
+export function useJobDetail(
+  jobId: number | string,
+  options?: UseQueryOptions<Job>
+) {
   return useQuery<Job>({
-    queryKey: ['jobs', jobId],
+    queryKey: ["jobs", jobId],
     queryFn: async () => {
-      const response = await apiRequest(ENDPOINTS.JOB_DETAILS(parseInt(jobId.toString())), {
-        method: 'GET',
-      });
+      const response = await apiRequest(
+        ENDPOINTS.JOB_DETAILS(parseInt(jobId.toString())),
+        {
+          method: "GET",
+        }
+      );
 
       if (!response.ok) {
-        throw new Error('Failed to fetch job details');
+        throw new Error("Failed to fetch job details");
       }
 
       const data = await response.json();
@@ -145,10 +162,10 @@ export function useJobDetail(jobId: number | string, options?: UseQueryOptions<J
  */
 export function useHasApplied(jobId: number | string) {
   return useQuery<boolean>({
-    queryKey: ['jobs', jobId, 'applied'],
+    queryKey: ["jobs", jobId, "applied"],
     queryFn: async () => {
       const response = await apiRequest(ENDPOINTS.MY_APPLICATIONS, {
-        method: 'GET',
+        method: "GET",
       });
 
       if (!response.ok) return false;

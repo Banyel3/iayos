@@ -149,13 +149,13 @@ export default function NotificationSettingsScreen() {
   };
 
   // Format time for display
-  const formatTime = (time: string | null) => {
+  const formatTime = (time: string | null | undefined) => {
     if (!time) return 'Not set';
     return time;
   };
 
   // Parse time string to Date
-  const parseTime = (time: string | null): Date => {
+  const parseTime = (time: string | null | undefined): Date => {
     if (!time) return new Date();
     const [hours, minutes] = time.split(':').map(Number);
     const date = new Date();

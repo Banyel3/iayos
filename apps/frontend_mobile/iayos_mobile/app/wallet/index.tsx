@@ -107,7 +107,7 @@ export default function WalletScreen() {
   };
 
   // Format last updated
-  const formatLastUpdated = (dateString: string): string => {
+  const formatLastUpdated = (dateString: string | undefined): string => {
     if (!dateString) return "Never";
 
     const date = new Date(dateString);
@@ -305,11 +305,7 @@ export default function WalletScreen() {
             {allTransactions.map((transaction, index) => (
               <TransactionCard
                 key={`${transaction.id}-${index}`}
-                type={transaction.type}
-                title={transaction.title}
-                description={transaction.description}
-                amount={transaction.amount}
-                date={transaction.created_at}
+                transaction={transaction}
                 onPress={() => {
                   // Navigate to transaction details
                   // router.push(`/wallet/transaction/${transaction.id}` as any);

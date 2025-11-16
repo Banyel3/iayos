@@ -637,7 +637,7 @@ const styles = StyleSheet.create({
     gap: Spacing.xs,
   },
   jobCategory: {
-    fontSize: Typography.fontSize.md,
+    fontSize: Typography.fontSize.base,
     color: Colors.textSecondary,
   },
   detailsSection: {
@@ -664,7 +664,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   detailValue: {
-    fontSize: Typography.fontSize.md,
+    fontSize: Typography.fontSize.base,
     fontWeight: "600",
     color: Colors.textPrimary,
   },
@@ -678,7 +678,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
   description: {
-    fontSize: Typography.fontSize.md,
+    fontSize: Typography.fontSize.base,
     color: Colors.textSecondary,
     lineHeight: 22,
   },
@@ -713,7 +713,7 @@ const styles = StyleSheet.create({
   },
   listItemText: {
     flex: 1,
-    fontSize: Typography.fontSize.md,
+    fontSize: Typography.fontSize.base,
     color: Colors.textPrimary,
   },
   posterCard: {
@@ -784,7 +784,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
   },
   appliedText: {
-    fontSize: Typography.fontSize.md,
+    fontSize: Typography.fontSize.base,
     fontWeight: "600",
     color: Colors.success,
   },
@@ -827,7 +827,7 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
   },
   label: {
-    fontSize: Typography.fontSize.md,
+    fontSize: Typography.fontSize.base,
     fontWeight: "600",
     color: Colors.textPrimary,
     marginBottom: Spacing.sm,
@@ -851,7 +851,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary + "10",
   },
   budgetOptionText: {
-    fontSize: Typography.fontSize.md,
+    fontSize: Typography.fontSize.base,
     color: Colors.textPrimary,
   },
   inputGroup: {
@@ -863,7 +863,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
     padding: Spacing.md,
-    fontSize: Typography.fontSize.md,
+    fontSize: Typography.fontSize.base,
     color: Colors.textPrimary,
   },
   textArea: {
@@ -894,7 +894,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: Spacing.md,
-    fontSize: Typography.fontSize.md,
+    fontSize: Typography.fontSize.base,
     color: Colors.textSecondary,
   },
   errorContainer: {
@@ -905,7 +905,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     marginTop: Spacing.md,
-    fontSize: Typography.fontSize.md,
+    fontSize: Typography.fontSize.base,
     color: Colors.error,
     marginBottom: Spacing.lg,
   },
@@ -916,7 +916,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
   },
   backButtonText: {
-    fontSize: Typography.fontSize.md,
+    fontSize: Typography.fontSize.base,
     fontWeight: "600",
     color: Colors.white,
   },

@@ -23,21 +23,28 @@ export default function EarningsStatsCard({
     });
   };
 
-  const stats = [
+  type IconName = "wallet-outline" | "briefcase-outline" | "trending-up-outline" | "calendar-outline";
+
+  const stats: Array<{
+    icon: IconName;
+    label: string;
+    value: string;
+    color: string;
+  }> = [
     {
-      icon: "wallet-outline" as const,
+      icon: "wallet-outline",
       label: "Total Earnings",
       value: `₱${formatAmount(totalEarnings)}`,
       color: Colors.primary,
     },
     {
-      icon: "briefcase-outline" as const,
+      icon: "briefcase-outline",
       label: "Completed Jobs",
       value: completedJobs.toString(),
       color: Colors.success,
     },
     {
-      icon: "trending-up-outline" as const,
+      icon: "trending-up-outline",
       label: "Avg per Job",
       value: `₱${formatAmount(averageEarnings)}`,
       color: Colors.info,
@@ -46,7 +53,7 @@ export default function EarningsStatsCard({
 
   if (thisMonthEarnings !== undefined) {
     stats.push({
-      icon: "calendar-outline" as const,
+      icon: "calendar-outline",
       label: "This Month",
       value: `₱${formatAmount(thisMonthEarnings)}`,
       color: Colors.warning,

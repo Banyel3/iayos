@@ -189,8 +189,8 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: Spacing.md,
-    fontSize: Typography.fontSize.md,
-    fontFamily: Typography.fontFamily.regular,
+    fontSize: Typography.fontSize.base,
+    
     color: Colors.white,
   },
   errorContainer: {
@@ -200,14 +200,14 @@ const styles = StyleSheet.create({
   },
   errorTitle: {
     fontSize: Typography.fontSize.xl,
-    fontFamily: Typography.fontFamily.bold,
+    
     color: Colors.error,
     marginTop: Spacing.md,
     marginBottom: Spacing.sm,
   },
   errorMessage: {
-    fontSize: Typography.fontSize.md,
-    fontFamily: Typography.fontFamily.regular,
+    fontSize: Typography.fontSize.base,
+    
     color: Colors.textSecondary,
     textAlign: "center",
     marginBottom: Spacing.xl,
@@ -234,7 +234,6 @@ const styles = StyleSheet.create({
   },
   zoomText: {
     fontSize: Typography.fontSize.lg,
-    fontFamily: Typography.fontFamily.semiBold,
     color: Colors.primary,
     minWidth: 60,
     textAlign: "center",
@@ -251,13 +250,12 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xs / 2,
   },
   infoLabel: {
-    fontSize: Typography.fontSize.md,
-    fontFamily: Typography.fontFamily.semiBold,
+    fontSize: Typography.fontSize.base,
     color: Colors.textPrimary,
   },
   infoDescription: {
     fontSize: Typography.fontSize.sm,
-    fontFamily: Typography.fontFamily.regular,
+    
     color: Colors.textSecondary,
   },
 });

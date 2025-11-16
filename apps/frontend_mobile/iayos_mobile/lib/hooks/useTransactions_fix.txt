@@ -1,0 +1,24 @@
+/**
+ * Fetch single transaction details
+ */
+export function useTransaction(transactionId: number) {
+  return useInfiniteQuery({
+    queryKey: ["transaction", transactionId],
+    queryFn: async () => {
+      // TODO: Replace with actual transaction detail endpoint
+      const response = await apiRequest(
+        `${ENDPOINTS.WALLET_TRANSACTIONS}/${transactionId}`
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch transaction details");
+      }
+
+      return response.json();
+    },
+    enabled: !!transactionId,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    initialPageParam: 1,
+    getNextPageParam: () => undefined,
+  });
+}

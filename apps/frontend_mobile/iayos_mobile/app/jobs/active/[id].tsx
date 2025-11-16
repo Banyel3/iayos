@@ -730,7 +730,7 @@ const styles = StyleSheet.create({
   },
   statusBannerText: {
     flex: 1,
-    fontSize: Typography.fontSize.md,
+    fontSize: Typography.fontSize.base,
     fontWeight: "600",
     color: "#92400E",
   },
@@ -738,18 +738,18 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
   },
   jobTitle: {
-    fontSize: Typography.fontSize.xxl,
+    fontSize: Typography.fontSize.xl,
     fontWeight: "700",
     color: Colors.textPrimary,
     marginBottom: Spacing.xs,
   },
   jobCategory: {
-    fontSize: Typography.fontSize.md,
+    fontSize: Typography.fontSize.base,
     color: Colors.textSecondary,
     marginBottom: Spacing.md,
   },
   jobDescription: {
-    fontSize: Typography.fontSize.md,
+    fontSize: Typography.fontSize.base,
     color: Colors.textPrimary,
     lineHeight: 22,
   },
@@ -773,7 +773,7 @@ const styles = StyleSheet.create({
     marginTop: Spacing.xs,
   },
   detailValue: {
-    fontSize: Typography.fontSize.md,
+    fontSize: Typography.fontSize.base,
     fontWeight: "600",
     color: Colors.textPrimary,
     marginTop: 4,
@@ -824,7 +824,7 @@ const styles = StyleSheet.create({
     ...Shadows.sm,
   },
   notesText: {
-    fontSize: Typography.fontSize.md,
+    fontSize: Typography.fontSize.base,
     color: Colors.textPrimary,
     lineHeight: 22,
   },
@@ -854,7 +854,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   timelineTitle: {
-    fontSize: Typography.fontSize.md,
+    fontSize: Typography.fontSize.base,
     fontWeight: "600",
     color: Colors.textPrimary,
     marginBottom: 4,
@@ -917,7 +917,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.lg,
   },
   label: {
-    fontSize: Typography.fontSize.md,
+    fontSize: Typography.fontSize.base,
     fontWeight: "600",
     color: Colors.textPrimary,
     marginBottom: Spacing.sm,
@@ -931,7 +931,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
     padding: Spacing.md,
-    fontSize: Typography.fontSize.md,
+    fontSize: Typography.fontSize.base,
     color: Colors.textPrimary,
   },
   textArea: {
@@ -951,7 +951,7 @@ const styles = StyleSheet.create({
     borderStyle: "dashed",
   },
   uploadButtonText: {
-    fontSize: Typography.fontSize.md,
+    fontSize: Typography.fontSize.base,
     fontWeight: "600",
     color: Colors.primary,
   },
@@ -1002,7 +1002,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: Spacing.md,
-    fontSize: Typography.fontSize.md,
+    fontSize: Typography.fontSize.base,
     color: Colors.textSecondary,
   },
   errorContainer: {
@@ -1013,7 +1013,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     marginTop: Spacing.md,
-    fontSize: Typography.fontSize.md,
+    fontSize: Typography.fontSize.base,
     color: Colors.error,
     marginBottom: Spacing.lg,
   },
@@ -1024,7 +1024,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
   },
   retryButtonText: {
-    fontSize: Typography.fontSize.md,
+    fontSize: Typography.fontSize.base,
     fontWeight: "600",
     color: Colors.white,
   },

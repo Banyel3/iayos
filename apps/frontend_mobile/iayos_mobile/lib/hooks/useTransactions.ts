@@ -9,14 +9,20 @@ import { ENDPOINTS, apiRequest } from "@/lib/api/config";
 
 export type TransactionType = "all" | "deposit" | "payment" | "withdrawal";
 
-interface Transaction {
+export interface Transaction {
   id: number;
   type: "DEPOSIT" | "PAYMENT" | "WITHDRAWAL" | "REFUND";
   title: string;
   description: string;
   amount: number;
   created_at: string;
-  status: "PENDING" | "COMPLETED" | "FAILED";
+  status: "pending" | "completed" | "failed" | "verifying" | "refunded";
+  payment_method: string;
+  job?: {
+    id: number;
+    title: string;
+  };
+  transaction_id?: string;
 }
 
 interface TransactionsResponse {
@@ -79,5 +85,6 @@ export function useTransaction(transactionId: number) {
     enabled: !!transactionId,
     staleTime: 1000 * 60 * 5, // 5 minutes
     initialPageParam: 1,
+    getNextPageParam: () => undefined,
   });
 }

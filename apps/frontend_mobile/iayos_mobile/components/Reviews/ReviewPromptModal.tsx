@@ -13,7 +13,7 @@
 import React from "react";
 import { View, StyleSheet, Modal } from "react-native";
 import { Card, Text, Button, Portal, IconButton } from "react-native-paper";
-import { StarRating } from "@/components/Reviews";
+import StarRating from "./StarRating";
 import { router } from "expo-router";
 
 interface ReviewPromptModalProps {

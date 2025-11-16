@@ -29,6 +29,7 @@ type BadgeVariant =
   | 'success'
   | 'warning'
   | 'error'
+  | 'danger'
   | 'info';
 
 type BadgeSize = 'sm' | 'md' | 'lg';
@@ -74,6 +75,7 @@ export default function Badge({
       case 'cancelled':
       case 'rejected':
       case 'error':
+      case 'danger':
         return {
           background: `${Colors.error}15`,
           text: Colors.error,

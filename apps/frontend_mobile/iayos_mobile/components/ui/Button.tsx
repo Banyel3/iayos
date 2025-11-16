@@ -22,7 +22,7 @@ import {
 import * as Haptics from 'expo-haptics';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '@/constants/theme';
 
-type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
+type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger' | 'success';
 type ButtonSize = 'sm' | 'md' | 'lg';
 
 interface ButtonProps {
@@ -125,6 +125,17 @@ export default function Button({
         return {
           container: {
             backgroundColor: Colors.error,
+            ...Shadows.sm,
+          },
+          text: {
+            color: Colors.white,
+          },
+        };
+
+      case 'success':
+        return {
+          container: {
+            backgroundColor: Colors.success,
             ...Shadows.sm,
           },
           text: {

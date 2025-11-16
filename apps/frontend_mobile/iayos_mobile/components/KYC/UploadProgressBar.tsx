@@ -62,12 +62,11 @@ const styles = StyleSheet.create({
   },
   documentLabel: {
     fontSize: Typography.fontSize.sm,
-    fontFamily: Typography.fontFamily.medium,
+    
     color: Colors.textPrimary,
   },
   percentage: {
     fontSize: Typography.fontSize.sm,
-    fontFamily: Typography.fontFamily.semiBold,
     color: Colors.primary,
   },
   progressBar: {
@@ -77,7 +76,7 @@ const styles = StyleSheet.create({
   },
   sizeInfo: {
     fontSize: Typography.fontSize.xs,
-    fontFamily: Typography.fontFamily.regular,
+    
     color: Colors.textSecondary,
     marginTop: Spacing.xs / 2,
   },
@@ -103,10 +102,10 @@ export const MultiUploadProgress: React.FC<MultiUploadProgressProps> = ({
     totalDocuments > 0 ? uploadedCount / totalDocuments : 0;
 
   return (
-    <View style={styles.multiContainer}>
-      <View style={styles.multiHeader}>
-        <Text style={styles.multiTitle}>Uploading Documents</Text>
-        <Text style={styles.multiCount}>
+    <View style={multiStyles.multiContainer}>
+      <View style={multiStyles.multiHeader}>
+        <Text style={multiStyles.multiTitle}>Uploading Documents</Text>
+        <Text style={multiStyles.multiCount}>
           {uploadedCount} / {totalDocuments}
         </Text>
       </View>
@@ -115,19 +114,19 @@ export const MultiUploadProgress: React.FC<MultiUploadProgressProps> = ({
       <ProgressBar
         progress={overallProgress}
         color={Colors.success}
-        style={styles.overallProgress}
+        style={multiStyles.overallProgress}
       />
 
       {/* Current Document Progress */}
       {currentDocument && currentProgress > 0 && (
-        <View style={styles.currentUpload}>
-          <Text style={styles.currentLabel}>Current: {currentDocument}</Text>
+        <View style={multiStyles.currentUpload}>
+          <Text style={multiStyles.currentLabel}>Current: {currentDocument}</Text>
           <ProgressBar
             progress={currentProgress / 100}
             color={Colors.primary}
-            style={styles.currentProgress}
+            style={multiStyles.currentProgress}
           />
-          <Text style={styles.currentPercentage}>{currentProgress}%</Text>
+          <Text style={multiStyles.currentPercentage}>{currentProgress}%</Text>
         </View>
       )}
     </View>
@@ -148,13 +147,12 @@ const multiStyles = StyleSheet.create({
     marginBottom: Spacing.sm,
   },
   multiTitle: {
-    fontSize: Typography.fontSize.md,
-    fontFamily: Typography.fontFamily.semiBold,
+    fontSize: Typography.fontSize.base,
     color: Colors.textPrimary,
   },
   multiCount: {
-    fontSize: Typography.fontSize.md,
-    fontFamily: Typography.fontFamily.bold,
+    fontSize: Typography.fontSize.base,
+    
     color: Colors.primary,
   },
   overallProgress: {
@@ -170,7 +168,7 @@ const multiStyles = StyleSheet.create({
   },
   currentLabel: {
     fontSize: Typography.fontSize.sm,
-    fontFamily: Typography.fontFamily.medium,
+    
     color: Colors.textSecondary,
     marginBottom: Spacing.xs,
   },
@@ -181,11 +179,9 @@ const multiStyles = StyleSheet.create({
   },
   currentPercentage: {
     fontSize: Typography.fontSize.xs,
-    fontFamily: Typography.fontFamily.medium,
+    
     color: Colors.textHint,
     marginTop: Spacing.xs / 2,
     textAlign: "right",
   },
 });
-
-Object.assign(styles, multiStyles);
