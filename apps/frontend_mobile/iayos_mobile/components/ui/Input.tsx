@@ -10,7 +10,7 @@
  * - Password toggle
  */
 
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   TextInput as RNTextInput,
@@ -20,9 +20,15 @@ import {
   TouchableOpacity,
   ViewStyle,
   TextStyle,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { Colors, Typography, Spacing, BorderRadius, Shadows } from '@/constants/theme';
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import {
+  Colors,
+  Typography,
+  Spacing,
+  BorderRadius,
+  Shadows,
+} from "@/constants/theme";
 
 interface InputProps extends RNTextInputProps {
   // Label
@@ -46,106 +52,130 @@ interface InputProps extends RNTextInputProps {
   labelStyle?: TextStyle;
 }
 
-export default function Input({
-  label,
-  required = false,
-  iconLeft,
-  iconRight,
-  error,
-  touched = false,
-  isPassword = false,
-  containerStyle,
-  inputStyle,
-  labelStyle,
-  ...textInputProps
-}: InputProps) {
-  const [isFocused, setIsFocused] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
+const Input = React.forwardRef<
+  React.ComponentRef<typeof RNTextInput>,
+  InputProps
+>(
+  (
+    {
+      label,
+      required = false,
+      iconLeft,
+      iconRight,
+      error,
+      touched = false,
+      isPassword = false,
+      containerStyle,
+      inputStyle,
+      labelStyle,
+      ...textInputProps
+    }: InputProps,
+    ref
+  ) => {
+    const [isFocused, setIsFocused] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
 
-  // Debug: log mount/unmount to detect unexpected remounts
-  React.useEffect(() => {
-    try {
-      // label may be undefined for some inputs
-      // eslint-disable-next-line no-console
-      console.log('[Input] mounted', { label });
-    } catch (e) {}
-    return () => {
+    // Debug: log mount/unmount to detect unexpected remounts
+    React.useEffect(() => {
       try {
+        // label may be undefined for some inputs
         // eslint-disable-next-line no-console
-        console.log('[Input] unmounted', { label });
+        console.log("[Input] mounted", { label });
       } catch (e) {}
-    };
-  }, [label]);
+      return () => {
+        try {
+          // eslint-disable-next-line no-console
+          console.log("[Input] unmounted", { label });
+        } catch (e) {}
+      };
+    }, [label]);
 
-  const hasError = touched && error;
+    const hasError = touched && error;
 
-  return (
-    <View style={[styles.container, containerStyle]}>
-      {/* Label */}
-      {label && (
-        <Text style={[styles.label, labelStyle]}>
-          {label}
-          {required && <Text style={styles.required}> *</Text>}
-        </Text>
-      )}
+    return (
+      <View style={[styles.container, containerStyle]}>
+        {/* Label */}
+        {label && (
+          <Text style={[styles.label, labelStyle]}>
+            {label}
+            {required && <Text style={styles.required}> *</Text>}
+          </Text>
+        )}
 
-      {/* Input Wrapper */}
-      <View
-        style={[
-          styles.inputWrapper,
-          isFocused && styles.inputFocused,
-          hasError && styles.inputError,
-        ]}
-      >
-        {/* Left Icon */}
-        {iconLeft && <View style={styles.iconLeft}>{iconLeft}</View>}
+        {/* Input Wrapper */}
+        <View
+          style={[
+            styles.inputWrapper,
+            isFocused && styles.inputFocused,
+            hasError && styles.inputError,
+          ]}
+        >
+          {/* Left Icon */}
+          {iconLeft && <View style={styles.iconLeft}>{iconLeft}</View>}
 
-        {/* Text Input */}
-        <RNTextInput
-          style={[styles.input, inputStyle]}
-          placeholderTextColor={Colors.textHint}
-          onFocus={() => {
-            // eslint-disable-next-line no-console
-            console.log('[Input] onFocus', { label });
-            setIsFocused(true);
-          }}
-          onBlur={() => {
-            // eslint-disable-next-line no-console
-            console.log('[Input] onBlur', { label });
-            setIsFocused(false);
-          }}
-          secureTextEntry={isPassword && !showPassword}
-          {...textInputProps}
-        />
+          {/* Text Input */}
+          <RNTextInput
+            ref={ref}
+            style={[styles.input, inputStyle]}
+            placeholderTextColor={Colors.textHint}
+            onFocus={() => {
+              // eslint-disable-next-line no-console
+              console.log("[Input] onFocus", { label });
+              setIsFocused(true);
+              if (textInputProps.onFocus) {
+                try {
+                  // forward event
+                  // @ts-ignore - allow forwarding the native event if provided
+                  textInputProps.onFocus();
+                } catch (e) {}
+              }
+            }}
+            onBlur={() => {
+              // eslint-disable-next-line no-console
+              console.log("[Input] onBlur", { label });
+              setIsFocused(false);
+              if (textInputProps.onBlur) {
+                try {
+                  // @ts-ignore
+                  textInputProps.onBlur();
+                } catch (e) {}
+              }
+            }}
+            secureTextEntry={isPassword && !showPassword}
+            {...textInputProps}
+          />
 
-        {/* Right Icon or Password Toggle */}
-        {isPassword ? (
-          <TouchableOpacity
-            onPress={() => setShowPassword(!showPassword)}
-            style={styles.iconRight}
-            activeOpacity={0.7}
-          >
-            <Ionicons
-              name={showPassword ? 'eye-outline' : 'eye-off-outline'}
-              size={20}
-              color={Colors.textSecondary}
-            />
-          </TouchableOpacity>
-        ) : (
-          iconRight && <View style={styles.iconRight}>{iconRight}</View>
+          {/* Right Icon or Password Toggle */}
+          {isPassword ? (
+            <TouchableOpacity
+              onPress={() => setShowPassword(!showPassword)}
+              style={styles.iconRight}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name={showPassword ? "eye-outline" : "eye-off-outline"}
+                size={20}
+                color={Colors.textSecondary}
+              />
+            </TouchableOpacity>
+          ) : (
+            iconRight && <View style={styles.iconRight}>{iconRight}</View>
+          )}
+        </View>
+
+        {/* Error Message */}
+        {hasError && (
+          <View style={styles.errorContainer}>
+            <Ionicons name="alert-circle" size={14} color={Colors.error} />
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
         )}
       </View>
+    );
+  }
+);
 
-      {/* Error Message */}
-      {hasError && (
-        <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle" size={14} color={Colors.error} />
-          <Text style={styles.errorText}>{error}</Text>
-        </View>
-      )}
-    </View>
-  );
-}
+export default Input;
 
 const styles = StyleSheet.create({
   container: {
@@ -161,8 +191,8 @@ const styles = StyleSheet.create({
     color: Colors.error,
   },
   inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     height: 48,
     backgroundColor: Colors.white,
     borderWidth: 1,
@@ -193,8 +223,8 @@ const styles = StyleSheet.create({
     padding: Spacing.xs,
   },
   errorContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginTop: Spacing.xs,
   },
   errorText: {

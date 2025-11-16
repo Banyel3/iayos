@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,8 @@ import {
   ScrollView,
   SafeAreaView,
   Alert,
+  Keyboard,
+  TextInput as RNTextInput,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "../../context/AuthContext";
@@ -29,6 +31,34 @@ export default function LoginScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuth();
   const router = useRouter();
+
+  // Refs for inputs so we can programmatically focus and check isFocused
+  const emailRef = useRef<React.ComponentRef<typeof RNTextInput> | null>(null);
+  const passwordRef = useRef<React.ComponentRef<typeof RNTextInput> | null>(
+    null
+  );
+  // Track the last focused field's ref object
+  const lastFocusedRef = useRef<any>(null);
+
+  // When keyboard hides, try to re-focus the last focused field if it still reports focused
+  useEffect(() => {
+    const subscription = Keyboard.addListener("keyboardDidHide", () => {
+      const fieldRef = lastFocusedRef.current?.current ?? null;
+      if (fieldRef && (fieldRef as any).isFocused?.()) {
+        setTimeout(() => {
+          try {
+            (fieldRef as any).focus?.();
+          } catch (e) {}
+        }, 50);
+      }
+    });
+
+    return () => {
+      try {
+        subscription.remove();
+      } catch (e) {}
+    };
+  }, []);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -72,14 +102,13 @@ export default function LoginScreen() {
               <Text style={styles.logoText}>i</Text>
             </View>
             <Text style={styles.headerTitle}>Welcome to iAyos</Text>
-            <Text style={styles.headerSubtitle}>
-              May sira? May iAyos.
-            </Text>
+            <Text style={styles.headerSubtitle}>May sira? May iAyos.</Text>
           </View>
 
           <View style={styles.formContainer}>
             {/* Email Input */}
             <Input
+              ref={emailRef}
               label="Email Address"
               placeholder="Enter your email"
               value={email}
@@ -87,18 +116,37 @@ export default function LoginScreen() {
               keyboardType="email-address"
               autoCapitalize="none"
               editable={!isLoading}
-              iconLeft={<Ionicons name="mail-outline" size={20} color={Colors.primary} />}
+              iconLeft={
+                <Ionicons
+                  name="mail-outline"
+                  size={20}
+                  color={Colors.primary}
+                />
+              }
+              onFocus={() => {
+                lastFocusedRef.current = emailRef;
+              }}
             />
 
             {/* Password Input */}
             <Input
+              ref={passwordRef}
               label="Password"
               placeholder="Enter your password"
               value={password}
               onChangeText={setPassword}
               isPassword
               editable={!isLoading}
-              iconLeft={<Ionicons name="lock-closed-outline" size={20} color={Colors.primary} />}
+              iconLeft={
+                <Ionicons
+                  name="lock-closed-outline"
+                  size={20}
+                  color={Colors.primary}
+                />
+              }
+              onFocus={() => {
+                lastFocusedRef.current = passwordRef;
+              }}
             />
 
             {/* Forgot Password */}

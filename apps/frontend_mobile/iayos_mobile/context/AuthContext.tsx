@@ -17,7 +17,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // Clear all cached data
   const clearAllCaches = async () => {
-    const cacheKeys = ["cached_user", "cached_worker_availability"];
+    const cacheKeys = [
+      "cached_user",
+      "cached_worker_availability",
+      "access_token",
+    ];
     await Promise.all(cacheKeys.map((key) => AsyncStorage.removeItem(key)));
   };
 
@@ -72,7 +76,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         throw new Error("Login failed");
       }
 
-      // Fetch user data after successful login
+      // Try to persist access token if returned by backend
+      try {
+        const loginJson = await response.json().catch(() => null);
+        const token =
+          loginJson?.access_token ||
+          loginJson?.token ||
+          loginJson?.data?.access_token ||
+          null;
+        if (token) {
+          await AsyncStorage.setItem("access_token", token);
+        }
+      } catch (e) {
+        // ignore token persistence errors
+      }
+
+      // Fetch user data after successful login (token may now be stored)
       const userDataResponse = await apiRequest(ENDPOINTS.ME);
 
       if (userDataResponse.ok) {

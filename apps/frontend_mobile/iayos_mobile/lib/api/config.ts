@@ -170,6 +170,8 @@ export const ENDPOINTS = {
     `${API_BASE_URL.replace("/api", "")}/api/accounts/reviews/${reviewId}/report`,
 };
 
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
 // HTTP Request helper with credentials
 // API request helper with built-in timeout using AbortController
 export const DEFAULT_REQUEST_TIMEOUT = 15000; // 15 seconds
@@ -201,12 +203,21 @@ export const apiRequest = async (
     }
   }
 
+  // Try to attach bearer token from AsyncStorage if present
+  const token = await AsyncStorage.getItem("access_token");
+
+  const defaultHeaders: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(rest.headers as Record<string, string> | undefined),
+  };
+
+  if (token) {
+    defaultHeaders["Authorization"] = `Bearer ${token}`;
+  }
+
   const defaultOptions: RequestInit = {
-    credentials: "include", // Important: Send cookies with requests
-    headers: {
-      "Content-Type": "application/json",
-      ...rest.headers,
-    },
+    credentials: "include", // Attempt to send cookies when available
+    headers: defaultHeaders,
     signal: controller.signal,
     ...rest,
   };

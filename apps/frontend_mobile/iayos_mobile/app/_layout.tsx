@@ -1,3 +1,4 @@
+import React from "react";
 import {
   DarkTheme,
   DefaultTheme,
@@ -22,6 +23,36 @@ export const unstable_settings = {
 export default function RootLayout() {
   const colorScheme = useColorScheme();
 
+  // DEV-only guard: detect when React.createElement is called with an undefined type.
+  // This helps pin down which route/screen is returning an undefined component
+  // that leads to the "Element type is invalid ... got: undefined" error.
+  if (__DEV__) {
+    try {
+      const origCreateElement = React.createElement;
+      // eslint-disable-next-line no-global-assign
+      React.createElement = function patchedCreateElement(
+        type: any,
+        props: any,
+        ...children: any[]
+      ) {
+        if (type === undefined) {
+          // eslint-disable-next-line no-console
+          console.error(
+            "[DEV] React.createElement called with undefined type",
+            {
+              props,
+              childrenCount: children.length,
+              stack: new Error().stack,
+            }
+          );
+        }
+        return origCreateElement(type, props, ...children);
+      } as typeof React.createElement;
+    } catch (e) {
+      // ignore in case environment prevents monkey-patching
+    }
+  }
+
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
@@ -30,14 +61,23 @@ export default function RootLayout() {
             value={colorScheme === "dark" ? DarkTheme : DefaultTheme}
           >
             <Stack>
-              <Stack.Screen name="auth/login" options={{ headerShown: false }} />
+              <Stack.Screen
+                name="auth/login"
+                options={{ headerShown: false }}
+              />
               <Stack.Screen
                 name="auth/register"
                 options={{ headerShown: false }}
               />
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-              <Stack.Screen name="notifications/index" options={{ headerShown: false }} />
-              <Stack.Screen name="notifications/settings" options={{ headerShown: false }} />
+              <Stack.Screen
+                name="notifications/index"
+                options={{ headerShown: false }}
+              />
+              <Stack.Screen
+                name="notifications/settings"
+                options={{ headerShown: false }}
+              />
               <Stack.Screen
                 name="modal"
                 options={{ presentation: "modal", title: "Modal" }}
