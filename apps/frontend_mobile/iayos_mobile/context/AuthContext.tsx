@@ -76,22 +76,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         throw new Error("Login failed");
       }
 
-      // Try to persist access token if returned by backend
-      try {
-        const loginJson = await response.json().catch(() => null);
-        const token =
-          loginJson?.access_token ||
-          loginJson?.token ||
-          loginJson?.data?.access_token ||
-          null;
-        if (token) {
-          await AsyncStorage.setItem("access_token", token);
-        }
-      } catch (e) {
-        // ignore token persistence errors
+      // Parse login response - backend returns token with key "access"
+      const loginData = await response.json();
+      const token = loginData?.access || loginData?.access_token || null;
+
+      if (!token) {
+        console.error("❌ No access token in login response:", loginData);
+        throw new Error("No access token received");
       }
 
-      // Fetch user data after successful login (token may now be stored)
+      // Store access token for future API requests
+      await AsyncStorage.setItem("access_token", token);
+      console.log("✅ Access token stored successfully");
+
+      // Fetch user data after successful login (token now stored)
       const userDataResponse = await apiRequest(ENDPOINTS.ME);
 
       if (userDataResponse.ok) {

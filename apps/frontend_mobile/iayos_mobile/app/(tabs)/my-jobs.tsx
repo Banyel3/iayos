@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -7,29 +7,29 @@ import {
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
-} from 'react-native';
-import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { useMyJobs, JobStatus } from '@/lib/hooks/useMyJobs';
-import { useUserType } from '@/lib/hooks/useUserProfile';
-import * as Haptics from 'expo-haptics';
+} from "react-native";
+import { router } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { useMyJobs, JobStatus } from "@/lib/hooks/useMyJobs";
+import { useUserType } from "@/lib/hooks/useUserProfile";
+import * as Haptics from "expo-haptics";
 
 // Worker Tabs: Active, In Progress, Completed
 // Client Tabs: Active Requests, In Progress, Past Requests, Applications
 
-type WorkerTab = 'active' | 'in_progress' | 'completed';
-type ClientTab = 'active' | 'in_progress' | 'completed' | 'applications';
+type WorkerTab = "active" | "in_progress" | "completed";
+type ClientTab = "active" | "in_progress" | "completed" | "applications";
 
 export default function MyJobsScreen() {
   const userType = useUserType();
-  const isClient = userType === 'CLIENT';
+  const isClient = userType === "CLIENT";
 
-  const [workerTab, setWorkerTab] = useState<WorkerTab>('active');
-  const [clientTab, setClientTab] = useState<ClientTab>('active');
+  const [workerTab, setWorkerTab] = useState<WorkerTab>("active");
+  const [clientTab, setClientTab] = useState<ClientTab>("active");
 
   const currentTab = isClient ? clientTab : workerTab;
   const statusFilter: JobStatus =
-    currentTab === 'applications' ? 'all' : currentTab;
+    currentTab === "applications" ? "all" : currentTab;
 
   const { data, isLoading, error, refetch, isFetching } = useMyJobs(
     statusFilter,
@@ -70,7 +70,7 @@ export default function MyJobsScreen() {
         </Text>
         {badge !== undefined && badge > 0 && (
           <View style={styles.badge}>
-            <Text style={styles.badgeText}>{badge > 99 ? '99+' : badge}</Text>
+            <Text style={styles.badgeText}>{badge > 99 ? "99+" : badge}</Text>
           </View>
         )}
       </TouchableOpacity>
@@ -79,18 +79,18 @@ export default function MyJobsScreen() {
 
   const renderWorkerTabs = () => (
     <View style={styles.tabContainer}>
-      {renderTab('Active', 'active')}
-      {renderTab('In Progress', 'in_progress')}
-      {renderTab('Completed', 'completed')}
+      {renderTab("Active", "active")}
+      {renderTab("In Progress", "in_progress")}
+      {renderTab("Completed", "completed")}
     </View>
   );
 
   const renderClientTabs = () => (
     <View style={styles.tabContainer}>
-      {renderTab('Active', 'active')}
-      {renderTab('In Progress', 'in_progress')}
-      {renderTab('Past', 'completed')}
-      {renderTab('Applications', 'applications', data?.total || 0)}
+      {renderTab("Active", "active")}
+      {renderTab("In Progress", "in_progress")}
+      {renderTab("Past", "completed")}
+      {renderTab("Applications", "applications", data?.total || 0)}
     </View>
   );
 
@@ -114,7 +114,9 @@ export default function MyJobsScreen() {
       <View style={styles.jobFooter}>
         <View style={styles.jobBudget}>
           <Ionicons name="cash-outline" size={16} color="#10B981" />
-          <Text style={styles.jobBudgetText}>PHP {item.budget.toLocaleString()}</Text>
+          <Text style={styles.jobBudgetText}>
+            PHP {item.budget.toLocaleString()}
+          </Text>
         </View>
 
         {item.applicationCount !== undefined && (
@@ -148,32 +150,32 @@ export default function MyJobsScreen() {
   );
 
   const renderEmptyState = () => {
-    let message = '';
+    let message = "";
     if (isClient) {
       switch (clientTab) {
-        case 'active':
-          message = 'You have no active job requests.';
+        case "active":
+          message = "You have no active job requests.";
           break;
-        case 'in_progress':
-          message = 'No jobs currently in progress.';
+        case "in_progress":
+          message = "No jobs currently in progress.";
           break;
-        case 'completed':
-          message = 'You have no past job requests.';
+        case "completed":
+          message = "You have no past job requests.";
           break;
-        case 'applications':
-          message = 'No applications received yet.';
+        case "applications":
+          message = "No applications received yet.";
           break;
       }
     } else {
       switch (workerTab) {
-        case 'active':
-          message = 'You have not applied to any jobs yet.';
+        case "active":
+          message = "You have not applied to any jobs yet.";
           break;
-        case 'in_progress':
-          message = 'No jobs currently in progress.';
+        case "in_progress":
+          message = "No jobs currently in progress.";
           break;
-        case 'completed':
-          message = 'You have not completed any jobs yet.';
+        case "completed":
+          message = "You have not completed any jobs yet.";
           break;
       }
     }
@@ -182,10 +184,10 @@ export default function MyJobsScreen() {
       <View style={styles.emptyState}>
         <Ionicons name="briefcase-outline" size={64} color="#D1D5DB" />
         <Text style={styles.emptyStateText}>{message}</Text>
-        {!isClient && workerTab === 'active' && (
+        {!isClient && workerTab === "active" && (
           <TouchableOpacity
             style={styles.browseButton}
-            onPress={() => router.push('/(tabs)/' as any)}
+            onPress={() => router.push("/(tabs)/" as any)}
           >
             <Text style={styles.browseButtonText}>Browse Jobs</Text>
           </TouchableOpacity>
@@ -213,7 +215,10 @@ export default function MyJobsScreen() {
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle-outline" size={64} color="#EF4444" />
           <Text style={styles.errorText}>Failed to load jobs</Text>
-          <TouchableOpacity style={styles.retryButton} onPress={() => refetch()}>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={() => refetch()}
+          >
             <Text style={styles.retryButtonText}>Retry</Text>
           </TouchableOpacity>
         </View>
@@ -235,7 +240,7 @@ export default function MyJobsScreen() {
           <RefreshControl
             refreshing={isFetching}
             onRefresh={refetch}
-            colors={['#3B82F6']}
+            colors={["#3B82F6"]}
           />
         }
         showsVerticalScrollIndicator={false}
@@ -245,32 +250,32 @@ export default function MyJobsScreen() {
 }
 
 function StatusBadge({ status }: { status: string }) {
-  let color = '#6B7280';
-  let bgColor = '#F3F4F6';
+  let color = "#6B7280";
+  let bgColor = "#F3F4F6";
 
   switch (status.toUpperCase()) {
-    case 'ACTIVE':
-      color = '#10B981';
-      bgColor = '#D1FAE5';
+    case "ACTIVE":
+      color = "#10B981";
+      bgColor = "#D1FAE5";
       break;
-    case 'IN_PROGRESS':
-      color = '#3B82F6';
-      bgColor = '#DBEAFE';
+    case "IN_PROGRESS":
+      color = "#3B82F6";
+      bgColor = "#DBEAFE";
       break;
-    case 'COMPLETED':
-      color = '#8B5CF6';
-      bgColor = '#EDE9FE';
+    case "COMPLETED":
+      color = "#8B5CF6";
+      bgColor = "#EDE9FE";
       break;
-    case 'CANCELLED':
-      color = '#EF4444';
-      bgColor = '#FEE2E2';
+    case "CANCELLED":
+      color = "#EF4444";
+      bgColor = "#FEE2E2";
       break;
   }
 
   return (
     <View style={[styles.statusBadge, { backgroundColor: bgColor }]}>
       <Text style={[styles.statusBadgeText, { color }]}>
-        {status.replace('_', ' ')}
+        {status.replace("_", " ")}
       </Text>
     </View>
   );
@@ -279,78 +284,78 @@ function StatusBadge({ status }: { status: string }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: "#F9FAFB",
   },
   tabContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
+    flexDirection: "row",
+    backgroundColor: "#FFFFFF",
     paddingHorizontal: 16,
     paddingTop: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: "#E5E7EB",
   },
   tab: {
     flex: 1,
     paddingVertical: 12,
-    alignItems: 'center',
+    alignItems: "center",
     borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-    flexDirection: 'row',
-    justifyContent: 'center',
+    borderBottomColor: "transparent",
+    flexDirection: "row",
+    justifyContent: "center",
     gap: 4,
   },
   tabActive: {
-    borderBottomColor: '#3B82F6',
+    borderBottomColor: "#3B82F6",
   },
   tabText: {
     fontSize: 14,
-    fontWeight: '500',
-    color: '#6B7280',
+    fontWeight: "500",
+    color: "#6B7280",
   },
   tabTextActive: {
-    color: '#3B82F6',
-    fontWeight: '600',
+    color: "#3B82F6",
+    fontWeight: "600",
   },
   badge: {
-    backgroundColor: '#EF4444',
+    backgroundColor: "#EF4444",
     borderRadius: 10,
     minWidth: 20,
     height: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: 6,
   },
   badgeText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   listContent: {
     padding: 16,
-    paddingBottom: 32,
+    paddingBottom: 120, // Extra padding for floating tab bar
   },
   jobCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 2,
   },
   jobHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
     marginBottom: 8,
   },
   jobTitle: {
     flex: 1,
     fontSize: 16,
-    fontWeight: '600',
-    color: '#111827',
+    fontWeight: "600",
+    color: "#111827",
     marginRight: 8,
   },
   statusBadge: {
@@ -360,121 +365,121 @@ const styles = StyleSheet.create({
   },
   statusBadgeText: {
     fontSize: 12,
-    fontWeight: '600',
-    textTransform: 'capitalize',
+    fontWeight: "600",
+    textTransform: "capitalize",
   },
   jobDescription: {
     fontSize: 14,
-    color: '#6B7280',
+    color: "#6B7280",
     lineHeight: 20,
     marginBottom: 12,
   },
   jobFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   jobBudget: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
   },
   jobBudgetText: {
     fontSize: 16,
-    fontWeight: '700',
-    color: '#10B981',
+    fontWeight: "700",
+    color: "#10B981",
   },
   jobApplications: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
   },
   jobApplicationsText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: "#6B7280",
   },
   workerInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
     marginTop: 8,
     paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
+    borderTopColor: "#F3F4F6",
   },
   workerName: {
     fontSize: 14,
-    color: '#6B7280',
+    color: "#6B7280",
   },
   clientInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
     marginTop: 8,
     paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
+    borderTopColor: "#F3F4F6",
   },
   clientName: {
     fontSize: 14,
-    color: '#6B7280',
+    color: "#6B7280",
   },
   emptyState: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 64,
   },
   emptyStateText: {
     fontSize: 16,
-    color: '#6B7280',
+    color: "#6B7280",
     marginTop: 16,
-    textAlign: 'center',
+    textAlign: "center",
   },
   browseButton: {
-    backgroundColor: '#3B82F6',
+    backgroundColor: "#3B82F6",
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
     marginTop: 16,
   },
   browseButtonText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   loadingContainer: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   loadingText: {
     fontSize: 16,
-    color: '#6B7280',
+    color: "#6B7280",
     marginTop: 16,
   },
   errorContainer: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     padding: 32,
   },
   errorText: {
     fontSize: 16,
-    color: '#EF4444',
+    color: "#EF4444",
     marginTop: 16,
-    textAlign: 'center',
+    textAlign: "center",
   },
   retryButton: {
-    backgroundColor: '#3B82F6',
+    backgroundColor: "#3B82F6",
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
     marginTop: 16,
   },
   retryButtonText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });

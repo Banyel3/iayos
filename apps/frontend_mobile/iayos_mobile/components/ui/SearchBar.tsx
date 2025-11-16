@@ -11,7 +11,7 @@
  * - Haptic feedback on clear
  */
 
-import React from 'react';
+import React from "react";
 import {
   View,
   TextInput,
@@ -19,10 +19,16 @@ import {
   StyleSheet,
   ViewStyle,
   TextStyle,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
-import { Colors, Typography, Spacing, BorderRadius, Shadows } from '@/constants/theme';
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
+import {
+  Colors,
+  Typography,
+  Spacing,
+  BorderRadius,
+  Shadows,
+} from "@/constants/theme";
 
 interface SearchBarProps {
   // Content
@@ -46,7 +52,7 @@ interface SearchBarProps {
 export default function SearchBar({
   value,
   onChangeText,
-  placeholder = 'Search...',
+  placeholder = "Search...",
   showFilterButton = false,
   onFilterPress,
   style,
@@ -54,10 +60,9 @@ export default function SearchBar({
   autoFocus = false,
   onSubmit,
 }: SearchBarProps) {
-
   const handleClear = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    onChangeText('');
+    onChangeText("");
   };
 
   const handleFilterPress = () => {
@@ -94,11 +99,7 @@ export default function SearchBar({
           style={styles.clearButton}
           hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
         >
-          <Ionicons
-            name="close-circle"
-            size={20}
-            color={Colors.textHint}
-          />
+          <Ionicons name="close-circle" size={20} color={Colors.textHint} />
         </TouchableOpacity>
       )}
 
@@ -122,23 +123,24 @@ export default function SearchBar({
 
 const styles = StyleSheet.create({
   container: {
-    height: 48,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.md,
+    height: 44, // Web uses py-2 (8px) + text (~28px) = ~44px
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.backgroundSecondary, // Match web's bg-gray-50
+    borderRadius: BorderRadius.lg, // Web uses rounded-lg
     paddingHorizontal: Spacing.md,
     borderWidth: 1,
-    borderColor: Colors.borderLight,
+    borderColor: Colors.border, // Match web's border-gray-200
   },
   searchIcon: {
     marginRight: Spacing.sm,
   },
   input: {
     flex: 1,
-    fontSize: Typography.fontSize.base,
+    fontSize: Typography.fontSize.sm, // Web uses text-sm
     color: Colors.textPrimary,
     paddingVertical: 0, // Remove default padding
+    fontWeight: Typography.fontWeight.normal,
   },
   clearButton: {
     padding: Spacing.xs,
@@ -148,7 +150,7 @@ const styles = StyleSheet.create({
     padding: Spacing.xs,
     marginLeft: Spacing.sm,
     borderLeftWidth: 1,
-    borderLeftColor: Colors.border,
+    borderLeftColor: Colors.borderLight,
     paddingLeft: Spacing.md,
   },
 });

@@ -50,10 +50,10 @@ def get_mobile_job_list(
 
         # Optimize queries with select_related and prefetch_related
         queryset = queryset.select_related(
-            'clientFK__accountFK',
-            'category'
+            'clientID__profileID__accountFK',
+            'categoryID'
         ).prefetch_related(
-            'JobPhoto'
+            'photos'
         )
 
         # Order by urgency and creation date
@@ -75,23 +75,31 @@ def get_mobile_job_list(
         job_list = []
         for job in jobs:
             # Check if current user has applied
-            has_applied = JobApplication.objects.filter(
-                jobPostingFK=job,
-                workerFK__accountFK=user
-            ).exists() if hasattr(user, 'profile') and hasattr(user.profile.first(), 'workerprofile') else False
+            # Check if user has applied (worker only)
+            has_applied = False
+            try:
+                profile = Profile.objects.get(accountFK=user)
+                if hasattr(profile, 'workerprofile'):
+                    has_applied = JobApplication.objects.filter(
+                        jobID=job,
+                        workerID__profileID__accountFK=user
+                    ).exists()
+            except Profile.DoesNotExist:
+                pass
 
             # Get client info
-            client_profile = job.clientFK.accountFK.profile.first()
+            client_profile = job.clientID.profileID
             client_name = f"{client_profile.firstName} {client_profile.lastName}" if client_profile else "Unknown Client"
 
             job_data = {
-                'jobPostingID': job.jobPostingID,
+                'id': job.jobID,
                 'title': job.title,
                 'budget': float(job.budget),
-                'location': job.location or f"{job.city}, {job.province}",
-                'urgency_level': job.urgencyLevel,
+                'location': job.location,
+                'urgency_level': job.urgency,
+                'status': job.status,
                 'created_at': job.createdAt.isoformat(),
-                'category_name': job.category.specializationName if job.category else "General",
+                'category_name': job.categoryID.specializationName if job.categoryID else "General",
                 'client_name': client_name,
                 'client_avatar': client_profile.profileImg if client_profile and client_profile.profileImg else None,
                 'is_applied': has_applied,
@@ -115,6 +123,9 @@ def get_mobile_job_list(
         }
 
     except Exception as e:
+        print(f"[ERROR] get_mobile_job_list failed: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return {
             'success': False,
             'error': f'Failed to fetch jobs: {str(e)}'
@@ -126,40 +137,46 @@ def get_mobile_job_detail(job_id: int, user: Accounts) -> Dict[str, Any]:
     Get complete job details for mobile view
     Includes user-specific data (is_applied, user's application)
     """
+    print(f"🔍 [SERVICE] get_mobile_job_detail called")
+    print(f"   Job ID: {job_id}, User: {user.email}")
+    
     try:
         job = JobPosting.objects.select_related(
-            'clientFK__accountFK',
-            'assignedWorkerFK__accountFK',
-            'category'
+            'categoryID',
+            'clientID__profileID__accountFK',
+            'assignedWorkerID__profileID__accountFK'
         ).prefetch_related(
-            'JobPhoto',
-            'specializations',
-            'JobApplication'
-        ).get(jobPostingID=job_id)
+            'photos'
+        ).get(jobID=job_id)
+        
+        print(f"   ✓ Job found: {job.title}")
+        print(f"   Job status: {job.status}")
+        print(f"   Client Profile ID: {job.clientID.profileID.accountFK.accountID if job.clientID else 'None'}")
 
         # Get client info
-        client_profile = job.clientFK.accountFK.profile.first()
+        client_profile = job.clientID.profileID
         client_data = {
-            'id': job.clientFK.accountFK.accountID,
+            'id': job.clientID.profileID.accountFK.accountID,
             'name': f"{client_profile.firstName} {client_profile.lastName}" if client_profile else "Unknown",
             'avatar': client_profile.profileImg if client_profile and client_profile.profileImg else None,
             'rating': 0.0,  # TODO: Calculate from reviews
         }
 
         # Get job photos
-        photos = [photo.photoURL for photo in job.JobPhoto.all()]
+        photos = [photo.photoURL for photo in job.photos.all()]
 
         # Check if user has applied
         user_application = None
         has_applied = False
 
         # Get user's worker profile if exists
-        user_profiles = user.profile.all()
         user_worker_profile = None
-        for profile in user_profiles:
+        try:
+            profile = Profile.objects.get(accountFK=user)
             if hasattr(profile, 'workerprofile'):
                 user_worker_profile = profile.workerprofile
-                break
+        except Profile.DoesNotExist:
+            pass
 
         if user_worker_profile:
             try:
@@ -179,7 +196,7 @@ def get_mobile_job_detail(job_id: int, user: Accounts) -> Dict[str, Any]:
                 pass
 
         # Get applications count
-        applications_count = JobApplication.objects.filter(jobPostingFK=job).count()
+        applications_count = JobApplication.objects.filter(jobID=job).count()
 
         # Parse materials needed (stored as JSON string)
         import json
@@ -191,21 +208,21 @@ def get_mobile_job_detail(job_id: int, user: Accounts) -> Dict[str, Any]:
                 materials_needed = [job.materialsNeeded]
 
         job_data = {
-            'jobPostingID': job.jobPostingID,
+            'id': job.jobID,
             'title': job.title,
             'description': job.description,
             'budget': float(job.budget),
-            'location': job.location or f"{job.city}, {job.province}",
+            'location': job.location,
             'expected_duration': job.expectedDuration,
-            'urgency_level': job.urgencyLevel,
+            'urgency_level': job.urgency,
             'preferred_start_date': job.preferredStartDate.isoformat() if job.preferredStartDate else None,
             'materials_needed': materials_needed,
             'photos': photos,
             'status': job.status,
             'created_at': job.createdAt.isoformat(),
             'category': {
-                'id': job.category.specializationID if job.category else None,
-                'name': job.category.specializationName if job.category else "General",
+                'id': job.categoryID.specializationID if job.categoryID else None,
+                'name': job.categoryID.specializationName if job.categoryID else "General",
             },
             'client': client_data,
             'applications_count': applications_count,
@@ -217,17 +234,22 @@ def get_mobile_job_detail(job_id: int, user: Accounts) -> Dict[str, Any]:
             'remaining_amount': float(job.budget * Decimal('0.5')),
         }
 
+        print(f"   ✅ Returning job data: ID={job_data['id']}, Title={job_data['title']}")
         return {
             'success': True,
             'data': job_data
         }
 
     except JobPosting.DoesNotExist:
+        print(f"   ❌ Job {job_id} not found in database")
         return {
             'success': False,
             'error': 'Job not found'
         }
     except Exception as e:
+        print(f"   ❌ Exception in get_mobile_job_detail: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return {
             'success': False,
             'error': f'Failed to fetch job details: {str(e)}'
@@ -241,12 +263,13 @@ def create_mobile_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[str, Any
     """
     try:
         # Get user's client profile
-        user_profiles = user.profile.all()
         client_profile = None
-        for profile in user_profiles:
+        try:
+            profile = Profile.objects.get(accountFK=user)
             if hasattr(profile, 'clientprofile'):
                 client_profile = profile.clientprofile
-                break
+        except Profile.DoesNotExist:
+            return {'success': False, 'error': 'Profile not found'}
 
         if not client_profile:
             return {
@@ -284,16 +307,16 @@ def create_mobile_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[str, Any
 
         # Create job posting
         job = JobPosting.objects.create(
-            clientFK=client_profile,
+            clientID=client_profile,
             title=job_data['title'],
             description=job_data['description'],
             budget=budget,
             location=job_data.get('location'),
             expectedDuration=job_data.get('expected_duration', 'Not specified'),
-            urgencyLevel=job_data.get('urgency_level', 'MEDIUM'),
+            urgency=job_data.get('urgency_level', 'MEDIUM'),
             preferredStartDate=datetime.fromisoformat(job_data['preferred_start_date']) if job_data.get('preferred_start_date') else None,
             materialsNeeded=materials_json,
-            category=category,
+            categoryID=category,
             status='PENDING_PAYMENT',  # Will change to ACTIVE after payment
             escrowAmount=downpayment_amount,
             remainingPayment=downpayment_amount,
@@ -346,7 +369,7 @@ def create_mobile_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[str, Any
                 xendit_result = create_xendit_payment(
                     amount=float(downpayment_amount),
                     description=f"Job Downpayment - {job.title}",
-                    reference_id=f"JOB_{job.jobPostingID}",
+                    reference_id=f"JOB_{job.jobID}",
                     customer_email=user.email,
                 )
 
@@ -378,7 +401,7 @@ def create_mobile_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[str, Any
         return {
             'success': True,
             'data': {
-                'job_id': job.jobPostingID,
+                'job_id': job.jobID,
                 'title': job.title,
                 'budget': float(job.budget),
                 'downpayment_amount': float(downpayment_amount),
@@ -404,13 +427,12 @@ def search_mobile_jobs(query: str, user: Accounts, page: int = 1, limit: int = 2
             Q(title__icontains=query) |
             Q(description__icontains=query) |
             Q(location__icontains=query) |
-            Q(city__icontains=query) |
-            Q(category__specializationName__icontains=query),
+            Q(categoryID__specializationName__icontains=query),
             status='ACTIVE'
         ).select_related(
-            'clientFK__accountFK',
-            'category'
-        ).distinct().order_by('-createdAt')
+            'clientID__profileID__accountFK',
+            'categoryID'
+        ).prefetch_related('photos').distinct().order_by('-createdAt')
 
         # Calculate pagination
         total_count = queryset.count()
@@ -423,12 +445,13 @@ def search_mobile_jobs(query: str, user: Accounts, page: int = 1, limit: int = 2
         job_list = []
         for job in jobs:
             # Check if current user has applied
-            user_profiles = user.profile.all()
             user_worker_profile = None
-            for profile in user_profiles:
+            try:
+                profile = Profile.objects.get(accountFK=user)
                 if hasattr(profile, 'workerprofile'):
                     user_worker_profile = profile.workerprofile
-                    break
+            except Profile.DoesNotExist:
+                pass
 
             has_applied = False
             if user_worker_profile:
@@ -438,17 +461,18 @@ def search_mobile_jobs(query: str, user: Accounts, page: int = 1, limit: int = 2
                 ).exists()
 
             # Get client info
-            client_profile = job.clientFK.accountFK.profile.first()
+            client_profile = job.clientID.profileID
             client_name = f"{client_profile.firstName} {client_profile.lastName}" if client_profile else "Unknown Client"
 
             job_data = {
-                'jobPostingID': job.jobPostingID,
+                'id': job.jobID,
                 'title': job.title,
                 'budget': float(job.budget),
-                'location': job.location or f"{job.city}, {job.province}",
-                'urgency_level': job.urgencyLevel,
+                'location': job.location,
+                'urgency_level': job.urgency,
+                'status': job.status,
                 'created_at': job.createdAt.isoformat(),
-                'category_name': job.category.specializationName if job.category else "General",
+                'category_name': job.categoryID.specializationName if job.categoryID else "General",
                 'client_name': client_name,
                 'client_avatar': client_profile.profileImg if client_profile and client_profile.profileImg else None,
                 'is_applied': has_applied,
@@ -696,41 +720,51 @@ def get_workers_list_mobile(user, latitude=None, longitude=None, page=1, limit=2
         from django.db.models import Q, Count, Avg, F
         from math import radians, cos, sin, asin, sqrt
 
+        print(f"  🔍 Checking user profile and permissions...")
         # Only allow clients to view workers
         try:
             user_profile = Profile.objects.get(accountFK=user)
+            print(f"  ✓ User profile found: {user_profile.firstName} {user_profile.lastName}")
+            print(f"  ✓ Profile type: {user_profile.profileType}")
+            
             if user_profile.profileType != 'CLIENT':
+                print(f"  ❌ Access denied: User is {user_profile.profileType}, not CLIENT")
                 return {
                     'success': False,
                     'error': 'Only clients can view worker listings'
                 }
         except Profile.DoesNotExist:
+            print(f"  ❌ User profile not found for accountID: {user.accountID}")
             return {
                 'success': False,
                 'error': 'User profile not found'
             }
 
+        print(f"  🔍 Querying worker profiles...")
         # Get all worker profiles
         workers = WorkerProfile.objects.select_related(
-            'profileFK',
-            'profileFK__accountFK'
-        ).prefetch_related(
-            'specializations'
+            'profileID',
+            'profileID__accountFK'
         ).filter(
-            profileFK__accountFK__isVerified=True,
-            profileFK__accountFK__KYCVerified=True
-        ).order_by('-profileFK__accountFK__createdAt')
+            profileID__accountFK__isVerified=True,
+            profileID__accountFK__KYCVerified=True
+        ).order_by('-profileID__accountFK__createdAt')
 
         total_count = workers.count()
+        print(f"  ✓ Total verified workers found: {total_count}")
 
         # Pagination
         offset = (page - 1) * limit
         workers = workers[offset:offset + limit]
+        print(f"  ✓ Fetching workers {offset+1}-{offset+len(workers)} (page {page}, limit {limit})")
 
         # Build worker list
+        print(f"  🔨 Building worker data...")
         worker_list = []
-        for worker in workers:
-            profile = worker.profileFK
+        workers_with_distance = 0
+        
+        for idx, worker in enumerate(workers, 1):
+            profile = worker.profileID
             account = profile.accountFK
 
             # Calculate distance if location provided
@@ -744,21 +778,29 @@ def get_workers_list_mobile(user, latitude=None, longitude=None, page=1, limit=2
                 a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
                 c = 2 * asin(sqrt(a))
                 distance = round(6371 * c, 2)  # Radius of earth in kilometers
+                workers_with_distance += 1
 
+            worker_name = f"{profile.firstName or ''} {profile.lastName or ''}".strip()
+            
+            # Get specializations using the correct model and relation
+            from .models import workerSpecialization
+            specializations_query = workerSpecialization.objects.filter(
+                workerID=worker
+            ).select_related('specializationID')
+            
             worker_data = {
-                'worker_id': worker.workerID,
+                'worker_id': worker.id,  # Django auto-generated primary key
                 'profile_id': profile.profileID,
                 'account_id': account.accountID,
-                'name': f"{profile.firstName or ''} {profile.lastName or ''}".strip(),
+                'name': worker_name,
                 'profile_img': profile.profileImg or '',
                 'bio': worker.bio or '',
-                'hourly_rate': float(worker.hourlyRate) if worker.hourlyRate else 0.0,
-                'availability_status': worker.availabilityStatus,
+                'hourly_rate': float(worker.hourly_rate) if worker.hourly_rate else 0.0,
+                'availability_status': worker.availability_status,
                 'specializations': [
-                    {'id': s.specializationID, 'name': s.specializationName}
-                    for s in worker.specializations.all()
+                    {'id': ws.specializationID.specializationID, 'name': ws.specializationID.specializationName}
+                    for ws in specializations_query
                 ],
-                'verified_skills': worker.verifiedSkills or [],
                 'total_earning': float(worker.totalEarningGross) if worker.totalEarningGross else 0.0,
             }
 
@@ -766,6 +808,20 @@ def get_workers_list_mobile(user, latitude=None, longitude=None, page=1, limit=2
                 worker_data['distance_km'] = distance
 
             worker_list.append(worker_data)
+            
+            if idx <= 3:  # Log first 3 workers
+                print(f"    Worker {idx}: {worker_name} - {worker.availability_status}" + 
+                      (f" ({distance} km)" if distance else ""))
+
+        if len(worker_list) > 3:
+            print(f"    ... and {len(worker_list) - 3} more workers")
+        
+        print(f"  ✓ Built {len(worker_list)} worker records")
+        if latitude and longitude:
+            print(f"  ✓ Distance calculated for {workers_with_distance} workers")
+        
+        total_pages = (total_count + limit - 1) // limit
+        print(f"  ✓ Returning page {page} of {total_pages}")
 
         return {
             'success': True,
@@ -773,11 +829,14 @@ def get_workers_list_mobile(user, latitude=None, longitude=None, page=1, limit=2
                 'workers': worker_list,
                 'total_count': total_count,
                 'page': page,
-                'pages': (total_count + limit - 1) // limit,
+                'pages': total_pages,
             }
         }
 
     except Exception as e:
+        print(f"  ❌ Error in get_workers_list_mobile: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return {
             'success': False,
             'error': f'Failed to fetch workers: {str(e)}'
@@ -795,18 +854,16 @@ def get_worker_detail_mobile(user, worker_id):
         # Get worker profile
         try:
             worker = WorkerProfile.objects.select_related(
-                'profileFK',
-                'profileFK__accountFK'
-            ).prefetch_related(
-                'specializations'
-            ).get(workerID=worker_id)
+                'profileID',
+                'profileID__accountFK'
+            ).get(id=worker_id)  # Use auto-generated id field
         except WorkerProfile.DoesNotExist:
             return {
                 'success': False,
                 'error': 'Worker not found'
             }
 
-        profile = worker.profileFK
+        profile = worker.profileID
         account = profile.accountFK
 
         # Get reviews and rating
@@ -814,9 +871,15 @@ def get_worker_detail_mobile(user, worker_id):
         avg_rating = reviews_qs.aggregate(Avg('rating'))['rating__avg']
         review_count = reviews_qs.count()
 
+        # Get specializations
+        from .models import workerSpecialization
+        specializations_query = workerSpecialization.objects.filter(
+            workerID=worker
+        ).select_related('specializationID')
+
         # Build detailed worker data
         worker_data = {
-            'worker_id': worker.workerID,
+            'worker_id': worker.id,  # Django auto-generated primary key
             'profile_id': profile.profileID,
             'account_id': account.accountID,
             'name': f"{profile.firstName or ''} {profile.lastName or ''}".strip(),
@@ -824,13 +887,12 @@ def get_worker_detail_mobile(user, worker_id):
             'contact_num': profile.contactNum or '',
             'bio': worker.bio or '',
             'description': worker.description or '',
-            'hourly_rate': float(worker.hourlyRate) if worker.hourlyRate else 0.0,
-            'availability_status': worker.availabilityStatus,
+            'hourly_rate': float(worker.hourly_rate) if worker.hourly_rate else 0.0,
+            'availability_status': worker.availability_status,
             'specializations': [
-                {'id': s.specializationID, 'name': s.specializationName}
-                for s in worker.specializations.all()
+                {'id': ws.specializationID.specializationID, 'name': ws.specializationID.specializationName}
+                for ws in specializations_query
             ],
-            'verified_skills': worker.verifiedSkills or [],
             'total_earning': float(worker.totalEarningGross) if worker.totalEarningGross else 0.0,
             'rating': round(avg_rating, 2) if avg_rating else 0.0,
             'review_count': review_count,
@@ -853,6 +915,253 @@ def get_worker_detail_mobile(user, worker_id):
         return {
             'success': False,
             'error': f'Failed to fetch worker details: {str(e)}'
+        }
+
+
+def get_worker_detail_mobile_v2(user, worker_id):
+    """
+    Get detailed worker profile (V2)
+    Returns data matching WorkerDetail interface in mobile app:
+    {
+        id, firstName, lastName, email, phoneNumber, profilePicture, bio,
+        hourlyRate, rating, reviewCount, completedJobs, responseTime,
+        availability, city, province, distance, specializations[], skills[],
+        verified, joinedDate
+    }
+    """
+    try:
+        from .models import Profile, WorkerProfile, JobReview, JobPosting
+        from django.db.models import Avg, Count, Q
+        from django.utils import timezone
+        from datetime import timedelta
+
+        print(f"   🔍 Looking up WorkerProfile with id={worker_id}")
+
+        # Get worker profile
+        try:
+            worker = WorkerProfile.objects.select_related(
+                'profileID',
+                'profileID__accountFK'
+            ).get(id=worker_id)
+        except WorkerProfile.DoesNotExist:
+            print(f"   ❌ WorkerProfile with id={worker_id} not found")
+            return {
+                'success': False,
+                'error': 'Worker not found'
+            }
+
+        profile = worker.profileID
+        account = profile.accountFK
+
+        print(f"   ✅ Found worker: {profile.firstName} {profile.lastName}")
+
+        # Get reviews and rating
+        reviews_qs = JobReview.objects.filter(
+            revieweeID=account,
+            reviewerType='CLIENT',
+            status='ACTIVE'
+        )
+        avg_rating = reviews_qs.aggregate(Avg('rating'))['rating__avg'] or 0.0
+        review_count = reviews_qs.count()
+
+        # Get completed jobs count
+        completed_jobs = JobPosting.objects.filter(
+            assignedWorkerID=worker,
+            status='COMPLETED'
+        ).count()
+
+        # Calculate average response time (simplified)
+        # TODO: Implement actual response time tracking
+        response_time = "Within 1 hour"  # Default
+
+        # Get specializations
+        from .models import workerSpecialization
+        specializations = [
+            ws.specializationID.specializationName
+            for ws in workerSpecialization.objects.filter(
+                workerID=worker
+            ).select_related('specializationID')
+        ]
+
+        # Get skills from bio/description (simplified)
+        # TODO: Add proper skills table if needed
+        skills = []
+        if worker.description:
+            # Extract skills from description
+            common_skills = ['Plumbing', 'Electrical', 'Carpentry', 'Painting', 
+                           'Welding', 'Masonry', 'Tiling', 'Roofing']
+            skills = [skill for skill in common_skills if skill.lower() in worker.description.lower()]
+
+        # Calculate distance if user has location
+        distance = None
+        try:
+            user_profile = Profile.objects.get(accountFK=user)
+            if (user_profile.latitude and user_profile.longitude and 
+                profile.latitude and profile.longitude):
+                from math import radians, sin, cos, sqrt, atan2
+                
+                # Haversine formula
+                R = 6371  # Earth's radius in km
+                
+                lat1, lon1 = radians(float(user_profile.latitude)), radians(float(user_profile.longitude))
+                lat2, lon2 = radians(float(profile.latitude)), radians(float(profile.longitude))
+                
+                dlat = lat2 - lat1
+                dlon = lon2 - lon1
+                
+                a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+                c = 2 * atan2(sqrt(a), sqrt(1-a))
+                distance = R * c
+        except Profile.DoesNotExist:
+            pass
+        except Exception as e:
+            print(f"   ⚠️ Distance calculation error: {str(e)}")
+
+        # Build worker detail data matching mobile interface
+        worker_data = {
+            'id': worker.id,
+            'firstName': profile.firstName or '',
+            'lastName': profile.lastName or '',
+            'email': account.email or '',
+            'phoneNumber': profile.contactNum or None,
+            'profilePicture': profile.profileImg or None,
+            'bio': worker.bio or worker.description or None,
+            'hourlyRate': float(worker.hourly_rate) if worker.hourly_rate else None,
+            'rating': round(float(avg_rating), 1),
+            'reviewCount': review_count,
+            'completedJobs': completed_jobs,
+            'responseTime': response_time,
+            'availability': worker.availability_status or 'Available',
+            'city': account.city or None,
+            'province': account.province or None,
+            'distance': round(distance, 1) if distance else None,
+            'specializations': specializations,
+            'skills': skills,
+            'verified': account.KYCVerified or False,
+            'joinedDate': account.createdAt.isoformat() if account.createdAt else timezone.now().isoformat()
+        }
+
+        print(f"   📊 Worker data: rating={worker_data['rating']}, jobs={worker_data['completedJobs']}, verified={worker_data['verified']}")
+
+        return {
+            'success': True,
+            'data': worker_data
+        }
+
+    except Exception as e:
+        print(f"   ❌ Exception in get_worker_detail_mobile_v2: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {
+            'success': False,
+            'error': f'Failed to fetch worker details: {str(e)}'
+        }
+
+
+def get_agency_detail_mobile(user, agency_id):
+    """
+    Get detailed agency profile
+    Returns data matching AgencyDetail interface in mobile app:
+    {
+        id, name, email, phoneNumber, logo, description,
+        rating, reviewCount, totalJobsCompleted, activeWorkers,
+        specializations[], city, province, verified, establishedDate,
+        workers: [{id, firstName, lastName, profilePicture, rating, completedJobs, specialization}]
+    }
+    """
+    try:
+        from .models import Profile, Agency, JobReview, JobPosting, WorkerProfile
+        from agency.models import AgencyEmployee
+        from django.db.models import Avg, Count, Q
+        from django.utils import timezone
+
+        print(f"   🔍 Looking up Agency with id={agency_id}")
+
+        # Get agency
+        try:
+            agency = Agency.objects.select_related(
+                'accountFK'
+            ).get(agencyId=agency_id)
+        except Agency.DoesNotExist:
+            print(f"   ❌ Agency with id={agency_id} not found")
+            return {
+                'success': False,
+                'error': 'Agency not found'
+            }
+
+        account = agency.accountFK
+
+        print(f"   ✅ Found agency: {agency.businessName}")
+
+        # Get agency employees (AgencyEmployee links to account, not Agency model)
+        agency_employees_qs = AgencyEmployee.objects.filter(
+            agency=account,
+            isActive=True
+        )
+
+        # For now, use simplified data from AgencyEmployee model
+        # AgencyEmployee doesn't link to WorkerProfile, so we'll use the employee data directly
+        avg_rating = 0.0
+        review_count = 0
+        total_jobs_completed = 0
+        active_workers = agency_employees_qs.count()
+        specializations = []  # TODO: Implement when employee-specialization relationship exists
+
+        # Build employees list from AgencyEmployee
+        workers_list = []
+        for emp in agency_employees_qs[:10]:  # Limit to 10 employees
+            workers_list.append({
+                'id': emp.employeeID,
+                'firstName': emp.name.split()[0] if emp.name else '',
+                'lastName': ' '.join(emp.name.split()[1:]) if len(emp.name.split()) > 1 else '',
+                'profilePicture': emp.avatar or None,
+                'rating': round(float(emp.rating), 1) if emp.rating else 0.0,
+                'completedJobs': emp.totalJobsCompleted,
+                'specialization': emp.role or None
+            })
+        
+        # Calculate overall rating from employees
+        employee_ratings = [emp.rating for emp in agency_employees_qs if emp.rating]
+        if employee_ratings:
+            avg_rating = sum(employee_ratings) / len(employee_ratings)
+        
+        # Calculate total jobs from employees
+        total_jobs_completed = sum(emp.totalJobsCompleted for emp in agency_employees_qs)
+
+        # Build agency detail data matching mobile interface
+        agency_data = {
+            'id': agency.agencyId,
+            'name': agency.businessName or '',
+            'email': account.email or '',
+            'phoneNumber': agency.contactNumber or None,
+            'logo': None,  # Agency model doesn't have logo field
+            'description': agency.businessDesc or None,
+            'rating': round(float(avg_rating), 1),
+            'reviewCount': review_count,
+            'totalJobsCompleted': total_jobs_completed,
+            'activeWorkers': active_workers,
+            'specializations': specializations,
+            'city': agency.city or None,
+            'province': agency.province or None,
+            'verified': account.KYCVerified or False,
+            'establishedDate': agency.createdAt.isoformat() if agency.createdAt else account.createdAt.isoformat(),
+            'workers': workers_list
+        }
+
+        print(f"   📊 Agency data: rating={agency_data['rating']}, workers={agency_data['activeWorkers']}, verified={agency_data['verified']}")
+
+        return {
+            'success': True,
+            'data': agency_data
+        }
+
+    except Exception as e:
+        print(f"   ❌ Exception in get_agency_detail_mobile: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {
+            'success': False,
+            'error': f'Failed to fetch agency details: {str(e)}'
         }
 
 
@@ -882,12 +1191,11 @@ def get_my_jobs_mobile(user, status=None, page=1, limit=20):
         if user_profile.profileType == 'CLIENT':
             # Get client's posted jobs
             jobs_qs = JobPosting.objects.select_related(
-                'clientID',
-                'clientID__profileFK',
-                'categoryFK',
-                'assignedWorkerID'
-            ).filter(
-                clientID__profileFK__accountFK=user
+                'clientID__profileID__accountFK',
+                'categoryID',
+                'assignedWorkerID__profileID__accountFK'
+            ).prefetch_related('photos').filter(
+                clientID__profileID__accountFK=user
             )
 
         elif user_profile.profileType == 'WORKER':
@@ -895,7 +1203,7 @@ def get_my_jobs_mobile(user, status=None, page=1, limit=20):
             from .models import WorkerProfile
 
             try:
-                worker_profile = WorkerProfile.objects.get(profileFK=user_profile)
+                worker_profile = WorkerProfile.objects.get(profileID=user_profile)
             except WorkerProfile.DoesNotExist:
                 return {
                     'success': False,
@@ -909,11 +1217,10 @@ def get_my_jobs_mobile(user, status=None, page=1, limit=20):
 
             # Get jobs worker is assigned to OR applied to
             jobs_qs = JobPosting.objects.select_related(
-                'clientID',
-                'clientID__profileFK',
-                'categoryFK',
-                'assignedWorkerID'
-            ).filter(
+                'clientID__profileID__accountFK',
+                'categoryID',
+                'assignedWorkerID__profileID__accountFK'
+            ).prefetch_related('photos').filter(
                 Q(assignedWorkerID=worker_profile) | Q(jobID__in=applied_job_ids)
             )
 
@@ -939,7 +1246,7 @@ def get_my_jobs_mobile(user, status=None, page=1, limit=20):
         # Build job list
         job_list = []
         for job in jobs:
-            client_profile = job.clientID.profileFK if job.clientID else None
+            client_profile = job.clientID.profileID if job.clientID else None
 
             job_data = {
                 'job_id': job.jobID,
@@ -948,10 +1255,10 @@ def get_my_jobs_mobile(user, status=None, page=1, limit=20):
                 'budget': float(job.budget) if job.budget else 0.0,
                 'location': job.location or '',
                 'status': job.status,
-                'urgency_level': job.urgencyLevel,
+                'urgency_level': job.urgency,
                 'expected_duration': job.expectedDuration or '',
-                'category_id': job.categoryFK.specializationID if job.categoryFK else None,
-                'category_name': job.categoryFK.specializationName if job.categoryFK else 'General',
+                'category_id': job.categoryID.specializationID if job.categoryID else None,
+                'category_name': job.categoryID.specializationName if job.categoryID else 'General',
                 'created_at': job.createdAt.isoformat() if job.createdAt else None,
                 'preferred_start_date': job.preferredStartDate.isoformat() if job.preferredStartDate else None,
                 'materials_needed': job.materialsNeeded or [],
@@ -964,14 +1271,14 @@ def get_my_jobs_mobile(user, status=None, page=1, limit=20):
 
             # Add worker info if assigned
             if job.assignedWorkerID:
-                worker_profile = job.assignedWorkerID.profileFK
+                worker_profile = job.assignedWorkerID.profileID
                 job_data['worker_name'] = f"{worker_profile.firstName or ''} {worker_profile.lastName or ''}".strip()
                 job_data['worker_img'] = worker_profile.profileImg or ''
 
             # For workers, add application status
             if user_profile.profileType == 'WORKER':
                 try:
-                    worker_profile = WorkerProfile.objects.get(profileFK=user_profile)
+                    worker_profile = WorkerProfile.objects.get(profileID=user_profile)
                     application = JobApplication.objects.filter(
                         jobID=job,
                         workerID=worker_profile
@@ -1028,7 +1335,7 @@ def get_available_jobs_mobile(user, page=1, limit=20):
 
         # Get worker profile
         try:
-            worker_profile = WorkerProfile.objects.get(profileFK=user_profile)
+            worker_profile = WorkerProfile.objects.get(profileID=user_profile)
         except WorkerProfile.DoesNotExist:
             return {
                 'success': False,
@@ -1042,10 +1349,9 @@ def get_available_jobs_mobile(user, page=1, limit=20):
 
         # Get ACTIVE jobs that worker hasn't applied to
         jobs_qs = JobPosting.objects.select_related(
-            'clientID',
-            'clientID__profileFK',
-            'categoryFK'
-        ).filter(
+            'clientID__profileID__accountFK',
+            'categoryID'
+        ).prefetch_related('photos').filter(
             status='ACTIVE'
         ).exclude(
             jobID__in=applied_job_ids
@@ -1060,7 +1366,7 @@ def get_available_jobs_mobile(user, page=1, limit=20):
         # Build job list (same format as job list endpoint)
         job_list = []
         for job in jobs:
-            client_profile = job.clientID.profileFK if job.clientID else None
+            client_profile = job.clientID.profileID if job.clientID else None
 
             job_data = {
                 'job_id': job.jobID,
@@ -1069,10 +1375,10 @@ def get_available_jobs_mobile(user, page=1, limit=20):
                 'budget': float(job.budget) if job.budget else 0.0,
                 'location': job.location or '',
                 'status': job.status,
-                'urgency_level': job.urgencyLevel,
+                'urgency_level': job.urgency,
                 'expected_duration': job.expectedDuration or '',
-                'category_id': job.categoryFK.specializationID if job.categoryFK else None,
-                'category_name': job.categoryFK.specializationName if job.categoryFK else 'General',
+                'category_id': job.categoryID.specializationID if job.categoryID else None,
+                'category_name': job.categoryID.specializationName if job.categoryID else 'General',
                 'created_at': job.createdAt.isoformat() if job.createdAt else None,
                 'preferred_start_date': job.preferredStartDate.isoformat() if job.preferredStartDate else None,
             }
@@ -1174,9 +1480,13 @@ def submit_review_mobile(user: Accounts, job_id: int, rating: int, comment: str,
         )
 
         # Format response
-        reviewer_profile = user.profile if hasattr(user, 'profile') else None
+        reviewer_profile = None
         reviewer_name = "Anonymous"
         reviewer_img = None
+        try:
+            reviewer_profile = Profile.objects.get(accountFK=user)
+        except Profile.DoesNotExist:
+            pass
 
         if reviewer_profile:
             reviewer_name = f"{reviewer_profile.firstName} {reviewer_profile.lastName}".strip()
@@ -1573,9 +1883,13 @@ def edit_review_mobile(user: Accounts, review_id: int, rating: int, comment: str
         review.save()
 
         # Format response
-        reviewer_profile = user.profile if hasattr(user, 'profile') else None
+        reviewer_profile = None
         reviewer_name = "Anonymous"
         reviewer_img = None
+        try:
+            reviewer_profile = Profile.objects.get(accountFK=user)
+        except Profile.DoesNotExist:
+            pass
 
         if reviewer_profile:
             reviewer_name = f"{reviewer_profile.firstName} {reviewer_profile.lastName}".strip()
@@ -1662,7 +1976,7 @@ def get_pending_reviews_mobile(user: Accounts) -> Dict[str, Any]:
     try:
         # Get user's profile
         try:
-            profile = user.profile
+            profile = Profile.objects.get(accountFK=user)
         except Profile.DoesNotExist:
             return {'success': False, 'error': 'Profile not found'}
 

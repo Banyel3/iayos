@@ -280,7 +280,9 @@ export default function MessagesTabScreen() {
           />
         }
         contentContainerStyle={
-          displayedConversations.length === 0 && styles.emptyListContent
+          displayedConversations.length === 0
+            ? styles.emptyListContent
+            : { paddingBottom: 120 } // Extra padding for floating tab bar
         }
         showsVerticalScrollIndicator={false}
       />

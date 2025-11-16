@@ -60,6 +60,13 @@ export const Colors = {
   black: "#000000",
   transparent: "transparent",
 
+  // Gradients (for modern CTAs and headers)
+  gradientStart: "#3B82F6", // blue-600
+  gradientEnd: "#1D4ED8", // blue-800
+  overlayLight: "rgba(0, 0, 0, 0.05)",
+  overlayDark: "rgba(0, 0, 0, 0.6)",
+  shimmer: "rgba(255, 255, 255, 0.3)",
+
   // Legacy support for existing code (will be deprecated)
   light: {
     text: "#212121",

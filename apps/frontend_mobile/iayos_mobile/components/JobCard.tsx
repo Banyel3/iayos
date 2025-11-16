@@ -1,25 +1,34 @@
 /**
- * JobCard Component - Production-ready job listing card matching Next.js design
+ * JobCard Component - Modern elevated card design inspired by Airbnb/TaskRabbit
  *
  * Features:
- * - Horizontal layout (not vertical)
- * - Left side: Job info (title, category, location, posted date)
- * - Right side: Budget, status badge, application count
- * - White card with border radius 10px, subtle shadow
- * - Pressable with scale animation
+ * - Elevated card with pronounced shadow
+ * - Horizontal layout with clear visual hierarchy
+ * - Left side: Job info with icons
+ * - Right side: Budget with gradient background
+ * - Scale animation on press with haptic feedback
+ * - Modern typography and spacing
  */
 
-import React from 'react';
+import React from "react";
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { Colors, Typography, Spacing, BorderRadius, Shadows } from '@/constants/theme';
-import Badge from '@/components/ui/Badge';
-import * as Haptics from 'expo-haptics';
+  Animated,
+  Platform,
+} from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
+import {
+  Colors,
+  Typography,
+  Spacing,
+  BorderRadius,
+  Shadows,
+} from "@/constants/theme";
+import * as Haptics from "expo-haptics";
 
 interface JobCardProps {
   id: number;
@@ -28,7 +37,7 @@ interface JobCardProps {
   location?: string;
   postedAt?: string | Date;
   budget: number | string;
-  status?: 'active' | 'in_progress' | 'completed' | 'cancelled';
+  status?: "active" | "in_progress" | "completed" | "cancelled";
   applicationCount?: number;
   onPress?: () => void;
 }
@@ -40,19 +49,36 @@ export default function JobCard({
   location,
   postedAt,
   budget,
-  status = 'active',
+  status = "active",
   applicationCount,
   onPress,
 }: JobCardProps) {
+  const scaleAnim = React.useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 0.97,
+      useNativeDriver: true,
+      speed: 50,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+      speed: 50,
+    }).start();
+  };
 
   const handlePress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     onPress?.();
   };
 
-  // Format posted date to relative time (e.g., "2 hours ago")
+  // Format posted date to relative time
   const formatPostedDate = (date: string | Date): string => {
-    if (!date) return 'Recently';
+    if (!date) return "Recently";
 
     const now = new Date();
     const posted = new Date(date);
@@ -69,143 +95,200 @@ export default function JobCard({
 
   // Format budget
   const formatBudget = (amount: number | string): string => {
-    const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
-    return `₱${numAmount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const numAmount = typeof amount === "string" ? parseFloat(amount) : amount;
+    return `₱${numAmount.toLocaleString("en-PH", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
   };
 
   return (
-    <TouchableOpacity
-      onPress={handlePress}
-      activeOpacity={0.95}
-      style={styles.card}
+    <Animated.View
+      style={[{ transform: [{ scale: scaleAnim }] }, styles.cardWrapper]}
     >
-      {/* Left Side - Job Info */}
-      <View style={styles.leftSection}>
-        {/* Title */}
-        <Text style={styles.title} numberOfLines={2}>
-          {title}
-        </Text>
-
-        {/* Category Badge */}
-        {category && (
-          <View style={styles.categoryContainer}>
-            <Badge variant="info" size="sm">
-              {category}
-            </Badge>
-          </View>
-        )}
-
-        {/* Location & Posted Date */}
-        <View style={styles.metaRow}>
-          {location && (
-            <View style={styles.metaItem}>
-              <Ionicons name="location-outline" size={14} color={Colors.textSecondary} />
-              <Text style={styles.metaText} numberOfLines={1}>
-                {location}
-              </Text>
+      <TouchableOpacity
+        onPress={handlePress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        activeOpacity={1}
+        style={styles.card}
+      >
+        {/* Left Side - Job Info */}
+        <View style={styles.leftSection}>
+          {/* Category Badge with Icon */}
+          {category && (
+            <View style={styles.categoryRow}>
+              <View style={styles.categoryBadge}>
+                <Ionicons name="briefcase" size={11} color={Colors.primary} />
+                <Text style={styles.categoryText}>{category}</Text>
+              </View>
             </View>
           )}
 
-          {postedAt && (
-            <View style={styles.metaItem}>
-              <Ionicons name="time-outline" size={14} color={Colors.textSecondary} />
-              <Text style={styles.metaText}>
-                {formatPostedDate(postedAt)}
+          {/* Title with bold modern typography */}
+          <Text style={styles.title} numberOfLines={2}>
+            {title}
+          </Text>
+
+          {/* Location & Time Row with Icons */}
+          <View style={styles.metaRow}>
+            {location && (
+              <View style={styles.metaItem}>
+                <Ionicons
+                  name="location"
+                  size={13}
+                  color={Colors.textSecondary}
+                />
+                <Text style={styles.metaText} numberOfLines={1}>
+                  {location}
+                </Text>
+              </View>
+            )}
+            {postedAt && (
+              <View style={styles.metaItem}>
+                <Ionicons
+                  name="time-outline"
+                  size={13}
+                  color={Colors.textSecondary}
+                />
+                <Text style={styles.metaText}>
+                  {formatPostedDate(postedAt)}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {/* Application Count Badge */}
+          {applicationCount && applicationCount > 0 && (
+            <View style={styles.applicationBadgeRow}>
+              <Ionicons name="people" size={13} color={Colors.primary} />
+              <Text style={styles.applicationText}>
+                {applicationCount}{" "}
+                {applicationCount === 1 ? "applicant" : "applicants"}
               </Text>
             </View>
           )}
         </View>
-      </View>
 
-      {/* Right Side - Budget & Status */}
-      <View style={styles.rightSection}>
-        {/* Budget */}
-        <Text style={styles.budget}>
-          {formatBudget(budget)}
-        </Text>
-
-        {/* Status Badge */}
-        <Badge variant={status} size="sm">
-          {status.replace('_', ' ').toUpperCase()}
-        </Badge>
-
-        {/* Application Count */}
-        {applicationCount !== undefined && applicationCount > 0 && (
-          <View style={styles.applicationBadge}>
-            <Ionicons name="people-outline" size={12} color={Colors.primary} />
-            <Text style={styles.applicationCount}>
-              {applicationCount}
-            </Text>
-          </View>
-        )}
-      </View>
-    </TouchableOpacity>
+        {/* Right Side - Budget with Gradient */}
+        <View style={styles.rightSection}>
+          <LinearGradient
+            colors={[Colors.primary, Colors.primaryDark]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.budgetGradient}
+          >
+            <Text style={styles.budgetLabel}>BUDGET</Text>
+            <Text style={styles.budgetAmount}>{formatBudget(budget)}</Text>
+          </LinearGradient>
+        </View>
+      </TouchableOpacity>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
+  cardWrapper: {},
+
   card: {
-    flexDirection: 'row',
+    flexDirection: "row",
     backgroundColor: Colors.white,
-    borderRadius: BorderRadius.lg,
+    borderRadius: BorderRadius.xl,
     padding: Spacing.lg,
-    marginBottom: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
-    ...Shadows.sm,
+    gap: Spacing.md,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.12,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 5,
+      },
+    }),
   },
   leftSection: {
     flex: 1,
-    marginRight: Spacing.lg,
+    gap: Spacing.xs,
   },
-  rightSection: {
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    minWidth: 80,
+  categoryRow: {
+    flexDirection: "row",
+  },
+  categoryBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.primaryLight,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.pill,
+    gap: 4,
+  },
+  categoryText: {
+    fontSize: 10,
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.primary,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   title: {
     fontSize: Typography.fontSize.lg,
-    fontWeight: Typography.fontWeight.semiBold,
+    fontWeight: Typography.fontWeight.bold,
     color: Colors.textPrimary,
-    marginBottom: Spacing.sm,
     lineHeight: 24,
-  },
-  categoryContainer: {
-    marginBottom: Spacing.sm,
+    marginTop: 2,
   },
   metaRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
     gap: Spacing.md,
+    marginTop: 2,
   },
   metaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    flex: 1,
   },
   metaText: {
     fontSize: Typography.fontSize.xs,
     color: Colors.textSecondary,
+    fontWeight: Typography.fontWeight.medium,
+    flex: 1,
   },
-  budget: {
-    fontSize: Typography.fontSize.xl,
-    fontWeight: Typography.fontWeight.bold,
-    color: Colors.primary,
-    marginBottom: Spacing.sm,
-  },
-  applicationBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: `${Colors.primary}10`,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.sm,
-    gap: Spacing.xs,
+  applicationBadgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
     marginTop: Spacing.xs,
   },
-  applicationCount: {
+  applicationText: {
     fontSize: Typography.fontSize.xs,
-    fontWeight: Typography.fontWeight.medium,
+    fontWeight: Typography.fontWeight.semiBold,
     color: Colors.primary,
+  },
+  rightSection: {
+    minWidth: 95,
+    alignItems: "flex-end",
+    justifyContent: "center",
+  },
+  budgetGradient: {
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 72,
+    minWidth: 95,
+  },
+  budgetLabel: {
+    fontSize: 9,
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.white,
+    opacity: 0.85,
+    marginBottom: 4,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+  budgetAmount: {
+    fontSize: Typography.fontSize.lg,
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.white,
   },
 });

@@ -43,7 +43,7 @@ from .review_service import (
     get_my_reviews, edit_review, report_review
 )
 from ninja.responses import Response
-from .authentication import cookie_auth
+from .authentication import cookie_auth, dual_auth
 from django.shortcuts import redirect
 from django.urls import reverse
 
@@ -226,7 +226,7 @@ def get_kyc_application_history(request):
         return {"success": False, "error": "Failed to fetch KYC history"}
 
 
-@router.get("/notifications", auth=cookie_auth)
+@router.get("/notifications", auth=dual_auth)
 def get_notifications(request, limit: int = 50, unread_only: bool = False):
     """
     Get notifications for the authenticated user.
@@ -300,10 +300,11 @@ def mark_all_notifications_read(request):
         return {"success": False, "error": "Failed to mark notifications as read"}
 
 
-@router.get("/notifications/unread-count", auth=cookie_auth)
+@router.get("/notifications/unread-count", auth=dual_auth)
 def get_unread_count(request):
     """
     Get the count of unread notifications for the authenticated user.
+    Supports both mobile (Bearer token) and web (cookie) authentication.
     """
     try:
         from .services import get_unread_notification_count
@@ -320,7 +321,7 @@ def get_unread_count(request):
         return {"success": False, "error": "Failed to get unread count"}
 
 
-@router.post("/register-push-token", auth=cookie_auth)
+@router.post("/register-push-token", auth=dual_auth)
 def register_push_token(request, pushToken: str, deviceType: str = "android"):
     """
     Register or update an Expo push token for the authenticated user.

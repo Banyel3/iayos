@@ -11,7 +11,7 @@
  * - Infinite scroll pagination
  */
 
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -21,30 +21,40 @@ import {
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
-} from 'react-native';
-import { useRouter } from 'expo-router';
-import { useAuth } from '@/context/AuthContext';
-import { Colors, Typography, Spacing, BorderRadius, Shadows } from '@/constants/theme';
-import { Ionicons } from '@expo/vector-icons';
+} from "react-native";
+import { useRouter } from "expo-router";
+import { useAuth } from "@/context/AuthContext";
+import {
+  Colors,
+  Typography,
+  Spacing,
+  BorderRadius,
+  Shadows,
+} from "@/constants/theme";
+import { Ionicons } from "@expo/vector-icons";
 
 // Components
-import SearchBar from '@/components/ui/SearchBar';
-import FilterChip from '@/components/ui/FilterChip';
-import EmptyState from '@/components/ui/EmptyState';
-import ErrorState from '@/components/ui/ErrorState';
-import SkeletonCard from '@/components/ui/SkeletonCard';
-import JobCard from '@/components/JobCard';
-import LoadingScreen from '@/components/ui/LoadingScreen';
+import SearchBar from "@/components/ui/SearchBar";
+import FilterChip from "@/components/ui/FilterChip";
+import EmptyState from "@/components/ui/EmptyState";
+import ErrorState from "@/components/ui/ErrorState";
+import SkeletonCard from "@/components/ui/SkeletonCard";
+import JobCard from "@/components/JobCard";
+import WorkerCard from "@/components/WorkerCard";
+import AgencyCard from "@/components/AgencyCard";
+import LoadingScreen from "@/components/ui/LoadingScreen";
 
 // Hooks
-import { useInfiniteJobs, Job } from '@/lib/hooks/useJobs';
-import { useCategories } from '@/lib/hooks/useCategories';
+import { useInfiniteJobs, Job } from "@/lib/hooks/useJobs";
+import { useInfiniteWorkers, Worker } from "@/lib/hooks/useWorkers";
+import { useInfiniteAgencies, Agency } from "@/lib/hooks/useAgencies";
+import { useCategories } from "@/lib/hooks/useCategories";
 
 const URGENCY_FILTERS = [
-  { id: 'ALL', label: 'All', value: undefined },
-  { id: 'LOW', label: 'Low', value: 'LOW' },
-  { id: 'MEDIUM', label: 'Medium', value: 'MEDIUM' },
-  { id: 'HIGH', label: 'High', value: 'HIGH' },
+  { id: "ALL", label: "All", value: undefined },
+  { id: "LOW", label: "Low", value: "LOW" },
+  { id: "MEDIUM", label: "Medium", value: "MEDIUM" },
+  { id: "HIGH", label: "High", value: "HIGH" },
 ] as const;
 
 export default function BrowseJobsScreen() {
@@ -52,37 +62,115 @@ export default function BrowseJobsScreen() {
   const router = useRouter();
 
   // State
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<number | undefined>(undefined);
-  const [selectedUrgency, setSelectedUrgency] = useState<'LOW' | 'MEDIUM' | 'HIGH' | undefined>(undefined);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<number | undefined>(
+    undefined
+  );
+  const [selectedUrgency, setSelectedUrgency] = useState<
+    "LOW" | "MEDIUM" | "HIGH" | undefined
+  >(undefined);
+  const [viewTab, setViewTab] = useState<"workers" | "agencies">("workers");
 
-  const isWorker = user?.profile_data?.profileType === 'WORKER';
+  const isWorker = user?.profile_data?.profileType === "WORKER";
 
   // Fetch categories
-  const { data: categoriesData, isLoading: categoriesLoading } = useCategories();
+  const { data: categoriesData, isLoading: categoriesLoading } =
+    useCategories();
   const categories = categoriesData?.categories || [];
 
-  // Fetch jobs with infinite scroll
+  // Fetch jobs for workers OR workers for clients
   const {
     data: jobsData,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
+    fetchNextPage: fetchNextJobs,
+    hasNextPage: hasNextJobs,
+    isFetchingNextPage: isFetchingNextJobs,
     isLoading: jobsLoading,
-    isError,
-    refetch,
-    isRefetching,
-  } = useInfiniteJobs({
-    category: selectedCategory,
-    urgency: selectedUrgency,
-  });
+    isError: jobsError,
+    refetch: refetchJobs,
+    isRefetching: isRefetchingJobs,
+  } = useInfiniteJobs(
+    {
+      category: selectedCategory,
+      urgency: selectedUrgency,
+    },
+    {
+      enabled: isWorker, // Only fetch jobs if user is a worker
+    }
+  );
 
-  // Flatten pages into single jobs array
+  const {
+    data: workersData,
+    fetchNextPage: fetchNextWorkers,
+    hasNextPage: hasNextWorkers,
+    isFetchingNextPage: isFetchingNextWorkers,
+    isLoading: workersLoading,
+    isError: workersError,
+    refetch: refetchWorkers,
+    isRefetching: isRefetchingWorkers,
+  } = useInfiniteWorkers(
+    {
+      category: selectedCategory,
+    },
+    {
+      enabled: !isWorker && viewTab === "workers", // Only fetch workers if client and workers tab
+    }
+  );
+
+  const {
+    data: agenciesData,
+    fetchNextPage: fetchNextAgencies,
+    hasNextPage: hasNextAgencies,
+    isFetchingNextPage: isFetchingNextAgencies,
+    isLoading: agenciesLoading,
+    isError: agenciesError,
+    refetch: refetchAgencies,
+    isRefetching: isRefetchingAgencies,
+  } = useInfiniteAgencies(
+    {
+      // Add filters as needed
+    },
+    {
+      enabled: !isWorker && viewTab === "agencies", // Only fetch agencies if client and agencies tab
+    }
+  );
+
+  // Unified state based on user type and tab
+  const isLoading = isWorker
+    ? jobsLoading
+    : viewTab === "workers"
+      ? workersLoading
+      : agenciesLoading;
+  const isError = isWorker
+    ? jobsError
+    : viewTab === "workers"
+      ? workersError
+      : agenciesError;
+  const isRefetching = isWorker
+    ? isRefetchingJobs
+    : viewTab === "workers"
+      ? isRefetchingWorkers
+      : isRefetchingAgencies;
+  const isFetchingNextPage = isWorker
+    ? isFetchingNextJobs
+    : viewTab === "workers"
+      ? isFetchingNextWorkers
+      : isFetchingNextAgencies;
+  const hasNextPage = isWorker
+    ? hasNextJobs
+    : viewTab === "workers"
+      ? hasNextWorkers
+      : hasNextAgencies;
+
+  // Flatten pages into single array
   const jobs = jobsData?.pages?.flatMap((page) => page.jobs) || [];
+  const workers = workersData?.pages?.flatMap((page) => page.workers) || [];
+  const agencies = agenciesData?.pages?.flatMap((page) => page.agencies) || [];
+  const items = isWorker ? jobs : viewTab === "workers" ? workers : agencies;
+  const itemCount = items.length;
 
   // Handlers
   const handleSearchFocus = () => {
-    router.push('/jobs/search');
+    router.push("/jobs/search");
   };
 
   const handleCategoryPress = (categoryId: number) => {
@@ -93,7 +181,9 @@ export default function BrowseJobsScreen() {
     }
   };
 
-  const handleUrgencyPress = (urgency: 'LOW' | 'MEDIUM' | 'HIGH' | undefined) => {
+  const handleUrgencyPress = (
+    urgency: "LOW" | "MEDIUM" | "HIGH" | undefined
+  ) => {
     if (selectedUrgency === urgency) {
       setSelectedUrgency(undefined);
     } else {
@@ -105,97 +195,277 @@ export default function BrowseJobsScreen() {
     router.push(`/jobs/${jobId}` as any);
   };
 
+  const handleWorkerPress = (workerId: number) => {
+    console.log("[Navigation] Attempting to navigate to worker:", workerId);
+    try {
+      router.push({
+        pathname: "/workers/[id]",
+        params: { id: workerId.toString() },
+      } as any);
+    } catch (error) {
+      console.error("[Navigation] Failed to navigate:", error);
+    }
+  };
+
+  const handleAgencyPress = (agencyId: number) => {
+    console.log("[Navigation] Attempting to navigate to agency:", agencyId);
+    try {
+      router.push({
+        pathname: "/agencies/[id]",
+        params: { id: agencyId.toString() },
+      } as any);
+    } catch (error) {
+      console.error("[Navigation] Failed to navigate:", error);
+    }
+  };
+
   const handleLoadMore = () => {
     if (hasNextPage && !isFetchingNextPage) {
-      fetchNextPage();
+      if (isWorker) {
+        fetchNextJobs();
+      } else if (viewTab === "workers") {
+        fetchNextWorkers();
+      } else {
+        fetchNextAgencies();
+      }
     }
   };
 
   const handleRefresh = () => {
-    refetch();
+    if (isWorker) {
+      refetchJobs();
+    } else if (viewTab === "workers") {
+      refetchWorkers();
+    } else {
+      refetchAgencies();
+    }
   };
 
   const handleViewCategories = () => {
-    router.push('/jobs/categories' as any);
+    router.push("/jobs/categories" as any);
   };
 
   // Render functions
   const renderHeader = () => (
-    <View style={styles.header}>
-      <View style={styles.headerTop}>
-        <View>
-          <Text style={styles.greeting}>
-            {isWorker ? 'Find Jobs' : 'Browse Workers'}
+    <View style={styles.headerContainer}>
+      {/* Hero Section */}
+      <View style={styles.heroSection}>
+        <View style={styles.heroContent}>
+          <Text style={styles.heroGreeting}>
+            {isWorker ? "🔨 Find Your Next Gig" : "👋 Welcome Back"}
           </Text>
-          <Text style={styles.subtitle}>
-            {jobs.length} {isWorker ? 'jobs' : 'workers'} available
+          <Text style={styles.heroSubtitle}>
+            {isWorker
+              ? `${itemCount} opportunities waiting for you`
+              : `Discover ${itemCount} talented ${viewTab === "workers" ? "professionals" : "agencies"}`}
           </Text>
         </View>
         <TouchableOpacity
-          style={styles.notificationButton}
-          onPress={() => router.push('/notifications' as any)}
+          style={styles.notificationIconButton}
+          onPress={() => router.push("/notifications" as any)}
         >
-          <Ionicons name="notifications-outline" size={24} color={Colors.textPrimary} />
-          {/* Unread badge - can be connected to actual count later */}
+          <View style={styles.notificationIconWrapper}>
+            <Ionicons name="notifications" size={20} color={Colors.primary} />
+            {/* Notification badge */}
+            <View style={styles.notificationBadge} />
+          </View>
         </TouchableOpacity>
       </View>
 
-      {/* SearchBar */}
-      <SearchBar
-        value={searchQuery}
-        onChangeText={setSearchQuery}
-        placeholder="Search jobs..."
-        showFilterButton
-        onFilterPress={() => {/* TODO: Open filter modal */}}
-        style={styles.searchBar}
-        autoFocus={false}
-      />
+      {/* Search Bar */}
+      <View style={styles.searchContainer}>
+        <SearchBar
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          placeholder={
+            isWorker ? "Search jobs, categories..." : "Search professionals..."
+          }
+          showFilterButton
+          onFilterPress={() => {
+            /* TODO: Open filter modal */
+          }}
+          style={styles.searchBar}
+          autoFocus={false}
+        />
+      </View>
 
-      {/* Category Filters */}
+      {/* Client Tab Switcher */}
+      {!isWorker && (
+        <View style={styles.tabSwitcher}>
+          <TouchableOpacity
+            style={[
+              styles.tabButton,
+              viewTab === "workers" && styles.activeTabButton,
+            ]}
+            onPress={() => setViewTab("workers")}
+          >
+            <Ionicons
+              name={viewTab === "workers" ? "people" : "people-outline"}
+              size={20}
+              color={
+                viewTab === "workers" ? Colors.white : Colors.textSecondary
+              }
+            />
+            <Text
+              style={[
+                styles.tabButtonText,
+                viewTab === "workers" && styles.activeTabButtonText,
+              ]}
+            >
+              Workers
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.tabButton,
+              viewTab === "agencies" && styles.activeTabButton,
+            ]}
+            onPress={() => setViewTab("agencies")}
+          >
+            <Ionicons
+              name={viewTab === "agencies" ? "business" : "business-outline"}
+              size={20}
+              color={
+                viewTab === "agencies" ? Colors.white : Colors.textSecondary
+              }
+            />
+            <Text
+              style={[
+                styles.tabButtonText,
+                viewTab === "agencies" && styles.activeTabButtonText,
+              ]}
+            >
+              Agencies
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Categories Scroller - Story Style */}
       {!categoriesLoading && categories.length > 0 && (
-        <View style={styles.filtersSection}>
-          <View style={styles.filterHeader}>
-            <Text style={styles.filterTitle}>Categories</Text>
+        <View style={styles.categoriesSection}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>
+              {isWorker ? "Popular Categories" : "Specializations"}
+            </Text>
             <TouchableOpacity onPress={handleViewCategories}>
-              <Text style={styles.viewAllText}>View All</Text>
+              <Text style={styles.seeAllText}>See All →</Text>
             </TouchableOpacity>
           </View>
           <FlatList
             horizontal
-            data={[{ id: 0, name: 'All', specializationName: 'All' }, ...categories.slice(0, 8)]}
+            data={[
+              { id: 0, name: "All", specializationName: "All" },
+              ...categories.slice(0, 10),
+            ]}
             renderItem={({ item }) => (
-              <FilterChip
-                label={item.specializationName || item.name}
-                selected={item.id === 0 ? !selectedCategory : selectedCategory === item.id}
-                onPress={() => item.id === 0 ? setSelectedCategory(undefined) : handleCategoryPress(item.id)}
-                style={styles.categoryChip}
-              />
+              <TouchableOpacity
+                style={[
+                  styles.categoryCard,
+                  (item.id === 0
+                    ? !selectedCategory
+                    : selectedCategory === item.id) &&
+                    styles.categoryCardSelected,
+                ]}
+                onPress={() =>
+                  item.id === 0
+                    ? setSelectedCategory(undefined)
+                    : handleCategoryPress(item.id)
+                }
+              >
+                <View
+                  style={[
+                    styles.categoryIcon,
+                    (item.id === 0
+                      ? !selectedCategory
+                      : selectedCategory === item.id) &&
+                      styles.categoryIconSelected,
+                  ]}
+                >
+                  <Ionicons
+                    name="hammer"
+                    size={24}
+                    color={
+                      (
+                        item.id === 0
+                          ? !selectedCategory
+                          : selectedCategory === item.id
+                      )
+                        ? Colors.white
+                        : Colors.primary
+                    }
+                  />
+                </View>
+                <Text
+                  style={[
+                    styles.categoryName,
+                    (item.id === 0
+                      ? !selectedCategory
+                      : selectedCategory === item.id) &&
+                      styles.categoryNameSelected,
+                  ]}
+                  numberOfLines={2}
+                >
+                  {item.specializationName || item.name}
+                </Text>
+              </TouchableOpacity>
             )}
             keyExtractor={(item) => item.id.toString()}
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.filterChipsContainer}
+            contentContainerStyle={styles.categoriesScroller}
           />
         </View>
       )}
 
-      {/* Urgency Filters */}
-      <View style={styles.filtersSection}>
-        <Text style={styles.filterTitle}>Urgency</Text>
-        <FlatList
-          horizontal
-          data={URGENCY_FILTERS}
-          renderItem={({ item }) => (
-            <FilterChip
-              label={item.label}
-              selected={item.id === 'ALL' ? !selectedUrgency : selectedUrgency === item.value}
-              onPress={() => handleUrgencyPress(item.value)}
-              style={styles.urgencyChip}
-            />
-          )}
-          keyExtractor={(item) => item.id}
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filterChipsContainer}
-        />
+      {/* Urgency Filters - Only for workers */}
+      {isWorker && (
+        <View style={styles.urgencySection}>
+          <Text style={styles.sectionTitle}>Filter by Urgency</Text>
+          <FlatList
+            horizontal
+            data={URGENCY_FILTERS}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={[
+                  styles.urgencyChip,
+                  (item.id === "ALL"
+                    ? !selectedUrgency
+                    : selectedUrgency === item.value) &&
+                    styles.urgencyChipSelected,
+                ]}
+                onPress={() => handleUrgencyPress(item.value)}
+              >
+                <Text
+                  style={[
+                    styles.urgencyChipText,
+                    (item.id === "ALL"
+                      ? !selectedUrgency
+                      : selectedUrgency === item.value) &&
+                      styles.urgencyChipTextSelected,
+                  ]}
+                >
+                  {item.label}
+                </Text>
+              </TouchableOpacity>
+            )}
+            keyExtractor={(item) => item.id}
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.urgencyScroller}
+          />
+        </View>
+      )}
+
+      {/* Feed Divider */}
+      <View style={styles.feedDivider}>
+        <View style={styles.dividerLine} />
+        <Text style={styles.dividerText}>
+          {isWorker
+            ? "Available Jobs"
+            : viewTab === "workers"
+              ? "Top Workers"
+              : "Featured Agencies"}
+        </Text>
+        <View style={styles.dividerLine} />
       </View>
     </View>
   );
@@ -208,11 +478,25 @@ export default function BrowseJobsScreen() {
       location={item.location}
       postedAt={item.postedAt}
       budget={item.budget}
-      status={item.status.toLowerCase() as any}
+      status={item.status?.toLowerCase() as any}
       applicationCount={item.applicationCount}
       onPress={() => handleJobPress(item.id)}
     />
   );
+
+  const renderWorkerItem = ({ item }: { item: Worker }) => (
+    <WorkerCard worker={item} onPress={() => handleWorkerPress(item.id)} />
+  );
+
+  const renderAgencyItem = ({ item }: { item: Agency }) => (
+    <AgencyCard agency={item} />
+  );
+
+  const renderItem = isWorker
+    ? renderJobItem
+    : viewTab === "workers"
+      ? renderWorkerItem
+      : renderAgencyItem;
 
   const renderFooter = () => {
     if (!isFetchingNextPage) return null;
@@ -225,7 +509,7 @@ export default function BrowseJobsScreen() {
   };
 
   const renderEmpty = () => {
-    if (jobsLoading) {
+    if (isLoading) {
       return (
         <View style={styles.skeletonContainer}>
           <SkeletonCard />
@@ -239,16 +523,18 @@ export default function BrowseJobsScreen() {
 
     return (
       <EmptyState
-        icon="briefcase-outline"
-        title="No jobs found"
+        icon={isWorker ? "briefcase-outline" : "people-outline"}
+        title={isWorker ? "No jobs found" : "No workers found"}
         message={
           selectedCategory || selectedUrgency
-            ? 'Try adjusting your filters to see more jobs'
+            ? `Try adjusting your filters to see more ${isWorker ? "jobs" : "workers"}`
             : isWorker
-            ? 'No jobs available at the moment. Check back soon!'
-            : 'No workers available matching your criteria'
+              ? "No jobs available at the moment. Check back soon!"
+              : "No workers available matching your criteria"
         }
-        actionLabel={selectedCategory || selectedUrgency ? 'Clear Filters' : undefined}
+        actionLabel={
+          selectedCategory || selectedUrgency ? "Clear Filters" : undefined
+        }
         onActionPress={() => {
           setSelectedCategory(undefined);
           setSelectedUrgency(undefined);
@@ -258,8 +544,10 @@ export default function BrowseJobsScreen() {
   };
 
   // Loading state
-  if (jobsLoading && !jobs.length) {
-    return <LoadingScreen text="Loading jobs..." />;
+  if (isLoading && !itemCount) {
+    return (
+      <LoadingScreen text={`Loading ${isWorker ? "jobs" : "workers"}...`} />
+    );
   }
 
   // Error state
@@ -267,9 +555,9 @@ export default function BrowseJobsScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <ErrorState
-          title="Failed to load jobs"
+          title={`Failed to load ${isWorker ? "jobs" : "workers"}`}
           message="Something went wrong. Please try again."
-          onRetry={refetch}
+          onRetry={handleRefresh}
         />
       </SafeAreaView>
     );
@@ -278,9 +566,9 @@ export default function BrowseJobsScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <FlatList
-        data={jobs}
-        renderItem={renderJobItem}
-        keyExtractor={(item) => item.id.toString()}
+        data={items as any}
+        renderItem={renderItem as any}
+        keyExtractor={(item: any) => item.id.toString()}
         ListHeaderComponent={renderHeader}
         ListEmptyComponent={renderEmpty}
         ListFooterComponent={renderFooter}
@@ -296,6 +584,7 @@ export default function BrowseJobsScreen() {
         }
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
+        ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
       />
     </SafeAreaView>
   );
@@ -304,87 +593,230 @@ export default function BrowseJobsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: "#F8F9FA",
   },
   listContent: {
     flexGrow: 1,
-    paddingBottom: Spacing['2xl'],
+    paddingHorizontal: 16,
+    paddingTop: 16, // Add spacing after header
+    paddingBottom: 120,
   },
-  header: {
+  headerContainer: {
     backgroundColor: Colors.white,
     paddingBottom: Spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
-    marginBottom: Spacing.md,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    ...Shadows.md,
   },
-  headerTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.lg,
-    paddingBottom: Spacing.md,
+  heroSection: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 16,
   },
-  greeting: {
-    fontSize: Typography.fontSize['3xl'],
-    fontWeight: Typography.fontWeight.bold,
+  heroContent: {
+    flex: 1,
+  },
+  heroGreeting: {
+    fontSize: 28,
+    fontWeight: "800",
     color: Colors.textPrimary,
-    marginBottom: Spacing.xs,
+    marginBottom: 6,
+    letterSpacing: -0.5,
   },
-  subtitle: {
-    fontSize: Typography.fontSize.base,
+  heroSubtitle: {
+    fontSize: 15,
     color: Colors.textSecondary,
+    fontWeight: "500",
+    lineHeight: 20,
   },
-  notificationButton: {
-    padding: Spacing.sm,
+  notificationIconButton: {
+    marginLeft: 12,
+  },
+  notificationIconWrapper: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: `${Colors.primary}15`,
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
+  },
+  notificationBadge: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: Colors.error,
+    borderWidth: 2,
+    borderColor: Colors.white,
+  },
+  searchContainer: {
+    paddingHorizontal: 20,
+    marginBottom: 16,
   },
   searchBar: {
-    marginHorizontal: Spacing.lg,
-    marginBottom: Spacing.lg,
+    marginHorizontal: 0,
   },
-  filtersSection: {
-    paddingBottom: Spacing.md,
+  tabSwitcher: {
+    flexDirection: "row",
+    backgroundColor: "#F1F3F5",
+    borderRadius: 16,
+    padding: 4,
+    marginHorizontal: 20,
+    marginBottom: 12,
+    gap: 6,
   },
-  filterHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.lg,
-    marginBottom: Spacing.md,
+  tabButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    gap: 8,
   },
-  filterTitle: {
-    fontSize: Typography.fontSize.lg,
-    fontWeight: Typography.fontWeight.semiBold,
+  activeTabButton: {
+    backgroundColor: Colors.primary,
+    ...Shadows.sm,
+  },
+  tabButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: Colors.textSecondary,
+  },
+  activeTabButtonText: {
+    color: Colors.white,
+  },
+  categoriesSection: {
+    marginTop: 8,
+    marginBottom: 12,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "700",
     color: Colors.textPrimary,
   },
-  viewAllText: {
-    fontSize: Typography.fontSize.sm,
+  seeAllText: {
+    fontSize: 14,
+    fontWeight: "600",
     color: Colors.primary,
-    fontWeight: Typography.fontWeight.semiBold,
   },
-  filterChipsContainer: {
-    paddingHorizontal: Spacing.lg,
-    gap: Spacing.sm,
+  categoriesScroller: {
+    paddingHorizontal: 20,
+    gap: 12,
   },
-  categoryChip: {
-    marginRight: Spacing.sm,
+  categoryCard: {
+    alignItems: "center",
+    width: 90,
+    padding: 12,
+    borderRadius: 16,
+    backgroundColor: `${Colors.primary}08`,
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  categoryCardSelected: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+    ...Shadows.sm,
+  },
+  categoryIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: `${Colors.primary}15`,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
+  categoryIconSelected: {
+    backgroundColor: `${Colors.white}25`,
+  },
+  categoryName: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+    textAlign: "center",
+  },
+  categoryNameSelected: {
+    color: Colors.white,
+  },
+  urgencySection: {
+    marginTop: 16,
+    marginBottom: 12,
+    paddingHorizontal: 20,
+  },
+  urgencyScroller: {
+    marginTop: 12,
+    gap: 8,
   },
   urgencyChip: {
-    marginRight: Spacing.sm,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+    backgroundColor: "#F1F3F5",
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  urgencyChipSelected: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+    ...Shadows.sm,
+  },
+  urgencyChipText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: Colors.textSecondary,
+  },
+  urgencyChipTextSelected: {
+    color: Colors.white,
+  },
+  feedDivider: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    marginTop: 20,
+    marginBottom: 16,
+    gap: 12,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: Colors.border,
+  },
+  dividerText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: Colors.textSecondary,
+    textTransform: "uppercase",
+    letterSpacing: 1,
   },
   skeletonContainer: {
-    padding: Spacing.lg,
-    gap: Spacing.md,
+    paddingHorizontal: 20,
+    paddingTop: 16,
   },
   footerLoader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: Spacing.lg,
-    gap: Spacing.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 24,
+    gap: 8,
   },
   footerLoaderText: {
-    fontSize: Typography.fontSize.sm,
+    fontSize: 14,
     color: Colors.textSecondary,
+    fontWeight: "500",
   },
 });

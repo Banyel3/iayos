@@ -68,7 +68,10 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 120 }}
+      >
         {/* Header with Profile Info */}
         <View style={styles.header}>
           <View style={styles.headerContent}>

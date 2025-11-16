@@ -66,8 +66,11 @@ def mobile_login(request, payload: logInSchema):
     from .services import login_account
     import json
 
+    print(f"📱 [MOBILE LOGIN] Request received for: {payload.email}")
+    
     try:
         result = login_account(payload)
+        print(f"   Login result type: {type(result)}")
 
         # login_account returns JsonResponse, extract the content
         if hasattr(result, 'content'):
@@ -118,6 +121,7 @@ def mobile_logout(request):
 
 @mobile_router.get("/auth/profile", auth=jwt_auth)
 def mobile_get_profile(request):
+    print(f"📱 [MOBILE PROFILE] Request received for user: {request.auth.email if request.auth else 'None'}")
     """
     Get current user profile for mobile
     Returns mobile-optimized user data
@@ -326,6 +330,11 @@ def mobile_job_list(
     """
     from .mobile_services import get_mobile_job_list
 
+    print(f"📱 [MOBILE JOB LIST] Request received")
+    print(f"   User: {request.auth.email}")
+    print(f"   Filters: category={category}, budget={min_budget}-{max_budget}, location={location}")
+    print(f"   Pagination: page={page}, limit={limit}")
+    
     try:
         result = get_mobile_job_list(
             user=request.auth,
@@ -336,12 +345,19 @@ def mobile_job_list(
             page=page,
             limit=limit
         )
+        
+        print(f"   Result success: {result.get('success')}")
+        if result.get('success'):
+            job_count = len(result['data'].get('jobs', []))
+            print(f"   Returning {job_count} jobs")
 
         if result['success']:
             return result['data']
         else:
+            error_msg = result.get('error', 'Failed to fetch jobs')
+            print(f"[ERROR] Mobile job list service error: {error_msg}")
             return Response(
-                {"error": result.get('error', 'Failed to fetch jobs')},
+                {"error": error_msg},
                 status=400
             )
     except Exception as e:
@@ -387,19 +403,29 @@ def mobile_job_detail(request, job_id: int):
     """
     from .mobile_services import get_mobile_job_detail
 
+    print(f"📱 [MOBILE JOB DETAIL] Request received")
+    print(f"   Job ID: {job_id}")
+    print(f"   User: {request.auth.email if request.auth else 'None'}")
+    
     try:
         result = get_mobile_job_detail(job_id=job_id, user=request.auth)
+        
+        print(f"   Service result success: {result.get('success')}")
+        if not result.get('success'):
+            print(f"   Service error: {result.get('error')}")
 
         if result['success']:
+            print(f"✅ [MOBILE JOB DETAIL] Success - Returning job data")
             return result['data']
         else:
             status_code = 404 if 'not found' in result.get('error', '').lower() else 400
+            print(f"❌ [MOBILE JOB DETAIL] Failed with status {status_code}: {result.get('error')}")
             return Response(
                 {"error": result.get('error', 'Failed to fetch job')},
                 status=status_code
             )
     except Exception as e:
-        print(f"❌ Mobile job detail error: {str(e)}")
+        print(f"❌ [MOBILE JOB DETAIL] Exception: {str(e)}")
         import traceback
         traceback.print_exc()
         return Response(
@@ -416,9 +442,15 @@ def mobile_create_job(request, payload: CreateJobMobileSchema):
     """
     from .mobile_services import create_mobile_job
 
+    print(f"📱 [MOBILE CREATE JOB] Request received")
+    print(f"   User: {request.auth.email}")
+    print(f"   Title: {payload.title}")
+    print(f"   Budget: {payload.budget}")
+    
     try:
         job_data = payload.dict()
         result = create_mobile_job(user=request.auth, job_data=job_data)
+        print(f"   Create job result: {result.get('success')}")
 
         if result['success']:
             return result['data']
@@ -445,6 +477,9 @@ def mobile_job_search(request, query: str, page: int = 1, limit: int = 20):
     """
     from .mobile_services import search_mobile_jobs
 
+    print(f"📱 [MOBILE JOB SEARCH] Query: '{query}', Page: {page}, Limit: {limit}")
+    print(f"   User: {request.auth.email}")
+    
     try:
         if not query or len(query) < 2:
             return Response(
@@ -679,6 +714,13 @@ def mobile_workers_list(request, latitude: float = None, longitude: float = None
 
     try:
         user = request.auth
+        print(f"\n{'='*60}")
+        print(f"📋 MOBILE WORKERS LIST REQUEST")
+        print(f"{'='*60}")
+        print(f"👤 User: {user.email} (ID: {user.accountID})")
+        print(f"📍 Location: lat={latitude}, lon={longitude}")
+        print(f"📄 Pagination: page={page}, limit={limit}")
+        
         result = get_workers_list_mobile(
             user=user,
             latitude=latitude,
@@ -688,18 +730,111 @@ def mobile_workers_list(request, latitude: float = None, longitude: float = None
         )
 
         if result['success']:
+            worker_count = len(result['data'].get('workers', []))
+            total_count = result['data'].get('total_count', 0)
+            print(f"✅ Workers list retrieved: {worker_count}/{total_count} workers (page {page})")
+            print(f"{'='*60}\n")
             return result['data']
         else:
+            error_msg = result.get('error', 'Failed to fetch workers')
+            print(f"❌ Workers list failed: {error_msg}")
+            print(f"{'='*60}\n")
             return Response(
-                {"error": result.get('error', 'Failed to fetch workers')},
+                {"error": error_msg},
                 status=400
             )
     except Exception as e:
-        print(f"[ERROR] Mobile workers list error: {str(e)}")
+        print(f"❌ MOBILE WORKERS LIST ERROR: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        print(f"{'='*60}\n")
+        return Response(
+            {"error": "Failed to fetch workers"},
+            status=500
+        )
+
+
+@mobile_router.get("/agencies/list", auth=jwt_auth)
+def mobile_agencies_list(request, page: int = 1, limit: int = 20,
+                         city: str = None, province: str = None,
+                         min_rating: float = None, sort_by: str = "rating"):
+    """
+    Get list of agencies for clients
+    Supports filtering and sorting
+    """
+    try:
+        user = request.auth
+        print(f"\n{'='*60}")
+        print(f"📋 MOBILE AGENCIES LIST REQUEST")
+        print(f"{'='*60}")
+        print(f"👤 User: {user.email} (ID: {user.accountID})")
+        print(f"📄 Pagination: page={page}, limit={limit}")
+        print(f"🔍 Filters: city={city}, province={province}, min_rating={min_rating}")
+        print(f"📊 Sort by: {sort_by}")
+        
+        # Use the existing client services for browsing agencies
+        from client.services import browse_agencies
+        
+        result = browse_agencies(
+            page=page,
+            limit=limit,
+            city=city,
+            province=province,
+            min_rating=min_rating,
+            kyc_status="APPROVED",  # Only show approved agencies
+            sort_by=sort_by
+        )
+        
+        agency_count = len(result.get('agencies', []))
+        total_count = result.get('total', 0)
+        print(f"✅ Agencies list retrieved: {agency_count}/{total_count} agencies (page {page})")
+        print(f"{'='*60}\n")
+        
+        return result
+        
+    except Exception as e:
+        print(f"❌ MOBILE AGENCIES LIST ERROR: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        print(f"{'='*60}\n")
+        return Response(
+            {"error": "Failed to fetch agencies"},
+            status=500
+        )
+
+
+@mobile_router.get("/agencies/detail/{agency_id}", auth=jwt_auth)
+def mobile_agency_detail(request, agency_id: int):
+    """
+    Get detailed agency profile
+    Returns data formatted for AgencyDetail interface in mobile app
+    """
+    from .mobile_services import get_agency_detail_mobile
+
+    print(f"📱 [AGENCY DETAIL] Request received for agency_id: {agency_id}")
+    
+    try:
+        user = request.auth
+        result = get_agency_detail_mobile(user, agency_id)
+
+        if result['success']:
+            print(f"   ✅ Agency details retrieved successfully")
+            return {
+                'success': True,
+                'agency': result['data']
+            }
+        else:
+            print(f"   ❌ Agency not found: {result.get('error')}")
+            return Response(
+                {"error": result.get('error', 'Agency not found')},
+                status=404
+            )
+    except Exception as e:
+        print(f"❌ [ERROR] Mobile agency detail error: {str(e)}")
         import traceback
         traceback.print_exc()
         return Response(
-            {"error": "Failed to fetch workers"},
+            {"error": "Failed to fetch agency details"},
             status=500
         )
 
@@ -724,6 +859,42 @@ def mobile_worker_detail(request, worker_id: int):
             )
     except Exception as e:
         print(f"[ERROR] Mobile worker detail error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to fetch worker details"},
+            status=500
+        )
+
+
+@mobile_router.get("/workers/detail/{worker_id}", auth=jwt_auth)
+def mobile_worker_detail_v2(request, worker_id: int):
+    """
+    Get detailed worker profile (V2 - matches mobile app interface)
+    Returns data formatted for WorkerDetail interface in mobile app
+    """
+    from .mobile_services import get_worker_detail_mobile_v2
+
+    print(f"📱 [WORKER DETAIL V2] Request received for worker_id: {worker_id}")
+    
+    try:
+        user = request.auth
+        result = get_worker_detail_mobile_v2(user, worker_id)
+
+        if result['success']:
+            print(f"   ✅ Worker details retrieved successfully")
+            return {
+                'success': True,
+                'worker': result['data']
+            }
+        else:
+            print(f"   ❌ Worker not found: {result.get('error')}")
+            return Response(
+                {"error": result.get('error', 'Worker not found')},
+                status=404
+            )
+    except Exception as e:
+        print(f"❌ [ERROR] Mobile worker detail V2 error: {str(e)}")
         import traceback
         traceback.print_exc()
         return Response(
@@ -777,6 +948,10 @@ def mobile_available_jobs(request, page: int = 1, limit: int = 20):
     """
     from .mobile_services import get_available_jobs_mobile
 
+    print(f"📱 [MOBILE AVAILABLE JOBS] Request received")
+    print(f"   User: {request.auth.email if request.auth else 'None'}")
+    print(f"   Pagination: page={page}, limit={limit}")
+    
     try:
         user = request.auth
         result = get_available_jobs_mobile(
@@ -784,10 +959,16 @@ def mobile_available_jobs(request, page: int = 1, limit: int = 20):
             page=page,
             limit=limit
         )
+        
+        print(f"   Result success: {result.get('success')}")
+        if result.get('success'):
+            job_count = len(result['data'].get('jobs', []))
+            print(f"   ✅ Returning {job_count} available jobs")
 
         if result['success']:
             return result['data']
         else:
+            print(f"   ❌ Error: {result.get('error')}")
             return Response(
                 {"error": result.get('error', 'Failed to fetch jobs')},
                 status=400

@@ -24,7 +24,7 @@ import {
 } from "@/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ENDPOINTS } from "@/lib/api/config";
+import { ENDPOINTS, apiRequest } from "@/lib/api/config";
 import { SaveButton } from "@/components/SaveButton";
 
 const { width } = Dimensions.get("window");
@@ -32,7 +32,7 @@ const { width } = Dimensions.get("window");
 interface JobDetail {
   id: string;
   title: string;
-  category: string;
+  category: { id: number; name: string } | string;
   description: string;
   budget: string;
   location: string;
@@ -63,6 +63,7 @@ export default function JobDetailScreen() {
   const [showApplicationModal, setShowApplicationModal] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [isSaved, setIsSaved] = useState(false);
 
   // Application form state
   const [proposalMessage, setProposalMessage] = useState("");
@@ -82,16 +83,43 @@ export default function JobDetailScreen() {
   } = useQuery<JobDetail, unknown, JobDetail>({
     queryKey: ["jobs", id],
     queryFn: async (): Promise<JobDetail> => {
-      const response = await fetch(`${ENDPOINTS.AVAILABLE_JOBS}/${id}`, {
-        credentials: "include",
-      });
+      const response = await apiRequest(ENDPOINTS.JOB_DETAILS(Number(id)));
 
       if (!response.ok) {
         throw new Error("Failed to fetch job details");
       }
 
-      const data = (await response.json()) as any;
-      return data.job as JobDetail;
+      const result = (await response.json()) as any;
+      const jobData = result.data || result; // Handle both wrapped and unwrapped responses
+
+      // Transform backend response to frontend format
+      return {
+        id: String(jobData.id),
+        title: jobData.title,
+        category: jobData.category, // Already an object {id, name}
+        description: jobData.description,
+        budget: `₱${jobData.budget?.toLocaleString() || "0"}`,
+        location: jobData.location,
+        distance: jobData.distance || 0,
+        postedBy: jobData.client || {
+          name: "Unknown Client",
+          avatar: null,
+          rating: 0,
+        },
+        postedAt: jobData.created_at
+          ? new Date(jobData.created_at).toLocaleDateString()
+          : "Recently",
+        urgency: jobData.urgency_level || "LOW",
+        photos:
+          jobData.photos?.map((url: string, idx: number) => ({
+            id: idx,
+            url,
+            file_name: `photo-${idx}`,
+          })) || [],
+        expectedDuration: jobData.expected_duration,
+        materialsNeeded: jobData.materials_needed,
+        specializations: jobData.specializations,
+      } as JobDetail;
     },
   });
 
@@ -240,7 +268,6 @@ export default function JobDetailScreen() {
   }
 
   const urgencyColors = getUrgencyColor(job.urgency);
-  const [isSaved, setIsSaved] = useState(false);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -283,7 +310,11 @@ export default function JobDetailScreen() {
               size={16}
               color={Colors.textSecondary}
             />
-            <Text style={styles.jobCategory}>{job.category}</Text>
+            <Text style={styles.jobCategory}>
+              {typeof job.category === "object"
+                ? job.category.name
+                : job.category}
+            </Text>
           </View>
         </View>
 
@@ -380,16 +411,18 @@ export default function JobDetailScreen() {
           <View style={styles.posterCard}>
             <Image
               source={{
-                uri: job.postedBy.avatar || "https://via.placeholder.com/60",
+                uri: job.postedBy?.avatar || "https://via.placeholder.com/60",
               }}
               style={styles.posterAvatar}
             />
             <View style={styles.posterInfo}>
-              <Text style={styles.posterName}>{job.postedBy.name}</Text>
+              <Text style={styles.posterName}>
+                {job.postedBy?.name || "Unknown Client"}
+              </Text>
               <View style={styles.posterRating}>
                 <Ionicons name="star" size={16} color="#F59E0B" />
                 <Text style={styles.posterRatingText}>
-                  {job.postedBy.rating.toFixed(1)} rating
+                  {(job.postedBy?.rating || 0).toFixed(1)} rating
                 </Text>
               </View>
               <Text style={styles.postedTime}>Posted {job.postedAt}</Text>

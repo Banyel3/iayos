@@ -493,7 +493,7 @@ const styles = StyleSheet.create({
   },
   jobsList: {
     paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.xl,
+    paddingBottom: 120, // Extra padding for floating tab bar
   },
   jobCard: {
     backgroundColor: Colors.white,

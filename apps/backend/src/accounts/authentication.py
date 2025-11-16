@@ -104,3 +104,33 @@ class CookieJWTAuth:
 
 # Create instance
 cookie_auth = CookieJWTAuth()
+
+class DualJWTAuth:
+    """
+    Dual authentication: tries Bearer token first (mobile), falls back to cookies (web)
+    Use this for endpoints that need to support both mobile and web clients
+    """
+    def __init__(self):
+        self.jwt_bearer = JWTBearer()
+        self.cookie_auth = CookieJWTAuth()
+
+    def __call__(self, request):
+        print("=" * 60)
+        print("[AUTH] DualJWTAuth CALLED!")
+        print(f"[AUTH] Request path: {request.path}")
+        
+        # Try Bearer token first (mobile apps)
+        auth_header = request.headers.get('Authorization', '')
+        if auth_header.startswith('Bearer '):
+            token = auth_header.replace('Bearer ', '')
+            print("[AUTH] Attempting Bearer token authentication...")
+            user = self.jwt_bearer.authenticate(request, token)
+            if user:
+                return user
+        
+        # Fall back to cookie authentication (web apps)
+        print("[AUTH] Bearer token not found, trying cookie authentication...")
+        return self.cookie_auth(request)
+
+# Create instance
+dual_auth = DualJWTAuth()

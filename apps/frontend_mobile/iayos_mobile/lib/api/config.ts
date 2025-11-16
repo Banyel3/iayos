@@ -12,16 +12,17 @@ export const WS_BASE_URL = __DEV__
 
 // API Endpoints
 export const ENDPOINTS = {
-  // Authentication
-  LOGIN: `${API_BASE_URL.replace("/api", "")}/api/accounts/login`,
-  LOGOUT: `${API_BASE_URL.replace("/api", "")}/api/accounts/logout`,
-  REGISTER: `${API_BASE_URL.replace("/api", "")}/api/accounts/register`,
-  ME: `${API_BASE_URL.replace("/api", "")}/api/accounts/me`,
-  ASSIGN_ROLE: `${API_BASE_URL.replace("/api", "")}/api/accounts/assign-role`,
+  // Authentication - Use mobile endpoints with Bearer token auth
+  LOGIN: `${API_BASE_URL.replace("/api", "")}/api/mobile/auth/login`,
+  LOGOUT: `${API_BASE_URL.replace("/api", "")}/api/mobile/auth/logout`,
+  REGISTER: `${API_BASE_URL.replace("/api", "")}/api/mobile/auth/register`,
+  ME: `${API_BASE_URL.replace("/api", "")}/api/mobile/auth/profile`,
+  ASSIGN_ROLE: `${API_BASE_URL.replace("/api", "")}/api/mobile/auth/assign-role`,
 
-  // Jobs
-  AVAILABLE_JOBS: `${API_BASE_URL}/jobs/available`,
-  JOB_DETAILS: (id: number) => `${API_BASE_URL}/jobs/${id}`,
+  // Jobs - Use mobile endpoints with Bearer token auth
+  AVAILABLE_JOBS: `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/available`,
+  JOB_DETAILS: (id: number) =>
+    `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/${id}`,
   APPLY_JOB: (id: number) => `${API_BASE_URL}/jobs/${id}/apply`,
   MY_APPLICATIONS: `${API_BASE_URL}/jobs/my-applications`,
   MARK_COMPLETE: (id: number) => `${API_BASE_URL}/jobs/${id}/mark-complete`,
@@ -93,16 +94,21 @@ export const ENDPOINTS = {
 
   // Worker
   WORKER_AVAILABILITY: `${API_BASE_URL}/accounts/worker/availability`,
-  NEARBY_WORKERS: `${API_BASE_URL}/accounts/nearby-workers`,
+  NEARBY_WORKERS: `${API_BASE_URL.replace("/api", "")}/api/mobile/workers/list`,
+  WORKER_DETAIL: (id: number) =>
+    `${API_BASE_URL.replace("/api", "")}/api/mobile/workers/detail/${id}`,
 
   // Client
   BROWSE_AGENCIES: `${API_BASE_URL}/client/agencies/browse`,
   AGENCY_PROFILE: (id: number) => `${API_BASE_URL}/client/agencies/${id}`,
+  AGENCY_DETAIL: (id: number) =>
+    `${API_BASE_URL.replace("/api", "")}/api/mobile/agencies/detail/${id}`,
+  AGENCIES_LIST: `${API_BASE_URL.replace("/api", "")}/api/mobile/agencies/list`,
 
-  // Wallet
-  WALLET_BALANCE: `${API_BASE_URL}/accounts/wallet/balance`,
-  TRANSACTIONS: `${API_BASE_URL}/accounts/wallet/transactions`,
-  DEPOSIT: `${API_BASE_URL}/accounts/wallet/deposit`,
+  // Wallet - Use mobile endpoints with Bearer token auth
+  WALLET_BALANCE: `${API_BASE_URL.replace("/api", "")}/api/mobile/wallet/balance`,
+  TRANSACTIONS: `${API_BASE_URL.replace("/api", "")}/api/mobile/wallet/transactions`,
+  DEPOSIT: `${API_BASE_URL.replace("/api", "")}/api/mobile/wallet/deposit`,
 
   // Phase 3: Escrow Payment System (10 endpoints)
   CREATE_ESCROW_PAYMENT: `${API_BASE_URL.replace("/api", "")}/api/mobile/payments/escrow`,
@@ -111,9 +117,9 @@ export const ENDPOINTS = {
   PAYMENT_STATUS: (id: number) =>
     `${API_BASE_URL.replace("/api", "")}/api/mobile/payments/status/${id}`,
   PAYMENT_HISTORY: `${API_BASE_URL.replace("/api", "")}/api/mobile/payments/history`,
-  WALLET_DEPOSIT: `${API_BASE_URL}/accounts/wallet/deposit`,
-  WALLET_TRANSACTIONS: `${API_BASE_URL}/accounts/wallet/transactions`,
-  CREATE_JOB_WITH_PAYMENT: `${API_BASE_URL}/jobs/create`,
+  WALLET_DEPOSIT: `${API_BASE_URL.replace("/api", "")}/api/mobile/wallet/deposit`,
+  WALLET_TRANSACTIONS: `${API_BASE_URL.replace("/api", "")}/api/mobile/wallet/transactions`,
+  CREATE_JOB_WITH_PAYMENT: `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/create`,
   XENDIT_WEBHOOK: `${API_BASE_URL.replace("/api", "")}/api/payments/xendit/callback`,
   PAYMENT_RECEIPT: (id: number) =>
     `${API_BASE_URL.replace("/api", "")}/api/mobile/payments/receipt/${id}`,

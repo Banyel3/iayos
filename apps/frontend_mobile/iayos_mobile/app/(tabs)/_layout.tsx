@@ -1,5 +1,6 @@
 import { Tabs, useRouter } from "expo-router";
 import React, { useEffect } from "react";
+import { Platform, StyleSheet } from "react-native";
 
 import { HapticTab } from "@/components/haptic-tab";
 import { IconSymbol } from "@/components/ui/icon-symbol";
@@ -39,11 +40,41 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        // Disable tab animations to avoid keyboard / input focus issues
-        // (some platforms/versions cause TextInput to lose focus when tabs animate)
-        tabBarActiveTintColor: Colors[colorScheme ?? "light"].tint,
+        tabBarActiveTintColor: Colors.primary,
+        tabBarInactiveTintColor: Colors.textSecondary,
         headerShown: false,
         tabBarButton: HapticTab,
+        tabBarStyle: {
+          position: "absolute",
+          bottom: 25,
+          left: 20,
+          right: 20,
+          backgroundColor:
+            Platform.OS === "ios" ? "rgba(255, 255, 255, 0.9)" : Colors.white,
+          borderRadius: 25,
+          borderTopWidth: 0,
+          paddingTop: 12,
+          paddingBottom: Platform.OS === "ios" ? 20 : 12,
+          height: Platform.OS === "ios" ? 85 : 70,
+          elevation: 20,
+          shadowColor: Colors.black,
+          shadowOffset: { width: 0, height: 10 },
+          shadowOpacity: 0.12,
+          shadowRadius: 20,
+          borderWidth: 1,
+          borderColor: "rgba(0, 0, 0, 0.05)",
+        },
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: "600",
+          marginTop: 4,
+        },
+        tabBarIconStyle: {
+          marginTop: 2,
+        },
+        tabBarItemStyle: {
+          paddingVertical: 8,
+        },
       }}
     >
       <Tabs.Screen
@@ -65,9 +96,9 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="applications"
+        name="my-jobs"
         options={{
-          title: "Applications",
+          title: "My Jobs",
           href: null, // Hidden from tab bar
         }}
       />

@@ -23,7 +23,7 @@ import {
 } from "@/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ENDPOINTS } from "@/lib/api/config";
+import { ENDPOINTS, apiRequest } from "@/lib/api/config";
 import * as ImagePicker from "expo-image-picker";
 
 interface ActiveJobDetail {
@@ -81,16 +81,14 @@ export default function ActiveJobDetailScreen() {
   } = useQuery<ActiveJobDetail>({
     queryKey: ["jobs", "active", id],
     queryFn: async () => {
-      const response = await fetch(`${ENDPOINTS.AVAILABLE_JOBS}/${id}`, {
-        credentials: "include",
-      });
+      const response = await apiRequest(ENDPOINTS.JOB_DETAILS(Number(id)));
 
       if (!response.ok) {
         throw new Error("Failed to fetch job details");
       }
 
       const data = await response.json();
-      return data.job;
+      return data; // Backend returns job data directly, not wrapped
     },
   });
 
