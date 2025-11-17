@@ -203,12 +203,12 @@ export default function NotificationsScreen() {
         <View style={styles.header}>
           <Appbar.BackAction
             onPress={() => router.back()}
-            color={Colors.white}
+            color={Colors.textPrimary}
           />
           <Text style={styles.headerTitle}>Notifications</Text>
           <Appbar.Action
             icon="cog-outline"
-            color={Colors.white}
+            color={Colors.textPrimary}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               router.push("/notifications/settings" as any);
@@ -221,6 +221,13 @@ export default function NotificationsScreen() {
           <SegmentedButtons
             value={filter}
             onValueChange={(value) => setFilter(value as "all" | "unread")}
+            style={styles.segmentedButtons}
+            theme={{
+              colors: {
+                secondaryContainer: Colors.primary,
+                onSecondaryContainer: Colors.white,
+              },
+            }}
             buttons={[
               {
                 value: "all",
@@ -315,13 +322,13 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: Spacing.xs,
     paddingVertical: Spacing.sm,
-    backgroundColor: Colors.primary,
+    backgroundColor: Colors.white,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.primaryDark,
+    borderBottomColor: Colors.border,
   },
   headerTitle: {
     ...Typography.h3,
-    color: Colors.white,
+    color: Colors.textPrimary,
     flex: 1,
     textAlign: "center",
     fontWeight: "600",
@@ -331,6 +338,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
+  },
+  segmentedButtons: {
+    backgroundColor: Colors.backgroundSecondary,
   },
   listContent: {
     paddingVertical: Spacing.sm,

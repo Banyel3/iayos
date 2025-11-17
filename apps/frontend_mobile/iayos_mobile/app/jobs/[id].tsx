@@ -60,6 +60,9 @@ export default function JobDetailScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
 
+  // Debug logging
+  console.log("[JobDetail] Loaded with id:", id, "typeof:", typeof id);
+
   const [showApplicationModal, setShowApplicationModal] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -75,6 +78,47 @@ export default function JobDetailScreen() {
 
   const isWorker = user?.profile_data?.profileType === "WORKER";
 
+  // Validate job ID
+  const jobId = id ? Number(id) : NaN;
+  const isValidJobId =
+    !isNaN(jobId) && jobId > 0 && id !== "create" && id !== "undefined";
+
+  // Debug validation
+  console.log(
+    "[JobDetail] Parsed jobId:",
+    jobId,
+    "isValidJobId:",
+    isValidJobId
+  );
+
+  // Early return if invalid - don't even render the component
+  if (!isValidJobId) {
+    console.warn(
+      "[JobDetail] INVALID ID DETECTED - Preventing query execution"
+    );
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.errorContainer}>
+          <Ionicons
+            name="alert-circle-outline"
+            size={64}
+            color={Colors.error}
+          />
+          <Text style={styles.errorText}>Invalid Job ID</Text>
+          <Text style={styles.errorSubtext}>
+            The job you're looking for could not be found. (ID: {id})
+          </Text>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.push("/")}
+          >
+            <Text style={styles.backButtonText}>Go to Home</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   // Fetch job details
   const {
     data: job,
@@ -83,7 +127,12 @@ export default function JobDetailScreen() {
   } = useQuery<JobDetail, unknown, JobDetail>({
     queryKey: ["jobs", id],
     queryFn: async (): Promise<JobDetail> => {
-      const response = await apiRequest(ENDPOINTS.JOB_DETAILS(Number(id)));
+      if (!isValidJobId) {
+        console.error("[JobDetail] Query blocked - invalid job ID:", id);
+        throw new Error("Invalid job ID");
+      }
+      console.log("[JobDetail] Fetching job details for ID:", jobId);
+      const response = await apiRequest(ENDPOINTS.JOB_DETAILS(jobId));
 
       if (!response.ok) {
         throw new Error("Failed to fetch job details");
@@ -121,6 +170,7 @@ export default function JobDetailScreen() {
         specializations: jobData.specializations,
       } as JobDetail;
     },
+    enabled: isValidJobId, // Only fetch if we have a valid job ID
   });
 
   // Check if already applied
@@ -241,6 +291,31 @@ export default function JobDetailScreen() {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primary} />
           <Text style={styles.loadingText}>Loading job details...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Handle invalid job ID
+  if (!isValidJobId) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.errorContainer}>
+          <Ionicons
+            name="alert-circle-outline"
+            size={64}
+            color={Colors.error}
+          />
+          <Text style={styles.errorText}>Invalid Job ID</Text>
+          <Text style={styles.errorSubtext}>
+            The job you're looking for could not be found.
+          </Text>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.push("/")}
+          >
+            <Text style={styles.backButtonText}>Go to Home</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
@@ -938,8 +1013,15 @@ const styles = StyleSheet.create({
   },
   errorText: {
     marginTop: Spacing.md,
-    fontSize: Typography.fontSize.base,
+    fontSize: Typography.fontSize.lg,
+    fontWeight: "600",
     color: Colors.error,
+    marginBottom: Spacing.sm,
+  },
+  errorSubtext: {
+    fontSize: Typography.fontSize.base,
+    color: Colors.textSecondary,
+    textAlign: "center",
     marginBottom: Spacing.lg,
   },
   backButton: {

@@ -403,31 +403,42 @@ def mobile_job_detail(request, job_id: int):
     """
     from .mobile_services import get_mobile_job_detail
 
-    print(f"📱 [MOBILE JOB DETAIL] Request received")
-    print(f"   Job ID: {job_id}")
-    print(f"   User: {request.auth.email if request.auth else 'None'}")
+    print(f"\n{'='*60}")
+    print(f"📱 [MOBILE JOB DETAIL] REQUEST STARTED")
+    print(f"{'='*60}")
+    print(f"📋 Job ID received: {job_id}")
+    print(f"📋 Job ID type: {type(job_id)}")
+    print(f"📋 Job ID repr: {repr(job_id)}")
+    print(f"👤 User: {request.auth.email if request.auth else 'None'}")
+    print(f"🔗 Request path: {request.path if hasattr(request, 'path') else 'N/A'}")
+    print(f"{'='*60}\n")
     
     try:
         result = get_mobile_job_detail(job_id=job_id, user=request.auth)
         
-        print(f"   Service result success: {result.get('success')}")
+        print(f"📊 Service result success: {result.get('success')}")
         if not result.get('success'):
-            print(f"   Service error: {result.get('error')}")
+            print(f"❌ Service error: {result.get('error')}")
 
         if result['success']:
             print(f"✅ [MOBILE JOB DETAIL] Success - Returning job data")
+            print(f"{'='*60}\n")
             return result['data']
         else:
             status_code = 404 if 'not found' in result.get('error', '').lower() else 400
             print(f"❌ [MOBILE JOB DETAIL] Failed with status {status_code}: {result.get('error')}")
+            print(f"{'='*60}\n")
             return Response(
                 {"error": result.get('error', 'Failed to fetch job')},
                 status=status_code
             )
     except Exception as e:
-        print(f"❌ [MOBILE JOB DETAIL] Exception: {str(e)}")
+        print(f"❌ [MOBILE JOB DETAIL] EXCEPTION OCCURRED")
+        print(f"❌ Exception type: {type(e).__name__}")
+        print(f"❌ Exception message: {str(e)}")
         import traceback
         traceback.print_exc()
+        print(f"{'='*60}\n")
         return Response(
             {"error": "Failed to fetch job details"},
             status=500

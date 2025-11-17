@@ -351,15 +351,8 @@ export default function AgencyDetailScreen() {
           </View>
         </ScrollView>
 
-        {/* Bottom Action Buttons */}
+        {/* Bottom Action Button */}
         <View style={styles.bottomActions}>
-          <TouchableOpacity
-            style={styles.messageButton}
-            onPress={() => router.push(`/messages/new?agencyId=${id}` as any)}
-          >
-            <Ionicons name="chatbubble" size={20} color={Colors.primary} />
-            <Text style={styles.messageButtonText}>Message</Text>
-          </TouchableOpacity>
           <TouchableOpacity
             style={styles.hireButton}
             onPress={() => router.push(`/jobs/create?agencyId=${id}` as any)}

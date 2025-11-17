@@ -33,6 +33,7 @@ export const ENDPOINTS = {
 
   // Phase 3: Job Browsing & Filtering
   JOB_CATEGORIES: `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/categories`,
+  GET_CATEGORIES: `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/categories`,
   JOB_SEARCH: (query: string, page = 1, limit = 20) =>
     `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/search?query=${encodeURIComponent(query)}&page=${page}&limit=${limit}`,
   JOB_LIST_FILTERED: (filters: {
@@ -119,7 +120,8 @@ export const ENDPOINTS = {
   PAYMENT_HISTORY: `${API_BASE_URL.replace("/api", "")}/api/mobile/payments/history`,
   WALLET_DEPOSIT: `${API_BASE_URL.replace("/api", "")}/api/mobile/wallet/deposit`,
   WALLET_TRANSACTIONS: `${API_BASE_URL.replace("/api", "")}/api/mobile/wallet/transactions`,
-  CREATE_JOB_WITH_PAYMENT: `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/create`,
+  CREATE_JOB_WITH_PAYMENT: `${API_BASE_URL.replace("/api", "")}/api/jobs/create`,
+  CREATE_JOB: `${API_BASE_URL.replace("/api", "")}/api/jobs/create`,
   XENDIT_WEBHOOK: `${API_BASE_URL.replace("/api", "")}/api/payments/xendit/callback`,
   PAYMENT_RECEIPT: (id: number) =>
     `${API_BASE_URL.replace("/api", "")}/api/mobile/payments/receipt/${id}`,

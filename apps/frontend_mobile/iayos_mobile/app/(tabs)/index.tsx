@@ -11,7 +11,7 @@
  * - Infinite scroll pagination
  */
 
-import React, { useState } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import {
   View,
   Text,
@@ -21,6 +21,8 @@ import {
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
+  Modal,
+  ScrollView,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
@@ -70,6 +72,7 @@ export default function BrowseJobsScreen() {
     "LOW" | "MEDIUM" | "HIGH" | undefined
   >(undefined);
   const [viewTab, setViewTab] = useState<"workers" | "agencies">("workers");
+  const [showFilterModal, setShowFilterModal] = useState(false);
 
   const isWorker = user?.profile_data?.profileType === "WORKER";
 
@@ -165,13 +168,64 @@ export default function BrowseJobsScreen() {
   const jobs = jobsData?.pages?.flatMap((page) => page.jobs) || [];
   const workers = workersData?.pages?.flatMap((page) => page.workers) || [];
   const agencies = agenciesData?.pages?.flatMap((page) => page.agencies) || [];
-  const items = isWorker ? jobs : viewTab === "workers" ? workers : agencies;
+
+  // Client-side filtering with useMemo to prevent keyboard dismissal
+  const filteredItems = useMemo(() => {
+    const rawItems = isWorker
+      ? jobs
+      : viewTab === "workers"
+        ? workers
+        : agencies;
+
+    if (!searchQuery.trim()) {
+      return rawItems;
+    }
+
+    const query = searchQuery.toLowerCase();
+
+    if (isWorker) {
+      // Filter jobs
+      return (rawItems as Job[]).filter((job) => {
+        const matchTitle = job.title?.toLowerCase().includes(query);
+        const matchDescription = job.description?.toLowerCase().includes(query);
+        const matchCategory = job.category?.toLowerCase().includes(query);
+        const matchLocation = job.location?.toLowerCase().includes(query);
+        return matchTitle || matchDescription || matchCategory || matchLocation;
+      });
+    } else if (viewTab === "workers") {
+      // Filter workers
+      return (rawItems as Worker[]).filter((worker) => {
+        const matchName = worker.name?.toLowerCase().includes(query);
+        const matchBio = worker.bio?.toLowerCase().includes(query);
+        const matchCategories = worker.categories?.some((cat) =>
+          cat.toLowerCase().includes(query)
+        );
+        const matchLocation = worker.location?.toLowerCase().includes(query);
+        return matchName || matchBio || matchCategories || matchLocation;
+      });
+    } else {
+      // Filter agencies
+      return (rawItems as Agency[]).filter((agency) => {
+        const matchName = agency.name?.toLowerCase().includes(query);
+        const matchDescription = agency.description
+          ?.toLowerCase()
+          .includes(query);
+        return matchName || matchDescription;
+      });
+    }
+  }, [isWorker, viewTab, jobs, workers, agencies, searchQuery]);
+
+  const items = filteredItems;
   const itemCount = items.length;
 
   // Handlers
-  const handleSearchFocus = () => {
-    router.push("/jobs/search");
-  };
+  const handleSearchChange = useCallback((text: string) => {
+    setSearchQuery(text);
+  }, []);
+
+  const handleFilterPress = useCallback(() => {
+    setShowFilterModal(true);
+  }, []);
 
   const handleCategoryPress = (categoryId: number) => {
     if (selectedCategory === categoryId) {
@@ -246,89 +300,73 @@ export default function BrowseJobsScreen() {
   };
 
   // Render functions
-  const renderHeader = () => (
-    <View style={styles.headerContainer}>
-      {/* Hero Section */}
-      <View style={styles.heroSection}>
-        <View style={styles.heroContent}>
-          <Text style={styles.heroGreeting}>
-            {isWorker ? "🔨 Find Your Next Gig" : "👋 Welcome Back"}
-          </Text>
-          <Text style={styles.heroSubtitle}>
-            {isWorker
-              ? `${itemCount} opportunities waiting for you`
-              : `Discover ${itemCount} talented ${viewTab === "workers" ? "professionals" : "agencies"}`}
-          </Text>
-        </View>
-        <TouchableOpacity
-          style={styles.notificationIconButton}
-          onPress={() => router.push("/notifications" as any)}
-        >
-          <View style={styles.notificationIconWrapper}>
-            <Ionicons name="notifications" size={20} color={Colors.primary} />
-            {/* Notification badge */}
-            <View style={styles.notificationBadge} />
-          </View>
-        </TouchableOpacity>
-      </View>
-
-      {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <SearchBar
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          placeholder={
-            isWorker ? "Search jobs, categories..." : "Search professionals..."
-          }
-          showFilterButton
-          onFilterPress={() => {
-            /* TODO: Open filter modal */
-          }}
-          style={styles.searchBar}
-          autoFocus={false}
-        />
-      </View>
-
-      {/* Client Tab Switcher */}
-      {!isWorker && (
-        <View style={styles.tabSwitcher}>
-          <TouchableOpacity
-            style={[
-              styles.tabButton,
-              viewTab === "workers" && styles.activeTabButton,
-            ]}
-            onPress={() => setViewTab("workers")}
-          >
-            <Ionicons
-              name={viewTab === "workers" ? "people" : "people-outline"}
-              size={20}
-              color={
-                viewTab === "workers" ? Colors.white : Colors.textSecondary
-              }
-            />
-            <Text
-              style={[
-                styles.tabButtonText,
-                viewTab === "workers" && styles.activeTabButtonText,
-              ]}
-            >
-              Workers
+  const renderHeader = useMemo(() => {
+    return () => (
+      <View style={styles.headerContainer}>
+        {/* Hero Section */}
+        <View style={styles.heroSection}>
+          <View style={styles.heroContent}>
+            <Text style={styles.heroGreeting}>
+              {isWorker ? "🔨 Find Your Next Gig" : "👋 Welcome Back"}
             </Text>
-          </TouchableOpacity>
+            <Text style={styles.heroSubtitle}>
+              {isWorker
+                ? `${itemCount} opportunities waiting for you`
+                : `Discover ${itemCount} talented ${viewTab === "workers" ? "professionals" : "agencies"}`}
+            </Text>
+          </View>
           <TouchableOpacity
-            style={[
-              styles.tabButton,
-              viewTab === "agencies" && styles.activeTabButton,
-            ]}
-            onPress={() => setViewTab("agencies")}
+            style={styles.notificationIconButton}
+            onPress={() => router.push("/notifications" as any)}
           >
-            <Ionicons
-              name={viewTab === "agencies" ? "business" : "business-outline"}
-              size={20}
-              color={
-                viewTab === "agencies" ? Colors.white : Colors.textSecondary
-              }
-            />
+            <View style={styles.notificationIconWrapper}>
+              <Ionicons name="notifications" size={20} color={Colors.primary} />
+              {/* Notification badge */}
+              <View style={styles.notificationBadge} />
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        {/* Client Tab Switcher */}
+        {!isWorker && (
+          <View style={styles.tabSwitcher}>
+            <TouchableOpacity
+              style={[
+                styles.tabButton,
+                viewTab === "workers" && styles.activeTabButton,
+              ]}
+              onPress={() => setViewTab("workers")}
+            >
+              <Ionicons
+                name={viewTab === "workers" ? "people" : "people-outline"}
+                size={20}
+                color={
+                  viewTab === "workers" ? Colors.white : Colors.textSecondary
+                }
+              />
+              <Text
+                style={[
+                  styles.tabButtonText,
+                  viewTab === "workers" && styles.activeTabButtonText,
+                ]}
+              >
+                Workers
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.tabButton,
+                viewTab === "agencies" && styles.activeTabButton,
+              ]}
+              onPress={() => setViewTab("agencies")}
+            >
+              <Ionicons
+                name={viewTab === "agencies" ? "business" : "business-outline"}
+                size={20}
+                color={
+                  viewTab === "agencies" ? Colors.white : Colors.textSecondary
+                }
+              />
             <Text
               style={[
                 styles.tabButtonText,
@@ -339,7 +377,7 @@ export default function BrowseJobsScreen() {
             </Text>
           </TouchableOpacity>
         </View>
-      )}
+      )}}
 
       {/* Categories Scroller - Story Style */}
       {!categoriesLoading && categories.length > 0 && (
@@ -469,6 +507,7 @@ export default function BrowseJobsScreen() {
       </View>
     </View>
   );
+  }, [isWorker, viewTab, itemCount, selectedCategory, selectedUrgency, categories, router]);
 
   const renderJobItem = ({ item }: { item: Job }) => (
     <JobCard
@@ -565,15 +604,31 @@ export default function BrowseJobsScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Search Bar - Outside FlatList to prevent keyboard dismissal */}
+      <View style={styles.fixedSearchContainer}>
+        <SearchBar
+          value={searchQuery}
+          onChangeText={handleSearchChange}
+          placeholder={
+            isWorker ? "Search jobs, categories..." : "Search professionals..."
+          }
+          showFilterButton
+          onFilterPress={handleFilterPress}
+          style={styles.searchBar}
+          autoFocus={false}
+        />
+      </View>
+
       <FlatList
         data={items as any}
         renderItem={renderItem as any}
         keyExtractor={(item: any) => item.id.toString()}
-        ListHeaderComponent={renderHeader}
+        ListHeaderComponent={renderHeader()}
         ListEmptyComponent={renderEmpty}
         ListFooterComponent={renderFooter}
         onEndReached={handleLoadMore}
         onEndReachedThreshold={0.5}
+        keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl
             refreshing={isRefetching}
@@ -586,6 +641,88 @@ export default function BrowseJobsScreen() {
         showsVerticalScrollIndicator={false}
         ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
       />
+
+      {/* Filter Modal */}
+      <Modal
+        visible={showFilterModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowFilterModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            {/* Header */}
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Filter Results</Text>
+              <TouchableOpacity onPress={() => setShowFilterModal(false)}>
+                <Ionicons name="close" size={24} color={Colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalContent}>
+              {/* Category Filter */}
+              <View style={styles.filterSection}>
+                <Text style={styles.filterLabel}>Category</Text>
+                <View style={styles.filterChipsContainer}>
+                  <FilterChip
+                    label="All"
+                    selected={!selectedCategory}
+                    onPress={() => setSelectedCategory(undefined)}
+                  />
+                  {categories.map((category) => (
+                    <FilterChip
+                      key={category.id}
+                      label={category.name || category.specializationName}
+                      selected={selectedCategory === category.id}
+                      onPress={() => handleCategoryPress(category.id)}
+                    />
+                  ))}
+                </View>
+              </View>
+
+              {/* Urgency Filter (only for jobs/workers) */}
+              {isWorker && (
+                <View style={styles.filterSection}>
+                  <Text style={styles.filterLabel}>Urgency</Text>
+                  <View style={styles.filterChipsContainer}>
+                    {URGENCY_FILTERS.map((urgency) => (
+                      <FilterChip
+                        key={urgency.id}
+                        label={urgency.label}
+                        selected={
+                          urgency.value === undefined
+                            ? !selectedUrgency
+                            : selectedUrgency === urgency.value
+                        }
+                        onPress={() => handleUrgencyPress(urgency.value)}
+                      />
+                    ))}
+                  </View>
+                </View>
+              )}
+            </ScrollView>
+
+            {/* Footer Actions */}
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={styles.clearButton}
+                onPress={() => {
+                  setSelectedCategory(undefined);
+                  setSelectedUrgency(undefined);
+                }}
+              >
+                <Text style={styles.clearButtonText}>Clear All</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.applyButton}
+                onPress={() => setShowFilterModal(false)}
+              >
+                <Text style={styles.applyButtonText}>Apply Filters</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -594,6 +731,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#F8F9FA",
+  },
+  fixedSearchContainer: {
+    backgroundColor: Colors.white,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    ...Shadows.sm,
   },
   listContent: {
     flexGrow: 1,
@@ -818,5 +964,84 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.textSecondary,
     fontWeight: "500",
+  },
+  // Filter Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
+  },
+  modalContainer: {
+    backgroundColor: Colors.white,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: "80%",
+    ...Shadows.lg,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+  },
+  modalContent: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  filterSection: {
+    marginBottom: 24,
+  },
+  filterLabel: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+    marginBottom: 12,
+  },
+  filterChipsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  modalFooter: {
+    flexDirection: "row",
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  clearButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: "center",
+  },
+  clearButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: Colors.textSecondary,
+  },
+  applyButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: BorderRadius.lg,
+    backgroundColor: Colors.primary,
+    alignItems: "center",
+    ...Shadows.sm,
+  },
+  applyButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: Colors.white,
   },
 });

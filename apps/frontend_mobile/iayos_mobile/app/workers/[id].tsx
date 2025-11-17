@@ -36,6 +36,27 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { fetchJson, ENDPOINTS } from "@/lib/api/config";
 
+interface WorkerCertification {
+  id: number;
+  name: string;
+  issuingOrganization?: string;
+  issueDate?: string;
+  expiryDate?: string;
+  certificateUrl?: string;
+  isVerified: boolean;
+}
+
+interface WorkerMaterial {
+  id: number;
+  name: string;
+  description?: string;
+  price: number;
+  priceUnit: string;
+  inStock: boolean;
+  stockQuantity?: number;
+  imageUrl?: string;
+}
+
 interface WorkerDetail {
   id: number;
   firstName: string;
@@ -48,6 +69,11 @@ interface WorkerDetail {
   rating: number;
   reviewCount: number;
   completedJobs: number;
+  completionRate: number;
+  qualityRating: number;
+  communicationRating: number;
+  professionalismRating: number;
+  timelinessRating: number;
   responseTime?: string;
   availability?: string;
   city?: string;
@@ -57,6 +83,8 @@ interface WorkerDetail {
   skills: string[];
   verified: boolean;
   joinedDate: string;
+  certifications?: WorkerCertification[];
+  materials?: WorkerMaterial[];
 }
 
 export default function WorkerDetailScreen() {
@@ -228,6 +256,161 @@ export default function WorkerDetailScreen() {
             </View>
           </View>
 
+          {/* Completion Rate Card */}
+          <View style={styles.section}>
+            <View style={styles.completionRateCard}>
+              <View style={styles.completionRateHeader}>
+                <Ionicons
+                  name="checkmark-circle"
+                  size={28}
+                  color={
+                    data.completionRate >= 90
+                      ? Colors.success
+                      : data.completionRate >= 70
+                        ? Colors.warning
+                        : Colors.error
+                  }
+                />
+                <View style={styles.completionRateInfo}>
+                  <Text style={styles.completionRateValue}>
+                    {data.completionRate.toFixed(1)}%
+                  </Text>
+                  <Text style={styles.completionRateLabel}>
+                    Job Completion Rate
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.progressBarContainer}>
+                <View
+                  style={[
+                    styles.progressBar,
+                    {
+                      width: `${data.completionRate}%`,
+                      backgroundColor:
+                        data.completionRate >= 90
+                          ? Colors.success
+                          : data.completionRate >= 70
+                            ? Colors.warning
+                            : Colors.error,
+                    },
+                  ]}
+                />
+              </View>
+            </View>
+          </View>
+
+          {/* Performance Ratings */}
+          {data.reviewCount > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Performance Ratings</Text>
+              <View style={styles.ratingsContainer}>
+                {/* Quality Rating */}
+                <View style={styles.ratingRow}>
+                  <Text style={styles.ratingLabel}>Quality</Text>
+                  <View style={styles.ratingStarsContainer}>
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <Ionicons
+                        key={star}
+                        name={
+                          star <= Math.round(data.qualityRating)
+                            ? "star"
+                            : "star-outline"
+                        }
+                        size={16}
+                        color={
+                          star <= Math.round(data.qualityRating)
+                            ? Colors.warning
+                            : Colors.textHint
+                        }
+                      />
+                    ))}
+                    <Text style={styles.ratingValue}>
+                      {data.qualityRating.toFixed(1)}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Communication Rating */}
+                <View style={styles.ratingRow}>
+                  <Text style={styles.ratingLabel}>Communication</Text>
+                  <View style={styles.ratingStarsContainer}>
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <Ionicons
+                        key={star}
+                        name={
+                          star <= Math.round(data.communicationRating)
+                            ? "star"
+                            : "star-outline"
+                        }
+                        size={16}
+                        color={
+                          star <= Math.round(data.communicationRating)
+                            ? Colors.warning
+                            : Colors.textHint
+                        }
+                      />
+                    ))}
+                    <Text style={styles.ratingValue}>
+                      {data.communicationRating.toFixed(1)}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Professionalism Rating */}
+                <View style={styles.ratingRow}>
+                  <Text style={styles.ratingLabel}>Professionalism</Text>
+                  <View style={styles.ratingStarsContainer}>
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <Ionicons
+                        key={star}
+                        name={
+                          star <= Math.round(data.professionalismRating)
+                            ? "star"
+                            : "star-outline"
+                        }
+                        size={16}
+                        color={
+                          star <= Math.round(data.professionalismRating)
+                            ? Colors.warning
+                            : Colors.textHint
+                        }
+                      />
+                    ))}
+                    <Text style={styles.ratingValue}>
+                      {data.professionalismRating.toFixed(1)}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Timeliness Rating */}
+                <View style={styles.ratingRow}>
+                  <Text style={styles.ratingLabel}>Timeliness</Text>
+                  <View style={styles.ratingStarsContainer}>
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <Ionicons
+                        key={star}
+                        name={
+                          star <= Math.round(data.timelinessRating)
+                            ? "star"
+                            : "star-outline"
+                        }
+                        size={16}
+                        color={
+                          star <= Math.round(data.timelinessRating)
+                            ? Colors.warning
+                            : Colors.textHint
+                        }
+                      />
+                    ))}
+                    <Text style={styles.ratingValue}>
+                      {data.timelinessRating.toFixed(1)}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+          )}
+
           {/* Specializations */}
           {data.specializations && data.specializations.length > 0 && (
             <View style={styles.section}>
@@ -265,6 +448,130 @@ export default function WorkerDetailScreen() {
             </View>
           )}
 
+          {/* Certifications */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Certifications & Licenses</Text>
+            {data.certifications && data.certifications.length > 0 ? (
+              data.certifications.map((cert) => (
+                <View key={cert.id} style={styles.certCard}>
+                  <View style={styles.certHeader}>
+                    <View style={styles.certIconContainer}>
+                      <Ionicons
+                        name="ribbon"
+                        size={20}
+                        color={
+                          cert.isVerified ? Colors.success : Colors.primary
+                        }
+                      />
+                    </View>
+                    <View style={styles.certInfo}>
+                      <Text style={styles.certName}>{cert.name}</Text>
+                      {cert.issuingOrganization && (
+                        <Text style={styles.certOrg}>
+                          {cert.issuingOrganization}
+                        </Text>
+                      )}
+                      {cert.issueDate && (
+                        <Text style={styles.certDate}>
+                          Issued:{" "}
+                          {new Date(cert.issueDate).toLocaleDateString()}
+                        </Text>
+                      )}
+                    </View>
+                    {cert.isVerified && (
+                      <View style={styles.certVerifiedBadge}>
+                        <Ionicons
+                          name="checkmark-circle"
+                          size={18}
+                          color={Colors.success}
+                        />
+                      </View>
+                    )}
+                  </View>
+                </View>
+              ))
+            ) : (
+              <View style={styles.emptyState}>
+                <Ionicons
+                  name="ribbon-outline"
+                  size={48}
+                  color={Colors.textHint}
+                />
+                <Text style={styles.emptyStateText}>
+                  This worker doesn't have any certifications yet
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {/* Materials/Products */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>
+              Materials & Products Available
+            </Text>
+            {data.materials && data.materials.length > 0 ? (
+              data.materials.map((material) => (
+                <View key={material.id} style={styles.materialCard}>
+                  <View style={styles.materialHeader}>
+                    <Ionicons
+                      name="cube-outline"
+                      size={24}
+                      color={Colors.primary}
+                    />
+                    <View style={styles.materialInfo}>
+                      <Text style={styles.materialName}>{material.name}</Text>
+                      {material.description && (
+                        <Text style={styles.materialDesc} numberOfLines={2}>
+                          {material.description}
+                        </Text>
+                      )}
+                      <View style={styles.materialFooter}>
+                        <Text style={styles.materialPrice}>
+                          ₱{material.price.toLocaleString()} /{" "}
+                          {material.priceUnit.toLowerCase().replace("_", " ")}
+                        </Text>
+                        <View
+                          style={[
+                            styles.stockBadge,
+                            {
+                              backgroundColor: material.inStock
+                                ? Colors.successLight
+                                : Colors.errorLight,
+                            },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.stockText,
+                              {
+                                color: material.inStock
+                                  ? Colors.success
+                                  : Colors.error,
+                              },
+                            ]}
+                          >
+                            {material.inStock ? "In Stock" : "Out of Stock"}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+              ))
+            ) : (
+              <View style={styles.emptyState}>
+                <Ionicons
+                  name="cube-outline"
+                  size={48}
+                  color={Colors.textHint}
+                />
+                <Text style={styles.emptyStateText}>
+                  This worker doesn't have any materials or products listed
+                </Text>
+              </View>
+            )}
+          </View>
+
           {/* Contact Info */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Contact Information</Text>
@@ -291,15 +598,8 @@ export default function WorkerDetailScreen() {
           </View>
         </ScrollView>
 
-        {/* Bottom Action Buttons */}
+        {/* Bottom Action Button */}
         <View style={styles.bottomActions}>
-          <TouchableOpacity
-            style={styles.messageButton}
-            onPress={() => router.push(`/messages/new?workerId=${id}` as any)}
-          >
-            <Ionicons name="chatbubble" size={20} color={Colors.primary} />
-            <Text style={styles.messageButtonText}>Message</Text>
-          </TouchableOpacity>
           <TouchableOpacity
             style={styles.hireButton}
             onPress={() => router.push(`/jobs/create?workerId=${id}` as any)}
@@ -536,6 +836,172 @@ const styles = StyleSheet.create({
   contactText: {
     fontSize: 15,
     color: Colors.textPrimary,
+  },
+  // Certifications styles
+  certCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.md,
+    padding: 16,
+    marginBottom: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: Colors.primary,
+  },
+  certHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  certIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.primaryLight,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  certInfo: {
+    flex: 1,
+  },
+  certName: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+    marginBottom: 4,
+  },
+  certOrg: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    marginBottom: 2,
+  },
+  certDate: {
+    fontSize: 12,
+    color: Colors.textHint,
+  },
+  certVerifiedBadge: {
+    marginLeft: 8,
+  },
+  // Materials styles
+  materialCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.md,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  materialHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  materialInfo: {
+    flex: 1,
+  },
+  materialName: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+    marginBottom: 4,
+  },
+  materialDesc: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    marginBottom: 8,
+  },
+  materialFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  materialPrice: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: Colors.primary,
+  },
+  stockBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.sm,
+  },
+  stockText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  emptyState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 32,
+    paddingHorizontal: 20,
+  },
+  emptyStateText: {
+    fontSize: 14,
+    color: Colors.textHint,
+    textAlign: "center",
+    marginTop: 12,
+    lineHeight: 20,
+  },
+  // Completion Rate Card Styles
+  completionRateCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.md,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  completionRateHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 16,
+  },
+  completionRateInfo: {
+    flex: 1,
+  },
+  completionRateValue: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+    marginBottom: 2,
+  },
+  completionRateLabel: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+  },
+  progressBarContainer: {
+    height: 8,
+    backgroundColor: Colors.border,
+    borderRadius: 4,
+    overflow: "hidden",
+  },
+  progressBar: {
+    height: "100%",
+    borderRadius: 4,
+  },
+  // Performance Ratings Styles
+  ratingsContainer: {
+    gap: 16,
+  },
+  ratingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  ratingLabel: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: Colors.textPrimary,
+    flex: 1,
+  },
+  ratingStarsContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  ratingValue: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+    marginLeft: 8,
   },
   bottomActions: {
     position: "absolute",
