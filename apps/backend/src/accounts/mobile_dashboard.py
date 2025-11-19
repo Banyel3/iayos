@@ -125,7 +125,7 @@ def get_dashboard_recent_jobs_mobile(user: Accounts, limit: int = 5) -> Dict[str
 
         jobs_list = []
 
-        # Worker: Show recent ACTIVE jobs they can apply to
+        # Worker: Show recent ACTIVE LISTING jobs they can apply to (exclude INVITE jobs)
         if hasattr(user_profile, 'workerprofile'):
             worker_profile = user_profile.workerprofile
 
@@ -135,7 +135,8 @@ def get_dashboard_recent_jobs_mobile(user: Accounts, limit: int = 5) -> Dict[str
             ).values_list('jobID_id', flat=True)
 
             jobs = JobPosting.objects.filter(
-                status='ACTIVE'
+                status='ACTIVE',
+                jobType='LISTING'  # Only show public job listings, not direct invites
             ).exclude(
                 jobID__in=applied_job_ids
             ).select_related(

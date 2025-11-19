@@ -245,3 +245,18 @@ class PortfolioItemResponse(Schema):
 class ReorderPortfolioRequest(Schema):
     """Schema for reordering portfolio"""
     portfolio_id_order: list  # List of portfolio IDs in desired order
+
+class CreateInviteJobMobileSchema(Schema):
+    """Mobile schema for creating INVITE-type job (direct worker/agency hiring)"""
+    title: str
+    description: str
+    category_id: int
+    budget: float
+    location: str
+    expected_duration: Optional[str] = None
+    urgency_level: str  # 'LOW' | 'MEDIUM' | 'HIGH'
+    preferred_start_date: Optional[str] = None  # YYYY-MM-DD format
+    materials_needed: Optional[list] = None  # List of strings
+    worker_id: Optional[int] = None  # Either worker_id OR agency_id (not both)
+    agency_id: Optional[int] = None
+    downpayment_method: str  # 'WALLET' | 'GCASH'

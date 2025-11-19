@@ -27,8 +27,11 @@ def get_mobile_job_list(
     Returns minimal fields for list view performance
     """
     try:
-        # Base query - only ACTIVE jobs
-        queryset = JobPosting.objects.filter(status='ACTIVE')
+        # Base query - only ACTIVE jobs that are LISTING type (exclude INVITE/direct hire jobs)
+        queryset = JobPosting.objects.filter(
+            status='ACTIVE',
+            jobType='LISTING'  # Only show public job listings, not direct invites
+        )
 
         # Apply filters
         if category_id:
@@ -206,6 +209,22 @@ def get_mobile_job_detail(job_id: int, user: Accounts) -> Dict[str, Any]:
                 materials_needed = json.loads(job.materialsNeeded) if isinstance(job.materialsNeeded, str) else job.materialsNeeded
             except:
                 materials_needed = [job.materialsNeeded]
+        
+        # Get assigned worker info for INVITE jobs (direct hire)
+        assigned_worker = None
+        if job.jobType == 'INVITE' and job.assignedWorkerID:
+            # Use the assignedWorkerID directly from the job
+            try:
+                worker_profile = job.assignedWorkerID.profileID
+                assigned_worker = {
+                    'id': job.assignedWorkerID.id,
+                    'name': f"{worker_profile.firstName} {worker_profile.lastName}" if worker_profile else "Unknown",
+                    'avatar': worker_profile.profileImg if worker_profile and worker_profile.profileImg else None,
+                    'rating': float(job.assignedWorkerID.workerRating) if job.assignedWorkerID.workerRating else 0.0,
+                }
+                print(f"   ✓ Assigned worker: {assigned_worker['name']}")
+            except Exception as e:
+                print(f"   ⚠️ Could not fetch assigned worker: {str(e)}")
 
         job_data = {
             'id': job.jobID,
@@ -220,11 +239,13 @@ def get_mobile_job_detail(job_id: int, user: Accounts) -> Dict[str, Any]:
             'photos': photos,
             'status': job.status,
             'created_at': job.createdAt.isoformat(),
+            'job_type': job.jobType,
             'category': {
                 'id': job.categoryID.specializationID if job.categoryID else None,
                 'name': job.categoryID.specializationName if job.categoryID else "General",
             },
             'client': client_data,
+            'assigned_worker': assigned_worker,
             'applications_count': applications_count,
             'is_applied': has_applied,
             'user_application': user_application,
@@ -285,8 +306,10 @@ def create_mobile_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[str, Any
                 'error': 'Budget must be greater than 0'
             }
 
-        # Calculate downpayment (50%)
-        downpayment_amount = budget * Decimal('0.5')
+        # Calculate downpayment (50%) + platform commission (5%)
+        escrow_amount = budget * Decimal('0.5')  # 50% escrow
+        commission_fee = budget * Decimal('0.05')  # 5% platform fee
+        downpayment_amount = escrow_amount + commission_fee  # Total: 52.5% (or 50% + 5%)
 
         # Get category
         category = None
@@ -318,8 +341,8 @@ def create_mobile_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[str, Any
             materialsNeeded=materials_json,
             categoryID=category,
             status='PENDING_PAYMENT',  # Will change to ACTIVE after payment
-            escrowAmount=downpayment_amount,
-            remainingPayment=downpayment_amount,
+            escrowAmount=escrow_amount,  # 50% held in escrow
+            remainingPayment=escrow_amount,  # 50% remaining payment (no commission on final)
         )
 
         # Handle payment based on method
@@ -404,6 +427,8 @@ def create_mobile_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[str, Any
                 'job_id': job.jobID,
                 'title': job.title,
                 'budget': float(job.budget),
+                'escrow_amount': float(escrow_amount),
+                'commission_fee': float(commission_fee),
                 'downpayment_amount': float(downpayment_amount),
                 'status': job.status,
                 'payment': payment_result,
@@ -414,6 +439,291 @@ def create_mobile_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[str, Any
         return {
             'success': False,
             'error': f'Job creation failed: {str(e)}'
+        }
+
+
+def create_mobile_invite_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Create INVITE-type job (direct worker/agency hiring) from mobile
+    - 50% + 5% commission downpayment held in escrow
+    - Worker/agency can accept or reject the invite
+    - Payment: WALLET or GCASH
+    """
+    try:
+        from .models import Profile, ClientProfile, WorkerProfile, Agency, Job, Wallet, Transaction, Specializations, Notification
+        from django.db import transaction as db_transaction
+        from django.utils import timezone
+        from decimal import Decimal
+        from datetime import datetime
+        
+        # Get user's client profile
+        try:
+            profile = Profile.objects.get(accountFK=user)
+            if profile.profileType != "CLIENT":
+                return {'success': False, 'error': 'Only clients can create invite jobs'}
+            client_profile = ClientProfile.objects.get(profileID=profile)
+        except (Profile.DoesNotExist, ClientProfile.DoesNotExist):
+            return {'success': False, 'error': 'Client profile not found'}
+        
+        # Validate that either worker_id or agency_id is provided (not both)
+        worker_id = job_data.get('worker_id')
+        agency_id = job_data.get('agency_id')
+        
+        if not worker_id and not agency_id:
+            return {'success': False, 'error': 'Must provide either worker_id or agency_id'}
+        if worker_id and agency_id:
+            return {'success': False, 'error': 'Cannot invite both worker and agency'}
+        
+        # Verify worker or agency exists
+        assigned_worker = None
+        assigned_agency = None
+        invite_target_name = ""
+        target_account = None
+        
+        if worker_id:
+            try:
+                assigned_worker = WorkerProfile.objects.get(profileID__profileID=worker_id)
+                invite_target_name = f"{assigned_worker.profileID.firstName} {assigned_worker.profileID.lastName}"
+                target_account = assigned_worker.profileID.accountFK
+            except WorkerProfile.DoesNotExist:
+                return {'success': False, 'error': 'Worker not found'}
+        
+        if agency_id:
+            try:
+                assigned_agency = Agency.objects.get(agencyId=agency_id)
+                invite_target_name = assigned_agency.businessName
+                target_account = assigned_agency.accountFK
+                
+                # Verify agency KYC status
+                from agency.models import AgencyKYC
+                try:
+                    kyc = AgencyKYC.objects.get(agencyID=assigned_agency)
+                    if kyc.status != "APPROVED":
+                        return {'success': False, 'error': f'Agency KYC status is {kyc.status}. Can only invite APPROVED agencies.'}
+                except AgencyKYC.DoesNotExist:
+                    return {'success': False, 'error': 'Agency has not completed KYC verification'}
+            except Agency.DoesNotExist:
+                return {'success': False, 'error': 'Agency not found'}
+        
+        # Validate category
+        category_id = job_data.get('category_id')
+        try:
+            category = Specializations.objects.get(specializationID=category_id)
+        except Specializations.DoesNotExist:
+            return {'success': False, 'error': 'Invalid category'}
+        
+        # Validate budget
+        budget = Decimal(str(job_data.get('budget', 0)))
+        if budget <= 0:
+            return {'success': False, 'error': 'Budget must be greater than 0'}
+        
+        # Calculate escrow (50%) + commission (5%)
+        escrow_amount = budget * Decimal('0.5')
+        commission_fee = budget * Decimal('0.05')
+        downpayment_amount = escrow_amount + commission_fee  # 52.5% total
+        remaining_payment = budget * Decimal('0.5')
+        
+        print(f"💰 Budget: ₱{budget} | Escrow: ₱{escrow_amount} | Commission: ₱{commission_fee} | Downpayment: ₱{downpayment_amount}")
+        
+        # Parse preferred start date
+        preferred_start_date_obj = None
+        preferred_start_date_str = job_data.get('preferred_start_date')
+        if preferred_start_date_str:
+            try:
+                preferred_start_date_obj = datetime.strptime(preferred_start_date_str, "%Y-%m-%d").date()
+            except ValueError:
+                return {'success': False, 'error': 'Invalid date format. Use YYYY-MM-DD'}
+        
+        # Get client wallet
+        wallet, created = Wallet.objects.get_or_create(
+            accountFK=user,
+            defaults={'balance': Decimal('0.00')}
+        )
+        
+        # Handle payment method
+        payment_method = job_data.get('downpayment_method', 'WALLET').upper()
+        
+        if payment_method == "WALLET":
+            # Check wallet balance
+            if wallet.balance < downpayment_amount:
+                return {
+                    'success': False,
+                    'error': 'Insufficient wallet balance',
+                    'data': {
+                        'required': float(downpayment_amount),
+                        'available': float(wallet.balance),
+                        'shortfall': float(downpayment_amount - wallet.balance)
+                    }
+                }
+            
+            with db_transaction.atomic():
+                # Deduct downpayment from wallet
+                wallet.balance -= downpayment_amount
+                wallet.save()
+                
+                # Create INVITE job
+                job = Job.objects.create(
+                    clientID=client_profile,
+                    title=job_data.get('title'),
+                    description=job_data.get('description'),
+                    categoryID=category,
+                    budget=budget,
+                    escrowAmount=escrow_amount,
+                    escrowPaid=True,
+                    escrowPaidAt=timezone.now(),
+                    remainingPayment=remaining_payment,
+                    location=job_data.get('location', ''),
+                    expectedDuration=job_data.get('expected_duration', 'Not specified'),
+                    urgency=job_data.get('urgency_level', 'MEDIUM').upper(),
+                    preferredStartDate=preferred_start_date_obj,
+                    materialsNeeded=job_data.get('materials_needed', []),
+                    jobType="INVITE",  # INVITE type job
+                    inviteStatus="PENDING",  # Waiting for worker/agency response
+                    status="ACTIVE",  # Job created, awaiting acceptance
+                    assignedAgencyFK=assigned_agency,
+                    assignedWorkerID=assigned_worker
+                )
+                
+                # Create escrow transaction
+                Transaction.objects.create(
+                    walletID=wallet,
+                    transactionType=Transaction.TransactionType.PAYMENT,
+                    amount=downpayment_amount,
+                    balanceAfter=wallet.balance,
+                    status=Transaction.TransactionStatus.COMPLETED,
+                    description=f"Escrow payment (50%) + Commission (5%) for INVITE job: {job.title}",
+                    relatedJobID=job,
+                    completedAt=timezone.now(),
+                    referenceNumber=f"INVITE-ESCROW-{job.jobID}-{timezone.now().strftime('%Y%m%d%H%M%S')}"
+                )
+                
+                # Send notification to worker/agency
+                Notification.objects.create(
+                    accountFK=target_account,
+                    notificationType="JOB_INVITE",
+                    title=f"New Job Invitation: {job.title}",
+                    message=f"You've been invited to work on '{job.title}'. Budget: ₱{budget}. Review and respond to the invitation.",
+                    relatedJobID=job.jobID
+                )
+                
+                # Send confirmation to client
+                Notification.objects.create(
+                    accountFK=user,
+                    notificationType="JOB_INVITE_SENT",
+                    title="Job Invitation Sent",
+                    message=f"Your invitation to {invite_target_name} for '{job.title}' has been sent. Awaiting their response.",
+                    relatedJobID=job.jobID
+                )
+                
+                print(f"✅ INVITE job created: ID={job.jobID}, inviteStatus=PENDING")
+            
+            return {
+                'success': True,
+                'data': {
+                    'job_posting_id': job.jobID,
+                    'job_type': 'INVITE',
+                    'invite_status': 'PENDING',
+                    'invite_target': invite_target_name,
+                    'escrow_paid': True,
+                    'escrow_amount': float(escrow_amount),
+                    'commission_fee': float(commission_fee),
+                    'downpayment_amount': float(downpayment_amount),
+                    'new_wallet_balance': float(wallet.balance),
+                    'message': f"Invitation sent to {invite_target_name}! ₱{downpayment_amount} deducted from your wallet.",
+                    'requires_payment': False
+                }
+            }
+        
+        elif payment_method == "GCASH":
+            # Create job with pending payment and generate Xendit invoice
+            from .xendit_service import XenditService
+            xendit = XenditService()
+            
+            with db_transaction.atomic():
+                # Create INVITE job with pending payment
+                job = Job.objects.create(
+                    clientID=client_profile,
+                    title=job_data.get('title'),
+                    description=job_data.get('description'),
+                    categoryID=category,
+                    budget=budget,
+                    escrowAmount=escrow_amount,
+                    escrowPaid=False,  # Will be marked true after GCash payment
+                    remainingPayment=remaining_payment,
+                    location=job_data.get('location', ''),
+                    expectedDuration=job_data.get('expected_duration', 'Not specified'),
+                    urgency=job_data.get('urgency_level', 'MEDIUM').upper(),
+                    preferredStartDate=preferred_start_date_obj,
+                    materialsNeeded=job_data.get('materials_needed', []),
+                    jobType="INVITE",
+                    inviteStatus="PENDING",
+                    status="ACTIVE",
+                    assignedAgencyFK=assigned_agency,
+                    assignedWorkerID=assigned_worker
+                )
+                
+                # Create pending transaction
+                transaction = Transaction.objects.create(
+                    walletID=wallet,
+                    transactionType=Transaction.TransactionType.PAYMENT,
+                    amount=downpayment_amount,
+                    balanceAfter=wallet.balance,
+                    status=Transaction.TransactionStatus.PENDING,
+                    description=f"Escrow payment (50%) + Commission (5%) for INVITE job: {job.title}",
+                    relatedJobID=job,
+                    referenceNumber=f"INVITE-ESCROW-PENDING-{job.jobID}-{timezone.now().strftime('%Y%m%d%H%M%S')}"
+                )
+                
+                # Create Xendit invoice
+                invoice_result = xendit.create_invoice(
+                    external_id=f"INVITE-JOB-{job.jobID}",
+                    amount=float(downpayment_amount),
+                    payer_email=user.email,
+                    description=f"Escrow + Commission for INVITE job: {job.title}",
+                    customer_name=f"{profile.firstName} {profile.lastName}"
+                )
+                
+                if invoice_result['success']:
+                    # Store invoice URL in transaction
+                    transaction.paymentMethod = 'GCASH'
+                    transaction.referenceNumber = invoice_result['invoice_id']
+                    transaction.save()
+                    
+                    print(f"✅ INVITE job created with GCash payment: ID={job.jobID}")
+                    
+                    return {
+                        'success': True,
+                        'data': {
+                            'job_posting_id': job.jobID,
+                            'job_type': 'INVITE',
+                            'invite_status': 'PENDING',
+                            'invite_target': invite_target_name,
+                            'escrow_paid': False,
+                            'escrow_amount': float(escrow_amount),
+                            'commission_fee': float(commission_fee),
+                            'downpayment_amount': float(downpayment_amount),
+                            'message': f"INVITE job created. Please complete the ₱{downpayment_amount} payment via GCash.",
+                            'requires_payment': True,
+                            'invoice_url': invoice_result['invoice_url']
+                        }
+                    }
+                else:
+                    # Rollback will happen automatically
+                    return {
+                        'success': False,
+                        'error': f"Failed to create GCash invoice: {invoice_result.get('error', 'Unknown error')}"
+                    }
+        
+        else:
+            return {'success': False, 'error': 'Invalid payment method. Use WALLET or GCASH.'}
+    
+    except Exception as e:
+        print(f"❌ Create invite job error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {
+            'success': False,
+            'error': f'Invite job creation failed: {str(e)}'
         }
 
 
@@ -1405,12 +1715,13 @@ def get_available_jobs_mobile(user, page=1, limit=20):
             workerID=worker_profile
         ).values_list('jobID', flat=True)
 
-        # Get ACTIVE jobs that worker hasn't applied to
+        # Get ACTIVE jobs that worker hasn't applied to and are LISTING type (exclude INVITE jobs)
         jobs_qs = JobPosting.objects.select_related(
             'clientID__profileID__accountFK',
             'categoryID'
         ).prefetch_related('photos').filter(
-            status='ACTIVE'
+            status='ACTIVE',
+            jobType='LISTING'  # Only show public job listings, not direct invites
         ).exclude(
             jobID__in=applied_job_ids
         ).order_by('-createdAt')

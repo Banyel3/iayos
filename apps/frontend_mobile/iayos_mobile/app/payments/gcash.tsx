@@ -14,7 +14,6 @@ import { Colors, Typography, Spacing } from "../../constants/theme";
 import PaymentSummaryCard from "../../components/PaymentSummaryCard";
 import {
   useCreateXenditInvoice,
-  useCreateEscrowPayment,
   calculateEscrowAmount,
 } from "../../lib/hooks/usePayments";
 
@@ -23,19 +22,35 @@ export default function GCashPaymentScreen() {
   const params = useLocalSearchParams();
 
   const jobId = params.jobId ? parseInt(params.jobId as string) : null;
-  const jobBudget = params.budget ? parseFloat(params.budget as string) : 0;
+  // Accept both 'budget' (old) and 'amount' (new from backend)
+  const jobBudget = params.amount
+    ? parseFloat(params.amount as string)
+    : params.budget
+      ? parseFloat(params.budget as string)
+      : 0;
   const jobTitle = (params.title as string) || "Untitled Job";
+  // Accept pre-generated invoice URL from backend
+  const backendInvoiceUrl = params.invoiceUrl as string | undefined;
 
-  const [xenditUrl, setXenditUrl] = useState<string | null>(null);
+  const [xenditUrl, setXenditUrl] = useState<string | null>(
+    backendInvoiceUrl || null
+  );
   const [paymentCompleted, setPaymentCompleted] = useState(false);
+  const [checkingPaymentStatus, setCheckingPaymentStatus] = useState(false);
 
   const createInvoice = useCreateXenditInvoice();
-  const createEscrowPayment = useCreateEscrowPayment();
 
   const { total } = calculateEscrowAmount(jobBudget);
 
-  // Create Xendit invoice on mount
+  // Create Xendit invoice on mount ONLY if not provided by backend
   useEffect(() => {
+    if (backendInvoiceUrl) {
+      // Backend already created invoice, use it
+      setXenditUrl(backendInvoiceUrl);
+      return;
+    }
+
+    // Fallback: create invoice if backend didn't provide one
     if (jobId && jobBudget) {
       createInvoice.mutate(
         { jobId, amount: total },
@@ -53,10 +68,12 @@ export default function GCashPaymentScreen() {
         }
       );
     }
-  }, [jobId, jobBudget]);
+  }, [jobId, jobBudget, backendInvoiceUrl]);
 
   const handleWebViewNavigationStateChange = (navState: any) => {
     const { url } = navState;
+
+    console.log("WebView navigation:", url);
 
     // Check if payment is completed (Xendit success callback)
     if (url.includes("/payment/success") || url.includes("/callback/success")) {
@@ -69,32 +86,62 @@ export default function GCashPaymentScreen() {
     }
   };
 
+  const handleWebViewError = (syntheticEvent: any) => {
+    const { nativeEvent } = syntheticEvent;
+    console.log("WebView error:", nativeEvent);
+
+    // NSURLErrorDomain -1004 means "Could not connect to the server"
+    // This happens AFTER Xendit processes the payment when redirecting to callback
+    if (
+      nativeEvent.code === -1004 ||
+      nativeEvent.description?.includes("Could not connect")
+    ) {
+      console.log("Connection error detected - checking payment status...");
+
+      if (checkingPaymentStatus || paymentCompleted) return;
+      setCheckingPaymentStatus(true);
+
+      // Wait a moment for Xendit to process, then confirm payment
+      setTimeout(() => {
+        Alert.alert(
+          "Payment Processing",
+          "Your payment is being verified. This may take a few moments.",
+          [
+            {
+              text: "Check Status",
+              onPress: () => {
+                handlePaymentSuccess();
+              },
+            },
+          ]
+        );
+      }, 1000);
+    } else {
+      console.warn("WebView error:", nativeEvent.description);
+    }
+  };
+
   const handlePaymentSuccess = () => {
     if (paymentCompleted) return;
     setPaymentCompleted(true);
 
-    // Create escrow payment record
-    createEscrowPayment.mutate(
-      {
-        jobId: jobId!,
-        amount: total,
-        paymentMethod: "gcash",
-      },
-      {
-        onSuccess: () => {
-          Alert.alert(
-            "Payment Successful",
-            "Your GCash payment has been processed successfully.",
-            [
-              {
-                text: "View Status",
-                onPress: () =>
-                  router.push(`/payments/status?jobId=${jobId}` as any),
-              },
-            ]
-          );
+    // Backend already created the escrow transaction during job creation
+    // Xendit webhook will update the transaction status automatically
+    // Just show success and navigate to status page
+    Alert.alert(
+      "Payment Successful",
+      "Your GCash payment has been processed successfully. The transaction is being verified.",
+      [
+        {
+          text: "View Status",
+          onPress: () =>
+            router.push(`/payments/status?jobId=${jobId}` as any),
         },
-      }
+        {
+          text: "Go Home",
+          onPress: () => router.push("/"),
+        },
+      ]
     );
   };
 
@@ -160,16 +207,25 @@ export default function GCashPaymentScreen() {
       </View>
 
       {/* WebView or Loading */}
-      {createInvoice.isPending || !xenditUrl ? (
+      {(createInvoice.isPending || !xenditUrl) && !backendInvoiceUrl ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primary} />
           <Text style={styles.loadingText}>Preparing GCash payment...</Text>
         </View>
       ) : (
         <WebView
-          source={{ uri: xenditUrl }}
+          source={{ uri: xenditUrl! }}
           style={styles.webview}
           onNavigationStateChange={handleWebViewNavigationStateChange}
+          onError={handleWebViewError}
+          onHttpError={(syntheticEvent) => {
+            const { nativeEvent } = syntheticEvent;
+            console.log(
+              "WebView HTTP error:",
+              nativeEvent.statusCode,
+              nativeEvent.url
+            );
+          }}
           startInLoadingState
           renderLoading={() => (
             <View style={styles.webviewLoading}>

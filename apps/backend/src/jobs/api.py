@@ -1,12 +1,12 @@
 from ninja import Router, File
 from ninja.responses import Response
 from ninja.files import UploadedFile
-from accounts.authentication import cookie_auth
+from accounts.authentication import cookie_auth, jwt_auth
 from accounts.models import ClientProfile, Specializations, Profile, WorkerProfile, JobApplication, JobPhoto, Wallet, Transaction, Job
 from accounts.xendit_service import XenditService
 from .models import JobPosting
 # Use Job directly for type checking (JobPosting is just an alias)
-from .schemas import CreateJobPostingSchema, JobPostingResponseSchema, JobApplicationSchema, SubmitReviewSchema, ApproveJobCompletionSchema
+from .schemas import CreateJobPostingSchema, CreateJobPostingMobileSchema, JobPostingResponseSchema, JobApplicationSchema, SubmitReviewSchema, ApproveJobCompletionSchema
 from datetime import datetime
 from django.utils import timezone
 from decimal import Decimal
@@ -41,11 +41,12 @@ def broadcast_job_status_update(job_id, update_data):
         traceback.print_exc()
 
 
-@router.post("/create", auth=cookie_auth, response=JobPostingResponseSchema)
+@router.post("/create", auth=jwt_auth, response=JobPostingResponseSchema)
 def create_job_posting(request, data: CreateJobPostingSchema):
     """
     Create a new job posting
     Only clients can create job postings
+    Uses JWT Bearer token authentication for mobile compatibility
     """
     try:
         print(f"📝 Job posting creation request from {request.auth.email}")
@@ -107,10 +108,17 @@ def create_job_posting(request, data: CreateJobPostingSchema):
         downpayment = Decimal(str(data.budget)) * Decimal('0.5')
         remaining_payment = Decimal(str(data.budget)) * Decimal('0.5')
         
+        # Calculate platform fee (5% of escrow for ALL payment methods - this is our revenue)
+        platform_fee = downpayment * Decimal('0.05')  # 5% platform fee on escrow
+        
+        total_to_charge = downpayment + platform_fee  # Total amount to charge client
+        
         print(f"💰 Payment breakdown:")
         print(f"   Total Budget: ₱{data.budget}")
         print(f"   Downpayment (50%): ₱{downpayment}")
         print(f"   Remaining (50%): ₱{remaining_payment}")
+        print(f"   Platform Fee (5%): ₱{platform_fee}")
+        print(f"   Total to Charge: ₱{total_to_charge}")
         
         # Get or create client's wallet
         wallet, created = Wallet.objects.get_or_create(
@@ -129,25 +137,28 @@ def create_job_posting(request, data: CreateJobPostingSchema):
         
         # Handle payment based on method
         if payment_method == "WALLET":
-            # Check if client has sufficient balance for escrow
-            if wallet.balance < downpayment:
+            # Check if client has sufficient balance for total amount (escrow + platform fee)
+            if wallet.balance < total_to_charge:
                 return Response(
                     {
                         "error": "Insufficient wallet balance",
-                        "required": float(downpayment),
+                        "required": float(total_to_charge),
                         "available": float(wallet.balance),
-                        "message": f"You need ₱{downpayment} for the escrow payment, but only have ₱{wallet.balance}. Please deposit more funds or use GCash payment."
+                        "message": f"You need ₱{total_to_charge} (₱{downpayment} escrow + ₱{platform_fee} platform fee), but only have ₱{wallet.balance}."
                     },
                     status=400
                 )
             
             # Use database transaction to ensure atomicity
             with db_transaction.atomic():
-                # Deduct escrow from wallet balance
-                wallet.balance -= downpayment
+                # Deduct total amount (escrow + platform fee) from wallet balance
+                wallet.balance -= total_to_charge
                 wallet.save()
                 
-                print(f"💸 Deducted ₱{downpayment} from wallet. New balance: ₱{wallet.balance}")
+                print(f"💸 Deducted ₱{total_to_charge} from wallet (₱{downpayment} escrow + ₱{platform_fee} fee). New balance: ₱{wallet.balance}")
+                
+                # Determine job type: INVITE if worker_id provided (direct hire), otherwise LISTING (open to all)
+                job_type = JobPosting.JobType.INVITE if hasattr(data, 'worker_id') and data.worker_id else JobPosting.JobType.LISTING
                 
                 # Create job posting with escrowPaid=True (already deducted)
                 job_posting = JobPosting.objects.create(
@@ -165,8 +176,11 @@ def create_job_posting(request, data: CreateJobPostingSchema):
                     urgency=data.urgency.upper() if data.urgency else "MEDIUM",
                     preferredStartDate=preferred_start_date,
                     materialsNeeded=data.materials_needed if data.materials_needed else [],
+                    jobType=job_type,
                     status=JobPosting.JobStatus.ACTIVE
                 )
+                
+                print(f"📋 Job created as {job_type} (Web endpoint)")
                 
                 # Create completed transaction for escrow payment
                 escrow_transaction = Transaction.objects.create(
@@ -378,6 +392,371 @@ def create_job_posting(request, data: CreateJobPostingSchema):
         
     except Exception as e:
         print(f"❌ Error creating job posting: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": f"Failed to create job posting: {str(e)}"},
+            status=500
+        )
+
+
+@router.post("/create-mobile", auth=jwt_auth, response=JobPostingResponseSchema)
+def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
+    """
+    Create a new job posting from mobile app with optional direct worker/agency assignment
+    - If worker_id is provided, job is assigned to that specific worker
+    - If agency_id is provided, job is assigned to that specific agency
+    - Otherwise, works like regular job posting (open to all)
+    Uses JWT Bearer token authentication for mobile compatibility
+    """
+    try:
+        print(f"📱 MOBILE job posting creation request from {request.auth.email}")
+        print(f"📋 Request data: {data.dict()}")
+        
+        if data.worker_id:
+            print(f"👷 Direct hire for worker ID: {data.worker_id}")
+        elif data.agency_id:
+            print(f"🏢 Direct hire for agency ID: {data.agency_id}")
+        else:
+            print(f"📢 Open job posting (no specific worker/agency)")
+        
+        # Check user's profile type first
+        try:
+            profile = Profile.objects.get(accountFK=request.auth)
+            print(f"👤 User profile type: {profile.profileType}")
+        except Profile.DoesNotExist:
+            print("❌ No profile found")
+            return Response(
+                {"error": "Profile not found. Please complete your profile first."},
+                status=400
+            )
+        
+        # Get or create client profile using profileID (not accountFK)
+        if profile.profileType != "CLIENT":
+            return Response(
+                {"error": f"Only clients can create job postings. Your profile type is: {profile.profileType}"},
+                status=403
+            )
+        
+        try:
+            client_profile = ClientProfile.objects.get(profileID=profile)
+            print(f"✅ Client profile found: ID={client_profile.profileID.profileID}")
+        except ClientProfile.DoesNotExist:
+            print(f"⚠️ Client profile not found, creating one...")
+            client_profile = ClientProfile.objects.create(
+                profileID=profile,
+                description="",
+                totalJobsPosted=0,
+                clientRating=0
+            )
+            print(f"✅ Client profile created: ID={client_profile.profileID.profileID}")
+        
+        # Validate category exists
+        try:
+            category = Specializations.objects.get(specializationID=data.category_id)
+        except Specializations.DoesNotExist:
+            return Response(
+                {"error": "Invalid category selected"},
+                status=400
+            )
+        
+        # If worker_id provided, validate worker exists
+        if data.worker_id:
+            try:
+                worker_profile = WorkerProfile.objects.select_related('profileID').get(profileID__profileID=data.worker_id)
+                print(f"✅ Worker validated: {worker_profile.profileID.firstName} {worker_profile.profileID.lastName}")
+            except WorkerProfile.DoesNotExist:
+                return Response(
+                    {"error": f"Worker with ID {data.worker_id} not found"},
+                    status=400
+                )
+        
+        # Parse preferred start date if provided
+        preferred_start_date = None
+        if data.preferred_start_date:
+            try:
+                preferred_start_date = datetime.strptime(data.preferred_start_date, "%Y-%m-%d").date()
+            except ValueError:
+                return Response(
+                    {"error": "Invalid date format. Use YYYY-MM-DD"},
+                    status=400
+                )
+        
+        # Calculate 50% downpayment (escrow)
+        downpayment = Decimal(str(data.budget)) * Decimal('0.5')
+        remaining_payment = Decimal(str(data.budget)) * Decimal('0.5')
+        
+        # Calculate platform fee (5% of escrow for ALL payment methods - this is our revenue)
+        platform_fee = downpayment * Decimal('0.05')  # 5% platform fee on escrow
+        
+        total_to_charge = downpayment + platform_fee  # Total amount to charge client
+        
+        print(f"💰 Payment breakdown:")
+        print(f"   Total Budget: ₱{data.budget}")
+        print(f"   Downpayment (50%): ₱{downpayment}")
+        print(f"   Remaining (50%): ₱{remaining_payment}")
+        if platform_fee > 0:
+            print(f"   Platform Fee (5%): ₱{platform_fee}")
+            print(f"   Total to Charge: ₱{total_to_charge}")
+        
+        # Get or create client's wallet
+        wallet, created = Wallet.objects.get_or_create(
+            accountFK=request.auth,
+            defaults={'balance': Decimal('0.00')}
+        )
+        
+        if created:
+            print(f"💼 New wallet created for {request.auth.email}")
+        
+        print(f"💳 Current wallet balance: ₱{wallet.balance}")
+        
+        # Get payment method (default to WALLET)
+        payment_method = data.payment_method.upper() if data.payment_method else "WALLET"
+        print(f"💳 Payment method selected: {payment_method}")
+        
+        # Handle payment based on method
+        if payment_method == "WALLET":
+            # Check if client has sufficient balance for total amount (escrow + platform fee)
+            if wallet.balance < total_to_charge:
+                return Response(
+                    {
+                        "error": "Insufficient wallet balance",
+                        "required": float(total_to_charge),
+                        "available": float(wallet.balance),
+                        "message": f"You need ₱{total_to_charge} (₱{downpayment} escrow + ₱{platform_fee} platform fee), but only have ₱{wallet.balance}."
+                    },
+                    status=400
+                )
+            
+            # Use database transaction to ensure atomicity
+            with db_transaction.atomic():
+                # Deduct total amount from wallet balance  
+                wallet.balance -= total_to_charge
+                wallet.save()
+                
+                print(f"💸 Deducted ₱{total_to_charge} from wallet (₱{downpayment} escrow + ₱{platform_fee} fee). New balance: ₱{wallet.balance}")
+                
+                # Determine job type: INVITE if worker_id provided (direct hire), otherwise LISTING (open to all)
+                job_type = JobPosting.JobType.INVITE if data.worker_id else JobPosting.JobType.LISTING
+                
+                # Create job posting with escrowPaid=True (already deducted)
+                job_posting = JobPosting.objects.create(
+                    clientID=client_profile,
+                    title=data.title,
+                    description=data.description,
+                    categoryID=category,
+                    budget=data.budget,
+                    escrowAmount=downpayment,
+                    escrowPaid=True,
+                    escrowPaidAt=timezone.now(),
+                    remainingPayment=remaining_payment,
+                    location=data.location,
+                    expectedDuration=data.expected_duration,
+                    urgency=data.urgency.upper() if data.urgency else "MEDIUM",
+                    preferredStartDate=preferred_start_date,
+                    materialsNeeded=data.materials_needed if data.materials_needed else [],
+                    jobType=job_type,
+                    assignedWorkerID=worker_profile if data.worker_id else None,
+                    status=JobPosting.JobStatus.ACTIVE
+                )
+                
+                print(f"📋 Job created as {job_type} (worker_id: {data.worker_id or 'None'})")
+                
+                # If worker_id provided, auto-create application and accept it
+                if data.worker_id:
+                    job_application = JobApplication.objects.create(
+                        jobID=job_posting,
+                        workerID=worker_profile,
+                        proposalMessage=f"Direct hire by client",
+                        proposedBudget=data.budget,
+                        estimatedDuration=data.expected_duration or "As discussed",
+                        budgetOption="ACCEPT",
+                        status=JobApplication.ApplicationStatus.ACCEPTED
+                    )
+                    print(f"✅ Auto-created and accepted application for worker {data.worker_id}")
+                    
+                    # Notify worker
+                    from accounts.models import Notification
+                    Notification.objects.create(
+                        accountFK=worker_profile.profileID.accountFK,
+                        notificationType="JOB_ASSIGNED",
+                        title=f"You've been hired!",
+                        message=f"You've been directly hired for: {job_posting.title}",
+                        relatedJobID=job_posting.jobID
+                    )
+                
+                # Create completed transaction for escrow payment
+                escrow_transaction = Transaction.objects.create(
+                    walletID=wallet,
+                    transactionType=Transaction.TransactionType.PAYMENT,
+                    amount=downpayment,
+                    balanceAfter=wallet.balance,
+                    status=Transaction.TransactionStatus.COMPLETED,
+                    description=f"Escrow payment (50% downpayment) for job: {job_posting.title}",
+                    relatedJobPosting=job_posting,
+                    completedAt=timezone.now(),
+                    referenceNumber=f"ESCROW-{job_posting.jobID}-{timezone.now().strftime('%Y%m%d%H%M%S')}"
+                )
+                
+                print(f"✅ Job posting created: ID={job_posting.jobID}, Title='{job_posting.title}'")
+                print(f"✅ Escrow transaction completed: ID={escrow_transaction.transactionID}")
+
+                # Create escrow payment notification for client
+                from accounts.models import Notification
+                
+                # Different message for INVITE (direct hire) vs LISTING (public post)
+                if data.worker_id:
+                    notification_title = "Worker Requested"
+                    worker_name = f"{worker_profile.profileID.firstName} {worker_profile.profileID.lastName}"
+                    notification_message = f"You've hired {worker_name} for '{job_posting.title}'. Escrow payment of ₱{downpayment} has been deducted from your wallet."
+                else:
+                    notification_title = "Job Posted Successfully"
+                    notification_message = f"Your job '{job_posting.title}' is now live! Escrow payment of ₱{downpayment} has been deducted from your wallet."
+                
+                Notification.objects.create(
+                    accountFK=client_profile.profileID.accountFK,
+                    notificationType="ESCROW_PAID",
+                    title=notification_title,
+                    message=notification_message,
+                    relatedJobID=job_posting.jobID
+                )
+                print(f"📬 Notification sent to client {client_profile.profileID.accountFK.email}")
+
+            return {
+                "success": True,
+                "requires_payment": False,
+                "payment_method": "WALLET",
+                "job_posting_id": job_posting.jobID,
+                "escrow_amount": float(downpayment),
+                "platform_fee": float(platform_fee),
+                "total_amount": float(total_to_charge),
+                "remaining_payment": float(remaining_payment),
+                "new_wallet_balance": float(wallet.balance),
+                "message": f"Job created successfully! ₱{total_to_charge} deducted from your wallet (₱{downpayment} escrow + ₱{platform_fee} platform fee)."
+            }
+        
+        elif payment_method == "GCASH":
+            # Use database transaction to ensure atomicity
+            with db_transaction.atomic():
+                # Determine job type: INVITE if worker_id provided (direct hire), otherwise LISTING (open to all)
+                job_type = JobPosting.JobType.INVITE if data.worker_id else JobPosting.JobType.LISTING
+                
+                # Create job posting first (with escrowPaid=False)
+                job_posting = JobPosting.objects.create(
+                    clientID=client_profile,
+                    title=data.title,
+                    description=data.description,
+                    categoryID=category,
+                    budget=data.budget,
+                    escrowAmount=downpayment,
+                    escrowPaid=False,
+                    remainingPayment=remaining_payment,
+                    location=data.location,
+                    expectedDuration=data.expected_duration,
+                    urgency=data.urgency.upper() if data.urgency else "MEDIUM",
+                    preferredStartDate=preferred_start_date,
+                    materialsNeeded=data.materials_needed if data.materials_needed else [],
+                    jobType=job_type,
+                    status=JobPosting.JobStatus.ACTIVE
+                )
+                
+                print(f"📋 Job created as {job_type} (worker_id: {data.worker_id or 'None'})")
+                
+                # If worker_id provided, auto-create application (but don't accept until payment)
+                if data.worker_id:
+                    worker_profile = WorkerProfile.objects.select_related('profileID').get(profileID__profileID=data.worker_id)
+                    job_application = JobApplication.objects.create(
+                        jobID=job_posting,
+                        workerID=worker_profile,
+                        proposalMessage=f"Direct hire by client (pending payment)",
+                        proposedBudget=data.budget,
+                        estimatedDuration=data.expected_duration or "As discussed",
+                        budgetOption="ACCEPT",
+                        status=JobApplication.ApplicationStatus.PENDING
+                    )
+                    print(f"✅ Auto-created application for worker {data.worker_id} (will accept after payment)")
+                
+                # Create pending transaction for escrow payment
+                escrow_transaction = Transaction.objects.create(
+                    walletID=wallet,
+                    transactionType=Transaction.TransactionType.PAYMENT,
+                    amount=downpayment,
+                    balanceAfter=wallet.balance,
+                    status=Transaction.TransactionStatus.PENDING,
+                    description=f"Escrow payment (50% downpayment) for job: {job_posting.title}",
+                    relatedJobPosting=job_posting,
+                    referenceNumber=f"ESCROW-{job_posting.jobID}-{timezone.now().strftime('%Y%m%d%H%M%S')}"
+                )
+                
+                print(f"✅ Job posting created: ID={job_posting.jobID}, Title='{job_posting.title}'")
+                print(f"📋 Pending escrow transaction created: ID={escrow_transaction.transactionID}")
+            
+            # Get user profile for Xendit invoice
+            try:
+                profile = Profile.objects.get(accountFK=request.auth)
+                user_name = f"{profile.firstName or ''} {profile.lastName or ''}".strip() or request.auth.email
+            except Profile.DoesNotExist:
+                user_name = request.auth.email
+            
+            # Create Xendit invoice for escrow payment (including platform fee)
+            print(f"💳 Creating Xendit invoice for escrow payment...")
+            xendit_result = XenditService.create_gcash_payment(
+                amount=float(total_to_charge),  # Include 5% platform fee
+                user_email=request.auth.email,
+                user_name=user_name,
+                transaction_id=escrow_transaction.transactionID
+            )
+            
+            if not xendit_result.get("success"):
+                # If Xendit fails, delete the job and transaction
+                job_posting.delete()
+                escrow_transaction.delete()
+                return Response(
+                    {"error": "Failed to create payment invoice", "details": xendit_result.get("error")},
+                    status=500
+                )
+            
+            # Update transaction with Xendit details
+            escrow_transaction.xenditInvoiceID = xendit_result['invoice_id']
+            escrow_transaction.xenditExternalID = xendit_result['external_id']
+            escrow_transaction.invoiceURL = xendit_result['invoice_url']
+            escrow_transaction.xenditPaymentChannel = "GCASH"
+            escrow_transaction.xenditPaymentMethod = "EWALLET"
+            escrow_transaction.save()
+            
+            print(f"📄 Xendit invoice created: {xendit_result['invoice_id']}")
+            print(f"🔗 Payment URL: {xendit_result['invoice_url']}")
+            
+            return {
+                "success": True,
+                "requires_payment": True,
+                "payment_method": "GCASH",
+                "job_posting_id": job_posting.jobID,
+                "escrow_amount": float(downpayment),
+                "platform_fee": float(platform_fee),
+                "total_amount": float(total_to_charge),
+                "remaining_payment": float(remaining_payment),
+                "invoice_url": xendit_result['invoice_url'],
+                "invoice_id": xendit_result['invoice_id'],
+                "transaction_id": escrow_transaction.transactionID,
+                "message": f"Job created successfully! Please complete the ₱{total_to_charge} GCash payment (₱{downpayment} escrow + ₱{platform_fee} platform fee) to confirm the job."
+            }
+        
+        elif payment_method == "CASH":
+            # Cash payment not allowed for initial escrow - only for final payment
+            return Response(
+                {"error": "Cash payment is not available for initial escrow payment. Please use WALLET or GCASH. Cash payment can be used for the final 50% payment after job completion."},
+                status=400
+            )
+        
+        else:
+            return Response(
+                {"error": f"Invalid payment method: {payment_method}. Use 'WALLET' or 'GCASH'."},
+                status=400
+            )
+        
+    except Exception as e:
+        print(f"❌ Error creating mobile job posting: {str(e)}")
         import traceback
         traceback.print_exc()
         return Response(

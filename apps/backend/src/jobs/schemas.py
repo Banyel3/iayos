@@ -15,6 +15,22 @@ class CreateJobPostingSchema(Schema):
     payment_method: Optional[str] = "WALLET"  # WALLET or GCASH
 
 
+class CreateJobPostingMobileSchema(Schema):
+    """Mobile-specific job posting schema with optional worker_id for direct hiring"""
+    title: str
+    description: str
+    category_id: int
+    budget: float
+    location: str
+    expected_duration: Optional[str] = None
+    urgency: Optional[str] = "MEDIUM"  # LOW, MEDIUM, HIGH (default MEDIUM)
+    preferred_start_date: Optional[str] = None
+    materials_needed: Optional[list[str]] = []
+    payment_method: Optional[str] = "WALLET"  # WALLET or GCASH
+    worker_id: Optional[int] = None  # If provided, job is for specific worker
+    agency_id: Optional[int] = None  # If provided, job is for specific agency
+
+
 class JobPostingResponseSchema(Schema):
     success: bool
     job_posting_id: int

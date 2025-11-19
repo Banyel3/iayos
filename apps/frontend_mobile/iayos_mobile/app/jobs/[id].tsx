@@ -52,6 +52,13 @@ interface JobDetail {
   expectedDuration?: string;
   materialsNeeded?: string[];
   specializations?: string[];
+  jobType?: "INVITE" | "LISTING";
+  assignedWorker?: {
+    id: number;
+    name: string;
+    avatar: string;
+    rating: number;
+  };
 }
 
 export default function JobDetailScreen() {
@@ -168,6 +175,8 @@ export default function JobDetailScreen() {
         expectedDuration: jobData.expected_duration,
         materialsNeeded: jobData.materials_needed,
         specializations: jobData.specializations,
+        jobType: jobData.job_type,
+        assignedWorker: jobData.assigned_worker,
       } as JobDetail;
     },
     enabled: isValidJobId, // Only fetch if we have a valid job ID
@@ -477,6 +486,32 @@ export default function JobDetailScreen() {
                 <Text style={styles.listItemText}>{material}</Text>
               </View>
             ))}
+          </View>
+        )}
+
+        {/* Assigned Worker - Only for INVITE jobs */}
+        {job.jobType === "INVITE" && job.assignedWorker && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Assigned Worker</Text>
+            <View style={styles.posterCard}>
+              <Image
+                source={{
+                  uri: job.assignedWorker.avatar || "https://via.placeholder.com/60",
+                }}
+                style={styles.posterAvatar}
+              />
+              <View style={styles.posterInfo}>
+                <Text style={styles.posterName}>
+                  {job.assignedWorker.name}
+                </Text>
+                <View style={styles.posterRating}>
+                  <Ionicons name="star" size={16} color="#F59E0B" />
+                  <Text style={styles.posterRatingText}>
+                    {job.assignedWorker.rating.toFixed(1)} rating
+                  </Text>
+                </View>
+              </View>
+            </View>
           </View>
         )}
 

@@ -23,6 +23,8 @@ import {
   Platform,
   Alert,
   ActivityIndicator,
+  Modal,
+  FlatList,
 } from "react-native";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -36,6 +38,7 @@ import {
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { fetchJson, ENDPOINTS } from "@/lib/api/config";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { useBarangays } from "@/lib/hooks/useLocations";
 
 interface Category {
   id: number;
@@ -59,9 +62,8 @@ interface CreateJobRequest {
   budget: number;
   location: string;
   expected_duration?: string;
-  urgency: "LOW" | "MEDIUM" | "HIGH";
+  urgency_level: "LOW" | "MEDIUM" | "HIGH";
   preferred_start_date?: string;
-  materials_needed?: number[]; // Changed to array of material IDs
   payment_method: "WALLET" | "GCASH";
   worker_id?: number;
   agency_id?: number;
@@ -87,7 +89,9 @@ export default function CreateJobScreen() {
   const [description, setDescription] = useState("");
   const [categoryId, setCategoryId] = useState<number | null>(null);
   const [budget, setBudget] = useState("");
-  const [location, setLocation] = useState("");
+  const [barangay, setBarangay] = useState("");
+  const [barangayModalVisible, setBarangayModalVisible] = useState(false);
+  const [street, setStreet] = useState("");
   const [duration, setDuration] = useState("");
   const [urgency, setUrgency] = useState<"LOW" | "MEDIUM" | "HIGH">("MEDIUM");
   const [startDate, setStartDate] = useState<Date | null>(null);
@@ -126,7 +130,22 @@ export default function CreateJobScreen() {
 
   const categories = categoriesData || [];
 
+  // Fetch barangays for Zamboanga City (cityID = 1)
+  const {
+    data: barangaysData,
+    isLoading: barangaysLoading,
+    error: barangaysError,
+  } = useBarangays(1);
+  const barangays = barangaysData || [];
+
   // Debug logging
+  console.log("[CreateJob] Barangays:", {
+    count: barangays.length,
+    loading: barangaysLoading,
+    error: barangaysError,
+    firstThree: barangays.slice(0, 3).map((b) => b.name),
+  });
+
   console.log(
     "[CreateJob] Categories:",
     categories,
@@ -144,7 +163,13 @@ export default function CreateJobScreen() {
         job_posting_id: number;
         message: string;
         requires_payment?: boolean;
+        payment_method?: string;
+        escrow_amount?: number;
+        remaining_payment?: number;
         invoice_url?: string;
+        invoice_id?: string;
+        transaction_id?: number;
+        new_wallet_balance?: number;
       }>(ENDPOINTS.CREATE_JOB, {
         method: "POST",
         body: JSON.stringify(jobData),
@@ -168,19 +193,24 @@ export default function CreateJobScreen() {
         return;
       }
 
+      // Check if payment is required (GCash payment)
       if (data.requires_payment && data.invoice_url) {
-        // Navigate to payment screen
+        // Navigate to GCash payment screen via WebView
         router.push({
           pathname: "/payments/gcash",
           params: {
             invoiceUrl: data.invoice_url,
             jobId: data.job_posting_id.toString(),
+            amount: data.total_amount.toString(), // Use total_amount (escrow + platform fee)
+            title: title || "Job Request", // Pass title for better UX
           },
         } as any);
       } else {
+        // Wallet payment completed or no payment needed
         Alert.alert(
           "Success!",
-          "Job request created successfully. The worker/agency will be notified.",
+          data.message ||
+            "Job request created successfully. The worker/agency will be notified.",
           [
             {
               text: "View Job",
@@ -218,8 +248,12 @@ export default function CreateJobScreen() {
       Alert.alert("Error", "Please enter a valid budget");
       return;
     }
-    if (!location.trim()) {
-      Alert.alert("Error", "Please enter a location");
+    if (!barangay.trim()) {
+      Alert.alert("Error", "Please enter a barangay");
+      return;
+    }
+    if (!street.trim()) {
+      Alert.alert("Error", "Please enter a street address");
       return;
     }
 
@@ -228,14 +262,12 @@ export default function CreateJobScreen() {
       description: description.trim(),
       category_id: categoryId,
       budget: parseFloat(budget),
-      location: location.trim(),
+      location: `${street.trim()}, ${barangay.trim()}`,
       expected_duration: duration.trim() || undefined,
-      urgency,
+      urgency_level: urgency,
       preferred_start_date: startDate
         ? startDate.toISOString().split("T")[0]
         : undefined,
-      materials_needed:
-        selectedMaterials.length > 0 ? selectedMaterials : undefined,
       payment_method: paymentMethod,
     };
 
@@ -388,18 +420,132 @@ export default function CreateJobScreen() {
               </Text>
             </View>
 
-            {/* Location */}
+            {/* Barangay */}
             <View style={styles.formGroup}>
               <Text style={styles.label}>
-                Location <Text style={styles.required}>*</Text>
+                Barangay <Text style={styles.required}>*</Text>
+              </Text>
+              {barangaysLoading ? (
+                <View style={styles.pickerContainer}>
+                  <View style={[styles.picker, styles.pickerLoading]}>
+                    <ActivityIndicator size="small" color={Colors.primary} />
+                    <Text style={styles.pickerLoadingText}>
+                      Loading barangays...
+                    </Text>
+                  </View>
+                </View>
+              ) : barangaysError ? (
+                <View style={styles.pickerContainer}>
+                  <View style={[styles.picker, styles.pickerError]}>
+                    <Text style={styles.pickerErrorText}>
+                      ⚠️ Failed to load
+                    </Text>
+                  </View>
+                </View>
+              ) : barangays.length === 0 ? (
+                <View style={styles.pickerContainer}>
+                  <View style={[styles.picker, styles.pickerError]}>
+                    <Text style={styles.pickerErrorText}>
+                      No barangays available
+                    </Text>
+                  </View>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={styles.barangayButton}
+                  onPress={() => setBarangayModalVisible(true)}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={
+                      barangay
+                        ? styles.barangayButtonText
+                        : styles.barangayButtonPlaceholder
+                    }
+                  >
+                    {barangay || "Select a barangay"}
+                  </Text>
+                  <Text style={styles.barangayButtonIcon}>▼</Text>
+                </TouchableOpacity>
+              )}
+              <Text style={styles.helperText}>
+                {barangaysLoading
+                  ? "Loading..."
+                  : barangaysError
+                    ? `Error: ${barangaysError.message || "Failed to load"}`
+                    : barangays.length === 0
+                      ? "No barangays found"
+                      : `${barangays.length} barangays available`}
+              </Text>
+            </View>
+
+            {/* Barangay Selection Modal */}
+            <Modal
+              visible={barangayModalVisible}
+              animationType="slide"
+              transparent={true}
+              onRequestClose={() => setBarangayModalVisible(false)}
+            >
+              <View style={styles.modalOverlay}>
+                <View style={styles.modalContent}>
+                  <View style={styles.modalHeader}>
+                    <Text style={styles.modalTitle}>Select Barangay</Text>
+                    <TouchableOpacity
+                      onPress={() => setBarangayModalVisible(false)}
+                      style={styles.modalCloseButton}
+                    >
+                      <Text style={styles.modalCloseText}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <FlatList
+                    data={barangays}
+                    keyExtractor={(item) => item.barangayID.toString()}
+                    renderItem={({ item }) => (
+                      <TouchableOpacity
+                        style={[
+                          styles.barangayItem,
+                          barangay === item.name && styles.barangayItemSelected,
+                        ]}
+                        onPress={() => {
+                          setBarangay(item.name);
+                          setBarangayModalVisible(false);
+                        }}
+                      >
+                        <Text
+                          style={[
+                            styles.barangayItemText,
+                            barangay === item.name &&
+                              styles.barangayItemTextSelected,
+                          ]}
+                        >
+                          {item.name}
+                        </Text>
+                        {barangay === item.name && (
+                          <Text style={styles.barangayItemCheck}>✓</Text>
+                        )}
+                      </TouchableOpacity>
+                    )}
+                    style={styles.barangayList}
+                  />
+                </View>
+              </View>
+            </Modal>
+
+            {/* Street Address */}
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>
+                Street Address <Text style={styles.required}>*</Text>
               </Text>
               <TextInput
                 style={styles.input}
-                placeholder="e.g., Marikina City, Metro Manila"
-                value={location}
-                onChangeText={setLocation}
+                placeholder="e.g., 123 Bonifacio Street"
+                value={street}
+                onChangeText={setStreet}
                 placeholderTextColor={Colors.textHint}
               />
+              <Text style={styles.helperText}>
+                Provide the specific street address or landmark
+              </Text>
             </View>
 
             {/* Expected Duration */}
@@ -957,5 +1103,121 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
     color: Colors.white,
+  },
+  pickerContainer: {
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.md,
+    overflow: "hidden",
+  },
+  picker: {
+    height: 50,
+    width: "100%",
+  },
+  pickerLoading: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+  },
+  pickerLoadingText: {
+    marginLeft: 12,
+    fontSize: 14,
+    color: Colors.textSecondary,
+  },
+  pickerError: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+  },
+  pickerErrorText: {
+    fontSize: 14,
+    color: Colors.error,
+  },
+  barangayButton: {
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.md,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  barangayButtonText: {
+    fontSize: 16,
+    color: Colors.text,
+  },
+  barangayButtonPlaceholder: {
+    fontSize: 16,
+    color: Colors.textHint,
+  },
+  barangayButtonIcon: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: BorderRadius.xl,
+    borderTopRightRadius: BorderRadius.xl,
+    maxHeight: "80%",
+    paddingBottom: Platform.OS === "ios" ? 34 : 0,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: Colors.text,
+  },
+  modalCloseButton: {
+    padding: 4,
+  },
+  modalCloseText: {
+    fontSize: 24,
+    color: Colors.textSecondary,
+    fontWeight: "300",
+  },
+  barangayList: {
+    paddingHorizontal: 20,
+  },
+  barangayItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  barangayItemSelected: {
+    backgroundColor: Colors.primaryLight,
+  },
+  barangayItemText: {
+    fontSize: 16,
+    color: Colors.text,
+  },
+  barangayItemTextSelected: {
+    color: Colors.primary,
+    fontWeight: "600",
+  },
+  barangayItemCheck: {
+    fontSize: 20,
+    color: Colors.primary,
+    fontWeight: "bold",
   },
 });

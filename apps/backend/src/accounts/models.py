@@ -1244,3 +1244,57 @@ class Transaction(models.Model):
     
     def __str__(self):
         return f"{self.transactionType} - ₱{self.amount} - {self.status}"
+
+
+class City(models.Model):
+    """
+    City model for location data
+    Stores cities/municipalities in the Philippines
+    """
+    cityID = models.AutoField(primary_key=True)
+    name = models.CharField(max_length=100, unique=True)
+    province = models.CharField(max_length=100)
+    region = models.CharField(max_length=100)
+    zipCode = models.CharField(max_length=10, null=True, blank=True)
+    
+    # Timestamps
+    createdAt = models.DateTimeField(auto_now_add=True)
+    updatedAt = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['name']
+        verbose_name_plural = 'Cities'
+        indexes = [
+            models.Index(fields=['name']),
+            models.Index(fields=['province']),
+        ]
+    
+    def __str__(self):
+        return f"{self.name}, {self.province}"
+
+
+class Barangay(models.Model):
+    """
+    Barangay model for location data
+    Stores barangays within cities/municipalities
+    """
+    barangayID = models.AutoField(primary_key=True)
+    name = models.CharField(max_length=100)
+    city = models.ForeignKey(City, on_delete=models.CASCADE, related_name='barangays')
+    zipCode = models.CharField(max_length=10, null=True, blank=True)
+    
+    # Timestamps
+    createdAt = models.DateTimeField(auto_now_add=True)
+    updatedAt = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['name']
+        verbose_name_plural = 'Barangays'
+        unique_together = [['name', 'city']]
+        indexes = [
+            models.Index(fields=['city', 'name']),
+            models.Index(fields=['name']),
+        ]
+    
+    def __str__(self):
+        return f"{self.name}, {self.city.name}"

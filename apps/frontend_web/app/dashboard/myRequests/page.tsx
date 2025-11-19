@@ -15,6 +15,7 @@ import {
   useInProgressJobs,
   useCompletedJobs,
 } from "@/lib/hooks/useHomeData";
+import { useBarangays } from "@/lib/hooks/useLocations";
 
 // Extended User interface for requests page
 interface RequestsUser extends User {
@@ -114,6 +115,22 @@ const MyRequestsPage = () => {
     "WALLET" | "GCASH"
   >("WALLET");
   const [pendingJobData, setPendingJobData] = useState<any>(null);
+
+  // Fetch barangays for Zamboanga City (cityID = 1)
+  const {
+    data: barangaysData,
+    isLoading: barangaysLoading,
+    error: barangaysError,
+  } = useBarangays(1);
+  const barangays = barangaysData || [];
+
+  // Debug barangays
+  console.log("[MyRequests] Barangays:", {
+    count: barangays.length,
+    loading: barangaysLoading,
+    error: barangaysError,
+    data: barangays.slice(0, 3), // First 3 for debugging
+  });
 
   // Job categories - fetched from backend
   interface JobCategory {
@@ -3072,131 +3089,33 @@ const MyRequestsPage = () => {
                             location: e.target.value,
                           })
                         }
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                         required
+                        disabled={barangaysLoading}
                       >
-                        <option value="">Select Barangay</option>
-                        <option value="Arena Blanco">Arena Blanco</option>
-                        <option value="Ayala">Ayala</option>
-                        <option value="Baliwasan">Baliwasan</option>
-                        <option value="Baluno">Baluno</option>
-                        <option value="Boalan">Boalan</option>
-                        <option value="Bolong">Bolong</option>
-                        <option value="Buenavista">Buenavista</option>
-                        <option value="Bunguiao">Bunguiao</option>
-                        <option value="Busay (Sacol Island)">
-                          Busay (Sacol Island)
+                        <option value="">
+                          {barangaysLoading
+                            ? "Loading barangays..."
+                            : barangaysError
+                              ? "Error loading barangays"
+                              : barangays.length === 0
+                                ? "No barangays available"
+                                : "Select Barangay"}
                         </option>
-                        <option value="Cabaluay">Cabaluay</option>
-                        <option value="Cabatangan">Cabatangan</option>
-                        <option value="Cacao">Cacao</option>
-                        <option value="Calabasa">Calabasa</option>
-                        <option value="Calarian">Calarian</option>
-                        <option value="Camino Nuevo">Camino Nuevo</option>
-                        <option value="Campo Islam">Campo Islam</option>
-                        <option value="Canelar">Canelar</option>
-                        <option value="Capisan">Capisan</option>
-                        <option value="Cawit">Cawit</option>
-                        <option value="Culianan">Culianan</option>
-                        <option value="Curuan">Curuan</option>
-                        <option value="Dita">Dita</option>
-                        <option value="Divisoria">Divisoria</option>
-                        <option value="Dulian (Upper Bunguiao)">
-                          Dulian (Upper Bunguiao)
-                        </option>
-                        <option value="Dulian (Upper Pasonanca)">
-                          Dulian (Upper Pasonanca)
-                        </option>
-                        <option value="Guisao">Guisao</option>
-                        <option value="Guiwan">Guiwan</option>
-                        <option value="Kasanyangan">Kasanyangan</option>
-                        <option value="La Paz">La Paz</option>
-                        <option value="Labuan">Labuan</option>
-                        <option value="Lamisahan">Lamisahan</option>
-                        <option value="Landang Gua">Landang Gua</option>
-                        <option value="Landang Laum">Landang Laum</option>
-                        <option value="Lanzones">Lanzones</option>
-                        <option value="Lapakan">Lapakan</option>
-                        <option value="Latuan (Curuan)">Latuan (Curuan)</option>
-                        <option value="Licomo">Licomo</option>
-                        <option value="Limaong">Limaong</option>
-                        <option value="Limpapa">Limpapa</option>
-                        <option value="Lubigan">Lubigan</option>
-                        <option value="Lumayang">Lumayang</option>
-                        <option value="Lumbangan">Lumbangan</option>
-                        <option value="Lunzuran">Lunzuran</option>
-                        <option value="Maasin">Maasin</option>
-                        <option value="Malagutay">Malagutay</option>
-                        <option value="Mampang">Mampang</option>
-                        <option value="Manalipa">Manalipa</option>
-                        <option value="Mangusu">Mangusu</option>
-                        <option value="Manicahan">Manicahan</option>
-                        <option value="Mariki">Mariki</option>
-                        <option value="Mercedes">Mercedes</option>
-                        <option value="Muti">Muti</option>
-                        <option value="Pamucutan">Pamucutan</option>
-                        <option value="Pangapuyan">Pangapuyan</option>
-                        <option value="Panubigan">Panubigan</option>
-                        <option value="Pasilmanta (Sacol Island)">
-                          Pasilmanta (Sacol Island)
-                        </option>
-                        <option value="Pasobolong">Pasobolong</option>
-                        <option value="Pasonanca">Pasonanca</option>
-                        <option value="Patalon">Patalon</option>
-                        <option value="Putik">Putik</option>
-                        <option value="Quiniput">Quiniput</option>
-                        <option value="Recodo">Recodo</option>
-                        <option value="Rio Hondo">Rio Hondo</option>
-                        <option value="Salaan">Salaan</option>
-                        <option value="San Jose Cawa-Cawa">
-                          San Jose Cawa-Cawa
-                        </option>
-                        <option value="San Jose Gusu">San Jose Gusu</option>
-                        <option value="San Ramon">San Ramon</option>
-                        <option value="San Roque">San Roque</option>
-                        <option value="Sangali">Sangali</option>
-                        <option value="Santa Barbara">Santa Barbara</option>
-                        <option value="Santa Catalina">Santa Catalina</option>
-                        <option value="Santa Maria">Santa Maria</option>
-                        <option value="Santo Niño">Santo Niño</option>
-                        <option value="Sibulao (Caruan)">
-                          Sibulao (Caruan)
-                        </option>
-                        <option value="Sinubung">Sinubung</option>
-                        <option value="Sinunoc">Sinunoc</option>
-                        <option value="Tagasilay">Tagasilay</option>
-                        <option value="Taguiti">Taguiti</option>
-                        <option value="Talabaan">Talabaan</option>
-                        <option value="Talisayan">Talisayan</option>
-                        <option value="Talon-Talon">Talon-Talon</option>
-                        <option value="Taluksangay">Taluksangay</option>
-                        <option value="Tetuan">Tetuan</option>
-                        <option value="Tictapul">Tictapul</option>
-                        <option value="Tigbalabag">Tigbalabag</option>
-                        <option value="Tigtabon">Tigtabon</option>
-                        <option value="Tolosa">Tolosa</option>
-                        <option value="Tugbungan">Tugbungan</option>
-                        <option value="Tulungatung">Tulungatung</option>
-                        <option value="Tumaga">Tumaga</option>
-                        <option value="Tumalutab">Tumalutab</option>
-                        <option value="Tumitus">Tumitus</option>
-                        <option value="Victoria">Victoria</option>
-                        <option value="Vitali">Vitali</option>
-                        <option value="Zambowood">Zambowood</option>
-                        <option value="Zone I (Poblacion)">
-                          Zone I (Poblacion)
-                        </option>
-                        <option value="Zone II (Poblacion)">
-                          Zone II (Poblacion)
-                        </option>
-                        <option value="Zone III (Poblacion)">
-                          Zone III (Poblacion)
-                        </option>
-                        <option value="Zone IV (Poblacion)">
-                          Zone IV (Poblacion)
-                        </option>
+                        {barangays.map((barangay) => (
+                          <option
+                            key={barangay.barangayID}
+                            value={barangay.name}
+                          >
+                            {barangay.name}
+                          </option>
+                        ))}
                       </select>
-                      <p className="text-xs text-gray-500 mt-1">Barangay</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {barangaysError
+                          ? "Failed to load barangays. Please refresh."
+                          : `Barangay ${barangaysLoading ? "(loading...)" : `(${barangays.length} available)`}`}
+                      </p>
                     </div>
                   </div>
                 </div>

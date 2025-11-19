@@ -99,6 +99,11 @@ export const ENDPOINTS = {
   WORKER_DETAIL: (id: number) =>
     `${API_BASE_URL.replace("/api", "")}/api/mobile/workers/detail/${id}`,
 
+  // Locations
+  GET_CITIES: `${API_BASE_URL.replace("/api", "")}/api/mobile/locations/cities`,
+  GET_BARANGAYS: (cityId: number) =>
+    `${API_BASE_URL.replace("/api", "")}/api/mobile/locations/cities/${cityId}/barangays`,
+
   // Client
   BROWSE_AGENCIES: `${API_BASE_URL}/client/agencies/browse`,
   AGENCY_PROFILE: (id: number) => `${API_BASE_URL}/client/agencies/${id}`,
@@ -120,8 +125,8 @@ export const ENDPOINTS = {
   PAYMENT_HISTORY: `${API_BASE_URL.replace("/api", "")}/api/mobile/payments/history`,
   WALLET_DEPOSIT: `${API_BASE_URL.replace("/api", "")}/api/mobile/wallet/deposit`,
   WALLET_TRANSACTIONS: `${API_BASE_URL.replace("/api", "")}/api/mobile/wallet/transactions`,
-  CREATE_JOB_WITH_PAYMENT: `${API_BASE_URL.replace("/api", "")}/api/jobs/create`,
-  CREATE_JOB: `${API_BASE_URL.replace("/api", "")}/api/jobs/create`,
+  CREATE_JOB_WITH_PAYMENT: `${API_BASE_URL.replace("/api", "")}/api/jobs/create-mobile`, // Direct worker/agency hiring
+  CREATE_JOB: `${API_BASE_URL.replace("/api", "")}/api/jobs/create-mobile`, // Direct worker/agency hiring
   XENDIT_WEBHOOK: `${API_BASE_URL.replace("/api", "")}/api/payments/xendit/callback`,
   PAYMENT_RECEIPT: (id: number) =>
     `${API_BASE_URL.replace("/api", "")}/api/mobile/payments/receipt/${id}`,
@@ -251,18 +256,35 @@ export async function fetchJson<T = any>(
 ): Promise<T> {
   const resp = await apiRequest(url, options);
   const text = await resp.text();
+
+  // Log response details for debugging
+  console.log(`[API] Response from ${url}:`, {
+    status: resp.status,
+    statusText: resp.statusText,
+    headers: Object.fromEntries(resp.headers.entries()),
+    bodyPreview: text.substring(0, 200),
+  });
+
   // Try to parse JSON safely; fallback to null on parse error
   let data: unknown = null;
   try {
     data = text ? JSON.parse(text) : null;
   } catch (e) {
-    // If parsing fails, rethrow with context
-    throw new Error(`Failed to parse JSON response from ${url}: ${e}`);
+    // If parsing fails, include response details in error
+    throw new Error(
+      `Failed to parse JSON response from ${url} (${resp.status} ${resp.statusText}):\n` +
+        `Response body: ${text.substring(0, 500)}\n` +
+        `Parse error: ${e}`
+    );
   }
 
   if (!resp.ok) {
     const err = data as any;
-    throw new Error(err?.message || err?.error || `Request to ${url} failed`);
+    throw new Error(
+      err?.message ||
+        err?.error ||
+        `Request to ${url} failed with status ${resp.status}`
+    );
   }
 
   return data as T;

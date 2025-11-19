@@ -11,6 +11,7 @@ from .schemas import (
     forgotPasswordSchema,
     resetPasswordSchema,
     CreateJobMobileSchema,
+    CreateInviteJobMobileSchema,
     ApplyJobMobileSchema,
     UpdateApplicationMobileSchema,
     ApproveCompletionMobileSchema,
@@ -395,6 +396,51 @@ def mobile_job_categories(request):
         )
 
 
+@mobile_router.get("/locations/cities", auth=jwt_auth)
+def get_cities(request):
+    """
+    Get all cities
+    """
+    from .models import City
+    
+    try:
+        cities = City.objects.all().values('cityID', 'name', 'province', 'region')
+        return {
+            'success': True,
+            'cities': list(cities)
+        }
+    except Exception as e:
+        print(f"[ERROR] Get cities error: {str(e)}")
+        return Response(
+            {"error": "Failed to fetch cities"},
+            status=500
+        )
+
+
+@mobile_router.get("/locations/cities/{city_id}/barangays", auth=jwt_auth)
+def get_barangays(request, city_id: int):
+    """
+    Get all barangays for a specific city
+    """
+    from .models import Barangay
+    
+    try:
+        barangays = Barangay.objects.filter(city_id=city_id).values(
+            'barangayID', 'name', 'zipCode'
+        ).order_by('name')
+        
+        return {
+            'success': True,
+            'barangays': list(barangays)
+        }
+    except Exception as e:
+        print(f"[ERROR] Get barangays error: {str(e)}")
+        return Response(
+            {"error": "Failed to fetch barangays"},
+            status=500
+        )
+
+
 @mobile_router.get("/jobs/{job_id}", auth=jwt_auth)
 def mobile_job_detail(request, job_id: int):
     """
@@ -476,6 +522,65 @@ def mobile_create_job(request, payload: CreateJobMobileSchema):
         traceback.print_exc()
         return Response(
             {"error": "Failed to create job"},
+            status=500
+        )
+
+
+@mobile_router.get("/jobs/test-invite", auth=jwt_auth)
+def mobile_test_invite_endpoint(request):
+    """Test endpoint to verify routing works"""
+    print("✅ TEST ENDPOINT HIT - Routing works!")
+    return {"message": "Test endpoint works!", "user": request.auth.email}
+
+
+@mobile_router.post("/jobs/test-invite-post", auth=jwt_auth)
+def mobile_test_invite_post_endpoint(request, title: str):
+    """Test POST endpoint to verify POST works"""
+    print(f"✅ TEST POST ENDPOINT HIT - title: {title}")
+    return {"message": "Test POST works!", "title": title}
+
+
+@mobile_router.post("/jobs/invite", auth=jwt_auth)
+def mobile_create_invite_job(request, payload: CreateInviteJobMobileSchema):
+    """
+    Create INVITE-type job (direct worker/agency hiring) from mobile
+    - Client directly hires a specific worker or agency
+    - 50% + 5% commission downpayment held in escrow
+    - Worker/agency can accept or reject
+    - Payment: WALLET or GCASH
+    """
+    from .mobile_services import create_mobile_invite_job
+
+    print("="*80)
+    print(f"📱 [MOBILE CREATE INVITE JOB] Endpoint HIT!")
+    print(f"   Request path: {request.path}")
+    print(f"   Request method: {request.method}")
+    print(f"   User authenticated: {request.auth is not None}")
+    print(f"   User email: {request.auth.email if request.auth else 'None'}")
+    print(f"   Payload received: {payload.dict()}")
+    print(f"   Title: {payload.title}")
+    print(f"   Worker ID: {payload.worker_id}, Agency ID: {payload.agency_id}")
+    print(f"   Budget: ₱{payload.budget}")
+    print("="*80)
+    
+    try:
+        job_data = payload.dict()
+        result = create_mobile_invite_job(user=request.auth, job_data=job_data)
+        print(f"   Create invite job result: {result.get('success')}")
+
+        if result['success']:
+            return result['data']
+        else:
+            return Response(
+                {"error": result.get('error', 'Invite job creation failed')},
+                status=400
+            )
+    except Exception as e:
+        print(f"❌ Mobile create invite job error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to create invite job"},
             status=500
         )
 
@@ -617,7 +722,7 @@ def mobile_dashboard_available_workers(request, limit: int = 10):
 #region MOBILE PROFILE ENDPOINTS
 
 @mobile_router.get("/profile/me", auth=jwt_auth)
-def mobile_get_profile(request):
+def mobile_get_current_profile(request):
     """
     Get current user profile
     Same as /api/accounts/me but optimized for mobile
