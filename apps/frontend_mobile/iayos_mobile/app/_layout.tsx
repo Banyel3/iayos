@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import {
   DarkTheme,
   DefaultTheme,
@@ -6,6 +6,7 @@ import {
 } from "@react-navigation/native";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import * as SystemUI from "expo-system-ui";
 import "react-native-reanimated";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Provider as PaperProvider } from "react-native-paper";
@@ -23,6 +24,13 @@ export const unstable_settings = {
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+
+  useEffect(() => {
+    // Keep Android/iOS system bars consistent with our light background
+    SystemUI.setBackgroundColorAsync("transparent").catch((error) => {
+      console.warn("Failed to set system UI background", error);
+    });
+  }, []);
 
   // DEV-only guard: detect when React.createElement is called with an undefined type.
   // This helps pin down which route/screen is returning an undefined component
@@ -85,7 +93,11 @@ export default function RootLayout() {
                   options={{ presentation: "modal", title: "Modal" }}
                 />
               </Stack>
-              <StatusBar style="auto" />
+              <StatusBar
+                style={colorScheme === "dark" ? "light" : "dark"}
+                backgroundColor="transparent"
+                translucent
+              />
               <Toast />
             </ThemeProvider>
           </PaperProvider>

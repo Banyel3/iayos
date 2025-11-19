@@ -301,7 +301,7 @@ export default function BrowseJobsScreen() {
 
   // Render functions
   const renderHeader = useMemo(() => {
-    return () => (
+    const HeaderComponent = () => (
       <View style={styles.headerContainer}>
         {/* Hero Section */}
         <View style={styles.heroSection}>
@@ -367,147 +367,158 @@ export default function BrowseJobsScreen() {
                   viewTab === "agencies" ? Colors.white : Colors.textSecondary
                 }
               />
-            <Text
-              style={[
-                styles.tabButtonText,
-                viewTab === "agencies" && styles.activeTabButtonText,
-              ]}
-            >
-              Agencies
-            </Text>
-          </TouchableOpacity>
-        </View>
-      )}}
-
-      {/* Categories Scroller - Story Style */}
-      {!categoriesLoading && categories.length > 0 && (
-        <View style={styles.categoriesSection}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>
-              {isWorker ? "Popular Categories" : "Specializations"}
-            </Text>
-            <TouchableOpacity onPress={handleViewCategories}>
-              <Text style={styles.seeAllText}>See All →</Text>
+              <Text
+                style={[
+                  styles.tabButtonText,
+                  viewTab === "agencies" && styles.activeTabButtonText,
+                ]}
+              >
+                Agencies
+              </Text>
             </TouchableOpacity>
           </View>
-          <FlatList
-            horizontal
-            data={[
-              { id: 0, name: "All", specializationName: "All" },
-              ...categories.slice(0, 10),
-            ]}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={[
-                  styles.categoryCard,
-                  (item.id === 0
-                    ? !selectedCategory
-                    : selectedCategory === item.id) &&
-                    styles.categoryCardSelected,
-                ]}
-                onPress={() =>
-                  item.id === 0
-                    ? setSelectedCategory(undefined)
-                    : handleCategoryPress(item.id)
-                }
-              >
-                <View
-                  style={[
-                    styles.categoryIcon,
-                    (item.id === 0
-                      ? !selectedCategory
-                      : selectedCategory === item.id) &&
-                      styles.categoryIconSelected,
-                  ]}
-                >
-                  <Ionicons
-                    name="hammer"
-                    size={24}
-                    color={
-                      (
-                        item.id === 0
-                          ? !selectedCategory
-                          : selectedCategory === item.id
-                      )
-                        ? Colors.white
-                        : Colors.primary
-                    }
-                  />
-                </View>
-                <Text
-                  style={[
-                    styles.categoryName,
-                    (item.id === 0
-                      ? !selectedCategory
-                      : selectedCategory === item.id) &&
-                      styles.categoryNameSelected,
-                  ]}
-                  numberOfLines={2}
-                >
-                  {item.specializationName || item.name}
-                </Text>
-              </TouchableOpacity>
-            )}
-            keyExtractor={(item) => item.id.toString()}
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.categoriesScroller}
-          />
-        </View>
-      )}
+        )}
 
-      {/* Urgency Filters - Only for workers */}
-      {isWorker && (
-        <View style={styles.urgencySection}>
-          <Text style={styles.sectionTitle}>Filter by Urgency</Text>
-          <FlatList
-            horizontal
-            data={URGENCY_FILTERS}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={[
-                  styles.urgencyChip,
-                  (item.id === "ALL"
-                    ? !selectedUrgency
-                    : selectedUrgency === item.value) &&
-                    styles.urgencyChipSelected,
-                ]}
-                onPress={() => handleUrgencyPress(item.value)}
-              >
-                <Text
+        {/* Categories Scroller - Story Style */}
+        {!categoriesLoading && categories.length > 0 && (
+          <View style={styles.categoriesSection}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>
+                {isWorker ? "Popular Categories" : "Specializations"}
+              </Text>
+              <TouchableOpacity onPress={handleViewCategories}>
+                <Text style={styles.seeAllText}>See All →</Text>
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              horizontal
+              data={[
+                { id: 0, name: "All", specializationName: "All" },
+                ...categories.slice(0, 10),
+              ]}
+              renderItem={({ item }) => (
+                <TouchableOpacity
                   style={[
-                    styles.urgencyChipText,
+                    styles.categoryCard,
+                    (item.id === 0
+                      ? !selectedCategory
+                      : selectedCategory === item.id) &&
+                      styles.categoryCardSelected,
+                  ]}
+                  onPress={() =>
+                    item.id === 0
+                      ? setSelectedCategory(undefined)
+                      : handleCategoryPress(item.id)
+                  }
+                >
+                  <View
+                    style={[
+                      styles.categoryIcon,
+                      (item.id === 0
+                        ? !selectedCategory
+                        : selectedCategory === item.id) &&
+                        styles.categoryIconSelected,
+                    ]}
+                  >
+                    <Ionicons
+                      name="hammer"
+                      size={24}
+                      color={
+                        (
+                          item.id === 0
+                            ? !selectedCategory
+                            : selectedCategory === item.id
+                        )
+                          ? Colors.white
+                          : Colors.primary
+                      }
+                    />
+                  </View>
+                  <Text
+                    style={[
+                      styles.categoryName,
+                      (item.id === 0
+                        ? !selectedCategory
+                        : selectedCategory === item.id) &&
+                        styles.categoryNameSelected,
+                    ]}
+                    numberOfLines={2}
+                  >
+                    {item.specializationName || item.name}
+                  </Text>
+                </TouchableOpacity>
+              )}
+              keyExtractor={(item) => item.id.toString()}
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.categoriesScroller}
+            />
+          </View>
+        )}
+
+        {/* Urgency Filters - Only for workers */}
+        {isWorker && (
+          <View style={styles.urgencySection}>
+            <Text style={styles.sectionTitle}>Filter by Urgency</Text>
+            <FlatList
+              horizontal
+              data={URGENCY_FILTERS}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[
+                    styles.urgencyChip,
                     (item.id === "ALL"
                       ? !selectedUrgency
                       : selectedUrgency === item.value) &&
-                      styles.urgencyChipTextSelected,
+                      styles.urgencyChipSelected,
                   ]}
+                  onPress={() => handleUrgencyPress(item.value)}
                 >
-                  {item.label}
-                </Text>
-              </TouchableOpacity>
-            )}
-            keyExtractor={(item) => item.id}
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.urgencyScroller}
-          />
-        </View>
-      )}
+                  <Text
+                    style={[
+                      styles.urgencyChipText,
+                      (item.id === "ALL"
+                        ? !selectedUrgency
+                        : selectedUrgency === item.value) &&
+                        styles.urgencyChipTextSelected,
+                    ]}
+                  >
+                    {item.label}
+                  </Text>
+                </TouchableOpacity>
+              )}
+              keyExtractor={(item) => item.id}
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.urgencyScroller}
+            />
+          </View>
+        )}
 
-      {/* Feed Divider */}
-      <View style={styles.feedDivider}>
-        <View style={styles.dividerLine} />
-        <Text style={styles.dividerText}>
-          {isWorker
-            ? "Available Jobs"
-            : viewTab === "workers"
-              ? "Top Workers"
-              : "Featured Agencies"}
-        </Text>
-        <View style={styles.dividerLine} />
+        {/* Feed Divider */}
+        <View style={styles.feedDivider}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>
+            {isWorker
+              ? "Available Jobs"
+              : viewTab === "workers"
+                ? "Top Workers"
+                : "Featured Agencies"}
+          </Text>
+          <View style={styles.dividerLine} />
+        </View>
       </View>
-    </View>
-  );
-  }, [isWorker, viewTab, itemCount, selectedCategory, selectedUrgency, categories, router]);
+    );
+
+    HeaderComponent.displayName = "HomeHeaderSection";
+    return HeaderComponent;
+  }, [
+    isWorker,
+    viewTab,
+    itemCount,
+    selectedCategory,
+    selectedUrgency,
+    categories,
+    router,
+  ]);
 
   const renderJobItem = ({ item }: { item: Job }) => (
     <JobCard

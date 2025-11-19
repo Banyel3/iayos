@@ -10,7 +10,7 @@
  * - Password toggle
  */
 
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
   View,
   TextInput as RNTextInput,
@@ -90,6 +90,24 @@ const Input = React.forwardRef<
       };
     }, [label]);
 
+    const assignRef = useCallback(
+      (node: React.ComponentRef<typeof RNTextInput> | null) => {
+        if (typeof ref === "function") {
+          ref(node);
+        } else if (ref && typeof ref === "object") {
+          (ref as React.MutableRefObject<
+            React.ComponentRef<typeof RNTextInput> | null
+          >).current = node;
+        } else if (ref != null) {
+          console.warn("[Input] Ignoring unsupported ref type", {
+            label,
+            ref,
+          });
+        }
+      },
+      [ref, label]
+    );
+
     const hasError = touched && error;
 
     return (
@@ -115,7 +133,7 @@ const Input = React.forwardRef<
 
           {/* Text Input */}
           <RNTextInput
-            ref={ref}
+            ref={assignRef}
             style={[styles.input, inputStyle]}
             placeholderTextColor={Colors.textHint}
             onFocus={() => {
@@ -174,6 +192,8 @@ const Input = React.forwardRef<
     );
   }
 );
+
+Input.displayName = "Input";
 
 export default Input;
 

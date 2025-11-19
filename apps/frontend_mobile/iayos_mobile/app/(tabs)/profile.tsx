@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   SafeAreaView,
   Image,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "expo-router";
@@ -21,14 +22,25 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { Badge } from "react-native-paper";
 import { useUnreadNotificationsCount } from "@/lib/hooks/useNotifications";
+import { useProfileMetrics } from "@/lib/hooks/useProfileMetrics";
+import { useWallet, WalletData } from "@/lib/hooks/useWallet";
+import { formatCurrency } from "@/lib/hooks/usePayments";
 
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
   const router = useRouter();
-  const [balance] = useState(0); // TODO: Connect to wallet API
 
   // Get unread notifications count
   const { data: unreadCount = 0 } = useUnreadNotificationsCount();
+  const {
+    data: walletData,
+    isLoading: walletLoading,
+    isError: walletError,
+    refetch: refetchWallet,
+  } = useWallet();
+  const typedWalletData = walletData as WalletData | undefined;
+  const walletBalanceValue =
+    typeof typedWalletData?.balance === "number" ? typedWalletData.balance : 0;
 
   const handleLogout = () => {
     Alert.alert("Logout", "Are you sure you want to logout?", [
@@ -43,13 +55,117 @@ export default function ProfileScreen() {
 
   const isWorker = user?.profile_data?.profileType === "WORKER";
   const fullName =
-    `${user?.profile_data?.firstName || ""} ${user?.profile_data?.lastName || ""}`.trim() ||
-    "User";
+    `${user?.profile_data?.firstName || ""} ${
+      user?.profile_data?.lastName || ""
+    }`.trim() || "User";
   const initial = (
     user?.profile_data?.firstName?.[0] ||
     user?.email?.[0] ||
     "U"
   ).toUpperCase();
+
+  const hasProfileType = Boolean(user?.profile_data?.profileType);
+  const shouldFetchMetrics = hasProfileType && !isWorker;
+  const {
+    data: profileMetrics,
+    isLoading: isMetricsLoading,
+    isError: isMetricsError,
+  } = useProfileMetrics({ enabled: shouldFetchMetrics });
+
+  const renderTrustMetrics = () => {
+    if (!shouldFetchMetrics) {
+      return null;
+    }
+
+    if (isMetricsLoading) {
+      return (
+        <View style={styles.metricLoadingRow}>
+          <ActivityIndicator size="small" color={Colors.primary} />
+          <Text style={[styles.metricHelper, styles.metricLoadingText]}>
+            Loading trust metrics…
+          </Text>
+        </View>
+      );
+    }
+
+    if (isMetricsError) {
+      return (
+        <View style={styles.metricErrorContainer}>
+          <Text style={styles.metricErrorText}>
+            Unable to load trust metrics. Pull to refresh later.
+          </Text>
+        </View>
+      );
+    }
+
+    if (!profileMetrics) {
+      return (
+        <View style={styles.metricErrorContainer}>
+          <Text style={styles.metricHelper}>
+            Post jobs and respond to applications to build your trust stats.
+          </Text>
+        </View>
+      );
+    }
+
+    const paymentVerified = profileMetrics.payment_method_verified;
+    const paymentHelper = paymentVerified
+      ? profileMetrics.payment_method_verified_at
+        ? `Verified ${new Date(
+            profileMetrics.payment_method_verified_at
+          ).toLocaleDateString()}`
+        : "Wallet ready"
+      : "Add funds to verify";
+
+    const responseRateValue =
+      typeof profileMetrics.response_rate === "number"
+        ? profileMetrics.response_rate
+        : null;
+    const responseSamples = profileMetrics.response_rate_sample || 0;
+    const responseHelper =
+      responseRateValue !== null
+        ? `${responseSamples} application${responseSamples === 1 ? "" : "s"}`
+        : "Respond to applicants to build trust";
+
+    const ratingValue =
+      typeof profileMetrics.rating === "number" ? profileMetrics.rating : null;
+    const totalReviews = profileMetrics.total_reviews || 0;
+
+    return (
+      <View style={styles.trustGrid}>
+        <TrustMetricCard
+          label="Payment Method"
+          value={paymentVerified ? "Verified" : "Not Verified"}
+          helper={paymentHelper}
+          status={paymentVerified ? "success" : "default"}
+        />
+        <TrustMetricCard
+          label="Response Rate"
+          value={
+            responseRateValue !== null
+              ? `${responseRateValue.toFixed(1)}%`
+              : "No data yet"
+          }
+          helper={responseHelper}
+          status={responseRateValue !== null ? "success" : "warning"}
+        />
+        <TrustMetricCard
+          label="Average Rating"
+          value={
+            ratingValue && ratingValue > 0
+              ? `${ratingValue.toFixed(1)} ★`
+              : "No reviews yet"
+          }
+          helper={
+            totalReviews > 0
+              ? `${totalReviews} review${totalReviews === 1 ? "" : "s"}`
+              : undefined
+          }
+          fullWidth
+        />
+      </View>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -151,10 +267,24 @@ export default function ProfileScreen() {
               </View>
               <View style={styles.walletInfo}>
                 <Text style={styles.walletLabel}>Current Balance</Text>
-                <Text style={styles.walletBalance}>₱{balance.toFixed(2)}</Text>
+                {walletLoading ? (
+                  <ActivityIndicator size="small" color={Colors.primary} />
+                ) : walletError ? (
+                  <TouchableOpacity onPress={() => refetchWallet()}>
+                    <Text style={styles.walletBalanceError}>Tap to retry</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <Text style={styles.walletBalance}>
+                    {formatCurrency(walletBalanceValue)}
+                  </Text>
+                )}
               </View>
             </View>
-            <TouchableOpacity style={styles.addFundsButton} activeOpacity={0.8}>
+            <TouchableOpacity
+              style={styles.addFundsButton}
+              activeOpacity={0.8}
+              onPress={() => router.push("/payments/deposit" as any)}
+            >
               <Ionicons
                 name="add-circle-outline"
                 size={20}
@@ -188,6 +318,17 @@ export default function ProfileScreen() {
             />
           </View>
         </View>
+
+        {/* Client Trust Metrics */}
+        {!isWorker && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Trust & Performance</Text>
+            <Text style={styles.sectionDescription}>
+              Workers see these stats when reviewing your job requests.
+            </Text>
+            {renderTrustMetrics()}
+          </View>
+        )}
 
         {/* Worker-Specific Info */}
         {isWorker && (
@@ -308,6 +449,37 @@ function MenuItem({
   );
 }
 
+type MetricStatus = "default" | "success" | "warning";
+
+function TrustMetricCard({
+  label,
+  value,
+  helper,
+  status = "default",
+  fullWidth = false,
+}: {
+  label: string;
+  value: string;
+  helper?: string;
+  status?: MetricStatus;
+  fullWidth?: boolean;
+}) {
+  return (
+    <View
+      style={[
+        styles.metricCard,
+        fullWidth && styles.metricCardFull,
+        status === "success" && styles.metricCardSuccess,
+        status === "warning" && styles.metricCardWarning,
+      ]}
+    >
+      <Text style={styles.metricLabel}>{label}</Text>
+      <Text style={styles.metricValue}>{value}</Text>
+      {helper ? <Text style={styles.metricHelper}>{helper}</Text> : null}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -423,6 +595,11 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     marginBottom: Spacing.md,
   },
+  sectionDescription: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.md,
+  },
   walletCard: {
     backgroundColor: Colors.white,
     borderRadius: BorderRadius.lg,
@@ -455,6 +632,11 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize["2xl"],
     fontWeight: Typography.fontWeight.bold,
     color: Colors.textPrimary,
+  },
+  walletBalanceError: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.semiBold,
+    color: Colors.error,
   },
   addFundsButton: {
     flexDirection: "row",
@@ -496,6 +678,64 @@ const styles = StyleSheet.create({
   infoValue: {
     fontSize: Typography.fontSize.base,
     fontWeight: Typography.fontWeight.medium,
+  },
+  trustGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+  },
+  metricCard: {
+    width: "48%",
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    marginBottom: Spacing.md,
+  },
+  metricCardFull: {
+    width: "100%",
+  },
+  metricCardSuccess: {
+    borderColor: Colors.success,
+    backgroundColor: Colors.successLight,
+  },
+  metricCardWarning: {
+    borderColor: Colors.warning,
+    backgroundColor: Colors.warningLight,
+  },
+  metricLabel: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.xs,
+  },
+  metricValue: {
+    fontSize: Typography.fontSize.xl,
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.textPrimary,
+  },
+  metricHelper: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+    marginTop: Spacing.xs,
+  },
+  metricErrorContainer: {
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
+  },
+  metricErrorText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.error,
+  },
+  metricLoadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  metricLoadingText: {
+    marginLeft: Spacing.sm,
   },
   menuCard: {
     backgroundColor: Colors.white,

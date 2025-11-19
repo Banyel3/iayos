@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo } from "react";
 import {
   View,
   Text,
@@ -9,20 +9,23 @@ import {
   LayoutAnimation,
   Platform,
   UIManager,
-} from 'react-native';
-import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { FAQS, FAQ_CATEGORIES, FAQ } from '@/lib/data/faqs';
-import * as Haptics from 'expo-haptics';
+} from "react-native";
+import { router } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { FAQS, FAQ_CATEGORIES, FAQ } from "@/lib/data/faqs";
+import * as Haptics from "expo-haptics";
 
 // Enable LayoutAnimation on Android
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+if (
+  Platform.OS === "android" &&
+  UIManager.setLayoutAnimationEnabledExperimental
+) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
 export default function FAQScreen() {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("All");
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
   // Filter FAQs based on search and category
@@ -30,7 +33,7 @@ export default function FAQScreen() {
     let filtered = FAQS;
 
     // Filter by category
-    if (selectedCategory !== 'All') {
+    if (selectedCategory !== "All") {
       filtered = filtered.filter((faq) => faq.category === selectedCategory);
     }
 
@@ -81,7 +84,7 @@ export default function FAQScreen() {
           autoCorrect={false}
         />
         {searchQuery.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchQuery('')}>
+          <TouchableOpacity onPress={() => setSearchQuery("")}>
             <Ionicons name="close-circle" size={20} color="#6B7280" />
           </TouchableOpacity>
         )}
@@ -127,12 +130,12 @@ export default function FAQScreen() {
             <Ionicons name="help-circle-outline" size={64} color="#D1D5DB" />
             <Text style={styles.emptyStateText}>
               {searchQuery
-                ? 'No FAQs match your search'
-                : 'No FAQs in this category'}
+                ? "No FAQs match your search"
+                : "No FAQs in this category"}
             </Text>
             <TouchableOpacity
               style={styles.contactButton}
-              onPress={() => router.push('/help/contact' as any)}
+              onPress={() => router.push("/help/contact" as any)}
             >
               <Text style={styles.contactButtonText}>Contact Support</Text>
             </TouchableOpacity>
@@ -152,17 +155,25 @@ export default function FAQScreen() {
         {/* Contact Support Card */}
         {filteredFAQs.length > 0 && (
           <View style={styles.contactCard}>
-            <Ionicons name="chatbubble-ellipses-outline" size={32} color="#3B82F6" />
+            <Ionicons
+              name="chatbubble-ellipses-outline"
+              size={32}
+              color="#3B82F6"
+            />
             <Text style={styles.contactCardTitle}>Still need help?</Text>
             <Text style={styles.contactCardText}>
-              Can't find what you're looking for? Our support team is here to help.
+              {
+                "Can't find what you're looking for? Our support team is here to help."
+              }
             </Text>
             <TouchableOpacity
               style={styles.contactSupportButton}
-              onPress={() => router.push('/help/contact' as any)}
+              onPress={() => router.push("/help/contact" as any)}
               activeOpacity={0.7}
             >
-              <Text style={styles.contactSupportButtonText}>Contact Support</Text>
+              <Text style={styles.contactSupportButtonText}>
+                Contact Support
+              </Text>
               <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
@@ -183,7 +194,7 @@ function FAQItem({ faq, isExpanded, onPress, searchQuery }: FAQItemProps) {
   const highlightText = (text: string) => {
     if (!searchQuery.trim()) return text;
 
-    const parts = text.split(new RegExp(`(${searchQuery})`, 'gi'));
+    const parts = text.split(new RegExp(`(${searchQuery})`, "gi"));
     return (
       <Text>
         {parts.map((part, index) =>
@@ -213,7 +224,7 @@ function FAQItem({ faq, isExpanded, onPress, searchQuery }: FAQItemProps) {
           </Text>
         </View>
         <Ionicons
-          name={isExpanded ? 'chevron-up' : 'chevron-down'}
+          name={isExpanded ? "chevron-up" : "chevron-down"}
           size={20}
           color="#6B7280"
         />
@@ -231,28 +242,28 @@ function FAQItem({ faq, isExpanded, onPress, searchQuery }: FAQItemProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: "#F9FAFB",
   },
   header: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 12,
   },
   title: {
     fontSize: 24,
-    fontWeight: '700',
-    color: '#111827',
+    fontWeight: "700",
+    color: "#111827",
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 14,
-    color: '#6B7280',
+    color: "#6B7280",
   },
   searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
     marginHorizontal: 16,
     marginTop: 12,
     marginBottom: 12,
@@ -260,12 +271,12 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: "#E5E7EB",
   },
   searchInput: {
     flex: 1,
     fontSize: 16,
-    color: '#111827',
+    color: "#111827",
     marginLeft: 8,
     paddingVertical: 0,
   },
@@ -280,19 +291,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: "#F3F4F6",
     marginRight: 8,
   },
   categoryChipActive: {
-    backgroundColor: '#3B82F6',
+    backgroundColor: "#3B82F6",
   },
   categoryChipText: {
     fontSize: 14,
-    fontWeight: '500',
-    color: '#6B7280',
+    fontWeight: "500",
+    color: "#6B7280",
   },
   categoryChipTextActive: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
   },
   faqList: {
     flex: 1,
@@ -303,19 +314,19 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
   faqItem: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 2,
   },
   faqHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
   },
   faqQuestion: {
     flex: 1,
@@ -323,64 +334,64 @@ const styles = StyleSheet.create({
   },
   faqCategoryBadge: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#3B82F6',
+    fontWeight: "600",
+    color: "#3B82F6",
     marginBottom: 4,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
   },
   faqQuestionText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#111827',
+    fontWeight: "600",
+    color: "#111827",
     lineHeight: 22,
   },
   faqAnswer: {
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
+    borderTopColor: "#F3F4F6",
   },
   faqAnswerText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: "#6B7280",
     lineHeight: 20,
   },
   highlightedText: {
-    backgroundColor: '#FEF3C7',
-    color: '#92400E',
-    fontWeight: '600',
+    backgroundColor: "#FEF3C7",
+    color: "#92400E",
+    fontWeight: "600",
   },
   emptyState: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 64,
   },
   emptyStateText: {
     fontSize: 16,
-    color: '#6B7280',
+    color: "#6B7280",
     marginTop: 16,
     marginBottom: 24,
-    textAlign: 'center',
+    textAlign: "center",
   },
   contactButton: {
-    backgroundColor: '#3B82F6',
+    backgroundColor: "#3B82F6",
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
   },
   contactButtonText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   contactCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 12,
     padding: 24,
     marginTop: 12,
-    alignItems: 'center',
-    shadowColor: '#000',
+    alignItems: "center",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -388,29 +399,29 @@ const styles = StyleSheet.create({
   },
   contactCardTitle: {
     fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
+    fontWeight: "700",
+    color: "#111827",
     marginTop: 12,
     marginBottom: 8,
   },
   contactCardText: {
     fontSize: 14,
-    color: '#6B7280',
-    textAlign: 'center',
+    color: "#6B7280",
+    textAlign: "center",
     marginBottom: 16,
   },
   contactSupportButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#3B82F6',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#3B82F6",
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
     gap: 8,
   },
   contactSupportButtonText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });

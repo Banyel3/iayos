@@ -354,7 +354,7 @@ export default function SavedJobsScreen() {
           />
           <Text style={styles.emptyStateText}>No saved jobs yet</Text>
           <Text style={styles.emptyStateSubtext}>
-            Save jobs you're interested in to easily find them later
+            {"Save jobs you're interested in to easily find them later"}
           </Text>
           <TouchableOpacity
             style={styles.browseButton}

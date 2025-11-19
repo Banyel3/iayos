@@ -37,6 +37,8 @@ from .portfolio_service import (
     upload_portfolio_image, get_portfolio, update_portfolio_caption,
     reorder_portfolio, delete_portfolio_image
 )
+# Profile metrics helpers
+from .profile_metrics_service import get_profile_metrics
 # Phase 8: Review service imports
 from .review_service import (
     submit_review, get_reviews_for_worker, get_review_stats,
@@ -135,6 +137,23 @@ def get_user_profile(request):
     except Exception as e:
         print(f"❌ /me error: {str(e)}")
         return {"error": [{"message": "Failed to fetch user profile"}]}
+
+
+@router.get("/profile/metrics", auth=cookie_auth)
+def get_profile_metrics_endpoint(request):
+    """Return payment verification, response rate, and rating stats."""
+    try:
+        user = request.auth
+        metrics = get_profile_metrics(user)
+        return metrics
+    except Exception as e:
+        print(f"❌ /profile/metrics error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to fetch profile metrics"},
+            status=500,
+        )
 
 # Send Email Verification
 @router.get("/verify")
@@ -254,7 +273,7 @@ def get_notifications(request, limit: int = 50, unread_only: bool = False):
         return {"success": False, "error": "Failed to fetch notifications"}
 
 
-@router.post("/notifications/{notification_id}/mark-read", auth=cookie_auth)
+@router.post("/notifications/{notification_id}/mark-read", auth=dual_auth)
 def mark_notification_read(request, notification_id: int):
     """
     Mark a specific notification as read.
@@ -276,7 +295,7 @@ def mark_notification_read(request, notification_id: int):
         return {"success": False, "error": "Failed to mark notification as read"}
 
 
-@router.post("/notifications/mark-all-read", auth=cookie_auth)
+@router.post("/notifications/mark-all-read", auth=dual_auth)
 def mark_all_notifications_read(request):
     """
     Mark all notifications as read for the authenticated user.
@@ -349,7 +368,7 @@ def register_push_token(request, pushToken: str, deviceType: str = "android"):
         return {"success": False, "error": "Failed to register push token"}
 
 
-@router.get("/notification-settings", auth=cookie_auth)
+@router.get("/notification-settings", auth=dual_auth)
 def get_notification_settings(request):
     """
     Get notification settings for the authenticated user.
@@ -382,7 +401,7 @@ def get_notification_settings(request):
         return {"success": False, "error": "Failed to fetch notification settings"}
 
 
-@router.put("/notification-settings", auth=cookie_auth)
+@router.put("/notification-settings", auth=dual_auth)
 def update_notification_settings(request,
                                  pushEnabled: bool = None,
                                  soundEnabled: bool = None,
@@ -447,7 +466,7 @@ def update_notification_settings(request,
         return {"success": False, "error": "Failed to update notification settings"}
 
 
-@router.delete("/notifications/{notification_id}/delete", auth=cookie_auth)
+@router.delete("/notifications/{notification_id}/delete", auth=dual_auth)
 def delete_notification(request, notification_id: int):
     """
     Delete a specific notification for the authenticated user.

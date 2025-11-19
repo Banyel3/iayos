@@ -11,12 +11,7 @@
  */
 
 import React, { useState } from "react";
-import {
-  View,
-  StyleSheet,
-  ScrollView,
-  RefreshControl,
-} from "react-native";
+import { View, StyleSheet, ScrollView, RefreshControl } from "react-native";
 import {
   Text,
   ActivityIndicator,
@@ -25,11 +20,7 @@ import {
   Divider,
 } from "react-native-paper";
 import { useLocalSearchParams } from "expo-router";
-import {
-  ReviewCard,
-  StarRating,
-  RatingBreakdown,
-} from "@/components/Reviews";
+import { ReviewCard, StarRating, RatingBreakdown } from "@/components/Reviews";
 import { useWorkerReviews, useReviewStats } from "@/lib/hooks/useReviews";
 
 type SortType = "latest" | "highest" | "lowest";
@@ -167,7 +158,7 @@ export default function WorkerReviewsScreen() {
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>No reviews yet</Text>
             <Text style={styles.emptySubtext}>
-              This worker hasn't received any reviews
+              {"This worker hasn't received any reviews"}
             </Text>
           </View>
         )}

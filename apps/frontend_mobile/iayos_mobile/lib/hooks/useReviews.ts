@@ -176,13 +176,16 @@ export function useEditReview(reviewId: number) {
 // REPORT REVIEW
 // ============================================================================
 
-export function useReportReview(reviewId: number) {
+type ReportReviewVariables = ReportReviewRequest & { reviewId: number };
+
+export function useReportReview() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (
-      data: ReportReviewRequest
+      variables: ReportReviewVariables
     ): Promise<{ message: string }> => {
+      const { reviewId, ...data } = variables;
       const response = await apiRequest(ENDPOINTS.REPORT_REVIEW(reviewId), {
         method: "POST",
         body: JSON.stringify(data),

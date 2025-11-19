@@ -1,12 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ENDPOINTS, fetchJson } from "../api/config";
-import { Alert } from "react-native";
 import Toast from "react-native-toast-message";
+import { useWallet } from "./useWallet";
 
 // Types
 export interface WalletBalance {
+  success: boolean;
   balance: number;
   currency: string;
+  pending: number;
+  this_month: number;
+  total_earned: number;
+  last_updated: string | null;
+  created: boolean;
 }
 
 export interface EscrowPayment {
@@ -45,6 +51,18 @@ export interface XenditInvoice {
   amount: number;
 }
 
+export interface WalletDepositResponse {
+  success: boolean;
+  payment_url?: string;
+  invoice_url?: string;
+  invoice_id?: string;
+  transaction_id?: number;
+  amount: number;
+  new_balance: number;
+  message?: string;
+  error?: string;
+}
+
 export interface CashProofUpload {
   jobId: number;
   image: {
@@ -56,16 +74,7 @@ export interface CashProofUpload {
 
 // Hook: Get wallet balance
 export const useWalletBalance = () => {
-  return useQuery<WalletBalance>({
-    queryKey: ["walletBalance"],
-    queryFn: async (): Promise<WalletBalance> => {
-      return fetchJson<WalletBalance>(ENDPOINTS.WALLET_BALANCE, {
-        credentials: "include",
-      });
-    },
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    retry: 2,
-  });
+  return useWallet();
 };
 
 // Hook: Create escrow payment
@@ -86,6 +95,7 @@ export const useCreateEscrowPayment = () => {
     onSuccess: (data, variables) => {
       // Invalidate relevant queries
       queryClient.invalidateQueries({ queryKey: ["walletBalance"] });
+      queryClient.invalidateQueries({ queryKey: ["wallet"] });
       queryClient.invalidateQueries({ queryKey: ["paymentHistory"] });
 
       Toast.show({
@@ -225,24 +235,30 @@ export const usePaymentHistory = (filters?: {
 export const useWalletDeposit = () => {
   const queryClient = useQueryClient();
 
-  return useMutation({
+  return useMutation<WalletDepositResponse, Error, number>({
     mutationFn: async (amount: number) => {
-      return fetchJson<XenditInvoice>(ENDPOINTS.WALLET_DEPOSIT, {
+      return fetchJson<WalletDepositResponse>(ENDPOINTS.WALLET_DEPOSIT, {
         method: "POST",
         credentials: "include",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ amount }),
+        body: JSON.stringify({
+          amount,
+          payment_method: "GCASH",
+        }),
       });
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["walletBalance"] });
+      queryClient.invalidateQueries({ queryKey: ["wallet"] });
 
       Toast.show({
         type: "success",
         text1: "Deposit Initiated",
-        text2: "Redirecting to payment page...",
+        text2: data.payment_url
+          ? "Redirecting to payment page..."
+          : "Wallet balance updated",
         position: "top",
       });
     },

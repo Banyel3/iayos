@@ -1,7 +1,7 @@
 # mobile_api.py
 # Mobile-specific API endpoints optimized for Flutter app
 
-from ninja import Router, Query
+from ninja import Router
 from ninja.responses import Response
 from typing import Optional
 from .schemas import (
@@ -17,9 +17,11 @@ from .schemas import (
     UpdateApplicationMobileSchema,
     ApproveCompletionMobileSchema,
     SubmitReviewMobileSchema,
-    SendMessageMobileSchema
+    SendMessageMobileSchema,
+    DepositFundsSchema,
 )
 from .authentication import jwt_auth  # Use Bearer token auth for mobile
+from .profile_metrics_service import get_profile_metrics
 
 # Create mobile router
 mobile_router = Router(tags=["Mobile API"])
@@ -141,6 +143,23 @@ def mobile_get_profile(request):
         traceback.print_exc()
         return Response(
             {"error": "Failed to fetch profile"},
+            status=500
+        )
+
+
+@mobile_router.get("/profile/metrics", auth=jwt_auth)
+def mobile_profile_metrics(request):
+    """Return trust & performance metrics for the authenticated account."""
+    try:
+        user = request.auth
+        metrics = get_profile_metrics(user)
+        return metrics
+    except Exception as e:
+        print(f"[ERROR] Mobile profile metrics error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to fetch profile metrics"},
             status=500
         )
 
@@ -370,6 +389,162 @@ def mobile_job_list(
             {"error": "Failed to fetch job listings"},
             status=500
         )
+
+
+@mobile_router.get("/jobs/my-jobs", auth=jwt_auth)
+def mobile_my_jobs(
+    request, 
+    status: Optional[str] = None,
+    page: int = 1,
+    limit: int = 20
+):
+    """Return jobs relevant to the authenticated user (client or worker)."""
+    from .models import Profile, ClientProfile, WorkerProfile, JobPosting, JobApplication
+    from jobs.models import JobPosting
+    from django.db.models import Q
+
+    print("\n" + "="*80)
+    print(f"📱 [MY JOBS] Request received")
+    print(f"   User: {request.auth.email}")
+    print(f"   Query params: status={status}, page={page}, limit={limit}")
+    print(f"   Query params types: status={type(status).__name__}, page={type(page).__name__}, limit={type(limit).__name__}")
+    
+    try:
+        status_filter = status
+
+        print(f"\n   🔍 Processing parameters:")
+        print(f"      Status filter: {status_filter} (type: {type(status_filter).__name__})")
+        print(f"      Page: {page} (type: {type(page).__name__})")
+        print(f"      Limit: {limit} (type: {type(limit).__name__})")
+        
+        # Get user's profile
+        print(f"\n   👤 Fetching user profile...")
+        try:
+            profile = Profile.objects.get(accountFK=request.auth)
+            print(f"      Profile found: ID={profile.profileID}, Type={profile.profileType}")
+        except Profile.DoesNotExist:
+            print(f"      ❌ Profile not found for user!")
+            return Response({"error": "Profile not found"}, status=400)
+        
+        # CLIENT: Jobs they posted
+        if profile.profileType == 'CLIENT':
+            print(f"\n   📋 CLIENT mode: Fetching posted jobs...")
+            try:
+                client_profile = ClientProfile.objects.get(profileID=profile)
+                print(f"      Client profile found: ID={client_profile.profileID.profileID}")
+            except ClientProfile.DoesNotExist:
+                print(f"      ❌ Client profile not found!")
+                return Response({"error": "Client profile not found"}, status=400)
+            
+            jobs_qs = JobPosting.objects.filter(
+                clientID=client_profile
+            ).select_related(
+                'categoryID', 
+                'assignedWorkerID__profileID__accountFK'
+            ).prefetch_related('photos')
+            print(f"      Jobs query created for client")
+        
+        # WORKER: Jobs they applied to or assigned to
+        elif profile.profileType == 'WORKER':
+            print(f"\n   🔧 WORKER mode: Fetching applied/assigned jobs...")
+            try:
+                worker_profile = WorkerProfile.objects.get(profileID=profile)
+                print(f"      Worker profile found: ID={worker_profile.profileID.profileID}")
+            except WorkerProfile.DoesNotExist:
+                print(f"      ❌ Worker profile not found!")
+                return Response({"error": "Worker profile not found"}, status=400)
+            
+            applied_job_ids = JobApplication.objects.filter(
+                workerID=worker_profile
+            ).values_list('jobID', flat=True)
+            print(f"      Found {len(applied_job_ids)} applications")
+            
+            jobs_qs = JobPosting.objects.filter(
+                Q(assignedWorkerID=worker_profile) | Q(jobID__in=applied_job_ids)
+            ).select_related(
+                'clientID__profileID__accountFK',
+                'categoryID'
+            ).prefetch_related('photos')
+            print(f"      Jobs query created for worker")
+        else:
+            print(f"      ❌ Invalid profile type: {profile.profileType}")
+            return Response({"error": "Invalid profile type"}, status=400)
+        
+        # Filter by status if provided
+        if status_filter:
+            print(f"\n   🔎 Filtering by status: {status_filter.upper()}")
+            jobs_qs = jobs_qs.filter(status=status_filter.upper())
+        
+        # Order by created date
+        jobs_qs = jobs_qs.order_by('-createdAt')
+        
+        total_count = jobs_qs.count()
+        print(f"\n   📊 Query results:")
+        print(f"      Total jobs found: {total_count}")
+        
+        # Pagination
+        offset = (page - 1) * limit
+        jobs = jobs_qs[offset:offset + limit]
+        print(f"      Returning jobs {offset + 1} to {offset + len(jobs)}")
+        
+        job_list = []
+        for idx, job in enumerate(jobs):
+            print(f"      Processing job {idx + 1}/{len(jobs)}: ID={job.jobID}, Title='{job.title[:30]}...'")
+            job_data = {
+                'job_id': job.jobID,
+                'title': job.title,
+                'description': job.description,
+                'budget': float(job.budget) if job.budget else 0.0,
+                'location': job.location or '',
+                'status': job.status,
+                'urgency_level': job.urgency,
+                'category_name': job.categoryID.specializationName if job.categoryID else 'General',
+                'created_at': job.createdAt.isoformat() if job.createdAt else None,
+            }
+            
+            if job.clientID:
+                client_prof = job.clientID.profileID
+                job_data['client_name'] = f"{client_prof.firstName or ''} {client_prof.lastName or ''}".strip()
+                job_data['client_img'] = client_prof.profileImg or ''
+            
+            if job.assignedWorkerID:
+                worker_prof = job.assignedWorkerID.profileID
+                job_data['worker_name'] = f"{worker_prof.firstName or ''} {worker_prof.lastName or ''}".strip()
+                job_data['worker_img'] = worker_prof.profileImg or ''
+            
+            if profile.profileType == 'WORKER':
+                application = JobApplication.objects.filter(
+                    jobID=job,
+                    workerID=worker_profile
+                ).first()
+                if application:
+                    job_data['application_status'] = application.status
+            
+            job_list.append(job_data)
+        
+        print(f"\n   ✅ SUCCESS: Returning {len(job_list)} jobs")
+        print(f"      Total count: {total_count}")
+        print(f"      Page: {page}/{(total_count + limit - 1) // limit}")
+        print("="*80 + "\n")
+        
+        return {
+            'jobs': job_list,
+            'total_count': total_count,
+            'page': page,
+            'pages': (total_count + limit - 1) // limit,
+            'profile_type': profile.profileType
+        }
+        
+    except Exception as e:
+        print(f"\n❌ [ERROR] Mobile my jobs exception occurred!")
+        print(f"   Error type: {type(e).__name__}")
+        print(f"   Error message: {str(e)}")
+        print(f"   User: {request.auth.email if hasattr(request, 'auth') else 'Unknown'}")
+        print(f"\n   Full traceback:")
+        import traceback
+        traceback.print_exc()
+        print("="*80 + "\n")
+        return Response({"error": f"Failed to fetch jobs: {str(e)}"}, status=500)
 
 
 @mobile_router.get("/jobs/categories", auth=jwt_auth)
@@ -1020,180 +1195,6 @@ def mobile_worker_detail_v2(request, worker_id: int):
         )
 
 
-@mobile_router.get("/jobs/my-jobs", auth=jwt_auth)
-def mobile_my_jobs(
-    request, 
-    status: Optional[str] = Query(None),
-    page: int = Query(1),
-    limit: int = Query(20)
-):
-    """
-    Get user's jobs (different for CLIENT vs WORKER)
-    - CLIENT: Jobs they posted
-    - WORKER: Jobs they applied to or are assigned to
-    """
-    from .models import Profile, ClientProfile, WorkerProfile, JobPosting, JobApplication
-    from jobs.models import JobPosting
-    
-    print("\n" + "="*80)
-    print(f"📱 [MY JOBS] Request received")
-    print(f"   User: {request.auth.email}")
-    print(f"   Request method: {request.method}")
-    print(f"   Request path: {request.path}")
-    print(f"   Query params: status={status}, page={page}, limit={limit}")
-    print(f"   Query params types: status={type(status).__name__}, page={type(page).__name__}, limit={type(limit).__name__}")
-    
-    try:
-        # Get parameters from query params
-        status_filter = status
-        
-        print(f"\n   🔍 Processing parameters:")
-        print(f"      Status filter: {status_filter} (type: {type(status_filter).__name__})")
-        print(f"      Page: {page} (type: {type(page).__name__})")
-        print(f"      Limit: {limit} (type: {type(limit).__name__})")
-        
-        # Get user's profile
-        print(f"\n   👤 Fetching user profile...")
-        try:
-            profile = Profile.objects.get(accountFK=request.auth)
-            print(f"      Profile found: ID={profile.profileID}, Type={profile.profileType}")
-        except Profile.DoesNotExist:
-            print(f"      ❌ Profile not found for user!")
-            return Response({"error": "Profile not found"}, status=400)
-        
-        # CLIENT: Get jobs they posted
-        if profile.profileType == 'CLIENT':
-            print(f"\n   📋 CLIENT mode: Fetching posted jobs...")
-            try:
-                client_profile = ClientProfile.objects.get(profileID=profile)
-                print(f"      Client profile found: ID={client_profile.profileID.profileID}")
-            except ClientProfile.DoesNotExist:
-                print(f"      ❌ Client profile not found!")
-                return Response({"error": "Client profile not found"}, status=400)
-            
-            jobs_qs = JobPosting.objects.filter(
-                clientID=client_profile
-            ).select_related(
-                'categoryID', 
-                'assignedWorkerID__profileID__accountFK'
-            ).prefetch_related('photos')
-            print(f"      Jobs query created for client")
-        
-        # WORKER: Get jobs they applied to or are assigned to
-        elif profile.profileType == 'WORKER':
-            print(f"\n   🔧 WORKER mode: Fetching applied/assigned jobs...")
-            try:
-                worker_profile = WorkerProfile.objects.get(profileID=profile)
-                print(f"      Worker profile found: ID={worker_profile.profileID.profileID}")
-            except WorkerProfile.DoesNotExist:
-                print(f"      ❌ Worker profile not found!")
-                return Response({"error": "Worker profile not found"}, status=400)
-            
-            # Get job IDs worker applied to
-            from django.db.models import Q
-            applied_job_ids = JobApplication.objects.filter(
-                workerID=worker_profile
-            ).values_list('jobID', flat=True)
-            print(f"      Found {len(applied_job_ids)} applications")
-            
-            jobs_qs = JobPosting.objects.filter(
-                Q(assignedWorkerID=worker_profile) | Q(jobID__in=applied_job_ids)
-            ).select_related(
-                'clientID__profileID__accountFK',
-                'categoryID'
-            ).prefetch_related('photos')
-            print(f"      Jobs query created for worker")
-        else:
-            print(f"      ❌ Invalid profile type: {profile.profileType}")
-            return Response({"error": "Invalid profile type"}, status=400)
-        
-        # Filter by status if provided
-        if status_filter:
-            print(f"\n   🔎 Filtering by status: {status_filter.upper()}")
-            jobs_qs = jobs_qs.filter(status=status_filter.upper())
-        
-        # Order by created date
-        jobs_qs = jobs_qs.order_by('-createdAt')
-        
-        # Get total count
-        total_count = jobs_qs.count()
-        print(f"\n   📊 Query results:")
-        print(f"      Total jobs found: {total_count}")
-        
-        # Pagination
-        offset = (page - 1) * limit
-        jobs = jobs_qs[offset:offset + limit]
-        print(f"      Returning jobs {offset + 1} to {offset + len(jobs)}")
-        
-        # Build job list
-        print(f"\n   🔨 Building job list...")
-        job_list = []
-        for idx, job in enumerate(jobs):
-            print(f"      Processing job {idx + 1}/{len(jobs)}: ID={job.jobID}, Title='{job.title[:30]}...'")
-            job_data = {
-                'job_id': job.jobID,
-                'title': job.title,
-                'description': job.description,
-                'budget': float(job.budget) if job.budget else 0.0,
-                'location': job.location or '',
-                'status': job.status,
-                'urgency_level': job.urgency,
-                'category_name': job.categoryID.specializationName if job.categoryID else 'General',
-                'created_at': job.createdAt.isoformat() if job.createdAt else None,
-            }
-            
-            # Add client info
-            if job.clientID:
-                client_prof = job.clientID.profileID
-                job_data['client_name'] = f"{client_prof.firstName or ''} {client_prof.lastName or ''}".strip()
-                job_data['client_img'] = client_prof.profileImg or ''
-            
-            # Add worker info if assigned
-            if job.assignedWorkerID:
-                worker_prof = job.assignedWorkerID.profileID
-                job_data['worker_name'] = f"{worker_prof.firstName or ''} {worker_prof.lastName or ''}".strip()
-                job_data['worker_img'] = worker_prof.profileImg or ''
-            
-            # For workers, add application status
-            if profile.profileType == 'WORKER':
-                try:
-                    worker_profile = WorkerProfile.objects.get(profileID=profile)
-                    application = JobApplication.objects.filter(
-                        jobID=job,
-                        workerID=worker_profile
-                    ).first()
-                    if application:
-                        job_data['application_status'] = application.status
-                except:
-                    pass
-            
-            job_list.append(job_data)
-        
-        print(f"\n   ✅ SUCCESS: Returning {len(job_list)} jobs")
-        print(f"      Total count: {total_count}")
-        print(f"      Page: {page}/{(total_count + limit - 1) // limit}")
-        print("="*80 + "\n")
-        
-        return {
-            'jobs': job_list,
-            'total_count': total_count,
-            'page': page,
-            'pages': (total_count + limit - 1) // limit,
-            'profile_type': profile.profileType
-        }
-        
-    except Exception as e:
-        print(f"\n❌ [ERROR] Mobile my jobs exception occurred!")
-        print(f"   Error type: {type(e).__name__}")
-        print(f"   Error message: {str(e)}")
-        print(f"   User: {request.auth.email if hasattr(request, 'auth') else 'Unknown'}")
-        print(f"\n   Full traceback:")
-        import traceback
-        traceback.print_exc()
-        print("="*80 + "\n")
-        return Response({"error": f"Failed to fetch jobs: {str(e)}"}, status=500)
-
-
 @mobile_router.get("/jobs/available", auth=jwt_auth)
 def mobile_available_jobs(request, page: int = 1, limit: int = 20):
     """
@@ -1244,22 +1245,66 @@ def mobile_available_jobs(request, page: int = 1, limit: int = 20):
 def mobile_get_wallet_balance(request):
     """Get current user's wallet balance - Mobile"""
     try:
-        from .models import Wallet
-        
+        from .models import Wallet, Transaction
+        from django.db.models import Sum
+        from django.utils import timezone
+        from decimal import Decimal
+
         # Get or create wallet for the user
         wallet, created = Wallet.objects.get_or_create(
             accountFK=request.auth,
             defaults={'balance': 0.00}
         )
-        
+
         print(f"💵 [Mobile] Balance request for user {request.auth.email}: ₱{wallet.balance}")
-        
+
+        # Aggregate wallet stats for dashboard cards
+        pending_total = (
+            wallet.transactions.filter(
+                status=Transaction.TransactionStatus.PENDING
+            ).aggregate(total=Sum('amount'))['total']
+            or Decimal('0.00')
+        )
+
+        now = timezone.now()
+        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        this_month_total = (
+            wallet.transactions.filter(
+                createdAt__gte=month_start,
+                status=Transaction.TransactionStatus.COMPLETED,
+                transactionType__in=[
+                    Transaction.TransactionType.EARNING,
+                    Transaction.TransactionType.PAYMENT,
+                ],
+            ).aggregate(total=Sum('amount'))['total']
+            or Decimal('0.00')
+        )
+
+        total_earned = (
+            wallet.transactions.filter(
+                transactionType=Transaction.TransactionType.EARNING,
+                status=Transaction.TransactionStatus.COMPLETED,
+            ).aggregate(total=Sum('amount'))['total']
+            or Decimal('0.00')
+        )
+
+        last_transaction = wallet.transactions.order_by('-completedAt', '-createdAt').first()
+        if last_transaction:
+            last_updated_source = last_transaction.completedAt or last_transaction.createdAt
+        else:
+            last_updated_source = wallet.updatedAt
+
         return {
             "success": True,
             "balance": float(wallet.balance),
-            "created": created
+            "pending": float(pending_total),
+            "this_month": float(this_month_total),
+            "total_earned": float(total_earned),
+            "last_updated": last_updated_source.isoformat() if last_updated_source else None,
+            "currency": "PHP",
+            "created": created,
         }
-        
+
     except Exception as e:
         print(f"❌ [Mobile] Error fetching wallet balance: {str(e)}")
         import traceback
@@ -1271,7 +1316,7 @@ def mobile_get_wallet_balance(request):
 
 
 @mobile_router.post("/wallet/deposit", auth=jwt_auth)
-def mobile_deposit_funds(request, amount: float, payment_method: str = "GCASH"):
+def mobile_deposit_funds(request, payload: DepositFundsSchema):
     """
     Mobile wallet deposit via Xendit GCash
     TEST MODE: Transaction auto-approved, funds added immediately
@@ -1282,7 +1327,10 @@ def mobile_deposit_funds(request, amount: float, payment_method: str = "GCASH"):
         from decimal import Decimal
         from django.utils import timezone
         
-        print(f"📥 [Mobile] Deposit request: ₱{amount} from {request.auth.email}")
+        amount = payload.amount
+        payment_method = payload.payment_method or "GCASH"
+
+        print(f"📥 [Mobile] Deposit request: ₱{amount} via {payment_method} from {request.auth.email}")
         
         if amount <= 0:
             return Response(
@@ -1316,8 +1364,8 @@ def mobile_deposit_funds(request, amount: float, payment_method: str = "GCASH"):
             amount=Decimal(str(amount)),
             balanceAfter=wallet.balance,
             status=Transaction.TransactionStatus.COMPLETED,
-            description=f"TOP UP via GCASH - ₱{amount}",
-            paymentMethod=Transaction.PaymentMethod.GCASH,
+            description=f"TOP UP via {payment_method.upper()} - ₱{amount}",
+            paymentMethod=payment_method,
             completedAt=timezone.now()
         )
         
@@ -1341,7 +1389,7 @@ def mobile_deposit_funds(request, amount: float, payment_method: str = "GCASH"):
         transaction.xenditInvoiceID = xendit_result['invoice_id']
         transaction.xenditExternalID = xendit_result['external_id']
         transaction.invoiceURL = xendit_result['invoice_url']
-        transaction.xenditPaymentChannel = "GCASH"
+        transaction.xenditPaymentChannel = payment_method.upper()
         transaction.xenditPaymentMethod = "EWALLET"
         transaction.save()
         

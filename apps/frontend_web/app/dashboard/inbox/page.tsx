@@ -14,16 +14,16 @@ import { API_BASE_URL } from "@/lib/api/config";
 import {
   Conversation,
   ChatMessage,
-  fetchConversations,
-  fetchMessages,
   toggleConversationArchive,
 } from "@/lib/api/chat";
 import {
   useConversationMessages,
+  useConversations,
   useMarkJobComplete,
   useApproveJobCompletion,
   useSubmitReview,
   useOptimisticMessageUpdate,
+  CONVERSATION_FILTERS,
 } from "@/lib/hooks/useInboxQueries";
 import { useQueryClient } from "@tanstack/react-query";
 import { inboxKeys } from "@/lib/hooks/useInboxQueries";
@@ -55,9 +55,16 @@ const InboxPage = () => {
   const [messageInput, setMessageInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Local state for conversations (still needed for WebSocket updates)
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [isLoadingConversations, setIsLoadingConversations] = useState(false);
+  // Conversations list powered by React Query with per-tab caching
+  const {
+    data: conversationsData,
+    isLoading: isConversationsLoading,
+    isFetching: isConversationsFetching,
+  } = useConversations(activeTab, { enabled: isAuthenticated });
+  const conversations = conversationsData ?? [];
+  const isLoadingConversations =
+    (isConversationsLoading || isConversationsFetching) &&
+    conversations.length === 0;
 
   // 🔥 USE TANSTACK QUERY FOR MESSAGES - No more manual state!
   const {
@@ -107,6 +114,30 @@ const InboxPage = () => {
 
   // WebSocket connection for real-time messaging
   const lastProcessedMessageRef = useRef<Set<string>>(new Set());
+
+  const updateConversationPreview = useCallback(
+    (
+      conversationId: number,
+      updater: (conversation: Conversation) => Conversation
+    ) => {
+      CONVERSATION_FILTERS.forEach((filter) => {
+        queryClient.setQueryData(
+          inboxKeys.conversations(filter),
+          (old: Conversation[] | undefined) => {
+            if (!old) return old;
+            let changed = false;
+            const next = old.map((conv) => {
+              if (conv.id !== conversationId) return conv;
+              changed = true;
+              return updater(conv);
+            });
+            return changed ? next : old;
+          }
+        );
+      });
+    },
+    [queryClient]
+  );
 
   const handleWebSocketMessage = useCallback(
     (data: any) => {
@@ -241,20 +272,14 @@ const InboxPage = () => {
         });
       }
 
-      // Update conversation's last message in the list
-      setConversations((prev) =>
-        prev.map((conv) =>
-          conv.id === conversationId
-            ? {
-                ...conv,
-                last_message: newMessage.message_text,
-                last_message_time: newMessage.created_at,
-              }
-            : conv
-        )
-      );
+      // Update conversation's last message preview in cached lists
+      updateConversationPreview(conversationId, (conv) => ({
+        ...conv,
+        last_message: newMessage.message_text,
+        last_message_time: newMessage.created_at,
+      }));
     },
-    [selectedChat, queryClient]
+    [selectedChat, queryClient, updateConversationPreview]
   );
 
   const {
@@ -280,63 +305,6 @@ const InboxPage = () => {
       router.push("/auth/login");
     }
   }, [isAuthenticated, isLoading, router]);
-
-  // Fetch conversations from API with caching
-  const loadConversations = useCallback(
-    async (forceRefresh = false) => {
-      if (!isAuthenticated) return;
-
-      // Check sessionStorage cache first (unless force refresh)
-      if (!forceRefresh) {
-        const cacheKey = `inbox_conversations_${activeTab}`;
-        const cached = sessionStorage.getItem(cacheKey);
-        const cacheTime = sessionStorage.getItem(`${cacheKey}_time`);
-
-        if (cached && cacheTime) {
-          const age = Date.now() - parseInt(cacheTime);
-          // Use cache if less than 2 minutes old
-          if (age < 120000) {
-            try {
-              const parsedConversations = JSON.parse(cached);
-              setConversations(parsedConversations);
-              console.log(
-                `✅ Loaded ${activeTab} conversations from cache:`,
-                parsedConversations.length
-              );
-              return;
-            } catch (e) {
-              console.warn("Failed to parse cached conversations");
-            }
-          }
-        }
-      }
-
-      setIsLoadingConversations(true);
-      try {
-        const convs = await fetchConversations(activeTab);
-        setConversations(convs);
-
-        // Cache in sessionStorage with tab-specific key
-        const cacheKey = `inbox_conversations_${activeTab}`;
-        sessionStorage.setItem(cacheKey, JSON.stringify(convs));
-        sessionStorage.setItem(`${cacheKey}_time`, Date.now().toString());
-
-        console.log(
-          `✅ Loaded ${activeTab} conversations from API:`,
-          convs.length
-        );
-      } catch (error) {
-        console.error("❌ Failed to load conversations:", error);
-      } finally {
-        setIsLoadingConversations(false);
-      }
-    },
-    [isAuthenticated, activeTab]
-  );
-
-  useEffect(() => {
-    loadConversations();
-  }, [loadConversations]);
 
   // 🔥 TanStack Query: Cache invalidation utility
   const invalidateConversationCache = useCallback(
@@ -760,20 +728,17 @@ const InboxPage = () => {
     try {
       const result = await toggleConversationArchive(conversationId);
 
-      // Remove from current view
-      setConversations((prev) =>
-        prev.filter((conv) => conv.id !== conversationId)
-      );
-
       // If this was the selected chat, clear it
       if (selectedChat?.id === conversationId) {
         setSelectedChat(null);
       }
 
-      // Clear cache to force refresh on next load
-      const cacheKey = `inbox_conversations_${activeTab}`;
-      sessionStorage.removeItem(cacheKey);
-      sessionStorage.removeItem(`${cacheKey}_time`);
+      // Refresh all tab caches so this conversation moves immediately
+      CONVERSATION_FILTERS.forEach((filter) =>
+        queryClient.invalidateQueries({
+          queryKey: inboxKeys.conversations(filter),
+        })
+      );
 
       alert(result.message);
     } catch (error) {

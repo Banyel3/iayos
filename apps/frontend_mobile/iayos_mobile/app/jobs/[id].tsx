@@ -29,6 +29,20 @@ import { SaveButton } from "@/components/SaveButton";
 
 const { width } = Dimensions.get("window");
 
+interface JobReviewSummary {
+  rating: number;
+  comment?: string;
+  createdAt?: string;
+  reviewerType: "CLIENT" | "WORKER";
+  reviewerName?: string;
+  revieweeName?: string;
+}
+
+interface JobReviews {
+  clientToWorker?: JobReviewSummary;
+  workerToClient?: JobReviewSummary;
+}
+
 interface JobDetail {
   id: string;
   title: string;
@@ -37,6 +51,7 @@ interface JobDetail {
   budget: string;
   location: string;
   distance: number;
+  status: "ACTIVE" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED" | string;
   postedBy: {
     name: string;
     avatar: string;
@@ -59,6 +74,7 @@ interface JobDetail {
     avatar: string;
     rating: number;
   };
+  reviews?: JobReviews;
 }
 
 export default function JobDetailScreen() {
@@ -98,34 +114,6 @@ export default function JobDetailScreen() {
     isValidJobId
   );
 
-  // Early return if invalid - don't even render the component
-  if (!isValidJobId) {
-    console.warn(
-      "[JobDetail] INVALID ID DETECTED - Preventing query execution"
-    );
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.errorContainer}>
-          <Ionicons
-            name="alert-circle-outline"
-            size={64}
-            color={Colors.error}
-          />
-          <Text style={styles.errorText}>Invalid Job ID</Text>
-          <Text style={styles.errorSubtext}>
-            The job you're looking for could not be found. (ID: {id})
-          </Text>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.push("/")}
-          >
-            <Text style={styles.backButtonText}>Go to Home</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
   // Fetch job details
   const {
     data: job,
@@ -148,6 +136,18 @@ export default function JobDetailScreen() {
       const result = (await response.json()) as any;
       const jobData = result.data || result; // Handle both wrapped and unwrapped responses
 
+      const mapReview = (reviewData: any): JobReviewSummary => ({
+        rating:
+          typeof reviewData?.rating === "number"
+            ? reviewData.rating
+            : Number(reviewData?.rating || 0),
+        comment: reviewData?.comment || undefined,
+        createdAt: reviewData?.created_at || undefined,
+        reviewerType: reviewData?.reviewer_type || "CLIENT",
+        reviewerName: reviewData?.reviewer?.name,
+        revieweeName: reviewData?.reviewee?.name,
+      });
+
       // Transform backend response to frontend format
       return {
         id: String(jobData.id),
@@ -157,6 +157,7 @@ export default function JobDetailScreen() {
         budget: `₱${jobData.budget?.toLocaleString() || "0"}`,
         location: jobData.location,
         distance: jobData.distance || 0,
+        status: jobData.status,
         postedBy: jobData.client || {
           name: "Unknown Client",
           avatar: null,
@@ -177,6 +178,16 @@ export default function JobDetailScreen() {
         specializations: jobData.specializations,
         jobType: jobData.job_type,
         assignedWorker: jobData.assigned_worker,
+        reviews: jobData.reviews
+          ? {
+              clientToWorker: jobData.reviews.client_to_worker
+                ? mapReview(jobData.reviews.client_to_worker)
+                : undefined,
+              workerToClient: jobData.reviews.worker_to_client
+                ? mapReview(jobData.reviews.worker_to_client)
+                : undefined,
+            }
+          : undefined,
       } as JobDetail;
     },
     enabled: isValidJobId, // Only fetch if we have a valid job ID
@@ -317,7 +328,7 @@ export default function JobDetailScreen() {
           />
           <Text style={styles.errorText}>Invalid Job ID</Text>
           <Text style={styles.errorSubtext}>
-            The job you're looking for could not be found.
+            {`The job you're looking for could not be found.${id ? ` (ID: ${id})` : ""}`}
           </Text>
           <TouchableOpacity
             style={styles.backButton}
@@ -352,6 +363,47 @@ export default function JobDetailScreen() {
   }
 
   const urgencyColors = getUrgencyColor(job.urgency);
+
+  const formatReviewDate = (value?: string) => {
+    if (!value) return null;
+    const date = new Date(value);
+    if (isNaN(date.getTime())) return null;
+    return date.toLocaleDateString();
+  };
+
+  const renderReviewCard = (title: string, review?: JobReviewSummary) => {
+    const formattedDate = review ? formatReviewDate(review.createdAt) : null;
+
+    return (
+      <View style={styles.reviewCard}>
+        <View style={styles.reviewCardHeader}>
+          <Text style={styles.reviewTitle}>{title}</Text>
+          {review ? (
+            <View style={styles.reviewRating}>
+              <Ionicons name="star" size={16} color="#F59E0B" />
+              <Text style={styles.reviewRatingValue}>
+                {typeof review.rating === "number"
+                  ? review.rating.toFixed(1)
+                  : "--"}
+              </Text>
+            </View>
+          ) : (
+            <Text style={styles.reviewPending}>No rating yet</Text>
+          )}
+        </View>
+        {review?.comment ? (
+          <Text style={styles.reviewComment}>{review.comment}</Text>
+        ) : null}
+        {formattedDate ? (
+          <Text style={styles.reviewDate}>Rated on {formattedDate}</Text>
+        ) : null}
+      </View>
+    );
+  };
+
+  const jobHasFeedback =
+    job.status === "COMPLETED" &&
+    (job.reviews?.clientToWorker || job.reviews?.workerToClient);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -512,6 +564,21 @@ export default function JobDetailScreen() {
                 </View>
               </View>
             </View>
+          </View>
+        )}
+
+        {/* Job Feedback */}
+        {jobHasFeedback && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Job Feedback</Text>
+            {renderReviewCard(
+              isWorker ? "From Client" : "Client → Worker",
+              job.reviews?.clientToWorker
+            )}
+            {renderReviewCard(
+              isWorker ? "Your Feedback" : "Worker → Client",
+              job.reviews?.workerToClient
+            )}
           </View>
         )}
 
@@ -865,6 +932,50 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
     ...Shadows.small,
+  },
+  reviewCard: {
+    backgroundColor: Colors.white,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.md,
+    ...Shadows.small,
+  },
+  reviewCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: Spacing.xs,
+  },
+  reviewTitle: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+  },
+  reviewRating: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+  },
+  reviewRatingValue: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: "700",
+    color: Colors.primary,
+  },
+  reviewPending: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+    fontStyle: "italic",
+  },
+  reviewComment: {
+    fontSize: Typography.fontSize.base,
+    color: Colors.textSecondary,
+    lineHeight: 20,
+    marginTop: Spacing.xs,
+  },
+  reviewDate: {
+    marginTop: Spacing.xs,
+    fontSize: Typography.fontSize.xs,
+    color: Colors.textHint,
   },
   posterAvatar: {
     width: 60,

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  TextInput,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -21,6 +22,7 @@ import {
   useWalletDeposit,
   useWalletBalance,
   formatCurrency,
+  WalletDepositResponse,
 } from "../../lib/hooks/usePayments";
 import WalletBalanceCard from "../../components/WalletBalanceCard";
 
@@ -44,6 +46,9 @@ export default function WalletDepositScreen() {
   const [depositAmount, setDepositAmount] = useState(params.amount || "");
   const [xenditUrl, setXenditUrl] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [amountError, setAmountError] = useState<string | null>(null);
+  const [pendingDeposit, setPendingDeposit] = useState<number | null>(null);
+  const [webViewHandled, setWebViewHandled] = useState(false);
 
   const { data: walletBalance, refetch: refetchBalance } = useWalletBalance();
   const depositMutation = useWalletDeposit();
@@ -51,55 +56,101 @@ export default function WalletDepositScreen() {
   // Preset amounts
   const presetAmounts = [100, 200, 500, 1000, 2000, 5000];
 
+  const sanitizeAmountInput = (value: string) => {
+    const sanitized = value.replace(/[^0-9.]/g, "");
+    const parts = sanitized.split(".");
+    if (parts.length > 2) {
+      return parts[0] + "." + parts.slice(1).join("");
+    }
+    return sanitized;
+  };
+
+  const handleAmountChange = (value: string) => {
+    const sanitized = sanitizeAmountInput(value);
+    setDepositAmount(sanitized);
+    if (amountError) {
+      setAmountError(null);
+    }
+  };
+
+  const validateAmount = (amount: number) => {
+    if (!amount || isNaN(amount)) {
+      setAmountError("Please enter a valid amount");
+      return false;
+    }
+
+    if (amount < 100) {
+      setAmountError("Minimum deposit is ₱100");
+      return false;
+    }
+
+    if (amount > 100000) {
+      setAmountError("Maximum deposit is ₱100,000");
+      return false;
+    }
+
+    return true;
+  };
+
+  const getInvoiceUrl = (
+    response: WalletDepositResponse | null | undefined
+  ) => {
+    return (
+      response?.payment_url ||
+      response?.invoice_url ||
+      response?.invoiceUrl ||
+      null
+    );
+  };
+
+  const parsedAmount = parseFloat(depositAmount);
+  const isDepositDisabled =
+    !depositAmount ||
+    isNaN(parsedAmount) ||
+    parsedAmount < 100 ||
+    parsedAmount > 100000 ||
+    isProcessing;
+  const formattedDepositAmount = !isNaN(parsedAmount)
+    ? formatCurrency(parsedAmount)
+    : formatCurrency(0);
+
   const handlePresetAmount = (amount: number) => {
     setDepositAmount(amount.toString());
+    if (amountError) {
+      setAmountError(null);
+    }
   };
 
   const handleDeposit = async () => {
     const amount = parseFloat(depositAmount);
 
-    if (!amount || amount <= 0) {
-      Alert.alert("Invalid Amount", "Please enter a valid deposit amount.");
+    if (!validateAmount(amount)) {
       return;
     }
 
-    if (amount < 100) {
-      Alert.alert("Minimum Amount", "Minimum deposit amount is ₱100.");
-      return;
-    }
-
-    if (amount > 100000) {
-      Alert.alert("Maximum Amount", "Maximum deposit amount is ₱100,000.");
-      return;
-    }
+    let redirectedToWebView = false;
 
     try {
       setIsProcessing(true);
-
       const response = await depositMutation.mutateAsync(amount);
+      const invoiceUrl = getInvoiceUrl(response);
+      setPendingDeposit(amount);
+      setAmountError(null);
 
-      if (response.invoiceUrl) {
-        setXenditUrl(response.invoiceUrl);
-      } else {
-        throw new Error("Failed to create payment invoice");
+      if (invoiceUrl) {
+        redirectedToWebView = true;
+        setWebViewHandled(false);
+        setXenditUrl(invoiceUrl);
+        setIsProcessing(false);
+        return;
       }
-    } catch (error) {
-      Alert.alert("Error", "Failed to initiate deposit. Please try again.");
+
+      setDepositAmount("");
+      setPendingDeposit(null);
       setIsProcessing(false);
-    }
-  };
-
-  const handleWebViewNavigationStateChange = (navState: any) => {
-    const url = navState.url;
-
-    // Check for success callback
-    if (url.includes("/payment/success") || url.includes("/callback/success")) {
-      setIsProcessing(false);
-      setXenditUrl(null);
-
       Alert.alert(
         "Deposit Successful",
-        `₱${depositAmount} has been added to your wallet!`,
+        `${formatCurrency(amount)} has been added to your wallet.`,
         [
           {
             text: "OK",
@@ -110,12 +161,62 @@ export default function WalletDepositScreen() {
           },
         ]
       );
+    } catch (error: any) {
+      const message =
+        error?.message || "Failed to initiate deposit. Please try again.";
+      Alert.alert("Deposit Failed", message);
+    } finally {
+      if (!redirectedToWebView) {
+        setIsProcessing(false);
+      }
+    }
+  };
+
+  const handleWebViewNavigationStateChange = (navState: any) => {
+    const url = navState.url as string;
+    if (!url || webViewHandled) {
+      return;
     }
 
-    // Check for failure callback
-    if (url.includes("/payment/failed") || url.includes("/callback/failed")) {
+    const isSuccess =
+      url.includes("payment=success") ||
+      url.includes("/payment/success") ||
+      url.includes("/callback/success");
+    const isFailure =
+      url.includes("payment=failed") ||
+      url.includes("/payment/failed") ||
+      url.includes("/callback/failed");
+
+    if (isSuccess) {
+      setWebViewHandled(true);
       setIsProcessing(false);
       setXenditUrl(null);
+      const amountLabel = pendingDeposit
+        ? formatCurrency(pendingDeposit)
+        : "Your deposit";
+      setPendingDeposit(null);
+
+      Alert.alert(
+        "Deposit Successful",
+        `${amountLabel} is being processed. Your balance will refresh shortly.`,
+        [
+          {
+            text: "OK",
+            onPress: () => {
+              refetchBalance();
+              router.back();
+            },
+          },
+        ]
+      );
+      return;
+    }
+
+    if (isFailure) {
+      setWebViewHandled(true);
+      setIsProcessing(false);
+      setXenditUrl(null);
+      setPendingDeposit(null);
 
       Alert.alert(
         "Deposit Failed",
@@ -138,6 +239,8 @@ export default function WalletDepositScreen() {
             onPress: () => {
               setXenditUrl(null);
               setIsProcessing(false);
+              setPendingDeposit(null);
+              setWebViewHandled(false);
             },
           },
         ]
@@ -200,6 +303,7 @@ export default function WalletDepositScreen() {
           balance={walletBalance?.balance || 0}
           isLoading={!walletBalance}
           onRefresh={refetchBalance}
+          showDepositButton={false}
         />
 
         {/* Deposit Amount Section */}
@@ -211,8 +315,18 @@ export default function WalletDepositScreen() {
 
           <View style={styles.amountInputContainer}>
             <Text style={styles.currencySymbol}>₱</Text>
-            <Text style={styles.amountInput}>{depositAmount || "0"}</Text>
+            <TextInput
+              style={styles.amountInput}
+              value={depositAmount}
+              onChangeText={handleAmountChange}
+              keyboardType="numeric"
+              placeholder="0.00"
+              placeholderTextColor={Colors.textHint}
+              maxLength={12}
+              accessibilityLabel="Deposit amount"
+            />
           </View>
+          {amountError && <Text style={styles.amountError}>{amountError}</Text>}
 
           {/* Preset Amounts */}
           <View style={styles.presetGrid}>
@@ -238,47 +352,6 @@ export default function WalletDepositScreen() {
               </TouchableOpacity>
             ))}
           </View>
-
-          {/* Custom Amount Input */}
-          <TouchableOpacity
-            style={styles.customAmountButton}
-            onPress={() => {
-              Alert.prompt(
-                "Enter Custom Amount",
-                "Minimum ₱100, Maximum ₱100,000",
-                [
-                  { text: "Cancel", style: "cancel" },
-                  {
-                    text: "OK",
-                    onPress: (value?: string) => {
-                      if (value) {
-                        const amount = parseFloat(value);
-                        if (
-                          !isNaN(amount) &&
-                          amount >= 100 &&
-                          amount <= 100000
-                        ) {
-                          setDepositAmount(amount.toString());
-                        } else {
-                          Alert.alert(
-                            "Invalid Amount",
-                            "Please enter a valid amount between ₱100 and ₱100,000."
-                          );
-                        }
-                      }
-                    },
-                  },
-                ],
-                "plain-text",
-                depositAmount
-              );
-            }}
-          >
-            <Ionicons name="create-outline" size={20} color={Colors.primary} />
-            <Text style={styles.customAmountButtonText}>
-              Enter Custom Amount
-            </Text>
-          </TouchableOpacity>
         </View>
 
         {/* Payment Method Info */}
@@ -292,8 +365,9 @@ export default function WalletDepositScreen() {
             <Text style={styles.infoTitle}>Payment Method</Text>
           </View>
           <Text style={styles.infoText}>
-            You will be redirected to Xendit's secure payment page to complete
-            your deposit via GCash, bank transfer, or other payment methods.
+            {
+              "You will be redirected to Xendit's secure payment page to complete your deposit via GCash, bank transfer, or other payment methods."
+            }
           </Text>
         </View>
 
@@ -301,20 +375,17 @@ export default function WalletDepositScreen() {
         <TouchableOpacity
           style={[
             styles.depositButton,
-            (!depositAmount || isProcessing) && styles.depositButtonDisabled,
+            isDepositDisabled && styles.depositButtonDisabled,
           ]}
           onPress={handleDeposit}
-          disabled={!depositAmount || isProcessing}
+          disabled={isDepositDisabled}
         >
           {isProcessing ? (
             <ActivityIndicator color={Colors.white} />
           ) : (
             <>
               <Text style={styles.depositButtonText}>
-                Deposit{" "}
-                {depositAmount
-                  ? formatCurrency(parseFloat(depositAmount))
-                  : "₱0"}
+                Deposit {formattedDepositAmount}
               </Text>
               <Ionicons name="arrow-forward" size={20} color={Colors.white} />
             </>
@@ -349,19 +420,12 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
-  backButton: {
-    padding: Spacing.xs,
-  },
-  headerTitle: {
-    fontSize: Typography.fontSize.xl,
-    fontWeight: Typography.fontWeight.bold as any,
-    color: Colors.textPrimary,
-  },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
     padding: Spacing.md,
+    paddingBottom: Spacing.xl,
   },
   section: {
     marginTop: Spacing.lg,
@@ -395,9 +459,15 @@ const styles = StyleSheet.create({
     marginRight: Spacing.xs,
   },
   amountInput: {
+    flex: 1,
     fontSize: 48,
     fontWeight: Typography.fontWeight.bold as any,
-    color: Colors.primary,
+    color: Colors.textPrimary,
+  },
+  amountError: {
+    color: Colors.error,
+    fontSize: Typography.fontSize.sm,
+    marginTop: Spacing.xs,
   },
   presetGrid: {
     flexDirection: "row",
@@ -426,23 +496,6 @@ const styles = StyleSheet.create({
   },
   presetButtonTextActive: {
     color: Colors.white,
-  },
-  customAmountButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: Colors.white,
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderStyle: "dashed",
-    gap: Spacing.sm,
-  },
-  customAmountButtonText: {
-    fontSize: Typography.fontSize.base,
-    color: Colors.primary,
-    fontWeight: Typography.fontWeight.semiBold as any,
   },
   infoCard: {
     backgroundColor: Colors.backgroundSecondary,

@@ -102,8 +102,9 @@ export default function CashPaymentPendingCard({
           color={Colors.textSecondary}
         />
         <Text style={styles.infoNoteText}>
-          You'll receive a notification once the payment is verified and
-          released to your wallet.
+          {
+            "You'll receive a notification once the payment is verified and released to your wallet."
+          }
         </Text>
       </View>
     </View>

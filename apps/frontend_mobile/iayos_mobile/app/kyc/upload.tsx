@@ -251,7 +251,7 @@ export default function KYCUploadScreen() {
       <View style={styles.stepContent}>
         <Text style={styles.stepTitle}>Select Your Government ID</Text>
         <Text style={styles.stepDescription}>
-          Choose the primary ID document you'll use for verification
+          {"Choose the primary ID document you'll use for verification"}
         </Text>
 
         <View style={styles.idOptions}>
@@ -600,7 +600,7 @@ const styles = StyleSheet.create({
   },
   stepLabel: {
     fontSize: Typography.fontSize.xs,
-    
+
     color: Colors.textHint,
   },
   stepLabelActive: {
@@ -617,13 +617,13 @@ const styles = StyleSheet.create({
   },
   stepTitle: {
     fontSize: Typography.fontSize.xl,
-    
+
     color: Colors.textPrimary,
     marginBottom: Spacing.sm,
   },
   stepDescription: {
     fontSize: Typography.fontSize.base,
-    
+
     color: Colors.textSecondary,
     marginBottom: Spacing.lg,
   },
@@ -635,7 +635,7 @@ const styles = StyleSheet.create({
   },
   sectionDescription: {
     fontSize: Typography.fontSize.sm,
-    
+
     color: Colors.textSecondary,
     marginBottom: Spacing.md,
   },
@@ -686,7 +686,7 @@ const styles = StyleSheet.create({
   },
   idDescription: {
     fontSize: Typography.fontSize.sm,
-    
+
     color: Colors.textSecondary,
   },
   chipContainer: {
@@ -716,7 +716,7 @@ const styles = StyleSheet.create({
   },
   reviewText: {
     fontSize: Typography.fontSize.base,
-    
+
     color: Colors.textPrimary,
   },
   warningCard: {
@@ -738,7 +738,7 @@ const styles = StyleSheet.create({
   },
   warningText: {
     fontSize: Typography.fontSize.sm,
-    
+
     color: Colors.textPrimary,
     lineHeight: 20,
   },
@@ -749,21 +749,21 @@ const styles = StyleSheet.create({
   },
   uploadingTitle: {
     fontSize: Typography.fontSize.xl,
-    
+
     color: Colors.textPrimary,
     marginTop: Spacing.lg,
     marginBottom: Spacing.sm,
   },
   uploadingDescription: {
     fontSize: Typography.fontSize.base,
-    
+
     color: Colors.textSecondary,
     textAlign: "center",
     marginBottom: Spacing.xl,
   },
   uploadingNote: {
     fontSize: Typography.fontSize.sm,
-    
+
     color: Colors.textHint,
     textAlign: "center",
     marginTop: Spacing.lg,
@@ -775,14 +775,14 @@ const styles = StyleSheet.create({
   },
   completeTitle: {
     fontSize: Typography.fontSize.xl,
-    
+
     color: Colors.success,
     marginTop: Spacing.lg,
     marginBottom: Spacing.sm,
   },
   completeDescription: {
     fontSize: Typography.fontSize.base,
-    
+
     color: Colors.textPrimary,
     textAlign: "center",
     paddingHorizontal: Spacing.xl,

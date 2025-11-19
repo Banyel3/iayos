@@ -226,6 +226,51 @@ def get_mobile_job_detail(job_id: int, user: Accounts) -> Dict[str, Any]:
             except Exception as e:
                 print(f"   ⚠️ Could not fetch assigned worker: {str(e)}")
 
+        # Capture completed-job reviews (client ↔ worker)
+        reviews_payload = None
+        if job.status == 'COMPLETED':
+            print("   🔎 Fetching job reviews for completed job...")
+            profile_cache: Dict[int, Dict[str, Any]] = {}
+
+            def build_account_snapshot(account: Accounts) -> Dict[str, Any]:
+                cached = profile_cache.get(account.accountID)
+                if cached:
+                    return cached
+
+                profile = Profile.objects.filter(accountFK=account).first()
+                name = "" if not profile else f"{profile.firstName or ''} {profile.lastName or ''}".strip()
+                snapshot = {
+                    'id': account.accountID,
+                    'name': name or account.email,
+                    'avatar': profile.profileImg if profile and profile.profileImg else None,
+                }
+                profile_cache[account.accountID] = snapshot
+                return snapshot
+
+            client_to_worker = None
+            worker_to_client = None
+            reviews_qs = JobReview.objects.filter(jobID=job, status='ACTIVE').select_related('reviewerID', 'revieweeID')
+            for review in reviews_qs:
+                formatted_review = {
+                    'rating': float(review.rating) if review.rating is not None else None,
+                    'comment': review.comment,
+                    'created_at': review.createdAt.isoformat() if review.createdAt else None,
+                    'reviewer_type': review.reviewerType,
+                    'reviewer': build_account_snapshot(review.reviewerID),
+                    'reviewee': build_account_snapshot(review.revieweeID),
+                }
+
+                if review.reviewerType == JobReview.ReviewerType.CLIENT:
+                    client_to_worker = formatted_review
+                elif review.reviewerType == JobReview.ReviewerType.WORKER:
+                    worker_to_client = formatted_review
+
+            if client_to_worker or worker_to_client:
+                reviews_payload = {
+                    'client_to_worker': client_to_worker,
+                    'worker_to_client': worker_to_client,
+                }
+
         job_data = {
             'id': job.jobID,
             'title': job.title,
@@ -254,6 +299,9 @@ def get_mobile_job_detail(job_id: int, user: Accounts) -> Dict[str, Any]:
             'downpayment_amount': float(job.budget * Decimal('0.5')),
             'remaining_amount': float(job.budget * Decimal('0.5')),
         }
+
+        if reviews_payload:
+            job_data['reviews'] = reviews_payload
 
         print(f"   ✅ Returning job data: ID={job_data['id']}, Title={job_data['title']}")
         return {

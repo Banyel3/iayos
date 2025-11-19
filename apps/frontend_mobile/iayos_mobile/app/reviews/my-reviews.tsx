@@ -25,12 +25,12 @@ import {
   Card,
   Divider,
 } from "react-native-paper";
+import { ReviewCard, StarRating, RatingBreakdown } from "@/components/Reviews";
 import {
-  ReviewCard,
-  StarRating,
-  RatingBreakdown,
-} from "@/components/Reviews";
-import { useMyReviews, useReportReview, useEditReview } from "@/lib/hooks/useReviews";
+  useMyReviews,
+  useReportReview,
+  useEditReview,
+} from "@/lib/hooks/useReviews";
 import { router } from "expo-router";
 
 type TabType = "given" | "received";
@@ -39,6 +39,7 @@ export default function MyReviewsScreen() {
   const [activeTab, setActiveTab] = useState<TabType>("given");
 
   const { data, isLoading, error, refetch, isRefetching } = useMyReviews();
+  const reportReview = useReportReview();
 
   const handleReport = (reviewId: number) => {
     Alert.alert(
@@ -71,10 +72,8 @@ export default function MyReviewsScreen() {
   };
 
   const submitReport = (reviewId: number, reason: string) => {
-    const reportMutation = useReportReview(reviewId);
-
-    reportMutation.mutate(
-      { reason: reason as any, details: "" },
+    reportReview.mutate(
+      { reviewId, reason: reason as any, details: "" },
       {
         onSuccess: () => {
           Alert.alert("Review Reported", "Thank you for your feedback");
@@ -179,7 +178,9 @@ export default function MyReviewsScreen() {
         {reviewsToShow && reviewsToShow.length > 0 ? (
           <>
             <Text style={styles.sectionTitle}>
-              {activeTab === "given" ? "Reviews you've written" : "Reviews about you"}
+              {activeTab === "given"
+                ? "Reviews you've written"
+                : "Reviews about you"}
             </Text>
             {reviewsToShow.map((review) => (
               <ReviewCard

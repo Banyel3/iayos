@@ -14,7 +14,8 @@ import {
   useWalletBalance,
   useWalletTransactions,
 } from "@/lib/hooks/useHomeData";
-import { useQueryClient } from "@tanstack/react-query";
+import { fetchProfileMetrics } from "@/lib/api/profile";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 // Extended User interface for profile page
 interface ProfileUser extends User {
@@ -61,6 +62,42 @@ interface ClientProfile {
   }>;
 }
 
+type MetricTone = "default" | "success" | "warning";
+
+interface MetricTileProps {
+  label: string;
+  value: string;
+  helper?: string;
+  tone?: MetricTone;
+  className?: string;
+}
+
+const MetricTile = ({
+  label,
+  value,
+  helper,
+  tone = "default",
+  className = "",
+}: MetricTileProps) => (
+  <div
+    className={`rounded-lg border border-gray-200 bg-gray-50 p-2 ${className}`}
+  >
+    <p className="text-[11px] text-gray-600">{label}</p>
+    <p
+      className={`text-sm font-semibold ${
+        tone === "success"
+          ? "text-green-600"
+          : tone === "warning"
+            ? "text-amber-600"
+            : "text-gray-900"
+      }`}
+    >
+      {value}
+    </p>
+    {helper && <p className="text-[10px] text-gray-500 mt-0.5">{helper}</p>}
+  </div>
+);
+
 const ProfilePage = () => {
   const { user: authUser, isAuthenticated, isLoading, logout } = useAuth();
   const user = authUser as ProfileUser; // Type assertion for this page
@@ -85,6 +122,14 @@ const ProfilePage = () => {
     useWalletBalance(isAuthenticated);
   const { data: transactions = [], isLoading: isLoadingTransactions } =
     useWalletTransactions(isAuthenticated && activeTab === "transaction");
+  const { data: profileMetrics, isLoading: isLoadingProfileMetrics } = useQuery(
+    {
+      queryKey: ["profileMetrics"],
+      queryFn: fetchProfileMetrics,
+      enabled: Boolean(isAuthenticated),
+      staleTime: 5 * 60 * 1000,
+    }
+  );
 
   // Modal states
   const [showAddFundsModal, setShowAddFundsModal] = useState(false);
@@ -309,6 +354,81 @@ const ProfilePage = () => {
   };
 
   const isClient = user?.profile_data?.profileType === "CLIENT";
+  const paymentVerified = profileMetrics?.payment_method_verified ?? false;
+  const responseRateValue =
+    typeof profileMetrics?.response_rate === "number"
+      ? profileMetrics.response_rate
+      : null;
+  const responseSample = profileMetrics?.response_rate_sample ?? 0;
+  const resolvedRatingValue =
+    typeof profileMetrics?.rating === "number"
+      ? profileMetrics.rating
+      : (isWorker ? workerData.rating : clientData.rating) || 0;
+  const resolvedRatingCount =
+    profileMetrics?.total_reviews ??
+    (isWorker ? 0 : Math.max(0, Math.round(clientData.feedbackCount || 0)));
+  const ratingSummaryText =
+    resolvedRatingCount > 0
+      ? `${resolvedRatingValue.toFixed(1)} (${resolvedRatingCount} review${
+          resolvedRatingCount === 1 ? "" : "s"
+        })`
+      : resolvedRatingValue > 0
+        ? `${resolvedRatingValue.toFixed(1)} rating`
+        : "No reviews yet";
+
+  const TrustStats = ({ className = "" }: { className?: string }) => {
+    if (!profileMetrics && !isLoadingProfileMetrics) {
+      return null;
+    }
+
+    const ratingDisplay =
+      resolvedRatingCount > 0 || resolvedRatingValue > 0
+        ? `${resolvedRatingValue.toFixed(1)} ★`
+        : isLoadingProfileMetrics
+          ? "Loading..."
+          : "No reviews yet";
+
+    const responseValueDisplay =
+      responseRateValue !== null
+        ? `${responseRateValue}%`
+        : isLoadingProfileMetrics
+          ? "Loading..."
+          : "No data yet";
+
+    const responseHelper =
+      responseRateValue !== null
+        ? `${responseSample} application${responseSample === 1 ? "" : "s"}`
+        : "Respond to applications to build trust";
+
+    return (
+      <div className={`grid grid-cols-2 gap-2 ${className}`}>
+        <MetricTile
+          label="Payment Method"
+          value={paymentVerified ? "Verified" : "Not Verified"}
+          helper={paymentVerified ? "Wallet ready" : "Complete a deposit"}
+          tone={paymentVerified ? "success" : "default"}
+        />
+        <MetricTile
+          label="Response Rate"
+          value={responseValueDisplay}
+          helper={responseHelper}
+          tone={responseRateValue !== null ? "success" : "default"}
+        />
+        <MetricTile
+          label="Average Rating"
+          value={ratingDisplay}
+          helper={
+            resolvedRatingCount > 0
+              ? `${resolvedRatingCount} review${
+                  resolvedRatingCount === 1 ? "" : "s"
+                }`
+              : undefined
+          }
+          className="col-span-2"
+        />
+      </div>
+    );
+  };
 
   // Render worker profile
   const renderWorkerProfile = () => (
@@ -388,6 +508,8 @@ const ProfilePage = () => {
             </button>
           </div>
 
+          <TrustStats />
+
           {/* Edit Profile Button */}
           <button
             onClick={() => router.push("/dashboard/profile/edit")}
@@ -464,9 +586,7 @@ const ProfilePage = () => {
                 </div>
                 <div className="flex items-center space-x-1">
                   <span>⭐</span>
-                  <span>
-                    {workerData.rating} {workerData.ratingsCount}
-                  </span>
+                  <span>{ratingSummaryText}</span>
                 </div>
               </div>
 
@@ -642,6 +762,8 @@ const ProfilePage = () => {
               Log Out
             </button>
           </div>
+
+          <TrustStats className="mt-3" />
         </div>
       </div>
 
@@ -650,10 +772,7 @@ const ProfilePage = () => {
         <div className="flex items-center justify-center space-x-1 text-yellow-500">
           <span className="text-xs">⭐</span>
           <span className="text-xs font-semibold text-gray-900">
-            {clientData.feedbackCount}
-          </span>
-          <span className="text-xs text-gray-600">
-            {clientData.ratingsCount}
+            {ratingSummaryText}
           </span>
         </div>
       </div>
@@ -810,6 +929,7 @@ const ProfilePage = () => {
                     >
                       Edit Profile
                     </button>
+                    <TrustStats className="mt-4" />
                   </>
                 )}
 
@@ -842,6 +962,7 @@ const ProfilePage = () => {
                     >
                       Edit Profile
                     </button>
+                    <TrustStats className="mt-4" />
                   </div>
                 )}
               </div>
@@ -911,9 +1032,7 @@ const ProfilePage = () => {
                       </div>
                       <div className="flex items-center space-x-2">
                         <span>⭐</span>
-                        <span>
-                          {workerData.rating} {workerData.ratingsCount}
-                        </span>
+                        <span>{ratingSummaryText}</span>
                       </div>
                     </div>
 

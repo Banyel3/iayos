@@ -1,5 +1,7 @@
 import { API_BASE_URL } from "./config";
 
+export type ConversationFilter = "all" | "unread" | "archived";
+
 // API Response types
 export interface JobInfo {
   id: number;
@@ -76,7 +78,7 @@ interface SendMessageResponse {
  * @param filter - 'all', 'unread', or 'archived'
  */
 export const fetchConversations = async (
-  filter: "all" | "unread" | "archived" = "all"
+  filter: ConversationFilter = "all"
 ): Promise<Conversation[]> => {
   try {
     const response = await fetch(

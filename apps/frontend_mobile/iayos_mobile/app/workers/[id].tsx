@@ -498,7 +498,7 @@ export default function WorkerDetailScreen() {
                   color={Colors.textHint}
                 />
                 <Text style={styles.emptyStateText}>
-                  This worker doesn't have any certifications yet
+                  {"This worker doesn't have any certifications yet"}
                 </Text>
               </View>
             )}
@@ -566,7 +566,7 @@ export default function WorkerDetailScreen() {
                   color={Colors.textHint}
                 />
                 <Text style={styles.emptyStateText}>
-                  This worker doesn't have any materials or products listed
+                  {"This worker doesn't have any materials or products listed"}
                 </Text>
               </View>
             )}

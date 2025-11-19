@@ -3,8 +3,8 @@
  * Manage notification preferences and do-not-disturb schedule
  */
 
-import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Platform } from 'react-native';
+import React, { useState, useEffect } from "react";
+import { View, StyleSheet, ScrollView, Platform } from "react-native";
 import {
   Text,
   Appbar,
@@ -15,25 +15,32 @@ import {
   Portal,
   Dialog,
   ActivityIndicator,
-} from 'react-native-paper';
-import { router } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import * as Haptics from 'expo-haptics';
-import Toast from 'react-native-toast-message';
-import DateTimePicker from '@react-native-community/datetimepicker';
+} from "react-native-paper";
+import { router } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
+import * as Haptics from "expo-haptics";
+import Toast from "react-native-toast-message";
+import DateTimePicker from "@react-native-community/datetimepicker";
 
 import {
   useNotificationSettings,
   useUpdateNotificationSettings,
   NotificationSettings,
-} from '@/lib/hooks/useNotifications';
+} from "@/lib/hooks/useNotifications";
 
 export default function NotificationSettingsScreen() {
-  const { data: settings, isLoading, isError, error } = useNotificationSettings();
+  const {
+    data: settings,
+    isLoading,
+    isError,
+    error,
+  } = useNotificationSettings();
   const updateSettingsMutation = useUpdateNotificationSettings();
 
   // Local state for settings
-  const [localSettings, setLocalSettings] = useState<Partial<NotificationSettings>>({
+  const [localSettings, setLocalSettings] = useState<
+    Partial<NotificationSettings>
+  >({
     pushEnabled: true,
     soundEnabled: true,
     jobUpdates: true,
@@ -70,16 +77,16 @@ export default function NotificationSettingsScreen() {
       {
         onSuccess: () => {
           Toast.show({
-            type: 'success',
-            text1: 'Settings updated',
+            type: "success",
+            text1: "Settings updated",
           });
         },
         onError: () => {
           // Revert on error
           setLocalSettings(localSettings);
           Toast.show({
-            type: 'error',
-            text1: 'Failed to update settings',
+            type: "error",
+            text1: "Failed to update settings",
           });
         },
       }
@@ -87,8 +94,8 @@ export default function NotificationSettingsScreen() {
   };
 
   // Update do-not-disturb time
-  const updateDndTime = (type: 'start' | 'end', time: string | null) => {
-    const key = type === 'start' ? 'doNotDisturbStart' : 'doNotDisturbEnd';
+  const updateDndTime = (type: "start" | "end", time: string | null) => {
+    const key = type === "start" ? "doNotDisturbStart" : "doNotDisturbEnd";
     const updatedSettings = { ...localSettings, [key]: time };
     setLocalSettings(updatedSettings);
 
@@ -97,8 +104,8 @@ export default function NotificationSettingsScreen() {
       {
         onSuccess: () => {
           Toast.show({
-            type: 'success',
-            text1: 'Do Not Disturb updated',
+            type: "success",
+            text1: "Do Not Disturb updated",
           });
         },
       }
@@ -121,8 +128,8 @@ export default function NotificationSettingsScreen() {
       {
         onSuccess: () => {
           Toast.show({
-            type: 'success',
-            text1: 'Do Not Disturb cleared',
+            type: "success",
+            text1: "Do Not Disturb cleared",
           });
         },
       }
@@ -133,16 +140,16 @@ export default function NotificationSettingsScreen() {
   const handleTimeChange = (
     event: any,
     selectedTime: Date | undefined,
-    type: 'start' | 'end'
+    type: "start" | "end"
   ) => {
-    if (Platform.OS === 'android') {
+    if (Platform.OS === "android") {
       setShowStartTimePicker(false);
       setShowEndTimePicker(false);
     }
 
     if (selectedTime) {
-      const hours = selectedTime.getHours().toString().padStart(2, '0');
-      const minutes = selectedTime.getMinutes().toString().padStart(2, '0');
+      const hours = selectedTime.getHours().toString().padStart(2, "0");
+      const minutes = selectedTime.getMinutes().toString().padStart(2, "0");
       const timeString = `${hours}:${minutes}`;
       updateDndTime(type, timeString);
     }
@@ -150,14 +157,14 @@ export default function NotificationSettingsScreen() {
 
   // Format time for display
   const formatTime = (time: string | null | undefined) => {
-    if (!time) return 'Not set';
+    if (!time) return "Not set";
     return time;
   };
 
   // Parse time string to Date
   const parseTime = (time: string | null | undefined): Date => {
     if (!time) return new Date();
-    const [hours, minutes] = time.split(':').map(Number);
+    const [hours, minutes] = time.split(":").map(Number);
     const date = new Date();
     date.setHours(hours);
     date.setMinutes(minutes);
@@ -167,7 +174,7 @@ export default function NotificationSettingsScreen() {
   // Error state
   if (isError) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={styles.container} edges={["top"]}>
         <Appbar.Header>
           <Appbar.BackAction onPress={() => router.back()} />
           <Appbar.Content title="Notification Settings" />
@@ -181,7 +188,7 @@ export default function NotificationSettingsScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       <Appbar.Header>
         <Appbar.BackAction onPress={() => router.back()} />
         <Appbar.Content title="Notification Settings" />
@@ -204,7 +211,7 @@ export default function NotificationSettingsScreen() {
               right={() => (
                 <Switch
                   value={localSettings.pushEnabled}
-                  onValueChange={() => toggleSetting('pushEnabled')}
+                  onValueChange={() => toggleSetting("pushEnabled")}
                   color="#007AFF"
                 />
               )}
@@ -217,7 +224,7 @@ export default function NotificationSettingsScreen() {
               right={() => (
                 <Switch
                   value={localSettings.soundEnabled}
-                  onValueChange={() => toggleSetting('soundEnabled')}
+                  onValueChange={() => toggleSetting("soundEnabled")}
                   disabled={!localSettings.pushEnabled}
                   color="#007AFF"
                 />
@@ -237,7 +244,7 @@ export default function NotificationSettingsScreen() {
               right={() => (
                 <Switch
                   value={localSettings.jobUpdates}
-                  onValueChange={() => toggleSetting('jobUpdates')}
+                  onValueChange={() => toggleSetting("jobUpdates")}
                   disabled={!localSettings.pushEnabled}
                   color="#007AFF"
                 />
@@ -251,7 +258,7 @@ export default function NotificationSettingsScreen() {
               right={() => (
                 <Switch
                   value={localSettings.messages}
-                  onValueChange={() => toggleSetting('messages')}
+                  onValueChange={() => toggleSetting("messages")}
                   disabled={!localSettings.pushEnabled}
                   color="#007AFF"
                 />
@@ -265,7 +272,7 @@ export default function NotificationSettingsScreen() {
               right={() => (
                 <Switch
                   value={localSettings.payments}
-                  onValueChange={() => toggleSetting('payments')}
+                  onValueChange={() => toggleSetting("payments")}
                   disabled={!localSettings.pushEnabled}
                   color="#007AFF"
                 />
@@ -279,7 +286,7 @@ export default function NotificationSettingsScreen() {
               right={() => (
                 <Switch
                   value={localSettings.reviews}
-                  onValueChange={() => toggleSetting('reviews')}
+                  onValueChange={() => toggleSetting("reviews")}
                   disabled={!localSettings.pushEnabled}
                   color="#007AFF"
                 />
@@ -293,7 +300,7 @@ export default function NotificationSettingsScreen() {
               right={() => (
                 <Switch
                   value={localSettings.kycUpdates}
-                  onValueChange={() => toggleSetting('kycUpdates')}
+                  onValueChange={() => toggleSetting("kycUpdates")}
                   disabled={!localSettings.pushEnabled}
                   color="#007AFF"
                 />
@@ -327,7 +334,8 @@ export default function NotificationSettingsScreen() {
               }}
               disabled={!localSettings.pushEnabled}
             />
-            {(localSettings.doNotDisturbStart || localSettings.doNotDisturbEnd) && (
+            {(localSettings.doNotDisturbStart ||
+              localSettings.doNotDisturbEnd) && (
               <>
                 <Divider />
                 <View style={styles.clearButton}>
@@ -346,8 +354,9 @@ export default function NotificationSettingsScreen() {
           {/* Info Text */}
           <View style={styles.infoContainer}>
             <Text style={styles.infoText}>
-              During Do Not Disturb hours, you won't receive push notifications. You
-              can still view notifications in the app.
+              {
+                "During Do Not Disturb hours, you won't receive push notifications. You can still view notifications in the app."
+              }
             </Text>
           </View>
         </ScrollView>
@@ -359,8 +368,8 @@ export default function NotificationSettingsScreen() {
           value={parseTime(localSettings.doNotDisturbStart)}
           mode="time"
           is24Hour={true}
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={(event, time) => handleTimeChange(event, time, 'start')}
+          display={Platform.OS === "ios" ? "spinner" : "default"}
+          onChange={(event, time) => handleTimeChange(event, time, "start")}
         />
       )}
 
@@ -369,8 +378,8 @@ export default function NotificationSettingsScreen() {
           value={parseTime(localSettings.doNotDisturbEnd)}
           mode="time"
           is24Hour={true}
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={(event, time) => handleTimeChange(event, time, 'end')}
+          display={Platform.OS === "ios" ? "spinner" : "default"}
+          onChange={(event, time) => handleTimeChange(event, time, "end")}
         />
       )}
     </SafeAreaView>
@@ -380,42 +389,42 @@ export default function NotificationSettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: "#F5F5F5",
   },
   scrollView: {
     flex: 1,
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   loadingText: {
     marginTop: 12,
     fontSize: 16,
-    color: '#666',
+    color: "#666",
   },
   errorContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     paddingHorizontal: 32,
   },
   errorText: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#F44336',
+    fontWeight: "600",
+    color: "#F44336",
     marginBottom: 8,
-    textAlign: 'center',
+    textAlign: "center",
   },
   errorSubtext: {
     fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
+    color: "#666",
+    textAlign: "center",
   },
   sectionDivider: {
     height: 8,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: "#F5F5F5",
   },
   clearButton: {
     padding: 16,
@@ -426,8 +435,8 @@ const styles = StyleSheet.create({
   },
   infoText: {
     fontSize: 13,
-    color: '#666',
+    color: "#666",
     lineHeight: 18,
-    textAlign: 'center',
+    textAlign: "center",
   },
 });

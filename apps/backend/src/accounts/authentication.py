@@ -65,7 +65,45 @@ class CookieJWTAuth:
         print(f"[AUTH] All cookies: {dict(request.COOKIES)}")
 
         raw_token = request.COOKIES.get('access')
+        refresh_token = request.COOKIES.get('refresh')
         print(f"[AUTH] Access token present: {bool(raw_token)}")
+
+        if not raw_token and refresh_token:
+            print("[AUTH] Access token missing, attempting refresh token fallback")
+            try:
+                refresh_payload = jwt.decode(refresh_token, settings.SECRET_KEY, algorithms=["HS256"])
+                user_id = refresh_payload.get('user_id')
+                if not user_id:
+                    print("[FAIL] No user_id in refresh token payload")
+                    return None
+
+                user = Accounts.objects.get(accountID=user_id)
+                print(f"[SUCCESS] Refresh token validated - User: {user.email}")
+
+                # Generate a short-lived access token so downstream code can rely on request.auth
+                new_access_payload = {
+                    'user_id': user.accountID,
+                    'email': user.email,
+                    'exp': datetime.utcnow() + timedelta(hours=1),
+                    'iat': datetime.utcnow(),
+                }
+                raw_token = jwt.encode(new_access_payload, settings.SECRET_KEY, algorithm='HS256')
+                # Attach the regenerated token so views can optionally set the cookie on response
+                setattr(request, 'refreshed_access_token', raw_token)
+                print("[AUTH] Issued new access token from refresh fallback")
+            except Accounts.DoesNotExist:
+                print("[FAIL] User not found via refresh token")
+                return None
+            except jwt.ExpiredSignatureError:
+                print("[FAIL] Refresh token has expired")
+                return None
+            except jwt.InvalidTokenError as e:
+                print(f"[FAIL] Invalid refresh token: {str(e)}")
+                return None
+            except Exception as e:
+                print(f"[ERROR] Refresh token fallback failed: {str(e)}")
+                traceback.print_exc()
+                return None
 
         if not raw_token:
             print("[FAIL] No access token in cookies")

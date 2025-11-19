@@ -91,6 +91,7 @@ export const useCreateFinalPayment = () => {
         queryKey: ["jobPaymentStatus", variables.jobId],
       });
       queryClient.invalidateQueries({ queryKey: ["walletBalance"] });
+      queryClient.invalidateQueries({ queryKey: ["wallet"] });
       queryClient.invalidateQueries({ queryKey: ["paymentHistory"] });
       queryClient.invalidateQueries({ queryKey: ["activeJobs"] });
     },

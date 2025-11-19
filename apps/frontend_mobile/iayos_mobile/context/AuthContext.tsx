@@ -6,7 +6,7 @@ import React, {
   ReactNode,
 } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { User, AuthContextType } from "../types";
+import { User, AuthContextType, RegisterPayload } from "../types";
 import { ENDPOINTS, apiRequest } from "../lib/api/config";
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -118,20 +118,33 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   // Register function
-  const register = async (
-    email: string,
-    password: string,
-    confirmPassword: string
-  ): Promise<boolean> => {
+  const register = async (payload: RegisterPayload): Promise<boolean> => {
     try {
+      const { confirmPassword, ...rest } = payload;
+      const requestPayload = {
+        ...rest,
+        middleName: rest.middleName?.trim() || "",
+        country: rest.country || "Philippines",
+      };
+
       const response = await apiRequest(ENDPOINTS.REGISTER, {
         method: "POST",
-        body: JSON.stringify({ email, password, confirmPassword }),
+        body: JSON.stringify(requestPayload),
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Registration failed");
+        let message = "Registration failed";
+        try {
+          const errorData = await response.json();
+          message =
+            errorData?.error?.[0]?.message ||
+            errorData?.message ||
+            errorData?.detail ||
+            message;
+        } catch (parseError) {
+          console.error("Failed to parse registration error:", parseError);
+        }
+        throw new Error(message);
       }
 
       return true;

@@ -344,7 +344,7 @@ export default function ChatScreen() {
       <View style={styles.offlineIndicator}>
         <Ionicons name="cloud-offline-outline" size={16} color={Colors.white} />
         <Text style={styles.offlineText}>
-          You're offline. Messages will be sent when you reconnect.
+          {"You're offline. Messages will be sent when you reconnect."}
         </Text>
       </View>
     );

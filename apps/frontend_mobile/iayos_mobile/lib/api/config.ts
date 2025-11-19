@@ -81,6 +81,7 @@ export const ENDPOINTS = {
   PORTFOLIO_REORDER: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/portfolio/reorder`,
   PORTFOLIO_DELETE: (id: number) =>
     `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/portfolio/${id}`,
+  PROFILE_METRICS: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/metrics`,
 
   // Phase 6: Certifications & Materials
   CERTIFICATIONS: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/certifications`,
@@ -197,6 +198,7 @@ export const apiRequest = async (
   const {
     timeout = DEFAULT_REQUEST_TIMEOUT,
     signal: userSignal,
+    headers: userHeaders,
     ...rest
   } = options as any;
 
@@ -222,7 +224,7 @@ export const apiRequest = async (
 
   const defaultHeaders: Record<string, string> = {
     "Content-Type": "application/json",
-    ...(rest.headers as Record<string, string> | undefined),
+    ...(userHeaders as Record<string, string> | undefined),
   };
 
   if (token) {

@@ -1,7 +1,7 @@
 from ninja import Router, File
 from ninja.files import UploadedFile
 from ninja.responses import Response
-from accounts.authentication import cookie_auth
+from accounts.authentication import cookie_auth, dual_auth
 from accounts.models import Wallet, Transaction, Profile
 from .schemas import (
     DepositFundsSchema,
@@ -610,7 +610,7 @@ def get_participant_info(profile: Profile, job_title: str = None) -> dict:
     }
 
 
-@router.get("/chat/conversations", auth=cookie_auth)
+@router.get("/chat/conversations", auth=dual_auth)
 def get_conversations(request, filter: str = "all"):
     """
     Get all job-based conversations for the current user's profile.
@@ -736,7 +736,7 @@ def get_conversations(request, filter: str = "all"):
         )
 
 
-@router.get("/chat/conversations/{conversation_id}", auth=cookie_auth)
+@router.get("/chat/conversations/{conversation_id}", auth=dual_auth)
 def get_conversation_messages(request, conversation_id: int):
     """
     Get all messages in a specific job conversation.
@@ -862,7 +862,7 @@ def get_conversation_messages(request, conversation_id: int):
         )
 
 
-@router.post("/chat/messages", auth=cookie_auth)
+@router.post("/chat/messages", auth=dual_auth)
 def send_message(request, data: SendMessageSchema):
     """
     Send a new message within an existing job conversation.
@@ -931,7 +931,7 @@ def send_message(request, data: SendMessageSchema):
         )
 
 
-@router.post("/chat/messages/mark-read", auth=cookie_auth)
+@router.post("/chat/messages/mark-read", auth=dual_auth)
 def mark_messages_as_read(request, data: MarkAsReadSchema):
     """
     Mark messages in a job conversation as read.
@@ -1003,7 +1003,7 @@ def mark_messages_as_read(request, data: MarkAsReadSchema):
         )
 
 
-@router.get("/chat/unread-count", auth=cookie_auth)
+@router.get("/chat/unread-count", auth=dual_auth)
 def get_unread_count(request):
     """
     Get total unread message count for the current user across all job conversations.
@@ -1044,7 +1044,7 @@ def get_unread_count(request):
         )
 
 
-@router.post("/chat/conversations/{conversation_id}/toggle-archive", auth=cookie_auth)
+@router.post("/chat/conversations/{conversation_id}/toggle-archive", auth=dual_auth)
 def toggle_conversation_archive(request, conversation_id: int):
     """
     Toggle archive status for a conversation for the current user.
@@ -1106,7 +1106,7 @@ def toggle_conversation_archive(request, conversation_id: int):
         )
 
 
-@router.post("/chat/{conversation_id}/upload-image", auth=cookie_auth)
+@router.post("/chat/{conversation_id}/upload-image", auth=dual_auth)
 def upload_chat_image(request, conversation_id: int, image: UploadedFile = File(...)):
     """
     Upload an image to a chat conversation.

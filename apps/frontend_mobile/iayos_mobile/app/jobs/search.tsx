@@ -708,7 +708,7 @@ export default function SearchJobsScreen() {
               color={Colors.textSecondary}
             />
             <Text style={styles.emptyStateText}>
-              No jobs found for "{searchQuery}"
+              {`No jobs found for "${searchQuery}"`}
             </Text>
             <Text style={styles.emptyStateSubtext}>
               Try adjusting your search or filters

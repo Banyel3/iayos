@@ -96,7 +96,14 @@ export interface Notification {
 }
 
 export interface WalletBalance {
+  success: boolean;
   balance: number;
+  pending: number;
+  this_month: number;
+  total_earned: number;
+  last_updated: string | null;
+  currency: string;
+  created: boolean;
 }
 
 export interface Transaction {
@@ -108,16 +115,28 @@ export interface Transaction {
   description?: string;
 }
 
+export interface RegisterPayload {
+  firstName: string;
+  middleName?: string;
+  lastName: string;
+  contactNum: string;
+  birthDate: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+  street_address: string;
+  city: string;
+  province: string;
+  postal_code: string;
+  country?: string;
+}
+
 export interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<boolean>;
-  register: (
-    email: string,
-    password: string,
-    confirmPassword: string
-  ) => Promise<boolean>;
+  register: (payload: RegisterPayload) => Promise<boolean>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<boolean>;
   assignRole: (profileType: "WORKER" | "CLIENT") => Promise<boolean>;

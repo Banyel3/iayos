@@ -4,25 +4,39 @@ import {
   fetchMessages,
   Conversation,
   ChatMessage,
+  ConversationFilter,
 } from "@/lib/api/chat";
+
+export type { ConversationFilter };
 
 // Query Keys
 export const inboxKeys = {
   all: ["inbox"] as const,
-  conversations: () => [...inboxKeys.all, "conversations"] as const,
+  conversations: (filter: ConversationFilter) =>
+    [...inboxKeys.all, "conversations", filter] as const,
   conversation: (id: number) => [...inboxKeys.all, "conversation", id] as const,
   messages: (id: number) => [...inboxKeys.all, "messages", id] as const,
 };
+
+export const CONVERSATION_FILTERS: ConversationFilter[] = [
+  "all",
+  "unread",
+  "archived",
+];
 
 /**
  * Hook to fetch and cache all conversations
  * Tier 3: Dynamic data - 10 minute background refresh
  */
-export function useConversations() {
+export function useConversations(
+  filter: ConversationFilter,
+  options?: { enabled?: boolean }
+) {
   return useQuery({
-    queryKey: inboxKeys.conversations(),
-    queryFn: () => fetchConversations("all"),
-    staleTime: Infinity, // Use cache indefinitely
+    queryKey: inboxKeys.conversations(filter),
+    queryFn: () => fetchConversations(filter),
+    enabled: options?.enabled ?? true,
+    staleTime: 2 * 60 * 1000, // 2 minutes
     gcTime: 24 * 60 * 60 * 1000, // 24 hours
     refetchInterval: 10 * 60 * 1000, // Background refresh every 10 minutes
     refetchIntervalInBackground: true,
@@ -71,7 +85,11 @@ export function useMarkJobComplete() {
     },
     onSuccess: (data, jobId) => {
       // Invalidate conversations to refresh completion status
-      queryClient.invalidateQueries({ queryKey: inboxKeys.conversations() });
+      CONVERSATION_FILTERS.forEach((filter) =>
+        queryClient.invalidateQueries({
+          queryKey: inboxKeys.conversations(filter),
+        })
+      );
       queryClient.invalidateQueries({ queryKey: inboxKeys.messages(jobId) });
     },
   });
@@ -109,7 +127,11 @@ export function useApproveJobCompletion() {
       return response.json();
     },
     onSuccess: (data, variables) => {
-      queryClient.invalidateQueries({ queryKey: inboxKeys.conversations() });
+      CONVERSATION_FILTERS.forEach((filter) =>
+        queryClient.invalidateQueries({
+          queryKey: inboxKeys.conversations(filter),
+        })
+      );
       queryClient.invalidateQueries({
         queryKey: inboxKeys.messages(variables.jobId),
       });
@@ -152,7 +174,11 @@ export function useSubmitReview() {
     },
     onSuccess: (data, variables) => {
       // Invalidate and refetch to get fresh review status
-      queryClient.invalidateQueries({ queryKey: inboxKeys.conversations() });
+      CONVERSATION_FILTERS.forEach((filter) =>
+        queryClient.invalidateQueries({
+          queryKey: inboxKeys.conversations(filter),
+        })
+      );
       queryClient.invalidateQueries({
         queryKey: inboxKeys.messages(variables.jobId),
       });
@@ -180,20 +206,22 @@ export function useOptimisticMessageUpdate() {
     );
 
     // Update conversation's last message
-    queryClient.setQueryData(
-      inboxKeys.conversations(),
-      (old: Conversation[] | undefined) => {
-        if (!old) return old;
-        return old.map((conv) =>
-          conv.id === conversationId
-            ? {
-                ...conv,
-                last_message: newMessage.message_text,
-                last_message_time: newMessage.created_at,
-              }
-            : conv
-        );
-      }
-    );
+    CONVERSATION_FILTERS.forEach((filter) => {
+      queryClient.setQueryData(
+        inboxKeys.conversations(filter),
+        (old: Conversation[] | undefined) => {
+          if (!old) return old;
+          return old.map((conv) =>
+            conv.id === conversationId
+              ? {
+                  ...conv,
+                  last_message: newMessage.message_text,
+                  last_message_time: newMessage.created_at,
+                }
+              : conv
+          );
+        }
+      );
+    });
   };
 }

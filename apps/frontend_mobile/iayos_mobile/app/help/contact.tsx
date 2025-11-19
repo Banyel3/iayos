@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -10,30 +10,30 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-} from 'react-native';
-import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
-import { useContactSupport } from '@/lib/hooks/useContactSupport';
-import { useUserProfile } from '@/lib/hooks/useUserProfile';
-import * as Haptics from 'expo-haptics';
+} from "react-native";
+import { router } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
+import { useContactSupport } from "@/lib/hooks/useContactSupport";
+import { useUserProfile } from "@/lib/hooks/useUserProfile";
+import * as Haptics from "expo-haptics";
 
 const CATEGORIES = [
-  { value: 'account', label: 'Account Issue' },
-  { value: 'payment', label: 'Payment Issue' },
-  { value: 'technical', label: 'Technical Problem' },
-  { value: 'bug', label: 'Report a Bug' },
-  { value: 'feature', label: 'Feature Request' },
-  { value: 'other', label: 'Other' },
+  { value: "account", label: "Account Issue" },
+  { value: "payment", label: "Payment Issue" },
+  { value: "technical", label: "Technical Problem" },
+  { value: "bug", label: "Report a Bug" },
+  { value: "feature", label: "Feature Request" },
+  { value: "other", label: "Other" },
 ];
 
 export default function ContactSupportScreen() {
   const { data: userProfile } = useUserProfile();
   const contactSupport = useContactSupport();
 
-  const [category, setCategory] = useState('');
-  const [subject, setSubject] = useState('');
-  const [message, setMessage] = useState('');
+  const [category, setCategory] = useState("");
+  const [subject, setSubject] = useState("");
+  const [message, setMessage] = useState("");
   const [attachment, setAttachment] = useState<{
     uri: string;
     name: string;
@@ -46,11 +46,11 @@ export default function ContactSupportScreen() {
     if (contactSupport.isSuccess) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert(
-        'Success!',
+        "Success!",
         `Thank you for contacting us. Your support ticket has been created. We'll respond within 24 hours.`,
         [
           {
-            text: 'OK',
+            text: "OK",
             onPress: () => router.back(),
           },
         ]
@@ -60,12 +60,13 @@ export default function ContactSupportScreen() {
 
   const handlePickImage = async () => {
     try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
 
-      if (status !== 'granted') {
+      if (status !== "granted") {
         Alert.alert(
-          'Permission Needed',
-          'Please grant photo library access to attach images.'
+          "Permission Needed",
+          "Please grant photo library access to attach images."
         );
         return;
       }
@@ -82,13 +83,13 @@ export default function ContactSupportScreen() {
         setAttachment({
           uri: asset.uri,
           name: `screenshot_${Date.now()}.jpg`,
-          type: 'image/jpeg',
+          type: "image/jpeg",
         });
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
     } catch (error) {
-      console.error('Image picker error:', error);
-      Alert.alert('Error', 'Failed to pick image');
+      console.error("Image picker error:", error);
+      Alert.alert("Error", "Failed to pick image");
     }
   };
 
@@ -98,10 +99,13 @@ export default function ContactSupportScreen() {
   };
 
   const validateForm = (): string | null => {
-    if (!category) return 'Please select a category';
-    if (subject.trim().length < 5) return 'Subject must be at least 5 characters';
-    if (message.trim().length < 10) return 'Message must be at least 10 characters';
-    if (message.trim().length > 500) return 'Message must be less than 500 characters';
+    if (!category) return "Please select a category";
+    if (subject.trim().length < 5)
+      return "Subject must be at least 5 characters";
+    if (message.trim().length < 10)
+      return "Message must be at least 10 characters";
+    if (message.trim().length > 500)
+      return "Message must be less than 500 characters";
     return null;
   };
 
@@ -110,12 +114,12 @@ export default function ContactSupportScreen() {
 
     if (validationError) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-      Alert.alert('Validation Error', validationError);
+      Alert.alert("Validation Error", validationError);
       return;
     }
 
     if (!userProfile) {
-      Alert.alert('Error', 'User profile not loaded');
+      Alert.alert("Error", "User profile not loaded");
       return;
     }
 
@@ -138,8 +142,8 @@ export default function ContactSupportScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
     >
       <ScrollView
         style={styles.scrollView}
@@ -150,7 +154,9 @@ export default function ContactSupportScreen() {
         <View style={styles.header}>
           <Text style={styles.title}>Contact Support</Text>
           <Text style={styles.subtitle}>
-            We're here to help. Send us a message and we'll respond within 24 hours.
+            {
+              "We're here to help. Send us a message and we'll respond within 24 hours."
+            }
           </Text>
         </View>
 
@@ -162,7 +168,9 @@ export default function ContactSupportScreen() {
             <Text style={styles.label}>Name</Text>
             <View style={styles.inputDisabled}>
               <Text style={styles.inputDisabledText}>
-                {userProfile ? `${userProfile.firstName} ${userProfile.lastName}` : 'Loading...'}
+                {userProfile
+                  ? `${userProfile.firstName} ${userProfile.lastName}`
+                  : "Loading..."}
               </Text>
             </View>
           </View>
@@ -171,7 +179,7 @@ export default function ContactSupportScreen() {
             <Text style={styles.label}>Email</Text>
             <View style={styles.inputDisabled}>
               <Text style={styles.inputDisabledText}>
-                {userProfile?.email || 'Loading...'}
+                {userProfile?.email || "Loading..."}
               </Text>
             </View>
           </View>
@@ -195,7 +203,7 @@ export default function ContactSupportScreen() {
               >
                 {category
                   ? CATEGORIES.find((c) => c.value === category)?.label
-                  : 'Select a category'}
+                  : "Select a category"}
               </Text>
               <Ionicons name="chevron-down" size={20} color="#6B7280" />
             </TouchableOpacity>
@@ -236,7 +244,8 @@ export default function ContactSupportScreen() {
             <Text
               style={[
                 styles.helperText,
-                characterCount > characterLimit - 50 && styles.helperTextWarning,
+                characterCount > characterLimit - 50 &&
+                  styles.helperTextWarning,
               ]}
             >
               {characterCount}/{characterLimit} characters
@@ -340,7 +349,7 @@ export default function ContactSupportScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: "#F9FAFB",
   },
   scrollView: {
     flex: 1,
@@ -354,13 +363,13 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 24,
-    fontWeight: '700',
-    color: '#111827',
+    fontWeight: "700",
+    color: "#111827",
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 14,
-    color: '#6B7280',
+    color: "#6B7280",
     lineHeight: 20,
   },
   section: {
@@ -368,8 +377,8 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#111827',
+    fontWeight: "600",
+    color: "#111827",
     marginBottom: 16,
   },
   inputGroup: {
@@ -377,171 +386,171 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
+    fontWeight: "600",
+    color: "#374151",
     marginBottom: 8,
   },
   input: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#D1D5DB',
+    borderColor: "#D1D5DB",
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 16,
-    color: '#111827',
+    color: "#111827",
   },
   textArea: {
     minHeight: 120,
     paddingTop: 12,
   },
   inputDisabled: {
-    backgroundColor: '#F3F4F6',
+    backgroundColor: "#F3F4F6",
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: "#E5E7EB",
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
   inputDisabledText: {
     fontSize: 16,
-    color: '#6B7280',
+    color: "#6B7280",
   },
   pickerButton: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#D1D5DB',
+    borderColor: "#D1D5DB",
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
   pickerButtonText: {
     fontSize: 16,
-    color: '#111827',
+    color: "#111827",
   },
   pickerButtonTextPlaceholder: {
-    color: '#9CA3AF',
+    color: "#9CA3AF",
   },
   helperText: {
     fontSize: 12,
-    color: '#6B7280',
+    color: "#6B7280",
     marginTop: 4,
   },
   helperTextWarning: {
-    color: '#F59E0B',
+    color: "#F59E0B",
   },
   attachmentContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#EFF6FF',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#EFF6FF",
     borderRadius: 8,
     padding: 12,
     borderWidth: 1,
-    borderColor: '#DBEAFE',
+    borderColor: "#DBEAFE",
   },
   attachmentInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     flex: 1,
   },
   attachmentName: {
     fontSize: 14,
-    color: '#1E40AF',
+    color: "#1E40AF",
     marginLeft: 8,
     flex: 1,
   },
   attachButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
     borderRadius: 8,
     borderWidth: 2,
-    borderColor: '#3B82F6',
-    borderStyle: 'dashed',
+    borderColor: "#3B82F6",
+    borderStyle: "dashed",
     paddingVertical: 16,
     gap: 8,
   },
   attachButtonText: {
     fontSize: 16,
-    fontWeight: '500',
-    color: '#3B82F6',
+    fontWeight: "500",
+    color: "#3B82F6",
   },
   submitButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#3B82F6',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#3B82F6",
     borderRadius: 8,
     paddingVertical: 14,
     marginTop: 8,
     gap: 8,
   },
   submitButtonDisabled: {
-    backgroundColor: '#D1D5DB',
+    backgroundColor: "#D1D5DB",
   },
   submitButtonText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontWeight: "600",
+    color: "#FFFFFF",
   },
   cancelButton: {
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
     borderRadius: 8,
     paddingVertical: 14,
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: 12,
   },
   cancelButtonText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#6B7280',
+    fontWeight: "600",
+    color: "#6B7280",
   },
   modal: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
   },
   modalContent: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 16,
-    maxHeight: '70%',
+    maxHeight: "70%",
   },
   modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 16,
     paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: "#E5E7EB",
   },
   modalTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#111827',
+    fontWeight: "600",
+    color: "#111827",
   },
   categoryOption: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingVertical: 16,
     paddingHorizontal: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomColor: "#F3F4F6",
   },
   categoryOptionText: {
     fontSize: 16,
-    color: '#111827',
+    color: "#111827",
   },
 });
