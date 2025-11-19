@@ -134,8 +134,7 @@ export default function GCashPaymentScreen() {
       [
         {
           text: "View Status",
-          onPress: () =>
-            router.push(`/payments/status?jobId=${jobId}` as any),
+          onPress: () => router.push(`/payments/status?jobId=${jobId}` as any),
         },
         {
           text: "Go Home",

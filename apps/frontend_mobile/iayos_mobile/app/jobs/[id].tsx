@@ -496,14 +496,14 @@ export default function JobDetailScreen() {
             <View style={styles.posterCard}>
               <Image
                 source={{
-                  uri: job.assignedWorker.avatar || "https://via.placeholder.com/60",
+                  uri:
+                    job.assignedWorker.avatar ||
+                    "https://via.placeholder.com/60",
                 }}
                 style={styles.posterAvatar}
               />
               <View style={styles.posterInfo}>
-                <Text style={styles.posterName}>
-                  {job.assignedWorker.name}
-                </Text>
+                <Text style={styles.posterName}>{job.assignedWorker.name}</Text>
                 <View style={styles.posterRating}>
                   <Ionicons name="star" size={16} color="#F59E0B" />
                   <Text style={styles.posterRatingText}>

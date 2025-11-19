@@ -8,7 +8,7 @@ import {
   SafeAreaView,
   RefreshControl,
   ActivityIndicator,
-  TextInput,
+  Image,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
@@ -21,56 +21,88 @@ import {
 } from "@/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
-import { ENDPOINTS } from "@/lib/api/config";
+import { ENDPOINTS, fetchJson } from "@/lib/api/config";
 
-interface Job {
-  id: string;
+interface MyJob {
+  job_id: number;
   title: string;
   description: string;
-  category: string;
-  budget: string;
-  budget_min: number;
-  budget_max: number;
-  location_city: string;
-  location_barangay: string;
-  distance?: number;
-  urgency: "LOW" | "MEDIUM" | "HIGH";
-  status: "OPEN" | "ASSIGNED" | "COMPLETED";
+  budget: number;
+  location: string;
+  status: "ACTIVE" | "IN_PROGRESS" | "COMPLETED" | "PENDING";
+  urgency_level: "LOW" | "MEDIUM" | "HIGH";
+  category_name: string;
   created_at: string;
-  has_applied?: boolean;
+  client_name?: string;
+  client_img?: string;
+  worker_name?: string;
+  worker_img?: string;
+  application_status?: "PENDING" | "ACCEPTED" | "REJECTED" | "WITHDRAWN";
 }
+
+interface MyJobsResponse {
+  jobs: MyJob[];
+  total_count: number;
+  page: number;
+  pages: number;
+  profile_type: string;
+}
+
+type TabType = "my" | "inProgress" | "past";
 
 export default function JobsScreen() {
   const { user } = useAuth();
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedUrgency, setSelectedUrgency] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<TabType>("my");
 
   const isWorker = user?.profile_data?.profileType === "WORKER";
+  const isClient = user?.profile_data?.profileType === "CLIENT";
 
-  // Fetch available jobs
+  // Map tabs to status filters
+  const getStatusForTab = (tab: TabType): string => {
+    switch (tab) {
+      case "my":
+        return "ACTIVE";
+      case "inProgress":
+        return "IN_PROGRESS";
+      case "past":
+        return "COMPLETED";
+      default:
+        return "ACTIVE";
+    }
+  };
+
+  // Fetch jobs for active tab
   const {
-    data: jobs = [],
+    data: jobsData,
     isLoading,
     error,
     refetch,
-  } = useQuery<Job[], unknown, Job[]>({
-    queryKey: ["jobs", "available"],
-    queryFn: async (): Promise<Job[]> => {
-      const response = await fetch(ENDPOINTS.AVAILABLE_JOBS, {
-        credentials: "include",
-      });
+  } = useQuery<MyJobsResponse>({
+    queryKey: ["jobs", "my-jobs", activeTab],
+    queryFn: async (): Promise<MyJobsResponse> => {
+      const status = getStatusForTab(activeTab);
 
-      if (!response.ok) {
-        throw new Error("Failed to fetch jobs");
+      // Build query params
+      const params = new URLSearchParams();
+      params.append("page", "1");
+      params.append("limit", "20");
+
+      if (status) {
+        params.append("status", status);
       }
 
-      const data = (await response.json()) as any;
-      return data.jobs || [];
+      const url = `${ENDPOINTS.MY_JOBS}?${params.toString()}`;
+      const response = await fetchJson<MyJobsResponse>(url, {
+        method: "GET",
+      });
+
+      return response;
     },
-    enabled: isWorker,
   });
+
+  const jobs = jobsData?.jobs || [];
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -78,26 +110,9 @@ export default function JobsScreen() {
     setRefreshing(false);
   };
 
-  const handleJobPress = (jobId: string) => {
+  const handleJobPress = (jobId: number) => {
     router.push(`/jobs/${jobId}` as any);
   };
-
-  const handleViewApplications = () => {
-    router.push("/applications" as any);
-  };
-
-  // Filter jobs based on search and urgency
-  const filteredJobs = jobs.filter((job) => {
-    const matchesSearch =
-      searchQuery === "" ||
-      job.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      job.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      job.category.toLowerCase().includes(searchQuery.toLowerCase());
-
-    const matchesUrgency = !selectedUrgency || job.urgency === selectedUrgency;
-
-    return matchesSearch && matchesUrgency;
-  });
 
   const getUrgencyColor = (urgency: string) => {
     switch (urgency) {
@@ -111,22 +126,121 @@ export default function JobsScreen() {
     }
   };
 
-  if (!isWorker) {
+  const getStatusBadgeColor = (status: string) => {
+    switch (status) {
+      case "ACTIVE":
+        return { bg: "#DBEAFE", text: "#1E40AF" };
+      case "IN_PROGRESS":
+        return { bg: "#FEF3C7", text: "#92400E" };
+      case "COMPLETED":
+        return { bg: "#D1FAE5", text: "#065F46" };
+      default:
+        return { bg: "#F3F4F6", text: "#6B7280" };
+    }
+  };
+
+  const renderJobCard = (job: MyJob) => {
+    const urgencyColors = getUrgencyColor(job.urgency_level);
+    const statusColors = getStatusBadgeColor(job.status);
+
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.emptyState}>
-          <Ionicons
-            name="briefcase-outline"
-            size={64}
-            color={Colors.textSecondary}
-          />
-          <Text style={styles.emptyStateText}>
-            This feature is only available for worker accounts
-          </Text>
+      <TouchableOpacity
+        key={job.job_id}
+        style={styles.jobCard}
+        onPress={() => handleJobPress(job.job_id)}
+        activeOpacity={0.8}
+      >
+        {/* Status and Urgency Badges */}
+        <View style={styles.badgesRow}>
+          <View
+            style={[styles.statusBadge, { backgroundColor: statusColors.bg }]}
+          >
+            <Text style={[styles.statusText, { color: statusColors.text }]}>
+              {job.status.replace("_", " ")}
+            </Text>
+          </View>
+          <View
+            style={[styles.urgencyBadge, { backgroundColor: urgencyColors.bg }]}
+          >
+            <Text style={[styles.urgencyText, { color: urgencyColors.text }]}>
+              {job.urgency_level}
+            </Text>
+          </View>
         </View>
-      </SafeAreaView>
+
+        {/* Job Title and Category */}
+        <Text style={styles.jobTitle} numberOfLines={2}>
+          {job.title}
+        </Text>
+        <Text style={styles.jobCategory}>{job.category_name}</Text>
+        <Text style={styles.jobDescription} numberOfLines={2}>
+          {job.description}
+        </Text>
+
+        {/* Worker/Client Info */}
+        {isClient && job.worker_name && (
+          <View style={styles.userInfoContainer}>
+            {job.worker_img ? (
+              <Image
+                source={{ uri: job.worker_img }}
+                style={styles.userAvatar}
+              />
+            ) : (
+              <View style={[styles.userAvatar, styles.avatarPlaceholder]}>
+                <Ionicons
+                  name="person"
+                  size={16}
+                  color={Colors.textSecondary}
+                />
+              </View>
+            )}
+            <View style={styles.userTextContainer}>
+              <Text style={styles.userLabel}>Worker</Text>
+              <Text style={styles.userName}>{job.worker_name}</Text>
+            </View>
+          </View>
+        )}
+
+        {isWorker && job.client_name && (
+          <View style={styles.userInfoContainer}>
+            {job.client_img ? (
+              <Image
+                source={{ uri: job.client_img }}
+                style={styles.userAvatar}
+              />
+            ) : (
+              <View style={[styles.userAvatar, styles.avatarPlaceholder]}>
+                <Ionicons
+                  name="person"
+                  size={16}
+                  color={Colors.textSecondary}
+                />
+              </View>
+            )}
+            <View style={styles.userTextContainer}>
+              <Text style={styles.userLabel}>Client</Text>
+              <Text style={styles.userName}>{job.client_name}</Text>
+            </View>
+          </View>
+        )}
+
+        {/* Location and Budget */}
+        <View style={styles.jobFooter}>
+          <View style={styles.locationContainer}>
+            <Ionicons
+              name="location-outline"
+              size={16}
+              color={Colors.textSecondary}
+            />
+            <Text style={styles.locationText} numberOfLines={1}>
+              {job.location}
+            </Text>
+          </View>
+          <Text style={styles.budgetText}>₱{job.budget.toLocaleString()}</Text>
+        </View>
+      </TouchableOpacity>
     );
-  }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -138,7 +252,9 @@ export default function JobsScreen() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Available Jobs</Text>
+          <Text style={styles.headerTitle}>
+            {isClient ? "My Job Requests" : "My Jobs"}
+          </Text>
           <View style={styles.headerActions}>
             <TouchableOpacity
               style={styles.iconButton}
@@ -158,148 +274,56 @@ export default function JobsScreen() {
             >
               <Ionicons name="heart-outline" size={22} color={Colors.error} />
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.categoriesButton}
-              onPress={() => router.push("/jobs/categories" as any)}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="grid-outline" size={20} color={Colors.primary} />
-              <Text style={styles.categoriesButtonText}>Categories</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.activeJobsButton}
-              onPress={() => router.push("/jobs/active" as any)}
-              activeOpacity={0.7}
-            >
-              <Ionicons
-                name="construct-outline"
-                size={20}
-                color={Colors.success}
-              />
-              <Text style={styles.activeJobsButtonText}>Active</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.applicationsButton}
-              onPress={handleViewApplications}
-              activeOpacity={0.7}
-            >
-              <Ionicons
-                name="document-text-outline"
-                size={20}
-                color={Colors.primary}
-              />
-              <Text style={styles.applicationsButtonText}>My Applications</Text>
-            </TouchableOpacity>
           </View>
         </View>
 
-        {/* Search Bar */}
-        <View style={styles.searchContainer}>
-          <Ionicons
-            name="search-outline"
-            size={20}
-            color={Colors.textSecondary}
-            style={styles.searchIcon}
-          />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search jobs..."
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            placeholderTextColor={Colors.textHint}
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity
-              onPress={() => setSearchQuery("")}
-              activeOpacity={0.7}
+        {/* Tabs */}
+        <View style={styles.tabsContainer}>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === "my" && styles.tabActive]}
+            onPress={() => setActiveTab("my")}
+            activeOpacity={0.7}
+          >
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === "my" && styles.tabTextActive,
+              ]}
             >
-              <Ionicons
-                name="close-circle"
-                size={20}
-                color={Colors.textSecondary}
-              />
-            </TouchableOpacity>
-          )}
+              My {isClient ? "Requests" : "Jobs"}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.tab, activeTab === "inProgress" && styles.tabActive]}
+            onPress={() => setActiveTab("inProgress")}
+            activeOpacity={0.7}
+          >
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === "inProgress" && styles.tabTextActive,
+              ]}
+            >
+              In Progress
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.tab, activeTab === "past" && styles.tabActive]}
+            onPress={() => setActiveTab("past")}
+            activeOpacity={0.7}
+          >
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === "past" && styles.tabTextActive,
+              ]}
+            >
+              Past {isClient ? "Requests" : "Jobs"}
+            </Text>
+          </TouchableOpacity>
         </View>
-
-        {/* Urgency Filters */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filterContainer}
-        >
-          <TouchableOpacity
-            style={[
-              styles.filterChip,
-              !selectedUrgency && styles.filterChipActive,
-            ]}
-            onPress={() => setSelectedUrgency(null)}
-            activeOpacity={0.7}
-          >
-            <Text
-              style={[
-                styles.filterChipText,
-                !selectedUrgency && styles.filterChipTextActive,
-              ]}
-            >
-              All
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.filterChip,
-              selectedUrgency === "LOW" && styles.filterChipActive,
-            ]}
-            onPress={() => setSelectedUrgency("LOW")}
-            activeOpacity={0.7}
-          >
-            <Text
-              style={[
-                styles.filterChipText,
-                selectedUrgency === "LOW" && styles.filterChipTextActive,
-              ]}
-            >
-              Low Priority
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.filterChip,
-              selectedUrgency === "MEDIUM" && styles.filterChipActive,
-            ]}
-            onPress={() => setSelectedUrgency("MEDIUM")}
-            activeOpacity={0.7}
-          >
-            <Text
-              style={[
-                styles.filterChipText,
-                selectedUrgency === "MEDIUM" && styles.filterChipTextActive,
-              ]}
-            >
-              Medium Priority
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.filterChip,
-              selectedUrgency === "HIGH" && styles.filterChipActive,
-            ]}
-            onPress={() => setSelectedUrgency("HIGH")}
-            activeOpacity={0.7}
-          >
-            <Text
-              style={[
-                styles.filterChipText,
-                selectedUrgency === "HIGH" && styles.filterChipTextActive,
-              ]}
-            >
-              High Priority
-            </Text>
-          </TouchableOpacity>
-        </ScrollView>
 
         {/* Jobs List */}
         {isLoading ? (
@@ -322,7 +346,7 @@ export default function JobsScreen() {
               <Text style={styles.retryButtonText}>Try Again</Text>
             </TouchableOpacity>
           </View>
-        ) : filteredJobs.length === 0 ? (
+        ) : jobs.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons
               name="briefcase-outline"
@@ -330,83 +354,28 @@ export default function JobsScreen() {
               color={Colors.textSecondary}
             />
             <Text style={styles.emptyStateText}>
-              {searchQuery || selectedUrgency
-                ? "No jobs match your search"
-                : "No jobs available"}
+              {activeTab === "my"
+                ? `No active ${isClient ? "requests" : "jobs"} yet`
+                : activeTab === "inProgress"
+                  ? "No jobs in progress"
+                  : `No completed ${isClient ? "requests" : "jobs"} yet`}
             </Text>
+            {activeTab === "my" && isClient && (
+              <TouchableOpacity
+                style={styles.createJobButton}
+                onPress={() => router.push("/jobs/create" as any)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="add-circle" size={20} color={Colors.white} />
+                <Text style={styles.createJobButtonText}>
+                  Create Job Request
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         ) : (
           <View style={styles.jobsList}>
-            {filteredJobs.map((job) => {
-              const urgencyColors = getUrgencyColor(job.urgency);
-
-              return (
-                <TouchableOpacity
-                  key={job.id}
-                  style={styles.jobCard}
-                  onPress={() => handleJobPress(job.id)}
-                  activeOpacity={0.8}
-                >
-                  {/* Applied Badge */}
-                  {job.has_applied && (
-                    <View style={styles.appliedBadge}>
-                      <Ionicons
-                        name="checkmark-circle"
-                        size={16}
-                        color={Colors.success}
-                      />
-                      <Text style={styles.appliedText}>Applied</Text>
-                    </View>
-                  )}
-
-                  {/* Urgency Badge */}
-                  <View
-                    style={[
-                      styles.urgencyBadge,
-                      { backgroundColor: urgencyColors.bg },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.urgencyText,
-                        { color: urgencyColors.text },
-                      ]}
-                    >
-                      {job.urgency}
-                    </Text>
-                  </View>
-
-                  {/* Job Info */}
-                  <Text style={styles.jobTitle} numberOfLines={2}>
-                    {job.title}
-                  </Text>
-                  <Text style={styles.jobCategory}>{job.category}</Text>
-                  <Text style={styles.jobDescription} numberOfLines={2}>
-                    {job.description}
-                  </Text>
-
-                  {/* Location and Budget */}
-                  <View style={styles.jobFooter}>
-                    <View style={styles.locationContainer}>
-                      <Ionicons
-                        name="location-outline"
-                        size={16}
-                        color={Colors.textSecondary}
-                      />
-                      <Text style={styles.locationText}>
-                        {job.location_barangay}, {job.location_city}
-                      </Text>
-                      {job.distance && (
-                        <Text style={styles.distanceText}>
-                          • {job.distance}km away
-                        </Text>
-                      )}
-                    </View>
-                    <Text style={styles.budgetText}>{job.budget}</Text>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
+            {jobs.map((job) => renderJobCard(job))}
           </View>
         )}
       </ScrollView>
@@ -432,68 +401,49 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: Colors.textPrimary,
   },
-  applicationsButton: {
+  headerActions: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.xs,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    backgroundColor: Colors.primaryLight,
-    borderRadius: BorderRadius.md,
-  },
-  applicationsButtonText: {
-    fontSize: Typography.fontSize.sm,
-    fontWeight: "600",
-    color: Colors.primary,
-  },
-  searchContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginHorizontal: Spacing.lg,
-    marginBottom: Spacing.md,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    backgroundColor: Colors.white,
-    borderRadius: BorderRadius.md,
-    ...Shadows.sm,
-  },
-  searchIcon: {
-    marginRight: Spacing.sm,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: Typography.fontSize.base,
-    color: Colors.textPrimary,
-  },
-  filterContainer: {
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.md,
     gap: Spacing.sm,
   },
-  filterChip: {
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.pill,
+  iconButton: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
     backgroundColor: Colors.white,
+    borderRadius: BorderRadius.md,
     borderWidth: 1,
     borderColor: Colors.border,
-    marginRight: Spacing.sm,
   },
-  filterChipActive: {
+  tabsContainer: {
+    flexDirection: "row",
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.md,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    padding: 4,
+    ...Shadows.sm,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: Spacing.sm,
+    alignItems: "center",
+    borderRadius: BorderRadius.md,
+  },
+  tabActive: {
     backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
   },
-  filterChipText: {
+  tabText: {
     fontSize: Typography.fontSize.sm,
     fontWeight: "600",
     color: Colors.textSecondary,
   },
-  filterChipTextActive: {
+  tabTextActive: {
     color: Colors.white,
   },
   jobsList: {
     paddingHorizontal: Spacing.lg,
-    paddingBottom: 120, // Extra padding for floating tab bar
+    paddingBottom: 120,
   },
   jobCard: {
     backgroundColor: Colors.white,
@@ -502,28 +452,25 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
     ...Shadows.sm,
   },
-  appliedBadge: {
+  badgesRow: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.xs,
-    alignSelf: "flex-start",
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
-    backgroundColor: "#D1FAE5",
-    borderRadius: BorderRadius.sm,
+    gap: Spacing.sm,
     marginBottom: Spacing.sm,
   },
-  appliedText: {
+  statusBadge: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.sm,
+  },
+  statusText: {
     fontSize: Typography.fontSize.xs,
     fontWeight: "700",
-    color: "#065F46",
+    textTransform: "uppercase",
   },
   urgencyBadge: {
-    alignSelf: "flex-start",
     paddingHorizontal: Spacing.sm,
     paddingVertical: 4,
     borderRadius: BorderRadius.sm,
-    marginBottom: Spacing.sm,
   },
   urgencyText: {
     fontSize: Typography.fontSize.xs,
@@ -546,6 +493,37 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginBottom: Spacing.md,
   },
+  userInfoContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    paddingVertical: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    marginBottom: Spacing.sm,
+  },
+  userAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+  },
+  avatarPlaceholder: {
+    backgroundColor: Colors.background,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  userTextContainer: {
+    flex: 1,
+  },
+  userLabel: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.textSecondary,
+  },
+  userName: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+  },
   jobFooter: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -563,10 +541,7 @@ const styles = StyleSheet.create({
   locationText: {
     fontSize: Typography.fontSize.xs,
     color: Colors.textSecondary,
-  },
-  distanceText: {
-    fontSize: Typography.fontSize.xs,
-    color: Colors.textHint,
+    flex: 1,
   },
   budgetText: {
     fontSize: Typography.fontSize.base,
@@ -618,46 +593,19 @@ const styles = StyleSheet.create({
     textAlign: "center",
     paddingHorizontal: Spacing.xl,
   },
-  headerActions: {
+  createJobButton: {
     flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.sm,
-  },
-  iconButton: {
-    width: 40,
-    height: 40,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: Colors.white,
+    marginTop: Spacing.lg,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    backgroundColor: Colors.primary,
     borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
   },
-  categoriesButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: Colors.primary + "20",
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    borderRadius: BorderRadius.md,
-    gap: 4,
-  },
-  categoriesButtonText: {
-    fontSize: Typography.fontSize.sm,
+  createJobButtonText: {
+    fontSize: Typography.fontSize.base,
     fontWeight: "600",
-    color: Colors.primary,
-  },
-  activeJobsButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: Colors.success + "20",
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    borderRadius: BorderRadius.md,
-    gap: 4,
-  },
-  activeJobsButtonText: {
-    fontSize: Typography.fontSize.sm,
-    fontWeight: "600",
-    color: Colors.success,
+    color: Colors.white,
   },
 });

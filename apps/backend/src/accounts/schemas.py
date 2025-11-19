@@ -142,6 +142,12 @@ class ApproveCompletionMobileSchema(Schema):
     final_payment_method: str  # 'WALLET' | 'GCASH' | 'CASH'
     notes: Optional[str] = None
 
+class MyJobsFilterSchema(Schema):
+    """Schema for filtering my jobs"""
+    status: Optional[str] = None  # 'ACTIVE' | 'IN_PROGRESS' | 'COMPLETED'
+    page: int = 1
+    limit: int = 20
+
 class SubmitReviewMobileSchema(Schema):
     """Schema for submitting review after job completion"""
     rating: int  # 1-5 stars
