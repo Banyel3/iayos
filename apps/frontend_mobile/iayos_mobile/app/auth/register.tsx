@@ -13,7 +13,6 @@ import {
   TextInput as RNTextInput,
 } from "react-native";
 import DateTimePicker, {
-  DateTimePickerAndroid,
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
 import { useRouter } from "expo-router";
@@ -77,8 +76,8 @@ export default function RegisterScreen() {
     null
   );
   const emailRef = useRef<React.ComponentRef<typeof RNTextInput> | null>(null);
-  const contactNumberRef = useRef<
-    React.ComponentRef<typeof RNTextInput>
+  const contactNumberRef = useRef<React.ComponentRef<
+    typeof RNTextInput
   > | null>(null);
   const birthDateRef = useRef<React.ComponentRef<typeof RNTextInput> | null>(
     null
@@ -89,18 +88,17 @@ export default function RegisterScreen() {
   const confirmPasswordRef = useRef<React.ComponentRef<
     typeof RNTextInput
   > | null>(null);
-  const streetAddressRef = useRef<
-    React.ComponentRef<typeof RNTextInput>
+  const streetAddressRef = useRef<React.ComponentRef<
+    typeof RNTextInput
   > | null>(null);
   const cityRef = useRef<React.ComponentRef<typeof RNTextInput> | null>(null);
-  const provinceRef = useRef<
-    React.ComponentRef<typeof RNTextInput>
-  > | null>(null);
-  const postalCodeRef = useRef<
-    React.ComponentRef<typeof RNTextInput>
-  > | null>(null);
+  const provinceRef = useRef<React.ComponentRef<typeof RNTextInput> | null>(
+    null
+  );
+  const postalCodeRef = useRef<React.ComponentRef<typeof RNTextInput> | null>(
+    null
+  );
   const lastFocusedRef = useRef<any>(null);
-  const datePickerOpenRef = useRef(false);
 
   useEffect(() => {
     const subscription = Keyboard.addListener("keyboardDidHide", () => {
@@ -135,52 +133,21 @@ export default function RegisterScreen() {
     event: DateTimePickerEvent,
     selectedDate?: Date
   ) => {
-    if (Platform.OS === "android") {
-      setShowDatePicker(false);
-      datePickerOpenRef.current = false;
-    }
+    const isIOS = Platform.OS === "ios";
+    setShowDatePicker(isIOS);
 
     if (event.type === "dismissed") {
-      if (Platform.OS === "ios") {
-        setShowDatePicker(false);
-      }
       return;
     }
 
     if (selectedDate) {
       setBirthDate(formatDate(selectedDate));
-      if (Platform.OS === "ios") {
-        setShowDatePicker(false);
-        datePickerOpenRef.current = false;
-      } else {
-        datePickerOpenRef.current = false;
-      }
     }
   };
 
   const openBirthDatePicker = () => {
-    if (datePickerOpenRef.current) {
-      return;
-    }
-
     lastFocusedRef.current = birthDateRef;
-    datePickerOpenRef.current = true;
-
-    if (Platform.OS === "android") {
-      DateTimePickerAndroid.open({
-        value: birthDate ? new Date(birthDate) : adultCutoffDate,
-        mode: "date",
-        maximumDate: adultCutoffDate,
-        minimumDate: EARLIEST_BIRTH_DATE,
-        onChange: handleBirthDateChange,
-      });
-      return;
-    }
-
     setShowDatePicker(true);
-    requestAnimationFrame(() => {
-      birthDateRef.current?.blur();
-    });
   };
 
   const handleRegister = async () => {
@@ -286,10 +253,7 @@ export default function RegisterScreen() {
     }
 
     if (!trimmedStreet || !trimmedCity || !trimmedProvince) {
-      Alert.alert(
-        "Error",
-        "Street address, city, and province are required"
-      );
+      Alert.alert("Error", "Street address, city, and province are required");
       return;
     }
 
@@ -476,27 +440,49 @@ export default function RegisterScreen() {
             />
 
             {/* Birth Date */}
-            <Input
-              ref={birthDateRef}
-              label="Date of Birth"
-              placeholder="YYYY-MM-DD"
-              value={birthDate}
-              editable={!isLoading}
-              required
-              showSoftInputOnFocus={false}
-              caretHidden
-              iconLeft={
-                <Ionicons
-                  name="calendar-outline"
-                  size={20}
-                  color={Colors.primary}
+            <View style={styles.readonlyInputContainer}>
+              <View pointerEvents="none">
+                <Input
+                  ref={birthDateRef}
+                  label="Date of Birth"
+                  placeholder="YYYY-MM-DD"
+                  value={birthDate}
+                  editable={false}
+                  required
+                  iconLeft={
+                    <Ionicons
+                      name="calendar-outline"
+                      size={20}
+                      color={Colors.primary}
+                    />
+                  }
                 />
-              }
-              onPressIn={openBirthDatePicker}
-              onFocus={() => {
-                openBirthDatePicker();
-              }}
-            />
+              </View>
+              <TouchableOpacity
+                style={styles.readonlyInputOverlay}
+                activeOpacity={0.85}
+                onPress={openBirthDatePicker}
+              />
+            </View>
+            {showDatePicker && (
+              <View style={styles.datePickerContainer}>
+                <DateTimePicker
+                  value={birthDate ? new Date(birthDate) : adultCutoffDate}
+                  mode="date"
+                  display={Platform.OS === "ios" ? "spinner" : "default"}
+                  maximumDate={adultCutoffDate}
+                  minimumDate={EARLIEST_BIRTH_DATE}
+                  onChange={handleBirthDateChange}
+                  themeVariant="light"
+                  textColor={
+                    Platform.OS === "ios" ? Colors.textPrimary : undefined
+                  }
+                  style={
+                    Platform.OS === "ios" ? styles.inlineDatePicker : undefined
+                  }
+                />
+              </View>
+            )}
 
             {/* Password */}
             <Input
@@ -606,11 +592,7 @@ export default function RegisterScreen() {
               autoCapitalize="words"
               required
               iconLeft={
-                <Ionicons
-                  name="map-outline"
-                  size={20}
-                  color={Colors.primary}
-                />
+                <Ionicons name="map-outline" size={20} color={Colors.primary} />
               }
               onFocus={() => {
                 lastFocusedRef.current = provinceRef;
@@ -682,17 +664,6 @@ export default function RegisterScreen() {
               </Text>
             </TouchableOpacity>
           </View>
-
-          {Platform.OS === "ios" && showDatePicker && (
-            <DateTimePicker
-              value={birthDate ? new Date(birthDate) : adultCutoffDate}
-              mode="date"
-              display={Platform.OS === "ios" ? "spinner" : "default"}
-              maximumDate={adultCutoffDate}
-              minimumDate={EARLIEST_BIRTH_DATE}
-              onChange={handleBirthDateChange}
-            />
-          )}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -779,5 +750,24 @@ const styles = StyleSheet.create({
   loginTextBold: {
     fontWeight: "700",
     color: Colors.primary,
+  },
+  readonlyInputContainer: {
+    position: "relative",
+  },
+  readonlyInputOverlay: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  datePickerContainer: {
+    marginTop: Spacing.sm,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    overflow: "hidden",
+    alignSelf: "stretch",
+  },
+  inlineDatePicker: {
+    width: "100%",
+    minHeight: 180,
   },
 });

@@ -7,9 +7,65 @@ import React, {
 } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { User, AuthContextType, RegisterPayload } from "../types";
-import { ENDPOINTS, apiRequest } from "../lib/api/config";
+import {
+  ENDPOINTS,
+  apiRequest,
+  EMAIL_VERIFICATION_ENDPOINT,
+} from "../lib/api/config";
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+type VerificationPayload = {
+  email?: string;
+  verifyLink?: string;
+  verifyLinkExpire?: string;
+};
+
+const triggerVerificationEmail = async (
+  payload: VerificationPayload
+): Promise<boolean> => {
+  if (
+    !payload?.email ||
+    !payload?.verifyLink ||
+    !payload?.verifyLinkExpire ||
+    !EMAIL_VERIFICATION_ENDPOINT
+  ) {
+    console.warn(
+      "⚠️ Missing verification payload or endpoint, skipping email."
+    );
+    return false;
+  }
+
+  try {
+    const response = await fetch(EMAIL_VERIFICATION_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: payload.email,
+        verifyLink: payload.verifyLink,
+        verifyLinkExpire: payload.verifyLinkExpire,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(
+        "❌ Failed to send verification email via Resend endpoint",
+        {
+          status: response.status,
+          body: errorText,
+        }
+      );
+      return false;
+    }
+
+    console.log("✅ Verification email dispatched via Resend endpoint.");
+    return true;
+  } catch (error) {
+    console.error("❌ Error while sending verification email:", error);
+    return false;
+  }
+};
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -132,19 +188,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         body: JSON.stringify(requestPayload),
       });
 
+      const responseBody = await response.json().catch(() => null);
+
       if (!response.ok) {
         let message = "Registration failed";
-        try {
-          const errorData = await response.json();
+        if (responseBody) {
           message =
-            errorData?.error?.[0]?.message ||
-            errorData?.message ||
-            errorData?.detail ||
+            responseBody?.error?.[0]?.message ||
+            responseBody?.message ||
+            responseBody?.detail ||
             message;
-        } catch (parseError) {
-          console.error("Failed to parse registration error:", parseError);
         }
         throw new Error(message);
+      }
+
+      const verificationPayload = responseBody?.data;
+      if (verificationPayload) {
+        await triggerVerificationEmail(verificationPayload);
+      } else {
+        console.warn(
+          "⚠️ Registration succeeded but verification payload missing in response"
+        );
       }
 
       return true;

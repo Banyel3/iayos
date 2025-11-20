@@ -5,6 +5,25 @@
 // For physical device, use your machine's network IP
 const API_URL = __DEV__ ? "http://192.168.1.117:8000" : "https://api.iayos.com";
 
+const deriveDevWebUrl = () => {
+  try {
+    const parsed = new URL(API_URL);
+    const protocol = parsed.protocol || "http:";
+    const hostname = parsed.hostname || "localhost";
+    const defaultPort =
+      parsed.port && parsed.port !== "8000" ? parsed.port : "3000";
+    return `${protocol}//${hostname}:${defaultPort}`;
+  } catch {
+    return "http://localhost:3000";
+  }
+};
+
+const WEB_APP_URL =
+  process.env.EXPO_PUBLIC_WEB_APP_URL ||
+  (__DEV__ ? deriveDevWebUrl() : "https://app.iayos.com");
+
+export const EMAIL_VERIFICATION_ENDPOINT = `${WEB_APP_URL}/api/auth/send`;
+
 export const API_BASE_URL = `${API_URL}/api`;
 export const WS_BASE_URL = __DEV__
   ? "ws://192.168.1.117:8001"

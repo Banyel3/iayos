@@ -95,9 +95,11 @@ const Input = React.forwardRef<
         if (typeof ref === "function") {
           ref(node);
         } else if (ref && typeof ref === "object") {
-          (ref as React.MutableRefObject<
-            React.ComponentRef<typeof RNTextInput> | null
-          >).current = node;
+          (
+            ref as React.MutableRefObject<React.ComponentRef<
+              typeof RNTextInput
+            > | null>
+          ).current = node;
         } else if (ref != null) {
           console.warn("[Input] Ignoring unsupported ref type", {
             label,
