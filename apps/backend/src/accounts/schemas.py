@@ -47,6 +47,11 @@ class resetPasswordSchema(Schema):
     newPassword: str
     confirmPassword: str
 
+class SendVerificationEmailSchema(Schema):
+    email: EmailStr
+    verifyLink: str
+    verifyLinkExpire: str
+
 class KYCUploadSchema(Schema):
     accountID: int
     IDType: str

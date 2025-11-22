@@ -366,6 +366,7 @@ def fetch_currentUser(accountID):
                 "contactNum": profile.contactNum,
                 "birthDate": profile.birthDate.isoformat() if profile.birthDate else None,
             }
+            print(f"   👤 Profile Data for {account.email}: Type={profile.profileType} (Raw: {repr(profile.profileType)})")
 
             # If a Profile exists we treat this as an "individual" account
             return {
@@ -427,7 +428,7 @@ def assign_role(data):
                     'description': '',
                     'workerRating': 0,
                     'totalEarningGross': 0.00,
-                    'availabilityStatus': 'OFFLINE'
+                    'availability_status': 'OFFLINE'
                 }
             )
             if created:

@@ -19,6 +19,7 @@ from .schemas import (
     SubmitReviewMobileSchema,
     SendMessageMobileSchema,
     DepositFundsSchema,
+    SendVerificationEmailSchema,
 )
 from .authentication import jwt_auth  # Use Bearer token auth for mobile
 from .profile_metrics_service import get_profile_metrics
@@ -119,6 +120,119 @@ def mobile_logout(request):
         print(f"❌ Mobile logout error: {str(e)}")
         return Response(
             {"error": "Logout failed"},
+            status=500
+        )
+
+
+@mobile_router.post("/auth/send-verification-email")
+def mobile_send_verification_email(request, payload: SendVerificationEmailSchema):
+    """
+    Send verification email via Resend API for mobile registration
+    This endpoint is called after successful registration to trigger email verification
+    """
+    import requests
+    from django.conf import settings
+    
+    print(f"📧 [Mobile] Send verification email request for: {payload.email}")
+    
+    try:
+        # Validate required environment variables
+        resend_api_key = settings.RESEND_API_KEY
+        if not resend_api_key:
+            print("❌ [Mobile] RESEND_API_KEY not configured")
+            return Response(
+                {"error": "Email service not configured"},
+                status=500
+            )
+        
+        # Generate HTML email template
+        html_template = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Email Verification</title>
+        </head>
+        <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+            <table role="presentation" style="width: 100%; border-collapse: collapse;">
+                <tr>
+                    <td align="center" style="padding: 40px 0;">
+                        <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                            <tr>
+                                <td style="padding: 40px 30px; text-align: center;">
+                                    <h1 style="margin: 0 0 20px 0; color: #333333; font-size: 24px; font-weight: bold;">
+                                        Verify Your Email Address
+                                    </h1>
+                                    <p style="margin: 0 0 30px 0; color: #666666; font-size: 16px; line-height: 1.5;">
+                                        Thank you for registering with iAyos! Please verify your email address to complete your registration.
+                                    </p>
+                                    <a href="{payload.verifyLink}" style="display: inline-block; padding: 14px 40px; background-color: #007bff; color: #ffffff; text-decoration: none; border-radius: 4px; font-size: 16px; font-weight: bold;">
+                                        Verify Email Address
+                                    </a>
+                                    <p style="margin: 30px 0 0 0; color: #999999; font-size: 14px; line-height: 1.5;">
+                                        If you didn't create an account, you can safely ignore this email.
+                                    </p>
+                                    <p style="margin: 20px 0 0 0; color: #999999; font-size: 12px; line-height: 1.5;">
+                                        This link will expire on {payload.verifyLinkExpire}
+                                    </p>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
+        </body>
+        </html>
+        """
+        
+        # Call Resend API
+        resend_url = f"{settings.RESEND_BASE_URL}/emails"
+        headers = {
+            "Authorization": f"Bearer {resend_api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        resend_payload = {
+            "from": "team@devante.online",
+            "to": [payload.email],
+            "subject": "Verify Your Email - iAyos",
+            "html": html_template
+        }
+        
+        print(f"📧 [Mobile] Sending email to: {payload.email}")
+        response = requests.post(resend_url, headers=headers, json=resend_payload, timeout=10)
+        
+        if response.status_code == 200:
+            result = response.json()
+            print(f"✅ [Mobile] Email sent successfully. ID: {result.get('id')}")
+            return {
+                "success": True,
+                "messageId": result.get('id'),
+                "method": "resend-api"
+            }
+        else:
+            print(f"❌ [Mobile] Resend API error: {response.status_code} - {response.text}")
+            return Response(
+                {
+                    "error": "Failed to send verification email",
+                    "details": response.text if settings.DEBUG else None
+                },
+                status=502
+            )
+            
+    except requests.exceptions.Timeout:
+        print("❌ [Mobile] Resend API timeout")
+        return Response(
+            {"error": "Email service timeout. Please try again."},
+            status=504
+        )
+    except Exception as e:
+        print(f"❌ [Mobile] Send email exception: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to send verification email"},
             status=500
         )
 

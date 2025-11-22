@@ -113,7 +113,7 @@ def get_mobile_job_list(
         return {
             'success': True,
             'data': {
-                'jobs': job_list,
+                    # Apply filters
                 'pagination': {
                     'page': page,
                     'limit': limit,
@@ -138,6 +138,10 @@ def get_mobile_job_list(
 def get_mobile_job_detail(job_id: int, user: Accounts) -> Dict[str, Any]:
     """
     Get complete job details for mobile view
+                    queryset = queryset.filter(
+                        assignedWorkerID__isnull=True,
+                        assignedAgencyFK__isnull=True,
+                    )
     Includes user-specific data (is_applied, user's application)
     """
     print(f"🔍 [SERVICE] get_mobile_job_detail called")
@@ -184,8 +188,8 @@ def get_mobile_job_detail(job_id: int, user: Accounts) -> Dict[str, Any]:
         if user_worker_profile:
             try:
                 application = JobApplication.objects.get(
-                    jobPostingFK=job,
-                    workerFK=user_worker_profile
+                    jobID=job,
+                    workerID=user_worker_profile
                 )
                 has_applied = True
                 user_application = {
@@ -1832,17 +1836,17 @@ def submit_review_mobile(user: Accounts, job_id: int, rating: int, comment: str,
     """
     Submit a review for a completed job
 
-    Args:
-        user: Current authenticated user (reviewer)
-        job_id: ID of the job being reviewed
-        rating: Rating from 1-5
-        comment: Review text
-        review_type: 'CLIENT_TO_WORKER' or 'WORKER_TO_CLIENT'
-
-    Returns:
-        Success response with review data or error
-    """
-    try:
+                try:
+                    worker_profile = WorkerProfile.objects.get(profileID=user_profile)
+                    application = JobApplication.objects.filter(
+                        jobID=job,
+                        workerID=worker_profile
+                    ).first()
+                    if application:
+                        job_data['application_status'] = application.status
+                        job_data['application_id'] = application.applicationID
+                except:
+                    pass
         # Validate job exists and is completed
         try:
             job = Job.objects.get(jobID=job_id)
@@ -2381,14 +2385,7 @@ def report_review_mobile(user: Accounts, review_id: int, reason: str) -> Dict[st
 
 def get_pending_reviews_mobile(user: Accounts) -> Dict[str, Any]:
     """
-    Get list of jobs that need reviews from the current user
-    Returns completed jobs where user hasn't submitted a review yet
-
-    Args:
-        user: Current authenticated user
-
-    Returns:
-        List of jobs pending review
+    Return completed jobs where the current user still owes a review.
     """
     try:
         # Get user's profile

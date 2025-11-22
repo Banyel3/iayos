@@ -24,6 +24,12 @@ type VerificationPayload = {
 const triggerVerificationEmail = async (
   payload: VerificationPayload
 ): Promise<boolean> => {
+  console.log("📧 [triggerVerificationEmail] Called with payload:", payload);
+  console.log(
+    "📧 [triggerVerificationEmail] Endpoint:",
+    EMAIL_VERIFICATION_ENDPOINT
+  );
+
   if (
     !payload?.email ||
     !payload?.verifyLink ||
@@ -31,12 +37,28 @@ const triggerVerificationEmail = async (
     !EMAIL_VERIFICATION_ENDPOINT
   ) {
     console.warn(
-      "⚠️ Missing verification payload or endpoint, skipping email."
+      "⚠️ Missing verification payload or endpoint, skipping email.",
+      {
+        hasEmail: !!payload?.email,
+        hasVerifyLink: !!payload?.verifyLink,
+        hasVerifyLinkExpire: !!payload?.verifyLinkExpire,
+        hasEndpoint: !!EMAIL_VERIFICATION_ENDPOINT,
+      }
     );
     return false;
   }
 
   try {
+    console.log(
+      "📧 [triggerVerificationEmail] Sending request to:",
+      EMAIL_VERIFICATION_ENDPOINT
+    );
+    console.log("📧 [triggerVerificationEmail] Request body:", {
+      email: payload.email,
+      verifyLink: payload.verifyLink,
+      verifyLinkExpire: payload.verifyLinkExpire,
+    });
+
     const response = await fetch(EMAIL_VERIFICATION_ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -46,6 +68,11 @@ const triggerVerificationEmail = async (
         verifyLinkExpire: payload.verifyLinkExpire,
       }),
     });
+
+    console.log(
+      "📧 [triggerVerificationEmail] Response status:",
+      response.status
+    );
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -59,7 +86,11 @@ const triggerVerificationEmail = async (
       return false;
     }
 
-    console.log("✅ Verification email dispatched via Resend endpoint.");
+    const responseData = await response.json();
+    console.log(
+      "✅ Verification email dispatched via Resend endpoint.",
+      responseData
+    );
     return true;
   } catch (error) {
     console.error("❌ Error while sending verification email:", error);
@@ -116,7 +147,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   // Login function
-  const login = async (email: string, password: string): Promise<boolean> => {
+  const login = async (email: string, password: string): Promise<User> => {
     try {
       await clearAllCaches();
       setUser(null);
@@ -127,9 +158,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       });
 
       if (!response.ok) {
-        setUser(null);
+        const errorBody = await response.json().catch(() => null);
+        const errorMessage =
+          errorBody?.error ||
+          errorBody?.message ||
+          errorBody?.detail ||
+          "Login failed";
+        console.error("❌ Login failed:", errorMessage);
         await clearAllCaches();
-        throw new Error("Login failed");
+        throw new Error(errorMessage);
       }
 
       // Parse login response - backend returns token with key "access"
@@ -160,7 +197,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           })
         );
 
-        return true;
+        // Return user data for immediate access (before state update completes)
+        return userData;
       } else {
         setUser(null);
         await clearAllCaches();
@@ -193,18 +231,28 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (!response.ok) {
         let message = "Registration failed";
         if (responseBody) {
+          // Backend returns error in various formats, extract the actual message
           message =
-            responseBody?.error?.[0]?.message ||
-            responseBody?.message ||
-            responseBody?.detail ||
-            message;
+            responseBody?.error || // Most common format: {error: "message"}
+            responseBody?.message || // Alternative format: {message: "message"}
+            responseBody?.detail || // Django format: {detail: "message"}
+            responseBody?.error?.[0]?.message || // Array format
+            JSON.stringify(responseBody); // Fallback: show raw response
         }
+        console.error("❌ Registration failed:", message);
         throw new Error(message);
       }
 
+      // Mobile backend wraps result in data: { email, verifyLink, verifyLinkExpire }
       const verificationPayload = responseBody?.data;
+      console.log("📧 Registration response body:", responseBody);
+      console.log("📧 Verification payload:", verificationPayload);
+
       if (verificationPayload) {
-        await triggerVerificationEmail(verificationPayload);
+        const emailSent = await triggerVerificationEmail(verificationPayload);
+        if (!emailSent) {
+          console.warn("⚠️ Verification email was not sent successfully");
+        }
       } else {
         console.warn(
           "⚠️ Registration succeeded but verification payload missing in response"
@@ -224,7 +272,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const response = await apiRequest(ENDPOINTS.ASSIGN_ROLE, {
         method: "POST",
-        body: JSON.stringify({ profileType }),
+        body: JSON.stringify({ profile_type: profileType }),
       });
 
       if (response.ok) {
@@ -233,7 +281,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return true;
       }
 
-      throw new Error("Failed to assign role");
+      const errorBody = await response.json().catch(() => null);
+      const errorMessage =
+        errorBody?.error ||
+        errorBody?.message ||
+        errorBody?.detail ||
+        "Failed to assign role";
+      console.error("❌ Assign role failed:", errorMessage);
+      throw new Error(errorMessage);
     } catch (error) {
       throw error;
     }

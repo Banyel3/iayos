@@ -22,7 +22,8 @@ const WEB_APP_URL =
   process.env.EXPO_PUBLIC_WEB_APP_URL ||
   (__DEV__ ? deriveDevWebUrl() : "https://app.iayos.com");
 
-export const EMAIL_VERIFICATION_ENDPOINT = `${WEB_APP_URL}/api/auth/send`;
+// Use backend endpoint for mobile email verification (avoids cross-server timeout issues)
+export const EMAIL_VERIFICATION_ENDPOINT = `${API_URL}/api/mobile/auth/send-verification-email`;
 
 export const API_BASE_URL = `${API_URL}/api`;
 export const WS_BASE_URL = __DEV__

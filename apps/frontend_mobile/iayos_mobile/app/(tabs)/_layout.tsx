@@ -1,4 +1,4 @@
-import { Tabs, useRouter } from "expo-router";
+import { Redirect, Tabs, useRouter } from "expo-router";
 import React, { useEffect } from "react";
 import { Platform, StyleSheet } from "react-native";
 
@@ -23,18 +23,32 @@ try {
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
   const router = useRouter();
 
-  // Redirect to login if not authenticated
+  // Redirect logic based on authentication and profile type
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      router.replace("/auth/login");
+    if (!isLoading) {
+      if (!isAuthenticated) {
+        // Not logged in - redirect to login
+        router.replace("/auth/login");
+      } else if (!user?.profile_data?.profileType) {
+        // Logged in but no role selected - redirect to role selection
+        router.replace("/auth/select-role");
+      }
     }
-  }, [isAuthenticated, isLoading]);
+  }, [isAuthenticated, isLoading, user]);
 
   if (isLoading) {
-    return null; // Or show a loading screen
+    return null; // Wait for auth state before deciding what to render
+  }
+
+  if (!isAuthenticated) {
+    return <Redirect href="/auth/login" />;
+  }
+
+  if (!user?.profile_data?.profileType) {
+    return <Redirect href="/auth/select-role" />;
   }
 
   return (

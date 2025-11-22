@@ -29,7 +29,7 @@ export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, user } = useAuth();
   const router = useRouter();
 
   // Refs for inputs so we can programmatically focus and check isFocused
@@ -68,11 +68,12 @@ export default function LoginScreen() {
 
     setIsLoading(true);
     try {
-      const success = await login(email, password);
-      if (success) {
-        router.replace("/(tabs)");
+      const userData = await login(email, password);
+      // Check profileType immediately from returned data
+      if (!userData?.profile_data?.profileType) {
+        router.replace("/auth/select-role");
       } else {
-        Alert.alert("Error", "Invalid email or password");
+        router.replace("/(tabs)");
       }
     } catch (error: any) {
       Alert.alert("Error", error.message || "Login failed");
