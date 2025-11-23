@@ -907,9 +907,23 @@ def deposit_funds(request, data: DepositFundsSchema):
         
         # Get user's profile for name
         try:
-            profile = Profile.objects.get(accountFK=request.auth)
-            user_name = f"{profile.firstName} {profile.lastName}"
-        except Profile.DoesNotExist:
+            # Get profile_type from JWT if available, try both if not found
+            profile_type = getattr(request.auth, 'profile_type', None)
+            
+            if profile_type:
+                profile = Profile.objects.filter(
+                    accountFK=request.auth,
+                    profileType=profile_type
+                ).first()
+            else:
+                # Fallback: get any profile
+                profile = Profile.objects.filter(accountFK=request.auth).first()
+            
+            if profile:
+                user_name = f"{profile.firstName} {profile.lastName}"
+            else:
+                user_name = request.auth.email.split('@')[0]  # Fallback to email username
+        except Exception:
             user_name = request.auth.email.split('@')[0]  # Fallback to email username
         
         print(f"💰 Processing deposit for {user_name}")

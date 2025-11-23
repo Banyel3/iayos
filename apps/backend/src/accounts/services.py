@@ -154,11 +154,24 @@ def login_account(data):
     
     return generateCookie(user)
 
-def generateCookie(user):    
+def generateCookie(user, profile_type=None):    
     now = timezone.now()
+    
+    # If profile_type not provided, fetch the most recent or preferred profile
+    if profile_type is None:
+        try:
+            from .models import Profile
+            # Get last used profile (most recently updated)
+            profile = Profile.objects.filter(accountFK=user).order_by('-profileID').first()
+            profile_type = profile.profileType if profile else None
+        except Exception as e:
+            print(f"⚠️ Could not fetch profile type for user {user.accountID}: {e}")
+            profile_type = None
+    
     access_payload = {
         'user_id': user.accountID,
         'email': user.email,
+        'profile_type': profile_type,  # Include profile type in JWT
         'exp': now + timedelta(hours=1),  # Access token: 1 hour
         'iat': now
     }
@@ -166,6 +179,7 @@ def generateCookie(user):
     refresh_payload = {
         'user_id': user.accountID,
         'email': user.email,
+        'profile_type': profile_type,  # Include profile type in JWT
         'exp': now + timedelta(days=7),  # Refresh token: 7 days
         'iat': now
     }
@@ -227,9 +241,18 @@ def _verify_account(dbVerifyToken, userID):
     # Determine account type for response
     account_type = "individual"
     try:
-        Profile.objects.get(accountFK=account)
-        account_type = "individual"
-    except Profile.DoesNotExist:
+        # Check if profile exists (use .first() to avoid dual profile error)
+        profile_exists = Profile.objects.filter(accountFK=account).exists()
+        if profile_exists:
+            account_type = "individual"
+        else:
+            # Check for agency
+            try:
+                Agency.objects.get(accountFK=account)
+                account_type = "agency"
+            except Agency.DoesNotExist:
+                pass
+    except Exception:
         try:
             Agency.objects.get(accountFK=account)
             account_type = "agency"
@@ -340,7 +363,7 @@ def refresh_token(expired_token):
         raise ValueError("User not found")
 
 
-def fetch_currentUser(accountID):
+def fetch_currentUser(accountID, profile_type=None):
     try:
         account = Accounts.objects.get(accountID=accountID)
 
@@ -349,7 +372,28 @@ def fetch_currentUser(accountID):
         user_role = role_obj.systemRole if role_obj else None
 
         try:
-            profile = Profile.objects.select_related("accountFK").get(accountFK=account)
+            # If profile_type is specified (from JWT), fetch that specific profile
+            if profile_type:
+                print(f"🔍 fetch_currentUser: Looking for {profile_type} profile for account {accountID}")
+                profile = Profile.objects.select_related("accountFK").filter(
+                    accountFK=account, 
+                    profileType=profile_type
+                ).first()
+                
+                if profile:
+                    print(f"✅ fetch_currentUser: Found {profile_type} profile (ID: {profile.profileID})")
+                else:
+                    print(f"⚠️  fetch_currentUser: No {profile_type} profile found for account {accountID}, falling back to any profile")
+                    profile = Profile.objects.select_related("accountFK").filter(accountFK=account).order_by('-profileID').first()
+                    if profile:
+                        print(f"⚠️  fetch_currentUser: Using fallback profile type: {profile.profileType}")
+            else:
+                print(f"🔍 fetch_currentUser: No profile_type specified, using most recent profile")
+                # Default behavior: get most recent profile
+                profile = Profile.objects.select_related("accountFK").filter(accountFK=account).order_by('-profileID').first()
+            
+            if not profile:
+                raise Profile.DoesNotExist
 
             # Debug: Log what's stored in DB vs what we're sending
             raw_profile_img = profile.profileImg
@@ -423,13 +467,27 @@ def assign_role(data):
     try:
         # Get user and profile
         user = Accounts.objects.get(email__iexact=data.email)
-        profile = Profile.objects.get(accountFK=user)
-
-        # Update profile type
-        profile.profileType = data.selectedType
-        profile.save()
         
-        print(f"✅ Assigned role {data.selectedType} to user {user.email}")
+        # Get or create profile for selected type
+        # Note: During initial onboarding, user has no profile yet
+        # For dual profiles, we need to create a NEW profile with the selected type
+        profile, created = Profile.objects.get_or_create(
+            accountFK=user,
+            profileType=data.selectedType,
+            defaults={
+                'firstName': user.firstName or '',
+                'lastName': user.lastName or '',
+                'contactNum': user.phoneNumber or '',
+                'latitude': None,
+                'longitude': None,
+                'isLocationShared': False
+            }
+        )
+        
+        if created:
+            print(f"✅ Created new {data.selectedType} profile for user {user.email}")
+        else:
+            print(f"✅ Using existing {data.selectedType} profile for user {user.email}")
 
         # Create WorkerProfile or ClientProfile based on role
         if data.selectedType == Profile.ProfileType.WORKER:
@@ -1531,9 +1589,24 @@ def upload_profile_image_service(user, profile_image_file):
         
         # Get user's profile
         try:
-            profile = Profile.objects.get(accountFK=user)
-        except Profile.DoesNotExist:
-            raise ValueError("User profile not found")
+            # Get profile_type from JWT if available, try both if not found
+            profile_type = getattr(user, 'profile_type', None)
+            
+            if profile_type:
+                profile = Profile.objects.filter(
+                    accountFK=user,
+                    profileType=profile_type
+                ).first()
+            else:
+                # Fallback: get any profile
+                profile = Profile.objects.filter(accountFK=user).first()
+            
+            if not profile:
+                raise ValueError("User profile not found")
+        except Exception as e:
+            if "User profile not found" in str(e):
+                raise
+            raise ValueError("Failed to get user profile")
         
         # Upload to Supabase with structure: user_{userID}/profileImage/avatar.png
         image_url = upload_profile_image(

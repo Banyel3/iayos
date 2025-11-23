@@ -142,4 +142,5 @@ export interface AuthContextType {
   logout: () => Promise<void>;
   checkAuth: () => Promise<boolean>;
   assignRole: (profileType: "WORKER" | "CLIENT") => Promise<boolean>;
+  switchProfile: (profileType: "WORKER" | "CLIENT") => Promise<void>;
 }

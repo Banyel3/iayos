@@ -27,6 +27,9 @@ class assignRoleSchema(Schema):
     email: EmailStr
     selectedType: str
 
+class SwitchProfileSchema(Schema):
+    profile_type: str
+
 class createAgencySchema(Schema):
     email: EmailStr
     password: str

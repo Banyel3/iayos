@@ -131,7 +131,7 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   buttonText: {
-    ...Typography.body.regular,
+    ...Typography.body.medium,
     fontWeight: "600",
   },
   primaryButtonText: {

@@ -199,6 +199,12 @@ export const ENDPOINTS = {
   KYC_UPLOAD: `${API_BASE_URL.replace("/api", "")}/api/accounts/upload/kyc`, // Matches Next.js endpoint
   KYC_APPLICATION_HISTORY: `${API_BASE_URL.replace("/api", "")}/api/accounts/kyc-application-history`,
 
+  // Dual Profile Management (4 endpoints)
+  DUAL_PROFILE_STATUS: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/dual-status`,
+  CREATE_CLIENT_PROFILE: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/create-client`,
+  CREATE_WORKER_PROFILE: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/create-worker`,
+  SWITCH_PROFILE: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/switch-profile`,
+
   // Phase 8: Reviews & Ratings (6 endpoints)
   SUBMIT_REVIEW: `${API_BASE_URL.replace("/api", "")}/api/accounts/reviews/submit`,
   WORKER_REVIEWS: (workerId: number, page = 1, limit = 20, sort = "latest") =>

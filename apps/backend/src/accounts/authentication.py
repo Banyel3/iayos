@@ -23,16 +23,22 @@ class JWTBearer(HttpBearer):
             # Decode the JWT token
             payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
             user_id = payload.get('user_id')
+            profile_type = payload.get('profile_type')  # Extract profile_type from JWT
 
             if not user_id:
                 print("[FAIL] No user_id in token payload")
                 return None
 
             print(f"[AUTH] Token validated - User ID: {user_id}")
+            print(f"[AUTH] Profile type from JWT: {profile_type}")
 
             # Get the user
             user = Accounts.objects.get(accountID=user_id)
-            print(f"[SUCCESS] Authentication SUCCESS - User: {user.email}")
+            
+            # Attach profile_type to user object so it's available in request.auth
+            user.profile_type = profile_type
+            
+            print(f"[SUCCESS] Authentication SUCCESS - User: {user.email}, Profile Type: {profile_type}")
             return user
 
         except jwt.ExpiredSignatureError:

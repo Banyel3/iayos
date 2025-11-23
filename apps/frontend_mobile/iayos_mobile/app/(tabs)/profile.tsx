@@ -26,11 +26,24 @@ import { useProfileMetrics } from "@/lib/hooks/useProfileMetrics";
 import { useWallet, WalletData } from "@/lib/hooks/useWallet";
 import { formatCurrency } from "@/lib/hooks/usePayments";
 import { useScanLocation } from "@/lib/hooks/useLocation";
+import {
+  useDualProfileStatus,
+  useCreateClientProfile,
+  useCreateWorkerProfile,
+  useSwitchProfile,
+} from "@/lib/hooks/useDualProfile";
 
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
   const router = useRouter();
   const scanLocation = useScanLocation();
+
+  // Dual profile management
+  const { data: dualStatus, isLoading: isDualStatusLoading } =
+    useDualProfileStatus();
+  const createClient = useCreateClientProfile();
+  const createWorker = useCreateWorkerProfile();
+  const switchProfile = useSwitchProfile();
 
   // Get unread notifications count
   const { data: unreadCount = 0 } = useUnreadNotificationsCount();
@@ -286,6 +299,205 @@ export default function ProfileScreen() {
             )}
           </View>
         </View>
+
+        {/* Profile Switcher Section */}
+        {!isDualStatusLoading && dualStatus && (
+          <View style={styles.section}>
+            {isWorker ? (
+              // Worker account - show client profile option
+              dualStatus.has_client_profile ? (
+                // Has client profile - show switch button
+                <TouchableOpacity
+                  style={styles.switchProfileCard}
+                  activeOpacity={0.8}
+                  onPress={() => {
+                    Alert.alert(
+                      "Switch to Client Profile",
+                      "Switch to your client profile to post jobs and hire workers. You can switch back anytime.",
+                      [
+                        { text: "Cancel", style: "cancel" },
+                        {
+                          text: "Switch",
+                          style: "default",
+                          onPress: () => switchProfile.mutate("CLIENT"),
+                        },
+                      ]
+                    );
+                  }}
+                  disabled={switchProfile.isPending}
+                >
+                  <View style={styles.switchProfileContent}>
+                    <View style={styles.switchIconContainer}>
+                      <Ionicons
+                        name="briefcase"
+                        size={24}
+                        color={Colors.primary}
+                      />
+                    </View>
+                    <View style={styles.switchTextContainer}>
+                      <Text style={styles.switchProfileTitle}>
+                        Switch to Client Profile
+                      </Text>
+                      <Text style={styles.switchProfileDescription}>
+                        Post jobs and hire workers
+                      </Text>
+                    </View>
+                    <Ionicons
+                      name="chevron-forward"
+                      size={24}
+                      color={Colors.textSecondary}
+                    />
+                  </View>
+                </TouchableOpacity>
+              ) : (
+                // No client profile - show create option
+                <View style={styles.createProfileCard}>
+                  <View style={styles.createProfileHeader}>
+                    <Ionicons
+                      name="briefcase-outline"
+                      size={28}
+                      color={Colors.primary}
+                    />
+                    <Text style={styles.createProfileTitle}>
+                      Want to hire workers too?
+                    </Text>
+                  </View>
+                  <Text style={styles.createProfileDescription}>
+                    Create a client profile to post jobs and hire skilled
+                    workers for your projects.
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.createProfileButton}
+                    activeOpacity={0.8}
+                    onPress={() => {
+                      Alert.alert(
+                        "Create Client Profile",
+                        "This will create a separate client profile for posting jobs. You can switch between worker and client profiles anytime. Continue?",
+                        [
+                          { text: "Cancel", style: "cancel" },
+                          {
+                            text: "Create",
+                            style: "default",
+                            onPress: () => createClient.mutate(),
+                          },
+                        ]
+                      );
+                    }}
+                    disabled={createClient.isPending}
+                  >
+                    {createClient.isPending ? (
+                      <ActivityIndicator size="small" color={Colors.white} />
+                    ) : (
+                      <>
+                        <Ionicons
+                          name="add-circle-outline"
+                          size={20}
+                          color={Colors.white}
+                        />
+                        <Text style={styles.createProfileButtonText}>
+                          Create Client Profile
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              )
+            ) : // Client account - show worker profile option
+            dualStatus.has_worker_profile ? (
+              // Has worker profile - show switch button
+              <TouchableOpacity
+                style={styles.switchProfileCard}
+                activeOpacity={0.8}
+                onPress={() => {
+                  Alert.alert(
+                    "Switch to Worker Profile",
+                    "Switch to your worker profile to find jobs and offer services. You can switch back anytime.",
+                    [
+                      { text: "Cancel", style: "cancel" },
+                      {
+                        text: "Switch",
+                        style: "default",
+                        onPress: () => switchProfile.mutate("WORKER"),
+                      },
+                    ]
+                  );
+                }}
+                disabled={switchProfile.isPending}
+              >
+                <View style={styles.switchProfileContent}>
+                  <View style={styles.switchIconContainer}>
+                    <Ionicons name="hammer" size={24} color={Colors.primary} />
+                  </View>
+                  <View style={styles.switchTextContainer}>
+                    <Text style={styles.switchProfileTitle}>
+                      Switch to Worker Profile
+                    </Text>
+                    <Text style={styles.switchProfileDescription}>
+                      Find jobs and offer your services
+                    </Text>
+                  </View>
+                  <Ionicons
+                    name="chevron-forward"
+                    size={24}
+                    color={Colors.textSecondary}
+                  />
+                </View>
+              </TouchableOpacity>
+            ) : (
+              // No worker profile - show create option
+              <View style={styles.createProfileCard}>
+                <View style={styles.createProfileHeader}>
+                  <Ionicons
+                    name="hammer-outline"
+                    size={28}
+                    color={Colors.primary}
+                  />
+                  <Text style={styles.createProfileTitle}>
+                    Want to work on jobs too?
+                  </Text>
+                </View>
+                <Text style={styles.createProfileDescription}>
+                  Create a worker profile to apply for jobs and offer your
+                  services to clients.
+                </Text>
+                <TouchableOpacity
+                  style={styles.createProfileButton}
+                  activeOpacity={0.8}
+                  onPress={() => {
+                    Alert.alert(
+                      "Create Worker Profile",
+                      "This will create a separate worker profile for applying to jobs. You can switch between client and worker profiles anytime. Continue?",
+                      [
+                        { text: "Cancel", style: "cancel" },
+                        {
+                          text: "Create",
+                          style: "default",
+                          onPress: () => createWorker.mutate(),
+                        },
+                      ]
+                    );
+                  }}
+                  disabled={createWorker.isPending}
+                >
+                  {createWorker.isPending ? (
+                    <ActivityIndicator size="small" color={Colors.white} />
+                  ) : (
+                    <>
+                      <Ionicons
+                        name="add-circle-outline"
+                        size={20}
+                        color={Colors.white}
+                      />
+                      <Text style={styles.createProfileButtonText}>
+                        Create Worker Profile
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        )}
 
         {/* Wallet Section */}
         <View style={styles.section}>
@@ -837,6 +1049,78 @@ const styles = StyleSheet.create({
   menuLabel: {
     fontSize: Typography.fontSize.base,
     color: Colors.textPrimary,
+  },
+  // Profile Switcher Styles
+  switchProfileCard: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    ...Shadows.sm,
+  },
+  switchProfileContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.lg,
+    gap: Spacing.md,
+  },
+  switchIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: Colors.primaryLight,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  switchTextContainer: {
+    flex: 1,
+  },
+  switchProfileTitle: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.semiBold,
+    color: Colors.textPrimary,
+    marginBottom: 4,
+  },
+  switchProfileDescription: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+  },
+  createProfileCard: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.xl,
+    ...Shadows.sm,
+  },
+  createProfileHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  createProfileTitle: {
+    fontSize: Typography.fontSize.lg,
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.textPrimary,
+    flex: 1,
+  },
+  createProfileDescription: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+    lineHeight: 20,
+    marginBottom: Spacing.lg,
+  },
+  createProfileButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.primary,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    gap: Spacing.sm,
+  },
+  createProfileButtonText: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.semiBold,
+    color: Colors.white,
   },
   logoutButton: {
     flexDirection: "row",

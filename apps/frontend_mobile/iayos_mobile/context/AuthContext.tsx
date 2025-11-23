@@ -312,6 +312,104 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  // Switch profile without logging out
+  const switchProfile = async (
+    profileType: "WORKER" | "CLIENT"
+  ): Promise<void> => {
+    try {
+      console.log(`🔄 Attempting to switch profile to ${profileType}...`);
+
+      const response = await apiRequest(ENDPOINTS.SWITCH_PROFILE, {
+        method: "POST",
+        body: JSON.stringify({ profile_type: profileType }),
+      });
+
+      console.log(`📡 Switch profile response status: ${response.status}`);
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => null);
+        console.log(
+          "📡 Switch profile error body:",
+          JSON.stringify(errorBody, null, 2)
+        );
+
+        const errorMessage =
+          errorBody?.error ||
+          errorBody?.message ||
+          errorBody?.detail ||
+          `Failed to switch profile (HTTP ${response.status})`;
+
+        console.error("❌ Switch profile failed:", errorMessage);
+        throw new Error(errorMessage);
+      }
+
+      // Parse response and extract new tokens
+      const switchData = await response.json();
+      console.log(
+        "✅ Switch profile response data:",
+        JSON.stringify(switchData, null, 2)
+      );
+
+      const newAccessToken = switchData?.access || switchData?.access_token;
+
+      if (!newAccessToken) {
+        console.error("❌ No access token in switch response:", switchData);
+        throw new Error("No access token received from server");
+      }
+
+      // Store new access token
+      await AsyncStorage.setItem("access_token", newAccessToken);
+      console.log(`✅ Switched to ${profileType} profile, new token stored`);
+
+      // Fetch updated user data with new profile
+      const userDataResponse = await apiRequest(ENDPOINTS.ME);
+
+      if (userDataResponse.ok) {
+        const userData = await userDataResponse.json();
+
+        // Detailed logging to verify profile type is in the data
+        console.log(
+          `📊 User data received after switch:`,
+          JSON.stringify(userData, null, 2)
+        );
+        console.log(
+          `📊 Profile type in userData: ${userData?.profile_data?.profileType}`
+        );
+
+        setUser(userData);
+
+        await AsyncStorage.setItem(
+          "cached_user",
+          JSON.stringify({
+            user: userData,
+            timestamp: Date.now(),
+          })
+        );
+
+        console.log(`✅ Profile switched to ${profileType}, user data updated`);
+        console.log(
+          `✅ User state now has profileType: ${userData?.profile_data?.profileType}`
+        );
+      } else {
+        const userError = await userDataResponse.json().catch(() => null);
+        console.error("❌ Failed to fetch user data after switch:", userError);
+        throw new Error("Failed to fetch user data after profile switch");
+      }
+    } catch (error) {
+      // Better error logging
+      if (error instanceof Error) {
+        console.error("❌ Switch profile error:", error.message);
+        console.error("❌ Error stack:", error.stack);
+      } else {
+        console.error(
+          "❌ Switch profile error (unknown type):",
+          JSON.stringify(error, null, 2)
+        );
+      }
+      throw error;
+    }
+  };
+
   // Logout function
   const logout = async () => {
     try {
@@ -348,6 +446,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         logout,
         checkAuth,
         assignRole,
+        switchProfile,
       }}
     >
       {children}

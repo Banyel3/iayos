@@ -20,6 +20,7 @@ from .schemas import (
     SendMessageMobileSchema,
     DepositFundsSchema,
     SendVerificationEmailSchema,
+    SwitchProfileSchema,
 )
 from .authentication import jwt_auth  # Use Bearer token auth for mobile
 from .profile_metrics_service import get_profile_metrics
@@ -243,13 +244,18 @@ def mobile_get_profile(request):
     """
     Get current user profile for mobile
     Returns mobile-optimized user data
+    Uses profile_type from JWT token if available
     """
     from .services import fetch_currentUser
 
     try:
         user = request.auth
-        print(f"[SUCCESS] Mobile /auth/profile - User: {user.email}")
-        result = fetch_currentUser(user.accountID)
+        
+        # Get profile_type from JWT if available
+        profile_type = getattr(user, 'profile_type', None)
+        
+        print(f"[SUCCESS] Mobile /auth/profile - User: {user.email}, Profile Type: {profile_type}")
+        result = fetch_currentUser(user.accountID, profile_type=profile_type)
         return result
     except Exception as e:
         print(f"[ERROR] Mobile profile error: {str(e)}")
@@ -534,11 +540,26 @@ def mobile_my_jobs(
         # Get user's profile
         print(f"\n   👤 Fetching user profile...")
         try:
-            profile = Profile.objects.get(accountFK=request.auth)
+            # Get profile_type from JWT if available, try both if not found
+            profile_type = getattr(request.auth, 'profile_type', None)
+            
+            if profile_type:
+                profile = Profile.objects.filter(
+                    accountFK=request.auth,
+                    profileType=profile_type
+                ).first()
+            else:
+                # Fallback: get any profile
+                profile = Profile.objects.filter(accountFK=request.auth).first()
+            
+            if not profile:
+                print(f"      ❌ Profile not found for user!")
+                return Response({"error": "Profile not found"}, status=400)
+            
             print(f"      Profile found: ID={profile.profileID}, Type={profile.profileType}")
-        except Profile.DoesNotExist:
-            print(f"      ❌ Profile not found for user!")
-            return Response({"error": "Profile not found"}, status=400)
+        except Exception as e:
+            print(f"      ❌ Error fetching profile: {e}")
+            return Response({"error": "Failed to fetch profile"}, status=500)
         
         # CLIENT: Jobs they posted
         if profile.profileType == 'CLIENT':
@@ -1460,9 +1481,23 @@ def mobile_deposit_funds(request, payload: DepositFundsSchema):
         
         # Get user's profile for name
         try:
-            profile = Profile.objects.get(accountFK=request.auth)
-            user_name = f"{profile.firstName} {profile.lastName}"
-        except Profile.DoesNotExist:
+            # Get profile_type from JWT if available, try both if not found
+            profile_type = getattr(request.auth, 'profile_type', None)
+            
+            if profile_type:
+                profile = Profile.objects.filter(
+                    accountFK=request.auth,
+                    profileType=profile_type
+                ).first()
+            else:
+                # Fallback: get any profile
+                profile = Profile.objects.filter(accountFK=request.auth).first()
+            
+            if profile:
+                user_name = f"{profile.firstName} {profile.lastName}"
+            else:
+                user_name = request.auth.email.split('@')[0]
+        except Exception:
             user_name = request.auth.email.split('@')[0]
         
         print(f"💰 Current balance: ₱{wallet.balance}")
@@ -1831,6 +1866,291 @@ def mobile_get_pending_reviews(request):
         traceback.print_exc()
         return Response(
             {"error": "Failed to fetch pending reviews"},
+            status=500
+        )
+
+#endregion
+
+#region PROFILE SWITCHING
+
+@mobile_router.post("/profile/switch-profile", auth=jwt_auth)
+def switch_profile(request):
+    """
+    Switch active profile without logging out
+    Returns new JWT tokens with updated profile_type
+    Expects JSON body: { "profile_type": "WORKER" | "CLIENT" }
+    """
+    from .services import generateCookie
+    from .models import Profile
+    import json
+
+    try:
+        user = request.auth
+        
+        # Parse JSON body
+        try:
+            body = json.loads(request.body.decode('utf-8'))
+            profile_type = body.get('profile_type')
+        except (json.JSONDecodeError, AttributeError):
+            return Response(
+                {"error": "Invalid JSON body"},
+                status=400
+            )
+        
+        if not profile_type:
+            return Response(
+                {"error": "Missing profile_type in request body"},
+                status=400
+            )
+        
+        # Validate profile_type
+        if profile_type not in ['WORKER', 'CLIENT']:
+            return Response(
+                {"error": "Invalid profile type. Must be 'WORKER' or 'CLIENT'"},
+                status=400
+            )
+        
+        # Check if profile exists
+        profile_exists = Profile.objects.filter(
+            accountFK__accountID=user.accountID,
+            profileType=profile_type
+        ).exists()
+        
+        if not profile_exists:
+            return Response(
+                {"error": f"{profile_type} profile does not exist for this account"},
+                status=404
+            )
+        
+        # Generate new tokens with updated profile_type
+        result = generateCookie(user, profile_type=profile_type)
+        
+        # Extract tokens from JsonResponse
+        if hasattr(result, 'content'):
+            response_data = json.loads(result.content.decode('utf-8'))
+            
+            # Add success message
+            response_data['message'] = f"Switched to {profile_type} profile"
+            response_data['profile_type'] = profile_type
+            
+            return response_data
+        else:
+            return result
+
+    except Exception as e:
+        print(f"❌ [Mobile] Switch profile error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to switch profile"},
+            status=500
+        )
+
+#endregion
+
+#region DUAL PROFILE MANAGEMENT
+
+@mobile_router.get("/profile/dual-status", auth=jwt_auth)
+def get_dual_profile_status(request):
+    """
+    Check if user has both worker and client profiles
+    Returns which profiles exist and current active profile
+    """
+    from .models import Profile, WorkerProfile, ClientProfile
+
+    try:
+        user = request.auth
+        
+        # Get all profiles for this account
+        profiles = Profile.objects.filter(accountFK=user)
+        
+        has_worker = False
+        has_client = False
+        current_profile_type = None
+        worker_profile_id = None
+        client_profile_id = None
+        
+        for profile in profiles:
+            if profile.profileType == 'WORKER':
+                has_worker = True
+                worker_profile_id = profile.profileID
+                # Check if worker profile exists
+                if not WorkerProfile.objects.filter(profileID=profile).exists():
+                    has_worker = False
+            elif profile.profileType == 'CLIENT':
+                has_client = True
+                client_profile_id = profile.profileID
+                # Check if client profile exists
+                if not ClientProfile.objects.filter(profileID=profile).exists():
+                    has_client = False
+        
+        # Get current active profile (most recently updated)
+        current_profile = profiles.order_by('-profileID').first()
+        if current_profile:
+            current_profile_type = current_profile.profileType
+        
+        return {
+            'success': True,
+            'has_worker_profile': has_worker,
+            'has_client_profile': has_client,
+            'current_profile_type': current_profile_type,
+            'worker_profile_id': worker_profile_id,
+            'client_profile_id': client_profile_id,
+        }
+    except Exception as e:
+        print(f"❌ [Mobile] Get dual profile status error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to get profile status"},
+            status=500
+        )
+
+
+@mobile_router.post("/profile/create-client", auth=jwt_auth)
+def create_client_profile(request):
+    """
+    Create a CLIENT profile for a user who currently only has a WORKER profile
+    Creates blank client profile with default values
+    """
+    from .models import Profile, ClientProfile
+    from django.utils import timezone
+
+    try:
+        user = request.auth
+        
+        # Check if client profile already exists
+        existing_client = Profile.objects.filter(
+            accountFK=user,
+            profileType='CLIENT'
+        ).first()
+        
+        if existing_client:
+            return Response(
+                {"error": "Client profile already exists"},
+                status=400
+            )
+        
+        # Get worker profile to copy basic info
+        worker_profile = Profile.objects.filter(
+            accountFK=user,
+            profileType='WORKER'
+        ).first()
+        
+        if not worker_profile:
+            return Response(
+                {"error": "Worker profile not found"},
+                status=404
+            )
+        
+        # Create new CLIENT profile with same basic info
+        client_profile = Profile.objects.create(
+            accountFK=user,
+            firstName=worker_profile.firstName,
+            middleName=worker_profile.middleName,
+            lastName=worker_profile.lastName,
+            contactNum=worker_profile.contactNum,
+            birthDate=worker_profile.birthDate,
+            profileType='CLIENT',
+            profileImg=worker_profile.profileImg,  # Copy avatar
+        )
+        
+        # Create ClientProfile entry
+        ClientProfile.objects.create(
+            profileID=client_profile,
+            description="",
+            totalJobsPosted=0,
+            clientRating=0,
+        )
+        
+        print(f"✅ [Mobile] Created CLIENT profile for user {user.email}")
+        
+        return {
+            'success': True,
+            'message': 'Client profile created successfully',
+            'profile_id': client_profile.profileID,
+        }
+    except Exception as e:
+        print(f"❌ [Mobile] Create client profile error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to create client profile"},
+            status=500
+        )
+
+
+@mobile_router.post("/profile/create-worker", auth=jwt_auth)
+def create_worker_profile(request):
+    """
+    Create a WORKER profile for a user who currently only has a CLIENT profile
+    Creates blank worker profile with default values
+    """
+    from .models import Profile, WorkerProfile
+    from django.utils import timezone
+
+    try:
+        user = request.auth
+        
+        # Check if worker profile already exists
+        existing_worker = Profile.objects.filter(
+            accountFK=user,
+            profileType='WORKER'
+        ).first()
+        
+        if existing_worker:
+            return Response(
+                {"error": "Worker profile already exists"},
+                status=400
+            )
+        
+        # Get client profile to copy basic info
+        client_profile = Profile.objects.filter(
+            accountFK=user,
+            profileType='CLIENT'
+        ).first()
+        
+        if not client_profile:
+            return Response(
+                {"error": "Client profile not found"},
+                status=404
+            )
+        
+        # Create new WORKER profile with same basic info
+        worker_profile = Profile.objects.create(
+            accountFK=user,
+            firstName=client_profile.firstName,
+            middleName=client_profile.middleName,
+            lastName=client_profile.lastName,
+            contactNum=client_profile.contactNum,
+            birthDate=client_profile.birthDate,
+            profileType='WORKER',
+            profileImg=client_profile.profileImg,  # Copy avatar
+        )
+        
+        # Create WorkerProfile entry
+        WorkerProfile.objects.create(
+            profileID=worker_profile,
+            description="",
+            workerRating=0,
+            totalEarningGross=0,
+            bio="",
+            profile_completion_percentage=0,
+        )
+        
+        print(f"✅ [Mobile] Created WORKER profile for user {user.email}")
+        
+        return {
+            'success': True,
+            'message': 'Worker profile created successfully',
+            'profile_id': worker_profile.profileID,
+        }
+    except Exception as e:
+        print(f"❌ [Mobile] Create worker profile error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to create worker profile"},
             status=500
         )
 

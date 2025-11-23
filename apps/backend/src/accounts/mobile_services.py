@@ -54,12 +54,28 @@ def get_mobile_job_list(
         user_lat = None
         user_lon = None
         try:
-            user_profile = Profile.objects.get(accountFK=user)
-            if user_profile.latitude and user_profile.longitude:
+            # Get profile_type from JWT if available, otherwise default to WORKER
+            profile_type = getattr(user, 'profile_type', 'WORKER')
+            
+            # For dual profiles, use profile_type to fetch correct profile
+            user_profile = Profile.objects.filter(
+                accountFK=user,
+                profileType=profile_type
+            ).first()
+            
+            # Fallback: if specified profile not found, try WORKER profile (job browsing is worker-centric)
+            if not user_profile:
+                user_profile = Profile.objects.filter(
+                    accountFK=user,
+                    profileType='WORKER'
+                ).first()
+            
+            if user_profile and user_profile.latitude and user_profile.longitude:
                 user_lat = user_profile.latitude
                 user_lon = user_profile.longitude
-                print(f"📍 [LOCATION] User location: {user_lat}, {user_lon}")
-        except Profile.DoesNotExist:
+                print(f"📍 [LOCATION] User location ({profile_type}): {user_lat}, {user_lon}")
+        except Exception as e:
+            print(f"⚠️ [LOCATION] Could not fetch user location: {e}")
             pass
         
         # Base query - only ACTIVE jobs that are LISTING type (exclude INVITE/direct hire jobs)
@@ -105,23 +121,33 @@ def get_mobile_job_list(
             # Check if current user has applied
             has_applied = False
             try:
-                profile = Profile.objects.get(accountFK=user)
-                if hasattr(profile, 'workerprofile'):
+                # Get profile_type from JWT if available, default to WORKER
+                profile_type = getattr(user, 'profile_type', 'WORKER')
+                profile = Profile.objects.filter(
+                    accountFK=user,
+                    profileType=profile_type
+                ).first()
+                
+                if profile and hasattr(profile, 'workerprofile'):
                     has_applied = JobApplication.objects.filter(
                         jobID=job,
                         workerID__profileID__accountFK=user
                     ).exists()
-            except Profile.DoesNotExist:
+            except Exception:
                 pass
 
             # Get client info
             client_profile = job.clientID.profileID
             client_name = f"{client_profile.firstName} {client_profile.lastName}" if client_profile else "Unknown Client"
             
+            # Get job location coordinates from client's profile (not from Job model)
+            job_lat = client_profile.latitude if client_profile else None
+            job_lon = client_profile.longitude if client_profile else None
+            
             # Calculate distance if both user and job have coordinates
             distance = None
-            if user_lat and user_lon and job.latitude and job.longitude:
-                distance = calculate_distance(user_lat, user_lon, job.latitude, job.longitude)
+            if user_lat and user_lon and job_lat and job_lon:
+                distance = calculate_distance(user_lat, user_lon, job_lat, job_lon)
                 print(f"   Job {job.jobID}: distance = {distance:.2f} km" if distance else f"   Job {job.jobID}: no distance")
 
             job_data = {
@@ -129,8 +155,8 @@ def get_mobile_job_list(
                 'title': job.title,
                 'budget': float(job.budget),
                 'location': job.location,
-                'latitude': float(job.latitude) if job.latitude else None,
-                'longitude': float(job.longitude) if job.longitude else None,
+                'latitude': float(job_lat) if job_lat else None,
+                'longitude': float(job_lon) if job_lon else None,
                 'distance': round(distance, 2) if distance else None,
                 'urgency_level': job.urgency,
                 'status': job.status,
@@ -235,10 +261,16 @@ def get_mobile_job_detail(job_id: int, user: Accounts) -> Dict[str, Any]:
         # Get user's worker profile if exists
         user_worker_profile = None
         try:
-            profile = Profile.objects.get(accountFK=user)
-            if hasattr(profile, 'workerprofile'):
+            # Get profile_type from JWT if available, default to WORKER
+            profile_type = getattr(user, 'profile_type', 'WORKER')
+            profile = Profile.objects.filter(
+                accountFK=user,
+                profileType=profile_type
+            ).first()
+            
+            if profile and hasattr(profile, 'workerprofile'):
                 user_worker_profile = profile.workerprofile
-        except Profile.DoesNotExist:
+        except Exception:
             pass
 
         if user_worker_profile:
@@ -394,11 +426,20 @@ def create_mobile_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[str, Any
         # Get user's client profile
         client_profile = None
         try:
-            profile = Profile.objects.get(accountFK=user)
+            # Get profile_type from JWT if available, default to CLIENT
+            profile_type = getattr(user, 'profile_type', 'CLIENT')
+            profile = Profile.objects.filter(
+                accountFK=user,
+                profileType=profile_type
+            ).first()
+            
+            if not profile:
+                return {'success': False, 'error': 'Profile not found'}
+            
             if hasattr(profile, 'clientprofile'):
                 client_profile = profile.clientprofile
-        except Profile.DoesNotExist:
-            return {'success': False, 'error': 'Profile not found'}
+        except Exception:
+            return {'success': False, 'error': 'Failed to get client profile'}
 
         if not client_profile:
             return {
@@ -566,12 +607,23 @@ def create_mobile_invite_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[s
         
         # Get user's client profile
         try:
-            profile = Profile.objects.get(accountFK=user)
+            # Get profile_type from JWT if available, default to CLIENT
+            profile_type = getattr(user, 'profile_type', 'CLIENT')
+            profile = Profile.objects.filter(
+                accountFK=user,
+                profileType=profile_type
+            ).first()
+            
+            if not profile:
+                return {'success': False, 'error': 'Profile not found'}
+            
             if profile.profileType != "CLIENT":
                 return {'success': False, 'error': 'Only clients can create invite jobs'}
             client_profile = ClientProfile.objects.get(profileID=profile)
-        except (Profile.DoesNotExist, ClientProfile.DoesNotExist):
+        except ClientProfile.DoesNotExist:
             return {'success': False, 'error': 'Client profile not found'}
+        except Exception:
+            return {'success': False, 'error': 'Failed to get client profile'}
         
         # Validate that either worker_id or agency_id is provided (not both)
         worker_id = job_data.get('worker_id')
@@ -865,10 +917,16 @@ def search_mobile_jobs(query: str, user: Accounts, page: int = 1, limit: int = 2
             # Check if current user has applied
             user_worker_profile = None
             try:
-                profile = Profile.objects.get(accountFK=user)
-                if hasattr(profile, 'workerprofile'):
+                # Get profile_type from JWT if available, default to WORKER
+                profile_type = getattr(user, 'profile_type', 'WORKER')
+                profile = Profile.objects.filter(
+                    accountFK=user,
+                    profileType=profile_type
+                ).first()
+                
+                if profile and hasattr(profile, 'workerprofile'):
                     user_worker_profile = profile.workerprofile
-            except Profile.DoesNotExist:
+            except Exception:
                 pass
 
             has_applied = False
@@ -1018,11 +1076,27 @@ def update_user_profile_mobile(user, payload):
 
         # Get user's profile
         try:
-            profile = Profile.objects.get(accountFK=user)
-        except Profile.DoesNotExist:
+            # Get profile_type from JWT if available, try both if not found
+            profile_type = getattr(user, 'profile_type', None)
+            
+            if profile_type:
+                profile = Profile.objects.filter(
+                    accountFK=user,
+                    profileType=profile_type
+                ).first()
+            else:
+                # Fallback: get any profile
+                profile = Profile.objects.filter(accountFK=user).first()
+            
+            if not profile:
+                return {
+                    'success': False,
+                    'error': 'Profile not found'
+                }
+        except Exception:
             return {
                 'success': False,
-                'error': 'Profile not found'
+                'error': 'Failed to get profile'
             }
 
         # Update allowed fields
@@ -1064,11 +1138,27 @@ def upload_profile_image_mobile(user, image_file):
 
         # Get user's profile
         try:
-            profile = Profile.objects.get(accountFK=user)
-        except Profile.DoesNotExist:
+            # Get profile_type from JWT if available, try both if not found
+            profile_type = getattr(user, 'profile_type', None)
+            
+            if profile_type:
+                profile = Profile.objects.filter(
+                    accountFK=user,
+                    profileType=profile_type
+                ).first()
+            else:
+                # Fallback: get any profile
+                profile = Profile.objects.filter(accountFK=user).first()
+            
+            if not profile:
+                return {
+                    'success': False,
+                    'error': 'Profile not found'
+                }
+        except Exception:
             return {
                 'success': False,
-                'error': 'Profile not found'
+                'error': 'Failed to get profile'
             }
 
         # Validate file size (max 5MB)
@@ -1141,7 +1231,20 @@ def get_workers_list_mobile(user, latitude=None, longitude=None, page=1, limit=2
         print(f"  🔍 Checking user profile and permissions...")
         # Only allow clients to view workers
         try:
-            user_profile = Profile.objects.get(accountFK=user)
+            # Get profile_type from JWT if available, default to CLIENT (workers list is client-centric)
+            profile_type = getattr(user, 'profile_type', 'CLIENT')
+            user_profile = Profile.objects.filter(
+                accountFK=user,
+                profileType=profile_type
+            ).first()
+            
+            if not user_profile:
+                print(f"  ❌ User profile not found for accountID: {user.accountID}, type: {profile_type}")
+                return {
+                    'success': False,
+                    'error': 'User profile not found'
+                }
+            
             print(f"  ✓ User profile found: {user_profile.firstName} {user_profile.lastName}")
             print(f"  ✓ Profile type: {user_profile.profileType}")
             
@@ -1151,11 +1254,11 @@ def get_workers_list_mobile(user, latitude=None, longitude=None, page=1, limit=2
                     'success': False,
                     'error': 'Only clients can view worker listings'
                 }
-        except Profile.DoesNotExist:
-            print(f"  ❌ User profile not found for accountID: {user.accountID}")
+        except Exception as e:
+            print(f"  ❌ Error checking user profile: {e}")
             return {
                 'success': False,
-                'error': 'User profile not found'
+                'error': 'Failed to check user permissions'
             }
 
         print(f"  🔍 Querying worker profiles...")
@@ -1437,8 +1540,19 @@ def get_worker_detail_mobile_v2(user, worker_id):
         # Calculate distance if user has location
         distance = None
         try:
-            user_profile = Profile.objects.get(accountFK=user)
-            if (user_profile.latitude and user_profile.longitude and 
+            # Get profile_type from JWT if available, try both if not found
+            profile_type = getattr(user, 'profile_type', None)
+            
+            if profile_type:
+                user_profile = Profile.objects.filter(
+                    accountFK=user,
+                    profileType=profile_type
+                ).first()
+            else:
+                # Fallback: get any profile
+                user_profile = Profile.objects.filter(accountFK=user).first()
+            
+            if user_profile and (user_profile.latitude and user_profile.longitude and 
                 profile.latitude and profile.longitude):
                 from math import radians, sin, cos, sqrt, atan2
                 
@@ -1657,11 +1771,27 @@ def get_my_jobs_mobile(user, status=None, page=1, limit=20):
 
         # Get user's profile
         try:
-            user_profile = Profile.objects.get(accountFK=user)
-        except Profile.DoesNotExist:
+            # Get profile_type from JWT if available, try both if not found
+            profile_type = getattr(user, 'profile_type', None)
+            
+            if profile_type:
+                user_profile = Profile.objects.filter(
+                    accountFK=user,
+                    profileType=profile_type
+                ).first()
+            else:
+                # Fallback: get any profile
+                user_profile = Profile.objects.filter(accountFK=user).first()
+            
+            if not user_profile:
+                return {
+                    'success': False,
+                    'error': 'User profile not found'
+                }
+        except Exception:
             return {
                 'success': False,
-                'error': 'User profile not found'
+                'error': 'Failed to get user profile'
             }
 
         if user_profile.profileType == 'CLIENT':
@@ -1795,11 +1925,22 @@ def get_available_jobs_mobile(user, page=1, limit=20):
 
         # Get user's profile
         try:
-            user_profile = Profile.objects.get(accountFK=user)
-        except Profile.DoesNotExist:
+            # Get profile_type from JWT if available, default to WORKER
+            profile_type = getattr(user, 'profile_type', 'WORKER')
+            user_profile = Profile.objects.filter(
+                accountFK=user,
+                profileType=profile_type
+            ).first()
+            
+            if not user_profile:
+                return {
+                    'success': False,
+                    'error': 'User profile not found'
+                }
+        except Exception:
             return {
                 'success': False,
-                'error': 'User profile not found'
+                'error': 'Failed to get user profile'
             }
 
         # Only workers can view available jobs
@@ -1951,8 +2092,18 @@ def submit_review_mobile(user: Accounts, job_id: int, rating: int, comment: str,
         reviewer_name = "Anonymous"
         reviewer_img = None
         try:
-            reviewer_profile = Profile.objects.get(accountFK=user)
-        except Profile.DoesNotExist:
+            # Get profile_type from JWT if available, try both if not found
+            profile_type = getattr(user, 'profile_type', None)
+            
+            if profile_type:
+                reviewer_profile = Profile.objects.filter(
+                    accountFK=user,
+                    profileType=profile_type
+                ).first()
+            else:
+                # Fallback: get any profile
+                reviewer_profile = Profile.objects.filter(accountFK=user).first()
+        except Exception:
             pass
 
         if reviewer_profile:
@@ -2354,8 +2505,18 @@ def edit_review_mobile(user: Accounts, review_id: int, rating: int, comment: str
         reviewer_name = "Anonymous"
         reviewer_img = None
         try:
-            reviewer_profile = Profile.objects.get(accountFK=user)
-        except Profile.DoesNotExist:
+            # Get profile_type from JWT if available, try both if not found
+            profile_type = getattr(user, 'profile_type', None)
+            
+            if profile_type:
+                reviewer_profile = Profile.objects.filter(
+                    accountFK=user,
+                    profileType=profile_type
+                ).first()
+            else:
+                # Fallback: get any profile
+                reviewer_profile = Profile.objects.filter(accountFK=user).first()
+        except Exception:
             pass
 
         if reviewer_profile:
@@ -2429,9 +2590,22 @@ def get_pending_reviews_mobile(user: Accounts) -> Dict[str, Any]:
     try:
         # Get user's profile
         try:
-            profile = Profile.objects.get(accountFK=user)
-        except Profile.DoesNotExist:
-            return {'success': False, 'error': 'Profile not found'}
+            # Get profile_type from JWT if available, try both if not found
+            profile_type = getattr(user, 'profile_type', None)
+            
+            if profile_type:
+                profile = Profile.objects.filter(
+                    accountFK=user,
+                    profileType=profile_type
+                ).first()
+            else:
+                # Fallback: get any profile (for users with single profile)
+                profile = Profile.objects.filter(accountFK=user).first()
+            
+            if not profile:
+                return {'success': False, 'error': 'Profile not found'}
+        except Exception:
+            return {'success': False, 'error': 'Failed to get profile'}
 
         # Get completed jobs where user was client or worker
         worker_profile = None
