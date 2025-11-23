@@ -328,25 +328,33 @@ export default function ProfileScreen() {
                 >
                   <View style={styles.switchProfileContent}>
                     <View style={styles.switchIconContainer}>
-                      <Ionicons
-                        name="briefcase"
-                        size={24}
-                        color={Colors.primary}
-                      />
+                      {switchProfile.isPending ? (
+                        <ActivityIndicator size="small" color={Colors.primary} />
+                      ) : (
+                        <Ionicons
+                          name="briefcase"
+                          size={24}
+                          color={Colors.primary}
+                        />
+                      )}
                     </View>
                     <View style={styles.switchTextContainer}>
                       <Text style={styles.switchProfileTitle}>
-                        Switch to Client Profile
+                        {switchProfile.isPending
+                          ? "Switching..."
+                          : "Switch to Client Profile"}
                       </Text>
                       <Text style={styles.switchProfileDescription}>
                         Post jobs and hire workers
                       </Text>
                     </View>
-                    <Ionicons
-                      name="chevron-forward"
-                      size={24}
-                      color={Colors.textSecondary}
-                    />
+                    {!switchProfile.isPending && (
+                      <Ionicons
+                        name="chevron-forward"
+                        size={24}
+                        color={Colors.textSecondary}
+                      />
+                    )}
                   </View>
                 </TouchableOpacity>
               ) : (
@@ -426,21 +434,29 @@ export default function ProfileScreen() {
               >
                 <View style={styles.switchProfileContent}>
                   <View style={styles.switchIconContainer}>
-                    <Ionicons name="hammer" size={24} color={Colors.primary} />
+                    {switchProfile.isPending ? (
+                      <ActivityIndicator size="small" color={Colors.primary} />
+                    ) : (
+                      <Ionicons name="hammer" size={24} color={Colors.primary} />
+                    )}
                   </View>
                   <View style={styles.switchTextContainer}>
                     <Text style={styles.switchProfileTitle}>
-                      Switch to Worker Profile
+                      {switchProfile.isPending
+                        ? "Switching..."
+                        : "Switch to Worker Profile"}
                     </Text>
                     <Text style={styles.switchProfileDescription}>
                       Find jobs and offer your services
                     </Text>
                   </View>
-                  <Ionicons
-                    name="chevron-forward"
-                    size={24}
-                    color={Colors.textSecondary}
-                  />
+                  {!switchProfile.isPending && (
+                    <Ionicons
+                      name="chevron-forward"
+                      size={24}
+                      color={Colors.textSecondary}
+                    />
+                  )}
                 </View>
               </TouchableOpacity>
             ) : (
