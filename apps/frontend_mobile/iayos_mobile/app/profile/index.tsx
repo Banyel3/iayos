@@ -27,6 +27,7 @@ import { PortfolioGrid } from "@/components/PortfolioGrid";
 import { ImageViewer } from "@/components/ImageViewer";
 import CertificationCard from "@/components/CertificationCard";
 import MaterialCard from "@/components/MaterialCard";
+import LocationButton from "@/components/LocationButton";
 import {
   usePortfolioManagement,
   type PortfolioImage,
@@ -360,6 +361,28 @@ export default function ProfileScreen() {
             </Text>
           </View>
         </View>
+      </View>
+
+      {/* Location Tracking */}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Ionicons
+            name="navigate-circle"
+            size={24}
+            color={Colors.primary}
+          />
+          <Text style={styles.sectionTitle}>Location for Nearby Jobs</Text>
+        </View>
+        <Text style={styles.sectionDescription}>
+          Update your current location to see jobs sorted by distance. This helps clients find workers nearby.
+        </Text>
+        <LocationButton
+          variant="secondary"
+          size="medium"
+          onLocationUpdated={() => {
+            // Could refresh job list here if needed
+          }}
+        />
       </View>
 
       {/* Stats Cards */}
@@ -993,5 +1016,13 @@ const styles = StyleSheet.create({
     ...Typography.body.medium,
     color: Colors.primary,
     fontWeight: "600",
+  },
+
+  // Location Section
+  sectionDescription: {
+    ...Typography.body.medium,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.md,
+    lineHeight: 22,
   },
 });

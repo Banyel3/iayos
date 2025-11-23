@@ -177,6 +177,13 @@ export default function CertificationForm({
           hasExpiry && expiryDate
             ? expiryDate.toISOString().split("T")[0]
             : undefined,
+        certificateFile: certificateImage
+          ? {
+              uri: certificateImage.uri,
+              name: certificateImage.fileName || "certificate.jpg",
+              type: certificateImage.mimeType || "image/jpeg",
+            }
+          : undefined,
       };
 
       updateCertification.mutate(
@@ -472,51 +479,72 @@ export default function CertificationForm({
             )}
 
             {/* Certificate Image Upload */}
-            {!isEditMode && (
-              <View style={styles.formGroup}>
-                <Text style={styles.label}>
-                  Certificate Document <Text style={styles.required}>*</Text>
-                </Text>
-                {certificateImage ? (
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>
+                Certificate Document{" "}
+                {isEditMode ? "(Optional - Update if needed)" : <Text style={styles.required}>*</Text>}
+              </Text>
+              {certificateImage ? (
+                <View style={styles.imagePreviewContainer}>
+                  <Image
+                    source={{ uri: certificateImage.uri }}
+                    style={styles.imagePreview}
+                    resizeMode="cover"
+                  />
+                  <Pressable
+                    style={styles.removeImageButton}
+                    onPress={() => setCertificateImage(null)}
+                    disabled={isLoading}
+                  >
+                    <Ionicons
+                      name="close-circle"
+                      size={24}
+                      color={Colors.error}
+                    />
+                  </Pressable>
+                </View>
+              ) : certification?.certificateUrl ? (
+                <View>
                   <View style={styles.imagePreviewContainer}>
                     <Image
-                      source={{ uri: certificateImage.uri }}
+                      source={{ uri: certification.certificateUrl }}
                       style={styles.imagePreview}
                       resizeMode="cover"
                     />
-                    <Pressable
-                      style={styles.removeImageButton}
-                      onPress={() => setCertificateImage(null)}
-                      disabled={isLoading}
-                    >
-                      <Ionicons
-                        name="close-circle"
-                        size={24}
-                        color={Colors.error}
-                      />
-                    </Pressable>
                   </View>
-                ) : (
                   <Pressable
                     style={styles.uploadButton}
                     onPress={handlePickImage}
                     disabled={isLoading}
                   >
                     <Ionicons
-                      name="cloud-upload-outline"
-                      size={32}
+                      name="refresh-outline"
+                      size={24}
                       color={Colors.primary}
                     />
-                    <Text style={styles.uploadButtonText}>
-                      Upload Certificate
-                    </Text>
-                    <Text style={styles.uploadButtonHint}>
-                      Tap to select image from gallery
-                    </Text>
+                    <Text style={styles.uploadButtonText}>Change Certificate</Text>
                   </Pressable>
-                )}
-              </View>
-            )}
+                </View>
+              ) : (
+                <Pressable
+                  style={styles.uploadButton}
+                  onPress={handlePickImage}
+                  disabled={isLoading}
+                >
+                  <Ionicons
+                    name="cloud-upload-outline"
+                    size={32}
+                    color={Colors.primary}
+                  />
+                  <Text style={styles.uploadButtonText}>
+                    Upload Certificate
+                  </Text>
+                  <Text style={styles.uploadButtonHint}>
+                    Tap to select image from gallery
+                  </Text>
+                </Pressable>
+              )}
+            </View>
           </ScrollView>
 
           {/* Actions */}

@@ -147,7 +147,8 @@ def update_certification(
     name: Optional[str] = None,
     organization: Optional[str] = None,
     issue_date: Optional[str] = None,
-    expiry_date: Optional[str] = None
+    expiry_date: Optional[str] = None,
+    certificate_file = None
 ) -> Dict:
     """
     Update certification fields.
@@ -159,6 +160,7 @@ def update_certification(
         organization: Optional new organization
         issue_date: Optional new issue date (YYYY-MM-DD)
         expiry_date: Optional new expiry date (YYYY-MM-DD)
+        certificate_file: Optional new certificate file
     
     Returns:
         dict: Updated certification data
@@ -201,6 +203,20 @@ def update_certification(
     if certification.issue_date and certification.expiry_date:
         if certification.expiry_date < certification.issue_date:
             raise ValueError("Expiry date cannot be before issue date")
+    
+    # Upload new certificate file if provided
+    if certificate_file:
+        try:
+            worker_id = worker_profile.profileID.profileID
+            file_name = f"cert_{certification.name.replace(' ', '_')}_{int(datetime.now().timestamp())}"
+            certificate_url = upload_worker_certificate(certificate_file, file_name, worker_id)
+            
+            if not certificate_url:
+                raise ValueError("Failed to upload certificate file")
+            
+            certification.certificate_url = certificate_url
+        except Exception as e:
+            raise ValueError(f"Certificate upload failed: {str(e)}")
     
     certification.save()
     
@@ -346,7 +362,7 @@ def upload_worker_certificate(file, file_name: str, worker_id: int) -> str:
     return upload_file(
         file,
         bucket="users",
-        path=f"worker_{worker_id}/certificates/",
+        path=f"user_{worker_id}/certificates",
         public=True,
         custom_name=file_name
     )

@@ -27,7 +27,6 @@ import {
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
 import { Ionicons } from "@expo/vector-icons";
-import InlineLoader from "@/components/ui/InlineLoader";
 import {
   Colors,
   Typography,
@@ -89,6 +88,85 @@ interface WorkerDetail {
   materials?: WorkerMaterial[];
 }
 
+// Skeleton component for loading state
+const WorkerDetailSkeleton = () => {
+  const router = useRouter();
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backButton}
+        >
+          <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 120 }}
+      >
+        {/* Hero Skeleton */}
+        <View style={styles.heroSection}>
+          <View style={[styles.skeletonCircle, styles.avatar]} />
+          <View style={[styles.skeletonBox, { width: 180, height: 24, marginTop: 16 }]} />
+          <View style={[styles.skeletonBox, { width: 120, height: 20, marginTop: 8 }]} />
+          <View style={{ flexDirection: "row", alignItems: "center", marginTop: 8 }}>
+            <View style={[styles.skeletonBox, { width: 80, height: 16 }]} />
+          </View>
+        </View>
+
+        {/* Stats Skeleton */}
+        <View style={styles.statsSection}>
+          <View style={styles.statCard}>
+            <View style={[styles.skeletonBox, { width: 40, height: 28 }]} />
+            <View style={[styles.skeletonBox, { width: 60, height: 14, marginTop: 4 }]} />
+          </View>
+          <View style={styles.statCard}>
+            <View style={[styles.skeletonBox, { width: 60, height: 28 }]} />
+            <View style={[styles.skeletonBox, { width: 50, height: 14, marginTop: 4 }]} />
+          </View>
+          <View style={styles.statCard}>
+            <View style={[styles.skeletonBox, { width: 30, height: 28 }]} />
+            <View style={[styles.skeletonBox, { width: 40, height: 14, marginTop: 4 }]} />
+          </View>
+        </View>
+
+        {/* Bio Skeleton */}
+        <View style={styles.section}>
+          <View style={[styles.skeletonBox, { width: 100, height: 20, marginBottom: 12 }]} />
+          <View style={[styles.skeletonBox, { width: "100%", height: 16, marginBottom: 8 }]} />
+          <View style={[styles.skeletonBox, { width: "90%", height: 16, marginBottom: 8 }]} />
+          <View style={[styles.skeletonBox, { width: "80%", height: 16 }]} />
+        </View>
+
+        {/* Skills Skeleton */}
+        <View style={styles.section}>
+          <View style={[styles.skeletonBox, { width: 120, height: 20, marginBottom: 12 }]} />
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+            <View style={[styles.skeletonBox, { width: 80, height: 32, borderRadius: 16 }]} />
+            <View style={[styles.skeletonBox, { width: 100, height: 32, borderRadius: 16 }]} />
+            <View style={[styles.skeletonBox, { width: 90, height: 32, borderRadius: 16 }]} />
+          </View>
+        </View>
+
+        {/* Materials Skeleton */}
+        <View style={styles.section}>
+          <View style={[styles.skeletonBox, { width: 140, height: 20, marginBottom: 12 }]} />
+          <View style={[styles.skeletonBox, { width: "100%", height: 80, borderRadius: 12 }]} />
+        </View>
+
+        {/* Certifications Skeleton */}
+        <View style={styles.section}>
+          <View style={[styles.skeletonBox, { width: 120, height: 20, marginBottom: 12 }]} />
+          <View style={[styles.skeletonBox, { width: "100%", height: 80, borderRadius: 12 }]} />
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+};
+
 export default function WorkerDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -107,9 +185,12 @@ export default function WorkerDetailScreen() {
     enabled: !!id,
   });
 
-  // Show inline loader instead of full screen
-  const showLoader = isLoading;
+  // Show skeleton while loading
+  if (isLoading) {
+    return <WorkerDetailSkeleton />;
+  }
 
+  // Show error only if not loading and there's an error
   if (error || !data) {
     return (
       <SafeAreaView style={styles.container}>
@@ -162,9 +243,6 @@ export default function WorkerDetailScreen() {
             />
           </TouchableOpacity>
         </View>
-
-        {/* Inline Loader */}
-        {showLoader && <InlineLoader text="Loading worker details..." />}
 
         <ScrollView
           showsVerticalScrollIndicator={false}
@@ -446,15 +524,23 @@ export default function WorkerDetailScreen() {
               data.certifications.map((cert) => (
                 <View key={cert.id} style={styles.certCard}>
                   <View style={styles.certHeader}>
-                    <View style={styles.certIconContainer}>
-                      <Ionicons
-                        name="ribbon"
-                        size={20}
-                        color={
-                          cert.isVerified ? Colors.success : Colors.primary
-                        }
+                    {cert.certificateUrl ? (
+                      <Image
+                        source={{ uri: cert.certificateUrl }}
+                        style={styles.certImage}
+                        resizeMode="cover"
                       />
-                    </View>
+                    ) : (
+                      <View style={styles.certIconContainer}>
+                        <Ionicons
+                          name="ribbon"
+                          size={20}
+                          color={
+                            cert.isVerified ? Colors.success : Colors.primary
+                          }
+                        />
+                      </View>
+                    )}
                     <View style={styles.certInfo}>
                       <Text style={styles.certName}>{cert.name}</Text>
                       {cert.issuingOrganization && (
@@ -504,11 +590,21 @@ export default function WorkerDetailScreen() {
               data.materials.map((material) => (
                 <View key={material.id} style={styles.materialCard}>
                   <View style={styles.materialHeader}>
-                    <Ionicons
-                      name="cube-outline"
-                      size={24}
-                      color={Colors.primary}
-                    />
+                    {material.imageUrl ? (
+                      <Image
+                        source={{ uri: material.imageUrl }}
+                        style={styles.materialImage}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <View style={styles.materialIconContainer}>
+                        <Ionicons
+                          name="cube-outline"
+                          size={24}
+                          color={Colors.primary}
+                        />
+                      </View>
+                    )}
                     <View style={styles.materialInfo}>
                       <Text style={styles.materialName}>{material.name}</Text>
                       {material.description && (
@@ -871,6 +967,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginRight: 12,
   },
+  certImage: {
+    width: 60,
+    height: 60,
+    borderRadius: BorderRadius.md,
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
   certInfo: {
     flex: 1,
   },
@@ -905,6 +1009,21 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 12,
+  },
+  materialIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.primaryLight,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  materialImage: {
+    width: 60,
+    height: 60,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   materialInfo: {
     flex: 1,
@@ -1085,5 +1204,14 @@ const styles = StyleSheet.create({
   },
   hireButtonTextDisabled: {
     color: Colors.textHint,
+  },
+  // Skeleton styles
+  skeletonBox: {
+    backgroundColor: Colors.backgroundSecondary,
+    borderRadius: BorderRadius.sm,
+  },
+  skeletonCircle: {
+    backgroundColor: Colors.backgroundSecondary,
+    borderRadius: 9999,
   },
 });

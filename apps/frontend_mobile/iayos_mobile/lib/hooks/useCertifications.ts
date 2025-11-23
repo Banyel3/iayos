@@ -185,16 +185,16 @@ export const useUpdateCertification = () => {
     }) => {
       const formData = new FormData();
 
-      // Add fields that are being updated
+      // Add fields that are being updated (backend expects snake_case field names)
       if (data.name) formData.append("name", data.name);
       if (data.issuingOrganization)
-        formData.append("issuingOrganization", data.issuingOrganization);
-      if (data.issueDate) formData.append("issueDate", data.issueDate);
-      if (data.expiryDate) formData.append("expiryDate", data.expiryDate);
+        formData.append("organization", data.issuingOrganization);
+      if (data.issueDate) formData.append("issue_date", data.issueDate);
+      if (data.expiryDate) formData.append("expiry_date", data.expiryDate);
 
       // Add certificate file if provided
       if (data.certificateFile) {
-        formData.append("certificate", {
+        formData.append("certificate_file", {
           uri: data.certificateFile.uri,
           name: data.certificateFile.name,
           type: data.certificateFile.type,
@@ -220,6 +220,8 @@ export const useUpdateCertification = () => {
       queryClient.invalidateQueries({
         queryKey: ["certification", variables.id],
       });
+      // Invalidate profile completion
+      queryClient.invalidateQueries({ queryKey: ["worker-profile"] });
     },
   });
 };

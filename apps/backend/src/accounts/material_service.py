@@ -122,7 +122,8 @@ def update_material(
     price: Optional[float] = None,
     unit: Optional[str] = None,
     quantity: Optional[float] = None,
-    is_available: Optional[bool] = None
+    is_available: Optional[bool] = None,
+    image_file = None
 ) -> Dict:
     """
     Update material information.
@@ -134,7 +135,9 @@ def update_material(
         description: Updated description
         price: Updated price
         unit: Updated unit
+        quantity: Updated quantity
         is_available: Updated availability status
+        image_file: Optional new image file
     
     Returns:
         dict: Updated material data
@@ -174,6 +177,20 @@ def update_material(
     
     if is_available is not None:
         material.is_available = is_available
+    
+    # Upload new image if provided
+    if image_file:
+        try:
+            worker_id = worker_profile.profileID.profileID
+            file_name = f"mat_{material.name.replace(' ', '_')}_{int(datetime.now().timestamp())}"
+            image_url = upload_worker_material_image(image_file, file_name, worker_id)
+            
+            if not image_url:
+                raise ValueError("Failed to upload material image")
+            
+            material.image_url = image_url
+        except Exception as e:
+            raise ValueError(f"Material image upload failed: {str(e)}")
     
     material.save()
     

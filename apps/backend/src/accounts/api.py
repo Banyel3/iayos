@@ -1542,9 +1542,17 @@ def list_certifications_endpoint(request):
 
 
 @router.put("/worker/certifications/{certification_id}", auth=dual_auth, response=CertificationResponse)
-def update_certification_endpoint(request, certification_id: int, payload: UpdateCertificationRequest):
+def update_certification_endpoint(
+    request,
+    certification_id: int,
+    name: str = Form(None),  # type: ignore
+    organization: str = Form(None),  # type: ignore
+    issue_date: str = Form(None),  # type: ignore
+    expiry_date: str = Form(None),  # type: ignore
+    certificate_file: Any = File(None)  # type: ignore
+):
     """
-    Update certification fields.
+    Update certification fields including optional certificate image.
     
     Only the worker who owns the certification can update it.
     """
@@ -1562,10 +1570,11 @@ def update_certification_endpoint(request, certification_id: int, payload: Updat
         certification = update_certification(
             worker_profile=worker_profile,
             certification_id=certification_id,
-            name=payload.name,
-            organization=payload.organization,
-            issue_date=payload.issue_date,
-            expiry_date=payload.expiry_date
+            name=name,
+            organization=organization,
+            issue_date=issue_date,
+            expiry_date=expiry_date,
+            certificate_file=certificate_file
         )
         
         return {
@@ -1741,10 +1750,16 @@ def list_materials_endpoint(request):
 def update_material_endpoint(
     request,
     material_id: int,
-    data: UpdateMaterialRequest
+    name: str = Form(None),  # type: ignore
+    description: str = Form(None),  # type: ignore
+    price: float = Form(None),  # type: ignore
+    quantity: float = Form(None),  # type: ignore
+    unit: str = Form(None),  # type: ignore
+    is_available: bool = Form(None),  # type: ignore
+    image_file: Any = File(None)  # type: ignore
 ):
     """
-    Update material information (name, description, price, unit, availability).
+    Update material information including optional image.
     
     All fields are optional - only provided fields will be updated.
     """
@@ -1759,7 +1774,7 @@ def update_material_endpoint(
         worker_profile = worker_profile_result
         
         # Validate price if provided
-        if data.price is not None and data.price <= 0:
+        if price is not None and price <= 0:
             return Response(
                 {"error": "Price must be greater than 0"},
                 status=400
@@ -1769,12 +1784,13 @@ def update_material_endpoint(
         material = update_material(
             worker_profile=worker_profile,
             material_id=material_id,
-            name=data.name,
-            description=data.description,
-            price=data.price,
-            quantity=data.quantity,
-            unit=data.unit,
-            is_available=data.is_available
+            name=name,
+            description=description,
+            price=price,
+            quantity=quantity,
+            unit=unit,
+            is_available=is_available,
+            image_file=image_file
         )
         
         return {

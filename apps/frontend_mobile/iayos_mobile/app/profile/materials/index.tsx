@@ -12,6 +12,7 @@ import {
   Alert,
   RefreshControl,
   SafeAreaView,
+  Image,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -189,13 +190,17 @@ export default function MaterialsScreen() {
     return (
       <Pressable style={styles.materialCard} onPress={() => handleEdit(item)}>
         {/* Material Image/Icon */}
-        <View style={styles.materialThumbnail}>
-          {item.imageUrl ? (
-            <Ionicons name="image" size={32} color={Colors.primary} />
-          ) : (
+        {item.imageUrl ? (
+          <Image
+            source={{ uri: item.imageUrl }}
+            style={styles.materialImage}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={styles.materialThumbnail}>
             <Ionicons name="cube" size={32} color={Colors.primary} />
-          )}
-        </View>
+          </View>
+        )}
 
         {/* Main Content */}
         <View style={styles.materialContent}>
@@ -447,6 +452,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginRight: Spacing.md,
+  },
+  materialImage: {
+    width: 60,
+    height: 60,
+    borderRadius: BorderRadius.medium,
+    marginRight: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   materialContent: {
     flex: 1,

@@ -161,6 +161,7 @@ export default function MaterialForm({
       setQuantity(material.quantity?.toString() || "1");
       setUnit(material.unit || DEFAULT_UNIT_VALUE);
       setIsAvailable(material.isAvailable);
+      // Don't set materialImage - let user optionally pick a new one
     } else {
       resetForm();
     }
@@ -218,6 +219,13 @@ export default function MaterialForm({
         quantity: quantityNum,
         unit: unit.trim(),
         isAvailable,
+        imageFile: materialImage
+          ? {
+              uri: materialImage.uri,
+              name: materialImage.fileName || "material.jpg",
+              type: materialImage.mimeType || "image/jpeg",
+            }
+          : undefined,
       };
 
       updateMaterial.mutate(
@@ -504,47 +512,69 @@ export default function MaterialForm({
             </View>
 
             {/* Material Image Upload */}
-            {!isEditMode && (
-              <View style={styles.formGroup}>
-                <Text style={styles.label}>Material Image (Optional)</Text>
-                {materialImage ? (
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>
+                Material Image {isEditMode ? "(Optional - Update if needed)" : "(Optional)"}
+              </Text>
+              {materialImage ? (
+                <View style={styles.imagePreviewContainer}>
+                  <Image
+                    source={{ uri: materialImage.uri }}
+                    style={styles.imagePreview}
+                    resizeMode="cover"
+                  />
+                  <Pressable
+                    style={styles.removeImageButton}
+                    onPress={() => setMaterialImage(null)}
+                    disabled={isLoading}
+                  >
+                    <Ionicons
+                      name="close-circle"
+                      size={24}
+                      color={Colors.error}
+                    />
+                  </Pressable>
+                </View>
+              ) : material?.imageUrl ? (
+                <View>
                   <View style={styles.imagePreviewContainer}>
                     <Image
-                      source={{ uri: materialImage.uri }}
+                      source={{ uri: material.imageUrl }}
                       style={styles.imagePreview}
                       resizeMode="cover"
                     />
-                    <Pressable
-                      style={styles.removeImageButton}
-                      onPress={() => setMaterialImage(null)}
-                      disabled={isLoading}
-                    >
-                      <Ionicons
-                        name="close-circle"
-                        size={24}
-                        color={Colors.error}
-                      />
-                    </Pressable>
                   </View>
-                ) : (
                   <Pressable
                     style={styles.uploadButton}
                     onPress={handlePickImage}
                     disabled={isLoading}
                   >
                     <Ionicons
-                      name="cloud-upload-outline"
-                      size={32}
+                      name="refresh-outline"
+                      size={24}
                       color={Colors.primary}
                     />
-                    <Text style={styles.uploadButtonText}>Upload Image</Text>
-                    <Text style={styles.uploadButtonHint}>
-                      Tap to select image from gallery
-                    </Text>
+                    <Text style={styles.uploadButtonText}>Change Image</Text>
                   </Pressable>
-                )}
-              </View>
-            )}
+                </View>
+              ) : (
+                <Pressable
+                  style={styles.uploadButton}
+                  onPress={handlePickImage}
+                  disabled={isLoading}
+                >
+                  <Ionicons
+                    name="cloud-upload-outline"
+                    size={32}
+                    color={Colors.primary}
+                  />
+                  <Text style={styles.uploadButtonText}>Upload Image</Text>
+                  <Text style={styles.uploadButtonHint}>
+                    Tap to select image from gallery
+                  </Text>
+                </Pressable>
+              )}
+            </View>
           </ScrollView>
 
           {/* Actions */}

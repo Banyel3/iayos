@@ -40,6 +40,11 @@ export interface UpdateMaterialRequest {
   quantity?: number;
   unit?: string;
   isAvailable?: boolean;
+  imageFile?: {
+    uri: string;
+    name: string;
+    type: string;
+  };
 }
 
 function mapMaterialResponse(material: any): Material {
@@ -174,13 +179,38 @@ export function useUpdateMaterial() {
       id: number;
       data: UpdateMaterialRequest;
     }) => {
-      const response = await apiRequest(ENDPOINTS.MATERIAL_DETAIL(id), {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(data),
-      });
+      let response: Response;
+
+      if (data.imageFile) {
+        // Use FormData for multipart upload
+        const formData = new FormData();
+        if (data.name) formData.append("name", data.name);
+        if (data.description) formData.append("description", data.description);
+        if (data.price !== undefined) formData.append("price", data.price.toString());
+        if (data.quantity !== undefined) formData.append("quantity", data.quantity.toString());
+        if (data.unit) formData.append("unit", data.unit);
+        if (data.isAvailable !== undefined) formData.append("is_available", data.isAvailable.toString());
+
+        formData.append("image_file", {
+          uri: data.imageFile.uri,
+          name: data.imageFile.name,
+          type: data.imageFile.type,
+        } as any);
+
+        response = await apiRequest(ENDPOINTS.MATERIAL_DETAIL(id), {
+          method: "PUT",
+          body: formData,
+        });
+      } else {
+        // Use JSON for text-only updates
+        response = await apiRequest(ENDPOINTS.MATERIAL_DETAIL(id), {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(data),
+        });
+      }
 
       if (!response.ok) {
         const error = await response.json();
