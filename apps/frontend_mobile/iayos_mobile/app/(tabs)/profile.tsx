@@ -288,7 +288,11 @@ export default function ProfileScreen() {
                 <Text style={styles.editButtonText}>View Public Profile</Text>
               </TouchableOpacity>
             ) : (
-              <TouchableOpacity style={styles.editButton} activeOpacity={0.8}>
+              <TouchableOpacity
+                style={styles.editButton}
+                activeOpacity={0.8}
+                onPress={() => router.push("/profile/edit-client" as any)}
+              >
                 <Ionicons
                   name="create-outline"
                   size={18}
@@ -329,7 +333,10 @@ export default function ProfileScreen() {
                   <View style={styles.switchProfileContent}>
                     <View style={styles.switchIconContainer}>
                       {switchProfile.isPending ? (
-                        <ActivityIndicator size="small" color={Colors.primary} />
+                        <ActivityIndicator
+                          size="small"
+                          color={Colors.primary}
+                        />
                       ) : (
                         <Ionicons
                           name="briefcase"
@@ -437,7 +444,11 @@ export default function ProfileScreen() {
                     {switchProfile.isPending ? (
                       <ActivityIndicator size="small" color={Colors.primary} />
                     ) : (
-                      <Ionicons name="hammer" size={24} color={Colors.primary} />
+                      <Ionicons
+                        name="hammer"
+                        size={24}
+                        color={Colors.primary}
+                      />
                     )}
                   </View>
                   <View style={styles.switchTextContainer}>

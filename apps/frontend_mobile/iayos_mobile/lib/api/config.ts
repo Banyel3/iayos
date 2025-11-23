@@ -86,6 +86,7 @@ export const ENDPOINTS = {
   // Phase 4: Worker Profile & Application Management
   WORKER_PROFILE: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile`,
   UPDATE_WORKER_PROFILE: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile`,
+  UPDATE_PROFILE: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/update`, // Client profile update
   APPLICATION_DETAIL: (id: number) =>
     `${API_BASE_URL.replace("/api", "")}/api/mobile/applications/${id}`,
   WITHDRAW_APPLICATION: (id: number) =>

@@ -84,6 +84,8 @@ def get_mobile_job_list(
             jobType='LISTING',  # Only show public job listings, not direct invites
             assignedWorkerID__isnull=True,  # Exclude jobs that already have a worker
             assignedAgencyFK__isnull=True,  # Exclude jobs assigned to agencies
+        ).exclude(
+            clientID__profileID__accountFK=user  # Exclude jobs posted by the same user
         )
 
         # Apply filters
@@ -645,6 +647,11 @@ def create_mobile_invite_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[s
                 assigned_worker = WorkerProfile.objects.get(profileID__profileID=worker_id)
                 invite_target_name = f"{assigned_worker.profileID.firstName} {assigned_worker.profileID.lastName}"
                 target_account = assigned_worker.profileID.accountFK
+                
+                # CRITICAL: Prevent users from inviting themselves (self-hiring)
+                if target_account == user:
+                    return {'success': False, 'error': 'You cannot hire yourself for a job'}
+                
             except WorkerProfile.DoesNotExist:
                 return {'success': False, 'error': 'Worker not found'}
         

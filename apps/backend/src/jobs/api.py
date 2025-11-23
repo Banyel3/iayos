@@ -1699,6 +1699,13 @@ def apply_for_job(request, job_id: int, data: JobApplicationSchema):
                 status=404
             )
         
+        # CRITICAL: Prevent users from applying to their own jobs (self-hiring)
+        if job.clientID.profileID.accountFK == request.auth:
+            return Response(
+                {"error": "You cannot apply to your own job posting"},
+                status=403
+            )
+        
         # Check if job is still active
         if job.status != JobPosting.JobStatus.ACTIVE:
             return Response(
