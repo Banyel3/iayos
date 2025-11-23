@@ -25,7 +25,9 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
+import { useAuth } from "@/context/AuthContext";
 import { Ionicons } from "@expo/vector-icons";
+import InlineLoader from "@/components/ui/InlineLoader";
 import {
   Colors,
   Typography,
@@ -90,6 +92,7 @@ interface WorkerDetail {
 export default function WorkerDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { user } = useAuth();
 
   // Fetch worker details
   const { data, isLoading, error } = useQuery({
@@ -104,23 +107,8 @@ export default function WorkerDetailScreen() {
     enabled: !!id,
   });
 
-  if (isLoading) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            style={styles.backButton}
-          >
-            <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
-          </TouchableOpacity>
-        </View>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-        </View>
-      </SafeAreaView>
-    );
-  }
+  // Show inline loader instead of full screen
+  const showLoader = isLoading;
 
   if (error || !data) {
     return (
@@ -174,6 +162,9 @@ export default function WorkerDetailScreen() {
             />
           </TouchableOpacity>
         </View>
+
+        {/* Inline Loader */}
+        {showLoader && <InlineLoader text="Loading worker details..." />}
 
         <ScrollView
           showsVerticalScrollIndicator={false}
@@ -600,12 +591,33 @@ export default function WorkerDetailScreen() {
 
         {/* Bottom Action Button */}
         <View style={styles.bottomActions}>
+          {!user?.kycVerified && (
+            <View style={styles.kycWarningBanner}>
+              <Ionicons name="warning" size={20} color={Colors.warning} />
+              <Text style={styles.kycWarningText}>
+                Complete KYC verification to hire workers
+              </Text>
+            </View>
+          )}
           <TouchableOpacity
-            style={styles.hireButton}
+            style={[
+              styles.hireButton,
+              !user?.kycVerified && styles.hireButtonDisabled,
+            ]}
             onPress={() => router.push(`/jobs/create?workerId=${id}` as any)}
+            disabled={!user?.kycVerified}
           >
-            <Text style={styles.hireButtonText}>Hire Worker</Text>
-            <Ionicons name="arrow-forward" size={20} color={Colors.white} />
+            <Text
+              style={[
+                styles.hireButtonText,
+                !user?.kycVerified && styles.hireButtonTextDisabled,
+              ]}
+            >
+              {user?.kycVerified ? "Hire Worker" : "KYC Verification Required"}
+            </Text>
+            {user?.kycVerified && (
+              <Ionicons name="arrow-forward" size={20} color={Colors.white} />
+            )}
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -1046,5 +1058,32 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
     color: Colors.white,
+  },
+  // KYC Warning Styles
+  kycWarningBanner: {
+    backgroundColor: "#FFF4E5",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    borderRadius: BorderRadius.md,
+    borderLeftWidth: 4,
+    borderLeftColor: "#FFB020",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  kycWarningText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#8B5A00",
+  },
+  hireButtonDisabled: {
+    backgroundColor: Colors.backgroundSecondary,
+    opacity: 0.6,
+  },
+  hireButtonTextDisabled: {
+    color: Colors.textHint,
   },
 });

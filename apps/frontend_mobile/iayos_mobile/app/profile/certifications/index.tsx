@@ -1,7 +1,7 @@
 // Worker Certifications Screen
 // Lists all worker certifications with ability to add, edit, and delete
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -11,9 +11,11 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
+  SafeAreaView,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { useAuth } from "@/context/AuthContext";
 import {
   Colors,
   Typography,
@@ -29,11 +31,32 @@ import {
   getDaysUntilExpiry,
 } from "@/lib/hooks/useCertifications";
 import CertificationForm from "@/components/CertificationForm";
+import CustomBackButton from "@/components/navigation/CustomBackButton";
 
 // ===== MAIN COMPONENT =====
 
 export default function CertificationsScreen() {
   const router = useRouter();
+  const { user } = useAuth();
+
+  // Check if user is a worker - redirect if not
+  const isWorker = user?.profile_data?.profileType === "WORKER";
+
+  useEffect(() => {
+    if (!isWorker && user) {
+      Alert.alert(
+        "Worker Feature Only",
+        "Certifications are only available for worker profiles.",
+        [
+          {
+            text: "OK",
+            onPress: () => router.back(),
+          },
+        ]
+      );
+    }
+  }, [isWorker, user, router]);
+
   const {
     data: certifications = [],
     isLoading,
@@ -91,44 +114,70 @@ export default function CertificationsScreen() {
   // ===== LOADING STATE =====
   if (isLoading && !refreshing) {
     return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color={Colors.primary} />
-        <Text style={styles.loadingText}>Loading certifications...</Text>
-      </View>
+      <SafeAreaView style={styles.safeArea}>
+        <CertificationForm
+          visible={formVisible}
+          onClose={handleFormClose}
+          certification={editingCertification}
+        />
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={styles.loadingText}>Loading certifications...</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
   // ===== ERROR STATE =====
   if (error && !refreshing) {
     return (
-      <View style={styles.centerContainer}>
-        <Ionicons name="alert-circle-outline" size={64} color={Colors.error} />
-        <Text style={styles.errorText}>Failed to load certifications</Text>
-        <Pressable style={styles.retryButton} onPress={() => refetch()}>
-          <Text style={styles.retryButtonText}>Retry</Text>
-        </Pressable>
-      </View>
+      <SafeAreaView style={styles.safeArea}>
+        <CertificationForm
+          visible={formVisible}
+          onClose={handleFormClose}
+          certification={editingCertification}
+        />
+        <View style={styles.centerContainer}>
+          <Ionicons
+            name="alert-circle-outline"
+            size={64}
+            color={Colors.error}
+          />
+          <Text style={styles.errorText}>Failed to load certifications</Text>
+          <Pressable style={styles.retryButton} onPress={() => refetch()}>
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
     );
   }
 
   // ===== EMPTY STATE =====
   if (certifications.length === 0) {
     return (
-      <View style={styles.emptyContainer}>
-        <Ionicons
-          name="ribbon-outline"
-          size={80}
-          color={Colors.textSecondary}
+      <SafeAreaView style={styles.safeArea}>
+        <CertificationForm
+          visible={formVisible}
+          onClose={handleFormClose}
+          certification={editingCertification}
         />
-        <Text style={styles.emptyTitle}>No Certifications Yet</Text>
-        <Text style={styles.emptyText}>
-          Add your professional certifications to build credibility with clients
-        </Text>
-        <Pressable style={styles.addButton} onPress={handleAdd}>
-          <Ionicons name="add-circle" size={20} color={Colors.textLight} />
-          <Text style={styles.addButtonText}>Add Certification</Text>
-        </Pressable>
-      </View>
+        <View style={styles.emptyContainer}>
+          <Ionicons
+            name="ribbon-outline"
+            size={80}
+            color={Colors.textSecondary}
+          />
+          <Text style={styles.emptyTitle}>No Certifications Yet</Text>
+          <Text style={styles.emptyText}>
+            Add your professional certifications to build credibility with
+            clients
+          </Text>
+          <Pressable style={styles.addButton} onPress={handleAdd}>
+            <Ionicons name="add-circle" size={20} color={Colors.textLight} />
+            <Text style={styles.addButtonText}>Add Certification</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
     );
   }
 
@@ -250,7 +299,7 @@ export default function CertificationsScreen() {
 
   // ===== MAIN RENDER =====
   return (
-    <>
+    <SafeAreaView style={styles.safeArea}>
       <CertificationForm
         visible={formVisible}
         onClose={handleFormClose}
@@ -259,7 +308,8 @@ export default function CertificationsScreen() {
       <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
-          <View>
+          <CustomBackButton />
+          <View style={styles.headerContent}>
             <Text style={styles.headerTitle}>Certifications</Text>
             <Text style={styles.headerSubtitle}>
               {certifications.length}{" "}
@@ -288,13 +338,17 @@ export default function CertificationsScreen() {
           ItemSeparatorComponent={() => <View style={styles.separator} />}
         />
       </View>
-    </>
+    </SafeAreaView>
   );
 }
 
 // ===== STYLES =====
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
   container: {
     flex: 1,
     backgroundColor: Colors.background,
@@ -335,11 +389,15 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: Spacing.lg,
+    paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
     backgroundColor: Colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
+  },
+  headerContent: {
+    flex: 1,
+    marginLeft: Spacing.sm,
   },
   headerTitle: {
     ...Typography.heading.h3,

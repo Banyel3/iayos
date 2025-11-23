@@ -2,6 +2,7 @@
 // Hook for fetching KYC verification status and history
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ENDPOINTS } from "@/lib/api/config";
 import type { KYCStatusResponse } from "@/lib/types/kyc";
 
@@ -9,12 +10,20 @@ import type { KYCStatusResponse } from "@/lib/types/kyc";
  * Fetch KYC status for current user
  */
 const fetchKYCStatus = async (): Promise<KYCStatusResponse> => {
+  // Get Bearer token for authentication
+  const token = await AsyncStorage.getItem("access_token");
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
   const response = await fetch(ENDPOINTS.KYC_STATUS, {
     method: "GET",
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers,
   });
 
   if (!response.ok) {
@@ -24,13 +33,32 @@ const fetchKYCStatus = async (): Promise<KYCStatusResponse> => {
 
   const data = await response.json();
 
+  // Check if response has success wrapper
+  const responseData = data.success ? data : { success: true, ...data };
+
+  // Backend returns different structure - transform it
+  const hasKYC =
+    responseData.status !== "NOT_STARTED" && responseData.kyc_id != null;
+
   // Transform API response to match our interface
   return {
-    hasKYC: data.hasKYC || false,
-    status: data.status || "NOT_SUBMITTED",
-    kycRecord: data.kycRecord,
-    files: data.files || [],
-    message: data.message,
+    hasKYC,
+    status: responseData.status || "NOT_SUBMITTED",
+    kycRecord: hasKYC
+      ? {
+          kycID: responseData.kyc_id,
+          accountFK: 0, // Not returned by backend
+          kyc_status: responseData.status,
+          reviewedAt: responseData.reviewed_at,
+          reviewedBy: undefined,
+          notes: responseData.notes || "",
+          createdAt: responseData.submitted_at,
+          updatedAt: responseData.submitted_at,
+          files: responseData.files || [],
+        }
+      : undefined,
+    files: responseData.files || [],
+    message: responseData.message,
   };
 };
 

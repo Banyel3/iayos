@@ -1,4 +1,6 @@
-from ninja import Router, Form, File
+from typing import Any, Annotated, Optional, Union, cast
+
+from ninja import Router, Form as NinjaForm, File as NinjaFile
 from ninja.files import UploadedFile
 from .schemas import (
     createAccountSchema, logInSchema, createAgencySchema,
@@ -10,6 +12,7 @@ from .schemas import (
     # Worker Phase 1 schemas
     WorkerProfileUpdateSchema, WorkerProfileResponse, ProfileCompletionResponse,
     CertificationSchema, AddCertificationRequest, UpdateCertificationRequest, CertificationResponse,
+    MaterialSchema, AddMaterialRequest, UpdateMaterialRequest, MaterialResponse,
     PortfolioItemSchema, UploadPortfolioRequest, UpdatePortfolioCaptionRequest,
     PortfolioItemResponse, ReorderPortfolioRequest
 )
@@ -37,6 +40,10 @@ from .portfolio_service import (
     upload_portfolio_image, get_portfolio, update_portfolio_caption,
     reorder_portfolio, delete_portfolio_image
 )
+from .models import Profile, WorkerProfile
+from .material_service import (
+    add_material, list_materials, update_material, delete_material
+)
 # Profile metrics helpers
 from .profile_metrics_service import get_profile_metrics
 # Phase 8: Review service imports
@@ -49,7 +56,38 @@ from .authentication import cookie_auth, dual_auth
 from django.shortcuts import redirect
 from django.urls import reverse
 
+Form = cast(Any, NinjaForm)
+File = cast(Any, NinjaFile)
+
 router = Router(tags=["Accounts"])
+
+
+def _get_worker_profile(
+    account,
+    not_worker_error: str = "Only workers can access this resource",
+) -> Union[WorkerProfile, Response]:
+    """Resolve the worker profile for the authenticated account."""
+    profile = (
+        Profile.objects
+        .filter(accountFK=account)
+        .select_related("workerprofile")
+        .first()
+    )
+
+    if not profile:
+        return Response(
+            {"error": "User profile not found"},
+            status=404,
+        )
+
+    worker_profile = getattr(profile, "workerprofile", None)
+    if worker_profile is None:
+        return Response(
+            {"error": not_worker_error},
+            status=403,
+        )
+
+    return worker_profile
 
 #region USER-SIDE ACCOUNTS
 @router.get("/auth/google/login")
@@ -187,7 +225,7 @@ def forgot_password_verify(request, payload: resetPasswordSchema, verifyToken: s
     except Exception as e:
         return {"error": [{"message": "Password reset failed"}]}
     
-@router.post("/upload/kyc", auth=cookie_auth)
+@router.post("/upload/kyc", auth=dual_auth)
 def upload_kyc(request):
     try:
         # 🔥 Use authenticated user's ID instead of trusting client
@@ -217,7 +255,7 @@ def upload_kyc(request):
         traceback.print_exc()
         return {"error": [{"message": "Upload Failed"}]}
 
-@router.get("/kyc/history", auth=cookie_auth)
+@router.get("/kyc/history", auth=dual_auth)
 def get_kyc_application_history(request):
     """
     Get the authenticated user's KYC application history.
@@ -243,6 +281,37 @@ def get_kyc_application_history(request):
         import traceback
         traceback.print_exc()
         return {"success": False, "error": "Failed to fetch KYC history"}
+
+
+@router.get("/kyc-status", auth=dual_auth)
+def get_kyc_status_endpoint(request):
+    """
+    Get the current KYC status for the authenticated user.
+    Supports both web (cookies) and mobile (Bearer token).
+    
+    Returns:
+    - status: KYC status (NOT_STARTED, PENDING, APPROVED, REJECTED)
+    - kyc_id: ID of KYC record (if exists)
+    - notes: Admin notes/reason for rejection
+    - submitted_at: Submission timestamp
+    - reviewed_at: Review timestamp
+    - files: List of uploaded files
+    """
+    try:
+        user = request.auth
+        print(f"🔍 Fetching KYC status for user: {user.email} (ID: {user.accountID})")
+        
+        result = get_kyc_status(user.accountID)
+        return {"success": True, **result}
+        
+    except ValueError as e:
+        print(f"❌ ValueError in KYC status: {str(e)}")
+        return {"success": False, "error": str(e)}
+    except Exception as e:
+        print(f"❌ Error fetching KYC status: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": "Failed to fetch KYC status"}
 
 
 @router.get("/notifications", auth=dual_auth)
@@ -1310,25 +1379,15 @@ def update_worker_profile_endpoint(request, payload: WorkerProfileUpdateSchema):
     Updates profile completion percentage automatically.
     """
     try:
-        # Get authenticated user
         account = request.auth
-        
-        # Verify user has a profile
-        if not hasattr(account, 'profile'):
-            return Response(
-                {"error": "User profile not found"},
-                status=404
-            )
-        
-        # Verify user is a worker
-        if not hasattr(account.profile, 'worker_profile'):
-            return Response(
-                {"error": "Only workers can update worker profile"},
-                status=403
-            )
-        
-        worker_profile = account.profile.worker_profile
-        
+        worker_profile_result = _get_worker_profile(
+            account,
+            not_worker_error="Only workers can update worker profile",
+        )
+        if isinstance(worker_profile_result, Response):
+            return worker_profile_result
+        worker_profile = worker_profile_result
+
         # Call service function
         result = update_worker_profile(
             worker_profile=worker_profile,
@@ -1362,25 +1421,15 @@ def get_profile_completion_endpoint(request):
     Returns detailed information about completed/missing fields.
     """
     try:
-        # Get authenticated user
         account = request.auth
-        
-        # Verify user has a profile
-        if not hasattr(account, 'profile'):
-            return Response(
-                {"error": "User profile not found"},
-                status=404
-            )
-        
-        # Verify user is a worker
-        if not hasattr(account.profile, 'worker_profile'):
-            return Response(
-                {"error": "Only workers can check profile completion"},
-                status=403
-            )
-        
-        worker_profile = account.profile.worker_profile
-        
+        worker_profile_result = _get_worker_profile(
+            account,
+            not_worker_error="Only workers can check profile completion",
+        )
+        if isinstance(worker_profile_result, Response):
+            return worker_profile_result
+        worker_profile = worker_profile_result
+
         # Call service function
         result = get_worker_profile_completion(worker_profile)
         
@@ -1400,7 +1449,7 @@ def get_profile_completion_endpoint(request):
 # CERTIFICATION ENDPOINTS
 # ===========================
 
-@router.post("/worker/certifications", auth=cookie_auth, response=CertificationResponse)
+@router.post("/worker/certifications", auth=dual_auth, response=CertificationResponse)
 def add_certification_endpoint(
     request,
     name: str = Form(...),
@@ -1420,24 +1469,14 @@ def add_certification_endpoint(
     - certificate_file: Certificate document/image
     """
     try:
-        # Get authenticated user
         account = request.auth
-        
-        # Verify user has a profile
-        if not hasattr(account, 'profile'):
-            return Response(
-                {"error": "User profile not found"},
-                status=404
-            )
-        
-        # Verify user is a worker
-        if not hasattr(account.profile, 'worker_profile'):
-            return Response(
-                {"error": "Only workers can add certifications"},
-                status=403
-            )
-        
-        worker_profile = account.profile.worker_profile
+        worker_profile_result = _get_worker_profile(
+            account,
+            not_worker_error="Only workers can add certifications",
+        )
+        if isinstance(worker_profile_result, Response):
+            return worker_profile_result
+        worker_profile = worker_profile_result
         
         # Call service function
         certification = add_certification(
@@ -1470,7 +1509,7 @@ def add_certification_endpoint(
         )
 
 
-@router.get("/worker/certifications", auth=cookie_auth, response=list[CertificationSchema])
+@router.get("/worker/certifications", auth=dual_auth, response=list[CertificationSchema])
 def list_certifications_endpoint(request):
     """
     List all worker's certifications with expiry status.
@@ -1478,25 +1517,15 @@ def list_certifications_endpoint(request):
     Includes is_expired flag and days_until_expiry.
     """
     try:
-        # Get authenticated user
         account = request.auth
-        
-        # Verify user has a profile
-        if not hasattr(account, 'profile'):
-            return Response(
-                {"error": "User profile not found"},
-                status=404
-            )
-        
-        # Verify user is a worker
-        if not hasattr(account.profile, 'worker_profile'):
-            return Response(
-                {"error": "Only workers can list certifications"},
-                status=403
-            )
-        
-        worker_profile = account.profile.worker_profile
-        
+        worker_profile_result = _get_worker_profile(
+            account,
+            not_worker_error="Only workers can list certifications",
+        )
+        if isinstance(worker_profile_result, Response):
+            return worker_profile_result
+        worker_profile = worker_profile_result
+ 
         # Call service function
         certifications = get_certifications(worker_profile)
         
@@ -1512,7 +1541,7 @@ def list_certifications_endpoint(request):
         )
 
 
-@router.put("/worker/certifications/{certification_id}", auth=cookie_auth, response=CertificationResponse)
+@router.put("/worker/certifications/{certification_id}", auth=dual_auth, response=CertificationResponse)
 def update_certification_endpoint(request, certification_id: int, payload: UpdateCertificationRequest):
     """
     Update certification fields.
@@ -1520,24 +1549,14 @@ def update_certification_endpoint(request, certification_id: int, payload: Updat
     Only the worker who owns the certification can update it.
     """
     try:
-        # Get authenticated user
         account = request.auth
-        
-        # Verify user has a profile
-        if not hasattr(account, 'profile'):
-            return Response(
-                {"error": "User profile not found"},
-                status=404
-            )
-        
-        # Verify user is a worker
-        if not hasattr(account.profile, 'worker_profile'):
-            return Response(
-                {"error": "Only workers can update certifications"},
-                status=403
-            )
-        
-        worker_profile = account.profile.worker_profile
+        worker_profile_result = _get_worker_profile(
+            account,
+            not_worker_error="Only workers can update certifications",
+        )
+        if isinstance(worker_profile_result, Response):
+            return worker_profile_result
+        worker_profile = worker_profile_result
         
         # Call service function
         certification = update_certification(
@@ -1570,7 +1589,7 @@ def update_certification_endpoint(request, certification_id: int, payload: Updat
         )
 
 
-@router.delete("/worker/certifications/{certification_id}", auth=cookie_auth)
+@router.delete("/worker/certifications/{certification_id}", auth=dual_auth)
 def delete_certification_endpoint(request, certification_id: int):
     """
     Delete a certification.
@@ -1578,24 +1597,14 @@ def delete_certification_endpoint(request, certification_id: int):
     Only the worker who owns the certification can delete it.
     """
     try:
-        # Get authenticated user
         account = request.auth
-        
-        # Verify user has a profile
-        if not hasattr(account, 'profile'):
-            return Response(
-                {"error": "User profile not found"},
-                status=404
-            )
-        
-        # Verify user is a worker
-        if not hasattr(account.profile, 'worker_profile'):
-            return Response(
-                {"error": "Only workers can delete certifications"},
-                status=403
-            )
-        
-        worker_profile = account.profile.worker_profile
+        worker_profile_result = _get_worker_profile(
+            account,
+            not_worker_error="Only workers can delete certifications",
+        )
+        if isinstance(worker_profile_result, Response):
+            return worker_profile_result
+        worker_profile = worker_profile_result
         
         # Call service function
         result = delete_certification(worker_profile, certification_id)
@@ -1618,6 +1627,215 @@ def delete_certification_endpoint(request, certification_id: int):
 
 
 # ===========================
+# MATERIAL/PRODUCT ENDPOINTS
+# ===========================
+
+@router.post("/worker/materials", auth=dual_auth, response=MaterialResponse)
+def add_material_endpoint(
+    request,
+    name: str = Form(...),
+    price: float = Form(...),
+    description: Optional[str] = Form(None),
+    quantity: float = Form(1),
+    unit: str = Form("piece"),
+    image: Optional[UploadedFile] = File(None)
+):
+    """
+    Add a new material/product with optional image upload.
+    
+    Form fields:
+    - name (required): Material/product name
+    - description: Detailed description
+    - price (required): Price in PHP
+    - quantity: Quantity or stock amount for this listing
+    - unit: Unit of measurement (default: "piece")
+    - image: Product image
+    """
+    try:
+        account = request.auth
+        worker_profile_result = _get_worker_profile(
+            account,
+            not_worker_error="Only workers can add materials",
+        )
+        if isinstance(worker_profile_result, Response):
+            return worker_profile_result
+        worker_profile = worker_profile_result
+        
+        # Validate price
+        if price <= 0:
+            return Response(
+                {"error": "Price must be greater than 0"},
+                status=400
+            )
+        
+        if quantity <= 0:
+            return Response(
+                {"error": "Quantity must be greater than 0"},
+                status=400
+            )
+        # Call service function
+        material = add_material(
+            worker_profile=worker_profile,
+            name=name,
+            description=description or "",
+            price=price,
+            quantity=quantity,
+            unit=unit,
+            image_file=image
+        )
+        
+        return {
+            "success": True,
+            "message": "Material added successfully",
+            "material": material
+        }
+        
+    except ValueError as e:
+        return Response(
+            {"error": str(e)},
+            status=400
+        )
+    except Exception as e:
+        print(f"❌ Error adding material: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to add material"},
+            status=500
+        )
+
+
+@router.get("/worker/materials", auth=dual_auth, response=list[MaterialSchema])
+def list_materials_endpoint(request):
+    """
+    Get all materials for the authenticated worker.
+    
+    Returns list of materials ordered by creation date (newest first).
+    """
+    try:
+        account = request.auth
+        worker_profile_result = _get_worker_profile(
+            account,
+            not_worker_error="Only workers can list materials",
+        )
+        if isinstance(worker_profile_result, Response):
+            return worker_profile_result
+        worker_profile = worker_profile_result
+        
+        # Call service function
+        materials = list_materials(worker_profile)
+        
+        return materials
+        
+    except Exception as e:
+        print(f"❌ Error listing materials: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to list materials"},
+            status=500
+        )
+
+
+@router.put("/worker/materials/{material_id}", auth=dual_auth, response=MaterialResponse)
+def update_material_endpoint(
+    request,
+    material_id: int,
+    data: UpdateMaterialRequest
+):
+    """
+    Update material information (name, description, price, unit, availability).
+    
+    All fields are optional - only provided fields will be updated.
+    """
+    try:
+        account = request.auth
+        worker_profile_result = _get_worker_profile(
+            account,
+            not_worker_error="Only workers can update materials",
+        )
+        if isinstance(worker_profile_result, Response):
+            return worker_profile_result
+        worker_profile = worker_profile_result
+        
+        # Validate price if provided
+        if data.price is not None and data.price <= 0:
+            return Response(
+                {"error": "Price must be greater than 0"},
+                status=400
+            )
+        
+        # Call service function
+        material = update_material(
+            worker_profile=worker_profile,
+            material_id=material_id,
+            name=data.name,
+            description=data.description,
+            price=data.price,
+            quantity=data.quantity,
+            unit=data.unit,
+            is_available=data.is_available
+        )
+        
+        return {
+            "success": True,
+            "message": "Material updated successfully",
+            "material": material
+        }
+        
+    except ValueError as e:
+        return Response(
+            {"error": str(e)},
+            status=400
+        )
+    except Exception as e:
+        print(f"❌ Error updating material: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to update material"},
+            status=500
+        )
+
+
+@router.delete("/worker/materials/{material_id}", auth=dual_auth)
+def delete_material_endpoint(request, material_id: int):
+    """
+    Delete a material by ID.
+    
+    Returns success message on deletion.
+    """
+    try:
+        account = request.auth
+        worker_profile_result = _get_worker_profile(
+            account,
+            not_worker_error="Only workers can delete materials",
+        )
+        if isinstance(worker_profile_result, Response):
+            return worker_profile_result
+        worker_profile = worker_profile_result
+        
+        # Call service function
+        result = delete_material(worker_profile, material_id)
+        
+        return result
+        
+    except ValueError as e:
+        return Response(
+            {"error": str(e)},
+            status=400
+        )
+    except Exception as e:
+        print(f"❌ Error deleting material: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to delete material"},
+            status=500
+        )
+
+
+# ===========================
 # PORTFOLIO ENDPOINTS
 # ===========================
 
@@ -1625,7 +1843,7 @@ def delete_certification_endpoint(request, certification_id: int):
 def upload_portfolio_endpoint(
     request,
     image: UploadedFile = File(...),
-    caption: str = Form(None)
+    caption: Optional[str] = Form(None)
 ):
     """
     Upload a portfolio image with optional caption.
@@ -1633,24 +1851,14 @@ def upload_portfolio_endpoint(
     Validates file size (5MB max) and format (JPEG/PNG).
     """
     try:
-        # Get authenticated user
         account = request.auth
-        
-        # Verify user has a profile
-        if not hasattr(account, 'profile'):
-            return Response(
-                {"error": "User profile not found"},
-                status=404
-            )
-        
-        # Verify user is a worker
-        if not hasattr(account.profile, 'worker_profile'):
-            return Response(
-                {"error": "Only workers can upload portfolio images"},
-                status=403
-            )
-        
-        worker_profile = account.profile.worker_profile
+        worker_profile_result = _get_worker_profile(
+            account,
+            not_worker_error="Only workers can upload portfolio images",
+        )
+        if isinstance(worker_profile_result, Response):
+            return worker_profile_result
+        worker_profile = worker_profile_result
         
         # Call service function
         portfolio_item = upload_portfolio_image(
@@ -1686,24 +1894,14 @@ def list_portfolio_endpoint(request):
     List all worker's portfolio images ordered by display_order.
     """
     try:
-        # Get authenticated user
         account = request.auth
-        
-        # Verify user has a profile
-        if not hasattr(account, 'profile'):
-            return Response(
-                {"error": "User profile not found"},
-                status=404
-            )
-        
-        # Verify user is a worker
-        if not hasattr(account.profile, 'worker_profile'):
-            return Response(
-                {"error": "Only workers can list portfolio"},
-                status=403
-            )
-        
-        worker_profile = account.profile.worker_profile
+        worker_profile_result = _get_worker_profile(
+            account,
+            not_worker_error="Only workers can view portfolio",
+        )
+        if isinstance(worker_profile_result, Response):
+            return worker_profile_result
+        worker_profile = worker_profile_result
         
         # Call service function
         portfolio = get_portfolio(worker_profile)
@@ -1728,24 +1926,14 @@ def update_portfolio_caption_endpoint(request, portfolio_id: int, payload: Updat
     Only the worker who owns the portfolio item can update it.
     """
     try:
-        # Get authenticated user
         account = request.auth
-        
-        # Verify user has a profile
-        if not hasattr(account, 'profile'):
-            return Response(
-                {"error": "User profile not found"},
-                status=404
-            )
-        
-        # Verify user is a worker
-        if not hasattr(account.profile, 'worker_profile'):
-            return Response(
-                {"error": "Only workers can update portfolio"},
-                status=403
-            )
-        
-        worker_profile = account.profile.worker_profile
+        worker_profile_result = _get_worker_profile(
+            account,
+            not_worker_error="Only workers can update portfolio",
+        )
+        if isinstance(worker_profile_result, Response):
+            return worker_profile_result
+        worker_profile = worker_profile_result
         
         # Call service function
         portfolio_item = update_portfolio_caption(
@@ -1783,24 +1971,14 @@ def reorder_portfolio_endpoint(request, payload: ReorderPortfolioRequest):
     Example: [3, 1, 5, 2, 4] will set display_order to 0, 1, 2, 3, 4 respectively.
     """
     try:
-        # Get authenticated user
         account = request.auth
-        
-        # Verify user has a profile
-        if not hasattr(account, 'profile'):
-            return Response(
-                {"error": "User profile not found"},
-                status=404
-            )
-        
-        # Verify user is a worker
-        if not hasattr(account.profile, 'worker_profile'):
-            return Response(
-                {"error": "Only workers can reorder portfolio"},
-                status=403
-            )
-        
-        worker_profile = account.profile.worker_profile
+        worker_profile_result = _get_worker_profile(
+            account,
+            not_worker_error="Only workers can reorder portfolio",
+        )
+        if isinstance(worker_profile_result, Response):
+            return worker_profile_result
+        worker_profile = worker_profile_result
         
         # Call service function
         result = reorder_portfolio(
@@ -1834,24 +2012,14 @@ def delete_portfolio_endpoint(request, portfolio_id: int):
     Remaining items are automatically reordered.
     """
     try:
-        # Get authenticated user
         account = request.auth
-        
-        # Verify user has a profile
-        if not hasattr(account, 'profile'):
-            return Response(
-                {"error": "User profile not found"},
-                status=404
-            )
-        
-        # Verify user is a worker
-        if not hasattr(account.profile, 'worker_profile'):
-            return Response(
-                {"error": "Only workers can delete portfolio images"},
-                status=403
-            )
-        
-        worker_profile = account.profile.worker_profile
+        worker_profile_result = _get_worker_profile(
+            account,
+            not_worker_error="Only workers can delete portfolio images",
+        )
+        if isinstance(worker_profile_result, Response):
+            return worker_profile_result
+        worker_profile = worker_profile_result
         
         # Call service function
         result = delete_portfolio_image(worker_profile, portfolio_id)

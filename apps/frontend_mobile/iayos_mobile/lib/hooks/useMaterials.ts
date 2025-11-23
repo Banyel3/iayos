@@ -2,7 +2,7 @@
 // React Query hooks for managing worker materials/products
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ENDPOINTS, fetchJson } from "@/lib/api/config";
+import { ENDPOINTS, apiRequest } from "@/lib/api/config";
 
 // ===== TYPES =====
 
@@ -11,6 +11,7 @@ export interface Material {
   name: string;
   description: string;
   price: number;
+  quantity: number;
   unit: string; // e.g., "per kg", "per piece", "per meter"
   isAvailable: boolean;
   imageUrl: string | null;
@@ -22,6 +23,7 @@ export interface CreateMaterialRequest {
   name: string;
   description: string;
   price: number;
+  quantity: number;
   unit: string;
   isAvailable?: boolean;
   imageFile?: {
@@ -35,8 +37,24 @@ export interface UpdateMaterialRequest {
   name?: string;
   description?: string;
   price?: number;
+  quantity?: number;
   unit?: string;
   isAvailable?: boolean;
+}
+
+function mapMaterialResponse(material: any): Material {
+  return {
+    id: material.materialID,
+    name: material.name,
+    description: material.description,
+    price: Number(material.price ?? 0),
+    quantity: Number(material.quantity ?? 1),
+    unit: material.unit,
+    isAvailable: material.is_available,
+    imageUrl: material.image_url,
+    createdAt: material.createdAt,
+    updatedAt: material.updatedAt,
+  };
 }
 
 // ===== HOOKS =====
@@ -48,9 +66,12 @@ export function useMaterials() {
   return useQuery<Material[]>({
     queryKey: ["materials"],
     queryFn: async (): Promise<Material[]> => {
-      return fetchJson<Material[]>(ENDPOINTS.MATERIALS, {
-        credentials: "include",
-      });
+      const response = await apiRequest(ENDPOINTS.MATERIALS);
+      if (!response.ok) {
+        throw new Error("Failed to fetch materials");
+      }
+      const result = await response.json();
+      return Array.isArray(result) ? result.map(mapMaterialResponse) : [];
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
@@ -63,9 +84,12 @@ export function useMaterial(id: number) {
   return useQuery<Material>({
     queryKey: ["materials", id],
     queryFn: async (): Promise<Material> => {
-      return fetchJson<Material>(ENDPOINTS.MATERIAL_DETAIL(id), {
-        credentials: "include",
-      });
+      const response = await apiRequest(ENDPOINTS.MATERIAL_DETAIL(id));
+      if (!response.ok) {
+        throw new Error("Failed to fetch material");
+      }
+      const result = await response.json();
+      return mapMaterialResponse(result);
     },
     enabled: !!id,
     staleTime: 5 * 60 * 1000,
@@ -84,6 +108,7 @@ export function useCreateMaterial() {
       formData.append("name", data.name);
       formData.append("description", data.description);
       formData.append("price", data.price.toString());
+      formData.append("quantity", (data.quantity ?? 1).toString());
       formData.append("unit", data.unit);
       formData.append("isAvailable", (data.isAvailable ?? true).toString());
 
@@ -95,9 +120,8 @@ export function useCreateMaterial() {
         } as any);
       }
 
-      const response = await fetch(ENDPOINTS.MATERIALS, {
+      const response = await apiRequest(ENDPOINTS.MATERIALS, {
         method: "POST",
-        credentials: "include",
         body: formData,
       });
 
@@ -106,7 +130,25 @@ export function useCreateMaterial() {
         throw new Error(error.message || "Failed to create material");
       }
 
-      return response.json();
+      const result = await response.json();
+
+      // Map backend response (snake_case) to frontend (camelCase)
+      if (result.material) {
+        return {
+          id: result.material.materialID,
+          name: result.material.name,
+          description: result.material.description,
+          price: result.material.price,
+          quantity: result.material.quantity,
+          unit: result.material.unit,
+          isAvailable: result.material.is_available,
+          imageUrl: result.material.image_url,
+          createdAt: result.material.createdAt,
+          updatedAt: result.material.updatedAt,
+        };
+      }
+
+      return result;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["materials"] });
@@ -132,12 +174,11 @@ export function useUpdateMaterial() {
       id: number;
       data: UpdateMaterialRequest;
     }) => {
-      const response = await fetch(ENDPOINTS.MATERIAL_DETAIL(id), {
+      const response = await apiRequest(ENDPOINTS.MATERIAL_DETAIL(id), {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
         },
-        credentials: "include",
         body: JSON.stringify(data),
       });
 
@@ -173,12 +214,11 @@ export function useToggleMaterialAvailability() {
       id: number;
       isAvailable: boolean;
     }) => {
-      const response = await fetch(ENDPOINTS.MATERIAL_DETAIL(id), {
+      const response = await apiRequest(ENDPOINTS.MATERIAL_DETAIL(id), {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
         },
-        credentials: "include",
         body: JSON.stringify({ isAvailable }),
       });
 
@@ -207,9 +247,8 @@ export function useDeleteMaterial() {
 
   return useMutation({
     mutationFn: async (id: number) => {
-      const response = await fetch(ENDPOINTS.MATERIAL_DETAIL(id), {
+      const response = await apiRequest(ENDPOINTS.MATERIAL_DETAIL(id), {
         method: "DELETE",
-        credentials: "include",
       });
 
       if (!response.ok) {
@@ -242,10 +281,18 @@ export function formatPrice(price: number): string {
 }
 
 /**
- * Format price per unit
+ * Format price per unit with optional quantity context
  */
-export function formatPricePerUnit(price: number, unit: string): string {
-  return `${formatPrice(price)} ${unit}`;
+export function formatPricePerUnit(
+  price: number,
+  unit: string,
+  quantity?: number
+): string {
+  const quantityLabel =
+    typeof quantity === "number" && !Number.isNaN(quantity)
+      ? ` • Qty: ${quantity}`
+      : "";
+  return `${formatPrice(price)} ${unit}${quantityLabel}`;
 }
 
 /**

@@ -200,7 +200,7 @@ class CertificationSchema(Schema):
     issuing_organization: str
     issue_date: Optional[str]
     expiry_date: Optional[str]
-    certificate_url: str
+    certificate_url: Optional[str]
     is_verified: bool
     is_expired: bool
     days_until_expiry: Optional[int]
@@ -227,6 +227,42 @@ class CertificationResponse(Schema):
     success: bool
     message: str
     certification: Optional[CertificationSchema] = None
+
+class MaterialSchema(Schema):
+    """Schema for material/product data"""
+    materialID: int
+    name: str
+    description: str
+    price: float
+    quantity: float
+    unit: str
+    image_url: Optional[str]
+    is_available: bool
+    createdAt: str
+    updatedAt: str
+
+class AddMaterialRequest(Schema):
+    """Schema for adding material (form data)"""
+    name: str
+    description: Optional[str] = None
+    price: float
+    quantity: float = 1.0
+    unit: str = "piece"
+
+class UpdateMaterialRequest(Schema):
+    """Schema for updating material"""
+    name: Optional[str] = None
+    description: Optional[str] = None
+    price: Optional[float] = None
+    quantity: Optional[float] = None
+    unit: Optional[str] = None
+    is_available: Optional[bool] = None
+
+class MaterialResponse(Schema):
+    """Response schema for material operations"""
+    success: bool
+    message: str
+    material: Optional[MaterialSchema] = None
 
 class PortfolioItemSchema(Schema):
     """Schema for portfolio item data"""

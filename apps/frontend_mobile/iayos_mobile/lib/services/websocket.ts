@@ -135,6 +135,19 @@ class WebSocketService {
     this.connectionState = "disconnected";
   }
 
+  // Reset WebSocket service (clear all handlers and disconnect)
+  // Used when logging out to prevent cross-user data leakage
+  reset() {
+    console.log("[WebSocket] 🔄 Resetting WebSocket service...");
+    this.disconnect();
+    this.messageHandlers.clear();
+    this.connectionHandlers.clear();
+    this.disconnectionHandlers.clear();
+    this.reconnectAttempts = 0;
+    this.reconnectDelay = 1000;
+    console.log("[WebSocket] ✅ WebSocket service reset complete");
+  }
+
   // Send message via WebSocket
   sendMessage(
     conversationId: number,

@@ -321,7 +321,7 @@ def _format_certification(certification: WorkerCertification) -> Dict:
         'issuing_organization': certification.issuing_organization,
         'issue_date': certification.issue_date.isoformat() if certification.issue_date else None,
         'expiry_date': certification.expiry_date.isoformat() if certification.expiry_date else None,
-        'certificate_url': certification.certificate_url,
+        'certificate_url': certification.certificate_url if certification.certificate_url else None,
         'is_verified': certification.is_verified,
         'is_expired': is_expired,
         'days_until_expiry': days_until_expiry,

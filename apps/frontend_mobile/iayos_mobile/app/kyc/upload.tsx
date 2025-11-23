@@ -1,812 +1,775 @@
 // app/kyc/upload.tsx
-// KYC document upload wizard screen
+// KYC document upload screen - Matches Next.js design
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   Alert,
-  KeyboardAvoidingView,
-  Platform,
   TouchableOpacity,
+  Image,
+  ActivityIndicator,
+  SafeAreaView,
 } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { Button, Card, Chip } from "react-native-paper";
-import { DocumentUploader } from "@/components/KYC/DocumentUploader";
+import * as ImagePicker from "expo-image-picker";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/context/AuthContext";
+import { useKYC } from "@/lib/hooks/useKYC";
+import CustomBackButton from "@/components/navigation/CustomBackButton";
 import {
-  UploadProgressBar,
-  MultiUploadProgress,
-} from "@/components/KYC/UploadProgressBar";
-import { useKYCUpload } from "@/lib/hooks/useKYCUpload";
-import { Colors, Typography, Spacing } from "@/constants/theme";
-import type {
-  DocumentCaptureResult,
-  KYCDocumentType,
-  DocumentCategory,
-} from "@/lib/types/kyc";
-import {
-  DOCUMENT_TYPES,
-  getDocumentsByCategory,
-  getRequiredDocuments,
-} from "@/lib/types/kyc";
+  Colors,
+  Typography,
+  Spacing,
+  BorderRadius,
+  Shadows,
+} from "@/constants/theme";
+import { ENDPOINTS, apiRequest } from "@/lib/api/config";
 
-type UploadStep =
-  | "select_id"
-  | "upload_documents"
-  | "review"
-  | "uploading"
-  | "complete";
+type IDType =
+  | ""
+  | "NATIONALID"
+  | "DRIVERSLICENSE"
+  | "PASSPORT"
+  | "UMID"
+  | "PHILHEALTH";
+type ClearanceType = "" | "POLICE" | "NBI";
+
+interface ImageFile {
+  uri: string;
+  name: string;
+  type: string;
+}
+
+const ID_TYPES = [
+  { value: "NATIONALID", label: "National ID", icon: "card-outline" },
+  { value: "DRIVERSLICENSE", label: "Driver's License", icon: "car-outline" },
+  { value: "PASSPORT", label: "Passport", icon: "airplane-outline" },
+  { value: "UMID", label: "UMID", icon: "card-outline" },
+  { value: "PHILHEALTH", label: "PhilHealth", icon: "medical-outline" },
+];
+
+const CLEARANCE_TYPES = [
+  { value: "POLICE", label: "Police Clearance" },
+  { value: "NBI", label: "NBI Clearance" },
+];
 
 export default function KYCUploadScreen() {
   const router = useRouter();
-  const { upload, isUploading, isSuccess, isError, error, progress } =
-    useKYCUpload();
+  const { user } = useAuth();
+  const {
+    hasSubmittedKYC,
+    isPending,
+    isRejected,
+    isLoading: kycLoading,
+  } = useKYC();
+  const queryClient = useQueryClient();
 
-  // State
-  const [currentStep, setCurrentStep] = useState<UploadStep>("select_id");
-  const [selectedIDType, setSelectedIDType] =
-    useState<KYCDocumentType>("NATIONALID");
+  const [currentStep, setCurrentStep] = useState(1);
+  const [selectedIDType, setSelectedIDType] = useState<IDType>("");
   const [selectedClearanceType, setSelectedClearanceType] =
-    useState<KYCDocumentType | null>(null);
-  const [capturedDocuments, setCapturedDocuments] = useState<
-    DocumentCaptureResult[]
-  >([]);
+    useState<ClearanceType>("");
+  const [frontIDFile, setFrontIDFile] = useState<ImageFile | null>(null);
+  const [backIDFile, setBackIDFile] = useState<ImageFile | null>(null);
+  const [clearanceFile, setClearanceFile] = useState<ImageFile | null>(null);
+  const [selfieFile, setSelfieFile] = useState<ImageFile | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Required documents based on selection
-  const requiredDocuments = getRequiredDocuments();
-  const idConfig = DOCUMENT_TYPES[selectedIDType];
-
-  /**
-   * Handle document capture
-   */
-  const handleDocumentCaptured = useCallback(
-    (result: DocumentCaptureResult) => {
-      setCapturedDocuments((prev) => {
-        // Remove existing document of same type and side
-        const filtered = prev.filter(
-          (doc) => !(doc.type === result.type && doc.side === result.side)
-        );
-        return [...filtered, result];
-      });
-    },
-    []
-  );
-
-  /**
-   * Remove captured document
-   */
-  const handleRemoveDocument = useCallback(
-    (type: KYCDocumentType, side?: "FRONT" | "BACK") => {
-      setCapturedDocuments((prev) =>
-        prev.filter((doc) => !(doc.type === type && doc.side === side))
+  // Redirect if KYC already submitted and pending (not rejected)
+  useEffect(() => {
+    if (!kycLoading && hasSubmittedKYC && isPending) {
+      Alert.alert(
+        "KYC Already Submitted",
+        "Your KYC documents are currently under review. Please wait for the verification process to complete.",
+        [
+          {
+            text: "View Status",
+            onPress: () => router.replace("/kyc/status"),
+          },
+        ]
       );
-    },
-    []
-  );
+    }
+  }, [hasSubmittedKYC, isPending, kycLoading, router]);
 
-  /**
-   * Get captured document by type and side
-   */
-  const getCapturedDocument = (
-    type: KYCDocumentType,
-    side?: "FRONT" | "BACK"
+  const requestPermissions = async () => {
+    const { status: cameraStatus } =
+      await ImagePicker.requestCameraPermissionsAsync();
+    const { status: mediaStatus } =
+      await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+    if (cameraStatus !== "granted" || mediaStatus !== "granted") {
+      Alert.alert(
+        "Permissions Required",
+        "Camera and photo library access are required."
+      );
+      return false;
+    }
+    return true;
+  };
+
+  const pickImage = async (type: "front" | "back" | "clearance" | "selfie") => {
+    const hasPermission = await requestPermissions();
+    if (!hasPermission) return;
+
+    Alert.alert("Select Image Source", "Choose how to upload", [
+      { text: "Camera", onPress: () => captureImage(type) },
+      { text: "Gallery", onPress: () => selectFromGallery(type) },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  };
+
+  const captureImage = async (
+    type: "front" | "back" | "clearance" | "selfie"
   ) => {
-    return capturedDocuments.find(
-      (doc) => doc.type === type && doc.side === side
-    );
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      handleImageSelected(type, result.assets[0]);
+    }
   };
 
-  /**
-   * Check if all required documents are captured
-   */
-  const hasAllRequiredDocuments = () => {
-    // Check for ID (front required, back if applicable)
-    const hasFrontID = capturedDocuments.some(
-      (doc) =>
-        doc.type === selectedIDType &&
-        (!idConfig.requiresBothSides || doc.side === "FRONT")
-    );
-    const hasBackID =
-      !idConfig.requiresBothSides ||
-      capturedDocuments.some(
-        (doc) => doc.type === selectedIDType && doc.side === "BACK"
-      );
+  const selectFromGallery = async (
+    type: "front" | "back" | "clearance" | "selfie"
+  ) => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.8,
+    });
 
-    // Check for selfie (required)
-    const hasSelfie = capturedDocuments.some((doc) => doc.type === "SELFIE");
-
-    return hasFrontID && hasBackID && hasSelfie;
+    if (!result.canceled && result.assets[0]) {
+      handleImageSelected(type, result.assets[0]);
+    }
   };
 
-  /**
-   * Navigate to next step
-   */
+  const handleImageSelected = (
+    type: "front" | "back" | "clearance" | "selfie",
+    asset: ImagePicker.ImagePickerAsset
+  ) => {
+    const imageFile: ImageFile = {
+      uri: asset.uri,
+      name: `${type}_${Date.now()}.jpg`,
+      type: "image/jpeg",
+    };
+
+    switch (type) {
+      case "front":
+        setFrontIDFile(imageFile);
+        break;
+      case "back":
+        setBackIDFile(imageFile);
+        break;
+      case "clearance":
+        setClearanceFile(imageFile);
+        break;
+      case "selfie":
+        setSelfieFile(imageFile);
+        break;
+    }
+  };
+
   const handleNext = () => {
-    if (currentStep === "select_id") {
-      setCurrentStep("upload_documents");
-    } else if (currentStep === "upload_documents") {
-      if (!hasAllRequiredDocuments()) {
-        Alert.alert(
-          "Missing Documents",
-          "Please upload all required documents before continuing."
-        );
-        return;
-      }
-      setCurrentStep("review");
-    } else if (currentStep === "review") {
+    if (currentStep === 1 && !selectedIDType) {
+      Alert.alert("Required", "Please select an ID type");
+      return;
+    }
+    if (currentStep === 2 && (!frontIDFile || !backIDFile)) {
+      Alert.alert("Required", "Please upload both sides of your ID");
+      return;
+    }
+    if (currentStep === 3 && (!selectedClearanceType || !clearanceFile)) {
+      Alert.alert("Required", "Please upload clearance certificate");
+      return;
+    }
+    if (currentStep === 4 && !selfieFile) {
+      Alert.alert("Required", "Please take a selfie");
+      return;
+    }
+
+    if (currentStep < 4) {
+      setCurrentStep(currentStep + 1);
+    } else {
       handleSubmit();
     }
   };
 
-  /**
-   * Navigate to previous step
-   */
   const handleBack = () => {
-    if (currentStep === "upload_documents") {
-      setCurrentStep("select_id");
-    } else if (currentStep === "review") {
-      setCurrentStep("upload_documents");
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1);
+    } else {
+      router.back();
     }
   };
 
-  /**
-   * Submit KYC documents
-   */
   const handleSubmit = async () => {
-    try {
-      setCurrentStep("uploading");
+    setIsSubmitting(true);
 
-      await upload(
-        {
-          documents: capturedDocuments,
-          IDType: selectedIDType,
-          clearanceType: selectedClearanceType || undefined,
-          compress: true,
-        },
-        {
-          onSuccess: () => {
-            setCurrentStep("complete");
-            setTimeout(() => {
-              router.replace("/kyc/status");
-            }, 2000);
-          },
-          onError: (err) => {
-            setCurrentStep("review");
-            Alert.alert(
-              "Upload Failed",
-              err instanceof Error ? err.message : "Failed to upload documents"
-            );
-          },
-        }
-      );
-    } catch (err) {
-      setCurrentStep("review");
-      console.error("KYC submission error:", err);
+    try {
+      // Get Bearer token for authentication
+      const token = await AsyncStorage.getItem("access_token");
+
+      const formData = new FormData();
+      formData.append("accountID", user?.accountID?.toString() || "");
+      formData.append("IDType", selectedIDType);
+      formData.append("clearanceType", selectedClearanceType);
+
+      formData.append("frontID", {
+        uri: frontIDFile!.uri,
+        name: frontIDFile!.name,
+        type: frontIDFile!.type,
+      } as any);
+
+      formData.append("backID", {
+        uri: backIDFile!.uri,
+        name: backIDFile!.name,
+        type: backIDFile!.type,
+      } as any);
+
+      formData.append("clearance", {
+        uri: clearanceFile!.uri,
+        name: clearanceFile!.name,
+        type: clearanceFile!.type,
+      } as any);
+
+      formData.append("selfie", {
+        uri: selfieFile!.uri,
+        name: selfieFile!.name,
+        type: selfieFile!.type,
+      } as any);
+
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
+      const response = await fetch(ENDPOINTS.KYC_UPLOAD, {
+        method: "POST",
+        headers,
+        body: formData as any, // React Native FormData compatible with fetch
+      });
+
+      if (!response.ok) {
+        const errorData = (await response.json().catch(() => ({}))) as {
+          message?: string;
+        };
+        throw new Error(errorData.message || "Upload failed");
+      }
+
+      // Invalidate KYC status cache so banner and status page update immediately
+      queryClient.invalidateQueries({ queryKey: ["kycStatus"] });
+
+      Alert.alert("Success", "Your KYC documents have been submitted!", [
+        { text: "OK", onPress: () => router.replace("/kyc/status") },
+      ]);
+    } catch (error) {
       Alert.alert(
-        "Upload Error",
-        err instanceof Error ? err.message : "An error occurred"
+        "Upload Failed",
+        error instanceof Error ? error.message : "Failed to upload"
       );
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  /**
-   * Render step indicator
-   */
-  const renderStepIndicator = () => {
-    const steps = [
-      { key: "select_id", label: "Select ID" },
-      { key: "upload_documents", label: "Upload" },
-      { key: "review", label: "Review" },
-    ];
-
-    const currentStepIndex = steps.findIndex((s) => s.key === currentStep);
-
-    return (
-      <View style={styles.stepIndicator}>
-        {steps.map((step, index) => (
-          <View key={step.key} style={styles.stepItem}>
-            <View
-              style={[
-                styles.stepCircle,
-                index <= currentStepIndex && styles.stepCircleActive,
-              ]}
-            >
-              {index < currentStepIndex ? (
-                <Ionicons name="checkmark" size={16} color={Colors.white} />
-              ) : (
-                <Text
-                  style={[
-                    styles.stepNumber,
-                    index <= currentStepIndex && styles.stepNumberActive,
-                  ]}
-                >
-                  {index + 1}
-                </Text>
-              )}
-            </View>
+  const renderStepIndicator = () => (
+    <View style={styles.stepIndicator}>
+      {[1, 2, 3, 4].map((step) => (
+        <View key={step} style={styles.stepItem}>
+          <View
+            style={[
+              styles.stepCircle,
+              currentStep >= step && styles.stepCircleActive,
+            ]}
+          >
             <Text
               style={[
-                styles.stepLabel,
-                index === currentStepIndex && styles.stepLabelActive,
+                styles.stepNumber,
+                currentStep >= step && styles.stepNumberActive,
               ]}
             >
-              {step.label}
+              {step}
             </Text>
           </View>
-        ))}
-      </View>
-    );
-  };
-
-  /**
-   * Render ID selection step
-   */
-  const renderSelectIDStep = () => {
-    const governmentIDs = getDocumentsByCategory("GOVERNMENT_ID");
-
-    return (
-      <View style={styles.stepContent}>
-        <Text style={styles.stepTitle}>Select Your Government ID</Text>
-        <Text style={styles.stepDescription}>
-          {"Choose the primary ID document you'll use for verification"}
-        </Text>
-
-        <View style={styles.idOptions}>
-          {governmentIDs.map((config) => (
-            <TouchableIDCard
-              key={config.type}
-              config={config}
-              selected={selectedIDType === config.type}
-              onSelect={() => setSelectedIDType(config.type)}
-            />
-          ))}
+          {step < 4 && <View style={styles.stepLine} />}
         </View>
-
-        {/* Optional Clearance Selection */}
-        <Text style={styles.sectionTitle}>Additional Documents (Optional)</Text>
-        <Text style={styles.sectionDescription}>
-          Upload clearance certificates to increase your trustworthiness
-        </Text>
-
-        <View style={styles.chipContainer}>
-          {getDocumentsByCategory("CLEARANCE").map((config) => (
-            <Chip
-              key={config.type}
-              selected={selectedClearanceType === config.type}
-              onPress={() =>
-                setSelectedClearanceType(
-                  selectedClearanceType === config.type ? null : config.type
-                )
-              }
-              style={styles.chip}
-              mode="outlined"
-            >
-              {config.label}
-            </Chip>
-          ))}
-        </View>
-      </View>
-    );
-  };
-
-  /**
-   * Render document upload step
-   */
-  const renderUploadStep = () => {
-    return (
-      <View style={styles.stepContent}>
-        <Text style={styles.stepTitle}>Upload Documents</Text>
-        <Text style={styles.stepDescription}>
-          Take clear photos of your documents. Ensure all text is readable.
-        </Text>
-
-        {/* Required Documents Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Required Documents</Text>
-
-          {/* ID Front */}
-          <DocumentUploader
-            documentType={selectedIDType}
-            side={idConfig.requiresBothSides ? "FRONT" : undefined}
-            onDocumentCaptured={handleDocumentCaptured}
-            onRemove={() => handleRemoveDocument(selectedIDType, "FRONT")}
-            existingDocument={getCapturedDocument(selectedIDType, "FRONT")}
-            disabled={isUploading}
-          />
-
-          {/* ID Back (if required) */}
-          {idConfig.requiresBothSides && (
-            <DocumentUploader
-              documentType={selectedIDType}
-              side="BACK"
-              onDocumentCaptured={handleDocumentCaptured}
-              onRemove={() => handleRemoveDocument(selectedIDType, "BACK")}
-              existingDocument={getCapturedDocument(selectedIDType, "BACK")}
-              disabled={isUploading}
-            />
-          )}
-
-          {/* Selfie with ID */}
-          <DocumentUploader
-            documentType="SELFIE"
-            onDocumentCaptured={handleDocumentCaptured}
-            onRemove={() => handleRemoveDocument("SELFIE")}
-            existingDocument={getCapturedDocument("SELFIE")}
-            disabled={isUploading}
-          />
-        </View>
-
-        {/* Optional Clearance */}
-        {selectedClearanceType && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Optional Documents</Text>
-            <DocumentUploader
-              documentType={selectedClearanceType}
-              onDocumentCaptured={handleDocumentCaptured}
-              onRemove={() => handleRemoveDocument(selectedClearanceType)}
-              existingDocument={getCapturedDocument(selectedClearanceType)}
-              disabled={isUploading}
-            />
-          </View>
-        )}
-      </View>
-    );
-  };
-
-  /**
-   * Render review step
-   */
-  const renderReviewStep = () => {
-    return (
-      <View style={styles.stepContent}>
-        <Text style={styles.stepTitle}>Review Your Documents</Text>
-        <Text style={styles.stepDescription}>
-          Please review your documents before submission. Make sure all images
-          are clear and readable.
-        </Text>
-
-        <Card style={styles.reviewCard}>
-          <Text style={styles.reviewLabel}>Documents to Submit:</Text>
-          {capturedDocuments.map((doc, index) => (
-            <View key={index} style={styles.reviewItem}>
-              <Ionicons
-                name="checkmark-circle"
-                size={20}
-                color={Colors.success}
-              />
-              <Text style={styles.reviewText}>
-                {DOCUMENT_TYPES[doc.type].label}
-                {doc.side && ` (${doc.side})`}
-              </Text>
-            </View>
-          ))}
-        </Card>
-
-        <Card style={styles.warningCard}>
-          <View style={styles.warningHeader}>
-            <Ionicons
-              name="information-circle"
-              size={24}
-              color={Colors.warning}
-            />
-            <Text style={styles.warningTitle}>Important</Text>
-          </View>
-          <Text style={styles.warningText}>
-            • Ensure all documents are valid and not expired{"\n"}• All text
-            must be clearly visible{"\n"}• Photos should be well-lit and in
-            focus{"\n"}• Review typically takes 1-3 business days
-          </Text>
-        </Card>
-      </View>
-    );
-  };
-
-  /**
-   * Render uploading step
-   */
-  const renderUploadingStep = () => {
-    return (
-      <View style={styles.uploadingContainer}>
-        <Ionicons
-          name="cloud-upload-outline"
-          size={80}
-          color={Colors.primary}
-        />
-        <Text style={styles.uploadingTitle}>Uploading Documents...</Text>
-        <Text style={styles.uploadingDescription}>
-          Please wait while we securely upload your documents
-        </Text>
-
-        <UploadProgressBar progress={progress} showDetails />
-
-        <Text style={styles.uploadingNote}>
-          Do not close this screen until upload completes
-        </Text>
-      </View>
-    );
-  };
-
-  /**
-   * Render completion step
-   */
-  const renderCompleteStep = () => {
-    return (
-      <View style={styles.completeContainer}>
-        <Ionicons name="checkmark-circle" size={100} color={Colors.success} />
-        <Text style={styles.completeTitle}>Documents Submitted!</Text>
-        <Text style={styles.completeDescription}>
-          Your KYC documents have been successfully uploaded. Our team will
-          review them within 1-3 business days.
-        </Text>
-      </View>
-    );
-  };
-
-  return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      <Stack.Screen
-        options={{
-          title: "KYC Verification",
-          headerShown: true,
-          headerBackVisible:
-            currentStep !== "uploading" && currentStep !== "complete",
-        }}
-      />
-
-      <View style={styles.container}>
-        {/* Step Indicator */}
-        {currentStep !== "uploading" &&
-          currentStep !== "complete" &&
-          renderStepIndicator()}
-
-        {/* Step Content */}
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {currentStep === "select_id" && renderSelectIDStep()}
-          {currentStep === "upload_documents" && renderUploadStep()}
-          {currentStep === "review" && renderReviewStep()}
-          {currentStep === "uploading" && renderUploadingStep()}
-          {currentStep === "complete" && renderCompleteStep()}
-        </ScrollView>
-
-        {/* Navigation Buttons */}
-        {currentStep !== "uploading" && currentStep !== "complete" && (
-          <View style={styles.navigationButtons}>
-            {currentStep !== "select_id" && (
-              <Button
-                mode="outlined"
-                onPress={handleBack}
-                style={styles.backButton}
-                icon="arrow-left"
-              >
-                Back
-              </Button>
-            )}
-            <Button
-              mode="contained"
-              onPress={handleNext}
-              style={[
-                styles.nextButton,
-                currentStep === "select_id" && styles.nextButtonFull,
-              ]}
-              icon={currentStep === "review" ? "check" : "arrow-right"}
-              contentStyle={styles.buttonContent}
-              disabled={
-                currentStep === "upload_documents" && !hasAllRequiredDocuments()
-              }
-            >
-              {currentStep === "review" ? "Submit" : "Next"}
-            </Button>
-          </View>
-        )}
-      </View>
-    </KeyboardAvoidingView>
+      ))}
+    </View>
   );
-}
 
-/**
- * Touchable ID card component
- */
-interface TouchableIDCardProps {
-  config: any;
-  selected: boolean;
-  onSelect: () => void;
-}
+  const renderStep1 = () => (
+    <View style={styles.stepContent}>
+      <Text style={styles.title}>Select ID Type</Text>
+      <Text style={styles.description}>
+        Choose your primary government-issued ID
+      </Text>
 
-const TouchableIDCard: React.FC<TouchableIDCardProps> = ({
-  config,
-  selected,
-  onSelect,
-}) => {
-  return (
-    <Card
-      style={[styles.idCard, selected && styles.idCardSelected]}
-      onPress={onSelect}
-    >
-      <View style={styles.idCardContent}>
-        <View
+      {ID_TYPES.map((type) => (
+        <TouchableOpacity
+          key={type.value}
           style={[
-            styles.idIconContainer,
-            selected && styles.idIconContainerSelected,
+            styles.option,
+            selectedIDType === type.value && styles.optionSelected,
           ]}
+          onPress={() => setSelectedIDType(type.value as IDType)}
         >
           <Ionicons
-            name={config.icon}
-            size={32}
-            color={selected ? Colors.primary : Colors.textSecondary}
+            name={type.icon as any}
+            size={24}
+            color={
+              selectedIDType === type.value
+                ? Colors.primary
+                : Colors.textSecondary
+            }
           />
-        </View>
-        <View style={styles.idTextContainer}>
-          <Text style={[styles.idTitle, selected && styles.idTitleSelected]}>
-            {config.label}
+          <Text
+            style={[
+              styles.optionText,
+              selectedIDType === type.value && styles.optionTextSelected,
+            ]}
+          >
+            {type.label}
           </Text>
-          <Text style={styles.idDescription} numberOfLines={2}>
-            {config.description}
-          </Text>
-        </View>
-        {selected && (
-          <Ionicons name="checkmark-circle" size={24} color={Colors.primary} />
-        )}
-      </View>
-    </Card>
+          {selectedIDType === type.value && (
+            <Ionicons
+              name="checkmark-circle"
+              size={24}
+              color={Colors.primary}
+            />
+          )}
+        </TouchableOpacity>
+      ))}
+    </View>
   );
-};
+
+  const renderStep2 = () => (
+    <View style={styles.stepContent}>
+      <Text style={styles.title}>Upload ID Photos</Text>
+      <Text style={styles.description}>
+        Take clear photos of front and back
+      </Text>
+
+      <View style={styles.uploadSection}>
+        <Text style={styles.uploadLabel}>Front Side</Text>
+        <TouchableOpacity
+          style={styles.uploadBox}
+          onPress={() => pickImage("front")}
+        >
+          {frontIDFile ? (
+            <Image
+              source={{ uri: frontIDFile.uri }}
+              style={styles.previewImage}
+            />
+          ) : (
+            <>
+              <Ionicons
+                name="cloud-upload-outline"
+                size={48}
+                color={Colors.primary}
+              />
+              <Text style={styles.uploadText}>Tap to upload</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.uploadSection}>
+        <Text style={styles.uploadLabel}>Back Side</Text>
+        <TouchableOpacity
+          style={styles.uploadBox}
+          onPress={() => pickImage("back")}
+        >
+          {backIDFile ? (
+            <Image
+              source={{ uri: backIDFile.uri }}
+              style={styles.previewImage}
+            />
+          ) : (
+            <>
+              <Ionicons
+                name="cloud-upload-outline"
+                size={48}
+                color={Colors.primary}
+              />
+              <Text style={styles.uploadText}>Tap to upload</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  const renderStep3 = () => (
+    <View style={styles.stepContent}>
+      <Text style={styles.title}>Clearance Certificate</Text>
+      <Text style={styles.description}>Upload Police or NBI clearance</Text>
+
+      {CLEARANCE_TYPES.map((type) => (
+        <TouchableOpacity
+          key={type.value}
+          style={[
+            styles.option,
+            selectedClearanceType === type.value && styles.optionSelected,
+          ]}
+          onPress={() => setSelectedClearanceType(type.value as ClearanceType)}
+        >
+          <Ionicons
+            name="shield-checkmark-outline"
+            size={24}
+            color={
+              selectedClearanceType === type.value
+                ? Colors.primary
+                : Colors.textSecondary
+            }
+          />
+          <Text
+            style={[
+              styles.optionText,
+              selectedClearanceType === type.value && styles.optionTextSelected,
+            ]}
+          >
+            {type.label}
+          </Text>
+          {selectedClearanceType === type.value && (
+            <Ionicons
+              name="checkmark-circle"
+              size={24}
+              color={Colors.primary}
+            />
+          )}
+        </TouchableOpacity>
+      ))}
+
+      <View style={styles.uploadSection}>
+        <Text style={styles.uploadLabel}>Upload Clearance</Text>
+        <TouchableOpacity
+          style={styles.uploadBox}
+          onPress={() => pickImage("clearance")}
+        >
+          {clearanceFile ? (
+            <Image
+              source={{ uri: clearanceFile.uri }}
+              style={styles.previewImage}
+            />
+          ) : (
+            <>
+              <Ionicons
+                name="cloud-upload-outline"
+                size={48}
+                color={Colors.primary}
+              />
+              <Text style={styles.uploadText}>Tap to upload</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  const renderStep4 = () => (
+    <View style={styles.stepContent}>
+      <Text style={styles.title}>Take a Selfie</Text>
+      <Text style={styles.description}>Hold your ID next to your face</Text>
+
+      <View style={styles.uploadSection}>
+        <TouchableOpacity
+          style={styles.uploadBox}
+          onPress={() => pickImage("selfie")}
+        >
+          {selfieFile ? (
+            <Image
+              source={{ uri: selfieFile.uri }}
+              style={styles.previewImage}
+            />
+          ) : (
+            <>
+              <Ionicons
+                name="camera-outline"
+                size={48}
+                color={Colors.primary}
+              />
+              <Text style={styles.uploadText}>Tap to take photo</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.infoCard}>
+        <Ionicons
+          name="information-circle-outline"
+          size={24}
+          color={Colors.warning}
+        />
+        <View style={{ flex: 1, marginLeft: 12 }}>
+          <Text style={styles.infoTitle}>Important Tips</Text>
+          <Text style={styles.infoText}>
+            • Good lighting{"\n"}• Face clearly visible{"\n"}• Hold ID next to
+            face{"\n"}• Remove glasses
+          </Text>
+        </View>
+      </View>
+    </View>
+  );
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <Stack.Screen options={{ headerShown: false }} />
+
+      {/* Custom Header */}
+      <View style={styles.customHeader}>
+        <CustomBackButton />
+        <Text style={styles.headerTitle}>KYC Verification</Text>
+        <View style={styles.headerRight} />
+      </View>
+
+      {renderStepIndicator()}
+
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+      >
+        {currentStep === 1 && renderStep1()}
+        {currentStep === 2 && renderStep2()}
+        {currentStep === 3 && renderStep3()}
+        {currentStep === 4 && renderStep4()}
+      </ScrollView>
+
+      <View style={styles.footer}>
+        {currentStep > 1 && (
+          <TouchableOpacity style={styles.backButton} onPress={handleBack}>
+            <Ionicons name="arrow-back" size={20} color={Colors.primary} />
+            <Text style={styles.backButtonText}>Back</Text>
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity
+          style={[
+            styles.nextButton,
+            currentStep === 1 && styles.nextButtonFull,
+          ]}
+          onPress={handleNext}
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? (
+            <ActivityIndicator color={Colors.white} />
+          ) : (
+            <>
+              <Text style={styles.nextButtonText}>
+                {currentStep === 4 ? "Submit" : "Next"}
+              </Text>
+              <Ionicons
+                name={currentStep === 4 ? "checkmark" : "arrow-forward"}
+                size={20}
+                color={Colors.white}
+              />
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
+  );
+}
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.backgroundSecondary,
+    backgroundColor: Colors.background,
+  },
+  customHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingTop: 50,
+    paddingHorizontal: 12,
+    paddingBottom: 12,
+    backgroundColor: Colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  headerTitle: {
+    fontSize: Typography.fontSize.lg,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+    flex: 1,
+    textAlign: "center",
+  },
+  headerRight: {
+    width: 40, // Balance the back button on the left
   },
   stepIndicator: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.md,
-    backgroundColor: Colors.background,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.backgroundSecondary,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 20,
+    backgroundColor: Colors.surface,
   },
   stepItem: {
+    flexDirection: "row",
     alignItems: "center",
-    flex: 1,
   },
   stepCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: Colors.backgroundSecondary,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: Spacing.xs,
   },
   stepCircleActive: {
     backgroundColor: Colors.primary,
   },
   stepNumber: {
-    fontSize: Typography.fontSize.sm,
+    fontSize: 16,
+    fontWeight: "600",
     color: Colors.textHint,
   },
   stepNumberActive: {
     color: Colors.white,
   },
-  stepLabel: {
-    fontSize: Typography.fontSize.xs,
-
-    color: Colors.textHint,
-  },
-  stepLabelActive: {
-    color: Colors.primary,
+  stepLine: {
+    width: 40,
+    height: 2,
+    backgroundColor: Colors.backgroundSecondary,
+    marginHorizontal: 4,
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    padding: Spacing.md,
+    padding: 20,
   },
   stepContent: {
-    paddingBottom: Spacing.xl,
+    gap: 16,
   },
-  stepTitle: {
-    fontSize: Typography.fontSize.xl,
-
+  title: {
+    fontSize: 24,
+    fontWeight: "700",
     color: Colors.textPrimary,
-    marginBottom: Spacing.sm,
   },
-  stepDescription: {
-    fontSize: Typography.fontSize.base,
-
+  description: {
+    fontSize: 16,
     color: Colors.textSecondary,
-    marginBottom: Spacing.lg,
+    marginBottom: 8,
   },
-  sectionTitle: {
-    fontSize: Typography.fontSize.lg,
-    color: Colors.textPrimary,
-    marginTop: Spacing.md,
-    marginBottom: Spacing.sm,
-  },
-  sectionDescription: {
-    fontSize: Typography.fontSize.sm,
-
-    color: Colors.textSecondary,
-    marginBottom: Spacing.md,
-  },
-  section: {
-    marginBottom: Spacing.lg,
-  },
-  idOptions: {
-    gap: Spacing.sm,
-    marginBottom: Spacing.md,
-  },
-  idCard: {
-    borderRadius: 12,
-    backgroundColor: Colors.background,
+  option: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
     borderWidth: 2,
     borderColor: "transparent",
+    gap: 12,
   },
-  idCardSelected: {
+  optionSelected: {
     borderColor: Colors.primary,
-    backgroundColor: `${Colors.primary}05`,
+    backgroundColor: `${Colors.primary}10`,
   },
-  idCardContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: Spacing.md,
-  },
-  idIconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 12,
-    backgroundColor: Colors.backgroundSecondary,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: Spacing.md,
-  },
-  idIconContainerSelected: {
-    backgroundColor: `${Colors.primary}15`,
-  },
-  idTextContainer: {
+  optionText: {
     flex: 1,
-  },
-  idTitle: {
-    fontSize: Typography.fontSize.base,
+    fontSize: 16,
+    fontWeight: "600",
     color: Colors.textPrimary,
-    marginBottom: Spacing.xs / 2,
   },
-  idTitleSelected: {
+  optionTextSelected: {
     color: Colors.primary,
   },
-  idDescription: {
-    fontSize: Typography.fontSize.sm,
-
+  uploadSection: {
+    marginTop: 8,
+  },
+  uploadLabel: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+    marginBottom: 8,
+  },
+  uploadBox: {
+    height: 200,
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 2,
+    borderColor: Colors.border,
+    borderStyle: "dashed",
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  previewImage: {
+    width: "100%",
+    height: "100%",
+    resizeMode: "cover",
+  },
+  uploadText: {
+    marginTop: 8,
+    fontSize: 14,
     color: Colors.textSecondary,
   },
-  chipContainer: {
+  infoCard: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: Spacing.sm,
-  },
-  chip: {
-    marginRight: 0,
-  },
-  reviewCard: {
-    padding: Spacing.md,
-    borderRadius: 12,
-    marginBottom: Spacing.md,
-    backgroundColor: Colors.background,
-  },
-  reviewLabel: {
-    fontSize: Typography.fontSize.base,
-    color: Colors.textPrimary,
-    marginBottom: Spacing.sm,
-  },
-  reviewItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.sm,
-    marginVertical: Spacing.xs / 2,
-  },
-  reviewText: {
-    fontSize: Typography.fontSize.base,
-
-    color: Colors.textPrimary,
-  },
-  warningCard: {
-    padding: Spacing.md,
-    borderRadius: 12,
-    backgroundColor: `${Colors.warning}10`,
+    padding: 16,
+    backgroundColor: Colors.warningLight,
+    borderRadius: BorderRadius.lg,
     borderLeftWidth: 4,
     borderLeftColor: Colors.warning,
   },
-  warningHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.xs,
-    marginBottom: Spacing.sm,
-  },
-  warningTitle: {
-    fontSize: Typography.fontSize.base,
+  infoTitle: {
+    fontSize: 16,
+    fontWeight: "600",
     color: Colors.textPrimary,
+    marginBottom: 4,
   },
-  warningText: {
-    fontSize: Typography.fontSize.sm,
-
-    color: Colors.textPrimary,
+  infoText: {
+    fontSize: 14,
+    color: Colors.textSecondary,
     lineHeight: 20,
   },
-  uploadingContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: Spacing.xl,
-  },
-  uploadingTitle: {
-    fontSize: Typography.fontSize.xl,
-
-    color: Colors.textPrimary,
-    marginTop: Spacing.lg,
-    marginBottom: Spacing.sm,
-  },
-  uploadingDescription: {
-    fontSize: Typography.fontSize.base,
-
-    color: Colors.textSecondary,
-    textAlign: "center",
-    marginBottom: Spacing.xl,
-  },
-  uploadingNote: {
-    fontSize: Typography.fontSize.sm,
-
-    color: Colors.textHint,
-    textAlign: "center",
-    marginTop: Spacing.lg,
-  },
-  completeContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: Spacing.xl,
-  },
-  completeTitle: {
-    fontSize: Typography.fontSize.xl,
-
-    color: Colors.success,
-    marginTop: Spacing.lg,
-    marginBottom: Spacing.sm,
-  },
-  completeDescription: {
-    fontSize: Typography.fontSize.base,
-
-    color: Colors.textPrimary,
-    textAlign: "center",
-    paddingHorizontal: Spacing.xl,
-  },
-  navigationButtons: {
+  footer: {
     flexDirection: "row",
-    padding: Spacing.md,
-    gap: Spacing.sm,
-    backgroundColor: Colors.background,
+    padding: 16,
+    gap: 12,
+    backgroundColor: Colors.white,
     borderTopWidth: 1,
-    borderTopColor: Colors.backgroundSecondary,
+    borderTopColor: Colors.border,
+    ...Shadows.sm,
   },
   backButton: {
     flex: 1,
-    borderColor: Colors.primary,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
+    backgroundColor: Colors.primaryLight,
+    borderRadius: BorderRadius.lg,
+    gap: 8,
+  },
+  backButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: Colors.primary,
   },
   nextButton: {
     flex: 2,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
     backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.lg,
+    gap: 8,
+    ...Shadows.sm,
   },
   nextButtonFull: {
     flex: 1,
   },
-  buttonContent: {
-    paddingVertical: Spacing.xs,
+  nextButtonText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: Colors.white,
   },
 });

@@ -18,6 +18,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import {
   Colors,
   Typography,
@@ -103,7 +104,9 @@ export default function CertificationForm({
     useState<ImagePicker.ImagePickerAsset | null>(null);
   const [errors, setErrors] = useState<FormErrors>({});
 
-  // Date picker states removed - using simplified date display
+  // Date picker states
+  const [showIssueDatePicker, setShowIssueDatePicker] = useState(false);
+  const [showExpiryDatePicker, setShowExpiryDatePicker] = useState(false);
 
   // Initialize form with certification data (edit mode)
   useEffect(() => {
@@ -334,11 +337,13 @@ export default function CertificationForm({
               <Text style={styles.label}>
                 Issue Date <Text style={styles.required}>*</Text>
               </Text>
-              <View
+              <Pressable
                 style={[
                   styles.dateButton,
                   errors.issueDate && styles.inputError,
                 ]}
+                onPress={() => !isEditMode && setShowIssueDatePicker(true)}
+                disabled={isLoading || isEditMode}
               >
                 <Ionicons
                   name="calendar-outline"
@@ -352,14 +357,34 @@ export default function CertificationForm({
                     year: "numeric",
                   })}
                 </Text>
-              </View>
+              </Pressable>
               {errors.issueDate && (
                 <Text style={styles.errorText}>{errors.issueDate}</Text>
               )}
-              <Text style={styles.hint}>
-                Date cannot be changed after creation
-              </Text>
+              {isEditMode && (
+                <Text style={styles.hint}>
+                  Date cannot be changed after creation
+                </Text>
+              )}
             </View>
+
+            {/* Issue Date Picker */}
+            {showIssueDatePicker && (
+              <DateTimePicker
+                value={issueDate}
+                mode="date"
+                display={Platform.OS === "ios" ? "spinner" : "default"}
+                onChange={(event, selectedDate) => {
+                  setShowIssueDatePicker(Platform.OS === "ios");
+                  if (selectedDate) {
+                    setIssueDate(selectedDate);
+                    if (errors.issueDate)
+                      setErrors({ ...errors, issueDate: undefined });
+                  }
+                }}
+                maximumDate={new Date()}
+              />
+            )}
 
             {/* Expiry Date Toggle */}
             <View style={styles.formGroup}>
@@ -394,11 +419,13 @@ export default function CertificationForm({
                 <Text style={styles.label}>
                   Expiry Date <Text style={styles.required}>*</Text>
                 </Text>
-                <View
+                <Pressable
                   style={[
                     styles.dateButton,
                     errors.expiryDate && styles.inputError,
                   ]}
+                  onPress={() => !isEditMode && setShowExpiryDatePicker(true)}
+                  disabled={isLoading || isEditMode}
                 >
                   <Ionicons
                     name="calendar-outline"
@@ -412,16 +439,36 @@ export default function CertificationForm({
                           day: "numeric",
                           year: "numeric",
                         })
-                      : "Not set"}
+                      : "Select date"}
                   </Text>
-                </View>
+                </Pressable>
                 {errors.expiryDate && (
                   <Text style={styles.errorText}>{errors.expiryDate}</Text>
                 )}
-                <Text style={styles.hint}>
-                  Date cannot be changed after creation
-                </Text>
+                {isEditMode && (
+                  <Text style={styles.hint}>
+                    Date cannot be changed after creation
+                  </Text>
+                )}
               </View>
+            )}
+
+            {/* Expiry Date Picker */}
+            {showExpiryDatePicker && hasExpiry && (
+              <DateTimePicker
+                value={expiryDate || new Date()}
+                mode="date"
+                display={Platform.OS === "ios" ? "spinner" : "default"}
+                onChange={(event, selectedDate) => {
+                  setShowExpiryDatePicker(Platform.OS === "ios");
+                  if (selectedDate) {
+                    setExpiryDate(selectedDate);
+                    if (errors.expiryDate)
+                      setErrors({ ...errors, expiryDate: undefined });
+                  }
+                }}
+                minimumDate={issueDate}
+              />
             )}
 
             {/* Certificate Image Upload */}

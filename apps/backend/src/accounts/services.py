@@ -359,6 +359,7 @@ def fetch_currentUser(accountID):
             print(f"   Formatted URL: {formatted_profile_img}")
 
             profile_data = {
+                "id": profile.profileID,  # Add profile ID
                 "firstName": profile.firstName,
                 "lastName": profile.lastName,
                 "profileImg": formatted_profile_img,  # Ensure full URL for mobile
@@ -366,6 +367,17 @@ def fetch_currentUser(accountID):
                 "contactNum": profile.contactNum,
                 "birthDate": profile.birthDate.isoformat() if profile.birthDate else None,
             }
+            
+            # If worker, add worker profile ID
+            if profile.profileType == "WORKER":
+                try:
+                    from .models import WorkerProfile
+                    worker_profile = WorkerProfile.objects.get(profileID=profile)
+                    profile_data["workerProfileId"] = worker_profile.id  # WorkerProfile primary key
+                    print(f"   🔧 Added worker profile ID: {worker_profile.id}")
+                except WorkerProfile.DoesNotExist:
+                    print(f"   ⚠️  Worker profile not found for profile {profile.profileID}")
+                    
             print(f"   👤 Profile Data for {account.email}: Type={profile.profileType} (Raw: {repr(profile.profileType)})")
 
             # If a Profile exists we treat this as an "individual" account

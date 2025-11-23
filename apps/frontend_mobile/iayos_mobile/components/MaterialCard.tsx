@@ -62,7 +62,11 @@ export default function MaterialCard({
             {material.name}
           </Text>
           <Text style={styles.compactPrice} numberOfLines={1}>
-            {formatPricePerUnit(material.price, material.unit)}
+            {formatPricePerUnit(
+              material.price,
+              material.unit,
+              material.quantity
+            )}
           </Text>
         </View>
 
@@ -132,7 +136,11 @@ export default function MaterialCard({
         {/* Price and Availability Row */}
         <View style={styles.priceRow}>
           <Text style={styles.priceText}>
-            {formatPricePerUnit(material.price, material.unit)}
+            {formatPricePerUnit(
+              material.price,
+              material.unit,
+              material.quantity
+            )}
           </Text>
           <View
             style={[

@@ -2,7 +2,7 @@
 // Handles fetching, searching, and filtering conversations
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ENDPOINTS } from "../api/config";
+import { ENDPOINTS, apiRequest } from "../api/config";
 
 export type Conversation = {
   id: number;
@@ -51,12 +51,7 @@ export function useConversations(
     queryKey: ["conversations", filter],
     queryFn: async (): Promise<ConversationsResponse> => {
       const url = `${ENDPOINTS.CONVERSATIONS}?filter=${filter}`;
-      const response = await fetch(url, {
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
+      const response = await apiRequest(url);
 
       if (!response.ok) {
         throw new Error(
@@ -135,14 +130,10 @@ export function useArchiveConversation() {
       );
 
       // Call backend toggle archive endpoint
-      const response = await fetch(
+      const response = await apiRequest(
         `${ENDPOINTS.CONVERSATIONS}/${conversationId}/toggle-archive`,
         {
           method: "POST",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
         }
       );
 

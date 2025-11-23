@@ -2,7 +2,7 @@
 // React Query hooks for managing worker certifications
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ENDPOINTS } from "@/lib/api/config";
+import { ENDPOINTS, apiRequest } from "@/lib/api/config";
 
 // ===== TYPES =====
 
@@ -53,15 +53,27 @@ export const useCertifications = () => {
   return useQuery<Certification[]>({
     queryKey: ["certifications"],
     queryFn: async () => {
-      const response = await fetch(ENDPOINTS.CERTIFICATIONS, {
-        credentials: "include",
-      });
+      const response = await apiRequest(ENDPOINTS.CERTIFICATIONS);
 
       if (!response.ok) {
         throw new Error("Failed to fetch certifications");
       }
 
-      return response.json();
+      const data = await response.json();
+
+      // Map backend response (snake_case) to frontend (camelCase)
+      return data.map((cert: any) => ({
+        id: cert.certificationID,
+        name: cert.name,
+        issuingOrganization: cert.issuing_organization,
+        issueDate: cert.issue_date,
+        expiryDate: cert.expiry_date,
+        certificateUrl: cert.certificate_url,
+        isVerified: cert.is_verified,
+        isExpired: cert.is_expired,
+        createdAt: cert.createdAt,
+        updatedAt: cert.updatedAt,
+      }));
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
@@ -111,16 +123,15 @@ export const useCreateCertification = () => {
 
       // Add certificate file if provided
       if (data.certificateFile) {
-        formData.append("certificate", {
+        formData.append("certificate_file", {
           uri: data.certificateFile.uri,
           name: data.certificateFile.name,
           type: data.certificateFile.type,
         } as any);
       }
 
-      const response = await fetch(ENDPOINTS.CERTIFICATIONS, {
+      const response = await apiRequest(ENDPOINTS.CERTIFICATIONS, {
         method: "POST",
-        credentials: "include",
         body: formData,
       });
 
@@ -129,7 +140,25 @@ export const useCreateCertification = () => {
         throw new Error(error.message || "Failed to create certification");
       }
 
-      return response.json();
+      const result = await response.json();
+
+      // Map backend response (snake_case) to frontend (camelCase)
+      if (result.certification) {
+        return {
+          id: result.certification.certificationID,
+          name: result.certification.name,
+          issuingOrganization: result.certification.issuing_organization,
+          issueDate: result.certification.issue_date,
+          expiryDate: result.certification.expiry_date,
+          certificateUrl: result.certification.certificate_url,
+          isVerified: result.certification.is_verified,
+          isExpired: result.certification.is_expired,
+          createdAt: result.certification.createdAt,
+          updatedAt: result.certification.updatedAt,
+        };
+      }
+
+      return result;
     },
     onSuccess: () => {
       // Invalidate certifications list
@@ -172,9 +201,8 @@ export const useUpdateCertification = () => {
         } as any);
       }
 
-      const response = await fetch(ENDPOINTS.CERTIFICATION_DETAIL(id), {
+      const response = await apiRequest(ENDPOINTS.CERTIFICATION_DETAIL(id), {
         method: "PUT",
-        credentials: "include",
         body: formData,
       });
 
@@ -204,9 +232,8 @@ export const useDeleteCertification = () => {
 
   return useMutation({
     mutationFn: async (id: number) => {
-      const response = await fetch(ENDPOINTS.CERTIFICATION_DETAIL(id), {
+      const response = await apiRequest(ENDPOINTS.CERTIFICATION_DETAIL(id), {
         method: "DELETE",
-        credentials: "include",
       });
 
       if (!response.ok) {

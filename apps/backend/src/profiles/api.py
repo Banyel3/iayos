@@ -623,6 +623,10 @@ def get_conversations(request, filter: str = "all"):
         # Get user's profile
         try:
             user_profile = Profile.objects.get(accountFK=request.auth)
+            print(f"\n🔍 === CONVERSATION DEBUG ===")
+            print(f"📧 Logged in user: {request.auth.email}")
+            print(f"👤 Profile ID: {user_profile.profileID}")
+            print(f"📋 Profile Type: {user_profile.profileType}")
         except Profile.DoesNotExist:
             return Response(
                 {"error": "Profile not found"},
@@ -639,34 +643,41 @@ def get_conversations(request, filter: str = "all"):
             'lastMessageSender'
         )
         
+        print(f"💬 Total conversations found: {conversations_query.count()}")
+        
         # Apply filters based on the filter parameter
         if filter == "archived":
             # Show only archived conversations for this user
             conversations_query = conversations_query.filter(
-                Q(client=user_profile, archivedByClient=True) |
-                Q(worker=user_profile, archivedByWorker=True)
+                (Q(client=user_profile) & Q(archivedByClient=True)) |
+                (Q(worker=user_profile) & Q(archivedByWorker=True))
             )
         else:
             # For 'all' and 'unread', exclude archived conversations
+            # Only show conversations where user is participant AND not archived by them
             conversations_query = conversations_query.filter(
-                Q(client=user_profile, archivedByClient=False) |
-                Q(worker=user_profile, archivedByWorker=False)
+                (Q(client=user_profile) & Q(archivedByClient=False)) |
+                (Q(worker=user_profile) & Q(archivedByWorker=False))
             )
             
             # Additional filter for unread only
             if filter == "unread":
                 conversations_query = conversations_query.filter(
-                    Q(client=user_profile, unreadCountClient__gt=0) |
-                    Q(worker=user_profile, unreadCountWorker__gt=0)
+                    (Q(client=user_profile) & Q(unreadCountClient__gt=0)) |
+                    (Q(worker=user_profile) & Q(unreadCountWorker__gt=0))
                 )
         
         conversations = conversations_query.order_by('-updatedAt')
+        
+        print(f"📊 After filters: {conversations.count()} conversations")
         
         result = []
         for conv in conversations:
             # Determine the other participant (if user is client, show worker; if worker, show client)
             is_client = conv.client == user_profile
             other_participant = conv.worker if is_client else conv.client
+            
+            print(f"  📨 Conv {conv.conversationID}: Client={conv.client.accountFK.email}, Worker={conv.worker.accountFK.email}, Job={conv.relatedJobPosting.title}")
             
             # Get job info
             job = conv.relatedJobPosting
@@ -719,6 +730,9 @@ def get_conversations(request, filter: str = "all"):
                 "status": conv.status,
                 "created_at": conv.createdAt.isoformat()
             })
+        
+        print(f"✅ Returning {len(result)} conversations")
+        print(f"🔍 === END DEBUG ===\n")
         
         return {
             "success": True,

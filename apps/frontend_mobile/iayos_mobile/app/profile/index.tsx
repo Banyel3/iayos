@@ -1,7 +1,7 @@
 // Worker Profile Screen
 // Shows worker's professional profile with stats, completion widget, and edit button
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { useAuth } from "@/context/AuthContext";
 import {
   Colors,
   Typography,
@@ -120,12 +121,32 @@ const getCompletionColor = (percentage: number): string => {
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const { user } = useAuth();
+
+  // Check if user is a worker - redirect if not
+  const isWorker = user?.profile_data?.profileType === "WORKER";
+
+  useEffect(() => {
+    if (!isWorker && user) {
+      // Not a worker, redirect back to profile tab
+      Alert.alert(
+        "Worker Profile Only",
+        "This page is only available for worker profiles.",
+        [
+          {
+            text: "OK",
+            onPress: () => router.back(),
+          },
+        ]
+      );
+    }
+  }, [isWorker, user, router]);
 
   // Portfolio viewer state
   const [viewerVisible, setViewerVisible] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
 
-  // Fetch profile data
+  // Fetch profile data (only if worker)
   const {
     data: profile,
     isLoading,
@@ -142,17 +163,27 @@ export default function ProfileScreen() {
       }
       return response.json();
     },
+    enabled: isWorker, // Only fetch if user is a worker
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
   // Fetch portfolio images
   const { images: portfolioImages } = usePortfolioManagement();
 
-  // Fetch certifications
+  // Fetch certifications (only for workers)
   const { data: certifications = [] } = useCertifications();
 
-  // Fetch materials
+  // Fetch materials (only for workers)
   const { data: materials = [] } = useMaterials();
+
+  // Prevent rendering if not a worker
+  if (!isWorker) {
+    return (
+      <View style={styles.centerContainer}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+      </View>
+    );
+  }
 
   // Handle avatar tap
   const handleAvatarPress = () => {

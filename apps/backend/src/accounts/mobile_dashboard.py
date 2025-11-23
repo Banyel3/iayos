@@ -136,7 +136,9 @@ def get_dashboard_recent_jobs_mobile(user: Accounts, limit: int = 5) -> Dict[str
 
             jobs = JobPosting.objects.filter(
                 status='ACTIVE',
-                jobType='LISTING'  # Only show public job listings, not direct invites
+                jobType='LISTING',  # Only show public job listings, not direct invites
+                assignedWorkerID__isnull=True,
+                assignedAgencyFK__isnull=True,
             ).exclude(
                 jobID__in=applied_job_ids
             ).select_related(

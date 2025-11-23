@@ -9,15 +9,15 @@
  * - Blocks user interaction
  */
 
-import React from 'react';
+import React from "react";
 import {
   View,
   Text,
   ActivityIndicator,
   StyleSheet,
   ViewStyle,
-} from 'react-native';
-import { Colors, Typography, Spacing } from '@/constants/theme';
+} from "react-native";
+import { Colors, Typography, Spacing } from "@/constants/theme";
 
 interface LoadingScreenProps {
   // Content
@@ -50,9 +50,7 @@ export default function LoadingScreen({
       />
 
       {/* Loading Text */}
-      {text && (
-        <Text style={styles.text}>{text}</Text>
-      )}
+      {text && <Text style={styles.text}>{text}</Text>}
     </View>
   );
 }
@@ -60,20 +58,21 @@ export default function LoadingScreen({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: Colors.background,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.95)", // Semi-transparent white
+    paddingHorizontal: Spacing.xl,
   },
   logoContainer: {
-    marginBottom: Spacing['4xl'],
+    marginBottom: Spacing["4xl"],
   },
   logo: {
-    fontSize: Typography.fontSize['5xl'],
+    fontSize: Typography.fontSize["5xl"],
     fontWeight: Typography.fontWeight.bold,
     color: Colors.primary,
   },
   spinner: {
-    marginVertical: Spacing['2xl'],
+    marginVertical: Spacing["2xl"],
   },
   text: {
     fontSize: Typography.fontSize.base,

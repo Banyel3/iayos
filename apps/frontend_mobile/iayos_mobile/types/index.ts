@@ -2,9 +2,10 @@
 
 export interface User {
   id: number;
+  accountID: number; // Backend returns accountID for authenticated requests
   email: string;
   isVerified: boolean;
-  KYCVerified: boolean;
+  kycVerified: boolean; // Lowercase to match backend response
   accountType?: "INDIVIDUAL" | "AGENCY";
   profile_data?: ProfileData;
 }
@@ -20,6 +21,7 @@ export interface ProfileData {
   profileImg?: string;
   latitude?: number;
   longitude?: number;
+  workerProfileId?: number; // WorkerProfile.id (only for workers)
 }
 
 export interface WorkerProfile {

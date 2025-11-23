@@ -30,7 +30,9 @@ def get_mobile_job_list(
         # Base query - only ACTIVE jobs that are LISTING type (exclude INVITE/direct hire jobs)
         queryset = JobPosting.objects.filter(
             status='ACTIVE',
-            jobType='LISTING'  # Only show public job listings, not direct invites
+            jobType='LISTING',  # Only show public job listings, not direct invites
+            assignedWorkerID__isnull=True,  # Exclude jobs that already have a worker
+            assignedAgencyFK__isnull=True,  # Exclude jobs assigned to agencies
         )
 
         # Apply filters
@@ -59,12 +61,7 @@ def get_mobile_job_list(
             'photos'
         )
 
-        # Order by urgency and creation date
-        urgency_order = {
-            'HIGH': 1,
-            'MEDIUM': 2,
-            'LOW': 3,
-        }
+        # Order by urgency and creation date (most recent listings first)
         queryset = queryset.order_by('-createdAt')
 
         # Calculate pagination
@@ -110,17 +107,30 @@ def get_mobile_job_list(
             }
             job_list.append(job_data)
 
+        total_pages = (total_count + limit - 1) // limit
+        has_next = end < total_count
+        has_prev = page > 1
+
         return {
             'success': True,
             'data': {
-                    # Apply filters
+                'jobs': job_list,
+                'total': total_count,
+                'page': page,
+                'limit': limit,
+                'total_pages': total_pages,
+                'totalPages': total_pages,
+                'has_next': has_next,
+                'has_prev': has_prev,
+                'hasNext': has_next,
+                'hasPrev': has_prev,
                 'pagination': {
                     'page': page,
                     'limit': limit,
                     'total_count': total_count,
-                    'total_pages': (total_count + limit - 1) // limit,
-                    'has_next': end < total_count,
-                    'has_prev': page > 1,
+                    'total_pages': total_pages,
+                    'has_next': has_next,
+                    'has_prev': has_prev,
                 }
             }
         }
@@ -136,14 +146,8 @@ def get_mobile_job_list(
 
 
 def get_mobile_job_detail(job_id: int, user: Accounts) -> Dict[str, Any]:
-    """
-    Get complete job details for mobile view
-                    queryset = queryset.filter(
-                        assignedWorkerID__isnull=True,
-                        assignedAgencyFK__isnull=True,
-                    )
-    Includes user-specific data (is_applied, user's application)
-    """
+    # Get complete job details for mobile view.
+    # Includes user-specific data (is_applied, user's application).
     print(f"🔍 [SERVICE] get_mobile_job_detail called")
     print(f"   Job ID: {job_id}, User: {user.email}")
     
@@ -1417,18 +1421,18 @@ def get_worker_detail_mobile_v2(user, worker_id):
         } for cert in certifications_qs]
 
         # Get materials/products
-        from profiles.models import WorkerProduct
-        materials_qs = WorkerProduct.objects.filter(workerID=worker, isActive=True)
+        from .models import WorkerMaterial
+        materials_qs = WorkerMaterial.objects.filter(workerID=worker)
         materials = [{
-            'id': prod.productID,
-            'name': prod.productName,
-            'description': prod.description or None,
-            'price': float(prod.price),
-            'priceUnit': prod.priceUnit,
-            'inStock': prod.inStock,
-            'stockQuantity': prod.stockQuantity,
-            'imageUrl': prod.productImage or None
-        } for prod in materials_qs]
+            'id': mat.materialID,
+            'name': mat.name,
+            'description': mat.description or None,
+            'price': float(mat.price),
+            'priceUnit': mat.unit,
+            'inStock': mat.is_available,
+            'stockQuantity': float(mat.quantity),
+            'imageUrl': mat.image_url or None
+        } for mat in materials_qs]
 
         # Build worker detail data matching mobile interface
         worker_data = {
@@ -1833,20 +1837,10 @@ def get_available_jobs_mobile(user, page=1, limit=20):
 # ===========================================================================
 
 def submit_review_mobile(user: Accounts, job_id: int, rating: int, comment: str, review_type: str) -> Dict[str, Any]:
-    """
-    Submit a review for a completed job
-
-                try:
-                    worker_profile = WorkerProfile.objects.get(profileID=user_profile)
-                    application = JobApplication.objects.filter(
-                        jobID=job,
-                        workerID=worker_profile
-                    ).first()
-                    if application:
-                        job_data['application_status'] = application.status
-                        job_data['application_id'] = application.applicationID
-                except:
-                    pass
+    # Submit a review for a completed job.
+    # Validates job completion, reviewer eligibility, and creates review record.
+    
+    try:
         # Validate job exists and is completed
         try:
             job = Job.objects.get(jobID=job_id)
@@ -1933,7 +1927,7 @@ def submit_review_mobile(user: Accounts, job_id: int, rating: int, comment: str,
                 'can_edit': True,  # Just created, so can edit for 24 hours
             }
         }
-
+        
     except Exception as e:
         print(f"❌ [Mobile] Submit review error: {str(e)}")
         import traceback
@@ -2345,17 +2339,10 @@ def edit_review_mobile(user: Accounts, review_id: int, rating: int, comment: str
 
 
 def report_review_mobile(user: Accounts, review_id: int, reason: str) -> Dict[str, Any]:
-    """
-    Report a review for inappropriate content
-
-    Args:
-        user: Current authenticated user (reporter)
-        review_id: ID of the review to report
-        reason: Reason for reporting (spam, offensive, misleading, other)
-
-    Returns:
-        Success message or error
-    """
+    # Report a review for inappropriate content.
+    # user: Current authenticated user (reporter)
+    # review_id: ID of the review to report
+    # reason: Reason for reporting (spam, offensive, misleading, other)
     try:
         # Get review
         try:
@@ -2384,9 +2371,9 @@ def report_review_mobile(user: Accounts, review_id: int, reason: str) -> Dict[st
 
 
 def get_pending_reviews_mobile(user: Accounts) -> Dict[str, Any]:
-    """
-    Return completed jobs where the current user still owes a review.
-    """
+    # Get list of jobs that still need reviews from the current user.
+    # Returns completed jobs where the user (worker or client) has not
+    # submitted a review yet.
     try:
         # Get user's profile
         try:

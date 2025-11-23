@@ -1,7 +1,7 @@
 // Worker Materials/Products Screen
 // Lists all materials/products offered by the worker
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -11,9 +11,11 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
+  SafeAreaView,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { useAuth } from "@/context/AuthContext";
 import {
   Colors,
   Typography,
@@ -29,11 +31,32 @@ import {
   formatPricePerUnit,
 } from "@/lib/hooks/useMaterials";
 import MaterialForm from "@/components/MaterialForm";
+import CustomBackButton from "@/components/navigation/CustomBackButton";
 
 // ===== MAIN COMPONENT =====
 
 export default function MaterialsScreen() {
   const router = useRouter();
+  const { user } = useAuth();
+
+  // Check if user is a worker - redirect if not
+  const isWorker = user?.profile_data?.profileType === "WORKER";
+
+  useEffect(() => {
+    if (!isWorker && user) {
+      Alert.alert(
+        "Worker Feature Only",
+        "Materials/Products are only available for worker profiles.",
+        [
+          {
+            text: "OK",
+            onPress: () => router.back(),
+          },
+        ]
+      );
+    }
+  }, [isWorker, user, router]);
+
   const { data: materials = [], isLoading, error, refetch } = useMaterials();
   const deleteMaterial = useDeleteMaterial();
   const toggleAvailability = useToggleMaterialAvailability();
@@ -95,40 +118,69 @@ export default function MaterialsScreen() {
   // ===== LOADING STATE =====
   if (isLoading && !refreshing) {
     return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color={Colors.primary} />
-        <Text style={styles.loadingText}>Loading materials...</Text>
-      </View>
+      <SafeAreaView style={styles.safeArea}>
+        <MaterialForm
+          visible={formVisible}
+          onClose={handleFormClose}
+          material={editingMaterial}
+        />
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={styles.loadingText}>Loading materials...</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
   // ===== ERROR STATE =====
   if (error && !refreshing) {
     return (
-      <View style={styles.centerContainer}>
-        <Ionicons name="alert-circle-outline" size={64} color={Colors.error} />
-        <Text style={styles.errorText}>Failed to load materials</Text>
-        <Pressable style={styles.retryButton} onPress={() => refetch()}>
-          <Text style={styles.retryButtonText}>Retry</Text>
-        </Pressable>
-      </View>
+      <SafeAreaView style={styles.safeArea}>
+        <MaterialForm
+          visible={formVisible}
+          onClose={handleFormClose}
+          material={editingMaterial}
+        />
+        <View style={styles.centerContainer}>
+          <Ionicons
+            name="alert-circle-outline"
+            size={64}
+            color={Colors.error}
+          />
+          <Text style={styles.errorText}>Failed to load materials</Text>
+          <Pressable style={styles.retryButton} onPress={() => refetch()}>
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
     );
   }
 
   // ===== EMPTY STATE =====
   if (materials.length === 0) {
     return (
-      <View style={styles.emptyContainer}>
-        <Ionicons name="cube-outline" size={80} color={Colors.textSecondary} />
-        <Text style={styles.emptyTitle}>No Materials Yet</Text>
-        <Text style={styles.emptyText}>
-          Add materials or products you offer to clients
-        </Text>
-        <Pressable style={styles.addButton} onPress={handleAdd}>
-          <Ionicons name="add-circle" size={20} color={Colors.textLight} />
-          <Text style={styles.addButtonText}>Add Material</Text>
-        </Pressable>
-      </View>
+      <SafeAreaView style={styles.safeArea}>
+        <MaterialForm
+          visible={formVisible}
+          onClose={handleFormClose}
+          material={editingMaterial}
+        />
+        <View style={styles.emptyContainer}>
+          <Ionicons
+            name="cube-outline"
+            size={80}
+            color={Colors.textSecondary}
+          />
+          <Text style={styles.emptyTitle}>No Materials Yet</Text>
+          <Text style={styles.emptyText}>
+            Add materials or products you offer to clients
+          </Text>
+          <Pressable style={styles.addButton} onPress={handleAdd}>
+            <Ionicons name="add-circle" size={20} color={Colors.textLight} />
+            <Text style={styles.addButtonText}>Add Material</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
     );
   }
 
@@ -175,7 +227,7 @@ export default function MaterialsScreen() {
           {/* Price */}
           <View style={styles.priceRow}>
             <Text style={styles.priceText}>
-              {formatPricePerUnit(item.price, item.unit)}
+              {formatPricePerUnit(item.price, item.unit, item.quantity)}
             </Text>
             <View
               style={[
@@ -222,7 +274,7 @@ export default function MaterialsScreen() {
 
   // ===== MAIN RENDER =====
   return (
-    <>
+    <SafeAreaView style={styles.safeArea}>
       <MaterialForm
         visible={formVisible}
         onClose={handleFormClose}
@@ -231,7 +283,8 @@ export default function MaterialsScreen() {
       <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
-          <View>
+          <CustomBackButton />
+          <View style={styles.headerContent}>
             <Text style={styles.headerTitle}>Materials & Products</Text>
             <Text style={styles.headerSubtitle}>
               {materials.length}{" "}
@@ -260,13 +313,17 @@ export default function MaterialsScreen() {
           ItemSeparatorComponent={() => <View style={styles.separator} />}
         />
       </View>
-    </>
+    </SafeAreaView>
   );
 }
 
 // ===== STYLES =====
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
   container: {
     flex: 1,
     backgroundColor: Colors.background,
@@ -307,11 +364,15 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: Spacing.lg,
+    paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
     backgroundColor: Colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
+  },
+  headerContent: {
+    flex: 1,
+    marginLeft: Spacing.sm,
   },
   headerTitle: {
     ...Typography.heading.h3,

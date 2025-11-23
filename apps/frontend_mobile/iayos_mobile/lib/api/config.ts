@@ -104,12 +104,13 @@ export const ENDPOINTS = {
   PROFILE_METRICS: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/metrics`,
 
   // Phase 6: Certifications & Materials
-  CERTIFICATIONS: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/certifications`,
+  // Note: Using /api/accounts/worker/ endpoints (web endpoints work for mobile with dual_auth)
+  CERTIFICATIONS: `${API_BASE_URL}/accounts/worker/certifications`,
   CERTIFICATION_DETAIL: (id: number) =>
-    `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/certifications/${id}`,
-  MATERIALS: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/materials`,
+    `${API_BASE_URL}/accounts/worker/certifications/${id}`,
+  MATERIALS: `${API_BASE_URL}/accounts/worker/materials`,
   MATERIAL_DETAIL: (id: number) =>
-    `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/materials/${id}`,
+    `${API_BASE_URL}/accounts/worker/materials/${id}`,
 
   // Profile
   PROFILE: (id: number) => `${API_BASE_URL}/profiles/${id}`,
@@ -190,6 +191,7 @@ export const ENDPOINTS = {
   // Phase 7: KYC Document Upload & Verification (3 endpoints)
   KYC_STATUS: `${API_BASE_URL.replace("/api", "")}/api/accounts/kyc-status`,
   UPLOAD_KYC: `${API_BASE_URL.replace("/api", "")}/api/accounts/upload-kyc`,
+  KYC_UPLOAD: `${API_BASE_URL.replace("/api", "")}/api/accounts/upload/kyc`, // Matches Next.js endpoint
   KYC_APPLICATION_HISTORY: `${API_BASE_URL.replace("/api", "")}/api/accounts/kyc-application-history`,
 
   // Phase 8: Reviews & Ratings (6 endpoints)

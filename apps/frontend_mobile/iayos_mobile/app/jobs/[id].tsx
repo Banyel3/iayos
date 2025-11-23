@@ -23,6 +23,7 @@ import {
   Shadows,
 } from "@/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
+import InlineLoader from "@/components/ui/InlineLoader";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ENDPOINTS, apiRequest } from "@/lib/api/config";
 import { SaveButton } from "@/components/SaveButton";
@@ -305,16 +306,8 @@ export default function JobDetailScreen() {
     }
   };
 
-  if (isLoading) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>Loading job details...</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  // Show inline loader instead of full screen
+  const showLoader = isLoading;
 
   // Handle invalid job ID
   if (!isValidJobId) {
@@ -423,6 +416,9 @@ export default function JobDetailScreen() {
           onToggle={setIsSaved}
         />
       </View>
+
+      {/* Inline Loader */}
+      {showLoader && <InlineLoader text="Loading job details..." />}
 
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Job Header */}
@@ -613,6 +609,14 @@ export default function JobDetailScreen() {
       {/* Apply Button (Fixed at bottom) */}
       {isWorker && (
         <View style={styles.applyButtonContainer}>
+          {!user?.kycVerified && (
+            <View style={styles.kycWarningBanner}>
+              <Ionicons name="warning" size={20} color={Colors.warning} />
+              <Text style={styles.kycWarningText}>
+                Complete KYC verification to apply for jobs
+              </Text>
+            </View>
+          )}
           {hasApplied ? (
             <View style={styles.appliedContainer}>
               <Ionicons
@@ -626,11 +630,24 @@ export default function JobDetailScreen() {
             </View>
           ) : (
             <TouchableOpacity
-              style={styles.applyButton}
+              style={[
+                styles.applyButton,
+                !user?.kycVerified && styles.applyButtonDisabled,
+              ]}
               onPress={handleApply}
               activeOpacity={0.8}
+              disabled={!user?.kycVerified}
             >
-              <Text style={styles.applyButtonText}>Apply for this Job</Text>
+              <Text
+                style={[
+                  styles.applyButtonText,
+                  !user?.kycVerified && styles.applyButtonTextDisabled,
+                ]}
+              >
+                {user?.kycVerified
+                  ? "Apply for this Job"
+                  : "KYC Verification Required"}
+              </Text>
             </TouchableOpacity>
           )}
         </View>
@@ -1018,6 +1035,21 @@ const styles = StyleSheet.create({
     borderTopColor: Colors.border,
     ...Shadows.medium,
   },
+  kycWarningBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FEF3C7",
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    marginBottom: Spacing.sm,
+    gap: Spacing.xs,
+  },
+  kycWarningText: {
+    flex: 1,
+    fontSize: 13,
+    color: "#92400E",
+    fontWeight: "500",
+  },
   applyButton: {
     backgroundColor: Colors.primary,
     paddingVertical: Spacing.md,
@@ -1025,10 +1057,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     ...Shadows.small,
   },
+  applyButtonDisabled: {
+    backgroundColor: Colors.border,
+    opacity: 0.6,
+  },
   applyButtonText: {
     fontSize: Typography.fontSize.lg,
     fontWeight: "700",
     color: Colors.white,
+  },
+  applyButtonTextDisabled: {
+    color: Colors.textSecondary,
   },
   appliedContainer: {
     flexDirection: "row",

@@ -44,20 +44,13 @@ import SkeletonCard from "@/components/ui/SkeletonCard";
 import JobCard from "@/components/JobCard";
 import WorkerCard from "@/components/WorkerCard";
 import AgencyCard from "@/components/AgencyCard";
-import LoadingScreen from "@/components/ui/LoadingScreen";
+import InlineLoader from "@/components/ui/InlineLoader";
 
 // Hooks
 import { useInfiniteJobs, Job } from "@/lib/hooks/useJobs";
 import { useInfiniteWorkers, Worker } from "@/lib/hooks/useWorkers";
 import { useInfiniteAgencies, Agency } from "@/lib/hooks/useAgencies";
 import { useCategories } from "@/lib/hooks/useCategories";
-
-const URGENCY_FILTERS = [
-  { id: "ALL", label: "All", value: undefined },
-  { id: "LOW", label: "Low", value: "LOW" },
-  { id: "MEDIUM", label: "Medium", value: "MEDIUM" },
-  { id: "HIGH", label: "High", value: "HIGH" },
-] as const;
 
 export default function BrowseJobsScreen() {
   const { user } = useAuth();
@@ -68,49 +61,28 @@ export default function BrowseJobsScreen() {
   const [selectedCategory, setSelectedCategory] = useState<number | undefined>(
     undefined
   );
-  const [selectedUrgency, setSelectedUrgency] = useState<
-    "LOW" | "MEDIUM" | "HIGH" | undefined
-  >(undefined);
   const [viewTab, setViewTab] = useState<"workers" | "agencies">("workers");
   const [showFilterModal, setShowFilterModal] = useState(false);
 
   const isWorker = user?.profile_data?.profileType === "WORKER";
 
-  // Fetch categories
+  // Fetch categories (needed for both)
   const { data: categoriesData, isLoading: categoriesLoading } =
     useCategories();
   const categories = categoriesData?.categories || [];
 
-  // Fetch jobs for workers OR workers for clients
-  const {
-    data: jobsData,
-    fetchNextPage: fetchNextJobs,
-    hasNextPage: hasNextJobs,
-    isFetchingNextPage: isFetchingNextJobs,
-    isLoading: jobsLoading,
-    isError: jobsError,
-    refetch: refetchJobs,
-    isRefetching: isRefetchingJobs,
-  } = useInfiniteJobs(
+  // WORKER: Only fetch jobs
+  const jobsQuery = useInfiniteJobs(
     {
       category: selectedCategory,
-      urgency: selectedUrgency,
     },
     {
       enabled: isWorker, // Only fetch jobs if user is a worker
     }
   );
 
-  const {
-    data: workersData,
-    fetchNextPage: fetchNextWorkers,
-    hasNextPage: hasNextWorkers,
-    isFetchingNextPage: isFetchingNextWorkers,
-    isLoading: workersLoading,
-    isError: workersError,
-    refetch: refetchWorkers,
-    isRefetching: isRefetchingWorkers,
-  } = useInfiniteWorkers(
+  // CLIENT: Only fetch workers or agencies based on active tab
+  const workersQuery = useInfiniteWorkers(
     {
       category: selectedCategory,
     },
@@ -119,16 +91,7 @@ export default function BrowseJobsScreen() {
     }
   );
 
-  const {
-    data: agenciesData,
-    fetchNextPage: fetchNextAgencies,
-    hasNextPage: hasNextAgencies,
-    isFetchingNextPage: isFetchingNextAgencies,
-    isLoading: agenciesLoading,
-    isError: agenciesError,
-    refetch: refetchAgencies,
-    isRefetching: isRefetchingAgencies,
-  } = useInfiniteAgencies(
+  const agenciesQuery = useInfiniteAgencies(
     {
       // Add filters as needed
     },
@@ -138,36 +101,33 @@ export default function BrowseJobsScreen() {
   );
 
   // Unified state based on user type and tab
-  const isLoading = isWorker
-    ? jobsLoading
+  const activeQuery = isWorker
+    ? jobsQuery
     : viewTab === "workers"
-      ? workersLoading
-      : agenciesLoading;
-  const isError = isWorker
-    ? jobsError
-    : viewTab === "workers"
-      ? workersError
-      : agenciesError;
-  const isRefetching = isWorker
-    ? isRefetchingJobs
-    : viewTab === "workers"
-      ? isRefetchingWorkers
-      : isRefetchingAgencies;
-  const isFetchingNextPage = isWorker
-    ? isFetchingNextJobs
-    : viewTab === "workers"
-      ? isFetchingNextWorkers
-      : isFetchingNextAgencies;
-  const hasNextPage = isWorker
-    ? hasNextJobs
-    : viewTab === "workers"
-      ? hasNextWorkers
-      : hasNextAgencies;
+      ? workersQuery
+      : agenciesQuery;
 
-  // Flatten pages into single array
-  const jobs = jobsData?.pages?.flatMap((page) => page.jobs) || [];
-  const workers = workersData?.pages?.flatMap((page) => page.workers) || [];
-  const agencies = agenciesData?.pages?.flatMap((page) => page.agencies) || [];
+  const {
+    data,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading,
+    isError,
+    refetch,
+    isRefetching,
+  } = activeQuery;
+
+  // Flatten pages into single array based on profile type
+  const jobs = isWorker ? data?.pages?.flatMap((page) => page.jobs) || [] : [];
+  const workers =
+    !isWorker && viewTab === "workers"
+      ? data?.pages?.flatMap((page) => page.workers) || []
+      : [];
+  const agencies =
+    !isWorker && viewTab === "agencies"
+      ? data?.pages?.flatMap((page) => page.agencies) || []
+      : [];
 
   // Client-side filtering with useMemo to prevent keyboard dismissal
   const filteredItems = useMemo(() => {
@@ -235,16 +195,6 @@ export default function BrowseJobsScreen() {
     }
   };
 
-  const handleUrgencyPress = (
-    urgency: "LOW" | "MEDIUM" | "HIGH" | undefined
-  ) => {
-    if (selectedUrgency === urgency) {
-      setSelectedUrgency(undefined);
-    } else {
-      setSelectedUrgency(urgency);
-    }
-  };
-
   const handleJobPress = (jobId: number) => {
     router.push(`/jobs/${jobId}` as any);
   };
@@ -275,24 +225,12 @@ export default function BrowseJobsScreen() {
 
   const handleLoadMore = () => {
     if (hasNextPage && !isFetchingNextPage) {
-      if (isWorker) {
-        fetchNextJobs();
-      } else if (viewTab === "workers") {
-        fetchNextWorkers();
-      } else {
-        fetchNextAgencies();
-      }
+      fetchNextPage();
     }
   };
 
   const handleRefresh = () => {
-    if (isWorker) {
-      refetchJobs();
-    } else if (viewTab === "workers") {
-      refetchWorkers();
-    } else {
-      refetchAgencies();
-    }
+    refetch();
   };
 
   const handleViewCategories = () => {
@@ -455,44 +393,6 @@ export default function BrowseJobsScreen() {
           </View>
         )}
 
-        {/* Urgency Filters - Only for workers */}
-        {isWorker && (
-          <View style={styles.urgencySection}>
-            <Text style={styles.sectionTitle}>Filter by Urgency</Text>
-            <FlatList
-              horizontal
-              data={URGENCY_FILTERS}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={[
-                    styles.urgencyChip,
-                    (item.id === "ALL"
-                      ? !selectedUrgency
-                      : selectedUrgency === item.value) &&
-                      styles.urgencyChipSelected,
-                  ]}
-                  onPress={() => handleUrgencyPress(item.value)}
-                >
-                  <Text
-                    style={[
-                      styles.urgencyChipText,
-                      (item.id === "ALL"
-                        ? !selectedUrgency
-                        : selectedUrgency === item.value) &&
-                        styles.urgencyChipTextSelected,
-                    ]}
-                  >
-                    {item.label}
-                  </Text>
-                </TouchableOpacity>
-              )}
-              keyExtractor={(item) => item.id}
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.urgencyScroller}
-            />
-          </View>
-        )}
-
         {/* Feed Divider */}
         <View style={styles.feedDivider}>
           <View style={styles.dividerLine} />
@@ -510,15 +410,7 @@ export default function BrowseJobsScreen() {
 
     HeaderComponent.displayName = "HomeHeaderSection";
     return HeaderComponent;
-  }, [
-    isWorker,
-    viewTab,
-    itemCount,
-    selectedCategory,
-    selectedUrgency,
-    categories,
-    router,
-  ]);
+  }, [isWorker, viewTab, itemCount, selectedCategory, categories, router]);
 
   const renderJobItem = ({ item }: { item: Job }) => (
     <JobCard
@@ -593,12 +485,8 @@ export default function BrowseJobsScreen() {
     );
   };
 
-  // Loading state
-  if (isLoading && !itemCount) {
-    return (
-      <LoadingScreen text={`Loading ${isWorker ? "jobs" : "workers"}...`} />
-    );
-  }
+  // Loading state - show inline loader instead of full screen
+  const showInlineLoader = isLoading && !itemCount;
 
   // Error state
   if (isError) {
@@ -690,27 +578,6 @@ export default function BrowseJobsScreen() {
                   ))}
                 </View>
               </View>
-
-              {/* Urgency Filter (only for jobs/workers) */}
-              {isWorker && (
-                <View style={styles.filterSection}>
-                  <Text style={styles.filterLabel}>Urgency</Text>
-                  <View style={styles.filterChipsContainer}>
-                    {URGENCY_FILTERS.map((urgency) => (
-                      <FilterChip
-                        key={urgency.id}
-                        label={urgency.label}
-                        selected={
-                          urgency.value === undefined
-                            ? !selectedUrgency
-                            : selectedUrgency === urgency.value
-                        }
-                        onPress={() => handleUrgencyPress(urgency.value)}
-                      />
-                    ))}
-                  </View>
-                </View>
-              )}
             </ScrollView>
 
             {/* Footer Actions */}
@@ -719,7 +586,6 @@ export default function BrowseJobsScreen() {
                 style={styles.clearButton}
                 onPress={() => {
                   setSelectedCategory(undefined);
-                  setSelectedUrgency(undefined);
                 }}
               >
                 <Text style={styles.clearButtonText}>Clear All</Text>

@@ -17,9 +17,10 @@ import { Button, Card, ActivityIndicator } from "react-native-paper";
 import { useKYC } from "@/lib/hooks/useKYC";
 import { KYCStatusBadge } from "@/components/KYC/KYCStatusBadge";
 import { DocumentCard } from "@/components/KYC/DocumentCard";
+import CustomBackButton from "@/components/navigation/CustomBackButton";
 import { Colors, Typography, Spacing } from "@/constants/theme";
 import type { KYCDocumentType } from "@/lib/types/kyc";
-import { getKYCStatusDisplay } from "@/lib/types/kyc";
+import { getKYCStatusDisplay, DOCUMENT_TYPES } from "@/lib/types/kyc";
 
 export default function KYCStatusScreen() {
   const router = useRouter();
@@ -71,12 +72,7 @@ export default function KYCStatusScreen() {
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <Stack.Screen
-          options={{
-            title: "KYC Verification",
-            headerShown: true,
-          }}
-        />
+        <Stack.Screen options={{ headerShown: false }} />
         <ActivityIndicator size="large" color={Colors.primary} />
         <Text style={styles.loadingText}>Loading KYC status...</Text>
       </View>
@@ -86,44 +82,52 @@ export default function KYCStatusScreen() {
   if (isError) {
     return (
       <View style={styles.errorContainer}>
-        <Stack.Screen
-          options={{
-            title: "KYC Verification",
-            headerShown: true,
-          }}
-        />
-        <Ionicons name="alert-circle-outline" size={64} color={Colors.error} />
-        <Text style={styles.errorTitle}>Failed to Load KYC Status</Text>
-        <Text style={styles.errorMessage}>
-          {error?.message || "An error occurred"}
-        </Text>
-        <Button
-          mode="contained"
-          onPress={() => refetch()}
-          style={styles.retryButton}
-        >
-          Retry
-        </Button>
+        <Stack.Screen options={{ headerShown: false }} />
+
+        {/* Custom Header */}
+        <View style={styles.customHeader}>
+          <CustomBackButton />
+          <Text style={styles.headerTitle}>KYC Verification</Text>
+          <View style={styles.headerRight} />
+        </View>
+
+        <View style={styles.errorContent}>
+          <Ionicons
+            name="alert-circle-outline"
+            size={64}
+            color={Colors.error}
+          />
+          <Text style={styles.errorTitle}>Failed to Load KYC Status</Text>
+          <Text style={styles.errorMessage}>
+            {error?.message || "An error occurred"}
+          </Text>
+          <Button
+            mode="contained"
+            onPress={() => refetch()}
+            style={styles.retryButton}
+          >
+            Retry
+          </Button>
+        </View>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <Stack.Screen
-        options={{
-          title: "KYC Verification",
-          headerShown: true,
-          headerRight: () => (
-            <TouchableOpacity
-              onPress={() => refetch()}
-              style={styles.refreshButton}
-            >
-              <Ionicons name="refresh" size={24} color={Colors.primary} />
-            </TouchableOpacity>
-          ),
-        }}
-      />
+      <Stack.Screen options={{ headerShown: false }} />
+
+      {/* Custom Header */}
+      <View style={styles.customHeader}>
+        <CustomBackButton />
+        <Text style={styles.headerTitle}>KYC Verification</Text>
+        <TouchableOpacity
+          onPress={() => refetch()}
+          style={styles.refreshButton}
+        >
+          <Ionicons name="refresh" size={24} color={Colors.primary} />
+        </TouchableOpacity>
+      </View>
 
       <ScrollView
         style={styles.scrollView}
@@ -164,8 +168,8 @@ export default function KYCStatusScreen() {
             </View>
           )}
 
-          {/* Review Date */}
-          {reviewDate && (isPending || isVerified || isRejected) && (
+          {/* Review Date - Only show for approved/rejected, not pending */}
+          {reviewDate && (isVerified || isRejected) && (
             <View style={styles.dateInfo}>
               <Ionicons
                 name="checkmark-circle-outline"
@@ -207,16 +211,23 @@ export default function KYCStatusScreen() {
         {hasSubmittedKYC && uploadedDocuments.length > 0 && (
           <View style={styles.documentsSection}>
             <Text style={styles.sectionTitle}>Uploaded Documents</Text>
-            {uploadedDocuments.map((doc) => (
-              <DocumentCard
-                key={doc.kycFileID}
-                document={doc}
-                documentType={doc.idType}
-                status="uploaded"
-                onPress={() => handleViewDocument(doc.idType, doc.fileURL)}
-                showActions={false}
-              />
-            ))}
+            {uploadedDocuments.map((doc, index) => {
+              // Skip if document type is undefined or not in DOCUMENT_TYPES
+              if (!doc.idType || !DOCUMENT_TYPES[doc.idType]) {
+                return null;
+              }
+
+              return (
+                <DocumentCard
+                  key={doc.kycFileID || `doc-${index}`}
+                  document={doc}
+                  documentType={doc.idType}
+                  status="uploaded"
+                  onPress={() => handleViewDocument(doc.idType, doc.fileURL)}
+                  showActions={false}
+                />
+              );
+            })}
           </View>
         )}
 
@@ -295,6 +306,27 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.backgroundSecondary,
   },
+  customHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingTop: 50,
+    paddingHorizontal: 12,
+    paddingBottom: 12,
+    backgroundColor: Colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  headerTitle: {
+    fontSize: Typography.fontSize.lg,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+    flex: 1,
+    textAlign: "center",
+  },
+  headerRight: {
+    width: 40, // Balance the back button on the left
+  },
   loadingContainer: {
     flex: 1,
     alignItems: "center",
@@ -304,26 +336,29 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: Spacing.md,
     fontSize: Typography.fontSize.base,
-    
+
     color: Colors.textSecondary,
   },
   errorContainer: {
     flex: 1,
+    backgroundColor: Colors.backgroundSecondary,
+  },
+  errorContent: {
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
     padding: Spacing.xl,
-    backgroundColor: Colors.backgroundSecondary,
   },
   errorTitle: {
     fontSize: Typography.fontSize.xl,
-    
+
     color: Colors.textPrimary,
     marginTop: Spacing.md,
     marginBottom: Spacing.sm,
   },
   errorMessage: {
     fontSize: Typography.fontSize.base,
-    
+
     color: Colors.textSecondary,
     textAlign: "center",
     marginBottom: Spacing.xl,
@@ -332,8 +367,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
   },
   refreshButton: {
-    padding: Spacing.xs,
-    marginRight: Spacing.xs,
+    padding: 8,
+    marginRight: 4,
   },
   scrollView: {
     flex: 1,
@@ -353,13 +388,13 @@ const styles = StyleSheet.create({
   },
   statusTitle: {
     fontSize: Typography.fontSize.xl,
-    
+
     color: Colors.textPrimary,
     marginVertical: Spacing.sm,
   },
   statusDescription: {
     fontSize: Typography.fontSize.base,
-    
+
     color: Colors.textSecondary,
     textAlign: "center",
     marginBottom: Spacing.md,
@@ -373,7 +408,7 @@ const styles = StyleSheet.create({
   },
   dateText: {
     fontSize: Typography.fontSize.sm,
-    
+
     color: Colors.textSecondary,
   },
   rejectionContainer: {
@@ -391,7 +426,7 @@ const styles = StyleSheet.create({
   },
   rejectionReason: {
     fontSize: Typography.fontSize.base,
-    
+
     color: Colors.textPrimary,
   },
   benefitsCard: {
@@ -402,7 +437,7 @@ const styles = StyleSheet.create({
   },
   benefitsTitle: {
     fontSize: Typography.fontSize.lg,
-    
+
     color: Colors.textPrimary,
     marginBottom: Spacing.md,
   },
@@ -416,7 +451,7 @@ const styles = StyleSheet.create({
   },
   benefitText: {
     fontSize: Typography.fontSize.base,
-    
+
     color: Colors.textPrimary,
     flex: 1,
   },
@@ -425,7 +460,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: Typography.fontSize.lg,
-    
+
     color: Colors.textPrimary,
     marginBottom: Spacing.md,
   },
@@ -450,7 +485,7 @@ const styles = StyleSheet.create({
   pendingText: {
     flex: 1,
     fontSize: Typography.fontSize.sm,
-    
+
     color: Colors.textPrimary,
   },
   verifiedInfo: {
@@ -464,7 +499,7 @@ const styles = StyleSheet.create({
   verifiedText: {
     flex: 1,
     fontSize: Typography.fontSize.sm,
-    
+
     color: Colors.textPrimary,
   },
 });

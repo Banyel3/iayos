@@ -318,6 +318,69 @@ class WorkerCertification(models.Model):
                 })
 
 
+class WorkerMaterial(models.Model):
+    """
+    Materials/products offered by workers.
+    Examples: Construction materials, spare parts, products they sell
+    """
+    materialID = models.BigAutoField(primary_key=True)
+    workerID = models.ForeignKey(
+        WorkerProfile,
+        on_delete=models.CASCADE,
+        related_name='materials'
+    )
+    
+    name = models.CharField(
+        max_length=255,
+        help_text="Material/product name (e.g., 'Cement 40kg bag', 'PVC Pipe 1 inch')"
+    )
+    description = models.TextField(
+        blank=True,
+        default="",
+        help_text="Detailed description of the material/product"
+    )
+    price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        help_text="Price in PHP"
+    )
+    quantity = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('1.00'),
+        help_text="Quantity or stock count associated with the price"
+    )
+    unit = models.CharField(
+        max_length=50,
+        default="piece",
+        help_text="Unit of measurement (e.g., 'piece', 'kg', 'meter', 'bag', 'box')"
+    )
+    image_url = models.CharField(
+        max_length=1000,
+        blank=True,
+        default="",
+        help_text="Supabase URL to product image"
+    )
+    is_available = models.BooleanField(
+        default=True,
+        help_text="Whether material is currently available for sale"
+    )
+    
+    createdAt = models.DateTimeField(auto_now_add=True)
+    updatedAt = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'worker_materials'
+        ordering = ['-createdAt']
+        indexes = [
+            models.Index(fields=['workerID', 'is_available']),
+            models.Index(fields=['name']),
+        ]
+    
+    def __str__(self):
+        return f"{self.name} - ₱{self.price} for {self.quantity} {self.unit}"
+
+
 class WorkerPortfolio(models.Model):
     """
     Portfolio images/work samples for workers to showcase their work.

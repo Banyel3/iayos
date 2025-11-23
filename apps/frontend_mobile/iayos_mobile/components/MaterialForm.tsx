@@ -1,7 +1,7 @@
 // Material Form Modal
 // Add or edit worker materials/products
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -34,6 +34,27 @@ import {
   isValidPrice,
 } from "@/lib/hooks/useMaterials";
 
+const DEFAULT_UNIT_OPTIONS = [
+  { label: "piece", value: "per piece" },
+  { label: "kilogram (kg)", value: "per kg" },
+  { label: "gram (g)", value: "per g" },
+  { label: "bag", value: "per bag" },
+  { label: "sack", value: "per sack" },
+  { label: "box", value: "per box" },
+  { label: "meter (m)", value: "per meter" },
+  { label: "square meter (m²)", value: "per sqm" },
+  { label: "liter (L)", value: "per liter" },
+  { label: "gallon", value: "per gallon" },
+  { label: "can", value: "per can" },
+  { label: "roll", value: "per roll" },
+  { label: "sheet", value: "per sheet" },
+  { label: "bundle", value: "per bundle" },
+  { label: "set", value: "per set" },
+  { label: "hour", value: "per hour" },
+  { label: "day", value: "per day" },
+];
+const DEFAULT_UNIT_VALUE = DEFAULT_UNIT_OPTIONS[0].value;
+
 // ===== PROPS =====
 
 interface MaterialFormProps {
@@ -48,6 +69,7 @@ interface FormErrors {
   name?: string;
   description?: string;
   price?: string;
+  quantity?: string;
   unit?: string;
 }
 
@@ -55,6 +77,7 @@ function validateForm(
   name: string,
   description: string,
   price: string,
+  quantity: string,
   unit: string
 ): FormErrors {
   const errors: FormErrors = {};
@@ -78,8 +101,15 @@ function validateForm(
     errors.price = "Price must be between ₱0.01 and ₱1,000,000";
   }
 
+  const quantityNum = parseFloat(quantity);
+  if (!quantity || isNaN(quantityNum)) {
+    errors.quantity = "Quantity is required";
+  } else if (quantityNum <= 0) {
+    errors.quantity = "Quantity must be greater than 0";
+  }
+
   if (!unit || unit.trim().length < 2) {
-    errors.unit = "Unit is required (e.g., per kg, per piece)";
+    errors.unit = "Please select how this material is sold.";
   } else if (unit.trim().length > 50) {
     errors.unit = "Unit must be less than 50 characters";
   }
@@ -102,11 +132,25 @@ export default function MaterialForm({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
-  const [unit, setUnit] = useState("");
+  const [quantity, setQuantity] = useState("1");
+  const [unit, setUnit] = useState(DEFAULT_UNIT_VALUE);
   const [isAvailable, setIsAvailable] = useState(true);
   const [materialImage, setMaterialImage] =
     useState<ImagePicker.ImagePickerAsset | null>(null);
   const [errors, setErrors] = useState<FormErrors>({});
+
+  const unitOptions = useMemo(() => {
+    const baseOptions = [...DEFAULT_UNIT_OPTIONS];
+    if (
+      material?.unit &&
+      !baseOptions.some(
+        (option) => option.value.toLowerCase() === material.unit.toLowerCase()
+      )
+    ) {
+      baseOptions.push({ label: material.unit, value: material.unit });
+    }
+    return baseOptions;
+  }, [material]);
 
   // Initialize form with material data (edit mode)
   useEffect(() => {
@@ -114,7 +158,8 @@ export default function MaterialForm({
       setName(material.name);
       setDescription(material.description);
       setPrice(material.price.toString());
-      setUnit(material.unit);
+      setQuantity(material.quantity?.toString() || "1");
+      setUnit(material.unit || DEFAULT_UNIT_VALUE);
       setIsAvailable(material.isAvailable);
     } else {
       resetForm();
@@ -126,7 +171,8 @@ export default function MaterialForm({
     setName("");
     setDescription("");
     setPrice("");
-    setUnit("");
+    setQuantity("1");
+    setUnit(DEFAULT_UNIT_VALUE);
     setIsAvailable(true);
     setMaterialImage(null);
     setErrors({});
@@ -154,13 +200,14 @@ export default function MaterialForm({
 
   // Handle submit
   const handleSubmit = () => {
-    const formErrors = validateForm(name, description, price, unit);
+    const formErrors = validateForm(name, description, price, quantity, unit);
     if (Object.keys(formErrors).length > 0) {
       setErrors(formErrors);
       return;
     }
 
     const priceNum = parseFloat(price);
+    const quantityNum = parseFloat(quantity);
 
     if (isEditMode) {
       // Edit mode - Update
@@ -168,6 +215,7 @@ export default function MaterialForm({
         name: name.trim(),
         description: description.trim(),
         price: priceNum,
+        quantity: quantityNum,
         unit: unit.trim(),
         isAvailable,
       };
@@ -190,6 +238,7 @@ export default function MaterialForm({
         name: name.trim(),
         description: description.trim(),
         price: priceNum,
+        quantity: quantityNum,
         unit: unit.trim(),
         isAvailable,
         imageFile: materialImage
@@ -216,7 +265,11 @@ export default function MaterialForm({
 
   // Handle close with confirmation
   const handleClose = () => {
-    if (name || description || price || materialImage) {
+    const defaultQuantity = material
+      ? material.quantity?.toString() || "1"
+      : "1";
+    const hasQuantityChange = quantity && quantity !== defaultQuantity;
+    if (name || description || price || hasQuantityChange || materialImage) {
       Alert.alert(
         "Discard Changes?",
         "You have unsaved changes. Are you sure you want to close?",
@@ -238,6 +291,7 @@ export default function MaterialForm({
   };
 
   const isLoading = createMaterial.isPending || updateMaterial.isPending;
+  const normalizedUnit = unit.toLowerCase();
 
   return (
     <Modal
@@ -353,27 +407,72 @@ export default function MaterialForm({
               )}
             </View>
 
+            {/* Quantity */}
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>
+                Quantity / Stock <Text style={styles.required}>*</Text>
+              </Text>
+              <TextInput
+                style={[styles.input, errors.quantity && styles.inputError]}
+                value={quantity}
+                onChangeText={(text) => {
+                  const cleaned = text.replace(/[^0-9.]/g, "");
+                  setQuantity(cleaned);
+                  if (errors.quantity)
+                    setErrors({ ...errors, quantity: undefined });
+                }}
+                placeholder="e.g., 50"
+                placeholderTextColor={Colors.textSecondary}
+                keyboardType="decimal-pad"
+                editable={!isLoading}
+              />
+              {errors.quantity && (
+                <Text style={styles.errorText}>{errors.quantity}</Text>
+              )}
+            </View>
+
             {/* Unit */}
             <View style={styles.formGroup}>
               <Text style={styles.label}>
                 Unit <Text style={styles.required}>*</Text>
               </Text>
-              <TextInput
-                style={[styles.input, errors.unit && styles.inputError]}
-                value={unit}
-                onChangeText={(text) => {
-                  setUnit(text);
-                  if (errors.unit) setErrors({ ...errors, unit: undefined });
-                }}
-                placeholder="e.g., per kg, per piece, per meter"
-                placeholderTextColor={Colors.textSecondary}
-                editable={!isLoading}
-              />
+              <View style={styles.unitChipsContainer}>
+                {unitOptions.map((option) => {
+                  const isSelected =
+                    option.value.toLowerCase() === normalizedUnit;
+                  return (
+                    <Pressable
+                      key={option.value}
+                      style={[
+                        styles.unitChip,
+                        isSelected && styles.unitChipSelected,
+                        errors.unit && styles.unitChipError,
+                        isLoading && styles.unitChipDisabled,
+                      ]}
+                      onPress={() => {
+                        setUnit(option.value);
+                        if (errors.unit)
+                          setErrors({ ...errors, unit: undefined });
+                      }}
+                      disabled={isLoading}
+                    >
+                      <Text
+                        style={[
+                          styles.unitChipText,
+                          isSelected && styles.unitChipTextSelected,
+                        ]}
+                      >
+                        {option.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
               {errors.unit && (
                 <Text style={styles.errorText}>{errors.unit}</Text>
               )}
               <Text style={styles.hint}>
-                How the material is sold (per kg, per bag, per piece, etc.)
+                Tap a unit to describe how this material is sold
               </Text>
             </View>
 
@@ -538,6 +637,38 @@ const styles = StyleSheet.create({
   },
   inputError: {
     borderColor: Colors.error,
+  },
+  unitChipsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.sm,
+  },
+  unitChip: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.large,
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    backgroundColor: Colors.background,
+  },
+  unitChipSelected: {
+    backgroundColor: Colors.primaryLight,
+    borderColor: Colors.primary,
+  },
+  unitChipDisabled: {
+    opacity: 0.6,
+  },
+  unitChipError: {
+    borderColor: Colors.error,
+  },
+  unitChipText: {
+    ...Typography.body.small,
+    color: Colors.textPrimary,
+    fontWeight: "500",
+  },
+  unitChipTextSelected: {
+    color: Colors.primaryDark,
+    fontWeight: "600",
   },
   textArea: {
     minHeight: 100,

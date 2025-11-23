@@ -231,14 +231,26 @@ export default function ProfileScreen() {
               <TouchableOpacity
                 style={styles.editButton}
                 activeOpacity={0.8}
-                onPress={() => router.push("/profile")}
+                onPress={() => {
+                  // Navigate to public worker profile view (what clients see)
+                  // Use the workerProfileId (WorkerProfile.id) for the endpoint
+                  const workerProfileId = user?.profile_data?.workerProfileId;
+                  console.log("📱 View Public Profile pressed");
+                  console.log("   Worker Profile ID:", workerProfileId);
+                  console.log("   Navigating to: /workers/" + workerProfileId);
+
+                  if (workerProfileId) {
+                    router.push(`/workers/${workerProfileId}` as any);
+                  } else {
+                    Alert.alert(
+                      "Profile Not Found",
+                      "Your worker profile ID is not available. Please try logging in again."
+                    );
+                  }
+                }}
               >
-                <Ionicons
-                  name="person-outline"
-                  size={18}
-                  color={Colors.primary}
-                />
-                <Text style={styles.editButtonText}>View Full Profile</Text>
+                <Ionicons name="eye-outline" size={18} color={Colors.primary} />
+                <Text style={styles.editButtonText}>View Public Profile</Text>
               </TouchableOpacity>
             ) : (
               <TouchableOpacity style={styles.editButton} activeOpacity={0.8}>
@@ -352,6 +364,33 @@ export default function ProfileScreen() {
               />
             </View>
           </View>
+        )}
+
+        {/* Worker Certifications & Materials */}
+        {isWorker && (
+          <>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Certifications</Text>
+              <View style={styles.menuCard}>
+                <MenuItem
+                  icon="school-outline"
+                  label="Manage Certifications"
+                  onPress={() => router.push("/profile/certifications" as any)}
+                />
+              </View>
+            </View>
+
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Materials & Products</Text>
+              <View style={styles.menuCard}>
+                <MenuItem
+                  icon="cube-outline"
+                  label="Manage Materials"
+                  onPress={() => router.push("/profile/materials" as any)}
+                />
+              </View>
+            </View>
+          </>
         )}
 
         {/* Settings Section */}

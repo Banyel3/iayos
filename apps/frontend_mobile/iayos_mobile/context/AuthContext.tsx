@@ -6,6 +6,9 @@ import React, {
   ReactNode,
 } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useQueryClient } from "@tanstack/react-query";
+import { CacheManager } from "../lib/utils/cacheManager";
+import websocketService from "../lib/services/websocket";
 import { User, AuthContextType, RegisterPayload } from "../types";
 import {
   ENDPOINTS,
@@ -101,15 +104,30 @@ const triggerVerificationEmail = async (
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const queryClient = useQueryClient();
 
-  // Clear all cached data
+  // Clear all cached data (AsyncStorage + React Query + CacheManager + WebSocket)
   const clearAllCaches = async () => {
+    // Clear AsyncStorage auth keys
     const cacheKeys = [
       "cached_user",
       "cached_worker_availability",
       "access_token",
     ];
     await Promise.all(cacheKeys.map((key) => AsyncStorage.removeItem(key)));
+
+    // Clear React Query cache to prevent cross-user data leakage
+    queryClient.clear();
+
+    // Clear CacheManager cache (offline cache)
+    await CacheManager.clearAll();
+
+    // Reset WebSocket service (disconnect and clear handlers)
+    websocketService.reset();
+
+    console.log(
+      "🗑️ Cleared all caches (AsyncStorage + React Query + CacheManager + WebSocket)"
+    );
   };
 
   // Check authentication with server
