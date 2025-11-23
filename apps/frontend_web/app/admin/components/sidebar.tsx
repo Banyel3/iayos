@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -181,9 +181,91 @@ export default function Sidebar({ className }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [pendingKYCCount, setPendingKYCCount] = useState<number>(0);
   const pathname = usePathname();
   const router = useRouter();
   const { logout } = useAuth();
+
+  // Fetch pending KYC count on mount and refresh every 30 seconds
+  useEffect(() => {
+    const fetchPendingCount = async () => {
+      try {
+        const response = await fetch(
+          "http://localhost:8000/api/adminpanel/kyc/all",
+          { credentials: "include" }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            // Count pending KYC records
+            const pendingCount =
+              (data.kyc || []).filter(
+                (kyc: any) => kyc.kycStatus?.toLowerCase() === "pending"
+              ).length +
+              (data.agency_kyc || []).filter(
+                (kyc: any) => kyc.status?.toLowerCase() === "pending"
+              ).length;
+
+            setPendingKYCCount(pendingCount);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching pending KYC count:", error);
+      }
+    };
+
+    fetchPendingCount();
+
+    // Refresh count every 30 seconds
+    const interval = setInterval(fetchPendingCount, 30000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Update navigation with dynamic count
+  const navigationWithCount: NavItem[] = [
+    {
+      name: "Dashboard",
+      href: "/admin/dashboard",
+      icon: Home,
+      count: null,
+    },
+    {
+      name: "Users",
+      href: "/admin/users",
+      icon: Users,
+      count: null,
+      children: [
+        {
+          name: "Clients",
+          href: "/admin/users/clients",
+          icon: User,
+          description: "Client accounts & wallets",
+        },
+        {
+          name: "Workers",
+          href: "/admin/users/workers",
+          icon: UserCheck,
+          description: "Worker accounts & earnings",
+        },
+        {
+          name: "Agencies",
+          href: "/admin/users/agency",
+          icon: Building2,
+          description: "Agency accounts",
+        },
+      ],
+    },
+    {
+      name: "KYC Management",
+      href: "/admin/kyc",
+      icon: Shield,
+      count: pendingKYCCount > 0 ? pendingKYCCount : null,
+      children: navigation[2].children,
+    },
+    ...navigation.slice(3),
+  ];
 
   const toggleExpanded = (name: string) => {
     setExpandedItems((prev) =>
@@ -252,7 +334,7 @@ export default function Sidebar({ className }: SidebarProps) {
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 overflow-y-auto">
-        {navigation.map((item) => {
+        {navigationWithCount.map((item) => {
           const Icon = item.icon;
           const isItemActive = isActive(item.href);
           const isExpanded = expandedItems.includes(item.name);

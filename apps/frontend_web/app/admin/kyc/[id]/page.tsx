@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { toast } from "sonner";
 import {
   Shield,
   FileText,
@@ -16,6 +17,8 @@ import {
   Download,
   Image as ImageIcon,
   Loader2,
+  ZoomIn,
+  X,
 } from "lucide-react";
 
 interface KYCRecord {
@@ -23,7 +26,7 @@ interface KYCRecord {
   userId: string;
   userName: string;
   userEmail: string;
-  userType: "worker" | "client";
+  userType: "worker" | "client" | "agency";
   submissionDate: string;
   status: "pending" | "approved" | "rejected" | "under_review";
   documents: {
@@ -32,6 +35,8 @@ interface KYCRecord {
     frontImage: string;
     backImage: string;
     selfieImage: string;
+    businessPermit?: string;
+    birCertificate?: string;
   };
   verificationNotes?: string;
   reviewedBy?: string;
@@ -40,82 +45,385 @@ interface KYCRecord {
   comments?: string;
 }
 
-const mockKYCRecords: KYCRecord[] = [
-  {
-    id: "kyc_001",
-    userId: "user_001",
-    userName: "Juan Dela Cruz",
-    userEmail: "juan@example.com",
-    userType: "worker",
-    submissionDate: "2024-01-15T10:30:00Z",
-    status: "pending",
-    documents: {
-      idType: "National ID",
-      idNumber: "1234-5678-9012",
-      frontImage: "/uploads/id_front_001.jpg",
-      backImage: "/uploads/id_back_001.jpg",
-      selfieImage: "/uploads/selfie_001.jpg",
-    },
-  },
-  {
-    id: "kyc_002",
-    userId: "user_002",
-    userName: "Maria Santos",
-    userEmail: "maria@example.com",
-    userType: "worker",
-    submissionDate: "2024-01-14T14:20:00Z",
-    status: "approved",
-    documents: {
-      idType: "Driver's License",
-      idNumber: "D12-34-567890",
-      frontImage: "/uploads/id_front_002.jpg",
-      backImage: "/uploads/id_back_002.jpg",
-      selfieImage: "/uploads/selfie_002.jpg",
-    },
-    verificationNotes: "All documents verified successfully",
-    reviewedBy: "Admin",
-    reviewedDate: "2024-01-14T16:45:00Z",
-  },
-  {
-    id: "kyc_003",
-    userId: "user_003",
-    userName: "Pedro Reyes",
-    userEmail: "pedro@example.com",
-    userType: "client",
-    submissionDate: "2024-01-13T09:15:00Z",
-    status: "rejected",
-    documents: {
-      idType: "Passport",
-      idNumber: "P1234567",
-      frontImage: "/uploads/id_front_003.jpg",
-      backImage: "/uploads/id_back_003.jpg",
-      selfieImage: "/uploads/selfie_003.jpg",
-    },
-    rejectionReason: "Blurry images - unable to verify identity",
-    comments: "Please resubmit with clearer photos",
-    reviewedBy: "Admin",
-    reviewedDate: "2024-01-13T14:30:00Z",
-  },
-];
+interface SignedDocument {
+  type: string;
+  label: string;
+  url: string;
+  originalPath: string;
+}
+
+// Helper function to combine individual and agency KYC data
+function combineKYCData(data: any): KYCRecord[] {
+  const records: KYCRecord[] = [];
+
+  // Process individual KYC records
+  if (data.kyc && Array.isArray(data.kyc)) {
+    data.kyc.forEach((kyc: any) => {
+      const user = data.users?.find((u: any) => u.accountID === kyc.accountFK);
+      const files = data.files?.filter((f: any) => f.kycID === kyc.kycID) || [];
+
+      if (user) {
+        records.push({
+          id: `kyc_${kyc.kycID}`,
+          userId: user.accountID.toString(),
+          userName: `${user.firstName} ${user.lastName}`,
+          userEmail: user.email,
+          userType: user.profileType?.toLowerCase() || "client",
+          submissionDate: kyc.createdAt || new Date().toISOString(),
+          status: kyc.status?.toLowerCase() || "pending",
+          documents: {
+            idType: kyc.documentType || "National ID",
+            idNumber: kyc.documentNumber || "N/A",
+            frontImage:
+              files.find((f: any) => f.fileType === "front")?.filePath || "",
+            backImage:
+              files.find((f: any) => f.fileType === "back")?.filePath || "",
+            selfieImage:
+              files.find((f: any) => f.fileType === "selfie")?.filePath || "",
+          },
+          verificationNotes: kyc.notes,
+          reviewedBy: kyc.reviewedBy,
+          reviewedDate: kyc.reviewedAt,
+          rejectionReason: kyc.rejectionReason,
+          comments: kyc.comments,
+        });
+      }
+    });
+  }
+
+  // Process agency KYC records
+  if (data.agency_kyc && Array.isArray(data.agency_kyc)) {
+    data.agency_kyc.forEach((agencyKyc: any) => {
+      const agency = data.agencies?.find(
+        (a: any) => a.agencyID === agencyKyc.agencyID
+      );
+      const files =
+        data.files?.filter(
+          (f: any) => f.agencyKycID === agencyKyc.agencyKycID
+        ) || [];
+
+      if (agency) {
+        records.push({
+          id: `agency_${agencyKyc.agencyKycID}`,
+          userId: agency.agencyID.toString(),
+          userName: agency.agencyName,
+          userEmail: agency.email,
+          userType: "agency",
+          submissionDate: agencyKyc.createdAt || new Date().toISOString(),
+          status: agencyKyc.status?.toLowerCase() || "pending",
+          documents: {
+            idType: agencyKyc.documentType || "Business Permit",
+            idNumber: agencyKyc.documentNumber || "N/A",
+            frontImage:
+              files.find((f: any) => f.fileType === "front")?.filePath || "",
+            backImage:
+              files.find((f: any) => f.fileType === "back")?.filePath || "",
+            selfieImage:
+              files.find((f: any) => f.fileType === "selfie")?.filePath || "",
+            businessPermit:
+              files.find((f: any) => f.fileType === "business_permit")
+                ?.filePath || "",
+            birCertificate:
+              files.find((f: any) => f.fileType === "bir_certificate")
+                ?.filePath || "",
+          },
+          verificationNotes: agencyKyc.notes,
+          reviewedBy: agencyKyc.reviewedBy,
+          reviewedDate: agencyKyc.reviewedAt,
+          rejectionReason: agencyKyc.rejectionReason,
+          comments: agencyKyc.comments,
+        });
+      }
+    });
+  }
+
+  return records;
+}
 
 export default function KYCDetailPage() {
   const { id } = useParams();
   const router = useRouter();
   const [record, setRecord] = useState<KYCRecord | null>(null);
+  const [signedDocuments, setSignedDocuments] = useState<SignedDocument[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [showApproveModal, setShowApproveModal] = useState(false);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [notes, setNotes] = useState("");
+  const [actionLoading, setActionLoading] = useState(false);
 
   useEffect(() => {
-    const foundRecord = mockKYCRecords.find((r) => r.id === id);
-    if (foundRecord) {
-      setRecord(foundRecord);
-    }
+    fetchKYCDetail();
   }, [id]);
 
-  if (!record) {
+  const fetchKYCDetail = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Fetch all KYC data
+      const response = await fetch(
+        "http://localhost:8000/api/adminpanel/kyc/all",
+        { credentials: "include" }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch KYC data: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || "Failed to fetch KYC data");
+      }
+
+      // Combine and find specific record
+      const allRecords = combineKYCData(data);
+      const foundRecord = allRecords.find((r) => r.id === id);
+
+      if (!foundRecord) {
+        setError("KYC record not found");
+        setLoading(false);
+        return;
+      }
+
+      setRecord(foundRecord);
+
+      // Fetch signed URLs for documents
+      await fetchSignedURLs(foundRecord);
+
+      setLoading(false);
+    } catch (err) {
+      console.error("Error fetching KYC detail:", err);
+      setError(err instanceof Error ? err.message : "Failed to load KYC data");
+      setLoading(false);
+    }
+  };
+
+  const fetchSignedURLs = async (record: KYCRecord) => {
+    try {
+      const documentPaths: string[] = [];
+
+      if (record.documents.frontImage)
+        documentPaths.push(record.documents.frontImage);
+      if (record.documents.backImage)
+        documentPaths.push(record.documents.backImage);
+      if (record.documents.selfieImage)
+        documentPaths.push(record.documents.selfieImage);
+      if (record.documents.businessPermit)
+        documentPaths.push(record.documents.businessPermit);
+      if (record.documents.birCertificate)
+        documentPaths.push(record.documents.birCertificate);
+
+      const response = await fetch(
+        "http://localhost:8000/api/adminpanel/kyc/review",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(documentPaths),
+          credentials: "include",
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch signed URLs");
+      }
+
+      const signedData = await response.json();
+
+      if (signedData.success && signedData.urls) {
+        const docs: SignedDocument[] = [];
+
+        if (
+          record.documents.frontImage &&
+          signedData.urls[record.documents.frontImage]
+        ) {
+          docs.push({
+            type: "front",
+            label: "ID Front",
+            url: signedData.urls[record.documents.frontImage],
+            originalPath: record.documents.frontImage,
+          });
+        }
+
+        if (
+          record.documents.backImage &&
+          signedData.urls[record.documents.backImage]
+        ) {
+          docs.push({
+            type: "back",
+            label: "ID Back",
+            url: signedData.urls[record.documents.backImage],
+            originalPath: record.documents.backImage,
+          });
+        }
+
+        if (
+          record.documents.selfieImage &&
+          signedData.urls[record.documents.selfieImage]
+        ) {
+          docs.push({
+            type: "selfie",
+            label: "Selfie",
+            url: signedData.urls[record.documents.selfieImage],
+            originalPath: record.documents.selfieImage,
+          });
+        }
+
+        if (
+          record.documents.businessPermit &&
+          signedData.urls[record.documents.businessPermit]
+        ) {
+          docs.push({
+            type: "business_permit",
+            label: "Business Permit",
+            url: signedData.urls[record.documents.businessPermit],
+            originalPath: record.documents.businessPermit,
+          });
+        }
+
+        if (
+          record.documents.birCertificate &&
+          signedData.urls[record.documents.birCertificate]
+        ) {
+          docs.push({
+            type: "bir_certificate",
+            label: "BIR Certificate",
+            url: signedData.urls[record.documents.birCertificate],
+            originalPath: record.documents.birCertificate,
+          });
+        }
+
+        setSignedDocuments(docs);
+      }
+    } catch (err) {
+      console.error("Error fetching signed URLs:", err);
+      toast.error("Failed to load document images");
+    }
+  };
+
+  const handleApprove = async () => {
+    if (!record) return;
+
+    try {
+      setActionLoading(true);
+
+      const isAgency = record.userType === "agency";
+      const endpoint = isAgency
+        ? "/api/adminpanel/kyc/approve-agency"
+        : "/api/adminpanel/kyc/approve";
+
+      const kycId = parseInt(
+        record.id.replace("kyc_", "").replace("agency_", "")
+      );
+      const body = isAgency
+        ? { agencyKycID: kycId, notes }
+        : { kycID: kycId, notes };
+
+      const response = await fetch(`http://localhost:8000${endpoint}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to approve KYC");
+      }
+
+      toast.success("KYC approved successfully");
+      router.push("/admin/kyc");
+    } catch (err) {
+      console.error("Error approving KYC:", err);
+      toast.error(err instanceof Error ? err.message : "Failed to approve KYC");
+    } finally {
+      setActionLoading(false);
+      setShowApproveModal(false);
+    }
+  };
+
+  const handleReject = async () => {
+    if (!record) return;
+
+    if (!notes.trim()) {
+      toast.error("Rejection reason is required");
+      return;
+    }
+
+    try {
+      setActionLoading(true);
+
+      const isAgency = record.userType === "agency";
+      const endpoint = isAgency
+        ? "/api/adminpanel/kyc/reject-agency"
+        : "/api/adminpanel/kyc/reject";
+
+      const kycId = parseInt(
+        record.id.replace("kyc_", "").replace("agency_", "")
+      );
+      const body = isAgency
+        ? { agencyKycID: kycId, notes }
+        : { kycID: kycId, notes };
+
+      const response = await fetch(`http://localhost:8000${endpoint}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to reject KYC");
+      }
+
+      toast.success("KYC rejected");
+      router.push("/admin/kyc");
+    } catch (err) {
+      console.error("Error rejecting KYC:", err);
+      toast.error(err instanceof Error ? err.message : "Failed to reject KYC");
+    } finally {
+      setActionLoading(false);
+      setShowRejectModal(false);
+    }
+  };
+
+  if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto mb-4" />
           <p className="text-muted-foreground">Loading KYC details...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !record) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md">
+          <div className="flex items-start space-x-3">
+            <AlertCircle className="h-5 w-5 text-red-600 mt-0.5" />
+            <div>
+              <h3 className="font-semibold text-red-900">
+                Error Loading KYC Details
+              </h3>
+              <p className="text-red-700 text-sm mt-1">
+                {error || "KYC record not found"}
+              </p>
+              <Button
+                onClick={() => router.push("/admin/kyc")}
+                variant="outline"
+                size="sm"
+                className="mt-4"
+              >
+                Back to KYC List
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -243,41 +551,35 @@ export default function KYCDetailPage() {
               </div>
 
               {/* Document Images */}
-              <div className="grid grid-cols-3 gap-4">
-                <div className="border rounded-lg p-4 text-center">
-                  <ImageIcon className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                  <p className="text-sm font-medium mb-1">ID Front</p>
-                  <p className="text-xs text-muted-foreground mb-2">
-                    {record.documents.frontImage}
-                  </p>
-                  <Button variant="outline" size="sm" className="w-full">
-                    <Download className="w-3 h-3 mr-1" />
-                    View
-                  </Button>
-                </div>
-                <div className="border rounded-lg p-4 text-center">
-                  <ImageIcon className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                  <p className="text-sm font-medium mb-1">ID Back</p>
-                  <p className="text-xs text-muted-foreground mb-2">
-                    {record.documents.backImage}
-                  </p>
-                  <Button variant="outline" size="sm" className="w-full">
-                    <Download className="w-3 h-3 mr-1" />
-                    View
-                  </Button>
-                </div>
-                <div className="border rounded-lg p-4 text-center">
-                  <ImageIcon className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                  <p className="text-sm font-medium mb-1">Selfie</p>
-                  <p className="text-xs text-muted-foreground mb-2">
-                    {record.documents.selfieImage}
-                  </p>
-                  <Button variant="outline" size="sm" className="w-full">
-                    <Download className="w-3 h-3 mr-1" />
-                    View
-                  </Button>
-                </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                {signedDocuments.map((doc) => (
+                  <div
+                    key={doc.type}
+                    className="border rounded-lg overflow-hidden hover:shadow-lg transition-shadow"
+                  >
+                    <div className="relative aspect-square bg-gray-100">
+                      <img
+                        src={doc.url}
+                        alt={doc.label}
+                        className="w-full h-full object-cover cursor-pointer"
+                        onClick={() => setSelectedImage(doc.url)}
+                      />
+                      <div className="absolute inset-0 bg-black/0 hover:bg-black/20 transition-colors flex items-center justify-center group">
+                        <ZoomIn className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </div>
+                    </div>
+                    <div className="p-3 text-center">
+                      <p className="text-sm font-medium">{doc.label}</p>
+                    </div>
+                  </div>
+                ))}
               </div>
+              {signedDocuments.length === 0 && (
+                <div className="text-center py-8 text-muted-foreground">
+                  <ImageIcon className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                  <p>No documents available</p>
+                </div>
+              )}
             </div>
 
             {/* Review Information */}
@@ -399,6 +701,8 @@ export default function KYCDetailPage() {
                   variant="default"
                   className="w-full justify-start bg-green-600 hover:bg-green-700"
                   size="sm"
+                  onClick={() => setShowApproveModal(true)}
+                  disabled={actionLoading}
                 >
                   <CheckCircle className="w-4 h-4 mr-2" />
                   Approve KYC
@@ -407,20 +711,12 @@ export default function KYCDetailPage() {
                   variant="destructive"
                   className="w-full justify-start"
                   size="sm"
+                  onClick={() => setShowRejectModal(true)}
+                  disabled={actionLoading}
                 >
                   <XCircle className="w-4 h-4 mr-2" />
                   Reject KYC
                 </Button>
-                <div className="border-t pt-2 mt-2">
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start"
-                    size="sm"
-                  >
-                    <AlertCircle className="w-4 h-4 mr-2" />
-                    Request More Info
-                  </Button>
-                </div>
               </CardContent>
             </Card>
           )}
@@ -459,6 +755,140 @@ export default function KYCDetailPage() {
           </Card>
         </div>
       </div>
+
+      {/* Full-screen Image Viewer Modal */}
+      {selectedImage && (
+        <div
+          className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4"
+          onClick={() => setSelectedImage(null)}
+        >
+          <button
+            className="absolute top-4 right-4 text-white hover:text-gray-300"
+            onClick={() => setSelectedImage(null)}
+          >
+            <X className="h-8 w-8" />
+          </button>
+          <img
+            src={selectedImage}
+            alt="Document"
+            className="max-w-full max-h-full object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
+
+      {/* Approve Modal */}
+      {showApproveModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle>Approve KYC Verification</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Are you sure you want to approve this KYC verification for{" "}
+                {record.userName}?
+              </p>
+              <div>
+                <label className="text-sm font-medium mb-2 block">
+                  Notes (optional)
+                </label>
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Add any notes about this approval..."
+                  className="w-full rounded border border-gray-200 p-3 text-sm resize-none h-24"
+                />
+              </div>
+              <div className="flex justify-end space-x-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowApproveModal(false);
+                    setNotes("");
+                  }}
+                  disabled={actionLoading}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="bg-green-600 hover:bg-green-700"
+                  onClick={handleApprove}
+                  disabled={actionLoading}
+                >
+                  {actionLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Approving...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-4 h-4 mr-2" />
+                      Approve
+                    </>
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Reject Modal */}
+      {showRejectModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle>Reject KYC Verification</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Please provide a reason for rejecting this KYC verification.
+              </p>
+              <div>
+                <label className="text-sm font-medium mb-2 block text-red-600">
+                  Rejection Reason (required) *
+                </label>
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Explain why this KYC is being rejected..."
+                  className="w-full rounded border border-red-200 p-3 text-sm resize-none h-24 focus:border-red-400 focus:ring-red-400"
+                />
+              </div>
+              <div className="flex justify-end space-x-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowRejectModal(false);
+                    setNotes("");
+                  }}
+                  disabled={actionLoading}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={handleReject}
+                  disabled={actionLoading || !notes.trim()}
+                >
+                  {actionLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Rejecting...
+                    </>
+                  ) : (
+                    <>
+                      <XCircle className="w-4 h-4 mr-2" />
+                      Reject
+                    </>
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
