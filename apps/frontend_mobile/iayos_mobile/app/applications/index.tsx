@@ -21,7 +21,7 @@ import {
 } from "@/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
-import { ENDPOINTS } from "@/lib/api/config";
+import { ENDPOINTS, apiRequest } from "@/lib/api/config";
 import { ApplicationCardSkeleton } from "@/components/ui/SkeletonLoader";
 
 interface Application {
@@ -58,9 +58,7 @@ export default function MyApplicationsScreen() {
   } = useQuery<Application[]>({
     queryKey: ["applications", "my"],
     queryFn: async () => {
-      const response = await fetch(ENDPOINTS.MY_APPLICATIONS, {
-        credentials: "include",
-      });
+      const response = await apiRequest(ENDPOINTS.MY_APPLICATIONS);
 
       if (!response.ok) {
         throw new Error("Failed to fetch applications");

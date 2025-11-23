@@ -86,9 +86,7 @@ export const useCertification = (id: number) => {
   return useQuery<Certification>({
     queryKey: ["certification", id],
     queryFn: async () => {
-      const response = await fetch(ENDPOINTS.CERTIFICATION_DETAIL(id), {
-        credentials: "include",
-      });
+      const response = await apiRequest(ENDPOINTS.CERTIFICATION_DETAIL(id));
 
       if (!response.ok) {
         throw new Error("Failed to fetch certification");

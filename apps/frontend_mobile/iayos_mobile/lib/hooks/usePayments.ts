@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ENDPOINTS, fetchJson } from "../api/config";
+import { ENDPOINTS, fetchJson, apiRequest } from "../api/config";
 import Toast from "react-native-toast-message";
 import { useWallet } from "./useWallet";
 
@@ -150,9 +150,8 @@ export const useUploadCashProof = () => {
       formData.append("job_id", data.jobId.toString());
       formData.append("image", data.image as any);
 
-      const response = await fetch(ENDPOINTS.UPLOAD_CASH_PROOF, {
+      const response = await apiRequest(ENDPOINTS.UPLOAD_CASH_PROOF, {
         method: "POST",
-        credentials: "include",
         body: formData,
       });
 

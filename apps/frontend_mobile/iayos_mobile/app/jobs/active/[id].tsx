@@ -119,11 +119,10 @@ export default function ActiveJobDetailScreen() {
         } as any);
 
         // Upload to backend
-        const response = await fetch(
+        const response = await apiRequest(
           `${ENDPOINTS.AVAILABLE_JOBS}/${jobId}/upload-image`,
           {
             method: "POST",
-            credentials: "include",
             body: formData,
           }
         );
@@ -152,10 +151,8 @@ export default function ActiveJobDetailScreen() {
   const markCompleteMutation = useMutation({
     mutationFn: async (data: { completion_notes: string }) => {
       // First, mark job as complete
-      const response = await fetch(ENDPOINTS.MARK_COMPLETE(parseInt(id)), {
+      const response = await apiRequest(ENDPOINTS.MARK_COMPLETE(parseInt(id)), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
         body: JSON.stringify(data),
       });
 
@@ -199,10 +196,8 @@ export default function ActiveJobDetailScreen() {
   // Approve completion (client)
   const approveCompletionMutation = useMutation({
     mutationFn: async () => {
-      const response = await fetch(ENDPOINTS.APPROVE_COMPLETION(parseInt(id)), {
+      const response = await apiRequest(ENDPOINTS.APPROVE_COMPLETION(parseInt(id)), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
         body: JSON.stringify({ payment_method: "GCASH" }),
       });
 

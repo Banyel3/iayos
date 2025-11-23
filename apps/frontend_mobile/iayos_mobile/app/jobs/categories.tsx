@@ -21,7 +21,7 @@ import {
 } from "@/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
-import { ENDPOINTS } from "@/lib/api/config";
+import { ENDPOINTS, apiRequest } from "@/lib/api/config";
 
 interface JobCategory {
   id: number;
@@ -43,9 +43,7 @@ export default function CategoriesScreen() {
   const { data, isLoading, error, refetch } = useQuery<CategoryResponse>({
     queryKey: ["jobs", "categories"],
     queryFn: async () => {
-      const response = await fetch(ENDPOINTS.JOB_CATEGORIES, {
-        credentials: "include",
-      });
+      const response = await apiRequest(ENDPOINTS.JOB_CATEGORIES);
 
       if (!response.ok) {
         throw new Error("Failed to fetch categories");

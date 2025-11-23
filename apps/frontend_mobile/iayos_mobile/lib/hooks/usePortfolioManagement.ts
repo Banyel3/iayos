@@ -1,6 +1,6 @@
 // lib/hooks/usePortfolioManagement.ts
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ENDPOINTS } from "@/lib/api/config";
+import { ENDPOINTS, apiRequest } from "@/lib/api/config";
 
 export interface PortfolioImage {
   id: number;
@@ -21,9 +21,7 @@ export const usePortfolioManagement = () => {
   } = useQuery<PortfolioImage[]>({
     queryKey: ["portfolio"],
     queryFn: async () => {
-      const response = await fetch(ENDPOINTS.PORTFOLIO_LIST, {
-        credentials: "include",
-      });
+      const response = await apiRequest(ENDPOINTS.PORTFOLIO_LIST);
       if (!response.ok) throw new Error("Failed to fetch portfolio");
       const data = await response.json();
       // Ensure sorted by displayOrder
@@ -37,10 +35,8 @@ export const usePortfolioManagement = () => {
   // Update caption
   const updateCaption = useMutation({
     mutationFn: async ({ id, caption }: { id: number; caption: string }) => {
-      const response = await fetch(ENDPOINTS.PORTFOLIO_UPDATE(id), {
+      const response = await apiRequest(ENDPOINTS.PORTFOLIO_UPDATE(id), {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
         body: JSON.stringify({ caption }),
       });
       if (!response.ok) throw new Error("Failed to update caption");
@@ -54,10 +50,8 @@ export const usePortfolioManagement = () => {
   // Reorder images
   const reorderImages = useMutation({
     mutationFn: async (imageIds: number[]) => {
-      const response = await fetch(ENDPOINTS.PORTFOLIO_REORDER, {
+      const response = await apiRequest(ENDPOINTS.PORTFOLIO_REORDER, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
         body: JSON.stringify({ imageIds }),
       });
       if (!response.ok) throw new Error("Failed to reorder");
@@ -99,9 +93,8 @@ export const usePortfolioManagement = () => {
   // Delete image
   const deleteImage = useMutation({
     mutationFn: async (id: number) => {
-      const response = await fetch(ENDPOINTS.PORTFOLIO_DELETE(id), {
+      const response = await apiRequest(ENDPOINTS.PORTFOLIO_DELETE(id), {
         method: "DELETE",
-        credentials: "include",
       });
       if (!response.ok) throw new Error("Failed to delete");
       return response.json();

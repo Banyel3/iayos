@@ -20,7 +20,7 @@ import {
 } from "@/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
-import { ENDPOINTS } from "@/lib/api/config";
+import { ENDPOINTS, apiRequest } from "@/lib/api/config";
 import { JobCardSkeleton } from "@/components/ui/SkeletonLoader";
 
 interface ActiveJob {
@@ -62,9 +62,7 @@ export default function ActiveJobsScreen() {
         ? ENDPOINTS.ACTIVE_JOBS
         : `${ENDPOINTS.AVAILABLE_JOBS}/my-posted-jobs?status=IN_PROGRESS,ASSIGNED`;
 
-      const response = await fetch(endpoint, {
-        credentials: "include",
-      });
+      const response = await apiRequest(endpoint);
 
       if (!response.ok) {
         throw new Error("Failed to fetch active jobs");

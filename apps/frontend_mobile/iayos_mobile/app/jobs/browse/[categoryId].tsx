@@ -20,7 +20,7 @@ import {
 } from "@/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { ENDPOINTS } from "@/lib/api/config";
+import { ENDPOINTS, apiRequest } from "@/lib/api/config";
 import { JobCardSkeleton } from "@/components/ui/SkeletonLoader";
 
 interface Job {
@@ -70,13 +70,12 @@ export default function CategoryJobsScreen() {
   } = useInfiniteQuery({
     queryKey: ["jobs", "category", categoryId],
     queryFn: async ({ pageParam = 1 }) => {
-      const response = await fetch(
+      const response = await apiRequest(
         ENDPOINTS.JOB_LIST_FILTERED({
           category: categoryId,
           page: pageParam,
           limit: 20,
-        }),
-        { credentials: "include" }
+        })
       );
 
       if (!response.ok) {

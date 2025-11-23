@@ -21,7 +21,7 @@ import {
   BorderRadius,
   Shadows,
 } from "@/constants/theme";
-import { ENDPOINTS } from "@/lib/api/config";
+import { ENDPOINTS, apiRequest } from "@/lib/api/config";
 
 // ===== TYPES =====
 
@@ -140,9 +140,7 @@ export default function ApplicationDetailScreen() {
   } = useQuery<ApplicationDetail>({
     queryKey: ["application-detail", id],
     queryFn: async () => {
-      const response = await fetch(ENDPOINTS.APPLICATION_DETAIL(Number(id)), {
-        credentials: "include",
-      });
+      const response = await apiRequest(ENDPOINTS.APPLICATION_DETAIL(Number(id)));
       if (!response.ok) {
         throw new Error("Failed to fetch application details");
       }
@@ -154,9 +152,8 @@ export default function ApplicationDetailScreen() {
   // Withdraw application mutation
   const withdrawMutation = useMutation({
     mutationFn: async () => {
-      const response = await fetch(ENDPOINTS.WITHDRAW_APPLICATION(Number(id)), {
+      const response = await apiRequest(ENDPOINTS.WITHDRAW_APPLICATION(Number(id)), {
         method: "DELETE",
-        credentials: "include",
       });
       if (!response.ok) {
         const error = await response.json();

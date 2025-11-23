@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { ENDPOINTS } from "../api/config";
+import { ENDPOINTS, apiRequest } from "../api/config";
 
 // Types
 export interface EarningsSummary {
@@ -42,9 +42,7 @@ export const useEarningsSummary = () => {
   return useQuery<EarningsSummary>({
     queryKey: ["earningsSummary"],
     queryFn: async () => {
-      const response = await fetch(ENDPOINTS.EARNINGS_SUMMARY, {
-        credentials: "include",
-      });
+      const response = await apiRequest(ENDPOINTS.EARNINGS_SUMMARY);
 
       if (!response.ok) {
         const error = await response.json();
@@ -78,9 +76,7 @@ export const useEarningsHistory = (filters?: {
   return useQuery<EarningsHistoryResponse>({
     queryKey: ["earningsHistory", filters],
     queryFn: async () => {
-      const response = await fetch(url, {
-        credentials: "include",
-      });
+      const response = await apiRequest(url);
 
       if (!response.ok) {
         const error = await response.json();

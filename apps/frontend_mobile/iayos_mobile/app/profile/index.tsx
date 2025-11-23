@@ -22,7 +22,7 @@ import {
   BorderRadius,
   Shadows,
 } from "@/constants/theme";
-import { ENDPOINTS } from "@/lib/api/config";
+import { ENDPOINTS, apiRequest } from "@/lib/api/config";
 import { PortfolioGrid } from "@/components/PortfolioGrid";
 import { ImageViewer } from "@/components/ImageViewer";
 import CertificationCard from "@/components/CertificationCard";
@@ -157,9 +157,7 @@ export default function ProfileScreen() {
   } = useQuery<WorkerProfile>({
     queryKey: ["worker-profile"],
     queryFn: async () => {
-      const response = await fetch(ENDPOINTS.WORKER_PROFILE, {
-        credentials: "include",
-      });
+      const response = await apiRequest(ENDPOINTS.WORKER_PROFILE);
       if (!response.ok) {
         throw new Error("Failed to fetch profile");
       }

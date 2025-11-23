@@ -3,27 +3,15 @@
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { ENDPOINTS } from "@/lib/api/config";
+import { ENDPOINTS, apiRequest } from "@/lib/api/config";
 import type { KYCStatusResponse } from "@/lib/types/kyc";
 
 /**
  * Fetch KYC status for current user
  */
 const fetchKYCStatus = async (): Promise<KYCStatusResponse> => {
-  // Get Bearer token for authentication
-  const token = await AsyncStorage.getItem("access_token");
-
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
-
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
-  }
-
-  const response = await fetch(ENDPOINTS.KYC_STATUS, {
+  const response = await apiRequest(ENDPOINTS.KYC_STATUS, {
     method: "GET",
-    headers,
   });
 
   if (!response.ok) {
@@ -160,12 +148,8 @@ export const useKYC = () => {
  * Fetch KYC application history
  */
 const fetchKYCHistory = async () => {
-  const response = await fetch(ENDPOINTS.KYC_APPLICATION_HISTORY, {
+  const response = await apiRequest(ENDPOINTS.KYC_APPLICATION_HISTORY, {
     method: "GET",
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-    },
   });
 
   if (!response.ok) {

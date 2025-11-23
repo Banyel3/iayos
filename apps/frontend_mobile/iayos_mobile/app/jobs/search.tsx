@@ -20,7 +20,7 @@ import {
 } from "@/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
-import { ENDPOINTS } from "@/lib/api/config";
+import { ENDPOINTS, apiRequest } from "@/lib/api/config";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 interface Job {
@@ -76,14 +76,12 @@ export default function SearchJobsScreen() {
   const [hasActiveFilters, setHasActiveFilters] = useState(false);
 
   // Fetch categories for filter
-  const { data: categoriesData } = useQuery({
+  const { data: categoriesData } = useQuery<{ categories: JobCategory[] }>({
     queryKey: ["jobs", "categories"],
-    queryFn: async () => {
-      const response = await fetch(ENDPOINTS.JOB_CATEGORIES, {
-        credentials: "include",
-      });
+    queryFn: async (): Promise<{ categories: JobCategory[] }> => {
+      const response = await apiRequest(ENDPOINTS.JOB_CATEGORIES);
       if (!response.ok) throw new Error("Failed to fetch categories");
-      return await response.json();
+      return await response.json() as { categories: JobCategory[] };
     },
     staleTime: 1000 * 60 * 60,
   });
@@ -121,14 +119,14 @@ export default function SearchJobsScreen() {
     data: searchResults,
     isLoading: isSearching,
     error: searchError,
-  } = useQuery({
+  } = useQuery<{ jobs: Job[] }>({
     queryKey: ["jobs", "search", debouncedQuery, filters],
-    queryFn: async () => {
+    queryFn: async (): Promise<{ jobs: Job[] }> => {
       if (debouncedQuery.length < 2) return { jobs: [] };
 
       // If we have filters, use the filtered list endpoint
       if (hasActiveFilters) {
-        const response = await fetch(
+        const response = await apiRequest(
           ENDPOINTS.JOB_LIST_FILTERED({
             minBudget: filters.minBudget > 0 ? filters.minBudget : undefined,
             maxBudget:
@@ -137,22 +135,18 @@ export default function SearchJobsScreen() {
             category: filters.categories[0], // API only supports single category
             page: 1,
             limit: 50,
-          }),
-          { credentials: "include" }
+          })
         );
         if (!response.ok) throw new Error("Search failed");
-        return await response.json();
+        return await response.json() as { jobs: Job[] };
       }
 
       // Otherwise use search endpoint
-      const response = await fetch(
-        ENDPOINTS.JOB_SEARCH(debouncedQuery, 1, 50),
-        {
-          credentials: "include",
-        }
+      const response = await apiRequest(
+        ENDPOINTS.JOB_SEARCH(debouncedQuery, 1, 50)
       );
       if (!response.ok) throw new Error("Search failed");
-      return await response.json();
+      return await response.json() as { jobs: Job[] };
     },
     enabled: debouncedQuery.length >= 2,
   });

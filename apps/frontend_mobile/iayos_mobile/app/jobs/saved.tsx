@@ -20,7 +20,7 @@ import {
 } from "@/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ENDPOINTS } from "@/lib/api/config";
+import { ENDPOINTS, apiRequest } from "@/lib/api/config";
 import SearchBar from "@/components/ui/SearchBar";
 import { JobCardSkeleton } from "@/components/ui/SkeletonLoader";
 
@@ -55,9 +55,7 @@ export default function SavedJobsScreen() {
   } = useQuery({
     queryKey: ["jobs", "saved"],
     queryFn: async () => {
-      const response = await fetch(ENDPOINTS.SAVED_JOBS, {
-        credentials: "include",
-      });
+      const response = await apiRequest(ENDPOINTS.SAVED_JOBS);
       if (!response.ok) throw new Error("Failed to fetch saved jobs");
       return await response.json();
     },
@@ -82,9 +80,8 @@ export default function SavedJobsScreen() {
   // Unsave job mutation
   const unsaveMutation = useMutation({
     mutationFn: async (jobId: number) => {
-      const response = await fetch(ENDPOINTS.UNSAVE_JOB(jobId), {
+      const response = await apiRequest(ENDPOINTS.UNSAVE_JOB(jobId), {
         method: "DELETE",
-        credentials: "include",
       });
       if (!response.ok) throw new Error("Failed to unsave job");
       return await response.json();

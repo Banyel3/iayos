@@ -5,7 +5,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ENDPOINTS } from '../api/config';
+import { ENDPOINTS, apiRequest } from '../api/config';
 
 export interface Notification {
   notificationID: number;
@@ -39,19 +39,9 @@ export const useNotifications = (limit = 50, unreadOnly = false) => {
   return useQuery({
     queryKey: ['notifications', limit, unreadOnly],
     queryFn: async () => {
-      const token = await AsyncStorage.getItem('access_token');
-      if (!token) {
-        throw new Error('Not authenticated');
-      }
-
       const url = `${ENDPOINTS.NOTIFICATIONS}?limit=${limit}&unread_only=${unreadOnly}`;
-      const response = await fetch(url, {
+      const response = await apiRequest(url, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -74,18 +64,8 @@ export const useUnreadNotificationsCount = () => {
   return useQuery({
     queryKey: ['unreadNotificationsCount'],
     queryFn: async () => {
-      const token = await AsyncStorage.getItem('access_token');
-      if (!token) {
-        throw new Error('Not authenticated');
-      }
-
-      const response = await fetch(ENDPOINTS.UNREAD_NOTIFICATIONS_COUNT, {
+      const response = await apiRequest(ENDPOINTS.UNREAD_NOTIFICATIONS_COUNT, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -109,20 +89,10 @@ export const useMarkNotificationRead = () => {
 
   return useMutation({
     mutationFn: async (notificationId: number) => {
-      const token = await AsyncStorage.getItem('access_token');
-      if (!token) {
-        throw new Error('Not authenticated');
-      }
-
-      const response = await fetch(
+      const response = await apiRequest(
         ENDPOINTS.MARK_NOTIFICATION_READ(notificationId),
         {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          credentials: 'include',
         }
       );
 
@@ -149,18 +119,8 @@ export const useMarkAllNotificationsRead = () => {
 
   return useMutation({
     mutationFn: async () => {
-      const token = await AsyncStorage.getItem('access_token');
-      if (!token) {
-        throw new Error('Not authenticated');
-      }
-
-      const response = await fetch(ENDPOINTS.MARK_ALL_NOTIFICATIONS_READ, {
+      const response = await apiRequest(ENDPOINTS.MARK_ALL_NOTIFICATIONS_READ, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -183,18 +143,8 @@ export const useMarkAllNotificationsRead = () => {
 export const useRegisterPushToken = () => {
   return useMutation({
     mutationFn: async (pushToken: string) => {
-      const token = await AsyncStorage.getItem('access_token');
-      if (!token) {
-        throw new Error('Not authenticated');
-      }
-
-      const response = await fetch(ENDPOINTS.REGISTER_PUSH_TOKEN, {
+      const response = await apiRequest(ENDPOINTS.REGISTER_PUSH_TOKEN, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        credentials: 'include',
         body: JSON.stringify({ pushToken }),
       });
 
@@ -215,18 +165,8 @@ export const useNotificationSettings = () => {
   return useQuery({
     queryKey: ['notificationSettings'],
     queryFn: async () => {
-      const token = await AsyncStorage.getItem('access_token');
-      if (!token) {
-        throw new Error('Not authenticated');
-      }
-
-      const response = await fetch(ENDPOINTS.GET_NOTIFICATION_SETTINGS, {
+      const response = await apiRequest(ENDPOINTS.GET_NOTIFICATION_SETTINGS, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -248,18 +188,8 @@ export const useUpdateNotificationSettings = () => {
 
   return useMutation({
     mutationFn: async (settings: Partial<NotificationSettings>) => {
-      const token = await AsyncStorage.getItem('access_token');
-      if (!token) {
-        throw new Error('Not authenticated');
-      }
-
-      const response = await fetch(ENDPOINTS.UPDATE_NOTIFICATION_SETTINGS, {
+      const response = await apiRequest(ENDPOINTS.UPDATE_NOTIFICATION_SETTINGS, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        credentials: 'include',
         body: JSON.stringify(settings),
       });
 
@@ -284,18 +214,8 @@ export const useDeleteNotification = () => {
 
   return useMutation({
     mutationFn: async (notificationId: number) => {
-      const token = await AsyncStorage.getItem('access_token');
-      if (!token) {
-        throw new Error('Not authenticated');
-      }
-
-      const response = await fetch(ENDPOINTS.DELETE_NOTIFICATION(notificationId), {
+      const response = await apiRequest(ENDPOINTS.DELETE_NOTIFICATION(notificationId), {
         method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        credentials: 'include',
       });
 
       if (!response.ok) {

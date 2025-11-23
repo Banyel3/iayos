@@ -13,7 +13,7 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AvatarUpload } from "@/components/AvatarUpload";
-import { ENDPOINTS } from "@/lib/api/config";
+import { ENDPOINTS, apiRequest } from "@/lib/api/config";
 import { Colors, Typography, Spacing, BorderRadius } from "@/constants/theme";
 
 interface WorkerProfile {
@@ -33,9 +33,7 @@ export default function AvatarUploadScreen() {
   const { data: profile, isLoading } = useQuery<WorkerProfile>({
     queryKey: ["workerProfile"],
     queryFn: async () => {
-      const response = await fetch(ENDPOINTS.WORKER_PROFILE, {
-        credentials: "include",
-      });
+      const response = await apiRequest(ENDPOINTS.WORKER_PROFILE);
       if (!response.ok) throw new Error("Failed to fetch profile");
       return response.json();
     },
@@ -45,9 +43,8 @@ export default function AvatarUploadScreen() {
   // Delete avatar mutation
   const deleteMutation = useMutation({
     mutationFn: async () => {
-      const response = await fetch(ENDPOINTS.DELETE_AVATAR, {
+      const response = await apiRequest(ENDPOINTS.DELETE_AVATAR, {
         method: "DELETE",
-        credentials: "include",
       });
       if (!response.ok) throw new Error("Failed to delete avatar");
       return response.json();

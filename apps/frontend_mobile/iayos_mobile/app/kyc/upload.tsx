@@ -245,15 +245,9 @@ export default function KYCUploadScreen() {
         type: selfieFile!.type,
       } as any);
 
-      const headers: Record<string, string> = {};
-      if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
-      }
-
-      const response = await fetch(ENDPOINTS.KYC_UPLOAD, {
+      const response = await apiRequest(ENDPOINTS.KYC_UPLOAD, {
         method: "POST",
-        headers,
-        body: formData as any, // React Native FormData compatible with fetch
+        body: formData as any, // React Native FormData compatible with apiRequest
       });
 
       if (!response.ok) {

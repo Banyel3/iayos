@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ENDPOINTS } from "@/lib/api/config";
+import { ENDPOINTS, apiRequest } from "@/lib/api/config";
 import { Alert } from "react-native";
 
 interface UseSaveJobOptions {
@@ -12,9 +12,8 @@ export function useSaveJob(options?: UseSaveJobOptions) {
 
   return useMutation({
     mutationFn: async (jobId: number) => {
-      const response = await fetch(ENDPOINTS.SAVE_JOB(jobId), {
+      const response = await apiRequest(ENDPOINTS.SAVE_JOB(jobId), {
         method: "POST",
-        credentials: "include",
       });
       if (!response.ok) throw new Error("Failed to save job");
       return await response.json();
@@ -36,9 +35,8 @@ export function useUnsaveJob(options?: UseSaveJobOptions) {
 
   return useMutation({
     mutationFn: async (jobId: number) => {
-      const response = await fetch(ENDPOINTS.UNSAVE_JOB(jobId), {
+      const response = await apiRequest(ENDPOINTS.UNSAVE_JOB(jobId), {
         method: "DELETE",
-        credentials: "include",
       });
       if (!response.ok) throw new Error("Failed to unsave job");
       return await response.json();

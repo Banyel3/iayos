@@ -24,7 +24,7 @@ import {
   BorderRadius,
   Shadows,
 } from "@/constants/theme";
-import { ENDPOINTS } from "@/lib/api/config";
+import { ENDPOINTS, apiRequest } from "@/lib/api/config";
 import { PortfolioUpload } from "@/components/PortfolioUpload";
 import { PortfolioGrid } from "@/components/PortfolioGrid";
 import { ImageViewer } from "@/components/ImageViewer";
@@ -90,9 +90,7 @@ export default function EditProfileScreen() {
   const { data: profile, isLoading } = useQuery<WorkerProfile>({
     queryKey: ["worker-profile"],
     queryFn: async () => {
-      const response = await fetch(ENDPOINTS.WORKER_PROFILE, {
-        credentials: "include",
-      });
+      const response = await apiRequest(ENDPOINTS.WORKER_PROFILE);
       if (!response.ok) {
         throw new Error("Failed to fetch profile");
       }
@@ -113,12 +111,8 @@ export default function EditProfileScreen() {
   // Update profile mutation
   const updateMutation = useMutation({
     mutationFn: async (data: UpdateProfileData) => {
-      const response = await fetch(ENDPOINTS.UPDATE_WORKER_PROFILE, {
+      const response = await apiRequest(ENDPOINTS.UPDATE_WORKER_PROFILE, {
         method: "PUT",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
         body: JSON.stringify({
           bio: data.bio,
           hourly_rate: parseFloat(data.hourlyRate) || null,
