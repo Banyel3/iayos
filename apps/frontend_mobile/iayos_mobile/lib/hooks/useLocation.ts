@@ -1,21 +1,11 @@
 // Location Tracking Hooks
 // React Query hooks for managing user location
-// NOTE: Requires `expo-location` package - install with: npx expo install expo-location
-// TODO: Uncomment the import below after installing expo-location
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-// import * as Location from "expo-location";
+import * as Location from "expo-location";
 import { Alert } from "react-native";
+import Toast from "react-native-toast-message";
 import { ENDPOINTS, apiRequest } from "@/lib/api/config";
-
-// Temporary placeholder until expo-location is installed
-const Location = {
-  requestForegroundPermissionsAsync: async () => ({ status: "denied" }),
-  getCurrentPositionAsync: async (_options?: any) => ({ 
-    coords: { latitude: 0, longitude: 0 } 
-  }),
-  Accuracy: { Balanced: 4 },
-};
 
 // ===== TYPES =====
 
@@ -82,6 +72,14 @@ export function useUpdateLocation() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["user-location"] });
       queryClient.invalidateQueries({ queryKey: ["worker-profile"] });
+
+      // Show success message
+      Toast.show({
+        type: "success",
+        text1: "Location Saved",
+        text2: "Your current location has been updated successfully",
+        position: "top",
+      });
     },
   });
 }

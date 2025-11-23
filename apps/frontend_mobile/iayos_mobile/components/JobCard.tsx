@@ -35,6 +35,7 @@ interface JobCardProps {
   title: string;
   category?: string;
   location?: string;
+  distance?: number;
   postedAt?: string | Date;
   budget: number | string;
   status?: "active" | "in_progress" | "completed" | "cancelled";
@@ -47,6 +48,7 @@ export default function JobCard({
   title,
   category,
   location,
+  distance,
   postedAt,
   budget,
   status = "active",
@@ -138,6 +140,12 @@ export default function JobCard({
                 />
                 <Text style={styles.metaText} numberOfLines={1}>
                   {location}
+                  {distance !== undefined && distance !== null && (
+                    <Text style={styles.distanceText}>
+                      {" "}
+                      • {distance.toFixed(1)} km
+                    </Text>
+                  )}
                 </Text>
               </View>
             )}
@@ -251,6 +259,11 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     fontWeight: Typography.fontWeight.medium,
     flex: 1,
+  },
+  distanceText: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.primary,
+    fontWeight: Typography.fontWeight.semiBold,
   },
   applicationBadgeRow: {
     flexDirection: "row",

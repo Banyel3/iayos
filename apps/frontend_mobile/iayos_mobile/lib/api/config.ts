@@ -128,9 +128,9 @@ export const ENDPOINTS = {
     `${API_BASE_URL.replace("/api", "")}/api/mobile/locations/cities/${cityId}/barangays`,
 
   // Location Tracking
-  UPDATE_LOCATION: `${API_BASE_URL}/location/update`,
-  GET_MY_LOCATION: `${API_BASE_URL}/location/me`,
-  TOGGLE_LOCATION_SHARING: `${API_BASE_URL}/location/toggle-sharing`,
+  UPDATE_LOCATION: `${API_BASE_URL.replace("/api", "")}/api/accounts/location/update`,
+  GET_MY_LOCATION: `${API_BASE_URL.replace("/api", "")}/api/accounts/location/me`,
+  TOGGLE_LOCATION_SHARING: `${API_BASE_URL.replace("/api", "")}/api/accounts/location/toggle-sharing`,
 
   // Client
   BROWSE_AGENCIES: `${API_BASE_URL}/client/agencies/browse`,

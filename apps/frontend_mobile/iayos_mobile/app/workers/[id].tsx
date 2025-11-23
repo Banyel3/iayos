@@ -110,9 +110,21 @@ const WorkerDetailSkeleton = () => {
         {/* Hero Skeleton */}
         <View style={styles.heroSection}>
           <View style={[styles.skeletonCircle, styles.avatar]} />
-          <View style={[styles.skeletonBox, { width: 180, height: 24, marginTop: 16 }]} />
-          <View style={[styles.skeletonBox, { width: 120, height: 20, marginTop: 8 }]} />
-          <View style={{ flexDirection: "row", alignItems: "center", marginTop: 8 }}>
+          <View
+            style={[
+              styles.skeletonBox,
+              { width: 180, height: 24, marginTop: 16 },
+            ]}
+          />
+          <View
+            style={[
+              styles.skeletonBox,
+              { width: 120, height: 20, marginTop: 8 },
+            ]}
+          />
+          <View
+            style={{ flexDirection: "row", alignItems: "center", marginTop: 8 }}
+          >
             <View style={[styles.skeletonBox, { width: 80, height: 16 }]} />
           </View>
         </View>
@@ -121,46 +133,116 @@ const WorkerDetailSkeleton = () => {
         <View style={styles.statsSection}>
           <View style={styles.statCard}>
             <View style={[styles.skeletonBox, { width: 40, height: 28 }]} />
-            <View style={[styles.skeletonBox, { width: 60, height: 14, marginTop: 4 }]} />
+            <View
+              style={[
+                styles.skeletonBox,
+                { width: 60, height: 14, marginTop: 4 },
+              ]}
+            />
           </View>
           <View style={styles.statCard}>
             <View style={[styles.skeletonBox, { width: 60, height: 28 }]} />
-            <View style={[styles.skeletonBox, { width: 50, height: 14, marginTop: 4 }]} />
+            <View
+              style={[
+                styles.skeletonBox,
+                { width: 50, height: 14, marginTop: 4 },
+              ]}
+            />
           </View>
           <View style={styles.statCard}>
             <View style={[styles.skeletonBox, { width: 30, height: 28 }]} />
-            <View style={[styles.skeletonBox, { width: 40, height: 14, marginTop: 4 }]} />
+            <View
+              style={[
+                styles.skeletonBox,
+                { width: 40, height: 14, marginTop: 4 },
+              ]}
+            />
           </View>
         </View>
 
         {/* Bio Skeleton */}
         <View style={styles.section}>
-          <View style={[styles.skeletonBox, { width: 100, height: 20, marginBottom: 12 }]} />
-          <View style={[styles.skeletonBox, { width: "100%", height: 16, marginBottom: 8 }]} />
-          <View style={[styles.skeletonBox, { width: "90%", height: 16, marginBottom: 8 }]} />
+          <View
+            style={[
+              styles.skeletonBox,
+              { width: 100, height: 20, marginBottom: 12 },
+            ]}
+          />
+          <View
+            style={[
+              styles.skeletonBox,
+              { width: "100%", height: 16, marginBottom: 8 },
+            ]}
+          />
+          <View
+            style={[
+              styles.skeletonBox,
+              { width: "90%", height: 16, marginBottom: 8 },
+            ]}
+          />
           <View style={[styles.skeletonBox, { width: "80%", height: 16 }]} />
         </View>
 
         {/* Skills Skeleton */}
         <View style={styles.section}>
-          <View style={[styles.skeletonBox, { width: 120, height: 20, marginBottom: 12 }]} />
+          <View
+            style={[
+              styles.skeletonBox,
+              { width: 120, height: 20, marginBottom: 12 },
+            ]}
+          />
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-            <View style={[styles.skeletonBox, { width: 80, height: 32, borderRadius: 16 }]} />
-            <View style={[styles.skeletonBox, { width: 100, height: 32, borderRadius: 16 }]} />
-            <View style={[styles.skeletonBox, { width: 90, height: 32, borderRadius: 16 }]} />
+            <View
+              style={[
+                styles.skeletonBox,
+                { width: 80, height: 32, borderRadius: 16 },
+              ]}
+            />
+            <View
+              style={[
+                styles.skeletonBox,
+                { width: 100, height: 32, borderRadius: 16 },
+              ]}
+            />
+            <View
+              style={[
+                styles.skeletonBox,
+                { width: 90, height: 32, borderRadius: 16 },
+              ]}
+            />
           </View>
         </View>
 
         {/* Materials Skeleton */}
         <View style={styles.section}>
-          <View style={[styles.skeletonBox, { width: 140, height: 20, marginBottom: 12 }]} />
-          <View style={[styles.skeletonBox, { width: "100%", height: 80, borderRadius: 12 }]} />
+          <View
+            style={[
+              styles.skeletonBox,
+              { width: 140, height: 20, marginBottom: 12 },
+            ]}
+          />
+          <View
+            style={[
+              styles.skeletonBox,
+              { width: "100%", height: 80, borderRadius: 12 },
+            ]}
+          />
         </View>
 
         {/* Certifications Skeleton */}
         <View style={styles.section}>
-          <View style={[styles.skeletonBox, { width: 120, height: 20, marginBottom: 12 }]} />
-          <View style={[styles.skeletonBox, { width: "100%", height: 80, borderRadius: 12 }]} />
+          <View
+            style={[
+              styles.skeletonBox,
+              { width: 120, height: 20, marginBottom: 12 },
+            ]}
+          />
+          <View
+            style={[
+              styles.skeletonBox,
+              { width: "100%", height: 80, borderRadius: 12 },
+            ]}
+          />
         </View>
       </ScrollView>
     </SafeAreaView>

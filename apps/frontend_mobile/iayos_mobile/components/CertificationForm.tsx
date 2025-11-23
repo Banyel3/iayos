@@ -482,7 +482,11 @@ export default function CertificationForm({
             <View style={styles.formGroup}>
               <Text style={styles.label}>
                 Certificate Document{" "}
-                {isEditMode ? "(Optional - Update if needed)" : <Text style={styles.required}>*</Text>}
+                {isEditMode ? (
+                  "(Optional - Update if needed)"
+                ) : (
+                  <Text style={styles.required}>*</Text>
+                )}
               </Text>
               {certificateImage ? (
                 <View style={styles.imagePreviewContainer}>
@@ -522,7 +526,9 @@ export default function CertificationForm({
                       size={24}
                       color={Colors.primary}
                     />
-                    <Text style={styles.uploadButtonText}>Change Certificate</Text>
+                    <Text style={styles.uploadButtonText}>
+                      Change Certificate
+                    </Text>
                   </Pressable>
                 </View>
               ) : (

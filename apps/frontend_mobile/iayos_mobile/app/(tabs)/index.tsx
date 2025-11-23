@@ -418,6 +418,7 @@ export default function BrowseJobsScreen() {
       title={item.title}
       category={item.category}
       location={item.location}
+      distance={item.distance}
       postedAt={item.postedAt}
       budget={item.budget}
       status={item.status?.toLowerCase() as any}

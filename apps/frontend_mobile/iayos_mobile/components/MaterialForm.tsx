@@ -514,7 +514,8 @@ export default function MaterialForm({
             {/* Material Image Upload */}
             <View style={styles.formGroup}>
               <Text style={styles.label}>
-                Material Image {isEditMode ? "(Optional - Update if needed)" : "(Optional)"}
+                Material Image{" "}
+                {isEditMode ? "(Optional - Update if needed)" : "(Optional)"}
               </Text>
               {materialImage ? (
                 <View style={styles.imagePreviewContainer}>

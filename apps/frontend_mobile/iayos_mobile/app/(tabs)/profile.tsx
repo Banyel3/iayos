@@ -25,10 +25,12 @@ import { useUnreadNotificationsCount } from "@/lib/hooks/useNotifications";
 import { useProfileMetrics } from "@/lib/hooks/useProfileMetrics";
 import { useWallet, WalletData } from "@/lib/hooks/useWallet";
 import { formatCurrency } from "@/lib/hooks/usePayments";
+import { useScanLocation } from "@/lib/hooks/useLocation";
 
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
   const router = useRouter();
+  const scanLocation = useScanLocation();
 
   // Get unread notifications count
   const { data: unreadCount = 0 } = useUnreadNotificationsCount();
@@ -169,11 +171,31 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Notification Bell Icon */}
-      <View style={styles.notificationIconContainer}>
+      {/* Top Action Buttons */}
+      <View style={styles.topActionsContainer}>
+        {/* Location Button */}
+        <TouchableOpacity
+          onPress={async () => {
+            try {
+              await scanLocation.mutateAsync();
+            } catch (error) {
+              // Error alert already shown in hook
+            }
+          }}
+          style={styles.actionButton}
+          disabled={scanLocation.isPending}
+        >
+          {scanLocation.isPending ? (
+            <ActivityIndicator size="small" color="#007AFF" />
+          ) : (
+            <Ionicons name="location" size={26} color="#007AFF" />
+          )}
+        </TouchableOpacity>
+
+        {/* Notification Bell */}
         <TouchableOpacity
           onPress={() => router.push("/notifications" as any)}
-          style={styles.notificationButton}
+          style={styles.actionButton}
         >
           <Ionicons name="notifications-outline" size={26} color="#007AFF" />
           {unreadCount > 0 && (
@@ -523,6 +545,23 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
+  },
+  topActionsContainer: {
+    position: "absolute",
+    top: 10,
+    right: 16,
+    zIndex: 100,
+    flexDirection: "row",
+    gap: 12,
+  },
+  actionButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+    ...Shadows.sm,
   },
   notificationIconContainer: {
     position: "absolute",

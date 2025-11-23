@@ -25,8 +25,43 @@ def get_mobile_job_list(
     """
     Get paginated job listings optimized for mobile
     Returns minimal fields for list view performance
+    Automatically sorts by distance if user has location set
     """
+    from math import radians, sin, cos, sqrt, atan2
+    
+    def calculate_distance(lat1, lon1, lat2, lon2):
+        """Calculate distance between two coordinates in kilometers using Haversine formula"""
+        if not all([lat1, lon1, lat2, lon2]):
+            return None
+        
+        R = 6371  # Earth's radius in kilometers
+        
+        lat1_rad = radians(float(lat1))
+        lon1_rad = radians(float(lon1))
+        lat2_rad = radians(float(lat2))
+        lon2_rad = radians(float(lon2))
+        
+        dlat = lat2_rad - lat1_rad
+        dlon = lon2_rad - lon1_rad
+        
+        a = sin(dlat / 2)**2 + cos(lat1_rad) * cos(lat2_rad) * sin(dlon / 2)**2
+        c = 2 * atan2(sqrt(a), sqrt(1 - a))
+        
+        return R * c
+    
     try:
+        # Get user's location for distance calculation
+        user_lat = None
+        user_lon = None
+        try:
+            user_profile = Profile.objects.get(accountFK=user)
+            if user_profile.latitude and user_profile.longitude:
+                user_lat = user_profile.latitude
+                user_lon = user_profile.longitude
+                print(f"📍 [LOCATION] User location: {user_lat}, {user_lon}")
+        except Profile.DoesNotExist:
+            pass
+        
         # Base query - only ACTIVE jobs that are LISTING type (exclude INVITE/direct hire jobs)
         queryset = JobPosting.objects.filter(
             status='ACTIVE',
@@ -61,21 +96,13 @@ def get_mobile_job_list(
             'photos'
         )
 
-        # Order by urgency and creation date (most recent listings first)
-        queryset = queryset.order_by('-createdAt')
-
-        # Calculate pagination
-        total_count = queryset.count()
-        start = (page - 1) * limit
-        end = start + limit
-
-        jobs = queryset[start:end]
-
-        # Build mobile-optimized response
-        job_list = []
-        for job in jobs:
+        # Get all jobs first (we'll sort by distance in memory if user has location)
+        all_jobs = list(queryset)
+        
+        # Calculate distances and add to jobs if user has location
+        jobs_with_distance = []
+        for job in all_jobs:
             # Check if current user has applied
-            # Check if user has applied (worker only)
             has_applied = False
             try:
                 profile = Profile.objects.get(accountFK=user)
@@ -90,12 +117,21 @@ def get_mobile_job_list(
             # Get client info
             client_profile = job.clientID.profileID
             client_name = f"{client_profile.firstName} {client_profile.lastName}" if client_profile else "Unknown Client"
+            
+            # Calculate distance if both user and job have coordinates
+            distance = None
+            if user_lat and user_lon and job.latitude and job.longitude:
+                distance = calculate_distance(user_lat, user_lon, job.latitude, job.longitude)
+                print(f"   Job {job.jobID}: distance = {distance:.2f} km" if distance else f"   Job {job.jobID}: no distance")
 
             job_data = {
                 'id': job.jobID,
                 'title': job.title,
                 'budget': float(job.budget),
                 'location': job.location,
+                'latitude': float(job.latitude) if job.latitude else None,
+                'longitude': float(job.longitude) if job.longitude else None,
+                'distance': round(distance, 2) if distance else None,
                 'urgency_level': job.urgency,
                 'status': job.status,
                 'created_at': job.createdAt.isoformat(),
@@ -104,8 +140,24 @@ def get_mobile_job_list(
                 'client_avatar': client_profile.profileImg if client_profile and client_profile.profileImg else None,
                 'is_applied': has_applied,
                 'expected_duration': job.expectedDuration,
+                '_distance_sort': distance if distance is not None else 999999,  # Large number for jobs without distance
             }
-            job_list.append(job_data)
+            jobs_with_distance.append(job_data)
+        
+        # Sort by distance if user has location, otherwise by creation date
+        if user_lat and user_lon:
+            jobs_with_distance.sort(key=lambda x: x['_distance_sort'])
+            print(f"📍 [SORT] Sorted {len(jobs_with_distance)} jobs by distance")
+        
+        # Remove the sorting helper field
+        for job in jobs_with_distance:
+            del job['_distance_sort']
+        
+        # Apply pagination after sorting
+        total_count = len(jobs_with_distance)
+        start = (page - 1) * limit
+        end = start + limit
+        job_list = jobs_with_distance[start:end]
 
         total_pages = (total_count + limit - 1) // limit
         has_next = end < total_count

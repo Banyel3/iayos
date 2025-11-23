@@ -186,10 +186,13 @@ export function useUpdateMaterial() {
         const formData = new FormData();
         if (data.name) formData.append("name", data.name);
         if (data.description) formData.append("description", data.description);
-        if (data.price !== undefined) formData.append("price", data.price.toString());
-        if (data.quantity !== undefined) formData.append("quantity", data.quantity.toString());
+        if (data.price !== undefined)
+          formData.append("price", data.price.toString());
+        if (data.quantity !== undefined)
+          formData.append("quantity", data.quantity.toString());
         if (data.unit) formData.append("unit", data.unit);
-        if (data.isAvailable !== undefined) formData.append("is_available", data.isAvailable.toString());
+        if (data.isAvailable !== undefined)
+          formData.append("is_available", data.isAvailable.toString());
 
         formData.append("image_file", {
           uri: data.imageFile.uri,

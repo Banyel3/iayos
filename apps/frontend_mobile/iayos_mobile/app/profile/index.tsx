@@ -366,15 +366,12 @@ export default function ProfileScreen() {
       {/* Location Tracking */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Ionicons
-            name="navigate-circle"
-            size={24}
-            color={Colors.primary}
-          />
+          <Ionicons name="navigate-circle" size={24} color={Colors.primary} />
           <Text style={styles.sectionTitle}>Location for Nearby Jobs</Text>
         </View>
         <Text style={styles.sectionDescription}>
-          Update your current location to see jobs sorted by distance. This helps clients find workers nearby.
+          Update your current location to see jobs sorted by distance. This
+          helps clients find workers nearby.
         </Text>
         <LocationButton
           variant="secondary"
@@ -1019,6 +1016,12 @@ const styles = StyleSheet.create({
   },
 
   // Location Section
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
   sectionDescription: {
     ...Typography.body.medium,
     color: Colors.textSecondary,
