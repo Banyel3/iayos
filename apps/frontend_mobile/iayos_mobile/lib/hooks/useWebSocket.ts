@@ -96,10 +96,9 @@ export function useSendMessage() {
         "[useSendMessage] WebSocket unavailable, using HTTP fallback"
       );
       try {
-        const { ENDPOINTS } = await import("../api/config");
-        const response = await fetch(ENDPOINTS.SEND_MESSAGE, {
+        const { ENDPOINTS, apiRequest } = await import("../api/config");
+        const response = await apiRequest(ENDPOINTS.SEND_MESSAGE, {
           method: "POST",
-          credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             conversation_id: conversationId,

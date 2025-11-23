@@ -954,6 +954,7 @@ def delete_mobile_job(job_id: int, user: Accounts) -> Dict[str, Any]:
         with db_transaction.atomic():
             job_title = job.title
             
+            # Use bulk delete operations for better performance
             # Delete related job applications
             applications_deleted = JobApplication.objects.filter(jobID=job).delete()
             print(f"   🗑️  Deleted {applications_deleted[0]} job applications")
@@ -962,15 +963,11 @@ def delete_mobile_job(job_id: int, user: Accounts) -> Dict[str, Any]:
             notifications_deleted = Notification.objects.filter(relatedJobID=job.jobID).delete()
             print(f"   🗑️  Deleted {notifications_deleted[0]} notifications")
             
-            # Note: Transactions related to this job are kept for financial records
-            # but we can update their status or add a note
-            transactions = Transaction.objects.filter(relatedJobID=job)
-            transaction_count = transactions.count()
+            # Update transaction descriptions (keep for financial records)
+            transaction_count = Transaction.objects.filter(relatedJobPosting=job).update(
+                description=f"[JOB DELETED] {job.title}"
+            )
             if transaction_count > 0:
-                # Update transaction descriptions to indicate job was deleted
-                transactions.update(
-                    description=f"[JOB DELETED] {job.title}"
-                )
                 print(f"   📝 Updated {transaction_count} transaction descriptions")
             
             # Delete the job photos (if any)
@@ -2001,6 +1998,9 @@ def get_my_jobs_mobile(user, status=None, page=1, limit=20):
                 'created_at': job.createdAt.isoformat() if job.createdAt else None,
                 'preferred_start_date': job.preferredStartDate.isoformat() if job.preferredStartDate else None,
                 'materials_needed': job.materialsNeeded or [],
+                'job_type': job.jobType,  # LISTING or INVITE
+                'invite_status': job.inviteStatus,  # PENDING, ACCEPTED, REJECTED
+                'assigned_worker_id': job.assignedWorkerID.profileID.profileID if job.assignedWorkerID else None,
             }
 
             # Add client info
@@ -2028,7 +2028,15 @@ def get_my_jobs_mobile(user, status=None, page=1, limit=20):
                 except:
                     pass
 
+            # DEBUG: Log job data being returned
+            print(f"       Job {job.jobID} data: job_type={job_data.get('job_type')}, invite_status={job_data.get('invite_status')}, assigned_worker_id={job_data.get('assigned_worker_id')}")
+
             job_list.append(job_data)
+
+        print(f"\n   📤 RESPONSE DATA:")
+        print(f"      Jobs being returned: {len(job_list)}")
+        for idx, job in enumerate(job_list[:3], 1):  # Show first 3 jobs
+            print(f"      Job {idx}: ID={job['job_id']}, job_type={job.get('job_type')}, invite_status={job.get('invite_status')}, assigned_worker={job.get('assigned_worker_id')}")
 
         return {
             'success': True,

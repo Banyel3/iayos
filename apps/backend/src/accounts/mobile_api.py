@@ -22,7 +22,7 @@ from .schemas import (
     SendVerificationEmailSchema,
     SwitchProfileSchema,
 )
-from .authentication import jwt_auth  # Use Bearer token auth for mobile
+from .authentication import jwt_auth, dual_auth  # Use Bearer token auth for mobile, dual_auth for endpoints that support both
 from .profile_metrics_service import get_profile_metrics
 
 # Create mobile router
@@ -635,6 +635,9 @@ def mobile_my_jobs(
                 'urgency_level': job.urgency,
                 'category_name': job.categoryID.specializationName if job.categoryID else 'General',
                 'created_at': job.createdAt.isoformat() if job.createdAt else None,
+                'job_type': job.jobType,  # LISTING or INVITE
+                'invite_status': job.inviteStatus,  # PENDING, ACCEPTED, REJECTED
+                'assigned_worker_id': job.assignedWorkerID.profileID.profileID if job.assignedWorkerID else None,
             }
             
             if job.clientID:
@@ -654,6 +657,9 @@ def mobile_my_jobs(
                 ).first()
                 if application:
                     job_data['application_status'] = application.status
+            
+            # DEBUG: Log the job data being added
+            print(f"         → job_type={job_data.get('job_type')}, invite_status={job_data.get('invite_status')}, assigned_worker_id={job_data.get('assigned_worker_id')}")
             
             job_list.append(job_data)
         
@@ -928,6 +934,539 @@ def mobile_delete_job(request, job_id: int):
         traceback.print_exc()
         return Response(
             {"error": "Failed to delete job"},
+            status=500
+        )
+
+
+@mobile_router.get("/jobs/{job_id}/applications", auth=jwt_auth)
+def mobile_get_job_applications(request, job_id: int):
+    """
+    Get all applications for a specific job posting (mobile version)
+    Only the client who created the job can view applications
+    """
+    from .models import Profile, ClientProfile, JobApplication
+    from jobs.models import JobPosting
+    
+    try:
+        print(f"📋 [MOBILE] Fetching applications for job {job_id} by {request.auth.email}")
+        
+        # Get user's profile
+        profile_type = getattr(request.auth, 'profile_type', None)
+        if profile_type:
+            profile = Profile.objects.filter(
+                accountFK=request.auth,
+                profileType=profile_type
+            ).first()
+        else:
+            profile = Profile.objects.filter(accountFK=request.auth).first()
+            
+        if not profile or profile.profileType != 'CLIENT':
+            return Response(
+                {"error": "Only clients can view job applications"},
+                status=403
+            )
+        
+        # Get client profile
+        try:
+            client_profile = ClientProfile.objects.get(profileID=profile)
+        except ClientProfile.DoesNotExist:
+            return Response(
+                {"error": "Client profile not found"},
+                status=403
+            )
+        
+        # Get the job posting
+        try:
+            job = JobPosting.objects.get(jobID=job_id)
+        except JobPosting.DoesNotExist:
+            return Response(
+                {"error": "Job posting not found"},
+                status=404
+            )
+        
+        # Verify this client owns the job
+        if job.clientID.profileID.profileID != client_profile.profileID.profileID:
+            return Response(
+                {"error": "You can only view applications for your own job postings"},
+                status=403
+            )
+        
+        # Get all applications for this job
+        applications = JobApplication.objects.filter(
+            jobID=job
+        ).select_related(
+            'workerID__profileID__accountFK'
+        ).order_by('-createdAt')
+        
+        # Format the response
+        applications_data = []
+        for app in applications:
+            worker_profile = app.workerID.profileID
+            worker_account = worker_profile.accountFK
+            
+            applications_data.append({
+                "id": app.applicationID,
+                "worker": {
+                    "id": app.workerID.profileID.profileID,
+                    "name": f"{worker_profile.firstName} {worker_profile.lastName}".strip(),
+                    "avatar": worker_profile.profileImg or "",
+                    "rating": app.workerID.workerRating if hasattr(app.workerID, 'workerRating') else 0,
+                    "city": worker_account.city or ""
+                },
+                "proposal_message": app.proposalMessage or "",
+                "proposed_budget": float(app.proposedBudget) if app.proposedBudget else 0.0,
+                "estimated_duration": app.estimatedDuration or "",
+                "budget_option": app.budgetOption,
+                "status": app.status,
+                "created_at": app.createdAt.isoformat() if app.createdAt else None,
+                "updated_at": app.updatedAt.isoformat() if app.updatedAt else None
+            })
+        
+        print(f"✅ [MOBILE] Found {len(applications_data)} applications for job {job_id}")
+        
+        return {
+            "success": True,
+            "applications": applications_data,
+            "total": len(applications_data)
+        }
+        
+    except Exception as e:
+        print(f"❌ [MOBILE] Error fetching job applications: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": f"Failed to fetch applications: {str(e)}"},
+            status=500
+        )
+
+
+@mobile_router.post("/jobs/{job_id}/applications/{application_id}/accept", auth=jwt_auth)
+def mobile_accept_application(request, job_id: int, application_id: int):
+    """
+    Accept a job application (mobile version)
+    - Assigns the worker to the job
+    - Updates job status
+    - Rejects all other applications
+    """
+    from .models import Profile, ClientProfile, JobApplication
+    from jobs.models import JobPosting
+    
+    try:
+        print(f"✅ [MOBILE] Accepting application {application_id} for job {job_id} by {request.auth.email}")
+        
+        # Get user's profile
+        profile_type = getattr(request.auth, 'profile_type', None)
+        if profile_type:
+            profile = Profile.objects.filter(
+                accountFK=request.auth,
+                profileType=profile_type
+            ).first()
+        else:
+            profile = Profile.objects.filter(accountFK=request.auth).first()
+            
+        if not profile or profile.profileType != 'CLIENT':
+            return Response(
+                {"error": "Only clients can accept applications"},
+                status=403
+            )
+        
+        # Get the job
+        try:
+            job = JobPosting.objects.get(jobID=job_id)
+        except JobPosting.DoesNotExist:
+            return Response(
+                {"error": "Job posting not found"},
+                status=404
+            )
+        
+        # Verify ownership
+        if job.clientID.profileID.profileID != profile.profileID:
+            return Response(
+                {"error": "You can only accept applications for your own jobs"},
+                status=403
+            )
+        
+        # Get the application
+        try:
+            application = JobApplication.objects.get(
+                applicationID=application_id,
+                jobID=job
+            )
+        except JobApplication.DoesNotExist:
+            return Response(
+                {"error": "Application not found"},
+                status=404
+            )
+        
+        # Accept this application
+        application.status = "ACCEPTED"
+        application.save()
+        
+        # Update job status to IN_PROGRESS and assign the worker
+        job.status = JobPosting.JobStatus.IN_PROGRESS
+        job.assignedWorkerID = application.workerID
+        
+        # If worker negotiated a different budget and it was accepted, update the job budget
+        if application.budgetOption == JobApplication.BudgetOption.NEGOTIATE:
+            print(f"💰 [MOBILE] Updating job budget from ₱{job.budget} to negotiated price ₱{application.proposedBudget}")
+            job.budget = application.proposedBudget
+        
+        job.save()
+        
+        print(f"✅ [MOBILE] Job {job_id} moved to IN_PROGRESS, assigned worker {application.workerID.profileID.profileID}")
+        print(f"💵 [MOBILE] Final job budget: ₱{job.budget}")
+        
+        # Create a conversation between client and worker
+        from profiles.models import Conversation, Message
+        conversation, created = Conversation.objects.get_or_create(
+            relatedJobPosting=job,
+            defaults={
+                'client': profile,
+                'worker': application.workerID.profileID,
+                'status': Conversation.ConversationStatus.ACTIVE
+            }
+        )
+        
+        if created:
+            print(f"✅ [MOBILE] Created conversation {conversation.conversationID} for job {job_id}")
+            
+            # Create a system message to start the conversation
+            Message.create_system_message(
+                conversation=conversation,
+                message_text=f"Application accepted! You can now chat about the job: {job.title}"
+            )
+        
+        # Reject all other pending applications
+        JobApplication.objects.filter(
+            jobID=job
+        ).exclude(
+            applicationID=application_id
+        ).update(status="REJECTED")
+        
+        print(f"✅ [MOBILE] Application {application_id} accepted, worker assigned, conversation created")
+        
+        return {
+            "success": True,
+            "message": "Application accepted and worker assigned",
+            "conversation_id": conversation.conversationID
+        }
+        
+    except Exception as e:
+        print(f"❌ [MOBILE] Error accepting application: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": f"Failed to accept application: {str(e)}"},
+            status=500
+        )
+
+
+@mobile_router.post("/jobs/{job_id}/applications/{application_id}/reject", auth=jwt_auth)
+def mobile_reject_application(request, job_id: int, application_id: int):
+    """
+    Reject a job application (mobile version)
+    """
+    from .models import Profile, ClientProfile, JobApplication
+    from jobs.models import JobPosting
+    
+    try:
+        print(f"❌ [MOBILE] Rejecting application {application_id} for job {job_id} by {request.auth.email}")
+        
+        # Get user's profile
+        profile_type = getattr(request.auth, 'profile_type', None)
+        if profile_type:
+            profile = Profile.objects.filter(
+                accountFK=request.auth,
+                profileType=profile_type
+            ).first()
+        else:
+            profile = Profile.objects.filter(accountFK=request.auth).first()
+            
+        if not profile or profile.profileType != 'CLIENT':
+            return Response(
+                {"error": "Only clients can reject applications"},
+                status=403
+            )
+        
+        # Get the job
+        try:
+            job = JobPosting.objects.get(jobID=job_id)
+        except JobPosting.DoesNotExist:
+            return Response(
+                {"error": "Job posting not found"},
+                status=404
+            )
+        
+        # Verify ownership
+        if job.clientID.profileID.profileID != profile.profileID:
+            return Response(
+                {"error": "You can only reject applications for your own jobs"},
+                status=403
+            )
+        
+        # Get the application
+        try:
+            application = JobApplication.objects.get(
+                applicationID=application_id,
+                jobID=job
+            )
+        except JobApplication.DoesNotExist:
+            return Response(
+                {"error": "Application not found"},
+                status=404
+            )
+        
+        # Reject the application
+        application.status = "REJECTED"
+        application.save()
+        
+        print(f"✅ [MOBILE] Application {application_id} rejected")
+        
+        return {
+            "success": True,
+            "message": "Application rejected"
+        }
+        
+    except Exception as e:
+        print(f"❌ [MOBILE] Error rejecting application: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": f"Failed to reject application: {str(e)}"},
+            status=500
+        )
+
+
+@mobile_router.post("/jobs/{job_id}/apply", auth=dual_auth)
+def mobile_apply_for_job(request, job_id: int, payload: ApplyJobMobileSchema):
+    """
+    Submit an application for a job posting (mobile version)
+    Only workers can apply for jobs
+    Supports both Bearer token (mobile) and cookie (web) authentication
+    """
+    from .models import Profile, WorkerProfile, Agency, Notification
+    from jobs.models import JobPosting
+    from accounts.models import JobApplication
+    
+    try:
+        print(f"📝 [MOBILE] Worker {request.auth.email} applying for job {job_id}")
+        
+        # CRITICAL: Block agencies from applying to jobs
+        if Agency.objects.filter(accountFK=request.auth).exists():
+            return Response(
+                {"error": "Agencies cannot apply to jobs. Please use the 'Accept Job' feature instead."},
+                status=403
+            )
+        
+        # Get user's profile
+        profile_type = getattr(request.auth, 'profile_type', None)
+        if profile_type:
+            profile = Profile.objects.filter(
+                accountFK=request.auth,
+                profileType=profile_type
+            ).first()
+        else:
+            profile = Profile.objects.filter(accountFK=request.auth).first()
+            
+        if not profile or profile.profileType != 'WORKER':
+            return Response(
+                {"error": "Only workers can apply for jobs"},
+                status=403
+            )
+        
+        # Get worker profile
+        try:
+            worker_profile = WorkerProfile.objects.get(profileID=profile)
+        except WorkerProfile.DoesNotExist:
+            return Response(
+                {"error": "Worker profile not found"},
+                status=403
+            )
+        
+        # Get the job posting
+        try:
+            job = JobPosting.objects.get(jobID=job_id)
+        except JobPosting.DoesNotExist:
+            return Response(
+                {"error": "Job posting not found"},
+                status=404
+            )
+        
+        # CRITICAL: Prevent users from applying to their own jobs (self-hiring)
+        if job.clientID.profileID.accountFK == request.auth:
+            return Response(
+                {"error": "You cannot apply to your own job posting"},
+                status=403
+            )
+        
+        # Check if job is still active
+        if job.status != JobPosting.JobStatus.ACTIVE:
+            return Response(
+                {"error": "This job is no longer accepting applications"},
+                status=400
+            )
+        
+        # Check if worker already applied
+        existing_application = JobApplication.objects.filter(
+            jobID=job,
+            workerID=worker_profile
+        ).first()
+        
+        if existing_application:
+            return Response(
+                {"error": "You have already applied for this job"},
+                status=400
+            )
+        
+        # Validate budget option
+        if payload.budget_option not in ['ACCEPT', 'NEGOTIATE']:
+            return Response(
+                {"error": "Invalid budget option"},
+                status=400
+            )
+        
+        # Validate proposal message
+        if not payload.proposal_message or len(payload.proposal_message.strip()) < 10:
+            return Response(
+                {"error": "Proposal message must be at least 10 characters"},
+                status=400
+            )
+        
+        # Validate proposed budget if negotiating
+        if payload.budget_option == 'NEGOTIATE' and not payload.proposed_budget:
+            return Response(
+                {"error": "Proposed budget is required when negotiating"},
+                status=400
+            )
+        
+        # Create the application
+        application = JobApplication.objects.create(
+            jobID=job,
+            workerID=worker_profile,
+            proposalMessage=payload.proposal_message,
+            proposedBudget=payload.proposed_budget or 0,
+            estimatedDuration=payload.estimated_duration or '',
+            budgetOption=payload.budget_option,
+            status=JobApplication.ApplicationStatus.PENDING
+        )
+
+        print(f"✅ [MOBILE] Application {application.applicationID} created successfully")
+
+        # Create notification for the client
+        worker_name = f"{worker_profile.profileID.firstName} {worker_profile.profileID.lastName}".strip()
+        Notification.objects.create(
+            accountFK=job.clientID.profileID.accountFK,
+            notificationType="APPLICATION_RECEIVED",
+            title=f"New Application for '{job.title}'",
+            message=f"{worker_name} applied for your job posting. Review their proposal and qualifications.",
+            relatedJobID=job.jobID,
+            relatedApplicationID=application.applicationID
+        )
+        print(f"📬 [MOBILE] Notification sent to client {job.clientID.profileID.accountFK.email}")
+
+        return {
+            "success": True,
+            "message": "Application submitted successfully",
+            "application_id": application.applicationID
+        }
+        
+    except Exception as e:
+        print(f"❌ [MOBILE] Error applying for job: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": f"Failed to submit application: {str(e)}"},
+            status=500
+        )
+
+
+@mobile_router.get("/jobs/applications/my", auth=dual_auth)
+def mobile_get_my_applications(request):
+    """
+    Get all applications submitted by the current worker (mobile version)
+    Supports both Bearer token (mobile) and cookie (web) authentication
+    """
+    from .models import Profile, WorkerProfile
+    from accounts.models import JobApplication
+    
+    try:
+        print(f"📋 [MOBILE] Fetching applications for {request.auth.email}")
+        
+        # Get user's profile using profile_type from JWT if available
+        profile_type = getattr(request.auth, 'profile_type', None)
+        if profile_type:
+            profile = Profile.objects.filter(
+                accountFK=request.auth,
+                profileType=profile_type
+            ).first()
+        else:
+            # Fallback - assume WORKER for this endpoint
+            profile = Profile.objects.filter(
+                accountFK=request.auth,
+                profileType='WORKER'
+            ).first()
+            
+        if not profile:
+            return Response(
+                {"error": "Worker profile not found"},
+                status=403
+            )
+        
+        # Get worker profile
+        try:
+            worker_profile = WorkerProfile.objects.get(profileID=profile)
+        except WorkerProfile.DoesNotExist:
+            return Response(
+                {"error": "Only workers can view applications"},
+                status=403
+            )
+        
+        # Get all applications for this worker
+        applications = JobApplication.objects.filter(
+            workerID=worker_profile
+        ).select_related('jobID', 'jobID__clientID__profileID__accountFK').order_by('-createdAt')
+        
+        # Format the response
+        applications_data = []
+        for app in applications:
+            job = app.jobID
+            client_profile = job.clientID.profileID
+            
+            applications_data.append({
+                "application_id": app.applicationID,
+                "job_id": job.jobID,
+                "job_title": job.title,
+                "job_description": job.description,
+                "job_budget": float(job.budget),
+                "job_location": job.location,
+                "job_status": job.status,
+                "application_status": app.status,
+                "proposal_message": app.proposalMessage,
+                "proposed_budget": float(app.proposedBudget) if app.proposedBudget else None,
+                "estimated_duration": app.estimatedDuration,
+                "budget_option": app.budgetOption,
+                "created_at": app.createdAt.isoformat(),
+                "client_name": f"{client_profile.firstName} {client_profile.lastName}".strip(),
+                "client_img": (
+                    getattr(client_profile, 'profileImage', None)
+                    or getattr(client_profile, 'profileImg', None)
+                ),
+            })
+        
+        print(f"✅ [MOBILE] Found {len(applications_data)} applications")
+        
+        return {
+            "success": True,
+            "applications": applications_data,
+            "total": len(applications_data)
+        }
+        
+    except Exception as e:
+        print(f"❌ [MOBILE] Error fetching applications: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": f"Failed to fetch applications: {str(e)}"},
             status=500
         )
 

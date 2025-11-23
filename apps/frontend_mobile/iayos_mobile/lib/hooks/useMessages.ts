@@ -7,7 +7,7 @@ import {
   useQueryClient,
   useInfiniteQuery,
 } from "@tanstack/react-query";
-import { ENDPOINTS } from "../api/config";
+import { ENDPOINTS, apiRequest } from "../api/config";
 import { useSendMessage } from "./useWebSocket";
 
 export type Message = {
@@ -55,12 +55,7 @@ export function useMessages(conversationId: number) {
     queryKey: ["messages", conversationId],
     queryFn: async (): Promise<ConversationDetail> => {
       const url = ENDPOINTS.CONVERSATION_MESSAGES(conversationId);
-      const response = await fetch(url, {
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
+      const response = await apiRequest(url);
 
       if (!response.ok) {
         throw new Error(`Failed to fetch messages: ${response.statusText}`);
@@ -140,9 +135,8 @@ export function useUploadImageMessage() {
       formData.append("image", file);
 
       const url = ENDPOINTS.UPLOAD_MESSAGE_IMAGE(conversationId);
-      const response = await fetch(url, {
+      const response = await apiRequest(url, {
         method: "POST",
-        credentials: "include",
         body: formData,
       });
 
@@ -190,12 +184,7 @@ export function useInfiniteMessages(conversationId: number) {
       // TODO: Update backend to support pagination
       // For now, just return all messages
       const url = ENDPOINTS.CONVERSATION_MESSAGES(conversationId);
-      const response = await fetch(url, {
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
+      const response = await apiRequest(url);
 
       if (!response.ok) {
         throw new Error(`Failed to fetch messages: ${response.statusText}`);

@@ -469,18 +469,15 @@ export default function BrowseJobsScreen() {
         icon={isWorker ? "briefcase-outline" : "people-outline"}
         title={isWorker ? "No jobs found" : "No workers found"}
         message={
-          selectedCategory || selectedUrgency
+          selectedCategory
             ? `Try adjusting your filters to see more ${isWorker ? "jobs" : "workers"}`
             : isWorker
               ? "No jobs available at the moment. Check back soon!"
               : "No workers available matching your criteria"
         }
-        actionLabel={
-          selectedCategory || selectedUrgency ? "Clear Filters" : undefined
-        }
+        actionLabel={selectedCategory ? "Clear Filters" : undefined}
         onActionPress={() => {
           setSelectedCategory(undefined);
-          setSelectedUrgency(undefined);
         }}
       />
     );

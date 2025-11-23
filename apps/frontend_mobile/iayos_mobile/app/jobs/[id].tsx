@@ -80,6 +80,24 @@ interface JobDetail {
   reviews?: JobReviews;
 }
 
+interface JobApplication {
+  id: number;
+  worker: {
+    id: number;
+    name: string;
+    avatar: string;
+    rating: number;
+    city: string;
+  };
+  proposal_message: string;
+  proposed_budget: number;
+  estimated_duration: string;
+  budget_option: "ACCEPT" | "NEGOTIATE";
+  status: "PENDING" | "ACCEPTED" | "REJECTED";
+  created_at: string;
+  updated_at: string;
+}
+
 export default function JobDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
@@ -103,6 +121,7 @@ export default function JobDetailScreen() {
   );
 
   const isWorker = user?.profile_data?.profileType === "WORKER";
+  const isClient = user?.profile_data?.profileType === "CLIENT";
 
   // Validate job ID
   const jobId = id ? Number(id) : NaN;
@@ -208,8 +227,8 @@ export default function JobDetailScreen() {
   const { data: hasApplied = false } = useQuery<boolean, unknown, boolean>({
     queryKey: ["jobs", id, "applied"],
     queryFn: async (): Promise<boolean> => {
-      const response = await fetch(`${ENDPOINTS.MY_APPLICATIONS}`, {
-        credentials: "include",
+      const response = await apiRequest(ENDPOINTS.MY_APPLICATIONS, {
+        method: "GET",
       });
 
       if (!response.ok) return false;
@@ -233,19 +252,18 @@ export default function JobDetailScreen() {
       estimated_duration: string | null;
       budget_option: "ACCEPT" | "NEGOTIATE";
     }) => {
-      const response = await fetch(`${ENDPOINTS.APPLY_JOB(parseInt(id))}`, {
+      const response = await apiRequest(ENDPOINTS.APPLY_JOB(parseInt(id)), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
         body: JSON.stringify(applicationData),
       });
 
+      const responseData = (await response.json().catch(() => null)) as any;
+
       if (!response.ok) {
-        const errorData = (await response.json().catch(() => null)) as any;
-        throw new Error(errorData?.error || "Failed to submit application");
+        throw new Error(responseData?.error || "Failed to submit application");
       }
 
-      return response.json();
+      return responseData;
     },
     onSuccess: () => {
       Alert.alert(
@@ -282,15 +300,114 @@ export default function JobDetailScreen() {
         },
       ]);
       queryClient.invalidateQueries({ queryKey: ["jobs"] });
-      queryClient.invalidateQueries({ queryKey: ["myJobs"] });
     },
-    onError: (error: any) => {
-      Alert.alert(
-        "Error",
-        error?.message || "Failed to delete job. Please try again."
-      );
+    onError: (error: Error) => {
+      Alert.alert("Error", `Failed to delete job: ${error.message}`);
     },
   });
+
+  // Fetch job applications (for clients viewing their open jobs)
+  const {
+    data: applicationsData,
+    isLoading: applicationsLoading,
+    refetch: refetchApplications,
+  } = useQuery<{ applications: JobApplication[]; total: number }>({
+    queryKey: ["job-applications", id],
+    queryFn: async (): Promise<{
+      applications: JobApplication[];
+      total: number;
+    }> => {
+      if (!isClient || !isValidJobId || job?.jobType !== "LISTING") {
+        return { applications: [], total: 0 };
+      }
+      const response = await apiRequest(
+        ENDPOINTS.JOB_APPLICATIONS(parseInt(id))
+      );
+      const data = await response.json();
+      return data as { applications: JobApplication[]; total: number };
+    },
+    enabled: isClient && isValidJobId && !!job && job?.jobType === "LISTING",
+  });
+
+  const applications = applicationsData?.applications || [];
+
+  // Accept application mutation
+  const acceptApplicationMutation = useMutation({
+    mutationFn: async (applicationId: number) => {
+      const response = await apiRequest(
+        ENDPOINTS.ACCEPT_APPLICATION(parseInt(id), applicationId),
+        {
+          method: "POST",
+        }
+      );
+      return response.json();
+    },
+    onSuccess: () => {
+      Alert.alert("Success", "Application accepted! Worker has been assigned.");
+      queryClient.invalidateQueries({ queryKey: ["jobs", id] });
+      queryClient.invalidateQueries({ queryKey: ["job-applications", id] });
+      queryClient.invalidateQueries({ queryKey: ["jobs", "my-jobs"] });
+    },
+    onError: (error: Error) => {
+      Alert.alert("Error", error.message);
+    },
+  });
+
+  // Reject application mutation
+  const rejectApplicationMutation = useMutation({
+    mutationFn: async (applicationId: number) => {
+      const response = await apiRequest(
+        ENDPOINTS.REJECT_APPLICATION(parseInt(id), applicationId),
+        {
+          method: "POST",
+        }
+      );
+      return response.json();
+    },
+    onSuccess: () => {
+      Alert.alert("Success", "Application rejected.");
+      queryClient.invalidateQueries({ queryKey: ["job-applications", id] });
+    },
+    onError: (error: Error) => {
+      Alert.alert("Error", error.message);
+    },
+  });
+
+  const handleAcceptApplication = (
+    applicationId: number,
+    workerName: string
+  ) => {
+    Alert.alert(
+      "Accept Application",
+      `Are you sure you want to accept ${workerName}'s application? This will assign them to the job and reject all other applications.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Accept",
+          style: "default",
+          onPress: () => acceptApplicationMutation.mutate(applicationId),
+        },
+      ]
+    );
+  };
+
+  const handleRejectApplication = (
+    applicationId: number,
+    workerName: string
+  ) => {
+    Alert.alert(
+      "Reject Application",
+      `Are you sure you want to reject ${workerName}'s application?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Reject",
+          style: "destructive",
+          onPress: () => rejectApplicationMutation.mutate(applicationId),
+        },
+      ]
+    );
+  };
 
   const handleDeleteJob = () => {
     if (job?.status === "IN_PROGRESS") {
@@ -668,6 +785,189 @@ export default function JobDetailScreen() {
           </View>
         )}
 
+        {/* Applications Section - Only for open LISTING jobs by client */}
+        {isClient && job.jobType === "LISTING" && !job.assignedWorker && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Applications</Text>
+              {applications.length > 0 && (
+                <View style={styles.applicationsBadge}>
+                  <Text style={styles.applicationsBadgeText}>
+                    {applications.length}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {applicationsLoading ? (
+              <ActivityIndicator size="small" color={Colors.primary} />
+            ) : applications.length === 0 ? (
+              <View style={styles.emptyApplications}>
+                <Ionicons
+                  name="document-text-outline"
+                  size={48}
+                  color={Colors.textSecondary}
+                />
+                <Text style={styles.emptyApplicationsText}>
+                  No applications yet
+                </Text>
+                <Text style={styles.emptyApplicationsSubtext}>
+                  Workers who apply will appear here
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.applicationsList}>
+                {applications.map((application) => (
+                  <View key={application.id} style={styles.applicationCard}>
+                    {/* Worker Info */}
+                    <View style={styles.applicationWorkerInfo}>
+                      <Image
+                        source={{
+                          uri:
+                            application.worker.avatar ||
+                            "https://via.placeholder.com/50",
+                        }}
+                        style={styles.applicationAvatar}
+                      />
+                      <View style={styles.applicationWorkerDetails}>
+                        <Text style={styles.applicationWorkerName}>
+                          {application.worker.name}
+                        </Text>
+                        <View style={styles.applicationWorkerMeta}>
+                          <Ionicons name="star" size={14} color="#F59E0B" />
+                          <Text style={styles.applicationWorkerRating}>
+                            {application.worker.rating.toFixed(1)}
+                          </Text>
+                          {application.worker.city && (
+                            <>
+                              <Text style={styles.applicationMetaDot}>•</Text>
+                              <Text style={styles.applicationWorkerCity}>
+                                {application.worker.city}
+                              </Text>
+                            </>
+                          )}
+                        </View>
+                      </View>
+                      <View
+                        style={[
+                          styles.applicationStatusBadge,
+                          application.status === "PENDING" &&
+                            styles.statusPending,
+                          application.status === "ACCEPTED" &&
+                            styles.statusAccepted,
+                          application.status === "REJECTED" &&
+                            styles.statusRejected,
+                        ]}
+                      >
+                        <Text style={styles.applicationStatusText}>
+                          {application.status}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Proposal Details */}
+                    {application.proposal_message && (
+                      <View style={styles.proposalSection}>
+                        <Text style={styles.proposalLabel}>Proposal:</Text>
+                        <Text style={styles.proposalText} numberOfLines={3}>
+                          {application.proposal_message}
+                        </Text>
+                      </View>
+                    )}
+
+                    <View style={styles.applicationDetails}>
+                      {application.budget_option === "NEGOTIATE" && (
+                        <View style={styles.applicationDetailItem}>
+                          <Ionicons
+                            name="cash-outline"
+                            size={16}
+                            color={Colors.textSecondary}
+                          />
+                          <Text style={styles.applicationDetailText}>
+                            Proposed: ₱
+                            {application.proposed_budget.toLocaleString()}
+                          </Text>
+                        </View>
+                      )}
+                      {application.estimated_duration && (
+                        <View style={styles.applicationDetailItem}>
+                          <Ionicons
+                            name="time-outline"
+                            size={16}
+                            color={Colors.textSecondary}
+                          />
+                          <Text style={styles.applicationDetailText}>
+                            {application.estimated_duration}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+
+                    {/* Action Buttons */}
+                    {application.status === "PENDING" && (
+                      <View style={styles.applicationActions}>
+                        <TouchableOpacity
+                          style={styles.rejectButton}
+                          onPress={() =>
+                            handleRejectApplication(
+                              application.id,
+                              application.worker.name
+                            )
+                          }
+                          disabled={rejectApplicationMutation.isPending}
+                        >
+                          {rejectApplicationMutation.isPending ? (
+                            <ActivityIndicator
+                              size="small"
+                              color={Colors.error}
+                            />
+                          ) : (
+                            <>
+                              <Ionicons
+                                name="close-circle-outline"
+                                size={20}
+                                color={Colors.error}
+                              />
+                              <Text style={styles.rejectButtonText}>
+                                Reject
+                              </Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.acceptButton}
+                          onPress={() =>
+                            handleAcceptApplication(
+                              application.id,
+                              application.worker.name
+                            )
+                          }
+                          disabled={acceptApplicationMutation.isPending}
+                        >
+                          {acceptApplicationMutation.isPending ? (
+                            <ActivityIndicator size="small" color="#FFF" />
+                          ) : (
+                            <>
+                              <Ionicons
+                                name="checkmark-circle-outline"
+                                size={20}
+                                color="#FFF"
+                              />
+                              <Text style={styles.acceptButtonText}>
+                                Accept
+                              </Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        )}
+
         {/* Job Feedback */}
         {jobHasFeedback && (
           <View style={styles.section}>
@@ -737,21 +1037,25 @@ export default function JobDetailScreen() {
             <TouchableOpacity
               style={[
                 styles.applyButton,
-                !user?.kycVerified && styles.applyButtonDisabled,
+                (!user?.kycVerified || hasApplied) &&
+                  styles.applyButtonDisabled,
               ]}
               onPress={handleApply}
               activeOpacity={0.8}
-              disabled={!user?.kycVerified}
+              disabled={!user?.kycVerified || hasApplied}
             >
               <Text
                 style={[
                   styles.applyButtonText,
-                  !user?.kycVerified && styles.applyButtonTextDisabled,
+                  (!user?.kycVerified || hasApplied) &&
+                    styles.applyButtonTextDisabled,
                 ]}
               >
-                {user?.kycVerified
-                  ? "Apply for this Job"
-                  : "KYC Verification Required"}
+                {!user?.kycVerified
+                  ? "KYC Verification Required"
+                  : hasApplied
+                    ? "Already Applied"
+                    : "Apply for this Job"}
               </Text>
             </TouchableOpacity>
           )}
@@ -1333,5 +1637,174 @@ const styles = StyleSheet.create({
   deleteButton: {
     padding: Spacing.xs,
     marginRight: Spacing.xs,
+  },
+  // Applications Section Styles
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: Spacing.md,
+  },
+  applicationsBadge: {
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    minWidth: 24,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  applicationsBadgeText: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: "700",
+    color: Colors.white,
+  },
+  emptyApplications: {
+    alignItems: "center",
+    padding: Spacing.xl,
+    backgroundColor: Colors.backgroundSecondary,
+    borderRadius: BorderRadius.lg,
+  },
+  emptyApplicationsText: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: "600",
+    color: Colors.textSecondary,
+    marginTop: Spacing.md,
+  },
+  emptyApplicationsSubtext: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+    marginTop: Spacing.xs,
+  },
+  applicationsList: {
+    gap: Spacing.md,
+  },
+  applicationCard: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    ...Shadows.sm,
+  },
+  applicationWorkerInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+  applicationAvatar: {
+    width: 50,
+    height: 50,
+    borderRadius: BorderRadius.full,
+    marginRight: Spacing.md,
+  },
+  applicationWorkerDetails: {
+    flex: 1,
+  },
+  applicationWorkerName: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+    marginBottom: 4,
+  },
+  applicationWorkerMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  applicationWorkerRating: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+  },
+  applicationMetaDot: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+  },
+  applicationWorkerCity: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+  },
+  applicationStatusBadge: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.sm,
+  },
+  statusPending: {
+    backgroundColor: Colors.warningLight,
+  },
+  statusAccepted: {
+    backgroundColor: Colors.successLight,
+  },
+  statusRejected: {
+    backgroundColor: Colors.errorLight,
+  },
+  applicationStatusText: {
+    fontSize: Typography.fontSize.xs,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+    textTransform: "uppercase",
+  },
+  proposalSection: {
+    marginBottom: Spacing.md,
+  },
+  proposalLabel: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: "600",
+    color: Colors.textSecondary,
+    marginBottom: 4,
+  },
+  proposalText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textPrimary,
+    lineHeight: 20,
+  },
+  applicationDetails: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  applicationDetailItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  applicationDetailText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+  },
+  applicationActions: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+  },
+  acceptButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: Spacing.sm,
+    backgroundColor: Colors.success,
+    borderRadius: BorderRadius.md,
+  },
+  acceptButtonText: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: "600",
+    color: Colors.white,
+  },
+  rejectButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: Spacing.sm,
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.error,
+    borderRadius: BorderRadius.md,
+  },
+  rejectButtonText: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: "600",
+    color: Colors.error,
   },
 });

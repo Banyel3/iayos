@@ -27,6 +27,23 @@ router = Router()
 
 __all__ = ["router"]
 
+
+def _get_user_profile(request) -> Profile:
+    """Return the current user's profile respecting JWT profile_type."""
+    profile_type = getattr(request.auth, "profile_type", None)
+    query = Profile.objects.filter(accountFK=request.auth)
+
+    if profile_type:
+        profile = query.filter(profileType=profile_type).first()
+        if profile:
+            return profile
+
+    profile = query.first()
+    if profile:
+        return profile
+
+    raise Profile.DoesNotExist
+
 #region PRODUCT ENDPOINTS
 
 # List all products/materials for the authenticated worker
@@ -37,10 +54,11 @@ def list_products(request):
     If profile not found, return an empty list to keep frontend UX simple.
     """
     try:
-        profile = Profile.objects.filter(accountFK=request.auth).first()
-        if not profile:
-            # No profile associated yet for this account - return empty list
+        try:
+            profile = _get_user_profile(request)
+        except Profile.DoesNotExist:
             return []
+
         return list_products_for_profile(profile)
     except Exception as e:
         # Log full traceback for debugging
@@ -56,7 +74,7 @@ def delete_product(request, product_id: int):
     Delete a product/material by ID for the authenticated worker's profile.
     """
     try:
-        profile = Profile.objects.get(accountFK=request.auth)
+        profile = _get_user_profile(request)
         return delete_product_for_profile(profile, product_id)
     except Profile.DoesNotExist:
         return Response({"error": "Profile not found"}, status=404)
@@ -72,7 +90,7 @@ def add_product(request, data: ProductCreateSchema):
     Add a product to the authenticated worker's profile.
     """
     try:
-        profile = Profile.objects.get(accountFK=request.auth)
+        profile = _get_user_profile(request)
         product = add_product_to_profile(profile, data)
         return ProductSchema(
             productID=product.productID,
@@ -194,7 +212,7 @@ def deposit_funds(request, data: DepositFundsSchema):
         
         # Get user's profile for name
         try:
-            profile = Profile.objects.get(accountFK=request.auth)
+            profile = _get_user_profile(request)
             user_name = f"{profile.firstName} {profile.lastName}"
         except Profile.DoesNotExist:
             user_name = request.auth.email.split('@')[0]  # Fallback to email username
@@ -620,18 +638,27 @@ def get_conversations(request, filter: str = "all"):
     - filter: 'all', 'unread', or 'archived' (default: 'all')
     """
     try:
-        # Get user's profile
-        try:
-            user_profile = Profile.objects.get(accountFK=request.auth)
-            print(f"\n🔍 === CONVERSATION DEBUG ===")
-            print(f"📧 Logged in user: {request.auth.email}")
-            print(f"👤 Profile ID: {user_profile.profileID}")
-            print(f"📋 Profile Type: {user_profile.profileType}")
-        except Profile.DoesNotExist:
+        # Get user's profile based on profile_type from JWT
+        profile_type = getattr(request.auth, 'profile_type', None)
+        if profile_type:
+            user_profile = Profile.objects.filter(
+                accountFK=request.auth,
+                profileType=profile_type
+            ).first()
+        else:
+            user_profile = Profile.objects.filter(accountFK=request.auth).first()
+        
+        if not user_profile:
             return Response(
                 {"error": "Profile not found"},
                 status=400
             )
+        
+        print(f"\n🔍 === CONVERSATION DEBUG ===")
+        print(f"📧 Logged in user: {request.auth.email}")
+        print(f"👤 Profile ID: {user_profile.profileID}")
+        print(f"📋 Profile Type: {user_profile.profileType}")
+        print(f"🎫 JWT Profile Type: {profile_type}")
         
         # Get all conversations where user is either client or worker
         conversations_query = Conversation.objects.filter(
@@ -759,7 +786,11 @@ def get_conversation_messages(request, conversation_id: int):
     try:
         # Get user's profile
         try:
-            user_profile = Profile.objects.get(accountFK=request.auth)
+            user_profile = _get_user_profile(request)
+            print(f"\n🔍 [GET MESSAGES] User profile resolved:")
+            print(f"   Profile ID: {user_profile.profileID}")
+            print(f"   Profile Type: {user_profile.profileType}")
+            print(f"   Account: {user_profile.accountFK.email}")
         except Profile.DoesNotExist:
             return Response(
                 {"error": "Profile not found"},
@@ -782,6 +813,11 @@ def get_conversation_messages(request, conversation_id: int):
         # Verify user is a participant (either client or worker)
         is_client = conversation.client == user_profile
         is_worker = conversation.worker == user_profile
+        
+        print(f"   Conversation ID: {conversation.conversationID}")
+        print(f"   Client Profile ID: {conversation.client.profileID}")
+        print(f"   Worker Profile ID: {conversation.worker.profileID}")
+        print(f"   Is Client: {is_client}, Is Worker: {is_worker}")
         
         if not (is_client or is_worker):
             return Response(
@@ -817,6 +853,8 @@ def get_conversation_messages(request, conversation_id: int):
         # Format messages
         formatted_messages = []
         for msg in messages:
+            is_mine = msg.sender == user_profile
+            print(f"   Message from Profile {msg.sender.profileID}: is_mine={is_mine} (comparing with {user_profile.profileID})")
             formatted_messages.append({
                 "sender_name": f"{msg.sender.firstName} {msg.sender.lastName}",
                 "sender_avatar": msg.sender.profileImg or "/worker1.jpg",
@@ -824,7 +862,7 @@ def get_conversation_messages(request, conversation_id: int):
                 "message_type": msg.messageType,
                 "is_read": msg.isRead,
                 "created_at": msg.createdAt.isoformat(),
-                "is_mine": msg.sender == user_profile
+                "is_mine": is_mine
             })
         
         # Check review status for this job
@@ -885,7 +923,7 @@ def send_message(request, data: SendMessageSchema):
     try:
         # Get sender's profile
         try:
-            sender_profile = Profile.objects.get(accountFK=request.auth)
+            sender_profile = _get_user_profile(request)
         except Profile.DoesNotExist:
             return Response(
                 {"error": "Profile not found"},
@@ -953,7 +991,7 @@ def mark_messages_as_read(request, data: MarkAsReadSchema):
     try:
         # Get user's profile
         try:
-            user_profile = Profile.objects.get(accountFK=request.auth)
+            user_profile = _get_user_profile(request)
         except Profile.DoesNotExist:
             return Response(
                 {"error": "Profile not found"},
@@ -1025,7 +1063,7 @@ def get_unread_count(request):
     try:
         # Get user's profile
         try:
-            user_profile = Profile.objects.get(accountFK=request.auth)
+            user_profile = _get_user_profile(request)
         except Profile.DoesNotExist:
             return Response(
                 {"error": "Profile not found"},
@@ -1067,7 +1105,7 @@ def toggle_conversation_archive(request, conversation_id: int):
     try:
         # Get user's profile
         try:
-            user_profile = Profile.objects.get(accountFK=request.auth)
+            user_profile = _get_user_profile(request)
         except Profile.DoesNotExist:
             return Response(
                 {"error": "Profile not found"},
@@ -1141,7 +1179,7 @@ def upload_chat_image(request, conversation_id: int, image: UploadedFile = File(
 
         # Get sender's profile
         try:
-            sender_profile = Profile.objects.get(accountFK=request.auth)
+            sender_profile = _get_user_profile(request)
         except Profile.DoesNotExist:
             return Response(
                 {"error": "Profile not found"},

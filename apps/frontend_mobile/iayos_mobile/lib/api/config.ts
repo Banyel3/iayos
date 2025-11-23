@@ -46,8 +46,15 @@ export const ENDPOINTS = {
     `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/${id}`,
   DELETE_JOB: (id: number) =>
     `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/${id}`,
-  APPLY_JOB: (id: number) => `${API_BASE_URL}/jobs/${id}/apply`,
-  MY_APPLICATIONS: `${API_BASE_URL}/jobs/my-applications`,
+  JOB_APPLICATIONS: (id: number) =>
+    `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/${id}/applications`,
+  ACCEPT_APPLICATION: (jobId: number, applicationId: number) =>
+    `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/${jobId}/applications/${applicationId}/accept`,
+  REJECT_APPLICATION: (jobId: number, applicationId: number) =>
+    `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/${jobId}/applications/${applicationId}/reject`,
+  APPLY_JOB: (id: number) =>
+    `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/${id}/apply`,
+  MY_APPLICATIONS: `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/applications/my`,
   MARK_COMPLETE: (id: number) => `${API_BASE_URL}/jobs/${id}/mark-complete`,
   APPROVE_COMPLETION: (id: number) =>
     `${API_BASE_URL}/jobs/${id}/approve-completion`,
