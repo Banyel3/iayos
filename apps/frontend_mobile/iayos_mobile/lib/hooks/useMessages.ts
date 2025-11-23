@@ -29,10 +29,13 @@ export type ConversationDetail = {
     status: string;
     budget: number;
     location: string;
+    clientConfirmedWorkStarted: boolean;
     workerMarkedComplete: boolean;
     clientMarkedComplete: boolean;
     workerReviewed: boolean;
     clientReviewed: boolean;
+    assignedWorkerId?: number;
+    clientId?: number;
   };
   other_participant: {
     name: string;

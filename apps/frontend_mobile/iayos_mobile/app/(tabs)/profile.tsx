@@ -26,6 +26,7 @@ import { useProfileMetrics } from "@/lib/hooks/useProfileMetrics";
 import { useWallet, WalletData } from "@/lib/hooks/useWallet";
 import { formatCurrency } from "@/lib/hooks/usePayments";
 import { useScanLocation } from "@/lib/hooks/useLocation";
+import { ReviewsSection } from "@/components/ReviewsSection";
 import {
   useDualProfileStatus,
   useCreateClientProfile,
@@ -627,6 +628,12 @@ export default function ProfileScreen() {
           </View>
         )}
 
+        {/* Reviews Section - For all users */}
+        <ReviewsSection
+          accountId={user?.accountID || 0}
+          profileType={isWorker ? "WORKER" : "CLIENT"}
+        />
+
         {/* Worker Certifications & Materials */}
         {isWorker && (
           <>
@@ -787,7 +794,7 @@ const styles = StyleSheet.create({
   },
   topActionsContainer: {
     position: "absolute",
-    top: 10,
+    top: 50, // Increased from 10 to 50 to avoid camera notch
     right: 16,
     zIndex: 100,
     flexDirection: "row",

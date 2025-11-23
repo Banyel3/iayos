@@ -806,6 +806,10 @@ class Job(models.Model):
     completedAt = models.DateTimeField(null=True, blank=True)
     cancellationReason = models.TextField(null=True, blank=True)
     
+    # Work started tracking (client confirms worker has arrived)
+    clientConfirmedWorkStarted = models.BooleanField(default=False)
+    clientConfirmedWorkStartedAt = models.DateTimeField(null=True, blank=True)
+    
     # Two-phase completion tracking
     workerMarkedComplete = models.BooleanField(default=False)
     clientMarkedComplete = models.BooleanField(default=False)

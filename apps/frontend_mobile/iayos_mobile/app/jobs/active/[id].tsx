@@ -196,10 +196,13 @@ export default function ActiveJobDetailScreen() {
   // Approve completion (client)
   const approveCompletionMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest(ENDPOINTS.APPROVE_COMPLETION(parseInt(id)), {
-        method: "POST",
-        body: JSON.stringify({ payment_method: "GCASH" }),
-      });
+      const response = await apiRequest(
+        ENDPOINTS.APPROVE_COMPLETION(parseInt(id)),
+        {
+          method: "POST",
+          body: JSON.stringify({ payment_method: "GCASH" }),
+        }
+      );
 
       if (!response.ok) {
         const errorData = await response.json();

@@ -14,6 +14,8 @@ import {
   Image,
   Alert,
   ActionSheetIOS,
+  Modal,
+  TextInput,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, router, Stack } from "expo-router";
@@ -28,6 +30,12 @@ import {
   useWebSocketConnection,
 } from "../../lib/hooks/useWebSocket";
 import { useImageUpload } from "../../lib/hooks/useImageUpload";
+import {
+  useConfirmWorkStarted,
+  useMarkComplete,
+  useApproveCompletion,
+} from "../../lib/hooks/useJobActions";
+import { useSubmitReview } from "../../lib/hooks/useReviews";
 import MessageBubble from "../../components/MessageBubble";
 import MessageInput from "../../components/MessageInput";
 import { ImageMessage } from "../../components/ImageMessage";
@@ -53,6 +61,13 @@ export default function ChatScreen() {
   const flatListRef = useRef<FlatList>(null);
   const [isSending, setIsSending] = useState(false);
   const [pendingMessages, setPendingMessages] = useState<any[]>([]);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showCashUploadModal, setShowCashUploadModal] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+
+  // Review state
+  const [rating, setRating] = useState(0);
+  const [reviewComment, setReviewComment] = useState("");
 
   // Fetch conversation and messages
   const {
@@ -61,8 +76,20 @@ export default function ChatScreen() {
     refetch,
   } = useMessages(conversationId);
 
+  // Check if conversation is closed (both parties reviewed)
+  const isConversationClosed =
+    conversation?.job?.clientMarkedComplete &&
+    conversation?.job?.clientReviewed &&
+    conversation?.job?.workerReviewed;
+
   // Send message mutation
   const sendMutation = useSendMessageMutation();
+
+  // Job action mutations
+  const confirmWorkStartedMutation = useConfirmWorkStarted();
+  const markCompleteMutation = useMarkComplete();
+  const approveCompletionMutation = useApproveCompletion();
+  const submitReviewMutation = useSubmitReview();
 
   // WebSocket connection state
   const { isConnected } = useWebSocketConnection();
@@ -98,6 +125,187 @@ export default function ChatScreen() {
       }, 100);
     }
   }, [conversation?.messages.length]);
+
+  // Handle confirm work started (CLIENT only)
+  const handleConfirmWorkStarted = () => {
+    if (!conversation) return;
+
+    Alert.alert(
+      "Confirm Work Started",
+      `Are you sure the worker ${conversation.other_participant.name} has arrived and started working?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Confirm",
+          onPress: () => {
+            confirmWorkStartedMutation.mutate(conversation.job.id);
+          },
+        },
+      ]
+    );
+  };
+
+  // Handle mark complete (WORKER only)
+  const handleMarkComplete = () => {
+    if (!conversation) return;
+
+    // Check if work started was confirmed
+    if (!conversation.job.clientConfirmedWorkStarted) {
+      Alert.alert(
+        "Cannot Mark Complete",
+        "Client must confirm that work has started before you can mark it as complete.",
+        [{ text: "OK" }]
+      );
+      return;
+    }
+
+    Alert.prompt(
+      "Mark Job Complete",
+      "Add optional completion notes:",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Submit",
+          onPress: (notes?: string) => {
+            markCompleteMutation.mutate({
+              jobId: conversation.job.id,
+              notes: notes || undefined,
+            });
+          },
+        },
+      ],
+      "plain-text",
+      "",
+      "default"
+    );
+  };
+
+  // Handle approve completion (CLIENT only)
+  const handleApproveCompletion = () => {
+    if (!conversation) return;
+
+    // Calculate remaining amount (50% of total budget)
+    const remainingAmount = conversation.job.budget
+      ? (conversation.job.budget * 0.5).toFixed(2)
+      : "0.00";
+
+    Alert.alert(
+      "Approve Completion & Pay",
+      `You will need to pay the remaining 50% of the job budget:\n\n₱${remainingAmount}\n\nPlease select your payment method.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Continue",
+          onPress: () => setShowPaymentModal(true),
+        },
+      ]
+    );
+  };
+
+  // Handle payment method selection
+  const handlePaymentMethodSelect = async (
+    method: "WALLET" | "GCASH" | "CASH"
+  ) => {
+    if (!conversation) return;
+
+    setShowPaymentModal(false);
+
+    if (method === "CASH") {
+      // Show cash amount confirmation before opening upload modal
+      const remainingAmount = conversation.job.budget
+        ? (conversation.job.budget * 0.5).toFixed(2)
+        : "0.00";
+
+      Alert.alert(
+        "Cash Payment",
+        `Please pay ₱${remainingAmount} to the worker directly, then upload a photo of your payment receipt.\n\nThis proof will be stored for dispute resolution.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Upload Proof",
+            onPress: () => setShowCashUploadModal(true),
+          },
+        ]
+      );
+    } else {
+      approveCompletionMutation.mutate({
+        jobId: conversation.job.id,
+        paymentMethod: method,
+      });
+    }
+  };
+
+  // Handle cash proof image selection
+  const handleCashProofSelect = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      setSelectedImage(result.assets[0].uri);
+    }
+  };
+
+  // Handle cash proof submission
+  const handleCashProofSubmit = () => {
+    if (!conversation || !selectedImage) return;
+
+    approveCompletionMutation.mutate({
+      jobId: conversation.job.id,
+      paymentMethod: "CASH",
+      cashProofImage: selectedImage,
+    });
+
+    setShowCashUploadModal(false);
+    setSelectedImage(null);
+  };
+
+  // Handle submit review
+  const handleSubmitReview = () => {
+    if (!conversation) return;
+
+    if (rating === 0) {
+      Alert.alert("Rating Required", "Please select a star rating");
+      return;
+    }
+
+    if (!reviewComment.trim()) {
+      Alert.alert("Comment Required", "Please write a review comment");
+      return;
+    }
+
+    // Get reviewee ID based on role
+    // CLIENT reviews the assigned worker, WORKER reviews the client
+    const revieweeId =
+      conversation.my_role === "CLIENT"
+        ? conversation.job.assignedWorkerId // Worker being reviewed
+        : conversation.job.clientId; // Client being reviewed
+
+    if (!revieweeId) {
+      Alert.alert("Error", "Unable to determine who to review");
+      return;
+    }
+
+    submitReviewMutation.mutate(
+      {
+        job_id: conversation.job.id,
+        reviewee_id: revieweeId,
+        rating,
+        comment: reviewComment,
+        reviewer_type: conversation.my_role as "CLIENT" | "WORKER",
+      },
+      {
+        onSuccess: () => {
+          setRating(0);
+          setReviewComment("");
+          // Refresh conversation to update review status
+          refetch();
+        },
+      }
+    );
+  };
 
   // Handle send message
   const handleSend = useCallback(
@@ -429,33 +637,315 @@ export default function ChatScreen() {
         {/* Offline Indicator */}
         {renderOfflineIndicator()}
 
-        {/* Job Info Header */}
-        <TouchableOpacity
-          style={styles.jobHeader}
-          onPress={() => router.push(`/jobs/${conversation.job.id}`)}
-          activeOpacity={0.7}
-        >
-          <View style={styles.jobInfo}>
-            <Ionicons
-              name="briefcase-outline"
-              size={16}
-              color={Colors.primary}
-            />
-            <Text style={styles.jobTitle} numberOfLines={1}>
-              {conversation.job.title}
-            </Text>
-          </View>
-          <View style={styles.jobMeta}>
-            <Text style={styles.jobBudget}>
-              ₱{conversation.job.budget.toLocaleString()}
-            </Text>
-            <Text style={styles.jobRole}>
-              {conversation.my_role === "CLIENT"
-                ? "You're the client"
-                : "You're the worker"}
-            </Text>
-          </View>
-        </TouchableOpacity>
+        {/* Job Info Header with Action Buttons */}
+        <View style={styles.jobHeaderContainer}>
+          <TouchableOpacity
+            style={styles.jobHeader}
+            onPress={() => router.push(`/jobs/${conversation.job.id}`)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.jobInfo}>
+              <Ionicons
+                name="briefcase-outline"
+                size={16}
+                color={Colors.primary}
+              />
+              <Text style={styles.jobTitle} numberOfLines={1}>
+                {conversation.job.title}
+              </Text>
+            </View>
+            <View style={styles.jobMeta}>
+              <Text style={styles.jobBudget}>
+                ₱{conversation.job.budget.toLocaleString()}
+              </Text>
+            </View>
+          </TouchableOpacity>
+
+          {/* Action Buttons (replaces role banner) */}
+          {conversation.job.status === "IN_PROGRESS" &&
+            !conversation.job.clientMarkedComplete && (
+              <View style={styles.actionButtonsContainer}>
+                {/* CLIENT: Confirm Work Started Button */}
+                {conversation.my_role === "CLIENT" &&
+                  !conversation.job.clientConfirmedWorkStarted && (
+                    <TouchableOpacity
+                      style={[
+                        styles.actionButton,
+                        styles.confirmWorkStartedButton,
+                      ]}
+                      onPress={handleConfirmWorkStarted}
+                      disabled={confirmWorkStartedMutation.isPending}
+                    >
+                      {confirmWorkStartedMutation.isPending ? (
+                        <ActivityIndicator size="small" color={Colors.white} />
+                      ) : (
+                        <>
+                          <Ionicons
+                            name="checkmark-circle"
+                            size={20}
+                            color={Colors.white}
+                          />
+                          <Text style={styles.actionButtonText}>
+                            Confirm Worker Has Arrived
+                          </Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  )}
+
+                {/* CLIENT: Waiting for Worker to Complete */}
+                {conversation.my_role === "CLIENT" &&
+                  conversation.job.clientConfirmedWorkStarted &&
+                  !conversation.job.workerMarkedComplete && (
+                    <View style={[styles.actionButton, styles.waitingButton]}>
+                      <Ionicons
+                        name="time-outline"
+                        size={20}
+                        color={Colors.textSecondary}
+                      />
+                      <Text style={styles.waitingButtonText}>
+                        Waiting for worker to mark job complete...
+                      </Text>
+                    </View>
+                  )}
+
+                {/* WORKER: Waiting for Client Confirmation */}
+                {conversation.my_role === "WORKER" &&
+                  !conversation.job.clientConfirmedWorkStarted && (
+                    <View style={[styles.actionButton, styles.waitingButton]}>
+                      <Ionicons
+                        name="time-outline"
+                        size={20}
+                        color={Colors.textSecondary}
+                      />
+                      <Text style={styles.waitingButtonText}>
+                        Waiting for client to confirm work started...
+                      </Text>
+                    </View>
+                  )}
+
+                {/* WORKER: Mark Complete Button */}
+                {conversation.my_role === "WORKER" &&
+                  conversation.job.clientConfirmedWorkStarted &&
+                  !conversation.job.workerMarkedComplete && (
+                    <TouchableOpacity
+                      style={[styles.actionButton, styles.markCompleteButton]}
+                      onPress={handleMarkComplete}
+                      disabled={markCompleteMutation.isPending}
+                    >
+                      {markCompleteMutation.isPending ? (
+                        <ActivityIndicator size="small" color={Colors.white} />
+                      ) : (
+                        <>
+                          <Ionicons
+                            name="checkmark-done"
+                            size={20}
+                            color={Colors.white}
+                          />
+                          <Text style={styles.actionButtonText}>
+                            Mark Job Complete
+                          </Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  )}
+
+                {/* WORKER: Waiting for Client Approval */}
+                {conversation.my_role === "WORKER" &&
+                  conversation.job.workerMarkedComplete &&
+                  !conversation.job.clientMarkedComplete && (
+                    <View style={[styles.actionButton, styles.waitingButton]}>
+                      <Ionicons
+                        name="time-outline"
+                        size={20}
+                        color={Colors.textSecondary}
+                      />
+                      <Text style={styles.waitingButtonText}>
+                        Waiting for client to approve completion...
+                      </Text>
+                    </View>
+                  )}
+
+                {/* CLIENT: Approve Completion Button */}
+                {conversation.my_role === "CLIENT" &&
+                  conversation.job.workerMarkedComplete &&
+                  !conversation.job.clientMarkedComplete && (
+                    <TouchableOpacity
+                      style={[
+                        styles.actionButton,
+                        styles.approveCompletionButton,
+                      ]}
+                      onPress={handleApproveCompletion}
+                      disabled={approveCompletionMutation.isPending}
+                    >
+                      {approveCompletionMutation.isPending ? (
+                        <ActivityIndicator size="small" color={Colors.white} />
+                      ) : (
+                        <>
+                          <Ionicons
+                            name="wallet"
+                            size={20}
+                            color={Colors.white}
+                          />
+                          <Text style={styles.actionButtonText}>
+                            Approve & Pay Final Amount
+                          </Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  )}
+
+                {/* Status Messages */}
+                {conversation.job.clientConfirmedWorkStarted &&
+                  conversation.my_role === "WORKER" &&
+                  !conversation.job.workerMarkedComplete && (
+                    <Text style={styles.statusMessage}>
+                      ✓ Client confirmed work started
+                    </Text>
+                  )}
+
+                {conversation.job.workerMarkedComplete &&
+                  !conversation.job.clientMarkedComplete && (
+                    <Text style={styles.statusMessage}>
+                      {conversation.my_role === "CLIENT"
+                        ? "Worker marked job complete. Please review and approve."
+                        : "✓ Marked complete. Waiting for client approval."}
+                    </Text>
+                  )}
+
+                {conversation.job.clientMarkedComplete &&
+                  !isConversationClosed && (
+                    <Text
+                      style={[styles.statusMessage, styles.completedMessage]}
+                    >
+                      ✓ Job completed and approved!
+                    </Text>
+                  )}
+              </View>
+            )}
+
+          {/* Both Parties Reviewed - Job Fully Complete Banner */}
+          {isConversationClosed && (
+            <View style={styles.jobCompleteBanner}>
+              <Ionicons
+                name="checkmark-circle"
+                size={28}
+                color={Colors.success}
+              />
+              <View style={styles.jobCompleteTextContainer}>
+                <Text style={styles.jobCompleteTitle}>
+                  Job Completed Successfully!
+                </Text>
+                <Text style={styles.jobCompleteSubtitle}>
+                  Both parties have reviewed each other. This conversation is
+                  now closed.
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {/* Review Section - Shows after client approves completion */}
+          {conversation.job.clientMarkedComplete && !isConversationClosed && (
+            <View style={styles.reviewSection}>
+              {/* Check if current user already reviewed */}
+              {(conversation.my_role === "CLIENT" &&
+                conversation.job.clientReviewed) ||
+              (conversation.my_role === "WORKER" &&
+                conversation.job.workerReviewed) ? (
+                // User has already reviewed - show waiting or thank you message
+                <View style={styles.reviewWaitingContainer}>
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={48}
+                    color={Colors.success}
+                  />
+                  <Text style={styles.reviewWaitingTitle}>
+                    Thank you for your review!
+                  </Text>
+                  {((conversation.my_role === "CLIENT" &&
+                    !conversation.job.workerReviewed) ||
+                    (conversation.my_role === "WORKER" &&
+                      !conversation.job.clientReviewed)) && (
+                    <Text style={styles.reviewWaitingText}>
+                      Waiting for{" "}
+                      {conversation.my_role === "CLIENT" ? "worker" : "client"}{" "}
+                      to review...
+                    </Text>
+                  )}
+                </View>
+              ) : (
+                // User hasn't reviewed yet - show review form
+                <>
+                  <Text style={styles.reviewTitle}>
+                    Rate{" "}
+                    {conversation.my_role === "CLIENT" ? "Worker" : "Client"}
+                  </Text>
+                  <Text style={styles.reviewSubtitle}>
+                    How was your experience with{" "}
+                    {conversation.other_participant.name}?
+                  </Text>
+
+                  {/* Star Rating */}
+                  <View style={styles.starsContainer}>
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <TouchableOpacity
+                        key={star}
+                        onPress={() => setRating(star)}
+                        style={styles.starButton}
+                      >
+                        <Ionicons
+                          name={star <= rating ? "star" : "star-outline"}
+                          size={36}
+                          color={star <= rating ? "#FFB800" : Colors.border}
+                        />
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  {/* Review Comment Input */}
+                  <TextInput
+                    style={styles.reviewInput}
+                    placeholder="Write your review here..."
+                    placeholderTextColor={Colors.textSecondary}
+                    value={reviewComment}
+                    onChangeText={setReviewComment}
+                    multiline
+                    numberOfLines={4}
+                    textAlignVertical="top"
+                  />
+
+                  {/* Submit Review Button */}
+                  <TouchableOpacity
+                    style={[
+                      styles.submitReviewButton,
+                      (rating === 0 ||
+                        !reviewComment.trim() ||
+                        submitReviewMutation.isPending) &&
+                        styles.submitReviewButtonDisabled,
+                    ]}
+                    onPress={handleSubmitReview}
+                    disabled={
+                      rating === 0 ||
+                      !reviewComment.trim() ||
+                      submitReviewMutation.isPending
+                    }
+                  >
+                    {submitReviewMutation.isPending ? (
+                      <ActivityIndicator size="small" color={Colors.white} />
+                    ) : (
+                      <>
+                        <Ionicons name="send" size={18} color={Colors.white} />
+                        <Text style={styles.submitReviewButtonText}>
+                          Submit Review
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+          )}
+        </View>
 
         {/* Upload Progress */}
         {renderUploadProgress()}
@@ -474,13 +964,186 @@ export default function ChatScreen() {
           }}
         />
 
-        {/* Message Input */}
-        <MessageInput
-          onSend={handleSend}
-          onImagePress={handleImagePress}
-          isSending={isSending}
-        />
+        {/* Message Input or Closed Message */}
+        {isConversationClosed ? (
+          <View style={styles.conversationClosedContainer}>
+            <Ionicons
+              name="lock-closed"
+              size={20}
+              color={Colors.textSecondary}
+            />
+            <Text style={styles.conversationClosedText}>
+              This conversation has been closed. Both parties have submitted
+              reviews.
+            </Text>
+          </View>
+        ) : (
+          <MessageInput
+            onSend={handleSend}
+            onImagePress={handleImagePress}
+            isSending={isSending}
+          />
+        )}
       </KeyboardAvoidingView>
+
+      {/* Payment Method Modal */}
+      <Modal
+        visible={showPaymentModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowPaymentModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Select Payment Method</Text>
+            <Text style={styles.modalSubtitle}>
+              Choose how you want to pay the remaining 50%
+            </Text>
+
+            <TouchableOpacity
+              style={styles.paymentOption}
+              onPress={() => handlePaymentMethodSelect("WALLET")}
+            >
+              <Ionicons name="wallet" size={24} color={Colors.primary} />
+              <View style={styles.paymentOptionText}>
+                <Text style={styles.paymentOptionTitle}>Wallet</Text>
+                <Text style={styles.paymentOptionDesc}>
+                  Pay instantly from your iAyos wallet
+                </Text>
+              </View>
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={Colors.textSecondary}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.paymentOption}
+              onPress={() => handlePaymentMethodSelect("GCASH")}
+            >
+              <Ionicons name="card" size={24} color={Colors.primary} />
+              <View style={styles.paymentOptionText}>
+                <Text style={styles.paymentOptionTitle}>GCash</Text>
+                <Text style={styles.paymentOptionDesc}>
+                  Pay securely via GCash
+                </Text>
+              </View>
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={Colors.textSecondary}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.paymentOption}
+              onPress={() => handlePaymentMethodSelect("CASH")}
+            >
+              <Ionicons name="cash" size={24} color={Colors.primary} />
+              <View style={styles.paymentOptionText}>
+                <Text style={styles.paymentOptionTitle}>Cash</Text>
+                <Text style={styles.paymentOptionDesc}>
+                  Upload proof of cash payment
+                </Text>
+              </View>
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={Colors.textSecondary}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.modalCancelButton}
+              onPress={() => setShowPaymentModal(false)}
+            >
+              <Text style={styles.modalCancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Cash Upload Modal */}
+      <Modal
+        visible={showCashUploadModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => {
+          setShowCashUploadModal(false);
+          setSelectedImage(null);
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Upload Payment Proof</Text>
+            <Text style={styles.modalSubtitle}>
+              Upload a photo of your payment receipt or proof
+            </Text>
+
+            {/* Image Preview or Upload Button */}
+            {selectedImage ? (
+              <View style={styles.imagePreviewContainer}>
+                <Image
+                  source={{ uri: selectedImage }}
+                  style={styles.imagePreview}
+                  resizeMode="cover"
+                />
+                <TouchableOpacity
+                  style={styles.changeImageButton}
+                  onPress={handleCashProofSelect}
+                >
+                  <Ionicons name="refresh" size={20} color={Colors.white} />
+                  <Text style={styles.changeImageButtonText}>Change Image</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={styles.uploadButton}
+                onPress={handleCashProofSelect}
+              >
+                <Ionicons
+                  name="cloud-upload"
+                  size={32}
+                  color={Colors.primary}
+                />
+                <Text style={styles.uploadButtonText}>Select Image</Text>
+                <Text style={styles.uploadButtonDesc}>
+                  Tap to choose from gallery
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Action Buttons */}
+            <View style={styles.cashModalActions}>
+              <TouchableOpacity
+                style={styles.cashModalCancelButton}
+                onPress={() => {
+                  setShowCashUploadModal(false);
+                  setSelectedImage(null);
+                }}
+              >
+                <Text style={styles.cashModalCancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.cashModalSubmitButton,
+                  !selectedImage && styles.cashModalSubmitButtonDisabled,
+                ]}
+                onPress={handleCashProofSubmit}
+                disabled={!selectedImage || approveCompletionMutation.isPending}
+              >
+                {approveCompletionMutation.isPending ? (
+                  <ActivityIndicator size="small" color={Colors.white} />
+                ) : (
+                  <Text style={styles.cashModalSubmitButtonText}>Submit</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -560,6 +1223,65 @@ const styles = StyleSheet.create({
     ...Typography.body.small,
     fontSize: 12,
     color: Colors.textSecondary,
+  },
+  jobHeaderContainer: {
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  actionButtonsContainer: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    backgroundColor: Colors.backgroundSecondary,
+    gap: Spacing.sm,
+  },
+  actionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.medium,
+    gap: Spacing.sm,
+  },
+  confirmWorkStartedButton: {
+    backgroundColor: Colors.success,
+  },
+  markCompleteButton: {
+    backgroundColor: Colors.primary,
+  },
+  approveCompletionButton: {
+    backgroundColor: Colors.success,
+  },
+  actionButtonDisabled: {
+    backgroundColor: Colors.textSecondary,
+    opacity: 0.5,
+  },
+  actionButtonText: {
+    ...Typography.body.medium,
+    color: Colors.white,
+    fontWeight: "600",
+  },
+  waitingButton: {
+    backgroundColor: Colors.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderStyle: "dashed",
+  },
+  waitingButtonText: {
+    ...Typography.body.medium,
+    color: Colors.textSecondary,
+    fontWeight: "500",
+    fontStyle: "italic",
+  },
+  statusMessage: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+    textAlign: "center",
+    paddingVertical: Spacing.xs,
+  },
+  completedMessage: {
+    color: Colors.success,
+    fontWeight: "600",
   },
   messagesContent: {
     paddingTop: Spacing.md,
@@ -662,5 +1384,246 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.white,
     flex: 1,
+  },
+  // Payment Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: Colors.white,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.xl,
+    paddingBottom: Spacing.xl,
+  },
+  modalTitle: {
+    ...Typography.heading.h2,
+    marginBottom: Spacing.xs,
+  },
+  modalSubtitle: {
+    ...Typography.body.medium,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.lg,
+  },
+  paymentOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    backgroundColor: Colors.backgroundSecondary,
+    borderRadius: BorderRadius.medium,
+    marginBottom: Spacing.sm,
+    gap: Spacing.md,
+  },
+  paymentOptionText: {
+    flex: 1,
+  },
+  paymentOptionTitle: {
+    ...Typography.body.medium,
+    fontWeight: "600",
+    marginBottom: 2,
+  },
+  paymentOptionDesc: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+  },
+  modalCancelButton: {
+    marginTop: Spacing.md,
+    paddingVertical: Spacing.md,
+    alignItems: "center",
+  },
+  modalCancelButtonText: {
+    ...Typography.body.medium,
+    color: Colors.error,
+    fontWeight: "600",
+  },
+  // Cash Upload Modal Styles
+  uploadButton: {
+    backgroundColor: Colors.backgroundSecondary,
+    borderRadius: BorderRadius.medium,
+    borderWidth: 2,
+    borderColor: Colors.border,
+    borderStyle: "dashed",
+    paddingVertical: Spacing.xl * 2,
+    alignItems: "center",
+    marginBottom: Spacing.lg,
+  },
+  uploadButtonText: {
+    ...Typography.body.medium,
+    fontWeight: "600",
+    marginTop: Spacing.sm,
+    color: Colors.textPrimary,
+  },
+  uploadButtonDesc: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+    marginTop: 4,
+  },
+  imagePreviewContainer: {
+    marginBottom: Spacing.lg,
+  },
+  imagePreview: {
+    width: "100%",
+    height: 200,
+    borderRadius: BorderRadius.medium,
+    backgroundColor: Colors.backgroundSecondary,
+  },
+  changeImageButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.primary,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.small,
+    marginTop: Spacing.md,
+    gap: Spacing.xs,
+  },
+  changeImageButtonText: {
+    ...Typography.body.medium,
+    color: Colors.white,
+    fontWeight: "600",
+  },
+  cashModalActions: {
+    flexDirection: "row",
+    gap: Spacing.md,
+  },
+  cashModalCancelButton: {
+    flex: 1,
+    paddingVertical: Spacing.md,
+    alignItems: "center",
+    borderRadius: BorderRadius.medium,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  cashModalCancelButtonText: {
+    ...Typography.body.medium,
+    color: Colors.textSecondary,
+    fontWeight: "600",
+  },
+  cashModalSubmitButton: {
+    flex: 1,
+    paddingVertical: Spacing.md,
+    alignItems: "center",
+    borderRadius: BorderRadius.medium,
+    backgroundColor: Colors.primary,
+  },
+  cashModalSubmitButtonDisabled: {
+    backgroundColor: Colors.border,
+  },
+  cashModalSubmitButtonText: {
+    ...Typography.body.medium,
+    color: Colors.white,
+    fontWeight: "600",
+  },
+  // Review Section Styles
+  reviewSection: {
+    backgroundColor: Colors.white,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  reviewWaitingContainer: {
+    alignItems: "center",
+    paddingVertical: Spacing.xl,
+  },
+  reviewWaitingTitle: {
+    ...Typography.heading.h3,
+    color: Colors.success,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.xs,
+  },
+  reviewWaitingText: {
+    ...Typography.body.medium,
+    color: Colors.textSecondary,
+    textAlign: "center",
+  },
+  conversationClosedContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: Spacing.lg,
+    backgroundColor: "#F5F5F5",
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    gap: Spacing.sm,
+  },
+  conversationClosedText: {
+    ...Typography.body.medium,
+    color: Colors.textSecondary,
+    flex: 1,
+  },
+  jobCompleteBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#E8F5E9",
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: "#C8E6C9",
+    gap: Spacing.md,
+  },
+  jobCompleteTextContainer: {
+    flex: 1,
+  },
+  jobCompleteTitle: {
+    ...Typography.heading.h4,
+    color: Colors.success,
+    marginBottom: Spacing.xs,
+  },
+  jobCompleteSubtitle: {
+    ...Typography.body.small,
+    color: "#2E7D32",
+  },
+  reviewTitle: {
+    ...Typography.heading.h3,
+    marginBottom: Spacing.xs,
+  },
+  reviewSubtitle: {
+    ...Typography.body.medium,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.lg,
+  },
+  starsContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: Spacing.sm,
+    marginBottom: Spacing.lg,
+  },
+  starButton: {
+    padding: Spacing.xs,
+  },
+  reviewInput: {
+    ...Typography.body.medium,
+    backgroundColor: Colors.backgroundSecondary,
+    borderRadius: BorderRadius.medium,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    minHeight: 100,
+    marginBottom: Spacing.md,
+  },
+  submitReviewButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.primary,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.medium,
+    gap: Spacing.sm,
+  },
+  submitReviewButtonDisabled: {
+    backgroundColor: Colors.border,
+  },
+  submitReviewButtonText: {
+    ...Typography.body.medium,
+    color: Colors.white,
+    fontWeight: "600",
   },
 });

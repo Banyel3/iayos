@@ -893,10 +893,13 @@ def get_conversation_messages(request, conversation_id: int):
                 "status": job.status,
                 "budget": float(job.budget),
                 "location": job.location,
+                "clientConfirmedWorkStarted": job.clientConfirmedWorkStarted,
                 "workerMarkedComplete": job.workerMarkedComplete,
                 "clientMarkedComplete": job.clientMarkedComplete,
                 "workerReviewed": worker_reviewed,
-                "clientReviewed": client_reviewed
+                "clientReviewed": client_reviewed,
+                "assignedWorkerId": worker_account.accountID if worker_account else None,
+                "clientId": client_account.accountID if client_account else None
             },
             "other_participant": get_participant_info(other_participant, job.title),
             "my_role": "CLIENT" if is_client else "WORKER",

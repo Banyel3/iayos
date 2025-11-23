@@ -95,15 +95,18 @@ export default function EditClientProfileScreen() {
     setIsSaving(true);
 
     try {
-      const response = await apiRequest(ENDPOINTS.UPDATE_PROFILE, {
-        method: "PUT",
-        body: JSON.stringify({
-          first_name: formData.firstName,
-          last_name: formData.lastName,
-          contact_num: formData.contactNum,
-          birth_date: formData.birthDate || null,
-        }),
-      });
+      const response = await apiRequest(
+        ENDPOINTS.UPDATE_PROFILE(user?.profile_data?.id || 0),
+        {
+          method: "PUT",
+          body: JSON.stringify({
+            first_name: formData.firstName,
+            last_name: formData.lastName,
+            contact_num: formData.contactNum,
+            birth_date: formData.birthDate || null,
+          }),
+        }
+      );
 
       if (response.ok) {
         Alert.alert("Success", "Profile updated successfully", [
@@ -113,7 +116,7 @@ export default function EditClientProfileScreen() {
           },
         ]);
       } else {
-        const errorData = await response.json();
+        const errorData = (await response.json()) as { error?: string };
         Alert.alert("Error", errorData.error || "Failed to update profile");
       }
     } catch (error) {

@@ -81,7 +81,7 @@ export default function SearchJobsScreen() {
     queryFn: async (): Promise<{ categories: JobCategory[] }> => {
       const response = await apiRequest(ENDPOINTS.JOB_CATEGORIES);
       if (!response.ok) throw new Error("Failed to fetch categories");
-      return await response.json() as { categories: JobCategory[] };
+      return (await response.json()) as { categories: JobCategory[] };
     },
     staleTime: 1000 * 60 * 60,
   });
@@ -138,7 +138,7 @@ export default function SearchJobsScreen() {
           })
         );
         if (!response.ok) throw new Error("Search failed");
-        return await response.json() as { jobs: Job[] };
+        return (await response.json()) as { jobs: Job[] };
       }
 
       // Otherwise use search endpoint
@@ -146,7 +146,7 @@ export default function SearchJobsScreen() {
         ENDPOINTS.JOB_SEARCH(debouncedQuery, 1, 50)
       );
       if (!response.ok) throw new Error("Search failed");
-      return await response.json() as { jobs: Job[] };
+      return (await response.json()) as { jobs: Job[] };
     },
     enabled: debouncedQuery.length >= 2,
   });

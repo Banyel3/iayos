@@ -2078,7 +2078,7 @@ def delete_portfolio_endpoint(request, portfolio_id: int):
 # PHASE 8: REVIEWS & RATINGS SYSTEM
 # ===========================================================================
 
-@router.post("/reviews/submit", auth=cookie_auth, response=ReviewResponse)
+@router.post("/reviews/submit", auth=dual_auth, response=ReviewResponse)
 def submit_review_endpoint(request, payload: SubmitReviewRequest):
     """
     Submit a review for a completed job.
@@ -2090,10 +2090,18 @@ def submit_review_endpoint(request, payload: SubmitReviewRequest):
     - Rating: 1.0 to 5.0
     """
     try:
+        print(f"📝 Review submission received:")
+        print(f"   Job ID: {payload.job_id}")
+        print(f"   Reviewee ID: {payload.reviewee_id}")
+        print(f"   Rating: {payload.rating}")
+        print(f"   Comment: {payload.comment[:50]}...")
+        print(f"   Reviewer Type: {payload.reviewer_type}")
+        
         reviewer = request.auth
         review = submit_review(reviewer, payload)
         return review
     except ValueError as e:
+        print(f"❌ Validation error: {str(e)}")
         return Response(
             {"error": str(e)},
             status=400

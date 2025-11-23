@@ -1,8 +1,8 @@
-from ninja import Router, File
+from ninja import Router, File, Form
 from ninja.responses import Response
 from ninja.files import UploadedFile
-from accounts.authentication import cookie_auth, jwt_auth
-from accounts.models import ClientProfile, Specializations, Profile, WorkerProfile, JobApplication, JobPhoto, Wallet, Transaction, Job
+from accounts.authentication import cookie_auth, jwt_auth, dual_auth
+from accounts.models import ClientProfile, Specializations, Profile, WorkerProfile, JobApplication, JobPhoto, Wallet, Transaction, Job, JobLog
 from accounts.xendit_service import XenditService
 from .models import JobPosting
 # Use Job directly for type checking (JobPosting is just an alias)
@@ -2224,7 +2224,115 @@ def upload_job_image(request, job_id: int, image: UploadedFile = File(...)):  # 
         )
 
 
-@router.post("/{job_id}/mark-complete", auth=cookie_auth)
+@router.post("/{job_id}/confirm-work-started", auth=cookie_auth)
+def client_confirm_work_started(request, job_id: int):
+    """
+    Client confirms that worker has arrived and begun work
+    This must be done before worker can mark job as complete
+    """
+    try:
+        print(f"✅ Client confirming work started for job {job_id}")
+        
+        # Get client's profile
+        try:
+            client_profile = ClientProfile.objects.select_related('profileID__accountFK').get(
+                profileID__accountFK=request.auth
+            )
+        except ClientProfile.DoesNotExist:
+            return Response(
+                {"error": "Client profile not found"},
+                status=400
+            )
+        
+        # Get the job
+        try:
+            job = JobPosting.objects.select_related(
+                'assignedWorkerID__profileID__accountFK'
+            ).get(jobID=job_id)
+        except JobPosting.DoesNotExist:
+            return Response(
+                {"error": "Job not found"},
+                status=404
+            )
+        
+        # Verify client owns this job
+        if job.clientID.profileID.profileID != client_profile.profileID.profileID:
+            return Response(
+                {"error": "You are not the client for this job"},
+                status=403
+            )
+        
+        # Verify job is in progress
+        if job.status != "IN_PROGRESS":
+            return Response(
+                {"error": f"Job must be IN_PROGRESS. Current status: {job.status}"},
+                status=400
+            )
+        
+        # Check if already confirmed
+        if job.clientConfirmedWorkStarted:
+            return Response(
+                {"error": "Work start has already been confirmed"},
+                status=400
+            )
+        
+        # Confirm work has started
+        job.clientConfirmedWorkStarted = True
+        job.clientConfirmedWorkStartedAt = timezone.now()
+        job.save()
+
+        print(f"✅ Client confirmed work started for job {job_id}")
+        
+        # Log this action for admin verification and audit trail
+        confirmation_time = timezone.now()
+        JobLog.objects.create(
+            jobID=job,
+            notes=f"[{confirmation_time.strftime('%Y-%m-%d %I:%M:%S %p')}] Client {client_profile.profileID.firstName} {client_profile.profileID.lastName} confirmed that worker has arrived and work has started",
+            changedBy=request.auth,
+            oldStatus=job.status,
+            newStatus=job.status  # Status stays IN_PROGRESS
+        )
+
+        # Create notification for the worker
+        from accounts.models import Notification
+        client_name = f"{client_profile.profileID.firstName} {client_profile.profileID.lastName}"
+        if job.assignedWorkerID:
+            Notification.objects.create(
+                accountFK=job.assignedWorkerID.profileID.accountFK,
+                notificationType="WORK_STARTED_CONFIRMED",
+                title=f"Work Start Confirmed",
+                message=f"{client_name} has confirmed you have arrived and started work on '{job.title}'. You can now mark the job as complete when finished.",
+                relatedJobID=job.jobID
+            )
+            print(f"📬 Work started notification sent to worker {job.assignedWorkerID.profileID.accountFK.email}")
+
+        # Broadcast job status update via WebSocket
+        broadcast_job_status_update(job_id, {
+            'event': 'work_started_confirmed',
+            'job_id': job_id,
+            'client_confirmed_work_started': True,
+            'timestamp': timezone.now().isoformat()
+        })
+        
+        return {
+            "success": True,
+            "message": "Work start confirmed. Worker can now mark job as complete.",
+            "job_id": job_id,
+            "client_confirmed_work_started": True,
+            "client_confirmed_work_started_at": job.clientConfirmedWorkStartedAt.isoformat()
+        }
+        
+    except Exception as e:
+        print(f"❌ Error confirming work started: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": f"Failed to confirm work started: {str(e)}"},
+            status=500
+        )
+
+
+@router.post("/{job_id}/mark-complete", auth=dual_auth)
 def worker_mark_job_complete(request, job_id: int):
     """
     Worker marks the job as complete (phase 1 of two-phase completion)
@@ -2234,10 +2342,25 @@ def worker_mark_job_complete(request, job_id: int):
     try:
         print(f"✅ Worker marking job {job_id} as complete")
         
-        # Get worker's profile
+        # Get worker's profile (support dual profiles via profile_type in JWT)
+        profile_type = getattr(request.auth, 'profile_type', 'WORKER')
         try:
+            profile = Profile.objects.filter(
+                accountFK=request.auth,
+                profileType=profile_type
+            ).first()
+            
+            if not profile:
+                profile = Profile.objects.filter(accountFK=request.auth, profileType='WORKER').first()
+            
+            if not profile:
+                return Response(
+                    {"error": "Worker profile not found"},
+                    status=400
+                )
+            
             worker_profile = WorkerProfile.objects.select_related('profileID__accountFK').get(
-                profileID__accountFK=request.auth
+                profileID=profile
             )
         except WorkerProfile.DoesNotExist:
             return Response(
@@ -2268,6 +2391,13 @@ def worker_mark_job_complete(request, job_id: int):
                 status=400
             )
         
+        # CRITICAL: Check if client has confirmed work started
+        if not job.clientConfirmedWorkStarted:
+            return Response(
+                {"error": "Client must confirm that work has started before you can mark it as complete"},
+                status=400
+            )
+        
         # Check if already marked complete by worker
         if job.workerMarkedComplete:
             return Response(
@@ -2281,6 +2411,17 @@ def worker_mark_job_complete(request, job_id: int):
         job.save()
 
         print(f"✅ Worker marked job {job_id} as complete. Waiting for client approval.")
+        
+        # Log this action for admin verification and audit trail
+        completion_time = timezone.now()
+        notes_text = data.notes if data.notes else "No completion notes provided"
+        JobLog.objects.create(
+            jobID=job,
+            notes=f"[{completion_time.strftime('%Y-%m-%d %I:%M:%S %p')}] Worker {worker_profile.profileID.firstName} {worker_profile.profileID.lastName} marked job as complete. Notes: {notes_text}",
+            changedBy=request.auth,
+            oldStatus=job.status,
+            newStatus=job.status  # Status stays IN_PROGRESS until client approves
+        )
 
         # Create notification for the client
         from accounts.models import Notification
@@ -2323,34 +2464,60 @@ def worker_mark_job_complete(request, job_id: int):
         )
 
 
-@router.post("/{job_id}/approve-completion", auth=cookie_auth)
-def client_approve_job_completion(request, job_id: int, data: ApproveJobCompletionSchema):
+@router.post("/{job_id}/approve-completion", auth=dual_auth)
+def client_approve_job_completion(
+    request,
+    job_id: int,
+    payment_method: str = Form("WALLET"),
+    cash_proof_image: UploadedFile = File(None)
+):
     """
     Client approves job completion and selects payment method
-    Payment methods: GCASH (online) or CASH (manual with proof upload)
+    Payment methods: WALLET, GCASH, or CASH (with proof upload)
     
-    Request body (optional):
-    {
-        "payment_method": "GCASH" | "CASH"  // Optional, defaults to GCASH
-    }
+    Form data:
+    - payment_method: "WALLET" | "GCASH" | "CASH" (required)
+    - cash_proof_image: file upload (required if payment_method is CASH)
     """
     try:
         print(f"✅ Client approving job {job_id} completion")
         
-        # Get payment method from request body (default to WALLET)
-        payment_method = data.payment_method.upper() if data.payment_method else 'WALLET'
-        if payment_method not in ['WALLET', 'GCASH', 'CASH']:
+        # Get payment method from form data (default to WALLET)
+        payment_method_upper = payment_method.upper() if payment_method else 'WALLET'
+        if payment_method_upper not in ['WALLET', 'GCASH', 'CASH']:
             return Response(
                 {"error": "Invalid payment method. Choose WALLET, GCASH, or CASH"},
                 status=400
             )
         
-        print(f"💳 Payment method selected: {payment_method}")
+        print(f"💳 Payment method selected: {payment_method_upper}")
         
-        # Get client's profile
+        # If CASH payment, validate proof image was uploaded
+        if payment_method_upper == 'CASH' and not cash_proof_image:
+            return Response(
+                {"error": "Cash proof image is required for CASH payment method"},
+                status=400
+            )
+        
+        # Get client's profile (support dual profiles via profile_type in JWT)
+        profile_type = getattr(request.auth, 'profile_type', 'CLIENT')
         try:
+            profile = Profile.objects.filter(
+                accountFK=request.auth,
+                profileType=profile_type
+            ).first()
+            
+            if not profile:
+                profile = Profile.objects.filter(accountFK=request.auth, profileType='CLIENT').first()
+            
+            if not profile:
+                return Response(
+                    {"error": "Client profile not found"},
+                    status=400
+                )
+            
             client_profile = ClientProfile.objects.select_related('profileID__accountFK').get(
-                profileID__accountFK=request.auth
+                profileID=profile
             )
         except ClientProfile.DoesNotExist:
             return Response(
@@ -2397,14 +2564,74 @@ def client_approve_job_completion(request, job_id: int, data: ApproveJobCompleti
                 status=400
             )
         
+        # Upload cash proof image to Supabase if provided
+        cash_proof_url = None
+        if payment_method_upper == 'CASH' and cash_proof_image:
+            try:
+                from django.conf import settings
+                from datetime import datetime
+                import uuid
+                
+                # Read file content
+                file_content = cash_proof_image.read()
+                file_extension = cash_proof_image.name.split('.')[-1] if '.' in cash_proof_image.name else 'jpg'
+                
+                # Create organized path: users/{user_id}/jobs/{job_id}/proof/cash_proof_{timestamp}.{ext}
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                unique_id = str(uuid.uuid4())[:8]
+                file_path = f"users/{request.auth.accountID}/jobs/{job_id}/proof/cash_proof_{timestamp}_{unique_id}.{file_extension}"
+                
+                print(f"📤 Uploading cash proof to Supabase: {file_path}")
+                
+                # Upload to Supabase storage using settings.SUPABASE
+                response = settings.SUPABASE.storage().from_('user-uploads').upload(
+                    file_path,
+                    file_content,
+                    {
+                        'content-type': cash_proof_image.content_type or 'image/jpeg',
+                        'upsert': 'true'
+                    }
+                )
+                
+                # Get public URL
+                cash_proof_url = settings.SUPABASE.storage().from_('user-uploads').get_public_url(file_path)
+                print(f"✅ Cash proof uploaded successfully: {cash_proof_url}")
+                
+            except Exception as e:
+                print(f"❌ Failed to upload cash proof image: {str(e)}")
+                import traceback
+                traceback.print_exc()
+                return Response(
+                    {"error": f"Failed to upload cash proof image: {str(e)}"},
+                    status=500
+                )
+        
         # Mark as complete by client and save payment method
+        old_status = job.status
         job.clientMarkedComplete = True
         job.clientMarkedCompleteAt = timezone.now()
-        job.finalPaymentMethod = payment_method
+        job.finalPaymentMethod = payment_method_upper
         job.paymentMethodSelectedAt = timezone.now()
+        
+        # Save cash proof URL if provided
+        if cash_proof_url:
+            job.cashPaymentProofUrl = cash_proof_url
+            job.cashProofUploadedAt = timezone.now()
+        
+        job.status = "COMPLETED"
         job.save()
 
-        print(f"✅ Client approved job {job_id} completion with {payment_method} payment.")
+        print(f"✅ Client approved job {job_id} completion with {payment_method_upper} payment.")
+        
+        # Log this action for admin verification and audit trail
+        approval_time = timezone.now()
+        JobLog.objects.create(
+            jobID=job,
+            notes=f"[{approval_time.strftime('%Y-%m-%d %I:%M:%S %p')}] Client {client_profile.profileID.firstName} {client_profile.profileID.lastName} approved job completion. Payment method: {payment_method_upper}. Status changed to COMPLETED.",
+            changedBy=request.auth,
+            oldStatus=old_status,
+            newStatus="COMPLETED"
+        )
 
         # Create notification for the worker
         from accounts.models import Notification
@@ -2425,7 +2652,7 @@ def client_approve_job_completion(request, job_id: int, data: ApproveJobCompleti
             'job_id': job_id,
             'worker_marked_complete': True,
             'client_marked_complete': True,
-            'payment_method': payment_method,
+            'payment_method': payment_method_upper,
             'timestamp': timezone.now().isoformat()
         })
         
@@ -2439,7 +2666,7 @@ def client_approve_job_completion(request, job_id: int, data: ApproveJobCompleti
                 "worker_marked_complete": job.workerMarkedComplete,
                 "client_marked_complete": job.clientMarkedComplete,
                 "status": job.status,
-                "payment_method": payment_method,
+                "payment_method": payment_method_upper,
                 "requires_payment": False,
                 "payment_already_completed": True,
                 "prompt_review": True,
@@ -2534,20 +2761,20 @@ def client_approve_job_completion(request, job_id: int, data: ApproveJobCompleti
                 }
             
             # Handle CASH payment (manual with proof upload)
-            if payment_method == 'CASH':
-                print(f"💵 Cash payment selected - client needs to upload proof")
+            if payment_method_upper == 'CASH':
+                print(f"💵 Cash payment selected - proof uploaded to {cash_proof_url}")
                 return {
                     "success": True,
-                    "message": "Job completion approved! Please upload proof of cash payment.",
+                    "message": "Job completion approved! Cash payment proof uploaded successfully. You can now leave a review.",
                     "job_id": job_id,
                     "worker_marked_complete": job.workerMarkedComplete,
                     "client_marked_complete": job.clientMarkedComplete,
                     "status": job.status,
                     "payment_method": "CASH",
-                    "requires_payment": True,
-                    "requires_proof_upload": True,
+                    "requires_payment": False,
+                    "cash_proof_uploaded": True,
                     "payment_amount": float(remaining_amount),
-                    "prompt_review": False,  # Only after admin approves proof
+                    "prompt_review": True,  # Client can review immediately after upload
                     "worker_id": job.assignedWorkerID.profileID.accountFK.accountID if job.assignedWorkerID else None
                 }
             

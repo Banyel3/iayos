@@ -19,6 +19,7 @@ Replace all `fetch()` calls with `apiRequest()` helper which automatically:
 ### ✅ ALREADY FIXED
 
 **All Hooks** (8 files, 21 fetch calls):
+
 - [x] `lib/hooks/useMessages.ts` - conversation messages & image upload
 - [x] `lib/hooks/useWebSocket.ts` - HTTP fallback for sending messages
 - [x] `lib/hooks/useKYC.ts` - KYC status & history (2 calls)
@@ -30,6 +31,7 @@ Replace all `fetch()` calls with `apiRequest()` helper which automatically:
 - [x] `lib/hooks/useCertifications.ts` - Already using apiRequest
 
 **All Components** (12 files, ~20 fetch calls):
+
 - [x] `app/kyc/upload.tsx` - KYC document upload (FormData)
 - [x] `app/profile/avatar.tsx` - Profile & avatar operations
 - [x] `app/profile/index.tsx` - Profile fetch

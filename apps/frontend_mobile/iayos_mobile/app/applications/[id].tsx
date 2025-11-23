@@ -140,7 +140,9 @@ export default function ApplicationDetailScreen() {
   } = useQuery<ApplicationDetail>({
     queryKey: ["application-detail", id],
     queryFn: async () => {
-      const response = await apiRequest(ENDPOINTS.APPLICATION_DETAIL(Number(id)));
+      const response = await apiRequest(
+        ENDPOINTS.APPLICATION_DETAIL(Number(id))
+      );
       if (!response.ok) {
         throw new Error("Failed to fetch application details");
       }
@@ -152,9 +154,12 @@ export default function ApplicationDetailScreen() {
   // Withdraw application mutation
   const withdrawMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest(ENDPOINTS.WITHDRAW_APPLICATION(Number(id)), {
-        method: "DELETE",
-      });
+      const response = await apiRequest(
+        ENDPOINTS.WITHDRAW_APPLICATION(Number(id)),
+        {
+          method: "DELETE",
+        }
+      );
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.message || "Failed to withdraw application");

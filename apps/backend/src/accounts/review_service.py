@@ -53,7 +53,7 @@ def submit_review(reviewer: Accounts, payload: SubmitReviewRequest) -> ReviewRes
 
     # Validate reviewer is part of the job
     is_client = job.clientID.profileID.accountFK.accountID == reviewer.accountID
-    is_worker = job.workerID and job.workerID.profileID.accountFK.accountID == reviewer.accountID
+    is_worker = job.assignedWorkerID and job.assignedWorkerID.profileID.accountFK.accountID == reviewer.accountID
 
     if not (is_client or is_worker):
         raise ValueError("You are not part of this job")

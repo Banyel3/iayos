@@ -28,6 +28,7 @@ import { ImageViewer } from "@/components/ImageViewer";
 import CertificationCard from "@/components/CertificationCard";
 import MaterialCard from "@/components/MaterialCard";
 import LocationButton from "@/components/LocationButton";
+import { ReviewsSection } from "@/components/ReviewsSection";
 import {
   usePortfolioManagement,
   type PortfolioImage,
@@ -681,6 +682,9 @@ export default function ProfileScreen() {
           </>
         )}
       </View>
+
+      {/* Reviews Section */}
+      <ReviewsSection accountId={user?.accountID || 0} profileType="WORKER" />
 
       {/* Image Viewer Modal */}
       <ImageViewer
