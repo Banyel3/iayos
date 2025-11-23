@@ -40,6 +40,9 @@ interface BackendWorker {
   bio?: string;
   hourly_rate?: number;
   availability_status: string;
+  average_rating?: number;
+  review_count?: number;
+  completed_jobs?: number;
   specializations: Array<{ id: number; name: string }>;
   total_earning?: number;
   distance_km?: number;
@@ -101,8 +104,8 @@ export function useWorkers(
           id: worker.worker_id,
           name: worker.name,
           avatar: worker.profile_img,
-          rating: 0, // TODO: Get from reviews
-          completedJobs: 0, // TODO: Get from jobs
+          rating: worker.average_rating || 0,
+          completedJobs: worker.completed_jobs || 0,
           categories: worker.specializations.map((s) => s.name),
           hourlyRate: worker.hourly_rate,
           distance: worker.distance_km,
@@ -158,8 +161,8 @@ export function useInfiniteWorkers(filters: Omit<WorkerFilters, "page"> = {}) {
           id: worker.worker_id,
           name: worker.name,
           avatar: worker.profile_img,
-          rating: 0, // TODO: Get from reviews
-          completedJobs: 0, // TODO: Get from jobs
+          rating: worker.average_rating || 0,
+          completedJobs: worker.completed_jobs || 0,
           categories: worker.specializations.map((s) => s.name),
           hourlyRate: worker.hourly_rate,
           distance: worker.distance_km,

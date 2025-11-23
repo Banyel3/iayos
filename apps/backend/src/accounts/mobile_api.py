@@ -896,6 +896,42 @@ def mobile_create_invite_job(request, payload: CreateInviteJobMobileSchema):
         )
 
 
+@mobile_router.delete("/jobs/{job_id}", auth=jwt_auth)
+def mobile_delete_job(request, job_id: int):
+    """
+    Delete a job posting (only if not in progress)
+    - Only client who created the job can delete it
+    - Cannot delete if status is IN_PROGRESS
+    - Fully removes from database
+    """
+    from .mobile_services import delete_mobile_job
+
+    print("="*80)
+    print(f"🗑️  [MOBILE DELETE JOB] Endpoint HIT!")
+    print(f"   Job ID: {job_id}")
+    print(f"   User: {request.auth.email}")
+    print("="*80)
+    
+    try:
+        result = delete_mobile_job(job_id=job_id, user=request.auth)
+        
+        if result['success']:
+            return {"message": result.get('message', 'Job deleted successfully')}
+        else:
+            return Response(
+                {"error": result.get('error', 'Failed to delete job')},
+                status=400
+            )
+    except Exception as e:
+        print(f"❌ Mobile delete job error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to delete job"},
+            status=500
+        )
+
+
 @mobile_router.get("/jobs/search", auth=jwt_auth)
 def mobile_job_search(request, query: str, page: int = 1, limit: int = 20):
     """

@@ -21,6 +21,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { ENDPOINTS } from "@/lib/api/config";
+import { JobCardSkeleton } from "@/components/ui/SkeletonLoader";
 
 interface Job {
   job_id: number;
@@ -271,9 +272,10 @@ export default function CategoryJobsScreen() {
 
       {/* Jobs List */}
       {isLoading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>Loading jobs...</Text>
+        <View style={styles.listContainer}>
+          {[1, 2, 3, 4, 5].map((i) => (
+            <JobCardSkeleton key={i} />
+          ))}
         </View>
       ) : error ? (
         <View style={styles.errorContainer}>

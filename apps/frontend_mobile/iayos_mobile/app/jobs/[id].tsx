@@ -27,6 +27,7 @@ import InlineLoader from "@/components/ui/InlineLoader";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ENDPOINTS, apiRequest } from "@/lib/api/config";
 import { SaveButton } from "@/components/SaveButton";
+import { JobDetailSkeleton } from "@/components/ui/SkeletonLoader";
 
 const { width } = Dimensions.get("window");
 
@@ -54,6 +55,7 @@ interface JobDetail {
   distance: number;
   status: "ACTIVE" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED" | string;
   postedBy: {
+    id: number;
     name: string;
     avatar: string;
     rating: number;
@@ -159,11 +161,19 @@ export default function JobDetailScreen() {
         location: jobData.location,
         distance: jobData.distance || 0,
         status: jobData.status,
-        postedBy: jobData.client || {
-          name: "Unknown Client",
-          avatar: null,
-          rating: 0,
-        },
+        postedBy: jobData.client
+          ? {
+              id: jobData.client.id,
+              name: jobData.client.name,
+              avatar: jobData.client.avatar,
+              rating: jobData.client.rating,
+            }
+          : {
+              id: 0,
+              name: "Unknown Client",
+              avatar: null,
+              rating: 0,
+            },
         postedAt: jobData.created_at
           ? new Date(jobData.created_at).toLocaleDateString()
           : "Recently",
@@ -256,6 +266,58 @@ export default function JobDetailScreen() {
     },
   });
 
+  // Delete job mutation (for clients only)
+  const deleteJobMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest(ENDPOINTS.DELETE_JOB(parseInt(id)), {
+        method: "DELETE",
+      });
+      return response;
+    },
+    onSuccess: () => {
+      Alert.alert("Deleted", "Job request has been deleted successfully.", [
+        {
+          text: "OK",
+          onPress: () => router.replace("/"),
+        },
+      ]);
+      queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      queryClient.invalidateQueries({ queryKey: ["myJobs"] });
+    },
+    onError: (error: any) => {
+      Alert.alert(
+        "Error",
+        error?.message || "Failed to delete job. Please try again."
+      );
+    },
+  });
+
+  const handleDeleteJob = () => {
+    if (job?.status === "IN_PROGRESS") {
+      Alert.alert(
+        "Cannot Delete",
+        "You cannot delete a job that is currently in progress."
+      );
+      return;
+    }
+
+    Alert.alert(
+      "Delete Job Request",
+      "Are you sure you want to delete this job request? This action cannot be undone.",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => deleteJobMutation.mutate(),
+        },
+      ]
+    );
+  };
+
   const handleApply = () => {
     if (!job) return;
 
@@ -306,8 +368,30 @@ export default function JobDetailScreen() {
     }
   };
 
+  // Show skeleton while loading
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backIconButton}
+          >
+            <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Job Details</Text>
+          <View style={{ width: 24 }} />
+        </View>
+        <ScrollView showsVerticalScrollIndicator={false}>
+          <JobDetailSkeleton />
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
   // Show inline loader instead of full screen
-  const showLoader = isLoading;
+  const showLoader = false; // Removed since we use skeleton now
 
   // Handle invalid job ID
   if (!isValidJobId) {
@@ -409,16 +493,37 @@ export default function JobDetailScreen() {
           <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Job Details</Text>
-        <SaveButton
-          jobId={parseInt(id)}
-          isSaved={isSaved}
-          size={24}
-          onToggle={setIsSaved}
-        />
+        <View style={styles.headerRight}>
+          {user?.accountID === job.postedBy?.id &&
+            job.status !== "IN_PROGRESS" &&
+            job.status !== "COMPLETED" && (
+              <TouchableOpacity
+                onPress={handleDeleteJob}
+                style={styles.deleteButton}
+                disabled={deleteJobMutation.isPending}
+              >
+                {deleteJobMutation.isPending ? (
+                  <ActivityIndicator size="small" color={Colors.error} />
+                ) : (
+                  <Ionicons
+                    name="trash-outline"
+                    size={24}
+                    color={Colors.error}
+                  />
+                )}
+              </TouchableOpacity>
+            )}
+          <SaveButton
+            jobId={parseInt(id)}
+            isSaved={isSaved}
+            size={24}
+            onToggle={setIsSaved}
+          />
+        </View>
       </View>
 
       {/* Inline Loader */}
-      {showLoader && <InlineLoader text="Loading job details..." />}
+      {/* Removed - now using skeleton loader above */}
 
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Job Header */}
@@ -1219,5 +1324,14 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.base,
     fontWeight: "600",
     color: Colors.white,
+  },
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  deleteButton: {
+    padding: Spacing.xs,
+    marginRight: Spacing.xs,
   },
 });

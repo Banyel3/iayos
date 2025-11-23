@@ -35,8 +35,18 @@ export default function WorkerCard({ worker, onPress }: WorkerCardProps) {
           </Text>
           <View style={styles.ratingRow}>
             <Ionicons name="star" size={14} color="#F59E0B" />
-            <Text style={styles.rating}>{worker.rating.toFixed(1)}</Text>
-            <Text style={styles.jobs}>• {worker.completedJobs} jobs</Text>
+            <Text style={styles.rating}>
+              {typeof worker.rating === "number"
+                ? worker.rating.toFixed(1)
+                : "0.0"}
+            </Text>
+            <Text style={styles.jobs}>
+              {" • "}
+              {typeof worker.completedJobs === "number"
+                ? worker.completedJobs
+                : 0}{" "}
+              jobs
+            </Text>
           </View>
         </View>
         {worker.isAvailable && (
@@ -53,38 +63,41 @@ export default function WorkerCard({ worker, onPress }: WorkerCardProps) {
         </Text>
       )}
 
-      <View style={styles.categories}>
-        {worker.categories.slice(0, 3).map((category, index) => (
-          <View key={index} style={styles.categoryChip}>
-            <Text style={styles.categoryText}>{category}</Text>
-          </View>
-        ))}
-        {worker.categories.length > 3 && (
-          <Text style={styles.moreCategories}>
-            +{worker.categories.length - 3}
-          </Text>
-        )}
-      </View>
+      {worker.categories && worker.categories.length > 0 && (
+        <View style={styles.categories}>
+          {worker.categories.slice(0, 3).map((category, index) => (
+            <View key={index} style={styles.categoryChip}>
+              <Text style={styles.categoryText}>{category}</Text>
+            </View>
+          ))}
+          {worker.categories.length > 3 && (
+            <Text style={styles.moreCategories}>
+              +{worker.categories.length - 3}
+            </Text>
+          )}
+        </View>
+      )}
 
       <View style={styles.footer}>
-        {worker.hourlyRate && (
+        {worker.hourlyRate && typeof worker.hourlyRate === "number" && (
           <View style={styles.rateSection}>
             <Ionicons name="cash-outline" size={16} color={Colors.primary} />
             <Text style={styles.rate}>₱{worker.hourlyRate}/hr</Text>
           </View>
         )}
-        {worker.distance !== undefined && (
-          <View style={styles.distanceSection}>
-            <Ionicons
-              name="location-outline"
-              size={16}
-              color={Colors.textSecondary}
-            />
-            <Text style={styles.distance}>
-              {worker.distance.toFixed(1)} km away
-            </Text>
-          </View>
-        )}
+        {worker.distance !== undefined &&
+          typeof worker.distance === "number" && (
+            <View style={styles.distanceSection}>
+              <Ionicons
+                name="location-outline"
+                size={16}
+                color={Colors.textSecondary}
+              />
+              <Text style={styles.distance}>
+                {worker.distance.toFixed(1)} km away
+              </Text>
+            </View>
+          )}
       </View>
     </TouchableOpacity>
   );

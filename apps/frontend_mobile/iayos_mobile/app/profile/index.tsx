@@ -34,6 +34,7 @@ import {
 } from "@/lib/hooks/usePortfolioManagement";
 import { useCertifications } from "@/lib/hooks/useCertifications";
 import { useMaterials } from "@/lib/hooks/useMaterials";
+import { ProfileSkeleton } from "@/components/ui/SkeletonLoader";
 
 // ===== TYPES =====
 
@@ -200,10 +201,9 @@ export default function ProfileScreen() {
   // ===== LOADING STATE =====
   if (isLoading) {
     return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color={Colors.primary} />
-        <Text style={styles.loadingText}>Loading profile...</Text>
-      </View>
+      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+        <ProfileSkeleton />
+      </ScrollView>
     );
   }
 

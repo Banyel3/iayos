@@ -44,6 +44,8 @@ export const ENDPOINTS = {
   MY_JOBS: `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/my-jobs`,
   JOB_DETAILS: (id: number) =>
     `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/${id}`,
+  DELETE_JOB: (id: number) =>
+    `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/${id}`,
   APPLY_JOB: (id: number) => `${API_BASE_URL}/jobs/${id}/apply`,
   MY_APPLICATIONS: `${API_BASE_URL}/jobs/my-applications`,
   MARK_COMPLETE: (id: number) => `${API_BASE_URL}/jobs/${id}/mark-complete`,

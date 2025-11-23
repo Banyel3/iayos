@@ -90,7 +90,7 @@ def get_mobile_job_list(
 
         # Apply filters
         if category_id:
-            queryset = queryset.filter(category_id=category_id)
+            queryset = queryset.filter(categoryID=category_id)
 
         if min_budget:
             queryset = queryset.filter(budget__gte=min_budget)
@@ -99,12 +99,7 @@ def get_mobile_job_list(
             queryset = queryset.filter(budget__lte=max_budget)
 
         if location:
-            queryset = queryset.filter(
-                Q(location__icontains=location) |
-                Q(street_address__icontains=location) |
-                Q(city__icontains=location) |
-                Q(province__icontains=location)
-            )
+            queryset = queryset.filter(location__icontains=location)
 
         # Optimize queries with select_related and prefetch_related
         queryset = queryset.select_related(
@@ -244,13 +239,26 @@ def get_mobile_job_detail(job_id: int, user: Accounts) -> Dict[str, Any]:
         print(f"   Job status: {job.status}")
         print(f"   Client Profile ID: {job.clientID.profileID.accountFK.accountID if job.clientID else 'None'}")
 
-        # Get client info
+        # Get client info with dynamic rating
         client_profile = job.clientID.profileID
+        client_account = job.clientID.profileID.accountFK
+        
+        # Calculate client average rating from reviews where they were reviewed
+        from .models import JobReview
+        from django.db.models import Avg
+        client_reviews = JobReview.objects.filter(
+            revieweeID=client_account,
+            reviewerType='WORKER',  # Reviews from workers about this client
+            status='ACTIVE'
+        )
+        client_avg_rating = client_reviews.aggregate(Avg('rating'))['rating__avg']
+        client_rating = float(client_avg_rating) if client_avg_rating else 0.0
+        
         client_data = {
             'id': job.clientID.profileID.accountFK.accountID,
             'name': f"{client_profile.firstName} {client_profile.lastName}" if client_profile else "Unknown",
             'avatar': client_profile.profileImg if client_profile and client_profile.profileImg else None,
-            'rating': 0.0,  # TODO: Calculate from reviews
+            'rating': round(client_rating, 2),
         }
 
         # Get job photos
@@ -310,13 +318,24 @@ def get_mobile_job_detail(job_id: int, user: Accounts) -> Dict[str, Any]:
             # Use the assignedWorkerID directly from the job
             try:
                 worker_profile = job.assignedWorkerID.profileID
+                worker_account = worker_profile.accountFK
+                
+                # Calculate worker average rating from reviews where they were reviewed
+                worker_reviews = JobReview.objects.filter(
+                    revieweeID=worker_account,
+                    reviewerType='CLIENT',  # Reviews from clients about this worker
+                    status='ACTIVE'
+                )
+                worker_avg_rating = worker_reviews.aggregate(Avg('rating'))['rating__avg']
+                worker_rating = float(worker_avg_rating) if worker_avg_rating else 0.0
+                
                 assigned_worker = {
                     'id': job.assignedWorkerID.id,
                     'name': f"{worker_profile.firstName} {worker_profile.lastName}" if worker_profile else "Unknown",
                     'avatar': worker_profile.profileImg if worker_profile and worker_profile.profileImg else None,
-                    'rating': float(job.assignedWorkerID.workerRating) if job.assignedWorkerID.workerRating else 0.0,
+                    'rating': round(worker_rating, 2),
                 }
-                print(f"   ✓ Assigned worker: {assigned_worker['name']}")
+                print(f"   ✓ Assigned worker: {assigned_worker['name']}, Rating: {worker_rating:.2f}")
             except Exception as e:
                 print(f"   ⚠️ Could not fetch assigned worker: {str(e)}")
 
@@ -894,6 +913,91 @@ def create_mobile_invite_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[s
         }
 
 
+def delete_mobile_job(job_id: int, user: Accounts) -> Dict[str, Any]:
+    """
+    Delete a job posting (only if not in progress)
+    - Only the client who created the job can delete it
+    - Cannot delete if status is IN_PROGRESS
+    - Fully removes job and related data from database
+    """
+    try:
+        from .models import Job as JobPosting, Profile, ClientProfile, JobApplication, Transaction, Notification
+        from django.db import transaction as db_transaction
+        
+        print(f"🗑️  [DELETE JOB] Starting deletion process...")
+        print(f"   Job ID: {job_id}, User: {user.email}")
+        
+        # Get the job
+        try:
+            job = JobPosting.objects.select_related(
+                'clientID__profileID__accountFK'
+            ).get(jobID=job_id)
+            print(f"   ✓ Job found: {job.title}, Status: {job.status}")
+        except JobPosting.DoesNotExist:
+            return {'success': False, 'error': 'Job not found'}
+        
+        # Verify user is the client who posted the job
+        job_owner_account = job.clientID.profileID.accountFK
+        if job_owner_account.accountID != user.accountID:
+            print(f"   ❌ Permission denied - User {user.accountID} is not job owner {job_owner_account.accountID}")
+            return {'success': False, 'error': 'You can only delete your own job postings'}
+        
+        # Check if job is in progress
+        if job.status == 'IN_PROGRESS':
+            print(f"   ❌ Cannot delete - Job is IN_PROGRESS")
+            return {
+                'success': False,
+                'error': 'Cannot delete job that is in progress. Please complete or cancel the job first.'
+            }
+        
+        # Begin atomic transaction to delete job and related data
+        with db_transaction.atomic():
+            job_title = job.title
+            
+            # Delete related job applications
+            applications_deleted = JobApplication.objects.filter(jobID=job).delete()
+            print(f"   🗑️  Deleted {applications_deleted[0]} job applications")
+            
+            # Delete related notifications
+            notifications_deleted = Notification.objects.filter(relatedJobID=job.jobID).delete()
+            print(f"   🗑️  Deleted {notifications_deleted[0]} notifications")
+            
+            # Note: Transactions related to this job are kept for financial records
+            # but we can update their status or add a note
+            transactions = Transaction.objects.filter(relatedJobID=job)
+            transaction_count = transactions.count()
+            if transaction_count > 0:
+                # Update transaction descriptions to indicate job was deleted
+                transactions.update(
+                    description=f"[JOB DELETED] {job.title}"
+                )
+                print(f"   📝 Updated {transaction_count} transaction descriptions")
+            
+            # Delete the job photos (if any)
+            photos_deleted = 0
+            if hasattr(job, 'photos'):
+                photos_deleted = job.photos.all().delete()[0]
+                print(f"   🗑️  Deleted {photos_deleted} job photos")
+            
+            # Finally, delete the job itself
+            job.delete()
+            print(f"   ✅ Job '{job_title}' deleted successfully")
+        
+        return {
+            'success': True,
+            'message': f"Job '{job_title}' has been deleted successfully"
+        }
+    
+    except Exception as e:
+        print(f"❌ Delete job error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {
+            'success': False,
+            'error': f'Failed to delete job: {str(e)}'
+        }
+
+
 def search_mobile_jobs(query: str, user: Accounts, page: int = 1, limit: int = 20) -> Dict[str, Any]:
     """
     Search jobs with fuzzy matching on title, description, location
@@ -1316,6 +1420,25 @@ def get_workers_list_mobile(user, latitude=None, longitude=None, page=1, limit=2
                 workerID=worker
             ).select_related('specializationID')
             
+            # Calculate average rating from reviews
+            from .models import JobReview
+            from django.db.models import Avg
+            reviews = JobReview.objects.filter(
+                revieweeID=account,
+                reviewerType='CLIENT',
+                status='ACTIVE'
+            )
+            avg_rating = reviews.aggregate(Avg('rating'))['rating__avg']
+            average_rating = float(avg_rating) if avg_rating else 0.0
+            review_count = reviews.count()
+            
+            # Count completed jobs
+            from .models import Job
+            completed_jobs = Job.objects.filter(
+                assignedWorkerID=worker,
+                status='COMPLETED'
+            ).count()
+            
             worker_data = {
                 'worker_id': worker.id,  # Django auto-generated primary key
                 'profile_id': profile.profileID,
@@ -1325,6 +1448,9 @@ def get_workers_list_mobile(user, latitude=None, longitude=None, page=1, limit=2
                 'bio': worker.bio or '',
                 'hourly_rate': float(worker.hourly_rate) if worker.hourly_rate else 0.0,
                 'availability_status': worker.availability_status,
+                'average_rating': round(average_rating, 2),
+                'review_count': review_count,
+                'completed_jobs': completed_jobs,
                 'specializations': [
                     {'id': ws.specializationID.specializationID, 'name': ws.specializationID.specializationName}
                     for ws in specializations_query
@@ -1338,7 +1464,7 @@ def get_workers_list_mobile(user, latitude=None, longitude=None, page=1, limit=2
             worker_list.append(worker_data)
             
             if idx <= 3:  # Log first 3 workers
-                print(f"    Worker {idx}: {worker_name} - {worker.availability_status}" + 
+                print(f"    Worker {idx}: {worker_name} - {worker.availability_status} - Rating: {average_rating:.1f} ({review_count} reviews) - Jobs: {completed_jobs}" + 
                       (f" ({distance} km)" if distance else ""))
 
         if len(worker_list) > 3:

@@ -165,6 +165,8 @@ export default function CreateJobScreen() {
         requires_payment?: boolean;
         payment_method?: string;
         escrow_amount?: number;
+        commission_fee?: number;
+        downpayment_amount?: number;
         remaining_payment?: number;
         invoice_url?: string;
         invoice_id?: string;
@@ -201,7 +203,7 @@ export default function CreateJobScreen() {
           params: {
             invoiceUrl: data.invoice_url,
             jobId: data.job_posting_id.toString(),
-            amount: data.total_amount.toString(), // Use total_amount (escrow + platform fee)
+            amount: data.downpayment_amount?.toString() || "0", // Use downpayment_amount (escrow + platform fee)
             title: title || "Job Request", // Pass title for better UX
           },
         } as any);

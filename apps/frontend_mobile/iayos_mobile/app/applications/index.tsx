@@ -22,6 +22,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { ENDPOINTS } from "@/lib/api/config";
+import { ApplicationCardSkeleton } from "@/components/ui/SkeletonLoader";
 
 interface Application {
   id: string;
@@ -220,9 +221,10 @@ export default function MyApplicationsScreen() {
 
         {/* Applications List */}
         {isLoading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={Colors.primary} />
-            <Text style={styles.loadingText}>Loading applications...</Text>
+          <View style={styles.listContainer}>
+            {[1, 2, 3, 4].map((i) => (
+              <ApplicationCardSkeleton key={i} />
+            ))}
           </View>
         ) : error ? (
           <View style={styles.errorContainer}>

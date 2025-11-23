@@ -22,6 +22,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ENDPOINTS } from "@/lib/api/config";
 import SearchBar from "@/components/ui/SearchBar";
+import { JobCardSkeleton } from "@/components/ui/SkeletonLoader";
 
 interface Job {
   job_id: number;
@@ -322,9 +323,10 @@ export default function SavedJobsScreen() {
 
       {/* Content */}
       {isLoading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>Loading saved jobs...</Text>
+        <View style={styles.listContainer}>
+          {[1, 2, 3, 4].map((i) => (
+            <JobCardSkeleton key={i} />
+          ))}
         </View>
       ) : error ? (
         <View style={styles.errorContainer}>

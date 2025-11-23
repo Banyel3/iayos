@@ -9,6 +9,7 @@ import {
   RefreshControl,
   ActivityIndicator,
   Image,
+  Alert,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
@@ -20,8 +21,9 @@ import {
   Shadows,
 } from "@/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
-import { useQuery } from "@tanstack/react-query";
-import { ENDPOINTS, fetchJson } from "@/lib/api/config";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { ENDPOINTS, fetchJson, apiRequest } from "@/lib/api/config";
+import { JobCardSkeleton } from "@/components/ui/SkeletonLoader";
 
 interface MyJob {
   job_id: number;
@@ -53,6 +55,7 @@ type TabType = "my" | "inProgress" | "past";
 export default function JobsScreen() {
   const { user } = useAuth();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>("my");
 
@@ -327,9 +330,10 @@ export default function JobsScreen() {
 
         {/* Jobs List */}
         {isLoading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={Colors.primary} />
-            <Text style={styles.loadingText}>Loading jobs...</Text>
+          <View style={styles.listContainer}>
+            {[1, 2, 3, 4].map((i) => (
+              <JobCardSkeleton key={i} />
+            ))}
           </View>
         ) : error ? (
           <View style={styles.errorContainer}>
