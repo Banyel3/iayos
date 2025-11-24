@@ -1958,7 +1958,7 @@ def get_jobs_list(page: int = 1, page_size: int = 20, status: str | None = None,
                 worker_info = {
                     'id': str(worker_account.accountID),
                     'name': f"{worker_profile.firstName} {worker_profile.lastName}",
-                    'rating': float(job.assignedWorkerID.rating) if job.assignedWorkerID.rating else 0.0
+                    'rating': float(job.assignedWorkerID.workerRating) if job.assignedWorkerID.workerRating else 0.0
                 }
             
             # Count applications
@@ -1972,13 +1972,15 @@ def get_jobs_list(page: int = 1, page_size: int = 20, status: str | None = None,
                 'client': {
                     'id': str(client_account.accountID),
                     'name': f"{client_profile.firstName} {client_profile.lastName}",
-                    'rating': float(job.clientID.rating) if job.clientID.rating else 0.0
+                    'rating': float(job.clientID.clientRating) if job.clientID.clientRating else 0.0
                 },
                 'worker': worker_info,
                 'budget': float(job.budget),
                 'location': job.location,
                 'urgency': job.urgency,
                 'status': job.status,
+                'job_type': job.jobType,  # LISTING or INVITE
+                'invite_status': job.inviteStatus if job.jobType == 'INVITE' else None,  # PENDING/ACCEPTED/REJECTED for INVITE jobs
                 'applications_count': applications_count,
                 'created_at': job.createdAt.isoformat(),
                 'updated_at': job.updatedAt.isoformat(),
@@ -2665,3 +2667,235 @@ def get_flagged_reviews_list(page=1, page_size=20):
 
 
 
+
+def get_job_detail(job_id: str):
+    """
+    Get comprehensive job details including timeline data for admin panel
+    """
+    from accounts.models import Job, JobPhoto, JobApplication, JobReview
+    from django.shortcuts import get_object_or_404
+    
+    try:
+        # Fetch job with all related data
+        job = get_object_or_404(
+            Job.objects.select_related(
+                'clientID__profileID__accountFK',
+                'categoryID',
+                'assignedWorkerID__profileID__accountFK',
+                'assignedAgencyFK'
+            ).prefetch_related(
+                'photos',
+                'applications',
+                'reviews'
+            ),
+            jobID=job_id
+        )
+        
+        # Client information
+        client_profile = job.clientID.profileID
+        client_account = client_profile.accountFK
+        client_info = {
+            'id': str(client_account.accountID),
+            'name': f"{client_profile.firstName} {client_profile.lastName}",
+            'email': client_account.email,
+            'phone': client_profile.contactNum or '',
+            'location': job.location,  # Use job location, not profile
+            'rating': float(job.clientID.clientRating) if job.clientID.clientRating else 0.0,
+            'avatar_url': client_profile.profileImg or None
+        }
+        
+        # Worker information (if assigned)
+        worker_info = None
+        if job.assignedWorkerID:
+            worker_profile = job.assignedWorkerID.profileID
+            worker_account = worker_profile.accountFK
+            worker_info = {
+                'id': str(worker_account.accountID),
+                'name': f"{worker_profile.firstName} {worker_profile.lastName}",
+                'email': worker_account.email,
+                'phone': worker_profile.contactNum or '',
+                'rating': float(job.assignedWorkerID.workerRating) if job.assignedWorkerID.workerRating else 0.0,
+                'completed_jobs': 0,
+                'avatar_url': worker_profile.profileImg or None
+            }
+        
+        # Category information
+        category = None
+        if job.categoryID:
+            category = {
+                'id': job.categoryID.specializationID,
+                'name': job.categoryID.specializationName
+            }
+        
+        # Timeline data - 7 milestones
+        timeline = {
+            'job_posted': job.createdAt.isoformat(),
+            'worker_assigned': job.assignedWorkerID and job.updatedAt.isoformat(),
+            'start_initiated': job.clientConfirmedWorkStartedAt.isoformat() if job.clientConfirmedWorkStartedAt else None,
+            'worker_arrived': job.clientConfirmedWorkStartedAt.isoformat() if job.clientConfirmedWorkStartedAt else None,
+            'worker_completed': job.workerMarkedCompleteAt.isoformat() if job.workerMarkedCompleteAt else None,
+            'client_confirmed': job.clientMarkedCompleteAt.isoformat() if job.clientMarkedCompleteAt else None,
+            'reviews_submitted': job.completedAt.isoformat() if job.completedAt else None
+        }
+        
+        # Completion photos
+        photos = [
+            {
+                'id': photo.photoID,
+                'url': photo.photoURL,
+                'uploaded_at': photo.uploadedAt.isoformat()
+            }
+            for photo in job.photos.all()
+        ]
+        
+        # Applications
+        applications = []
+        for app in job.applications.select_related('workerID__profileID__accountFK')[:10]:
+            worker_profile = app.workerID.profileID
+            worker_account = worker_profile.accountFK
+            applications.append({
+                'id': str(app.applicationID),
+                'worker': {
+                    'id': str(worker_account.accountID),
+                    'name': f"{worker_profile.firstName} {worker_profile.lastName}",
+                    'rating': float(app.workerID.workerRating) if app.workerID.workerRating else 0.0,
+                    'avatar_url': worker_profile.profileImg or None
+                },
+                'proposed_budget': float(app.proposedBudget),
+                'status': app.status,
+                'message': app.proposalMessage or '',
+                'applied_at': app.createdAt.isoformat()
+            })
+        
+        # Reviews
+        reviews = []
+        for review in job.reviews.select_related('reviewerID')[:10]:
+            # Get the reviewer's profile (could be WorkerProfile or ClientProfile)
+            reviewer_account = review.reviewerID
+            try:
+                # Try to get profile through WorkerProfile or ClientProfile
+                reviewer_profile = Profile.objects.filter(accountFK=reviewer_account).first()
+                if reviewer_profile:
+                    reviewer_name = f"{reviewer_profile.firstName} {reviewer_profile.lastName}"
+                else:
+                    reviewer_name = reviewer_account.email
+            except:
+                reviewer_name = reviewer_account.email
+                
+            reviews.append({
+                'id': str(review.reviewID),
+                'reviewer_name': reviewer_name,
+                'reviewer_type': review.reviewerType,
+                'rating': float(review.rating),
+                'comment': review.comment or '',
+                'created_at': review.createdAt.isoformat()
+            })
+        
+        # Build comprehensive job detail
+        job_detail = {
+            'id': str(job.jobID),
+            'title': job.title,
+            'description': job.description,
+            'category': category,
+            'budget': float(job.budget),
+            'location': job.location,
+            'urgency': job.urgency,
+            'status': job.status,
+            'job_type': job.jobType,
+            'materials_needed': job.materialsNeeded,
+            'expected_duration': job.expectedDuration,
+            'preferred_start_date': job.preferredStartDate.isoformat() if job.preferredStartDate else None,
+            
+            # Payment tracking
+            'escrow_amount': float(job.escrowAmount),
+            'escrow_paid': job.escrowPaid,
+            'escrow_paid_at': job.escrowPaidAt.isoformat() if job.escrowPaidAt else None,
+            'remaining_payment': float(job.remainingPayment),
+            'remaining_payment_paid': job.remainingPaymentPaid,
+            'remaining_payment_paid_at': job.remainingPaymentPaidAt.isoformat() if job.remainingPaymentPaidAt else None,
+            
+            # Completion tracking
+            'worker_marked_complete': job.workerMarkedComplete,
+            'client_marked_complete': job.clientMarkedComplete,
+            'client_confirmed_work_started': job.clientConfirmedWorkStarted,
+            
+            # Timestamps
+            'created_at': job.createdAt.isoformat(),
+            'updated_at': job.updatedAt.isoformat(),
+            'completed_at': job.completedAt.isoformat() if job.completedAt else None,
+            
+            # Related entities
+            'client': client_info,
+            'worker': worker_info,
+            'timeline': timeline,
+            'photos': photos,
+            'applications': applications,
+            'applications_count': job.applications.count(),
+            'reviews': reviews
+        }
+        
+        return job_detail
+        
+    except Exception as e:
+        print(f"❌ Error fetching job detail: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise
+
+
+def delete_job(job_id: str):
+    """
+    Delete a job listing and all related records.
+    
+    Args:
+        job_id: Job ID to delete
+    
+    Returns:
+        dict: Success status and message
+    """
+    from accounts.models import Job, JobApplication, JobReview, Transaction
+    from django.db import transaction
+    
+    try:
+        # Get the job
+        job = Job.objects.get(jobID=job_id)
+        
+        # Check if job can be deleted (only ACTIVE or CANCELLED jobs)
+        if job.status in ['IN_PROGRESS', 'COMPLETED']:
+            return {
+                'success': False,
+                'error': f'Cannot delete job with status {job.status}. Only ACTIVE or CANCELLED jobs can be deleted.'
+            }
+        
+        # Use atomic transaction to ensure all deletions succeed or none do
+        with transaction.atomic():
+            # Delete related job applications
+            JobApplication.objects.filter(jobID=job).delete()
+            
+            # Delete related reviews (if any)
+            JobReview.objects.filter(jobID=job).delete()
+            
+            # Delete related transactions (if any)
+            Transaction.objects.filter(relatedJobPosting=job).delete()
+            
+            # Delete the job itself
+            job.delete()
+        
+        return {
+            'success': True,
+            'message': f'Job "{job.title}" deleted successfully'
+        }
+        
+    except Job.DoesNotExist:
+        return {
+            'success': False,
+            'error': 'Job not found'
+        }
+    except Exception as e:
+        print(f"❌ Error deleting job: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {
+            'success': False,
+            'error': str(e)
+        }

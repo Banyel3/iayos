@@ -2,16 +2,16 @@
 
 import { useState, useEffect } from "react";
 import { Sidebar } from "../../components";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/generic_button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import {
   Briefcase,
   DollarSign,
   TrendingUp,
-  Info,
-  CheckCircle,
   Users,
   FileText,
+  Award,
+  Target,
 } from "lucide-react";
 
 interface JobCategory {
@@ -56,24 +56,42 @@ export default function JobCategoriesPage() {
     }
   };
 
-  const getSkillLevelColor = (level: string) => {
-    switch (level) {
+  const getSkillLevelBadge = (level: string) => {
+    switch (level.toLowerCase()) {
       case "entry":
-        return "bg-green-100 text-green-800";
+        return (
+          <Badge className="bg-green-100 text-green-700 border-green-200 hover:bg-green-100">
+            🌱 Entry Level
+          </Badge>
+        );
       case "intermediate":
-        return "bg-blue-100 text-blue-800";
+        return (
+          <Badge className="bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-100">
+            ⭐ Intermediate
+          </Badge>
+        );
       case "expert":
-        return "bg-purple-100 text-purple-800";
+        return (
+          <Badge className="bg-purple-100 text-purple-700 border-purple-200 hover:bg-purple-100">
+            👑 Expert
+          </Badge>
+        );
       default:
-        return "bg-gray-100 text-gray-800";
+        return (
+          <Badge className="bg-gray-100 text-gray-700 border-gray-200 hover:bg-gray-100">
+            {level}
+          </Badge>
+        );
     }
   };
 
   const totalCategories = categories.length;
   const avgMinRate =
     categories.length > 0
-      ? categories.reduce((sum, cat) => sum + cat.minimum_rate, 0) /
-        totalCategories
+      ? Math.round(
+          categories.reduce((sum, cat) => sum + cat.minimum_rate, 0) /
+            totalCategories
+        )
       : 0;
   const expertCategories = categories.filter(
     (cat) => cat.skill_level === "expert"
@@ -86,13 +104,21 @@ export default function JobCategoriesPage() {
 
   if (isLoading) {
     return (
-      <div className="flex">
+      <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
         <Sidebar />
-        <main className="flex-1 p-6 bg-gray-50">
+        <main className="flex-1 p-8">
           <div className="flex items-center justify-center h-screen">
             <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-              <p className="mt-4 text-gray-600">Loading categories...</p>
+              <div className="relative">
+                <div className="animate-spin rounded-full h-16 w-16 border-4 border-gray-200 border-t-blue-600 mx-auto"></div>
+                <Briefcase className="h-6 w-6 text-blue-600 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" />
+              </div>
+              <p className="mt-6 text-lg font-medium text-gray-700">
+                Loading categories...
+              </p>
+              <p className="mt-2 text-sm text-gray-500">
+                Please wait while we fetch the data
+              </p>
             </div>
           </div>
         </main>
@@ -101,173 +127,208 @@ export default function JobCategoriesPage() {
   }
 
   return (
-    <div className="flex">
+    <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <Sidebar />
-      <main className="flex-1 p-6 bg-gray-50">
-        <div className="max-w-7xl mx-auto">
-          {/* Header */}
-          <div className="mb-6">
-            <h1 className="text-3xl font-bold text-gray-900">Job Categories</h1>
-            <p className="text-gray-600 mt-1">
-              Minimum rates based on DOLE guidelines and industry standards
-            </p>
+      <main className="flex-1 p-8">
+        <div className="max-w-7xl mx-auto space-y-8">
+          {/* Header with gradient */}
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 p-8 text-white shadow-xl">
+            <div className="absolute top-0 right-0 -mt-4 -mr-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
+            <div className="absolute bottom-0 left-0 -mb-4 -ml-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
+            <div className="relative">
+              <div className="flex items-center gap-3 mb-2">
+                <Briefcase className="h-8 w-8" />
+                <h1 className="text-4xl font-bold">Job Categories & Rates</h1>
+              </div>
+              <p className="text-blue-100 text-lg">
+                Minimum rates based on DOLE guidelines and industry standards
+              </p>
+            </div>
           </div>
 
-          {/* Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-gray-600">
+          {/* Modern Summary Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-blue-100/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+              <CardContent className="relative p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 bg-blue-100 rounded-xl">
+                    <Target className="h-6 w-6 text-blue-600" />
+                  </div>
+                </div>
+                <p className="text-sm font-medium text-gray-600 mb-1">
                   Total Categories
-                </CardTitle>
-                <Briefcase className="h-5 w-5 text-blue-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-gray-900">
+                </p>
+                <p className="text-3xl font-bold text-gray-900">
                   {totalCategories}
-                </div>
-                <p className="text-xs text-gray-600 mt-1">
-                  Active job categories
                 </p>
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-gray-600">
-                  Avg. Minimum Rate
-                </CardTitle>
-                <DollarSign className="h-5 w-5 text-green-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-gray-900">
-                  ₱{avgMinRate.toFixed(0)}
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
+              <div className="absolute inset-0 bg-gradient-to-br from-emerald-50 to-emerald-100/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+              <CardContent className="relative p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 bg-emerald-100 rounded-xl">
+                    <DollarSign className="h-6 w-6 text-emerald-600" />
+                  </div>
                 </div>
-                <p className="text-xs text-gray-600 mt-1">Per hour</p>
+                <p className="text-sm font-medium text-gray-600 mb-1">
+                  Avg Min Rate
+                </p>
+                <p className="text-3xl font-bold text-emerald-600">
+                  ₱{avgMinRate}
+                </p>
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-gray-600">
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
+              <div className="absolute inset-0 bg-gradient-to-br from-purple-50 to-purple-100/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+              <CardContent className="relative p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 bg-purple-100 rounded-xl">
+                    <Award className="h-6 w-6 text-purple-600" />
+                  </div>
+                </div>
+                <p className="text-sm font-medium text-gray-600 mb-1">
                   Expert Level
-                </CardTitle>
-                <TrendingUp className="h-5 w-5 text-purple-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-gray-900">
+                </p>
+                <p className="text-3xl font-bold text-purple-600">
                   {expertCategories}
-                </div>
-                <p className="text-xs text-gray-600 mt-1">Expertise required</p>
+                </p>
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-gray-600">
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
+              <div className="absolute inset-0 bg-gradient-to-br from-orange-50 to-orange-100/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+              <CardContent className="relative p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 bg-orange-100 rounded-xl">
+                    <FileText className="h-6 w-6 text-orange-600" />
+                  </div>
+                </div>
+                <p className="text-sm font-medium text-gray-600 mb-1">
                   Total Jobs
-                </CardTitle>
-                <FileText className="h-5 w-5 text-orange-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-gray-900">
+                </p>
+                <p className="text-3xl font-bold text-orange-600">
                   {totalJobs}
-                </div>
-                <p className="text-xs text-gray-600 mt-1">Across categories</p>
+                </p>
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-gray-600">
-                  Total Workers
-                </CardTitle>
-                <Users className="h-5 w-5 text-indigo-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-gray-900">
-                  {totalWorkers}
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
+              <div className="absolute inset-0 bg-gradient-to-br from-indigo-50 to-indigo-100/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+              <CardContent className="relative p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 bg-indigo-100 rounded-xl">
+                    <Users className="h-6 w-6 text-indigo-600" />
+                  </div>
                 </div>
-                <p className="text-xs text-gray-600 mt-1">
-                  Specialized workers
+                <p className="text-sm font-medium text-gray-600 mb-1">
+                  Total Workers
+                </p>
+                <p className="text-3xl font-bold text-indigo-600">
+                  {totalWorkers}
                 </p>
               </CardContent>
             </Card>
           </div>
 
-          {/* Categories List */}
-          <div className="space-y-3">
+          {/* Modern Category Cards */}
+          <div className="space-y-4">
             {categories.map((category) => (
               <Card
                 key={category.id}
-                className="hover:shadow-md transition-shadow"
+                className="border-0 shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden group"
               >
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4 flex-1">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h3 className="text-lg font-semibold text-gray-900">
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-50/0 via-blue-50/50 to-blue-50/0 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+                <CardContent className="relative p-6">
+                  <div className="flex items-start justify-between gap-6">
+                    <div className="flex-1 space-y-4">
+                      <div className="space-y-3">
+                        <div className="flex items-start gap-3 flex-wrap">
+                          <h3 className="text-xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
                             {category.name}
                           </h3>
-                          <span
-                            className={`px-2 py-0.5 text-xs font-medium rounded-full ${getSkillLevelColor(
-                              category.skill_level
-                            )}`}
-                          >
-                            {category.skill_level.toUpperCase()}
-                          </span>
+                          {getSkillLevelBadge(category.skill_level)}
                         </div>
-                        <p className="text-xs text-gray-500 mb-2">
+                        <p className="text-gray-600 leading-relaxed">
                           {category.description}
                         </p>
-                        <div className="flex gap-4 text-xs text-gray-600">
-                          <span className="flex items-center gap-1">
-                            <FileText className="h-3 w-3" />
-                            {category.jobs_count} jobs
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Users className="h-3 w-3" />
-                            {category.workers_count} workers
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Briefcase className="h-3 w-3" />
-                            {category.clients_count} interested clients
-                          </span>
-                        </div>
                       </div>
 
-                      {/* Rates - Inline */}
-                      <div className="flex items-center gap-6">
-                        <div className="text-center">
-                          <p className="text-xs text-gray-500 mb-1">Min Rate</p>
-                          <p className="text-xl font-bold text-green-600">
-                            ₱{category.minimum_rate}
-                            <span className="text-xs text-gray-500">/hr</span>
-                          </p>
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                        <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition-colors">
+                          <div className="p-1.5 bg-emerald-100 rounded-lg">
+                            <DollarSign className="h-4 w-4 text-emerald-600" />
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500 font-medium">
+                              Min Rate
+                            </p>
+                            <p className="font-bold text-gray-900">
+                              ₱{category.minimum_rate}/{category.rate_type}
+                            </p>
+                          </div>
                         </div>
-                        <div className="text-center">
-                          <p className="text-xs text-gray-500 mb-1">Range</p>
-                          <p className="text-sm font-semibold text-blue-600">
-                            ₱{category.minimum_rate} - ₱
-                            {Math.round(category.minimum_rate * 2.5)}
-                          </p>
+
+                        <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition-colors">
+                          <div className="p-1.5 bg-blue-100 rounded-lg">
+                            <TrendingUp className="h-4 w-4 text-blue-600" />
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500 font-medium">
+                              Project Cost
+                            </p>
+                            <p className="font-semibold text-gray-900 truncate">
+                              ₱
+                              {category.average_project_cost_min.toLocaleString()}
+                              -
+                              {category.average_project_cost_max.toLocaleString()}
+                            </p>
+                          </div>
                         </div>
-                        <div className="text-center">
-                          <p className="text-xs text-gray-500 mb-1">
-                            Project Cost
-                          </p>
-                          <p className="text-sm font-semibold text-purple-600">
-                            ₱
-                            {(category.average_project_cost_min / 1000).toFixed(
-                              1
-                            )}
-                            k - ₱
-                            {(category.average_project_cost_max / 1000).toFixed(
-                              1
-                            )}
-                            k
-                          </p>
+
+                        <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition-colors">
+                          <div className="p-1.5 bg-orange-100 rounded-lg">
+                            <FileText className="h-4 w-4 text-orange-600" />
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500 font-medium">
+                              Jobs
+                            </p>
+                            <p className="font-bold text-gray-900">
+                              {category.jobs_count}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition-colors">
+                          <div className="p-1.5 bg-purple-100 rounded-lg">
+                            <Users className="h-4 w-4 text-purple-600" />
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500 font-medium">
+                              Workers
+                            </p>
+                            <p className="font-bold text-gray-900">
+                              {category.workers_count}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition-colors">
+                          <div className="p-1.5 bg-indigo-100 rounded-lg">
+                            <Users className="h-4 w-4 text-indigo-600" />
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500 font-medium">
+                              Clients
+                            </p>
+                            <p className="font-bold text-gray-900">
+                              {category.clients_count}
+                            </p>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -277,30 +338,21 @@ export default function JobCategoriesPage() {
             ))}
           </div>
 
-          {/* Footer Info */}
-          <Card className="mt-4 bg-gray-50">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <CheckCircle className="h-4 w-4 text-gray-600" />
-                <div className="flex-1">
-                  <h3 className="font-semibold text-gray-900 text-sm mb-1">
-                    Rate Calculation Guidelines (DOLE Standards)
-                  </h3>
-                  <div className="text-xs text-gray-700 flex gap-4">
-                    <span>
-                      <strong>Entry:</strong> 1.1-1.3x min wage
-                    </span>
-                    <span>
-                      <strong>Intermediate:</strong> 1.5-2x min wage
-                    </span>
-                    <span>
-                      <strong>Expert:</strong> 2-3x min wage
-                    </span>
-                  </div>
+          {categories.length === 0 && (
+            <Card className="border-0 shadow-lg">
+              <CardContent className="p-16 text-center">
+                <div className="inline-flex items-center justify-center w-20 h-20 bg-gray-100 rounded-full mb-6">
+                  <Briefcase className="h-10 w-10 text-gray-400" />
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                  No categories found
+                </h3>
+                <p className="text-gray-500 max-w-md mx-auto">
+                  There are no job categories in the system yet.
+                </p>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </main>
     </div>

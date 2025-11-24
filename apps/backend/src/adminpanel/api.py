@@ -332,6 +332,44 @@ def get_job_listings(request, page: int = 1, page_size: int = 20, status: str | 
         return {"success": False, "error": str(e)}
 
 
+@router.get("/jobs/listings/{job_id}")
+def get_job_detail_endpoint(request, job_id: str):
+    """
+    Get detailed job information including timeline data.
+    
+    Path params:
+    - job_id: Job ID
+    """
+    try:
+        from adminpanel.service import get_job_detail
+        job_detail = get_job_detail(job_id)
+        return {"success": True, "data": job_detail}
+    except Exception as e:
+        print(f"❌ Error fetching job detail: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+@router.delete("/jobs/listings/{job_id}", auth=cookie_auth)
+def delete_job_endpoint(request, job_id: str):
+    """
+    Delete a job listing.
+    
+    Path params:
+    - job_id: Job ID to delete
+    """
+    try:
+        from adminpanel.service import delete_job
+        result = delete_job(job_id)
+        return result
+    except Exception as e:
+        print(f"❌ Error deleting job: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
 @router.get("/jobs/applications")
 def get_job_applications(request, page: int = 1, page_size: int = 20, status: str | None = None):
     """

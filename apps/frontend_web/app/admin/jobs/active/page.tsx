@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { Sidebar } from "../../components";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import {
   Search,
   Download,
@@ -13,8 +14,11 @@ import {
   DollarSign,
   MapPin,
   Calendar,
-  User,
-  Star,
+  Activity,
+  TrendingUp,
+  Zap,
+  Users,
+  ChevronRight,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -90,15 +94,52 @@ export default function ActiveJobsPage() {
     return matchesSearch;
   });
 
+  const getUrgencyBadge = (urgency: string) => {
+    switch (urgency.toUpperCase()) {
+      case "HIGH":
+        return (
+          <Badge className="bg-red-100 text-red-700 border-red-200 hover:bg-red-100">
+            🔴 High Priority
+          </Badge>
+        );
+      case "MEDIUM":
+        return (
+          <Badge className="bg-orange-100 text-orange-700 border-orange-200 hover:bg-orange-100">
+            🟡 Medium
+          </Badge>
+        );
+      case "LOW":
+        return (
+          <Badge className="bg-green-100 text-green-700 border-green-200 hover:bg-green-100">
+            🟢 Low
+          </Badge>
+        );
+      default:
+        return null;
+    }
+  };
+
+  const totalBudget = jobs.reduce((sum, job) => sum + job.budget, 0);
+  const assignedWorkers = jobs.filter((job) => job.worker).length;
+  const avgBudget = jobs.length > 0 ? Math.round(totalBudget / jobs.length) : 0;
+
   if (isLoading) {
     return (
-      <div className="flex">
+      <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
         <Sidebar />
-        <main className="flex-1 p-6 bg-gray-50">
+        <main className="flex-1 p-8">
           <div className="flex items-center justify-center h-screen">
             <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-              <p className="mt-4 text-gray-600">Loading active jobs...</p>
+              <div className="relative">
+                <div className="animate-spin rounded-full h-16 w-16 border-4 border-gray-200 border-t-blue-600 mx-auto"></div>
+                <Activity className="h-6 w-6 text-blue-600 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" />
+              </div>
+              <p className="mt-6 text-lg font-medium text-gray-700">
+                Loading active jobs...
+              </p>
+              <p className="mt-2 text-sm text-gray-500">
+                Please wait while we fetch the data
+              </p>
             </div>
           </div>
         </main>
@@ -107,168 +148,263 @@ export default function ActiveJobsPage() {
   }
 
   return (
-    <div className="flex">
+    <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <Sidebar />
-      <main className="flex-1 p-6 bg-gray-50">
-        <div className="max-w-7xl mx-auto">
-          {/* Header */}
-          <div className="mb-6">
-            <h1 className="text-3xl font-bold text-gray-900">Active Jobs</h1>
-            <p className="text-gray-600 mt-1">
-              Monitor jobs currently in progress
-            </p>
+      <main className="flex-1 p-8">
+        <div className="max-w-7xl mx-auto space-y-8">
+          {/* Header with gradient */}
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 p-8 text-white shadow-xl">
+            <div className="absolute top-0 right-0 -mt-4 -mr-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
+            <div className="absolute bottom-0 left-0 -mb-4 -ml-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
+            <div className="relative">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="relative">
+                  <Activity className="h-8 w-8" />
+                  <div className="absolute -top-1 -right-1 h-3 w-3 bg-yellow-400 rounded-full animate-pulse"></div>
+                </div>
+                <h1 className="text-4xl font-bold">Active Jobs</h1>
+              </div>
+              <p className="text-blue-100 text-lg">
+                Jobs currently in progress with assigned workers
+              </p>
+            </div>
           </div>
 
-          {/* Summary Card */}
-          <Card className="mb-6 bg-gradient-to-r from-blue-50 to-blue-100 border-blue-200">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-blue-600 font-medium mb-1">
-                    Jobs In Progress
-                  </p>
-                  <p className="text-3xl font-bold text-blue-900">
-                    {jobs.length}
-                  </p>
+          {/* Modern Summary Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-blue-100/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+              <CardContent className="relative p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 bg-blue-100 rounded-xl">
+                    <Activity className="h-6 w-6 text-blue-600" />
+                  </div>
+                  <TrendingUp className="h-5 w-5 text-emerald-600" />
                 </div>
-                <Clock className="h-12 w-12 text-blue-600 opacity-50" />
-              </div>
-            </CardContent>
-          </Card>
+                <p className="text-sm font-medium text-gray-600 mb-1">
+                  Active Now
+                </p>
+                <p className="text-3xl font-bold text-gray-900">
+                  {jobs.length}
+                </p>
+              </CardContent>
+            </Card>
 
-          {/* Search and Filters */}
-          <Card className="mb-6">
-            <CardContent className="pt-6">
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
+              <div className="absolute inset-0 bg-gradient-to-br from-purple-50 to-purple-100/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+              <CardContent className="relative p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 bg-purple-100 rounded-xl">
+                    <DollarSign className="h-6 w-6 text-purple-600" />
+                  </div>
+                  <span className="text-xs font-bold text-purple-600">₱</span>
+                </div>
+                <p className="text-sm font-medium text-gray-600 mb-1">
+                  Total Budget
+                </p>
+                <p className="text-3xl font-bold text-purple-600">
+                  ₱{totalBudget.toLocaleString()}
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-blue-100/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+              <CardContent className="relative p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 bg-blue-100 rounded-xl">
+                    <Users className="h-6 w-6 text-blue-600" />
+                  </div>
+                  <span className="text-xs font-medium text-blue-600">👷</span>
+                </div>
+                <p className="text-sm font-medium text-gray-600 mb-1">
+                  Workers Assigned
+                </p>
+                <p className="text-3xl font-bold text-blue-600">
+                  {assignedWorkers}
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
+              <div className="absolute inset-0 bg-gradient-to-br from-orange-50 to-orange-100/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+              <CardContent className="relative p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 bg-orange-100 rounded-xl">
+                    <Clock className="h-6 w-6 text-orange-600" />
+                  </div>
+                  <TrendingUp className="h-5 w-5 text-orange-600" />
+                </div>
+                <p className="text-sm font-medium text-gray-600 mb-1">
+                  Avg Budget
+                </p>
+                <p className="text-3xl font-bold text-orange-600">
+                  ₱{avgBudget.toLocaleString()}
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Modern Filters Card */}
+          <Card className="border-0 shadow-lg">
+            <CardContent className="p-6">
               <div className="flex flex-col md:flex-row gap-4">
-                <div className="flex-1 relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <div className="flex-1 relative group">
+                  <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 group-hover:text-blue-500 transition-colors" />
                   <Input
-                    placeholder="Search active jobs..."
+                    placeholder="Search by title, description, or category..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10"
+                    className="pl-12 h-12 border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 rounded-xl"
                   />
                 </div>
-                <Button variant="outline">
-                  <Download className="h-4 w-4 mr-2" />
+                <Button
+                  variant="outline"
+                  className="h-12 px-6 border-2 border-gray-200 hover:border-blue-500 hover:bg-blue-50 rounded-xl font-medium"
+                >
+                  <Download className="h-5 w-5 mr-2" />
                   Export
                 </Button>
               </div>
             </CardContent>
           </Card>
 
-          {/* Active Jobs List */}
+          {/* Modern Job Cards */}
           <div className="space-y-4">
             {filteredJobs.map((job) => (
-              <Card key={job.id} className="hover:shadow-lg transition-shadow">
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <h3 className="text-lg font-semibold text-gray-900">
-                          {job.title}
-                        </h3>
-                        <span className="px-3 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
-                          IN PROGRESS
-                        </span>
+              <Card
+                key={job.id}
+                className="border-0 shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden group"
+              >
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-50/0 via-blue-50/50 to-blue-50/0 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+                <CardContent className="relative p-6">
+                  <div className="flex items-start justify-between gap-6">
+                    <div className="flex-1 space-y-4">
+                      <div className="space-y-3">
+                        <div className="flex items-start gap-3 flex-wrap">
+                          <h3 className="text-xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
+                            {job.title}
+                          </h3>
+                          <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100 border font-medium">
+                            ⚡ In Progress
+                          </Badge>
+                          {getUrgencyBadge(job.urgency)}
+                        </div>
+                        <p className="text-gray-600 leading-relaxed line-clamp-2">
+                          {job.description}
+                        </p>
                       </div>
-                      <p className="text-gray-600 text-sm mb-4 line-clamp-2">
-                        {job.description}
-                      </p>
 
-                      {/* Job Details Grid */}
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                        <div className="flex items-center text-sm text-gray-600">
-                          <DollarSign className="h-4 w-4 mr-1 text-green-600" />
-                          <div>
-                            <p className="text-xs text-gray-500">Budget</p>
-                            <p className="font-semibold">₱{job.budget}</p>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition-colors">
+                          <div className="p-1.5 bg-emerald-100 rounded-lg">
+                            <DollarSign className="h-4 w-4 text-emerald-600" />
                           </div>
-                        </div>
-                        <div className="flex items-center text-sm text-gray-600">
-                          <MapPin className="h-4 w-4 mr-1 text-blue-600" />
                           <div>
-                            <p className="text-xs text-gray-500">Location</p>
-                            <p className="font-semibold">{job.location}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center text-sm text-gray-600">
-                          <Calendar className="h-4 w-4 mr-1 text-purple-600" />
-                          <div>
-                            <p className="text-xs text-gray-500">Started</p>
-                            <p className="font-semibold">
-                              {new Date(job.created_at).toLocaleDateString()}
+                            <p className="text-xs text-gray-500 font-medium">
+                              Budget
+                            </p>
+                            <p className="font-bold text-gray-900">
+                              ₱{job.budget.toLocaleString()}
                             </p>
                           </div>
                         </div>
-                        <div className="flex items-center text-sm text-gray-600">
-                          <Clock className="h-4 w-4 mr-1 text-orange-600" />
+
+                        <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition-colors">
+                          <div className="p-1.5 bg-blue-100 rounded-lg">
+                            <MapPin className="h-4 w-4 text-blue-600" />
+                          </div>
                           <div>
-                            <p className="text-xs text-gray-500">Urgency</p>
-                            <p className="font-semibold">{job.urgency}</p>
+                            <p className="text-xs text-gray-500 font-medium">
+                              Location
+                            </p>
+                            <p className="font-semibold text-gray-900 truncate">
+                              {job.location}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition-colors">
+                          <div className="p-1.5 bg-purple-100 rounded-lg">
+                            <Clock className="h-4 w-4 text-purple-600" />
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500 font-medium">
+                              Started
+                            </p>
+                            <p className="font-semibold text-gray-900">
+                              {new Date(job.created_at).toLocaleDateString(
+                                "en-US",
+                                { month: "short", day: "numeric" }
+                              )}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition-colors">
+                          <div className="p-1.5 bg-orange-100 rounded-lg">
+                            <Calendar className="h-4 w-4 text-orange-600" />
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500 font-medium">
+                              Duration
+                            </p>
+                            <p className="font-semibold text-gray-900">
+                              {Math.ceil(
+                                (new Date().getTime() -
+                                  new Date(job.created_at).getTime()) /
+                                  (1000 * 60 * 60 * 24)
+                              )}{" "}
+                              days
+                            </p>
                           </div>
                         </div>
                       </div>
 
-                      {/* Client and Worker Info */}
-                      <div className="flex items-center gap-6 p-4 bg-gray-50 rounded-lg">
+                      <div className="flex items-center gap-6 pt-2 border-t border-gray-100">
                         <div className="flex items-center gap-2">
-                          <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center">
-                            <User className="h-5 w-5 text-purple-600" />
-                          </div>
-                          <div>
-                            <p className="text-xs text-gray-500">Client</p>
+                          <span className="text-sm text-gray-500">Client:</span>
+                          <Link
+                            href={`/admin/users/clients/${job.client.id}`}
+                            className="text-sm font-semibold text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-1"
+                          >
+                            {job.client.name}
+                            <ChevronRight className="h-3 w-3" />
+                          </Link>
+                        </div>
+                        {job.worker && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-gray-500">
+                              → Worker:
+                            </span>
                             <Link
-                              href={`/admin/users/clients/${job.client.id}`}
-                              className="font-medium text-blue-600 hover:underline flex items-center gap-1"
+                              href={`/admin/users/workers/${job.worker?.id}`}
+                              className="text-sm font-semibold text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-1"
                             >
-                              {job.client.name}
-                              <Star className="h-3 w-3 text-yellow-500 fill-yellow-500 ml-1" />
-                              <span className="text-xs">
-                                {job.client.rating}
-                              </span>
+                              {job.worker.name}
+                              <ChevronRight className="h-3 w-3" />
                             </Link>
                           </div>
-                        </div>
-
-                        {job.worker && (
-                          <>
-                            <div className="text-gray-400">→</div>
-                            <div className="flex items-center gap-2">
-                              <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-                                <User className="h-5 w-5 text-blue-600" />
-                              </div>
-                              <div>
-                                <p className="text-xs text-gray-500">Worker</p>
-                                <Link
-                                  href={`/admin/users/workers/${job.worker.id}`}
-                                  className="font-medium text-blue-600 hover:underline flex items-center gap-1"
-                                >
-                                  {job.worker.name}
-                                  <Star className="h-3 w-3 text-yellow-500 fill-yellow-500 ml-1" />
-                                  <span className="text-xs">
-                                    {job.worker.rating}
-                                  </span>
-                                </Link>
-                              </div>
-                            </div>
-                          </>
                         )}
-
                         {job.category && (
-                          <div className="ml-auto">
-                            <p className="text-xs text-gray-500">Category</p>
-                            <p className="font-medium text-gray-900">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-gray-500">
+                              Category:
+                            </span>
+                            <Badge variant="secondary" className="font-medium">
                               {job.category.name}
-                            </p>
+                            </Badge>
                           </div>
                         )}
                       </div>
                     </div>
 
-                    <div className="ml-4">
+                    <div className="flex flex-col gap-3">
                       <Link href={`/admin/jobs/listings/${job.id}`}>
-                        <Button size="sm" variant="outline">
+                        <Button
+                          size="sm"
+                          className="w-full bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transition-all"
+                        >
                           <Eye className="h-4 w-4 mr-2" />
                           View Details
                         </Button>
@@ -281,36 +417,43 @@ export default function ActiveJobsPage() {
           </div>
 
           {filteredJobs.length === 0 && (
-            <Card>
-              <CardContent className="p-12 text-center">
-                <Clock className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  No Active Jobs
+            <Card className="border-0 shadow-lg">
+              <CardContent className="p-16 text-center">
+                <div className="inline-flex items-center justify-center w-20 h-20 bg-gray-100 rounded-full mb-6">
+                  <Clock className="h-10 w-10 text-gray-400" />
+                </div>
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                  No active jobs
                 </h3>
-                <p className="text-gray-500">
-                  There are currently no jobs in progress
+                <p className="text-gray-500 max-w-md mx-auto">
+                  There are currently no jobs in progress. Active jobs will
+                  appear here.
                 </p>
               </CardContent>
             </Card>
           )}
 
-          {/* Pagination */}
           {totalPages > 1 && (
-            <div className="mt-6 flex items-center justify-center gap-2">
+            <div className="flex items-center justify-center gap-3">
               <Button
                 variant="outline"
                 onClick={() => setPage(page - 1)}
                 disabled={page === 1}
+                className="h-11 px-6 border-2 border-gray-200 hover:border-blue-500 hover:bg-blue-50 rounded-xl font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Previous
               </Button>
-              <span className="text-sm text-gray-600">
-                Page {page} of {totalPages}
-              </span>
+              <div className="flex items-center gap-2 px-6 h-11 bg-blue-50 border-2 border-blue-200 rounded-xl">
+                <span className="text-sm font-medium text-gray-700">
+                  Page <span className="text-blue-600 font-bold">{page}</span>{" "}
+                  of {totalPages}
+                </span>
+              </div>
               <Button
                 variant="outline"
                 onClick={() => setPage(page + 1)}
                 disabled={page === totalPages}
+                className="h-11 px-6 border-2 border-gray-200 hover:border-blue-500 hover:bg-blue-50 rounded-xl font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Next
               </Button>

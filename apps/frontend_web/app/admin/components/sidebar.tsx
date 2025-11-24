@@ -129,25 +129,31 @@ const navigation: NavItem[] = [
         name: "Job Listings",
         href: "/admin/jobs/listings",
         icon: ClipboardList,
-        description: "All posted jobs",
+        description: "Open posts accepting applications",
+      },
+      {
+        name: "Job Requests",
+        href: "/admin/jobs/requests",
+        icon: UserCheck,
+        description: "Direct invites to workers/agencies",
       },
       {
         name: "Active Jobs",
         href: "/admin/jobs/active",
         icon: Clock,
-        description: "Ongoing work & payments",
+        description: "In-progress jobs with payments",
       },
       {
         name: "Completed Jobs",
         href: "/admin/jobs/completed",
         icon: CheckCircle,
-        description: "Finished jobs",
+        description: "Finished jobs with timeline",
       },
       {
-        name: "Disputes",
-        href: "/admin/jobs/disputes",
+        name: "Back Jobs",
+        href: "/admin/jobs/backjobs",
         icon: AlertTriangle,
-        description: "Issues and conflicts",
+        description: "Backjob requests & management",
       },
       {
         name: "Categories & Rates",
@@ -162,6 +168,44 @@ const navigation: NavItem[] = [
     href: "/admin/reviews",
     icon: Star,
     count: null,
+  },
+  {
+    name: "Payments",
+    href: "#", // Not a clickable link - just a collapsible section header
+    icon: CreditCard,
+    count: null,
+    children: [
+      {
+        name: "Transactions",
+        href: "/admin/payments/transactions",
+        icon: DollarSign,
+        description: "All payment transactions",
+      },
+      {
+        name: "Escrow Monitor",
+        href: "/admin/payments/escrow",
+        icon: Clock,
+        description: "Track escrow payments",
+      },
+      {
+        name: "Worker Earnings",
+        href: "/admin/payments/earnings",
+        icon: TrendingUp,
+        description: "Payouts & earnings",
+      },
+      {
+        name: "Disputes",
+        href: "/admin/payments/disputes",
+        icon: AlertTriangle,
+        description: "Payment disputes",
+      },
+      {
+        name: "Analytics",
+        href: "/admin/payments/analytics",
+        icon: BarChart3,
+        description: "Financial reports",
+      },
+    ],
   },
 ];
 
