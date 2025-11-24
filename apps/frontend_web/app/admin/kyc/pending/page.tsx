@@ -708,72 +708,101 @@ export default function PendingKYCPage() {
   };
 
   return (
-    <div className="flex">
+    <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <Sidebar />
-      <main className="flex-1 p-6">
-        <div className="space-y-6">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">
-                Pending KYC Reviews
-              </h1>
-              <p className="text-muted-foreground">
-                KYC submissions awaiting review and approval
-              </p>
+      <main className="flex-1 p-8">
+        <div className="max-w-7xl mx-auto space-y-8">
+          {/* Header */}
+          <div className="relative rounded-2xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 p-8 shadow-2xl overflow-hidden">
+            <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl pointer-events-none"></div>
+            <div className="absolute bottom-0 left-0 w-96 h-96 bg-white/10 rounded-full blur-3xl pointer-events-none"></div>
+            <div className="relative flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="p-4 bg-white/20 rounded-2xl backdrop-blur-sm">
+                  <Clock className="h-8 w-8 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-4xl font-bold text-white mb-2">
+                    Pending KYC Reviews
+                  </h1>
+                  <p className="text-blue-100 text-lg">
+                    KYC submissions awaiting review and approval
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
 
           {/* Stats Cards */}
-          <div className="grid gap-4 md:grid-cols-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
+          <div className="grid gap-6 md:grid-cols-4">
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
+              <div className="absolute inset-0 bg-gradient-to-br from-yellow-50 to-yellow-100/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+              <CardContent className="relative p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 bg-yellow-100 rounded-xl">
+                    <Clock className="h-6 w-6 text-yellow-600" />
+                  </div>
+                </div>
+                <p className="text-sm font-medium text-gray-600 mb-1">
                   Total Pending
-                </CardTitle>
-                <Clock className="h-4 w-4 text-yellow-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{pendingKYC.length}</div>
-                <p className="text-xs text-muted-foreground">Awaiting review</p>
+                </p>
+                <p className="text-3xl font-bold text-yellow-600">
+                  {pendingKYC.length}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">Awaiting review</p>
               </CardContent>
             </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
+
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
+              <div className="absolute inset-0 bg-gradient-to-br from-red-50 to-red-100/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+              <CardContent className="relative p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 bg-red-100 rounded-xl">
+                    <Clock className="h-6 w-6 text-red-600" />
+                  </div>
+                </div>
+                <p className="text-sm font-medium text-gray-600 mb-1">
                   High Priority
-                </CardTitle>
-                <Clock className="h-4 w-4 text-red-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
+                </p>
+                <p className="text-3xl font-bold text-red-600">
                   {pendingKYC.filter((r) => r.priority === "high").length}
-                </div>
-                <p className="text-xs text-muted-foreground">Urgent reviews</p>
+                </p>
+                <p className="text-xs text-gray-500 mt-1">Urgent reviews</p>
               </CardContent>
             </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Overdue</CardTitle>
-                <Clock className="h-4 w-4 text-red-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {pendingKYC.filter((r) => r.daysPending > 14).length}
+
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
+              <div className="absolute inset-0 bg-gradient-to-br from-orange-50 to-orange-100/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+              <CardContent className="relative p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 bg-orange-100 rounded-xl">
+                    <Clock className="h-6 w-6 text-orange-600" />
+                  </div>
                 </div>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-sm font-medium text-gray-600 mb-1">
+                  Overdue
+                </p>
+                <p className="text-3xl font-bold text-orange-600">
+                  {pendingKYC.filter((r) => r.daysPending > 14).length}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
                   &gt; 14 days pending
                 </p>
               </CardContent>
             </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
+
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-blue-100/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+              <CardContent className="relative p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 bg-blue-100 rounded-xl">
+                    <FileText className="h-6 w-6 text-blue-600" />
+                  </div>
+                </div>
+                <p className="text-sm font-medium text-gray-600 mb-1">
                   Avg. Days Pending
-                </CardTitle>
-                <FileText className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
+                </p>
+                <p className="text-3xl font-bold text-blue-600">
                   {pendingKYC.length > 0
                     ? Math.round(
                         pendingKYC.reduce((acc, r) => acc + r.daysPending, 0) /
@@ -789,23 +818,17 @@ export default function PendingKYCPage() {
           </div>
 
           {/* Filters */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Search & Filter</CardTitle>
-              <CardDescription>
-                Find pending KYC reviews by user name, email, priority, or type
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex gap-4">
+          <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300">
+            <CardContent className="p-6">
+              <div className="flex flex-col sm:flex-row gap-4">
                 <div className="flex-1">
                   <div className="relative">
-                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
                     <Input
-                      placeholder="Search pending reviews..."
+                      placeholder="Search by name, email..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-8"
+                      className="pl-12 h-12 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-0 shadow-sm"
                     />
                   </div>
                 </div>
@@ -816,23 +839,23 @@ export default function PendingKYCPage() {
                       e.target.value as "all" | "high" | "medium" | "low"
                     )
                   }
-                  className="px-3 py-2 border rounded-md"
+                  className="px-4 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-400 focus:outline-none focus:border-blue-500 transition-all cursor-pointer shadow-sm text-sm font-medium"
                 >
-                  <option value="all">All Priorities</option>
-                  <option value="high">High Priority</option>
-                  <option value="medium">Medium Priority</option>
-                  <option value="low">Low Priority</option>
+                  <option value="all">📋 All Priorities</option>
+                  <option value="high">🔴 High Priority</option>
+                  <option value="medium">🟡 Medium Priority</option>
+                  <option value="low">🟢 Low Priority</option>
                 </select>
                 <select
                   value={typeFilter}
                   onChange={(e) =>
                     setTypeFilter(e.target.value as "all" | "worker" | "client")
                   }
-                  className="px-3 py-2 border rounded-md"
+                  className="px-4 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-400 focus:outline-none focus:border-blue-500 transition-all cursor-pointer shadow-sm text-sm font-medium"
                 >
-                  <option value="all">All Types</option>
-                  <option value="worker">Workers</option>
-                  <option value="client">Clients</option>
+                  <option value="all">👥 All Types</option>
+                  <option value="worker">👷 Workers</option>
+                  <option value="client">💼 Clients</option>
                 </select>
               </div>
             </CardContent>

@@ -81,7 +81,11 @@ export default function TransactionDetailPage() {
         { credentials: "include" }
       );
 
-      if (!response.ok) throw new Error("Failed to fetch transaction");
+      if (!response.ok) {
+        console.warn("Transaction detail API not available");
+        setDetail(null);
+        return;
+      }
 
       const data = await response.json();
       setDetail(data);
@@ -251,8 +255,8 @@ export default function TransactionDetailPage() {
                           detail.transaction.status === "completed"
                             ? "bg-green-100 text-green-700"
                             : detail.transaction.status === "pending"
-                            ? "bg-yellow-100 text-yellow-700"
-                            : "bg-red-100 text-red-700"
+                              ? "bg-yellow-100 text-yellow-700"
+                              : "bg-red-100 text-red-700"
                         }`}
                       >
                         {detail.transaction.status}

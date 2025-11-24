@@ -263,91 +263,106 @@ export default function ClientsPage() {
   const activeClients = clients.filter((c) => c.status === "active").length;
 
   return (
-    <div className="flex">
+    <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <Sidebar />
-      <main className="flex-1 p-6">
-        <div className="space-y-6">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">
-                Clients Management
-              </h1>
-              <p className="text-muted-foreground">
-                Manage all service requesters in the platform
-              </p>
-            </div>
-            <Button onClick={handleExport}>
-              <Download className="mr-2 h-4 w-4" />
-              Export Clients
-            </Button>
-          </div>
-
-          {/* Stats Cards */}
-          <div className="grid gap-4 md:grid-cols-3">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Total Clients
-                </CardTitle>
-                <Building2 className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{totalClients}</div>
-                <p className="text-xs text-muted-foreground">
-                  Registered clients
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Active Clients
-                </CardTitle>
-                <Building2 className="h-4 w-4 text-green-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{activeClients}</div>
-                <p className="text-xs text-muted-foreground">
-                  Currently active
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Verified Clients
-                </CardTitle>
-                <Calendar className="h-4 w-4 text-blue-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {clients.filter((c) => c.is_verified).length}
-                </div>
-                <p className="text-xs text-muted-foreground">Email verified</p>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Filters */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Search & Filter</CardTitle>
-              <CardDescription>
-                Find clients by name, email, or status
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex gap-4 flex-wrap">
-                <div className="flex-1 min-w-[200px]">
-                  <div className="relative">
-                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Search clients..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-8"
-                    />
+      <main className="flex-1 p-8">
+        <div className="max-w-7xl mx-auto space-y-8">
+          {/* Header with gradient */}
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-emerald-600 via-emerald-700 to-teal-700 p-8 text-white shadow-xl">
+            <div className="absolute top-0 right-0 -mt-4 -mr-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
+            <div className="absolute bottom-0 left-0 -mb-4 -ml-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
+            <div className="relative">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-3 mb-2">
+                    <Building2 className="h-8 w-8" />
+                    <h1 className="text-4xl font-bold">Clients Management</h1>
                   </div>
+                  <p className="text-emerald-100 text-lg">
+                    Manage all job posters and service requesters
+                  </p>
+                </div>
+                <Button
+                  onClick={handleExport}
+                  className="bg-white/20 hover:bg-white/30 border-0 backdrop-blur-sm"
+                >
+                  <Download className="mr-2 h-5 w-5" />
+                  Export Clients
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* Modern Summary Cards with gradients */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-blue-100/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+              <CardContent className="relative p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 bg-blue-100 rounded-xl">
+                    <Building2 className="h-6 w-6 text-blue-600" />
+                  </div>
+                </div>
+                <p className="text-sm font-medium text-gray-600 mb-1">
+                  Total Clients
+                </p>
+                <p className="text-3xl font-bold text-gray-900">
+                  {totalClients}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">Registered clients</p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
+              <div className="absolute inset-0 bg-gradient-to-br from-emerald-50 to-emerald-100/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+              <CardContent className="relative p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 bg-emerald-100 rounded-xl">
+                    <Building2 className="h-6 w-6 text-emerald-600" />
+                  </div>
+                  <div className="h-2 w-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                </div>
+                <p className="text-sm font-medium text-gray-600 mb-1">
+                  Active Now
+                </p>
+                <p className="text-3xl font-bold text-emerald-600">
+                  {activeClients}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">Currently active</p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
+              <div className="absolute inset-0 bg-gradient-to-br from-purple-50 to-purple-100/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+              <CardContent className="relative p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 bg-purple-100 rounded-xl">
+                    <Star className="h-6 w-6 text-purple-600" />
+                  </div>
+                </div>
+                <p className="text-sm font-medium text-gray-600 mb-1">
+                  Verified Clients
+                </p>
+                <p className="text-3xl font-bold text-purple-600">
+                  {clients.filter((c) => c.is_verified).length}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">Email verified</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Modern Filters Card */}
+          <Card className="border-0 shadow-lg">
+            <CardContent className="p-6">
+              <div className="flex flex-col md:flex-row gap-4">
+                <div className="flex-1 relative group">
+                  <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 group-hover:text-blue-500 transition-colors" />
+                  <Input
+                    placeholder="Search clients by name, email, or business..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-12 h-12 border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 rounded-xl"
+                  />
                 </div>
                 <select
                   value={statusFilter}
@@ -356,21 +371,21 @@ export default function ClientsPage() {
                       e.target.value as "all" | "active" | "inactive"
                     )
                   }
-                  className="px-3 py-2 border rounded-md"
+                  className="px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700"
                 >
-                  <option value="all">All Status</option>
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
+                  <option value="all">📋 All Status</option>
+                  <option value="active">✓ Active</option>
+                  <option value="inactive">✘ Inactive</option>
                 </select>
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as any)}
-                  className="px-3 py-2 border rounded-md"
+                  className="px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700"
                 >
-                  <option value="newest">Newest First</option>
-                  <option value="oldest">Oldest First</option>
-                  <option value="most_jobs">Most Jobs</option>
-                  <option value="highest_spending">Highest Spending</option>
+                  <option value="newest">🆕 Newest First</option>
+                  <option value="oldest">📅 Oldest First</option>
+                  <option value="most_jobs">💼 Most Jobs</option>
+                  <option value="highest_spending">💰 Highest Spending</option>
                 </select>
               </div>
 

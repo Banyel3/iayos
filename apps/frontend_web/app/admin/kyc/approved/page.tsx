@@ -154,50 +154,69 @@ export default function ApprovedKYCPage() {
   );
 
   return (
-    <div className="flex">
+    <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <Sidebar />
-      <main className="flex-1 p-6">
-        <div className="space-y-6">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">
-                Approved KYC Records
-              </h1>
-              <p className="text-muted-foreground">
-                Successfully verified and approved KYC submissions
-              </p>
+      <main className="flex-1 p-8">
+        <div className="max-w-7xl mx-auto space-y-8">
+          {/* Header */}
+          <div className="relative rounded-2xl bg-gradient-to-r from-emerald-600 via-emerald-700 to-teal-700 p-8 shadow-2xl overflow-hidden">
+            <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl pointer-events-none"></div>
+            <div className="absolute bottom-0 left-0 w-96 h-96 bg-white/10 rounded-full blur-3xl pointer-events-none"></div>
+            <div className="relative flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="p-4 bg-white/20 rounded-2xl backdrop-blur-sm">
+                  <CheckCircle className="h-8 w-8 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-4xl font-bold text-white mb-2">
+                    Approved KYC Records
+                  </h1>
+                  <p className="text-emerald-100 text-lg">
+                    Successfully verified and approved KYC submissions
+                  </p>
+                </div>
+              </div>
+              <Button className="bg-white/20 hover:bg-white/30 border-0 backdrop-blur-sm text-white">
+                <Download className="mr-2 h-5 w-5" />
+                Export Approved Records
+              </Button>
             </div>
-            <Button>
-              <Download className="mr-2 h-4 w-4" />
-              Export Approved Records
-            </Button>
           </div>
 
           {/* Stats Cards */}
-          <div className="grid gap-4 md:grid-cols-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
+          <div className="grid gap-6 md:grid-cols-4">
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
+              <div className="absolute inset-0 bg-gradient-to-br from-emerald-50 to-emerald-100/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+              <CardContent className="relative p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 bg-emerald-100 rounded-xl">
+                    <CheckCircle className="h-6 w-6 text-emerald-600" />
+                  </div>
+                </div>
+                <p className="text-sm font-medium text-gray-600 mb-1">
                   Total Approved
-                </CardTitle>
-                <CheckCircle className="h-4 w-4 text-green-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{approvedKYC.length}</div>
-                <p className="text-xs text-muted-foreground">
+                </p>
+                <p className="text-3xl font-bold text-emerald-600">
+                  {approvedKYC.length}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
                   Successfully verified
                 </p>
               </CardContent>
             </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
+
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-blue-100/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+              <CardContent className="relative p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 bg-blue-100 rounded-xl">
+                    <Calendar className="h-6 w-6 text-blue-600" />
+                  </div>
+                </div>
+                <p className="text-sm font-medium text-gray-600 mb-1">
                   This Month
-                </CardTitle>
-                <Calendar className="h-4 w-4 text-blue-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
+                </p>
+                <p className="text-3xl font-bold text-blue-600">
                   {
                     approvedKYC.filter(
                       (r) =>
@@ -205,21 +224,25 @@ export default function ApprovedKYCPage() {
                         new Date().getMonth()
                     ).length
                   }
-                </div>
-                <p className="text-xs text-muted-foreground">
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
                   Approved this month
                 </p>
               </CardContent>
             </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
+
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
+              <div className="absolute inset-0 bg-gradient-to-br from-purple-50 to-purple-100/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+              <CardContent className="relative p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 bg-purple-100 rounded-xl">
+                    <FileText className="h-6 w-6 text-purple-600" />
+                  </div>
+                </div>
+                <p className="text-sm font-medium text-gray-600 mb-1">
                   Avg. Processing Time
-                </CardTitle>
-                <FileText className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
+                </p>
+                <p className="text-3xl font-bold text-purple-600">
                   {approvedKYC.length > 0
                     ? Math.round(
                         approvedKYC.reduce(
@@ -229,48 +252,44 @@ export default function ApprovedKYCPage() {
                       )
                     : 0}{" "}
                   days
-                </div>
-                <p className="text-xs text-muted-foreground">
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
                   Average approval time
                 </p>
               </CardContent>
             </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Workers Approved
-                </CardTitle>
-                <CheckCircle className="h-4 w-4 text-green-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {approvedKYC.filter((r) => r.userType === "worker").length}
+
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
+              <div className="absolute inset-0 bg-gradient-to-br from-teal-50 to-teal-100/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+              <CardContent className="relative p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 bg-teal-100 rounded-xl">
+                    <CheckCircle className="h-6 w-6 text-teal-600" />
+                  </div>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Service providers
+                <p className="text-sm font-medium text-gray-600 mb-1">
+                  Workers Approved
                 </p>
+                <p className="text-3xl font-bold text-teal-600">
+                  {approvedKYC.filter((r) => r.userType === "worker").length}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">Service providers</p>
               </CardContent>
             </Card>
           </div>
 
           {/* Filters */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Search & Filter</CardTitle>
-              <CardDescription>
-                Find approved KYC records by user name, email, type, or reviewer
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex gap-4">
+          <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300">
+            <CardContent className="p-6">
+              <div className="flex flex-col sm:flex-row gap-4">
                 <div className="flex-1">
                   <div className="relative">
-                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
                     <Input
-                      placeholder="Search approved records..."
+                      placeholder="Search by name, email..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-8"
+                      className="pl-12 h-12 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-0 shadow-sm"
                     />
                   </div>
                 </div>
@@ -279,18 +298,18 @@ export default function ApprovedKYCPage() {
                   onChange={(e) =>
                     setTypeFilter(e.target.value as "all" | "worker" | "client")
                   }
-                  className="px-3 py-2 border rounded-md"
+                  className="px-4 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-emerald-400 focus:outline-none focus:border-emerald-500 transition-all cursor-pointer shadow-sm text-sm font-medium"
                 >
-                  <option value="all">All Types</option>
-                  <option value="worker">Workers</option>
-                  <option value="client">Clients</option>
+                  <option value="all">👥 All Types</option>
+                  <option value="worker">👷 Workers</option>
+                  <option value="client">💼 Clients</option>
                 </select>
                 <select
                   value={reviewerFilter}
                   onChange={(e) => setReviewerFilter(e.target.value)}
-                  className="px-3 py-2 border rounded-md"
+                  className="px-4 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-emerald-400 focus:outline-none focus:border-emerald-500 transition-all cursor-pointer shadow-sm text-sm font-medium"
                 >
-                  <option value="all">All Reviewers</option>
+                  <option value="all">✅ All Reviewers</option>
                   {uniqueReviewers.map((reviewer) => (
                     <option key={reviewer} value={reviewer}>
                       {reviewer}

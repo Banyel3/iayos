@@ -13,6 +13,14 @@ from .service import get_jobs_list, get_job_applications_list, get_jobs_dashboar
 from .service import get_job_categories_list, get_job_disputes_list, get_disputes_dashboard_stats
 from .service import get_all_reviews_list, get_job_reviews_list, get_reviews_dashboard_stats, get_flagged_reviews_list
 from .account_actions import suspend_account, ban_account, activate_account, delete_account, get_account_status
+from .payment_service import (
+    get_transactions_list, get_transaction_statistics, get_transaction_detail,
+    release_escrow, process_refund, get_escrow_payments, get_escrow_statistics,
+    bulk_release_escrow, get_worker_earnings, get_worker_earnings_statistics,
+    process_payout, get_disputes_list, get_dispute_detail, resolve_dispute,
+    get_disputes_statistics, get_revenue_trends, get_payment_methods_breakdown,
+    get_top_performers
+)
 
 router = Router(tags=["adminpanel"])
 
@@ -627,6 +635,365 @@ def get_user_account_status(request, account_id: str):
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
+
+# ===============================
+# Payment & Transaction Management
+# ===============================
+
+@router.get("/transactions/all", auth=cookie_auth)
+def get_all_transactions(
+    request,
+    page: int = 1,
+    limit: int = 50,
+    status: str = None,
+    payment_method: str = None,
+    date_from: str = None,
+    date_to: str = None,
+    search: str = None
+):
+    """
+    Get paginated list of all transactions with filtering.
+    """
+    try:
+        result = get_transactions_list(
+            page=page,
+            limit=limit,
+            status=status,
+            payment_method=payment_method,
+            date_from=date_from,
+            date_to=date_to,
+            search=search
+        )
+        return result
+    except Exception as e:
+        print(f"❌ Error in get_all_transactions: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/transactions/statistics", auth=cookie_auth)
+def get_transactions_statistics(request):
+    """
+    Get overall transaction statistics.
+    """
+    try:
+        result = get_transaction_statistics()
+        return result
+    except Exception as e:
+        print(f"❌ Error in get_transactions_statistics: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/transactions/{transaction_id}/detail", auth=cookie_auth)
+def get_transaction_details(request, transaction_id: int):
+    """
+    Get detailed information about a specific transaction.
+    """
+    try:
+        result = get_transaction_detail(transaction_id)
+        return result
+    except Exception as e:
+        print(f"❌ Error in get_transaction_details: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+@router.post("/transactions/{transaction_id}/release-escrow", auth=cookie_auth)
+def release_escrow_payment(request, transaction_id: int):
+    """
+    Release escrow payment to worker.
+    """
+    try:
+        body = request.data if hasattr(request, 'data') else {}
+        reason = body.get('reason', None)
+        result = release_escrow(transaction_id, reason)
+        return result
+    except Exception as e:
+        print(f"❌ Error in release_escrow_payment: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+@router.post("/transactions/{transaction_id}/refund", auth=cookie_auth)
+def refund_transaction(request, transaction_id: int):
+    """
+    Process refund for a transaction.
+    """
+    try:
+        body = request.data if hasattr(request, 'data') else {}
+        amount = body.get('amount')
+        reason = body.get('reason')
+        refund_to = body.get('refund_to', 'WALLET')
+        
+        if not amount or not reason:
+            return {"success": False, "error": "Amount and reason are required"}
+        
+        result = process_refund(transaction_id, amount, reason, refund_to)
+        return result
+    except Exception as e:
+        print(f"❌ Error in refund_transaction: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+# ===============================
+# Escrow Management
+# ===============================
+
+@router.get("/transactions/escrow", auth=cookie_auth)
+def get_escrow_payments_list(
+    request,
+    status: str = None,
+    search: str = None,
+    page: int = 1,
+    limit: int = 50
+):
+    """
+    Get list of escrow payments (50% downpayments).
+    """
+    try:
+        result = get_escrow_payments(status, search, page, limit)
+        return result
+    except Exception as e:
+        print(f"❌ Error in get_escrow_payments_list: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/transactions/escrow/statistics", auth=cookie_auth)
+def get_escrow_stats(request):
+    """
+    Get escrow payment statistics.
+    """
+    try:
+        result = get_escrow_statistics()
+        return result
+    except Exception as e:
+        print(f"❌ Error in get_escrow_stats: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+@router.post("/transactions/escrow/bulk-release", auth=cookie_auth)
+def bulk_release_escrow_payments(request):
+    """
+    Release multiple escrow payments at once.
+    """
+    try:
+        body = request.data if hasattr(request, 'data') else {}
+        escrow_ids = body.get('escrow_ids', [])
+        reason = body.get('reason', None)
+        
+        if not escrow_ids:
+            return {"success": False, "error": "No escrow IDs provided"}
+        
+        result = bulk_release_escrow(escrow_ids, reason)
+        return result
+    except Exception as e:
+        print(f"❌ Error in bulk_release_escrow_payments: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+# ===============================
+# Worker Earnings & Payouts
+# ===============================
+
+@router.get("/transactions/worker-earnings", auth=cookie_auth)
+def get_worker_earnings_list(
+    request,
+    search: str = None,
+    page: int = 1,
+    limit: int = 50
+):
+    """
+    Get worker earnings aggregated by worker.
+    """
+    try:
+        result = get_worker_earnings(search, page, limit)
+        return result
+    except Exception as e:
+        print(f"❌ Error in get_worker_earnings_list: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/transactions/worker-earnings/statistics", auth=cookie_auth)
+def get_worker_earnings_stats(request):
+    """
+    Get overall worker earnings statistics.
+    """
+    try:
+        result = get_worker_earnings_statistics()
+        return result
+    except Exception as e:
+        print(f"❌ Error in get_worker_earnings_stats: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+@router.post("/transactions/payout", auth=cookie_auth)
+def process_worker_payout(request):
+    """
+    Process payout to worker.
+    """
+    try:
+        body = request.data if hasattr(request, 'data') else {}
+        worker_id = body.get('worker_id')
+        amount = body.get('amount')
+        payout_method = body.get('payout_method')
+        gcash_number = body.get('gcash_number', None)
+        bank_details = body.get('bank_details', None)
+        
+        if not all([worker_id, amount, payout_method]):
+            return {"success": False, "error": "Worker ID, amount, and payout method are required"}
+        
+        result = process_payout(worker_id, amount, payout_method, gcash_number, bank_details)
+        return result
+    except Exception as e:
+        print(f"❌ Error in process_worker_payout: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+# ===============================
+# Dispute Management
+# ===============================
+
+@router.get("/transactions/disputes", auth=cookie_auth)
+def get_disputes(
+    request,
+    status: str = None,
+    priority: str = None,
+    search: str = None,
+    page: int = 1,
+    limit: int = 50
+):
+    """
+    Get list of job disputes.
+    """
+    try:
+        result = get_disputes_list(status, priority, search, page, limit)
+        return result
+    except Exception as e:
+        print(f"❌ Error in get_disputes: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/transactions/disputes/statistics", auth=cookie_auth)
+def get_disputes_stats(request):
+    """
+    Get dispute statistics.
+    """
+    try:
+        result = get_disputes_statistics()
+        return result
+    except Exception as e:
+        print(f"❌ Error in get_disputes_stats: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/transactions/disputes/{dispute_id}", auth=cookie_auth)
+def get_dispute_details(request, dispute_id: int):
+    """
+    Get detailed information about a specific dispute.
+    """
+    try:
+        result = get_dispute_detail(dispute_id)
+        return result
+    except Exception as e:
+        print(f"❌ Error in get_dispute_details: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+@router.post("/transactions/disputes/{dispute_id}/resolve", auth=cookie_auth)
+def resolve_job_dispute(request, dispute_id: int):
+    """
+    Resolve a job dispute.
+    """
+    try:
+        body = request.data if hasattr(request, 'data') else {}
+        resolution = body.get('resolution')
+        decision = body.get('decision')
+        refund_amount = body.get('refund_amount', None)
+        
+        if not all([resolution, decision]):
+            return {"success": False, "error": "Resolution and decision are required"}
+        
+        result = resolve_dispute(dispute_id, resolution, decision, refund_amount)
+        return result
+    except Exception as e:
+        print(f"❌ Error in resolve_job_dispute: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+# ===============================
+# Analytics
+# ===============================
+
+@router.get("/transactions/revenue-trends", auth=cookie_auth)
+def get_revenue_trends_data(request, period: str = 'last_30_days'):
+    """
+    Get revenue trends over time.
+    """
+    try:
+        result = get_revenue_trends(period)
+        return result
+    except Exception as e:
+        print(f"❌ Error in get_revenue_trends_data: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/transactions/payment-methods-breakdown", auth=cookie_auth)
+def get_payment_methods_data(request, period: str = 'last_30_days'):
+    """
+    Get payment methods breakdown by percentage.
+    """
+    try:
+        result = get_payment_methods_breakdown(period)
+        return result
+    except Exception as e:
+        print(f"❌ Error in get_payment_methods_data: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/transactions/top-performers", auth=cookie_auth)
+def get_top_performers_data(request, period: str = 'last_30_days'):
+    """
+    Get top performing clients, workers, and categories.
+    """
+    try:
+        result = get_top_performers(period)
+        return result
+    except Exception as e:
+        print(f"❌ Error in get_top_performers_data: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
 
 
 
