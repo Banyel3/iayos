@@ -313,7 +313,10 @@ export default function WorkersPage() {
                     Manage all service providers in the platform
                   </p>
                 </div>
-                <Button onClick={handleExport} className="bg-white/20 hover:bg-white/30 border-0 backdrop-blur-sm">
+                <Button
+                  onClick={handleExport}
+                  className="bg-white/20 hover:bg-white/30 border-0 backdrop-blur-sm"
+                >
                   <Download className="mr-2 h-5 w-5" />
                   Export Workers
                 </Button>

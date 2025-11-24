@@ -834,9 +834,7 @@ export default function PendingKYCPage() {
                       )
                     : 0}
                 </p>
-                <p className="text-xs text-gray-500 mt-1">
-                  Average wait time
-                </p>
+                <p className="text-xs text-gray-500 mt-1">Average wait time</p>
               </CardContent>
             </Card>
           </div>
