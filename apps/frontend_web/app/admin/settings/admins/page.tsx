@@ -17,7 +17,7 @@ import {
   XCircle,
   AlertCircle,
 } from "lucide-react";
-import { Sidebar } from "../../../components";
+import { Sidebar } from "../../components";
 
 interface Admin {
   id: string;

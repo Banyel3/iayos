@@ -15,7 +15,7 @@ import {
   Briefcase,
   AlertCircle,
 } from "lucide-react";
-import { Sidebar } from "../../../components";
+import { Sidebar } from "../../components";
 
 interface Category {
   id: string;

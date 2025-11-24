@@ -16,7 +16,7 @@ import {
   X,
   Copy,
 } from "lucide-react";
-import { Sidebar } from "../../../components";
+import { Sidebar } from "../../components";
 
 interface NotificationTemplate {
   id: string;

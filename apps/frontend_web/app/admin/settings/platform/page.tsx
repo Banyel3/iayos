@@ -15,7 +15,7 @@ import {
   AlertCircle,
   Clock,
 } from "lucide-react";
-import { Sidebar } from "../../../components";
+import { Sidebar } from "../../components";
 
 interface PlatformSettings {
   platform_fee_percentage: number;

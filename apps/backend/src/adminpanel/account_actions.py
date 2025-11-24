@@ -23,8 +23,8 @@ def suspend_account(account_id: str, reason: str, admin_user):
         # Create notification for user
         try:
             suspended_date = 'indefinitely'
-            if account.suspended_until is not None:
-                suspended_date = account.suspended_until.strftime('%Y-%m-%d')
+            if account.suspended_until is not None and hasattr(account.suspended_until, 'strftime'):
+                suspended_date = account.suspended_until.strftime('%Y-%m-%d')  # type: ignore[union-attr]
             Notification.objects.create(
                 accountFK=account,
                 message=f"Your account has been suspended. Reason: {reason}. Suspended until: {suspended_date}",

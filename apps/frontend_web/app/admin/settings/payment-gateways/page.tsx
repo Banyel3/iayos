@@ -17,7 +17,7 @@ import {
   DollarSign,
   Building2,
 } from "lucide-react";
-import { Sidebar } from "../../../components";
+import { Sidebar } from "../../components";
 
 interface PaymentGateway {
   name: string;

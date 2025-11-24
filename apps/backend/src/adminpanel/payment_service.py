@@ -93,7 +93,9 @@ def get_transactions_list(
         for txn in transactions:
             # Get user info
             user_email = txn.walletID.accountFK.email if txn.walletID else 'N/A'
-            user_name = f"{txn.walletID.accountFK.firstName or ''} {txn.walletID.accountFK.lastName or ''}".strip()
+            # Get profile for name (Profile has firstName/lastName, not Accounts)
+            profile = Profile.objects.filter(accountFK=txn.walletID.accountFK).first() if txn.walletID else None
+            user_name = f"{profile.firstName or ''} {profile.lastName or ''}".strip() if profile else user_email
             if not user_name:
                 user_name = user_email
             
@@ -266,11 +268,12 @@ def get_transaction_detail(transaction_id: int) -> Dict[str, Any]:
         user = txn.walletID.accountFK if txn.walletID else None
         user_info = None
         if user:
+            profile = Profile.objects.filter(accountFK=user).first()
             user_info = {
-                'id': user.id,
+                'id': user.accountID,
                 'email': user.email,
-                'name': f"{user.firstName or ''} {user.lastName or ''}".strip() or user.email,
-                'phone': user.phoneNumber or 'N/A'
+                'name': f"{profile.firstName or ''} {profile.lastName or ''}".strip() if profile else user.email,
+                'phone': profile.contactNum if profile else 'N/A'
             }
         
         # Job info
@@ -278,7 +281,9 @@ def get_transaction_detail(transaction_id: int) -> Dict[str, Any]:
         if txn.relatedJobPosting:
             job = txn.relatedJobPosting
             client = job.clientID.profileID.accountFK
+            client_profile = job.clientID.profileID
             worker = job.assignedWorkerID.profileID.accountFK if job.assignedWorkerID else None
+            worker_profile = job.assignedWorkerID.profileID if job.assignedWorkerID else None
             
             job_info = {
                 'id': job.jobID,
@@ -286,15 +291,15 @@ def get_transaction_detail(transaction_id: int) -> Dict[str, Any]:
                 'status': job.status,
                 'budget': float(job.budget),
                 'client': {
-                    'id': client.id,
-                    'name': f"{client.firstName or ''} {client.lastName or ''}".strip() or client.email,
+                    'id': client.accountID,
+                    'name': f"{client_profile.firstName or ''} {client_profile.lastName or ''}".strip() or client.email,
                     'email': client.email
                 },
                 'worker': {
-                    'id': worker.id,
-                    'name': f"{worker.firstName or ''} {worker.lastName or ''}".strip() or worker.email,
+                    'id': worker.accountID,
+                    'name': f"{worker_profile.firstName or ''} {worker_profile.lastName or ''}".strip() or worker.email,
                     'email': worker.email
-                } if worker else None
+                } if worker and worker_profile else None
             }
         
         # Escrow details (for PAYMENT type transactions)
@@ -349,7 +354,7 @@ def get_transaction_detail(transaction_id: int) -> Dict[str, Any]:
         }
 
 
-def release_escrow(transaction_id: int, reason: str = None) -> Dict[str, Any]:
+def release_escrow(transaction_id: int, reason: Optional[str] = None) -> Dict[str, Any]:
     """
     Release escrow payment to worker
     
@@ -539,7 +544,9 @@ def get_escrow_payments(
         for txn in escrow_payments:
             job = txn.relatedJobPosting
             client = job.clientID.profileID.accountFK if job else None
+            client_profile = job.clientID.profileID if job else None
             worker = job.assignedWorkerID.profileID.accountFK if job and job.assignedWorkerID else None
+            worker_profile = job.assignedWorkerID.profileID if job and job.assignedWorkerID else None
             
             days_held = (timezone.now() - txn.createdAt).days
             
@@ -550,8 +557,8 @@ def get_escrow_payments(
                 'status': txn.status,
                 'job_id': job.jobID if job else None,
                 'job_title': job.title if job else 'N/A',
-                'client_name': f"{client.firstName or ''} {client.lastName or ''}".strip() if client else 'N/A',
-                'worker_name': f"{worker.firstName or ''} {worker.lastName or ''}".strip() if worker else 'Not assigned',
+                'client_name': f"{client_profile.firstName or ''} {client_profile.lastName or ''}".strip() if client_profile else 'N/A',
+                'worker_name': f"{worker_profile.firstName or ''} {worker_profile.lastName or ''}".strip() if worker_profile else 'Not assigned',
                 'days_held': days_held,
                 'created_at': txn.createdAt.isoformat(),
                 'completed_at': txn.completedAt.isoformat() if txn.completedAt else None,
@@ -654,7 +661,7 @@ def get_escrow_statistics() -> Dict[str, Any]:
         }
 
 
-def bulk_release_escrow(escrow_ids: List[int], reason: str = None) -> Dict[str, Any]:
+def bulk_release_escrow(escrow_ids: List[int], reason: Optional[str] = None) -> Dict[str, Any]:
     """
     Release multiple escrow payments at once
     
@@ -785,8 +792,8 @@ def get_worker_earnings(
             pending_payout = net_earnings - payouts
             
             earnings_list.append({
-                'worker_id': worker.workerID,
-                'name': f"{account.firstName or ''} {account.lastName or ''}".strip() or account.email,
+                'worker_id': worker.pk,  # Use pk instead of workerID
+                'name': f"{worker.profileID.firstName or ''} {worker.profileID.lastName or ''}".strip() or account.email,
                 'email': account.email,
                 'jobs_completed': completed_jobs.count(),
                 'total_earnings': float(total_earnings),
@@ -1047,8 +1054,8 @@ def get_disputes_list(
                 'priority': dispute.priority,
                 'job_amount': float(dispute.jobAmount),
                 'disputed_amount': float(dispute.disputedAmount),
-                'client_name': f"{client.firstName or ''} {client.lastName or ''}".strip() or client.email,
-                'worker_name': f"{worker.firstName or ''} {worker.lastName or ''}".strip() if worker else 'Not assigned',
+                'client_name': f"{job.clientID.profileID.firstName or ''} {job.clientID.profileID.lastName or ''}".strip() or client.email,
+                'worker_name': f"{job.assignedWorkerID.profileID.firstName or ''} {job.assignedWorkerID.profileID.lastName or ''}".strip() if job.assignedWorkerID else 'Not assigned',
                 'days_open': days_open,
                 'opened_date': dispute.openedDate.isoformat(),
                 'resolved_date': dispute.resolvedDate.isoformat() if dispute.resolvedDate else None,
@@ -1124,14 +1131,14 @@ def get_dispute_detail(dispute_id: int) -> Dict[str, Any]:
                     'budget': float(job.budget)
                 },
                 'client': {
-                    'name': f"{client.firstName or ''} {client.lastName or ''}".strip() or client.email,
+                    'name': f"{job.clientID.profileID.firstName or ''} {job.clientID.profileID.lastName or ''}".strip() or client.email,
                     'email': client.email,
-                    'phone': client.phoneNumber or 'N/A'
+                    'phone': job.clientID.profileID.contactNum or 'N/A'
                 },
                 'worker': {
-                    'name': f"{worker.firstName or ''} {worker.lastName or ''}".strip() if worker else 'Not assigned',
+                    'name': f"{job.assignedWorkerID.profileID.firstName or ''} {job.assignedWorkerID.profileID.lastName or ''}".strip() if job.assignedWorkerID else 'Not assigned',
                     'email': worker.email if worker else 'N/A',
-                    'phone': worker.phoneNumber if worker else 'N/A'
+                    'phone': job.assignedWorkerID.profileID.contactNum if job.assignedWorkerID else 'N/A'
                 } if worker else None,
                 'transactions': [
                     {
@@ -1263,7 +1270,7 @@ def get_disputes_statistics() -> Dict[str, Any]:
         if resolved_disputes.exists():
             resolution_times = [
                 (d.resolvedDate - d.openedDate).days 
-                for d in resolved_disputes
+                for d in resolved_disputes if d.resolvedDate is not None
             ]
             avg_resolution_days = sum(resolution_times) / len(resolution_times)
         
