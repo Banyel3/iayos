@@ -283,6 +283,30 @@ export default function AgencyPage() {
   const totalWorkers = agencies.reduce((sum, a) => sum + a.total_workers, 0);
   const totalJobs = agencies.reduce((sum, a) => sum + a.total_jobs, 0);
 
+  if (loading) {
+    return (
+      <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+        <Sidebar />
+        <main className="flex-1 p-8">
+          <div className="flex items-center justify-center h-screen">
+            <div className="text-center">
+              <div className="relative">
+                <div className="animate-spin rounded-full h-16 w-16 border-4 border-gray-200 border-t-blue-600 mx-auto"></div>
+                <Building className="h-6 w-6 text-blue-600 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" />
+              </div>
+              <p className="mt-6 text-lg font-medium text-gray-700">
+                Loading agencies...
+              </p>
+              <p className="mt-2 text-sm text-gray-500">
+                Please wait while we fetch the data
+              </p>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <Sidebar />

@@ -150,8 +150,32 @@ export default function ApprovedKYCPage() {
   });
 
   const uniqueReviewers = Array.from(
-    new Set(approvedKYC.map((r) => r.reviewedBy))
+    new Set(approvedKYC.map((record) => record.reviewedBy))
   );
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+        <Sidebar />
+        <main className="flex-1 p-8">
+          <div className="flex items-center justify-center h-screen">
+            <div className="text-center">
+              <div className="relative">
+                <div className="animate-spin rounded-full h-16 w-16 border-4 border-gray-200 border-t-blue-600 mx-auto"></div>
+                <CheckCircle className="h-6 w-6 text-blue-600 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" />
+              </div>
+              <p className="mt-6 text-lg font-medium text-gray-700">
+                Loading approved KYC records...
+              </p>
+              <p className="mt-2 text-sm text-gray-500">
+                Please wait while we fetch the data
+              </p>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
@@ -159,7 +183,7 @@ export default function ApprovedKYCPage() {
       <main className="flex-1 p-8">
         <div className="max-w-7xl mx-auto space-y-8">
           {/* Header */}
-          <div className="relative rounded-2xl bg-gradient-to-r from-emerald-600 via-emerald-700 to-teal-700 p-8 shadow-2xl overflow-hidden">
+          <div className="relative rounded-2xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 p-8 shadow-2xl overflow-hidden">
             <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl pointer-events-none"></div>
             <div className="absolute bottom-0 left-0 w-96 h-96 bg-white/10 rounded-full blur-3xl pointer-events-none"></div>
             <div className="relative flex items-center justify-between">
@@ -171,7 +195,7 @@ export default function ApprovedKYCPage() {
                   <h1 className="text-4xl font-bold text-white mb-2">
                     Approved KYC Records
                   </h1>
-                  <p className="text-emerald-100 text-lg">
+                  <p className="text-blue-100 text-lg">
                     Successfully verified and approved KYC submissions
                   </p>
                 </div>
@@ -289,7 +313,7 @@ export default function ApprovedKYCPage() {
                       placeholder="Search by name, email..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-12 h-12 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-0 shadow-sm"
+                      className="pl-12 h-12 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-0 shadow-sm"
                     />
                   </div>
                 </div>
@@ -298,7 +322,7 @@ export default function ApprovedKYCPage() {
                   onChange={(e) =>
                     setTypeFilter(e.target.value as "all" | "worker" | "client")
                   }
-                  className="px-4 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-emerald-400 focus:outline-none focus:border-emerald-500 transition-all cursor-pointer shadow-sm text-sm font-medium"
+                  className="px-4 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-400 focus:outline-none focus:border-blue-500 transition-all cursor-pointer shadow-sm text-sm font-medium"
                 >
                   <option value="all">👥 All Types</option>
                   <option value="worker">👷 Workers</option>
@@ -307,7 +331,7 @@ export default function ApprovedKYCPage() {
                 <select
                   value={reviewerFilter}
                   onChange={(e) => setReviewerFilter(e.target.value)}
-                  className="px-4 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-emerald-400 focus:outline-none focus:border-emerald-500 transition-all cursor-pointer shadow-sm text-sm font-medium"
+                  className="px-4 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-400 focus:outline-none focus:border-blue-500 transition-all cursor-pointer shadow-sm text-sm font-medium"
                 >
                   <option value="all">✅ All Reviewers</option>
                   {uniqueReviewers.map((reviewer) => (

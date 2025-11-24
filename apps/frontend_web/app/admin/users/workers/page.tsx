@@ -269,6 +269,30 @@ export default function WorkersPage() {
     0
   );
 
+  if (loading) {
+    return (
+      <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+        <Sidebar />
+        <main className="flex-1 p-8">
+          <div className="flex items-center justify-center h-screen">
+            <div className="text-center">
+              <div className="relative">
+                <div className="animate-spin rounded-full h-16 w-16 border-4 border-gray-200 border-t-blue-600 mx-auto"></div>
+                <Users className="h-6 w-6 text-blue-600 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" />
+              </div>
+              <p className="mt-6 text-lg font-medium text-gray-700">
+                Loading workers...
+              </p>
+              <p className="mt-2 text-sm text-gray-500">
+                Please wait while we fetch the data
+              </p>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <Sidebar />
@@ -420,12 +444,10 @@ export default function WorkersPage() {
                   <option value="most_jobs">💼 Most Jobs</option>
                 </select>
               </div>
-            </CardContent>
-          </Card>
 
               {/* Bulk Actions Bar */}
               {selectedWorkers.size > 0 && (
-                <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-md p-3">
+                <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-md p-3 mt-4">
                   <span className="text-sm font-medium text-blue-900">
                     {selectedWorkers.size} worker(s) selected
                   </span>

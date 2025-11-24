@@ -184,14 +184,12 @@ export default function KYCManagementPage() {
     }
   };
 
-  return (
-    <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      <Sidebar />
-      <main className="flex-1 p-8">
-        <div className="max-w-7xl mx-auto space-y-8">
-        {/* Loading State */}
-        {loading && (
-          <div className="flex items-center justify-center min-h-screen">
+  if (loading) {
+    return (
+      <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+        <Sidebar />
+        <main className="flex-1 p-8">
+          <div className="flex items-center justify-center h-screen">
             <div className="text-center">
               <div className="relative">
                 <div className="animate-spin rounded-full h-16 w-16 border-4 border-gray-200 border-t-blue-600 mx-auto"></div>
@@ -205,11 +203,17 @@ export default function KYCManagementPage() {
               </p>
             </div>
           </div>
-        )}
+        </main>
+      </div>
+    );
+  }
 
-        {/* Error State */}
-        {error && !loading && (
-          <div className="flex items-center justify-center min-h-screen">
+  if (error) {
+    return (
+      <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+        <Sidebar />
+        <main className="flex-1 p-8">
+          <div className="flex items-center justify-center h-screen">
             <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md">
               <div className="flex items-start space-x-3">
                 <AlertCircle className="h-5 w-5 text-red-600 mt-0.5" />
@@ -230,13 +234,18 @@ export default function KYCManagementPage() {
               </div>
             </div>
           </div>
-        )}
+        </main>
+      </div>
+    );
+  }
 
-        {/* Main Content - Only show when not loading and no error */}
-        {!loading && !error && (
-          <>
-            {/* Header with gradient */}
-            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 p-8 text-white shadow-xl">
+  return (
+    <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      <Sidebar />
+      <main className="flex-1 p-8">
+        <div className="max-w-7xl mx-auto space-y-8">
+          {/* Header with gradient */}
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 p-8 text-white shadow-xl">
               <div className="absolute top-0 right-0 -mt-4 -mr-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
               <div className="absolute bottom-0 left-0 -mb-4 -ml-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
               <div className="relative">
@@ -554,9 +563,9 @@ export default function KYCManagementPage() {
                 </Card>
               ))}
             </div>
-          </>
-        )}
-      </div>
+        </div>
+      </main>
     </div>
   );
+}
 }

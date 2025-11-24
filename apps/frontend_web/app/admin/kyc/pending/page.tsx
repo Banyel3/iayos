@@ -707,6 +707,30 @@ export default function PendingKYCPage() {
     return "text-green-600";
   };
 
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+        <Sidebar />
+        <main className="flex-1 p-8">
+          <div className="flex items-center justify-center h-screen">
+            <div className="text-center">
+              <div className="relative">
+                <div className="animate-spin rounded-full h-16 w-16 border-4 border-gray-200 border-t-blue-600 mx-auto"></div>
+                <Clock className="h-6 w-6 text-blue-600 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" />
+              </div>
+              <p className="mt-6 text-lg font-medium text-gray-700">
+                Loading pending KYC reviews...
+              </p>
+              <p className="mt-2 text-sm text-gray-500">
+                Please wait while we fetch the data
+              </p>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <Sidebar />
@@ -736,17 +760,17 @@ export default function PendingKYCPage() {
           {/* Stats Cards */}
           <div className="grid gap-6 md:grid-cols-4">
             <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-              <div className="absolute inset-0 bg-gradient-to-br from-yellow-50 to-yellow-100/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-blue-100/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
               <CardContent className="relative p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-yellow-100 rounded-xl">
-                    <Clock className="h-6 w-6 text-yellow-600" />
+                  <div className="p-3 bg-blue-100 rounded-xl">
+                    <Clock className="h-6 w-6 text-blue-600" />
                   </div>
                 </div>
                 <p className="text-sm font-medium text-gray-600 mb-1">
                   Total Pending
                 </p>
-                <p className="text-3xl font-bold text-yellow-600">
+                <p className="text-3xl font-bold text-blue-600">
                   {pendingKYC.length}
                 </p>
                 <p className="text-xs text-gray-500 mt-1">Awaiting review</p>
@@ -754,17 +778,17 @@ export default function PendingKYCPage() {
             </Card>
 
             <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-              <div className="absolute inset-0 bg-gradient-to-br from-red-50 to-red-100/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+              <div className="absolute inset-0 bg-gradient-to-br from-indigo-50 to-indigo-100/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
               <CardContent className="relative p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-red-100 rounded-xl">
-                    <Clock className="h-6 w-6 text-red-600" />
+                  <div className="p-3 bg-indigo-100 rounded-xl">
+                    <Clock className="h-6 w-6 text-indigo-600" />
                   </div>
                 </div>
                 <p className="text-sm font-medium text-gray-600 mb-1">
                   High Priority
                 </p>
-                <p className="text-3xl font-bold text-red-600">
+                <p className="text-3xl font-bold text-indigo-600">
                   {pendingKYC.filter((r) => r.priority === "high").length}
                 </p>
                 <p className="text-xs text-gray-500 mt-1">Urgent reviews</p>
@@ -772,17 +796,17 @@ export default function PendingKYCPage() {
             </Card>
 
             <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-              <div className="absolute inset-0 bg-gradient-to-br from-orange-50 to-orange-100/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+              <div className="absolute inset-0 bg-gradient-to-br from-gray-50 to-gray-100/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
               <CardContent className="relative p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-orange-100 rounded-xl">
-                    <Clock className="h-6 w-6 text-orange-600" />
+                  <div className="p-3 bg-gray-100 rounded-xl">
+                    <Clock className="h-6 w-6 text-gray-600" />
                   </div>
                 </div>
                 <p className="text-sm font-medium text-gray-600 mb-1">
                   Overdue
                 </p>
-                <p className="text-3xl font-bold text-orange-600">
+                <p className="text-3xl font-bold text-gray-600">
                   {pendingKYC.filter((r) => r.daysPending > 14).length}
                 </p>
                 <p className="text-xs text-gray-500 mt-1">
@@ -809,8 +833,8 @@ export default function PendingKYCPage() {
                           pendingKYC.length
                       )
                     : 0}
-                </div>
-                <p className="text-xs text-muted-foreground">
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
                   Average wait time
                 </p>
               </CardContent>
