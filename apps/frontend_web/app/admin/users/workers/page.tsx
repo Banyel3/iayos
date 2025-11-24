@@ -17,6 +17,9 @@ import {
   Download,
   Loader2,
   Briefcase,
+  CheckSquare,
+  Square,
+  AlertCircle,
 } from "lucide-react";
 import { Sidebar } from "../../components";
 import { useRouter } from "next/navigation";
@@ -33,9 +36,16 @@ interface Worker {
   kyc_status: string;
   join_date: string;
   is_verified: boolean;
-  completed_jobs: number;
+  total_jobs?: number;
+  jobs_active?: number;
+  jobs_in_progress?: number;
+  jobs_completed?: number;
+  jobs_cancelled?: number;
   rating: number;
   review_count: number;
+  skills?: Array<{ name: string; experience_years: number }>;
+  skills_count?: number;
+  total_earnings?: number;
 }
 
 interface WorkersResponse {
@@ -56,9 +66,27 @@ export default function WorkersPage() {
   const [statusFilter, setStatusFilter] = useState<
     "all" | "active" | "inactive"
   >("all");
+  const [verificationFilter, setVerificationFilter] = useState<
+    "all" | "verified" | "pending" | "unverified"
+  >("all");
+  const [sortBy, setSortBy] = useState<
+    "newest" | "oldest" | "top_rated" | "most_jobs"
+  >("newest");
   const [totalWorkers, setTotalWorkers] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+
+  // Bulk selection state
+  const [selectedWorkers, setSelectedWorkers] = useState<Set<string>>(
+    new Set()
+  );
+  const [selectAll, setSelectAll] = useState(false);
+  const [bulkActionLoading, setBulkActionLoading] = useState(false);
+  const [showBulkActionModal, setShowBulkActionModal] = useState(false);
+  const [bulkAction, setBulkAction] = useState<"suspend" | "activate" | null>(
+    null
+  );
+  const [bulkActionReason, setBulkActionReason] = useState("");
 
   const fetchWorkers = async () => {
     setLoading(true);
@@ -70,6 +98,9 @@ export default function WorkersPage() {
 
       if (searchTerm) params.append("search", searchTerm);
       if (statusFilter !== "all") params.append("status", statusFilter);
+      if (verificationFilter !== "all")
+        params.append("verification_status", verificationFilter);
+      if (sortBy !== "newest") params.append("sort", sortBy);
 
       const response = await fetch(
         `http://localhost:8000/api/adminpanel/users/workers?${params}`,
@@ -98,7 +129,9 @@ export default function WorkersPage() {
 
   useEffect(() => {
     fetchWorkers();
-  }, [currentPage, statusFilter]);
+    setSelectedWorkers(new Set());
+    setSelectAll(false);
+  }, [currentPage, statusFilter, verificationFilter, sortBy]);
 
   // Debounce search
   useEffect(() => {
@@ -113,9 +146,126 @@ export default function WorkersPage() {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
+  // Bulk selection handlers
+  const handleSelectAll = () => {
+    if (selectAll) {
+      setSelectedWorkers(new Set());
+    } else {
+      setSelectedWorkers(new Set(workers.map((w) => w.id)));
+    }
+    setSelectAll(!selectAll);
+  };
+
+  const handleSelectWorker = (workerId: string) => {
+    const newSelected = new Set(selectedWorkers);
+    if (newSelected.has(workerId)) {
+      newSelected.delete(workerId);
+    } else {
+      newSelected.add(workerId);
+    }
+    setSelectedWorkers(newSelected);
+    setSelectAll(newSelected.size === workers.length);
+  };
+
+  // Export to CSV
+  const handleExport = () => {
+    const headers = [
+      "ID",
+      "Name",
+      "Email",
+      "Phone",
+      "Status",
+      "KYC Status",
+      "Completed Jobs",
+      "Rating",
+      "Verified",
+    ];
+    const rows = workers.map((w) => [
+      w.id,
+      `${w.first_name} ${w.last_name}`,
+      w.email,
+      w.phone || "N/A",
+      w.status,
+      w.kyc_status,
+      w.jobs_completed || 0,
+      w.rating.toFixed(1),
+      w.is_verified ? "Yes" : "No",
+    ]);
+
+    const csvContent = [
+      headers.join(","),
+      ...rows.map((row) => row.map((cell) => `"${cell}"`).join(",")),
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `workers_export_${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+  // Bulk actions
+  const handleBulkAction = async (action: "suspend" | "activate") => {
+    setBulkAction(action);
+    setShowBulkActionModal(true);
+  };
+
+  const executeBulkAction = async () => {
+    if (!bulkAction || selectedWorkers.size === 0) return;
+
+    setBulkActionLoading(true);
+    const workerIds = Array.from(selectedWorkers);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const workerId of workerIds) {
+      try {
+        const endpoint =
+          bulkAction === "suspend"
+            ? `/api/adminpanel/users/${workerId}/suspend`
+            : `/api/adminpanel/users/${workerId}/activate`;
+
+        const body =
+          bulkAction === "suspend" && bulkActionReason
+            ? { reason: bulkActionReason }
+            : {};
+
+        const response = await fetch(`http://localhost:8000${endpoint}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(body),
+        });
+
+        if (response.ok) {
+          successCount++;
+        } else {
+          failCount++;
+        }
+      } catch (error) {
+        console.error(`Failed to ${bulkAction} worker ${workerId}:`, error);
+        failCount++;
+      }
+    }
+
+    setBulkActionLoading(false);
+    setShowBulkActionModal(false);
+    setBulkActionReason("");
+    setSelectedWorkers(new Set());
+    setSelectAll(false);
+
+    alert(
+      `${bulkAction === "suspend" ? "Suspended" : "Activated"} ${successCount} workers successfully. ${failCount > 0 ? `${failCount} failed.` : ""}`
+    );
+
+    fetchWorkers();
+  };
+
   const activeWorkers = workers.filter((w) => w.status === "active").length;
   const totalCompletedJobs = workers.reduce(
-    (sum, w) => sum + w.completed_jobs,
+    (sum, w) => sum + (w.jobs_completed || 0),
     0
   );
 
@@ -133,7 +283,7 @@ export default function WorkersPage() {
                 Manage all service providers in the platform
               </p>
             </div>
-            <Button>
+            <Button onClick={handleExport}>
               <Download className="mr-2 h-4 w-4" />
               Export Workers
             </Button>
@@ -204,8 +354,8 @@ export default function WorkersPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex gap-4">
-                <div className="flex-1">
+              <div className="flex gap-4 flex-wrap">
+                <div className="flex-1 min-w-[200px]">
                   <div className="relative">
                     <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
@@ -229,7 +379,64 @@ export default function WorkersPage() {
                   <option value="active">Active</option>
                   <option value="inactive">Inactive</option>
                 </select>
+                <select
+                  value={verificationFilter}
+                  onChange={(e) => setVerificationFilter(e.target.value as any)}
+                  className="px-3 py-2 border rounded-md"
+                >
+                  <option value="all">All Verification</option>
+                  <option value="verified">Verified</option>
+                  <option value="pending">Pending</option>
+                  <option value="unverified">Unverified</option>
+                </select>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as any)}
+                  className="px-3 py-2 border rounded-md"
+                >
+                  <option value="newest">Newest First</option>
+                  <option value="oldest">Oldest First</option>
+                  <option value="top_rated">Top Rated</option>
+                  <option value="most_jobs">Most Jobs</option>
+                </select>
               </div>
+
+              {/* Bulk Actions Bar */}
+              {selectedWorkers.size > 0 && (
+                <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-md p-3">
+                  <span className="text-sm font-medium text-blue-900">
+                    {selectedWorkers.size} worker(s) selected
+                  </span>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleBulkAction("suspend")}
+                      disabled={bulkActionLoading}
+                    >
+                      Suspend Selected
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleBulkAction("activate")}
+                      disabled={bulkActionLoading}
+                    >
+                      Activate Selected
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setSelectedWorkers(new Set());
+                        setSelectAll(false);
+                      }}
+                    >
+                      Clear Selection
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -257,6 +464,18 @@ export default function WorkersPage() {
                     <table className="min-w-full border border-gray-200 rounded-md">
                       <thead className="bg-gray-100">
                         <tr>
+                          <th className="px-4 py-2 text-left">
+                            <button
+                              onClick={handleSelectAll}
+                              className="flex items-center justify-center"
+                            >
+                              {selectAll ? (
+                                <CheckSquare className="h-4 w-4 text-blue-600" />
+                              ) : (
+                                <Square className="h-4 w-4 text-gray-400" />
+                              )}
+                            </button>
+                          </th>
                           <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
                             #
                           </th>
@@ -267,16 +486,16 @@ export default function WorkersPage() {
                             Email
                           </th>
                           <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
-                            Phone
+                            Skills
                           </th>
                           <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
-                            Address
+                            Jobs
                           </th>
                           <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
-                            Jobs Completed
+                            Rating
                           </th>
                           <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
-                            KYC Status
+                            KYC
                           </th>
                           <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
                             Status
@@ -292,6 +511,18 @@ export default function WorkersPage() {
                             key={worker.id}
                             className="border-t hover:bg-gray-50"
                           >
+                            <td className="px-4 py-2">
+                              <button
+                                onClick={() => handleSelectWorker(worker.id)}
+                                className="flex items-center justify-center"
+                              >
+                                {selectedWorkers.has(worker.id) ? (
+                                  <CheckSquare className="h-4 w-4 text-blue-600" />
+                                ) : (
+                                  <Square className="h-4 w-4 text-gray-400" />
+                                )}
+                              </button>
+                            </td>
                             <td className="px-4 py-2 text-sm">
                               {(currentPage - 1) * 50 + index + 1}
                             </td>
@@ -302,13 +533,35 @@ export default function WorkersPage() {
                               {worker.email}
                             </td>
                             <td className="px-4 py-2 text-sm text-gray-600">
-                              {worker.phone || "N/A"}
+                              {worker.skills && worker.skills.length > 0
+                                ? `${worker.skills
+                                    .slice(0, 2)
+                                    .map((s) => s.name)
+                                    .join(
+                                      ", "
+                                    )}${worker.skills.length > 2 ? ` +${worker.skills.length - 2}` : ""}`
+                                : "No skills"}
                             </td>
-                            <td className="px-4 py-2 text-sm text-gray-600">
-                              {worker.address || "N/A"}
+                            <td className="px-4 py-2 text-sm">
+                              <div
+                                className="text-gray-900 font-medium cursor-help"
+                                title={`Total: ${worker.total_jobs || 0}\nActive: ${worker.jobs_active || 0}\nIn Progress: ${worker.jobs_in_progress || 0}\nCompleted: ${worker.jobs_completed || 0}\nCancelled: ${worker.jobs_cancelled || 0}`}
+                              >
+                                {worker.total_jobs || 0}
+                                {(worker.total_jobs || 0) > 0 && (
+                                  <span className="text-xs text-gray-500 ml-1">
+                                    ({worker.jobs_active || 0}A/
+                                    {worker.jobs_in_progress || 0}P/
+                                    {worker.jobs_completed || 0}C)
+                                  </span>
+                                )}
+                              </div>
                             </td>
-                            <td className="px-4 py-2 text-sm text-gray-600">
-                              {worker.completed_jobs}
+                            <td className="px-4 py-2 text-sm">
+                              <div className="flex items-center">
+                                <Star className="h-3 w-3 text-yellow-500 mr-1" />
+                                <span>{worker.rating.toFixed(1)}</span>
+                              </div>
                             </td>
                             <td className="px-4 py-2 text-sm">
                               <span
@@ -387,6 +640,69 @@ export default function WorkersPage() {
           </Card>
         </div>
       </main>
+
+      {/* Bulk Action Confirmation Modal */}
+      {showBulkActionModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-start gap-4 mb-4">
+              <AlertCircle className="h-6 w-6 text-orange-500 flex-shrink-0 mt-1" />
+              <div>
+                <h3 className="text-lg font-semibold mb-2">
+                  Confirm Bulk{" "}
+                  {bulkAction === "suspend" ? "Suspension" : "Activation"}
+                </h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  You are about to {bulkAction} {selectedWorkers.size}{" "}
+                  worker(s). This action will affect their account status.
+                </p>
+
+                {bulkAction === "suspend" && (
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Reason for Suspension (Optional)
+                    </label>
+                    <textarea
+                      value={bulkActionReason}
+                      onChange={(e) => setBulkActionReason(e.target.value)}
+                      className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      rows={3}
+                      placeholder="Enter reason for suspension..."
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowBulkActionModal(false);
+                  setBulkActionReason("");
+                }}
+                disabled={bulkActionLoading}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={executeBulkAction}
+                disabled={bulkActionLoading}
+                className="bg-orange-600 hover:bg-orange-700 text-white"
+              >
+                {bulkActionLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  `Confirm ${bulkAction === "suspend" ? "Suspension" : "Activation"}`
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

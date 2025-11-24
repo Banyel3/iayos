@@ -120,6 +120,8 @@ export default function PendingKYCPage() {
     const [imgLoading, setImgLoading] = useState(true);
     const [imgError, setImgError] = useState(false);
 
+    console.log(`KYCDocumentImage ${label} for record ${recordId}:`, url);
+
     return (
       <div className="space-y-2">
         <div className="flex items-center justify-between">
@@ -839,13 +841,66 @@ export default function PendingKYCPage() {
           {/* Pending Reviews List */}
           <div className="space-y-4">
             {isLoading ? (
+              // Skeleton Loading State
+              <>
+                {[1, 2, 3].map((i) => (
+                  <Card key={i} className="animate-pulse">
+                    <CardContent className="p-6">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-4">
+                          {/* Avatar Skeleton */}
+                          <div className="w-12 h-12 rounded-full bg-gray-200"></div>
+                          <div className="space-y-2">
+                            {/* Name Skeleton */}
+                            <div className="h-5 w-32 bg-gray-200 rounded"></div>
+                            {/* Email Skeleton */}
+                            <div className="h-4 w-48 bg-gray-200 rounded"></div>
+                            {/* Badges Skeleton */}
+                            <div className="flex items-center space-x-2">
+                              <div className="h-6 w-16 bg-gray-200 rounded-full"></div>
+                              <div className="h-6 w-24 bg-gray-200 rounded-full"></div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center space-x-6">
+                          {/* Documents Count Skeleton */}
+                          <div className="text-center space-y-2">
+                            <div className="h-4 w-20 bg-gray-200 rounded mx-auto"></div>
+                            <div className="h-6 w-8 bg-gray-200 rounded mx-auto"></div>
+                          </div>
+
+                          {/* Submitted Date Skeleton */}
+                          <div className="text-center space-y-2">
+                            <div className="h-4 w-20 bg-gray-200 rounded mx-auto"></div>
+                            <div className="h-5 w-24 bg-gray-200 rounded mx-auto"></div>
+                          </div>
+
+                          {/* Review Button Skeleton */}
+                          <div className="h-10 w-32 bg-gray-200 rounded"></div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </>
+            ) : filteredRecords.length === 0 ? (
               <Card>
                 <CardContent className="p-12 text-center">
                   <div className="flex flex-col items-center space-y-4">
-                    <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                    <p className="text-muted-foreground">
-                      Loading pending KYC requests...
-                    </p>
+                    <FileText className="w-16 h-16 text-gray-400" />
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                        No Pending Reviews
+                      </h3>
+                      <p className="text-muted-foreground">
+                        {searchTerm ||
+                        priorityFilter !== "all" ||
+                        typeFilter !== "all"
+                          ? "No KYC submissions match your filters"
+                          : "All KYC submissions have been reviewed"}
+                      </p>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -1099,24 +1154,6 @@ export default function PendingKYCPage() {
               ))
             )}
           </div>
-
-          {!isLoading && filteredRecords.length === 0 && (
-            <Card>
-              <CardContent className="p-12 text-center">
-                <Clock className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-semibold mb-2">
-                  No pending reviews found
-                </h3>
-                <p className="text-muted-foreground">
-                  {searchTerm ||
-                  priorityFilter !== "all" ||
-                  typeFilter !== "all"
-                    ? "Try adjusting your search criteria"
-                    : "All KYC submissions have been reviewed"}
-                </p>
-              </CardContent>
-            </Card>
-          )}
         </div>
       </main>
     </div>

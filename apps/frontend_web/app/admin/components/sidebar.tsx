@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
+import UserSearchModal from "@/components/admin/UserSearchModal";
 import {
   Users,
   UserCheck,
@@ -68,7 +69,7 @@ const navigation: NavItem[] = [
   },
   {
     name: "Users",
-    href: "/admin/users",
+    href: "#", // Not a clickable link - just a collapsible section header
     icon: Users,
     count: null,
     children: [
@@ -94,7 +95,7 @@ const navigation: NavItem[] = [
   },
   {
     name: "KYC Management",
-    href: "/admin/kyc",
+    href: "#", // Not a clickable link - just a collapsible section header
     icon: Shield,
     count: 3,
     children: [
@@ -120,7 +121,7 @@ const navigation: NavItem[] = [
   },
   {
     name: "Jobs",
-    href: "/admin/jobs",
+    href: "#", // Not a clickable link - just a collapsible section header
     icon: Briefcase,
     count: null,
     children: [
@@ -182,6 +183,7 @@ export default function Sidebar({ className }: SidebarProps) {
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [pendingKYCCount, setPendingKYCCount] = useState<number>(0);
+  const [showSearchModal, setShowSearchModal] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
   const { logout } = useAuth();
@@ -221,6 +223,19 @@ export default function Sidebar({ className }: SidebarProps) {
     const interval = setInterval(fetchPendingCount, 30000);
 
     return () => clearInterval(interval);
+  }, []);
+
+  // Keyboard shortcut for search (Ctrl+K or Cmd+K)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+        e.preventDefault();
+        setShowSearchModal(true);
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
   }, []);
 
   // Update navigation with dynamic count
@@ -320,16 +335,25 @@ export default function Sidebar({ className }: SidebarProps) {
             </h2>
           </div>
         )}
-        <button
-          onClick={() => setCollapsed(!collapsed)}
-          className="p-1.5 rounded-lg hover:bg-sidebar-accent transition-colors"
-        >
-          {collapsed ? (
-            <ChevronRight className="h-4 w-4 text-sidebar-foreground" />
-          ) : (
-            <ChevronLeft className="h-4 w-4 text-sidebar-foreground" />
-          )}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowSearchModal(true)}
+            className="p-1.5 rounded-lg hover:bg-sidebar-accent transition-colors"
+            title="Search users (Ctrl+K)"
+          >
+            <Search className="h-4 w-4 text-sidebar-foreground" />
+          </button>
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            className="p-1.5 rounded-lg hover:bg-sidebar-accent transition-colors"
+          >
+            {collapsed ? (
+              <ChevronRight className="h-4 w-4 text-sidebar-foreground" />
+            ) : (
+              <ChevronLeft className="h-4 w-4 text-sidebar-foreground" />
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Navigation */}
@@ -514,6 +538,12 @@ export default function Sidebar({ className }: SidebarProps) {
           </div>
         )}
       </div>
+
+      {/* User Search Modal */}
+      <UserSearchModal
+        isOpen={showSearchModal}
+        onClose={() => setShowSearchModal(false)}
+      />
     </div>
   );
 }

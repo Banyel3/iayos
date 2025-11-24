@@ -62,6 +62,8 @@ function combineKYCData(data: any): KYCRecord[] {
       const user = data.users?.find((u: any) => u.accountID === kyc.accountFK);
       const files = data.files?.filter((f: any) => f.kycID === kyc.kycID) || [];
 
+      console.log(`Processing KYC ${kyc.kycID}:`, { kyc, user, files });
+
       if (user) {
         records.push({
           id: `kyc_${kyc.kycID}`,
@@ -203,103 +205,105 @@ export default function KYCDetailPage() {
 
   const fetchSignedURLs = async (record: KYCRecord) => {
     try {
-      const documentPaths: string[] = [];
+      // Build request body with field names matching backend expectations
+      const requestBody: Record<string, string> = {};
 
       if (record.documents.frontImage)
-        documentPaths.push(record.documents.frontImage);
+        requestBody.frontIDLink = record.documents.frontImage;
       if (record.documents.backImage)
-        documentPaths.push(record.documents.backImage);
+        requestBody.backIDLink = record.documents.backImage;
       if (record.documents.selfieImage)
-        documentPaths.push(record.documents.selfieImage);
+        requestBody.selfieLink = record.documents.selfieImage;
       if (record.documents.businessPermit)
-        documentPaths.push(record.documents.businessPermit);
+        requestBody.clearanceLink = record.documents.businessPermit;
       if (record.documents.birCertificate)
-        documentPaths.push(record.documents.birCertificate);
+        requestBody.addressProofLink = record.documents.birCertificate;
+
+      console.log("Fetching signed URLs for documents:", requestBody);
+
+      if (Object.keys(requestBody).length === 0) {
+        console.warn("No document paths found for KYC record");
+        return;
+      }
 
       const response = await fetch(
         "http://localhost:8000/api/adminpanel/kyc/review",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(documentPaths),
+          body: JSON.stringify(requestBody),
           credentials: "include",
         }
       );
 
+      console.log("Signed URLs response status:", response.status);
+
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Failed to fetch signed URLs:", errorText);
         throw new Error("Failed to fetch signed URLs");
       }
 
       const signedData = await response.json();
+      console.log("Signed URLs received:", signedData);
 
-      if (signedData.success && signedData.urls) {
-        const docs: SignedDocument[] = [];
+      // Backend returns { frontIDLink: "url", backIDLink: "url", ... }
+      const docs: SignedDocument[] = [];
 
-        if (
-          record.documents.frontImage &&
-          signedData.urls[record.documents.frontImage]
-        ) {
-          docs.push({
-            type: "front",
-            label: "ID Front",
-            url: signedData.urls[record.documents.frontImage],
-            originalPath: record.documents.frontImage,
-          });
-        }
+      if (record.documents.frontImage && signedData.frontIDLink) {
+        docs.push({
+          type: "front",
+          label: "ID Front",
+          url: signedData.frontIDLink,
+          originalPath: record.documents.frontImage,
+        });
+      }
 
-        if (
-          record.documents.backImage &&
-          signedData.urls[record.documents.backImage]
-        ) {
-          docs.push({
-            type: "back",
-            label: "ID Back",
-            url: signedData.urls[record.documents.backImage],
-            originalPath: record.documents.backImage,
-          });
-        }
+      if (record.documents.backImage && signedData.backIDLink) {
+        docs.push({
+          type: "back",
+          label: "ID Back",
+          url: signedData.backIDLink,
+          originalPath: record.documents.backImage,
+        });
+      }
 
-        if (
-          record.documents.selfieImage &&
-          signedData.urls[record.documents.selfieImage]
-        ) {
-          docs.push({
-            type: "selfie",
-            label: "Selfie",
-            url: signedData.urls[record.documents.selfieImage],
-            originalPath: record.documents.selfieImage,
-          });
-        }
+      if (record.documents.selfieImage && signedData.selfieLink) {
+        docs.push({
+          type: "selfie",
+          label: "Selfie",
+          url: signedData.selfieLink,
+          originalPath: record.documents.selfieImage,
+        });
+      }
 
-        if (
-          record.documents.businessPermit &&
-          signedData.urls[record.documents.businessPermit]
-        ) {
-          docs.push({
-            type: "business_permit",
-            label: "Business Permit",
-            url: signedData.urls[record.documents.businessPermit],
-            originalPath: record.documents.businessPermit,
-          });
-        }
+      if (record.documents.businessPermit && signedData.clearanceLink) {
+        docs.push({
+          type: "business_permit",
+          label: "Business Permit",
+          url: signedData.clearanceLink,
+          originalPath: record.documents.businessPermit,
+        });
+      }
 
-        if (
-          record.documents.birCertificate &&
-          signedData.urls[record.documents.birCertificate]
-        ) {
-          docs.push({
-            type: "bir_certificate",
-            label: "BIR Certificate",
-            url: signedData.urls[record.documents.birCertificate],
-            originalPath: record.documents.birCertificate,
-          });
-        }
+      if (record.documents.birCertificate && signedData.addressProofLink) {
+        docs.push({
+          type: "bir_certificate",
+          label: "BIR Certificate",
+          url: signedData.addressProofLink,
+          originalPath: record.documents.birCertificate,
+        });
+      }
 
-        setSignedDocuments(docs);
+      console.log("Signed documents ready:", docs);
+      setSignedDocuments(docs);
+
+      if (docs.length === 0) {
+        console.warn("No signed URLs returned from backend");
       }
     } catch (err) {
       console.error("Error fetching signed URLs:", err);
-      toast.error("Failed to load document images");
+      toast.error("Failed to load document images. Check console for details.");
     }
   };
 

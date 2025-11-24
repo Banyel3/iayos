@@ -31,12 +31,13 @@ def get_dashboard_stats(request):
 @router.get("/kyc/all")
 def get_all_kyc(request):
     try:
-        return fetchAll_kyc(request)
+        data = fetchAll_kyc(request)
+        return {"success": True, **data}
     except Exception as e:
         print(f"❌ Error in get_all_kyc: {str(e)}")
         import traceback
         traceback.print_exc()
-        return {"error": str(e)}
+        return {"success": False, "error": str(e)}
     
 @router.post("/kyc/review")
 def review_kyc(request):

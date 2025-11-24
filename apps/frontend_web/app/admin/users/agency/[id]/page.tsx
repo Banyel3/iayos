@@ -17,6 +17,7 @@ import {
   Briefcase,
   Loader2,
   ExternalLink,
+  AlertCircle,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -75,6 +76,15 @@ export default function AgencyDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Account action modals
+  const [showSuspendModal, setShowSuspendModal] = useState(false);
+  const [showBanModal, setShowBanModal] = useState(false);
+  const [showActivateModal, setShowActivateModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [actionReason, setActionReason] = useState("");
+  const [actionLoading, setActionLoading] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+
   useEffect(() => {
     async function fetchAgency() {
       try {
@@ -107,6 +117,125 @@ export default function AgencyDetailPage() {
     }
     if (id) fetchAgency();
   }, [id]);
+
+  // Account action handlers
+  const handleSuspend = async () => {
+    if (!actionReason.trim()) {
+      alert("Please provide a reason for suspension");
+      return;
+    }
+    setActionLoading(true);
+    try {
+      const response = await fetch(
+        `http://localhost:8000/api/adminpanel/users/${id}/suspend`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ reason: actionReason }),
+        }
+      );
+      if (response.ok) {
+        alert("Agency suspended successfully");
+        setShowSuspendModal(false);
+        setActionReason("");
+        fetchAgency();
+      } else {
+        alert("Failed to suspend agency");
+      }
+    } catch (error) {
+      console.error("Suspend error:", error);
+      alert("An error occurred");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleBan = async () => {
+    if (!actionReason.trim()) {
+      alert("Please provide a reason for banning");
+      return;
+    }
+    setActionLoading(true);
+    try {
+      const response = await fetch(
+        `http://localhost:8000/api/adminpanel/users/${id}/ban`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ reason: actionReason }),
+        }
+      );
+      if (response.ok) {
+        alert("Agency banned successfully");
+        setShowBanModal(false);
+        setActionReason("");
+        fetchAgency();
+      } else {
+        alert("Failed to ban agency");
+      }
+    } catch (error) {
+      console.error("Ban error:", error);
+      alert("An error occurred");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleActivate = async () => {
+    setActionLoading(true);
+    try {
+      const response = await fetch(
+        `http://localhost:8000/api/adminpanel/users/${id}/activate`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+        }
+      );
+      if (response.ok) {
+        alert("Agency activated successfully");
+        setShowActivateModal(false);
+        fetchAgency();
+      } else {
+        alert("Failed to activate agency");
+      }
+    } catch (error) {
+      console.error("Activate error:", error);
+      alert("An error occurred");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (deleteConfirmText !== "DELETE") {
+      alert('Please type "DELETE" to confirm');
+      return;
+    }
+    setActionLoading(true);
+    try {
+      const response = await fetch(
+        `http://localhost:8000/api/adminpanel/users/${id}/delete`,
+        {
+          method: "DELETE",
+          credentials: "include",
+        }
+      );
+      if (response.ok) {
+        alert("Agency deleted successfully");
+        router.push("/admin/users/agency");
+      } else {
+        alert("Failed to delete agency");
+      }
+    } catch (error) {
+      console.error("Delete error:", error);
+      alert("An error occurred");
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -452,10 +581,37 @@ export default function AgencyDetailPage() {
                 <Mail className="w-4 h-4 mr-2" />
                 Send Email
               </Button>
-              <Button variant="outline" className="w-full justify-start">
-                Suspend Agency
-              </Button>
-              <Button variant="destructive" className="w-full justify-start">
+              {agency.status?.toLowerCase() === "active" ? (
+                <>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start"
+                    onClick={() => setShowSuspendModal(true)}
+                  >
+                    Suspend Agency
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    className="w-full justify-start"
+                    onClick={() => setShowBanModal(true)}
+                  >
+                    Ban Agency
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  variant="outline"
+                  className="w-full justify-start"
+                  onClick={() => setShowActivateModal(true)}
+                >
+                  Activate Agency
+                </Button>
+              )}
+              <Button
+                variant="destructive"
+                className="w-full justify-start"
+                onClick={() => setShowDeleteModal(true)}
+              >
                 Delete Agency
               </Button>
             </CardContent>
@@ -494,6 +650,236 @@ export default function AgencyDetailPage() {
           </Card>
         </div>
       </div>
+
+      {/* Suspend Modal */}
+      {showSuspendModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-start gap-4 mb-4">
+              <AlertCircle className="h-6 w-6 text-orange-500 flex-shrink-0 mt-1" />
+              <div>
+                <h3 className="text-lg font-semibold mb-2">
+                  Suspend Agency Account
+                </h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  This will temporarily suspend the agency&apos;s account. All
+                  employees under this agency will be affected.
+                </p>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Reason for Suspension *
+                  </label>
+                  <textarea
+                    value={actionReason}
+                    onChange={(e) => setActionReason(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    rows={3}
+                    placeholder="Enter reason for suspension..."
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowSuspendModal(false);
+                  setActionReason("");
+                }}
+                disabled={actionLoading}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSuspend}
+                disabled={actionLoading}
+                className="bg-orange-600 hover:bg-orange-700 text-white"
+              >
+                {actionLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Suspending...
+                  </>
+                ) : (
+                  "Confirm Suspension"
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Ban Modal */}
+      {showBanModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-start gap-4 mb-4">
+              <AlertCircle className="h-6 w-6 text-red-500 flex-shrink-0 mt-1" />
+              <div>
+                <h3 className="text-lg font-semibold mb-2 text-red-600">
+                  Ban Agency Account
+                </h3>
+                <p className="text-sm text-gray-600 mb-2">
+                  ⚠️ <strong>PERMANENT ACTION:</strong> This will permanently
+                  ban the agency and all associated employees.
+                </p>
+                <p className="text-sm text-gray-600 mb-4">
+                  This action cannot be easily reversed.
+                </p>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Reason for Ban *
+                  </label>
+                  <textarea
+                    value={actionReason}
+                    onChange={(e) => setActionReason(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+                    rows={3}
+                    placeholder="Enter reason for permanent ban..."
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowBanModal(false);
+                  setActionReason("");
+                }}
+                disabled={actionLoading}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleBan}
+                disabled={actionLoading}
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                {actionLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Banning...
+                  </>
+                ) : (
+                  "Confirm Ban"
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Activate Modal */}
+      {showActivateModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-start gap-4 mb-4">
+              <AlertCircle className="h-6 w-6 text-green-500 flex-shrink-0 mt-1" />
+              <div>
+                <h3 className="text-lg font-semibold mb-2">
+                  Activate Agency Account
+                </h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  This will reactivate the agency&apos;s account and restore
+                  access for all employees.
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setShowActivateModal(false)}
+                disabled={actionLoading}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleActivate}
+                disabled={actionLoading}
+                className="bg-green-600 hover:bg-green-700 text-white"
+              >
+                {actionLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Activating...
+                  </>
+                ) : (
+                  "Confirm Activation"
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-start gap-4 mb-4">
+              <AlertCircle className="h-6 w-6 text-red-600 flex-shrink-0 mt-1" />
+              <div>
+                <h3 className="text-lg font-semibold mb-2 text-red-600">
+                  Delete Agency Account
+                </h3>
+                <p className="text-sm text-gray-600 mb-2">
+                  🚨 <strong>IRREVERSIBLE ACTION:</strong> This will permanently
+                  delete:
+                </p>
+                <ul className="text-sm text-gray-600 mb-4 ml-6 list-disc">
+                  <li>Agency profile and business information</li>
+                  <li>All employee accounts</li>
+                  <li>Job history and earnings</li>
+                  <li>Transaction records</li>
+                  <li>Reviews and ratings</li>
+                </ul>
+                <p className="text-sm font-semibold text-red-600 mb-4">
+                  This action CANNOT be undone.
+                </p>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Type <strong>DELETE</strong> to confirm
+                  </label>
+                  <input
+                    type="text"
+                    value={deleteConfirmText}
+                    onChange={(e) => setDeleteConfirmText(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+                    placeholder="Type DELETE"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setDeleteConfirmText("");
+                }}
+                disabled={actionLoading}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleDelete}
+                disabled={actionLoading || deleteConfirmText !== "DELETE"}
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                {actionLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  "Delete Permanently"
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

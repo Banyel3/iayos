@@ -261,11 +261,31 @@ def review_kyc_items(request):
                 return ""
 
             res = _create_signed(bucket, path)
-            if isinstance(res, dict) and ('signedURL' in res or 'signed_url' in res):
-                return res.get('signedURL') or res.get('signed_url')
+            print(f"DEBUG: _create_signed returned type={type(res)}, value={res}")
+            
+            if isinstance(res, dict):
+                # Try all possible key variations
+                signed_url = res.get('signedURL') or res.get('signed_url') or res.get('signedUrl')
+                print(f"DEBUG: Extracted signedURL from dict: {signed_url}")
+                
+                # Check if URL has duplicate path and fix it
+                if signed_url and '/object/sign/kyc-docs//object/sign/kyc-docs/' in signed_url:
+                    print(f"WARN: Found duplicate path in signed URL, fixing...")
+                    # Replace the duplicate path with single path
+                    signed_url = signed_url.replace('/object/sign/kyc-docs//object/sign/kyc-docs/', '/object/sign/kyc-docs/')
+                    print(f"DEBUG: Fixed URL: {signed_url}")
+                    
+                return signed_url or ""
             elif isinstance(res, str):
+                print(f"DEBUG: Result is string: {res}")
+                # Check for duplicate path in string response too
+                if '/object/sign/kyc-docs//object/sign/kyc-docs/' in res:
+                    print(f"WARN: Found duplicate path in string result, fixing...")
+                    res = res.replace('/object/sign/kyc-docs//object/sign/kyc-docs/', '/object/sign/kyc-docs/')
+                    print(f"DEBUG: Fixed URL: {res}")
                 return res
             else:
+                print(f"ERROR: Unexpected response type from Supabase, falling back to public URL")
                 # fallback to public url if available
                 try:
                     return settings.SUPABASE.storage().from_(bucket).get_public_url(path)
@@ -977,6 +997,68 @@ def get_clients_list(page: int = 1, page_size: int = 50, search: str | None = No
             except Exception as e:
                 kyc_status = 'NOT_SUBMITTED'
             
+            # Get client jobs posted and total spent
+            try:
+                from accounts.models import Job, Transaction, ClientProfile as CP
+                
+                # Get ClientProfile for this profile
+                try:
+                    client_profile = CP.objects.get(profileID=profile)
+                    
+                    # Count jobs by status that client posted
+                    # Job model uses clientID (FK to ClientProfile)
+                    client_jobs = Job.objects.filter(clientID=client_profile)
+                    jobs_posted = client_jobs.count()
+                    jobs_active = client_jobs.filter(status='ACTIVE').count()
+                    jobs_in_progress = client_jobs.filter(status='IN_PROGRESS').count()
+                    jobs_completed = client_jobs.filter(status='COMPLETED').count()
+                    jobs_cancelled = client_jobs.filter(status='CANCELLED').count()
+                    
+                    # Calculate total spent from completed jobs
+                    completed_jobs = Job.objects.filter(
+                        clientID=client_profile,
+                        status='COMPLETED'
+                    )
+                    total_spent = sum(job.budget or 0 for job in completed_jobs)
+                except CP.DoesNotExist:
+                    # Client profile doesn't exist yet
+                    jobs_posted = 0
+                    jobs_active = 0
+                    jobs_in_progress = 0
+                    jobs_completed = 0
+                    jobs_cancelled = 0
+                    total_spent = 0
+            except Exception as e:
+                print(f"Error getting client jobs for {account.email}: {e}")
+                import traceback
+                traceback.print_exc()
+                jobs_posted = 0
+                jobs_active = 0
+                jobs_in_progress = 0
+                jobs_completed = 0
+                jobs_cancelled = 0
+                total_spent = 0
+            
+            # Get client rating from reviews (as reviewee)
+            try:
+                from accounts.models import JobReview
+                from django.db.models import Avg, Count
+                
+                reviews_stats = JobReview.objects.filter(
+                    revieweeID=account,  # revieweeID is ForeignKey to Accounts, not Profile
+                    status='ACTIVE'
+                ).aggregate(
+                    avg_rating=Avg('rating'),
+                    review_count=Count('reviewID')
+                )
+                
+                avg_rating = float(reviews_stats['avg_rating'] or 0.0)
+                review_count = reviews_stats['review_count'] or 0
+            except Exception as e:
+                print(f"Error getting client rating for {account.email}: {e}")
+                avg_rating = 0.0
+                review_count = 0
+            
             clients_list.append({
                 'id': str(account.accountID),
                 'profile_id': str(profile.profileID),
@@ -989,6 +1071,14 @@ def get_clients_list(page: int = 1, page_size: int = 50, search: str | None = No
                 'kyc_status': kyc_status,
                 'join_date': account.createdAt.isoformat() if account.createdAt else None,
                 'is_verified': account.isVerified,
+                'jobs_posted': jobs_posted,
+                'jobs_active': jobs_active,
+                'jobs_in_progress': jobs_in_progress,
+                'jobs_completed': jobs_completed,
+                'jobs_cancelled': jobs_cancelled,
+                'total_spent': float(total_spent),
+                'rating': round(avg_rating, 1),
+                'review_count': review_count,
             })
         
         return {
@@ -1063,16 +1153,85 @@ def get_workers_list(page: int = 1, page_size: int = 50, search: str | None = No
             except Exception as e:
                 kyc_status = 'NOT_SUBMITTED'
             
-            # Get worker rating and completed jobs
-            # You may need to adjust this based on your Job/Review models
+            # Get worker rating, completed jobs, and total earnings
             try:
-                from accounts.models import Job
-                completed_jobs = Job.objects.filter(
-                    workerFK=profile,
-                    status='COMPLETED'
-                ).count()
+                from accounts.models import Job, WorkerProfile as WP
+                
+                # Get WorkerProfile for this profile
+                try:
+                    worker_profile = WP.objects.get(profileID=profile)
+                    
+                    # Count jobs by status that worker is assigned to
+                    # Job model uses assignedWorkerID (FK to WorkerProfile)
+                    worker_jobs = Job.objects.filter(assignedWorkerID=worker_profile)
+                    total_jobs = worker_jobs.count()
+                    jobs_active = worker_jobs.filter(status='ACTIVE').count()
+                    jobs_in_progress = worker_jobs.filter(status='IN_PROGRESS').count()
+                    jobs_completed = worker_jobs.filter(status='COMPLETED').count()
+                    jobs_cancelled = worker_jobs.filter(status='CANCELLED').count()
+                    
+                    # Calculate total earnings from completed jobs
+                    completed_jobs_query = Job.objects.filter(
+                        assignedWorkerID=worker_profile,
+                        status='COMPLETED'
+                    )
+                    total_earnings = sum(job.budget or 0 for job in completed_jobs_query)
+                except WP.DoesNotExist:
+                    # Worker profile doesn't exist yet
+                    total_jobs = 0
+                    jobs_active = 0
+                    jobs_in_progress = 0
+                    jobs_completed = 0
+                    jobs_cancelled = 0
+                    total_earnings = 0
+            except Exception as e:
+                print(f"Error getting worker jobs for {account.email}: {e}")
+                import traceback
+                traceback.print_exc()
+                total_jobs = 0
+                jobs_active = 0
+                jobs_in_progress = 0
+                jobs_completed = 0
+                jobs_cancelled = 0
+                total_earnings = 0
+            
+            # Get worker rating from reviews (as reviewee)
+            try:
+                from accounts.models import JobReview
+                from django.db.models import Avg, Count
+                
+                reviews_stats = JobReview.objects.filter(
+                    revieweeID=account,  # revieweeID is ForeignKey to Accounts, not Profile
+                    status='ACTIVE'
+                ).aggregate(
+                    avg_rating=Avg('rating'),
+                    review_count=Count('reviewID')
+                )
+                
+                avg_rating = float(reviews_stats['avg_rating'] or 0.0)
+                review_count = reviews_stats['review_count'] or 0
+            except Exception as e:
+                print(f"Error getting worker rating for {account.email}: {e}")
+                avg_rating = 0.0
+                review_count = 0
+            
+            # Get worker skills
+            try:
+                from accounts.models import WorkerProfile, workerSpecialization
+                worker_profile = WorkerProfile.objects.get(profileID=profile)
+                specializations = workerSpecialization.objects.filter(
+                    workerID=worker_profile
+                ).select_related('specializationID')
+                
+                skills = [
+                    {
+                        'name': spec.specializationID.specializationName,
+                        'experience_years': spec.experienceYears
+                    }
+                    for spec in specializations
+                ]
             except:
-                completed_jobs = 0
+                skills = []
             
             workers_list.append({
                 'id': str(account.accountID),
@@ -1086,9 +1245,16 @@ def get_workers_list(page: int = 1, page_size: int = 50, search: str | None = No
                 'kyc_status': kyc_status,
                 'join_date': account.createdAt.isoformat() if account.createdAt else None,
                 'is_verified': account.isVerified,
-                'completed_jobs': completed_jobs,
-                'rating': 0.0,  # TODO: Calculate from reviews when implemented
-                'review_count': 0,  # TODO: Get from reviews when implemented
+                'total_jobs': total_jobs,
+                'jobs_active': jobs_active,
+                'jobs_in_progress': jobs_in_progress,
+                'jobs_completed': jobs_completed,
+                'jobs_cancelled': jobs_cancelled,
+                'total_earnings': float(total_earnings),
+                'rating': round(avg_rating, 1),
+                'review_count': review_count,
+                'skills': skills,
+                'skills_count': len(skills),
             })
         
         return {

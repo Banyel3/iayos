@@ -18,6 +18,10 @@ import {
   Users,
   Loader2,
   Briefcase,
+  CheckSquare,
+  Square,
+  AlertCircle,
+  Star,
 } from "lucide-react";
 import { Sidebar } from "../../components";
 
@@ -57,9 +61,24 @@ export default function AgencyPage() {
   const [statusFilter, setStatusFilter] = useState<
     "all" | "active" | "inactive"
   >("all");
+  const [sortBy, setSortBy] = useState<
+    "newest" | "oldest" | "most_workers" | "most_jobs"
+  >("newest");
   const [totalAgencies, setTotalAgencies] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+
+  // Bulk selection state
+  const [selectedAgencies, setSelectedAgencies] = useState<Set<string>>(
+    new Set()
+  );
+  const [selectAll, setSelectAll] = useState(false);
+  const [bulkActionLoading, setBulkActionLoading] = useState(false);
+  const [showBulkActionModal, setShowBulkActionModal] = useState(false);
+  const [bulkAction, setBulkAction] = useState<"suspend" | "activate" | null>(
+    null
+  );
+  const [bulkActionReason, setBulkActionReason] = useState("");
 
   const fetchAgencies = async () => {
     setLoading(true);
@@ -71,6 +90,7 @@ export default function AgencyPage() {
 
       if (searchTerm) params.append("search", searchTerm);
       if (statusFilter !== "all") params.append("status", statusFilter);
+      if (sortBy !== "newest") params.append("sort", sortBy);
 
       const response = await fetch(
         `http://localhost:8000/api/adminpanel/users/agencies?${params}`,
@@ -99,7 +119,9 @@ export default function AgencyPage() {
 
   useEffect(() => {
     fetchAgencies();
-  }, [currentPage, statusFilter]);
+    setSelectedAgencies(new Set());
+    setSelectAll(false);
+  }, [currentPage, statusFilter, sortBy]);
 
   // Debounce search
   useEffect(() => {
@@ -113,6 +135,123 @@ export default function AgencyPage() {
 
     return () => clearTimeout(timer);
   }, [searchTerm]);
+
+  // Bulk selection handlers
+  const handleSelectAll = () => {
+    if (selectAll) {
+      setSelectedAgencies(new Set());
+    } else {
+      setSelectedAgencies(new Set(agencies.map((a) => a.id)));
+    }
+    setSelectAll(!selectAll);
+  };
+
+  const handleSelectAgency = (agencyId: string) => {
+    const newSelected = new Set(selectedAgencies);
+    if (newSelected.has(agencyId)) {
+      newSelected.delete(agencyId);
+    } else {
+      newSelected.add(agencyId);
+    }
+    setSelectedAgencies(newSelected);
+    setSelectAll(newSelected.size === agencies.length);
+  };
+
+  // Export to CSV
+  const handleExport = () => {
+    const headers = [
+      "ID",
+      "Agency Name",
+      "Email",
+      "Phone",
+      "Status",
+      "Workers",
+      "Total Jobs",
+      "Completed Jobs",
+      "Rating",
+    ];
+    const rows = agencies.map((a) => [
+      a.id,
+      a.agency_name,
+      a.email,
+      a.phone || "N/A",
+      a.status,
+      a.total_workers,
+      a.total_jobs,
+      a.completed_jobs,
+      a.rating.toFixed(1),
+    ]);
+
+    const csvContent = [
+      headers.join(","),
+      ...rows.map((row) => row.map((cell) => `"${cell}"`).join(",")),
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `agencies_export_${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+  // Bulk actions
+  const handleBulkAction = async (action: "suspend" | "activate") => {
+    setBulkAction(action);
+    setShowBulkActionModal(true);
+  };
+
+  const executeBulkAction = async () => {
+    if (!bulkAction || selectedAgencies.size === 0) return;
+
+    setBulkActionLoading(true);
+    const agencyIds = Array.from(selectedAgencies);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const agencyId of agencyIds) {
+      try {
+        const endpoint =
+          bulkAction === "suspend"
+            ? `/api/adminpanel/users/${agencyId}/suspend`
+            : `/api/adminpanel/users/${agencyId}/activate`;
+
+        const body =
+          bulkAction === "suspend" && bulkActionReason
+            ? { reason: bulkActionReason }
+            : {};
+
+        const response = await fetch(`http://localhost:8000${endpoint}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(body),
+        });
+
+        if (response.ok) {
+          successCount++;
+        } else {
+          failCount++;
+        }
+      } catch (error) {
+        console.error(`Failed to ${bulkAction} agency ${agencyId}:`, error);
+        failCount++;
+      }
+    }
+
+    setBulkActionLoading(false);
+    setShowBulkActionModal(false);
+    setBulkActionReason("");
+    setSelectedAgencies(new Set());
+    setSelectAll(false);
+
+    alert(
+      `${bulkAction === "suspend" ? "Suspended" : "Activated"} ${successCount} agencies successfully. ${failCount > 0 ? `${failCount} failed.` : ""}`
+    );
+
+    fetchAgencies();
+  };
 
   const activeAgencies = agencies.filter((a) => a.status === "active").length;
   const totalWorkers = agencies.reduce((sum, a) => sum + a.total_workers, 0);
@@ -132,7 +271,7 @@ export default function AgencyPage() {
                 Manage service agencies and their operations
               </p>
             </div>
-            <Button>
+            <Button onClick={handleExport}>
               <Download className="mr-2 h-4 w-4" />
               Export Agencies
             </Button>
@@ -205,8 +344,8 @@ export default function AgencyPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex gap-4">
-                <div className="flex-1">
+              <div className="flex gap-4 flex-wrap">
+                <div className="flex-1 min-w-[200px]">
                   <div className="relative">
                     <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
@@ -230,7 +369,54 @@ export default function AgencyPage() {
                   <option value="active">Active</option>
                   <option value="inactive">Inactive</option>
                 </select>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as any)}
+                  className="px-3 py-2 border rounded-md"
+                >
+                  <option value="newest">Newest First</option>
+                  <option value="oldest">Oldest First</option>
+                  <option value="most_workers">Most Workers</option>
+                  <option value="most_jobs">Most Jobs</option>
+                </select>
               </div>
+
+              {/* Bulk Actions Bar */}
+              {selectedAgencies.size > 0 && (
+                <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-md p-3">
+                  <span className="text-sm font-medium text-blue-900">
+                    {selectedAgencies.size} agency/agencies selected
+                  </span>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleBulkAction("suspend")}
+                      disabled={bulkActionLoading}
+                    >
+                      Suspend Selected
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleBulkAction("activate")}
+                      disabled={bulkActionLoading}
+                    >
+                      Activate Selected
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setSelectedAgencies(new Set());
+                        setSelectAll(false);
+                      }}
+                    >
+                      Clear Selection
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -260,6 +446,18 @@ export default function AgencyPage() {
                     <table className="min-w-full border border-gray-200 rounded-md">
                       <thead className="bg-gray-100">
                         <tr>
+                          <th className="px-4 py-2 text-left">
+                            <button
+                              onClick={handleSelectAll}
+                              className="flex items-center justify-center"
+                            >
+                              {selectAll ? (
+                                <CheckSquare className="h-4 w-4 text-blue-600" />
+                              ) : (
+                                <Square className="h-4 w-4 text-gray-400" />
+                              )}
+                            </button>
+                          </th>
                           <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
                             #
                           </th>
@@ -270,19 +468,16 @@ export default function AgencyPage() {
                             Email
                           </th>
                           <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
-                            Phone
-                          </th>
-                          <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
-                            Address
-                          </th>
-                          <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
                             Workers
                           </th>
                           <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
                             Jobs
                           </th>
                           <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
-                            KYC Status
+                            Rating
+                          </th>
+                          <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
+                            KYC
                           </th>
                           <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
                             Status
@@ -298,6 +493,18 @@ export default function AgencyPage() {
                             key={agency.id}
                             className="border-t hover:bg-gray-50"
                           >
+                            <td className="px-4 py-2">
+                              <button
+                                onClick={() => handleSelectAgency(agency.id)}
+                                className="flex items-center justify-center"
+                              >
+                                {selectedAgencies.has(agency.id) ? (
+                                  <CheckSquare className="h-4 w-4 text-blue-600" />
+                                ) : (
+                                  <Square className="h-4 w-4 text-gray-400" />
+                                )}
+                              </button>
+                            </td>
                             <td className="px-4 py-2 text-sm">
                               {(currentPage - 1) * 50 + index + 1}
                             </td>
@@ -307,17 +514,19 @@ export default function AgencyPage() {
                             <td className="px-4 py-2 text-sm text-gray-600">
                               {agency.email}
                             </td>
-                            <td className="px-4 py-2 text-sm text-gray-600">
-                              {agency.phone || "N/A"}
-                            </td>
-                            <td className="px-4 py-2 text-sm text-gray-600">
-                              {agency.address || "N/A"}
-                            </td>
                             <td className="px-4 py-2 text-sm text-center">
-                              {agency.total_workers}
+                              <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
+                                {agency.total_workers}
+                              </span>
                             </td>
                             <td className="px-4 py-2 text-sm text-center">
                               {agency.total_jobs}
+                            </td>
+                            <td className="px-4 py-2 text-sm">
+                              <div className="flex items-center">
+                                <Star className="h-3 w-3 text-yellow-500 mr-1" />
+                                <span>{agency.rating.toFixed(1)}</span>
+                              </div>
                             </td>
                             <td className="px-4 py-2 text-sm">
                               <span
@@ -396,6 +605,69 @@ export default function AgencyPage() {
           </Card>
         </div>
       </main>
+
+      {/* Bulk Action Confirmation Modal */}
+      {showBulkActionModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-start gap-4 mb-4">
+              <AlertCircle className="h-6 w-6 text-orange-500 flex-shrink-0 mt-1" />
+              <div>
+                <h3 className="text-lg font-semibold mb-2">
+                  Confirm Bulk{" "}
+                  {bulkAction === "suspend" ? "Suspension" : "Activation"}
+                </h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  You are about to {bulkAction} {selectedAgencies.size}{" "}
+                  agency/agencies. This action will affect their account status.
+                </p>
+
+                {bulkAction === "suspend" && (
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Reason for Suspension (Optional)
+                    </label>
+                    <textarea
+                      value={bulkActionReason}
+                      onChange={(e) => setBulkActionReason(e.target.value)}
+                      className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      rows={3}
+                      placeholder="Enter reason for suspension..."
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowBulkActionModal(false);
+                  setBulkActionReason("");
+                }}
+                disabled={bulkActionLoading}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={executeBulkAction}
+                disabled={bulkActionLoading}
+                className="bg-orange-600 hover:bg-orange-700 text-white"
+              >
+                {bulkActionLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  `Confirm ${bulkAction === "suspend" ? "Suspension" : "Activation"}`
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
