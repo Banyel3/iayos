@@ -358,7 +358,7 @@ export default function WorkerDetailPage() {
                   {worker.kyc_status || "NOT_SUBMITTED"}
                 </span>
               </div>
-              
+
               {/* Account Action Buttons */}
               <div className="flex gap-2">
                 {!worker.is_banned && (

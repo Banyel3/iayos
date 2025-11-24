@@ -357,7 +357,7 @@ export default function Sidebar({ className }: SidebarProps) {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 overflow-y-auto">
+      <nav className="flex-1 overflow-y-auto p-4 space-y-1">
         {navigationWithCount.map((item) => {
           const Icon = item.icon;
           const isItemActive = isActive(item.href);
@@ -476,8 +476,8 @@ export default function Sidebar({ className }: SidebarProps) {
         })}
       </nav>
 
-      {/* Bottom User Card */}
-      <div className="p-4 border-t border-gray-200 relative">
+      {/* Bottom User Card - Fixed at bottom */}
+      <div className="flex-shrink-0 p-4 border-t border-gray-200 bg-white relative">
         <button
           onClick={() => setShowUserMenu(!showUserMenu)}
           className={cn(

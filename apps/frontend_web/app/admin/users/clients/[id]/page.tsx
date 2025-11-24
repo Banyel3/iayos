@@ -248,7 +248,7 @@ export default function ClientDetailPage() {
                 {getStatusBadge(client.status)}
                 {getKYCBadge(client.kyc_status)}
               </div>
-              
+
               {/* Account Action Buttons */}
               <div className="flex gap-2">
                 <Button variant="outline" size="sm">

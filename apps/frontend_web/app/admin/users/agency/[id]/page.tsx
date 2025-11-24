@@ -364,7 +364,7 @@ export default function AgencyDetailPage() {
                   {agency.kyc_status}
                 </span>
               </div>
-              
+
               {/* Account Action Buttons */}
               <div className="flex gap-2">
                 <Button
