@@ -45,6 +45,11 @@ interface Client {
   total_spent?: number;
   rating?: number;
   review_count?: number;
+  is_agency?: boolean;
+  agency_info?: {
+    business_name: string;
+    employee_count: number;
+  };
 }
 
 interface ClientsResponse {
@@ -454,6 +459,9 @@ export default function ClientsPage() {
                             Email
                           </th>
                           <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
+                            Type
+                          </th>
+                          <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
                             Phone
                           </th>
                           <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
@@ -502,6 +510,25 @@ export default function ClientsPage() {
                             </td>
                             <td className="px-4 py-2 text-sm text-gray-600">
                               {client.email}
+                            </td>
+                            <td className="px-4 py-2 text-sm">
+                              {client.is_agency && client.agency_info ? (
+                                <div className="flex flex-col">
+                                  <span className="font-medium text-blue-600">
+                                    Agency
+                                  </span>
+                                  <span className="text-xs text-gray-500">
+                                    {client.agency_info.employee_count}{" "}
+                                    {client.agency_info.employee_count === 1
+                                      ? "employee"
+                                      : "employees"}
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="text-gray-600">
+                                  Individual
+                                </span>
+                              )}
                             </td>
                             <td className="px-4 py-2 text-sm text-gray-600">
                               {client.phone || "N/A"}

@@ -1059,6 +1059,29 @@ def get_clients_list(page: int = 1, page_size: int = 50, search: str | None = No
                 avg_rating = 0.0
                 review_count = 0
             
+            # Check if this account is an agency and get employee count
+            is_agency = False
+            agency_info = None
+            employee_count = 0
+            try:
+                from accounts.models import Agency
+                from agency.models import AgencyEmployee
+                
+                # Check if account has an Agency record
+                agency = Agency.objects.filter(accountFK=account).first()
+                if agency:
+                    is_agency = True
+                    employee_count = AgencyEmployee.objects.filter(
+                        agency=account,
+                        isActive=True
+                    ).count()
+                    agency_info = {
+                        'business_name': agency.businessName,
+                        'employee_count': employee_count,
+                    }
+            except Exception as e:
+                print(f"Error checking agency for {account.email}: {e}")
+            
             clients_list.append({
                 'id': str(account.accountID),
                 'profile_id': str(profile.profileID),
@@ -1071,6 +1094,8 @@ def get_clients_list(page: int = 1, page_size: int = 50, search: str | None = No
                 'kyc_status': kyc_status,
                 'join_date': account.createdAt.isoformat() if account.createdAt else None,
                 'is_verified': account.isVerified,
+                'is_suspended': account.is_suspended,
+                'is_banned': account.is_banned,
                 'jobs_posted': jobs_posted,
                 'jobs_active': jobs_active,
                 'jobs_in_progress': jobs_in_progress,
@@ -1079,6 +1104,8 @@ def get_clients_list(page: int = 1, page_size: int = 50, search: str | None = No
                 'total_spent': float(total_spent),
                 'rating': round(avg_rating, 1),
                 'review_count': review_count,
+                'is_agency': is_agency,
+                'agency_info': agency_info,
             })
         
         return {
@@ -1245,6 +1272,8 @@ def get_workers_list(page: int = 1, page_size: int = 50, search: str | None = No
                 'kyc_status': kyc_status,
                 'join_date': account.createdAt.isoformat() if account.createdAt else None,
                 'is_verified': account.isVerified,
+                'is_suspended': account.is_suspended,
+                'is_banned': account.is_banned,
                 'total_jobs': total_jobs,
                 'jobs_active': jobs_active,
                 'jobs_in_progress': jobs_in_progress,
@@ -1312,16 +1341,26 @@ def get_worker_detail(account_id: str):
         # Get worker rating and completed jobs
         try:
             from accounts.models import Job
-            total_jobs = Job.objects.filter(workerFK=profile).count()
-            completed_jobs = Job.objects.filter(
-                workerFK=profile,
-                status='COMPLETED'
-            ).count()
-            active_jobs = Job.objects.filter(
-                workerFK=profile,
-                status='ACTIVE'
-            ).count()
-        except:
+            # Get WorkerProfile for this profile
+            try:
+                worker_profile_obj = WorkerProfile.objects.get(profileID=profile)
+                
+                # Job model uses assignedWorkerID (FK to WorkerProfile), not workerFK
+                total_jobs = Job.objects.filter(assignedWorkerID=worker_profile_obj).count()
+                completed_jobs = Job.objects.filter(
+                    assignedWorkerID=worker_profile_obj,
+                    status='COMPLETED'
+                ).count()
+                active_jobs = Job.objects.filter(
+                    assignedWorkerID=worker_profile_obj,
+                    status='ACTIVE'
+                ).count()
+            except WorkerProfile.DoesNotExist:
+                total_jobs = 0
+                completed_jobs = 0
+                active_jobs = 0
+        except Exception as e:
+            print(f"Error getting worker jobs: {str(e)}")
             total_jobs = 0
             completed_jobs = 0
             active_jobs = 0
@@ -1364,6 +1403,26 @@ def get_worker_detail(account_id: str):
             availability_status = 'OFFLINE'
             total_earnings = 0.0
         
+        # Get worker rating and review count from reviews (as reviewee)
+        try:
+            from accounts.models import JobReview
+            from django.db.models import Avg, Count
+            
+            reviews_stats = JobReview.objects.filter(
+                revieweeID=account,  # revieweeID is ForeignKey to Accounts
+                status='ACTIVE'
+            ).aggregate(
+                avg_rating=Avg('rating'),
+                review_count=Count('reviewID')
+            )
+            
+            review_count = reviews_stats['review_count'] or 0
+            avg_rating_from_reviews = float(reviews_stats['avg_rating'] or 0.0)
+        except Exception as e:
+            print(f"Error getting worker reviews: {str(e)}")
+            review_count = 0
+            avg_rating_from_reviews = 0.0
+        
         return {
             'id': str(account.accountID),
             'profile_id': str(profile.profileID),
@@ -1391,9 +1450,11 @@ def get_worker_detail(account_id: str):
             'kyc_status': kyc_status,
             'join_date': account.createdAt.isoformat() if account.createdAt else None,
             'is_verified': account.isVerified,
+            'is_suspended': account.is_suspended,
+            'is_banned': account.is_banned,
             'worker_data': {
                 'description': worker_description,
-                'rating': worker_rating,
+                'rating': avg_rating_from_reviews,  # Use calculated average from reviews, not WorkerProfile field
                 'availability_status': availability_status,
                 'total_earnings': total_earnings,
             },
@@ -1404,7 +1465,7 @@ def get_worker_detail(account_id: str):
                 'active_jobs': active_jobs,
                 'completion_rate': (completed_jobs / total_jobs * 100) if total_jobs > 0 else 0,
             },
-            'review_count': 0,  # TODO: Calculate from reviews when implemented
+            'review_count': review_count,  # Fixed: Now calculated from JobReview model
         }
         
     except Exception as e:
@@ -1452,33 +1513,65 @@ def get_client_detail(account_id: str):
         
         # Get client's posted jobs
         try:
-            from accounts.models import Job, ClientProfile
+            from accounts.models import Job, ClientProfile, JobReview
+            from django.db.models import Sum, Avg, Count
             
             # Get client profile for additional data
             try:
                 client_profile = ClientProfile.objects.get(profileID=profile)
                 client_description = client_profile.description or ''
-                client_rating = client_profile.clientRating or 0
-                total_jobs_posted = client_profile.totalJobsPosted or 0
             except ClientProfile.DoesNotExist:
+                client_profile = None
                 client_description = ''
-                client_rating = 0
-                total_jobs_posted = 0
             
-            # Get job statistics
-            all_jobs = Job.objects.filter(clientFK=profile)
-            total_jobs = all_jobs.count()
-            completed_jobs = all_jobs.filter(status='COMPLETED').count()
-            active_jobs = all_jobs.filter(status='ACTIVE').count()
-            cancelled_jobs = all_jobs.filter(status='CANCELLED').count()
-        except:
+            # Get job statistics using correct relationship
+            if client_profile:
+                all_jobs = Job.objects.filter(clientID=client_profile)
+                total_jobs = all_jobs.count()
+                completed_jobs = all_jobs.filter(status='COMPLETED').count()
+                active_jobs = all_jobs.filter(status='ACTIVE').count()
+                in_progress_jobs = all_jobs.filter(status='IN_PROGRESS').count()
+                cancelled_jobs = all_jobs.filter(status='CANCELLED').count()
+                
+                # Calculate total spent (completed jobs only)
+                total_spent = all_jobs.filter(
+                    status='COMPLETED',
+                    budget__isnull=False
+                ).aggregate(total=Sum('budget'))['total'] or 0
+                
+                # Get review statistics for client (reviews ABOUT the client from workers)
+                reviews_stats = JobReview.objects.filter(
+                    revieweeID=account,  # Client received the review
+                    reviewerType=JobReview.ReviewerType.WORKER  # Review from worker
+                ).aggregate(
+                    avg_rating=Avg('rating'),
+                    review_count=Count('reviewID')
+                )
+                
+                client_rating = float(reviews_stats['avg_rating'] or 0)
+                review_count = reviews_stats['review_count'] or 0
+            else:
+                total_jobs = 0
+                completed_jobs = 0
+                active_jobs = 0
+                in_progress_jobs = 0
+                cancelled_jobs = 0
+                total_spent = 0
+                client_rating = 0
+                review_count = 0
+        except Exception as e:
+            print(f"Error fetching client job stats: {str(e)}")
+            import traceback
+            traceback.print_exc()
             client_description = ''
-            client_rating = 0
-            total_jobs_posted = 0
             total_jobs = 0
             completed_jobs = 0
             active_jobs = 0
+            in_progress_jobs = 0
             cancelled_jobs = 0
+            total_spent = 0
+            client_rating = 0
+            review_count = 0
         
         return {
             'id': str(account.accountID),
@@ -1507,19 +1600,22 @@ def get_client_detail(account_id: str):
             'kyc_status': kyc_status,
             'join_date': account.createdAt.isoformat() if account.createdAt else None,
             'is_verified': account.isVerified,
+            'is_suspended': account.is_suspended,
+            'is_banned': account.is_banned,
             'client_data': {
                 'description': client_description,
                 'rating': client_rating,
-                'total_jobs_posted': total_jobs_posted,
             },
             'job_stats': {
                 'total_jobs': total_jobs,
                 'completed_jobs': completed_jobs,
                 'active_jobs': active_jobs,
+                'in_progress_jobs': in_progress_jobs,
                 'cancelled_jobs': cancelled_jobs,
                 'completion_rate': (completed_jobs / total_jobs * 100) if total_jobs > 0 else 0,
             },
-            'review_count': 0,  # TODO: Calculate from reviews when implemented
+            'review_count': review_count,
+            'total_spent': float(total_spent),
         }
         
     except Exception as e:
@@ -1598,6 +1694,26 @@ def get_agency_detail(account_id: str):
             completed_jobs = 0
             active_jobs = 0
         
+        # Get agency rating and review count from reviews (as reviewee)
+        try:
+            from accounts.models import JobReview
+            from django.db.models import Avg, Count
+            
+            reviews_stats = JobReview.objects.filter(
+                revieweeID=account,  # revieweeID is ForeignKey to Accounts
+                status='ACTIVE'
+            ).aggregate(
+                avg_rating=Avg('rating'),
+                review_count=Count('reviewID')
+            )
+            
+            agency_rating = float(reviews_stats['avg_rating'] or 0.0)
+            review_count = reviews_stats['review_count'] or 0
+        except Exception as e:
+            print(f"Error getting agency reviews: {str(e)}")
+            agency_rating = 0.0
+            review_count = 0
+        
         return {
             'id': str(account.accountID),
             'agency_id': str(agency.agencyId),
@@ -1627,8 +1743,8 @@ def get_agency_detail(account_id: str):
                 'active_jobs': active_jobs,
                 'completion_rate': (completed_jobs / total_jobs * 100) if total_jobs > 0 else 0,
             },
-            'rating': 0.0,  # TODO: Calculate from reviews when implemented
-            'review_count': 0,  # TODO: Get from reviews when implemented
+            'rating': agency_rating,  # Fixed: Now calculated from JobReview model
+            'review_count': review_count,  # Fixed: Now calculated from JobReview model
         }
         
     except Exception as e:
@@ -1697,8 +1813,31 @@ def get_agencies_list(page: int = 1, page_size: int = 50, search: str | None = N
             try:
                 from agency.models import AgencyEmployee
                 total_workers = AgencyEmployee.objects.filter(agency=account).count()
-            except:
+                
+                # Get detailed employee information
+                employees = AgencyEmployee.objects.filter(
+                    agency=account,
+                    isActive=True
+                ).order_by('-rating', 'name')
+                
+                employees_list = [
+                    {
+                        'id': str(emp.employeeID),
+                        'name': emp.name,
+                        'email': emp.email,
+                        'role': emp.role or 'Worker',
+                        'rating': float(emp.rating) if emp.rating else 0.0,
+                        'total_jobs_completed': emp.totalJobsCompleted,
+                        'total_earnings': float(emp.totalEarnings),
+                        'is_employee_of_month': emp.employeeOfTheMonth,
+                        'avatar': emp.avatar,
+                    }
+                    for emp in employees[:10]  # Limit to top 10 employees
+                ]
+            except Exception as e:
+                print(f"Error getting agency employees: {e}")
                 total_workers = 0
+                employees_list = []
             
             # Count jobs
             try:
@@ -1711,6 +1850,26 @@ def get_agencies_list(page: int = 1, page_size: int = 50, search: str | None = N
             except:
                 total_jobs = 0
                 completed_jobs = 0
+            
+            # Get agency rating and review count from reviews
+            try:
+                from accounts.models import JobReview
+                from django.db.models import Avg, Count
+                
+                reviews_stats = JobReview.objects.filter(
+                    revieweeID=account,
+                    status='ACTIVE'
+                ).aggregate(
+                    avg_rating=Avg('rating'),
+                    review_count=Count('reviewID')
+                )
+                
+                agency_rating = float(reviews_stats['avg_rating'] or 0.0)
+                review_count = reviews_stats['review_count'] or 0
+            except Exception as e:
+                print(f"Error getting agency reviews for {account.email}: {e}")
+                agency_rating = 0.0
+                review_count = 0
             
             agencies_list.append({
                 'id': str(agency.agencyId),
@@ -1726,8 +1885,9 @@ def get_agencies_list(page: int = 1, page_size: int = 50, search: str | None = N
                 'total_workers': total_workers,
                 'total_jobs': total_jobs,
                 'completed_jobs': completed_jobs,
-                'rating': 0.0,  # TODO: Calculate from reviews when implemented
-                'review_count': 0,  # TODO: Get from reviews when implemented
+                'rating': round(agency_rating, 1),  # Fixed: Calculated from JobReview model
+                'review_count': review_count,  # Fixed: Calculated from JobReview model
+                'employees': employees_list,
             })
         
         return {

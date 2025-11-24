@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Card,
@@ -22,6 +22,8 @@ import {
   Square,
   AlertCircle,
   Star,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { Sidebar } from "../../components";
 
@@ -41,6 +43,17 @@ interface Agency {
   completed_jobs: number;
   rating: number;
   review_count: number;
+  employees?: Array<{
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+    rating: number;
+    total_jobs_completed: number;
+    total_earnings: number;
+    is_employee_of_month: boolean;
+    avatar?: string;
+  }>;
 }
 
 interface AgenciesResponse {
@@ -79,6 +92,19 @@ export default function AgencyPage() {
     null
   );
   const [bulkActionReason, setBulkActionReason] = useState("");
+
+  // Expandable rows state
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+
+  const toggleRowExpansion = (agencyId: string) => {
+    const newExpanded = new Set(expandedRows);
+    if (newExpanded.has(agencyId)) {
+      newExpanded.delete(agencyId);
+    } else {
+      newExpanded.add(agencyId);
+    }
+    setExpandedRows(newExpanded);
+  };
 
   const fetchAgencies = async () => {
     setLoading(true);
@@ -489,85 +515,165 @@ export default function AgencyPage() {
                       </thead>
                       <tbody>
                         {agencies.map((agency, index) => (
-                          <tr
-                            key={agency.id}
-                            className="border-t hover:bg-gray-50"
-                          >
-                            <td className="px-4 py-2">
-                              <button
-                                onClick={() => handleSelectAgency(agency.id)}
-                                className="flex items-center justify-center"
-                              >
-                                {selectedAgencies.has(agency.id) ? (
-                                  <CheckSquare className="h-4 w-4 text-blue-600" />
-                                ) : (
-                                  <Square className="h-4 w-4 text-gray-400" />
-                                )}
-                              </button>
-                            </td>
-                            <td className="px-4 py-2 text-sm">
-                              {(currentPage - 1) * 50 + index + 1}
-                            </td>
-                            <td className="px-4 py-2 text-sm font-medium">
-                              {agency.agency_name}
-                            </td>
-                            <td className="px-4 py-2 text-sm text-gray-600">
-                              {agency.email}
-                            </td>
-                            <td className="px-4 py-2 text-sm text-center">
-                              <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
-                                {agency.total_workers}
-                              </span>
-                            </td>
-                            <td className="px-4 py-2 text-sm text-center">
-                              {agency.total_jobs}
-                            </td>
-                            <td className="px-4 py-2 text-sm">
-                              <div className="flex items-center">
-                                <Star className="h-3 w-3 text-yellow-500 mr-1" />
-                                <span>{agency.rating.toFixed(1)}</span>
-                              </div>
-                            </td>
-                            <td className="px-4 py-2 text-sm">
-                              <span
-                                className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                  agency.kyc_status === "APPROVED"
-                                    ? "bg-green-100 text-green-800"
-                                    : agency.kyc_status === "PENDING"
-                                      ? "bg-yellow-100 text-yellow-800"
-                                      : agency.kyc_status === "REJECTED"
-                                        ? "bg-red-100 text-red-800"
-                                        : "bg-gray-100 text-gray-800"
-                                }`}
-                              >
-                                {agency.kyc_status}
-                              </span>
-                            </td>
-                            <td className="px-4 py-2 text-sm">
-                              <span
-                                className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                  agency.status === "active"
-                                    ? "bg-green-100 text-green-800"
-                                    : "bg-gray-100 text-gray-800"
-                                }`}
-                              >
-                                {agency.status}
-                              </span>
-                            </td>
-                            <td className="px-4 py-2 text-sm space-x-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() =>
-                                  router.push(
-                                    `/admin/users/agency/${agency.account_id}`
-                                  )
-                                }
-                              >
-                                View
-                              </Button>
-                            </td>
-                          </tr>
+                          <React.Fragment key={agency.id}>
+                            <tr className="border-t hover:bg-gray-50">
+                              <td className="px-4 py-2">
+                                <button
+                                  onClick={() => handleSelectAgency(agency.id)}
+                                  className="flex items-center justify-center"
+                                >
+                                  {selectedAgencies.has(agency.id) ? (
+                                    <CheckSquare className="h-4 w-4 text-blue-600" />
+                                  ) : (
+                                    <Square className="h-4 w-4 text-gray-400" />
+                                  )}
+                                </button>
+                              </td>
+                              <td className="px-4 py-2 text-sm">
+                                <button
+                                  onClick={() => toggleRowExpansion(agency.id)}
+                                  className="flex items-center space-x-1"
+                                >
+                                  {expandedRows.has(agency.id) ? (
+                                    <ChevronDown className="h-4 w-4" />
+                                  ) : (
+                                    <ChevronRight className="h-4 w-4" />
+                                  )}
+                                  <span>
+                                    {(currentPage - 1) * 50 + index + 1}
+                                  </span>
+                                </button>
+                              </td>
+                              <td className="px-4 py-2 text-sm font-medium">
+                                {agency.agency_name}
+                              </td>
+                              <td className="px-4 py-2 text-sm text-gray-600">
+                                {agency.email}
+                              </td>
+                              <td className="px-4 py-2 text-sm text-center">
+                                <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
+                                  {agency.total_workers}
+                                </span>
+                              </td>
+                              <td className="px-4 py-2 text-sm text-center">
+                                {agency.total_jobs}
+                              </td>
+                              <td className="px-4 py-2 text-sm">
+                                <div className="flex items-center">
+                                  <Star className="h-3 w-3 text-yellow-500 mr-1" />
+                                  <span>{agency.rating.toFixed(1)}</span>
+                                </div>
+                              </td>
+                              <td className="px-4 py-2 text-sm">
+                                <span
+                                  className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                    agency.kyc_status === "APPROVED"
+                                      ? "bg-green-100 text-green-800"
+                                      : agency.kyc_status === "PENDING"
+                                        ? "bg-yellow-100 text-yellow-800"
+                                        : agency.kyc_status === "REJECTED"
+                                          ? "bg-red-100 text-red-800"
+                                          : "bg-gray-100 text-gray-800"
+                                  }`}
+                                >
+                                  {agency.kyc_status}
+                                </span>
+                              </td>
+                              <td className="px-4 py-2 text-sm">
+                                <span
+                                  className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                    agency.status === "active"
+                                      ? "bg-green-100 text-green-800"
+                                      : "bg-gray-100 text-gray-800"
+                                  }`}
+                                >
+                                  {agency.status}
+                                </span>
+                              </td>
+                              <td className="px-4 py-2 text-sm space-x-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() =>
+                                    router.push(
+                                      `/admin/users/agency/${agency.account_id}`
+                                    )
+                                  }
+                                >
+                                  View
+                                </Button>
+                              </td>
+                            </tr>
+
+                            {/* Expandable Employee Details Row */}
+                            {expandedRows.has(agency.id) &&
+                              agency.employees &&
+                              agency.employees.length > 0 && (
+                                <tr
+                                  key={`${agency.id}-employees`}
+                                  className="bg-gray-50"
+                                >
+                                  <td colSpan={10} className="px-4 py-4">
+                                    <div className="ml-8">
+                                      <h4 className="text-sm font-semibold text-gray-700 mb-3">
+                                        Employees ({agency.employees.length})
+                                      </h4>
+                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        {agency.employees.map((employee) => (
+                                          <div
+                                            key={employee.id}
+                                            className="bg-white border border-gray-200 rounded-lg p-3 hover:shadow-md transition-shadow"
+                                          >
+                                            <div className="flex items-start justify-between">
+                                              <div className="flex-1">
+                                                <div className="flex items-center space-x-2">
+                                                  <h5 className="text-sm font-medium text-gray-900">
+                                                    {employee.name}
+                                                  </h5>
+                                                  {employee.is_employee_of_month && (
+                                                    <span className="px-2 py-0.5 bg-yellow-100 text-yellow-800 text-xs rounded-full">
+                                                      ⭐ EOTM
+                                                    </span>
+                                                  )}
+                                                </div>
+                                                <p className="text-xs text-gray-500">
+                                                  {employee.role}
+                                                </p>
+                                                <p className="text-xs text-gray-400 mt-1">
+                                                  {employee.email}
+                                                </p>
+                                                <div className="flex items-center space-x-4 mt-2">
+                                                  <div className="flex items-center">
+                                                    <Star className="h-3 w-3 text-yellow-500 mr-1" />
+                                                    <span className="text-xs font-medium">
+                                                      {employee.rating.toFixed(
+                                                        1
+                                                      )}
+                                                    </span>
+                                                  </div>
+                                                  <div className="text-xs text-gray-600">
+                                                    <span className="font-medium">
+                                                      {
+                                                        employee.total_jobs_completed
+                                                      }
+                                                    </span>{" "}
+                                                    jobs
+                                                  </div>
+                                                  <div className="text-xs text-gray-600">
+                                                    ₱
+                                                    {employee.total_earnings.toLocaleString()}
+                                                  </div>
+                                                </div>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                          </React.Fragment>
                         ))}
                       </tbody>
                     </table>

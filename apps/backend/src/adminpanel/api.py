@@ -2,6 +2,7 @@ from ninja import Router
 # from .schemas import createAccountSchema, logInSchema, createAgencySchema, forgotPasswordSchema, resetPasswordSchema
 # from .services import create_account_individ, create_account_agency, login_account, _verify_account, forgot_password_request, reset_password_verify, logout_account, refresh_token, fetch_currentUser, generateCookie
 from ninja.responses import Response
+from accounts.authentication import cookie_auth
 from django.shortcuts import redirect
 from django.urls import reverse
 from .service import fetchAll_kyc, review_kyc_items, approve_kyc, reject_kyc, fetch_kyc_logs
@@ -11,6 +12,7 @@ from .service import get_worker_detail, get_client_detail, get_agency_detail
 from .service import get_jobs_list, get_job_applications_list, get_jobs_dashboard_stats
 from .service import get_job_categories_list, get_job_disputes_list, get_disputes_dashboard_stats
 from .service import get_all_reviews_list, get_job_reviews_list, get_reviews_dashboard_stats, get_flagged_reviews_list
+from .account_actions import suspend_account, ban_account, activate_account, delete_account, get_account_status
 
 router = Router(tags=["adminpanel"])
 
@@ -476,6 +478,117 @@ def get_flagged_reviews(request, page: int = 1, page_size: int = 20):
         import traceback
         traceback.print_exc()
         return {"success": False, "error": str(e)}
+
+
+# =====================================================
+# ACCOUNT MANAGEMENT ACTIONS
+# =====================================================
+
+@router.post("/users/{account_id}/suspend", auth=cookie_auth)
+def suspend_user_account(request, account_id: str):
+    """
+    Suspend a user account temporarily.
+    
+    Body params:
+    - reason: Reason for suspension
+    """
+    try:
+        data = request.body if hasattr(request, 'body') else {}
+        if isinstance(request.body, bytes):
+            import json
+            data = json.loads(request.body.decode('utf-8'))
+        
+        reason = data.get('reason', 'No reason provided')
+        
+        if not reason or not reason.strip():
+            return {"success": False, "error": "Reason is required"}
+        
+        result = suspend_account(account_id, reason, request.auth)
+        return result
+        
+    except Exception as e:
+        print(f"❌ Error suspending account: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+@router.post("/users/{account_id}/ban", auth=cookie_auth)
+def ban_user_account(request, account_id: str):
+    """
+    Ban a user account permanently.
+    
+    Body params:
+    - reason: Reason for ban
+    """
+    try:
+        data = request.body if hasattr(request, 'body') else {}
+        if isinstance(request.body, bytes):
+            import json
+            data = json.loads(request.body.decode('utf-8'))
+        
+        reason = data.get('reason', 'No reason provided')
+        
+        if not reason or not reason.strip():
+            return {"success": False, "error": "Reason is required"}
+        
+        result = ban_account(account_id, reason, request.auth)
+        return result
+        
+    except Exception as e:
+        print(f"❌ Error banning account: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+@router.post("/users/{account_id}/activate", auth=cookie_auth)
+def activate_user_account(request, account_id: str):
+    """
+    Activate/reactivate a user account (remove suspension or ban).
+    """
+    try:
+        result = activate_account(account_id, request.auth)
+        return result
+        
+    except Exception as e:
+        print(f"❌ Error activating account: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+@router.delete("/users/{account_id}/delete", auth=cookie_auth)
+def delete_user_account(request, account_id: str):
+    """
+    Soft delete a user account (mark as inactive/banned).
+    """
+    try:
+        result = delete_account(account_id, request.auth)
+        return result
+        
+    except Exception as e:
+        print(f"❌ Error deleting account: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/users/{account_id}/status", auth=cookie_auth)
+def get_user_account_status(request, account_id: str):
+    """
+    Get detailed account status information including suspension and ban status.
+    """
+    try:
+        result = get_account_status(account_id)
+        return result
+        
+    except Exception as e:
+        print(f"❌ Error getting account status: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
 
 
 

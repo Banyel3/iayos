@@ -46,6 +46,15 @@ class Accounts(AbstractBaseUser, PermissionsMixin):  # <-- include PermissionsMi
     # Required for Django admin + PermissionsMixin
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
+    
+    # Account suspension and ban fields
+    is_suspended = models.BooleanField(default=False)
+    suspended_until = models.DateTimeField(null=True, blank=True)
+    suspended_reason = models.TextField(null=True, blank=True)
+    is_banned = models.BooleanField(default=False)
+    banned_at = models.DateTimeField(null=True, blank=True)
+    banned_reason = models.TextField(null=True, blank=True)
+    banned_by = models.ForeignKey('self', null=True, blank=True, on_delete=models.SET_NULL, related_name='banned_accounts')
 
     verifyToken = models.CharField(max_length=255, null=True, blank=True)  # Changed to CharField for hash
     verifyTokenExpiry = models.DateTimeField(null=True, blank=True)

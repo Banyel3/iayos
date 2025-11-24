@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
+import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Building2,
@@ -12,8 +13,21 @@ import {
   Loader2,
   ExternalLink,
   AlertCircle,
+  Mail,
+  Phone,
+  MapPin,
+  Star,
+  Briefcase,
+  CheckCircle,
+  XCircle,
+  Clock,
+  TrendingUp,
+  User,
+  Shield,
+  ArrowLeft,
+  MoreVertical,
 } from "lucide-react";
-import Link from "next/link";
+import { Sidebar } from "../../../components";
 
 interface Address {
   street: string;
@@ -61,22 +75,21 @@ interface Client {
   client_data: ClientData;
   job_stats: JobStats;
   review_count: number;
+  total_spent?: number;
+  is_agency?: boolean;
+  agency_info?: {
+    business_name: string;
+    employee_count: number;
+  };
 }
+
 export default function ClientDetailPage() {
   const { id } = useParams();
   const router = useRouter();
   const [client, setClient] = useState<Client | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  // Account action modals
-  const [showSuspendModal, setShowSuspendModal] = useState(false);
-  const [showBanModal, setShowBanModal] = useState(false);
-  const [showActivateModal, setShowActivateModal] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [actionReason, setActionReason] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
-  const [deleteConfirmText, setDeleteConfirmText] = useState("");
 
   useEffect(() => {
     async function fetchClient() {
@@ -99,143 +112,85 @@ export default function ClientDetailPage() {
         if (data.success && data.client) {
           setClient(data.client);
         } else {
-          setError(data.error || "Client not found");
+          throw new Error("Client not found");
         }
-      } catch (err) {
-        console.error("Failed to fetch client:", err);
-        setError("Failed to load client details");
+      } catch (err: any) {
+        setError(err.message);
       } finally {
         setLoading(false);
       }
     }
-    if (id) fetchClient();
+
+    if (id) {
+      fetchClient();
+    }
   }, [id]);
 
-  // Account action handlers
-  const handleSuspend = async () => {
-    if (!actionReason.trim()) {
-      alert("Please provide a reason for suspension");
-      return;
-    }
-    setActionLoading(true);
-    try {
-      const response = await fetch(
-        `http://localhost:8000/api/adminpanel/users/${id}/suspend`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ reason: actionReason }),
-        }
-      );
-      if (response.ok) {
-        alert("Client suspended successfully");
-        setShowSuspendModal(false);
-        setActionReason("");
-        fetchClient();
-      } else {
-        alert("Failed to suspend client");
-      }
-    } catch (error) {
-      console.error("Suspend error:", error);
-      alert("An error occurred");
-    } finally {
-      setActionLoading(false);
-    }
+  const getStatusBadge = (status: string) => {
+    const variants: Record<
+      string,
+      { bg: string; text: string; label: string }
+    > = {
+      active: { bg: "bg-green-100", text: "text-green-800", label: "Active" },
+      inactive: { bg: "bg-gray-100", text: "text-gray-800", label: "Inactive" },
+      suspended: { bg: "bg-red-100", text: "text-red-800", label: "Suspended" },
+    };
+    const config = variants[status.toLowerCase()] || variants.inactive;
+    return (
+      <span
+        className={`px-3 py-1 rounded-full text-xs font-semibold ${config.bg} ${config.text}`}
+      >
+        {config.label}
+      </span>
+    );
   };
 
-  const handleBan = async () => {
-    if (!actionReason.trim()) {
-      alert("Please provide a reason for banning");
-      return;
-    }
-    setActionLoading(true);
-    try {
-      const response = await fetch(
-        `http://localhost:8000/api/adminpanel/users/${id}/ban`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ reason: actionReason }),
-        }
-      );
-      if (response.ok) {
-        alert("Client banned successfully");
-        setShowBanModal(false);
-        setActionReason("");
-        fetchClient();
-      } else {
-        alert("Failed to ban client");
-      }
-    } catch (error) {
-      console.error("Ban error:", error);
-      alert("An error occurred");
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleActivate = async () => {
-    setActionLoading(true);
-    try {
-      const response = await fetch(
-        `http://localhost:8000/api/adminpanel/users/${id}/activate`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-        }
-      );
-      if (response.ok) {
-        alert("Client activated successfully");
-        setShowActivateModal(false);
-        fetchClient();
-      } else {
-        alert("Failed to activate client");
-      }
-    } catch (error) {
-      console.error("Activate error:", error);
-      alert("An error occurred");
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleDelete = async () => {
-    if (deleteConfirmText !== "DELETE") {
-      alert('Please type "DELETE" to confirm');
-      return;
-    }
-    setActionLoading(true);
-    try {
-      const response = await fetch(
-        `http://localhost:8000/api/adminpanel/users/${id}/delete`,
-        {
-          method: "DELETE",
-          credentials: "include",
-        }
-      );
-      if (response.ok) {
-        alert("Client deleted successfully");
-        router.push("/admin/users/clients");
-      } else {
-        alert("Failed to delete client");
-      }
-    } catch (error) {
-      console.error("Delete error:", error);
-      alert("An error occurred");
-    } finally {
-      setActionLoading(false);
-    }
+  const getKYCBadge = (status: string) => {
+    const variants: Record<
+      string,
+      { bg: string; text: string; icon: React.ReactNode }
+    > = {
+      APPROVED: {
+        bg: "bg-green-100",
+        text: "text-green-800",
+        icon: <CheckCircle className="h-3 w-3" />,
+      },
+      PENDING: {
+        bg: "bg-yellow-100",
+        text: "text-yellow-800",
+        icon: <Clock className="h-3 w-3" />,
+      },
+      REJECTED: {
+        bg: "bg-red-100",
+        text: "text-red-800",
+        icon: <XCircle className="h-3 w-3" />,
+      },
+      NOT_SUBMITTED: {
+        bg: "bg-gray-100",
+        text: "text-gray-600",
+        icon: <AlertCircle className="h-3 w-3" />,
+      },
+    };
+    const config = variants[status] || variants.NOT_SUBMITTED;
+    return (
+      <span
+        className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold ${config.bg} ${config.text}`}
+      >
+        {config.icon}
+        {status.replace(/_/g, " ")}
+      </span>
+    );
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto mb-4" />
-          <p className="text-muted-foreground">Loading client details...</p>
+      <div className="flex">
+        <Sidebar />
+        <div className="flex-1 flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto mb-4" />
+            <p className="text-gray-600">Loading client details...</p>
+          </div>
         </div>
       </div>
     );
@@ -243,569 +198,376 @@ export default function ClientDetailPage() {
 
   if (error || !client) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <p className="text-red-600 mb-4">{error || "Client not found"}</p>
-          <Button onClick={() => router.push("/admin/users/clients")}>
-            ← Back to Clients
-          </Button>
+      <div className="flex">
+        <Sidebar />
+        <div className="flex-1 flex items-center justify-center min-h-screen">
+          <Card className="p-8 text-center max-w-md">
+            <AlertCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
+            <h2 className="text-xl font-semibold mb-2">Error</h2>
+            <p className="text-gray-600 mb-4">{error || "Client not found"}</p>
+            <Button onClick={() => router.push("/admin/users/clients")}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Clients
+            </Button>
+          </Card>
         </div>
       </div>
     );
   }
 
+  const completionRate =
+    client.job_stats.total_jobs > 0
+      ? (client.job_stats.completed_jobs / client.job_stats.total_jobs) * 100
+      : 0;
+
   return (
-    <div className="p-6 space-y-6">
-      {/* Back Button */}
-      <Button
-        variant="outline"
-        onClick={() => router.push("/admin/users/clients")}
-      >
-        ← Back to Clients
-      </Button>
+    <div className="flex">
+      <Sidebar />
+      <main className="flex-1 p-6 bg-gray-50">
+        {/* Header */}
+        <div className="mb-6">
+          <Button
+            variant="outline"
+            onClick={() => router.push("/admin/users/clients")}
+            className="mb-4"
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Clients
+          </Button>
 
-      {/* Client Header */}
-      <h1 className="text-2xl font-semibold">Client Profile #{client.id}</h1>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Side: Client Info */}
-        <Card className="lg:col-span-2">
-          <CardContent className="p-6 space-y-6">
-            {/* Placeholder Circle Avatar */}
-            <div className="flex justify-center">
-              <div className="h-24 w-24 rounded-full bg-gray-200 flex items-center justify-center">
-                <Building2 className="h-12 w-12 text-gray-400" />
+          <div className="flex items-start justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">
+                Client Profile
+              </h1>
+              <p className="text-gray-500 mt-1">ID: {client.id}</p>
+            </div>
+            <div className="flex flex-col gap-3">
+              {/* Status Badges */}
+              <div className="flex gap-2">
+                {getStatusBadge(client.status)}
+                {getKYCBadge(client.kyc_status)}
+              </div>
+              
+              {/* Account Action Buttons */}
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm">
+                  <Clock className="h-3 w-3 mr-1" />
+                  Suspend
+                </Button>
+                <Button variant="outline" size="sm">
+                  <Mail className="h-3 w-3 mr-1" />
+                  Message
+                </Button>
+                <Button variant="destructive" size="sm">
+                  <XCircle className="h-3 w-3 mr-1" />
+                  Delete
+                </Button>
               </div>
             </div>
+          </div>
+        </div>
 
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="text-xl font-bold">
-                  {client.full_name ||
-                    `${client.first_name} ${client.last_name}`.trim()}
-                </h2>
-                <p className="text-sm text-gray-500">{client.email}</p>
-                <p className="text-sm text-gray-500">
-                  {client.location?.sharing_enabled
-                    ? "Location Sharing: Enabled"
-                    : ""}
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="text-lg font-semibold text-green-600">
-                  Rating: {client.client_data?.rating?.toFixed(1) || "N/A"}
-                </p>
-                <p className="text-xs text-gray-500">Client Rating</p>
-              </div>
-            </div>
-
-            {/* Info Grid */}
-            <div className="grid grid-cols-2 gap-y-3 text-sm border-t pt-4">
-              <div>
-                <p className="text-gray-500">Jobs Posted</p>
-                <p className="font-semibold">
-                  {client.job_stats?.total_jobs || 0}
-                </p>
-              </div>
-              <div>
-                <p className="text-gray-500">Active Jobs</p>
-                <p className="font-semibold text-blue-600">
-                  {client.job_stats?.active_jobs || 0}
-                </p>
-              </div>
-              <div>
-                <p className="text-gray-500">Phone</p>
-                <p className="font-semibold">{client.phone || "N/A"}</p>
-              </div>
-              <div>
-                <p className="text-gray-500">KYC Status</p>
-                <span
-                  className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    client.kyc_status === "APPROVED"
-                      ? "bg-green-100 text-green-800"
-                      : client.kyc_status === "PENDING"
-                        ? "bg-yellow-100 text-yellow-800"
-                        : "bg-red-100 text-red-800"
-                  }`}
-                >
-                  {client.kyc_status}
-                </span>
-              </div>
-              <div>
-                <p className="text-gray-500">Join Date</p>
-                <p className="font-semibold">
-                  {new Date(client.join_date).toLocaleDateString()}
-                </p>
-              </div>
-              <div>
-                <p className="text-gray-500">Status</p>
-                <span
-                  className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    client.status?.toLowerCase() === "active"
-                      ? "bg-green-100 text-green-800"
-                      : "bg-gray-100 text-gray-800"
-                  }`}
-                >
-                  {client.status || "Inactive"}
-                </span>
-              </div>
-            </div>
-
-            {/* Address Information */}
-            {(client.address?.street ||
-              client.address?.city ||
-              client.address?.province ||
-              client.address?.country) && (
-              <div className="border-t pt-4">
-                <p className="font-medium mb-2">Address</p>
-                <p className="text-sm text-gray-600">
-                  {client.address.street && (
-                    <>
-                      {client.address.street}
-                      <br />
-                    </>
-                  )}
-                  {client.address.city && `${client.address.city}, `}
-                  {client.address.province} {client.address.postal_code}
-                  {(client.address.city ||
-                    client.address.province ||
-                    client.address.postal_code) && <br />}
-                  {client.address.country}
-                </p>
-              </div>
-            )}
-
-            {/* Client Description */}
-            {client.client_data?.description && (
-              <div className="border-t pt-4">
-                <p className="font-medium mb-2">About Client</p>
-                <p className="text-sm text-gray-600">
-                  {client.client_data.description}
-                </p>
-              </div>
-            )}
-
-            {/* Tabs (Jobs, Transactions, Activity) */}
-            <Tabs defaultValue="jobs" className="mt-6">
-              <TabsList>
-                <TabsTrigger value="jobs">Posted Jobs</TabsTrigger>
-                <TabsTrigger value="transactions">Transactions</TabsTrigger>
-                <TabsTrigger value="activity">Activity Log</TabsTrigger>
-              </TabsList>
-              <TabsContent value="jobs" className="mt-4">
-                <Card className="p-4 hover:shadow-md transition-shadow">
-                  <div className="flex justify-between items-start mb-2">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-semibold">
-                          Plumbing Repair Needed
-                        </p>
-                        <Link
-                          href="/admin/jobs/listings/JOB-001"
-                          className="text-blue-600 hover:text-blue-800"
-                        >
-                          <ExternalLink className="h-3 w-3" />
-                        </Link>
-                      </div>
-                      <p className="text-xs text-gray-500">Posted 2 days ago</p>
-                    </div>
-                    <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
-                      Active
-                    </span>
+        {/* Profile Overview Card */}
+        <Card className="mb-6">
+          <CardContent className="p-6">
+            <div className="flex items-start gap-6">
+              {/* Avatar */}
+              <div className="relative">
+                <div className="h-24 w-24 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-3xl font-bold shadow-lg">
+                  {client.first_name?.charAt(0)}
+                  {client.last_name?.charAt(0)}
+                </div>
+                {client.is_verified && (
+                  <div className="absolute -bottom-1 -right-1 h-8 w-8 bg-green-500 rounded-full flex items-center justify-center border-4 border-white">
+                    <CheckCircle className="h-4 w-4 text-white" />
                   </div>
-                  <p className="text-xs text-gray-600">
-                    Need experienced plumber for kitchen sink repair...
-                  </p>
-                  <div className="mt-2 text-xs text-gray-500">
-                    <DollarSign className="inline h-3 w-3" /> $150 - $200
-                  </div>
-                </Card>
-              </TabsContent>
-              <TabsContent value="transactions" className="mt-4">
-                <Card className="p-4 hover:shadow-md transition-shadow">
-                  <div className="flex justify-between items-center mb-2">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-semibold">
-                          Payment to Worker
-                        </p>
-                        <Link
-                          href="/admin/jobs/completed/COMP-001"
-                          className="text-blue-600 hover:text-blue-800"
-                        >
-                          <ExternalLink className="h-3 w-3" />
-                        </Link>
-                      </div>
-                      <p className="text-xs text-gray-500">
-                        TXN-2024-001234 • Jan 15, 2024
+                )}
+              </div>
+
+              {/* Info */}
+              <div className="flex-1">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900">
+                      {client.full_name ||
+                        `${client.first_name} ${client.last_name}`.trim()}
+                    </h2>
+                    {client.is_agency && client.agency_info && (
+                      <p className="text-sm text-blue-600 font-medium mt-1">
+                        🏢 {client.agency_info.business_name} •{" "}
+                        {client.agency_info.employee_count} employees
                       </p>
-                    </div>
-                    <p className="font-semibold text-green-600">$180.00</p>
-                  </div>
-                  <p className="text-xs text-gray-600">
-                    Payment for Appliance Repair job
-                  </p>
-                </Card>
-              </TabsContent>
-              <TabsContent value="activity" className="mt-4">
-                <div className="space-y-3">
-                  <div className="flex items-start gap-3 text-sm">
-                    <Calendar className="h-4 w-4 text-gray-400 mt-0.5" />
-                    <div>
-                      <p className="font-medium">Posted a new job</p>
-                      <p className="text-xs text-gray-500">2 days ago</p>
+                    )}
+                    <div className="flex items-center gap-4 mt-3 text-sm text-gray-600">
+                      <div className="flex items-center gap-1">
+                        <Mail className="h-4 w-4" />
+                        {client.email}
+                      </div>
+                      {client.phone && (
+                        <div className="flex items-center gap-1">
+                          <Phone className="h-4 w-4" />
+                          {client.phone}
+                        </div>
+                      )}
                     </div>
                   </div>
-                  <div className="flex items-start gap-3 text-sm">
-                    <DollarSign className="h-4 w-4 text-gray-400 mt-0.5" />
-                    <div>
-                      <p className="font-medium">Completed payment</p>
-                      <p className="text-xs text-gray-500">5 days ago</p>
+
+                  {/* Rating */}
+                  <div className="text-center">
+                    <div className="flex items-center gap-1 mb-1">
+                      <Star className="h-5 w-5 text-yellow-500 fill-yellow-500" />
+                      <span className="text-2xl font-bold text-gray-900">
+                        {client.client_data?.rating?.toFixed(1) || "N/A"}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      {client.review_count} reviews
+                    </p>
+                  </div>
+                </div>
+
+                {/* Additional Info Row */}
+                <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t">
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Member Since</p>
+                    <div className="flex items-center gap-1 text-sm font-medium">
+                      <Calendar className="h-4 w-4 text-gray-400" />
+                      {new Date(client.join_date).toLocaleDateString()}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Location</p>
+                    <div className="flex items-center gap-1 text-sm font-medium">
+                      <MapPin className="h-4 w-4 text-gray-400" />
+                      {client.address?.city || "N/A"},{" "}
+                      {client.address?.province || "N/A"}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Total Spent</p>
+                    <div className="flex items-center gap-1 text-sm font-medium text-green-600">
+                      <DollarSign className="h-4 w-4" />₱
+                      {client.total_spent?.toLocaleString() || "0"}
                     </div>
                   </div>
                 </div>
-              </TabsContent>
-            </Tabs>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
-        {/* Right Side: Status and User Details Panel */}
-        <div className="space-y-4">
-          {/* Status card */}
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">Status</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              <div>
-                {/* Full width bordered status bar */}
-                <div className="w-full border rounded-md bg-white">
-                  <div
-                    className={`text-center text-xs font-semibold py-2 rounded-md ${
-                      client.status === "active"
-                        ? "bg-green-50 text-green-600"
-                        : client.status === "inactive"
-                          ? "bg-gray-50 text-gray-600"
-                          : "bg-red-50 text-red-600"
-                    }`}
-                  >
-                    {client.status.toUpperCase()}
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Total Jobs</p>
+                  <p className="text-3xl font-bold text-gray-900">
+                    {client.job_stats.total_jobs}
+                  </p>
+                </div>
+                <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <Briefcase className="h-6 w-6 text-blue-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Active</p>
+                  <p className="text-3xl font-bold text-orange-600">
+                    {client.job_stats.active_jobs}
+                  </p>
+                </div>
+                <div className="h-12 w-12 bg-orange-100 rounded-lg flex items-center justify-center">
+                  <Clock className="h-6 w-6 text-orange-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Completed</p>
+                  <p className="text-3xl font-bold text-green-600">
+                    {client.job_stats.completed_jobs}
+                  </p>
+                </div>
+                <div className="h-12 w-12 bg-green-100 rounded-lg flex items-center justify-center">
+                  <CheckCircle className="h-6 w-6 text-green-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Success Rate</p>
+                  <p className="text-3xl font-bold text-purple-600">
+                    {completionRate.toFixed(0)}%
+                  </p>
+                </div>
+                <div className="h-12 w-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                  <TrendingUp className="h-6 w-6 text-purple-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Tabs Section */}
+        <Tabs defaultValue="details" className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="details">Details</TabsTrigger>
+            <TabsTrigger value="jobs">Job History</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="details" className="space-y-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Contact Information */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <User className="h-5 w-5" />
+                    Contact Information
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex justify-between py-2 border-b">
+                    <span className="text-gray-600">Email</span>
+                    <span className="font-medium">{client.email}</span>
                   </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Admin Notes
-                </label>
-                <textarea
-                  placeholder="Add a note about this client..."
-                  className="w-full rounded border border-gray-200 p-2 text-sm resize-none h-20"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                {client.status?.toLowerCase() === "active" ? (
-                  <>
-                    <Button
-                      variant="destructive"
-                      className="w-full justify-center"
-                      onClick={() => setShowBanModal(true)}
+                  <div className="flex justify-between py-2 border-b">
+                    <span className="text-gray-600">Phone</span>
+                    <span className="font-medium">
+                      {client.phone || "Not provided"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between py-2 border-b">
+                    <span className="text-gray-600">Birth Date</span>
+                    <span className="font-medium">
+                      {client.birth_date
+                        ? new Date(client.birth_date).toLocaleDateString()
+                        : "Not provided"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between py-2">
+                    <span className="text-gray-600">Email Verified</span>
+                    <span
+                      className={`font-medium ${client.is_verified ? "text-green-600" : "text-red-600"}`}
                     >
-                      <span className="mr-2">⦸</span>Ban
+                      {client.is_verified ? "Yes" : "No"}
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Address */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <MapPin className="h-5 w-5" />
+                    Address
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex justify-between py-2 border-b">
+                    <span className="text-gray-600">Street</span>
+                    <span className="font-medium">
+                      {client.address?.street || "N/A"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between py-2 border-b">
+                    <span className="text-gray-600">City</span>
+                    <span className="font-medium">
+                      {client.address?.city || "N/A"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between py-2 border-b">
+                    <span className="text-gray-600">Province</span>
+                    <span className="font-medium">
+                      {client.address?.province || "N/A"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between py-2">
+                    <span className="text-gray-600">Country</span>
+                    <span className="font-medium">
+                      {client.address?.country || "Philippines"}
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* KYC Information */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Shield className="h-5 w-5" />
+                    KYC Information
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex justify-between py-2 border-b">
+                    <span className="text-gray-600">KYC Status</span>
+                    {getKYCBadge(client.kyc_status)}
+                  </div>
+                  <div className="flex justify-between py-2">
+                    <span className="text-gray-600">Account Status</span>
+                    {getStatusBadge(client.status)}
+                  </div>
+                  {client.kyc_status !== "APPROVED" && (
+                    <Button variant="outline" className="w-full mt-2">
+                      View KYC Documents
                     </Button>
-                    <Button
-                      variant="outline"
-                      className="w-full justify-center"
-                      onClick={() => setShowSuspendModal(true)}
-                    >
-                      <span className="mr-2">⏸</span>Suspend
-                    </Button>
-                  </>
-                ) : (
-                  <Button
-                    variant="outline"
-                    className="w-full justify-center col-span-2"
-                    onClick={() => setShowActivateModal(true)}
-                  >
-                    <span className="mr-2">✓</span>Activate
-                  </Button>
-                )}
-                <Button
-                  variant="destructive"
-                  className="w-full justify-center col-span-2"
-                  onClick={() => setShowDeleteModal(true)}
-                >
-                  Delete Account
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+                  )}
+                </CardContent>
+              </Card>
 
-          {/* User details card */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">Client Details</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {/* Use a description list to align labels and values */}
-              <dl className="grid grid-cols-2 gap-y-2 text-sm">
-                <dt className="text-gray-500">User Type</dt>
-                <dd className="font-medium">Client</dd>
+              {/* Client Description */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Building2 className="h-5 w-5" />
+                    About
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-gray-700">
+                    {client.client_data?.description ||
+                      "No description provided."}
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
 
-                <dt className="text-gray-500">Client ID</dt>
-                <dd className="font-medium">#{client.id}</dd>
-
-                <dt className="text-gray-500">Email</dt>
-                <dd className="font-medium text-xs break-all">
-                  {client.email}
-                </dd>
-
-                <dt className="text-gray-500">Phone</dt>
-                <dd className="font-medium">{client.phone}</dd>
-
-                <dt className="text-gray-500">Profile ID</dt>
-                <dd className="font-medium">{client.profile_id}</dd>
-
-                <dt className="text-gray-500">Date Joined</dt>
-                <dd className="font-medium">
-                  {new Date(client.join_date).toLocaleDateString()}
-                </dd>
-              </dl>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-
-      {/* Suspend Modal */}
-      {showSuspendModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <div className="flex items-start gap-4 mb-4">
-              <AlertCircle className="h-6 w-6 text-orange-500 flex-shrink-0 mt-1" />
-              <div>
-                <h3 className="text-lg font-semibold mb-2">
-                  Suspend Client Account
-                </h3>
-                <p className="text-sm text-gray-600 mb-4">
-                  This will temporarily suspend the client&apos;s account. They
-                  won&apos;t be able to post new jobs or access services.
-                </p>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Reason for Suspension *
-                  </label>
-                  <textarea
-                    value={actionReason}
-                    onChange={(e) => setActionReason(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                    rows={3}
-                    placeholder="Enter reason for suspension..."
-                  />
+          <TabsContent value="jobs">
+            <Card>
+              <CardHeader>
+                <CardTitle>Job History</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center py-12 text-gray-500">
+                  <Briefcase className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                  <p>Job history will be displayed here</p>
+                  <p className="text-sm mt-2">
+                    Integration with jobs module coming soon
+                  </p>
                 </div>
-              </div>
-            </div>
-            <div className="flex justify-end gap-3">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowSuspendModal(false);
-                  setActionReason("");
-                }}
-                disabled={actionLoading}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleSuspend}
-                disabled={actionLoading}
-                className="bg-orange-600 hover:bg-orange-700 text-white"
-              >
-                {actionLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Suspending...
-                  </>
-                ) : (
-                  "Confirm Suspension"
-                )}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Ban Modal */}
-      {showBanModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <div className="flex items-start gap-4 mb-4">
-              <AlertCircle className="h-6 w-6 text-red-500 flex-shrink-0 mt-1" />
-              <div>
-                <h3 className="text-lg font-semibold mb-2 text-red-600">
-                  Ban Client Account
-                </h3>
-                <p className="text-sm text-gray-600 mb-2">
-                  ⚠️ <strong>PERMANENT ACTION:</strong> This will permanently
-                  ban the client&apos;s account. They will lose all access to
-                  the platform.
-                </p>
-                <p className="text-sm text-gray-600 mb-4">
-                  This action cannot be easily reversed.
-                </p>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Reason for Ban *
-                  </label>
-                  <textarea
-                    value={actionReason}
-                    onChange={(e) => setActionReason(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-                    rows={3}
-                    placeholder="Enter reason for permanent ban..."
-                  />
-                </div>
-              </div>
-            </div>
-            <div className="flex justify-end gap-3">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowBanModal(false);
-                  setActionReason("");
-                }}
-                disabled={actionLoading}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleBan}
-                disabled={actionLoading}
-                className="bg-red-600 hover:bg-red-700 text-white"
-              >
-                {actionLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Banning...
-                  </>
-                ) : (
-                  "Confirm Ban"
-                )}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Activate Modal */}
-      {showActivateModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <div className="flex items-start gap-4 mb-4">
-              <AlertCircle className="h-6 w-6 text-green-500 flex-shrink-0 mt-1" />
-              <div>
-                <h3 className="text-lg font-semibold mb-2">
-                  Activate Client Account
-                </h3>
-                <p className="text-sm text-gray-600 mb-4">
-                  This will reactivate the client&apos;s account and restore
-                  full access to the platform.
-                </p>
-              </div>
-            </div>
-            <div className="flex justify-end gap-3">
-              <Button
-                variant="outline"
-                onClick={() => setShowActivateModal(false)}
-                disabled={actionLoading}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleActivate}
-                disabled={actionLoading}
-                className="bg-green-600 hover:bg-green-700 text-white"
-              >
-                {actionLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Activating...
-                  </>
-                ) : (
-                  "Confirm Activation"
-                )}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Delete Modal */}
-      {showDeleteModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <div className="flex items-start gap-4 mb-4">
-              <AlertCircle className="h-6 w-6 text-red-600 flex-shrink-0 mt-1" />
-              <div>
-                <h3 className="text-lg font-semibold mb-2 text-red-600">
-                  Delete Client Account
-                </h3>
-                <p className="text-sm text-gray-600 mb-2">
-                  🚨 <strong>IRREVERSIBLE ACTION:</strong> This will permanently
-                  delete all client data including:
-                </p>
-                <ul className="text-sm text-gray-600 mb-4 ml-6 list-disc">
-                  <li>Profile information</li>
-                  <li>Job posting history</li>
-                  <li>Transaction records</li>
-                  <li>Reviews and ratings</li>
-                </ul>
-                <p className="text-sm font-semibold text-red-600 mb-4">
-                  This action CANNOT be undone.
-                </p>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Type <strong>DELETE</strong> to confirm
-                  </label>
-                  <input
-                    type="text"
-                    value={deleteConfirmText}
-                    onChange={(e) => setDeleteConfirmText(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-                    placeholder="Type DELETE"
-                  />
-                </div>
-              </div>
-            </div>
-            <div className="flex justify-end gap-3">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowDeleteModal(false);
-                  setDeleteConfirmText("");
-                }}
-                disabled={actionLoading}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleDelete}
-                disabled={actionLoading || deleteConfirmText !== "DELETE"}
-                className="bg-red-600 hover:bg-red-700 text-white"
-              >
-                {actionLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Deleting...
-                  </>
-                ) : (
-                  "Delete Permanently"
-                )}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </main>
     </div>
   );
 }
