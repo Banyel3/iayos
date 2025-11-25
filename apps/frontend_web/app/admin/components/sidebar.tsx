@@ -39,6 +39,7 @@ import {
   FileCheck,
   UserX,
   Package,
+  Activity,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -207,18 +208,105 @@ const navigation: NavItem[] = [
       },
     ],
   },
-];
-
-const bottomNavigation = [
+  {
+    name: "Support & Help",
+    href: "#", // Not a clickable link - just a collapsible section header
+    icon: HelpCircle,
+    count: null,
+    children: [
+      {
+        name: "Tickets",
+        href: "/admin/support/tickets",
+        icon: MessageSquare,
+        description: "User support tickets",
+      },
+      {
+        name: "Canned Responses",
+        href: "/admin/support/canned-responses",
+        icon: FileText,
+        description: "Response templates",
+      },
+      {
+        name: "FAQs",
+        href: "/admin/support/faqs",
+        icon: HelpCircle,
+        description: "Manage FAQs",
+      },
+      {
+        name: "User Reports",
+        href: "/admin/support/reports",
+        icon: Flag,
+        description: "Reported content",
+      },
+      {
+        name: "Analytics",
+        href: "/admin/support/analytics",
+        icon: BarChart3,
+        description: "Support metrics",
+      },
+    ],
+  },
+  {
+    name: "Analytics & Reports",
+    href: "#", // Not a clickable link - just a collapsible section header
+    icon: BarChart3,
+    count: null,
+    children: [
+      {
+        name: "Dashboard",
+        href: "/admin/analytics",
+        icon: Home,
+        description: "Overview & KPIs",
+      },
+      {
+        name: "User Analytics",
+        href: "/admin/analytics/users",
+        icon: Users,
+        description: "User growth & retention",
+      },
+      {
+        name: "Job Analytics",
+        href: "/admin/analytics/jobs",
+        icon: Briefcase,
+        description: "Marketplace insights",
+      },
+      {
+        name: "Financial Reports",
+        href: "/admin/analytics/financial",
+        icon: DollarSign,
+        description: "Revenue & transactions",
+      },
+      {
+        name: "Engagement",
+        href: "/admin/analytics/engagement",
+        icon: Activity,
+        description: "User engagement metrics",
+      },
+      {
+        name: "Geographic",
+        href: "/admin/analytics/geographic",
+        icon: Package,
+        description: "Location analytics",
+      },
+      {
+        name: "Custom Reports",
+        href: "/admin/analytics/reports/custom",
+        icon: FileText,
+        description: "Build custom reports",
+      },
+      {
+        name: "Scheduled Reports",
+        href: "/admin/analytics/reports/scheduled",
+        icon: Clock,
+        description: "Automated reporting",
+      },
+    ],
+  },
   {
     name: "Settings",
     href: "/admin/settings",
     icon: Settings,
-  },
-  {
-    name: "Help & Support",
-    href: "/admin/support",
-    icon: HelpCircle,
+    count: null,
   },
 ];
 
@@ -282,49 +370,16 @@ export default function Sidebar({ className }: SidebarProps) {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // Update navigation with dynamic count
-  const navigationWithCount: NavItem[] = [
-    {
-      name: "Dashboard",
-      href: "/admin/dashboard",
-      icon: Home,
-      count: null,
-    },
-    {
-      name: "Users",
-      href: "/admin/users",
-      icon: Users,
-      count: null,
-      children: [
-        {
-          name: "Clients",
-          href: "/admin/users/clients",
-          icon: User,
-          description: "Client accounts & wallets",
-        },
-        {
-          name: "Workers",
-          href: "/admin/users/workers",
-          icon: UserCheck,
-          description: "Worker accounts & earnings",
-        },
-        {
-          name: "Agencies",
-          href: "/admin/users/agency",
-          icon: Building2,
-          description: "Agency accounts",
-        },
-      ],
-    },
-    {
-      name: "KYC Management",
-      href: "/admin/kyc",
-      icon: Shield,
-      count: pendingKYCCount > 0 ? pendingKYCCount : null,
-      children: navigation[2].children,
-    },
-    ...navigation.slice(3),
-  ];
+  // Update navigation with dynamic KYC count
+  const navigationWithCount: NavItem[] = navigation.map((item) => {
+    if (item.name === "KYC Management") {
+      return {
+        ...item,
+        count: pendingKYCCount > 0 ? pendingKYCCount : null,
+      };
+    }
+    return item;
+  });
 
   const toggleExpanded = (name: string) => {
     setExpandedItems((prev) =>
@@ -401,7 +456,7 @@ export default function Sidebar({ className }: SidebarProps) {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto p-4 space-y-1">
+      <nav className="flex-1 overflow-y-auto p-4 space-y-1 scrollbar-hide">
         {navigationWithCount.map((item) => {
           const Icon = item.icon;
           const isItemActive = isActive(item.href);

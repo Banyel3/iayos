@@ -436,14 +436,16 @@ export default function AnalyticsPage() {
                       >
                         <div>
                           <p className="font-semibold text-gray-900">
-                            {new Date(trend.date).toLocaleDateString()}
+                            {trend.date
+                              ? new Date(trend.date).toLocaleDateString()
+                              : "N/A"}
                           </p>
                           <p className="text-sm text-gray-600">
-                            {trend.transactions} transactions
+                            {trend.transactions || 0} transactions
                           </p>
                         </div>
                         <p className="text-xl font-bold text-blue-600">
-                          ₱{trend.revenue.toLocaleString()}
+                          ₱{(trend.revenue || 0).toLocaleString()}
                         </p>
                       </div>
                     ))}
@@ -477,10 +479,10 @@ export default function AnalyticsPage() {
                           </div>
                           <div className="text-right">
                             <p className="font-bold text-gray-900">
-                              ₱{method.amount.toLocaleString()}
+                              ₱{(method.amount || 0).toLocaleString()}
                             </p>
                             <p className="text-sm text-gray-600">
-                              {method.count} transactions
+                              {method.count || 0} transactions
                             </p>
                           </div>
                         </div>
@@ -529,13 +531,13 @@ export default function AnalyticsPage() {
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="font-semibold text-gray-900 truncate">
-                              {client.name}
+                              {client.name || "Unknown"}
                             </p>
                             <p className="text-sm text-gray-600">
-                              {client.transactions_count} transactions
+                              {client.transactions_count || 0} transactions
                             </p>
                             <p className="text-lg font-bold text-blue-600 mt-1">
-                              ₱{client.total_spent.toLocaleString()}
+                              ₱{(client.total_spent || 0).toLocaleString()}
                             </p>
                           </div>
                         </div>
@@ -570,13 +572,13 @@ export default function AnalyticsPage() {
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="font-semibold text-gray-900 truncate">
-                              {worker.name}
+                              {worker.name || "Unknown"}
                             </p>
                             <p className="text-sm text-gray-600">
-                              {worker.jobs_completed} jobs
+                              {worker.jobs_completed || 0} jobs
                             </p>
                             <p className="text-lg font-bold text-green-600 mt-1">
-                              ₱{worker.total_earned.toLocaleString()}
+                              ₱{(worker.total_earned || 0).toLocaleString()}
                             </p>
                           </div>
                         </div>
@@ -611,13 +613,13 @@ export default function AnalyticsPage() {
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="font-semibold text-gray-900 truncate">
-                              {category.name}
+                              {category.name || "Unknown"}
                             </p>
                             <p className="text-sm text-gray-600">
-                              {category.jobs_count} jobs
+                              {category.jobs_count || 0} jobs
                             </p>
                             <p className="text-lg font-bold text-purple-600 mt-1">
-                              ₱{category.revenue.toLocaleString()}
+                              ₱{(category.revenue || 0).toLocaleString()}
                             </p>
                           </div>
                         </div>

@@ -175,3 +175,13 @@ body {
 .safe-area-inset-right {
   padding-right: max(1rem, env(safe-area-inset-right));
 }
+
+/* Hide scrollbar while keeping functionality */
+.scrollbar-hide {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
