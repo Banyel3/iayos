@@ -1,0 +1,398 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { Sidebar } from "../../components";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/generic_button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Users,
+  TrendingUp,
+  Download,
+  RefreshCw,
+  UserCheck,
+  Building2,
+  MapPin,
+  Calendar,
+  Activity,
+  AlertTriangle,
+} from "lucide-react";
+
+export default function UserAnalytics() {
+  const [loading, setLoading] = useState(true);
+  const [dateRange, setDateRange] = useState("last_30_days");
+  const [segment, setSegment] = useState("all");
+  const [stats, setStats] = useState<any>(null);
+
+  useEffect(() => {
+    fetchUserAnalytics();
+  }, [dateRange, segment]);
+
+  const fetchUserAnalytics = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(
+        `http://localhost:8000/api/adminpanel/analytics/users?period=${dateRange}&segment=${segment}`,
+        { credentials: "include" }
+      );
+      const data = await response.json();
+      if (data.success) {
+        setStats(data.analytics);
+      }
+    } catch (error) {
+      console.error("Error:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Activity className="h-12 w-12 text-blue-500 animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex min-h-screen bg-gray-50">
+      <Sidebar />
+      <div className="flex-1 min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+      {/* Header */}
+      <div className="relative overflow-hidden bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white">
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob pointer-events-none"></div>
+        <div className="absolute top-0 right-1/4 w-96 h-96 bg-purple-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000 pointer-events-none"></div>
+
+        <div className="relative px-8 py-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center space-x-3 mb-2">
+                <Users className="h-8 w-8" />
+                <h1 className="text-3xl font-bold">User Analytics</h1>
+              </div>
+              <p className="text-blue-100 text-lg">
+                Growth, retention, and demographic insights
+              </p>
+            </div>
+            <div className="flex items-center space-x-3">
+              <select
+                value={dateRange}
+                onChange={(e) => setDateRange(e.target.value)}
+                className="px-4 py-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-white/50"
+              >
+                <option value="last_7_days">Last 7 Days</option>
+                <option value="last_30_days">Last 30 Days</option>
+                <option value="last_90_days">Last 90 Days</option>
+              </select>
+              <select
+                value={segment}
+                onChange={(e) => setSegment(e.target.value)}
+                className="px-4 py-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-white/50"
+              >
+                <option value="all">All Users</option>
+                <option value="clients">Clients</option>
+                <option value="workers">Workers</option>
+                <option value="agencies">Agencies</option>
+              </select>
+              <Button
+                onClick={fetchUserAnalytics}
+                className="bg-white/10 backdrop-blur-sm border border-white/20 text-white hover:bg-white/20"
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh
+              </Button>
+              <Button className="bg-white text-blue-600 hover:bg-gray-100">
+                <Download className="h-4 w-4 mr-2" />
+                Export
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="px-8 py-6 space-y-6">
+        {/* User Growth Metrics */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Card className="border-0 shadow-xl hover:shadow-2xl transition-shadow">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-3 bg-blue-100 rounded-xl">
+                  <Users className="h-6 w-6 text-blue-600" />
+                </div>
+                <Badge className="bg-blue-100 text-blue-700">DAU</Badge>
+              </div>
+              <h3 className="text-3xl font-bold text-gray-900 mb-1">8,932</h3>
+              <p className="text-sm text-gray-500">Daily Active Users</p>
+              <div className="mt-3 flex items-center text-sm">
+                <TrendingUp className="h-4 w-4 text-green-600 mr-1" />
+                <span className="text-green-600 font-medium">+12.5%</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-0 shadow-xl hover:shadow-2xl transition-shadow">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-3 bg-green-100 rounded-xl">
+                  <Calendar className="h-6 w-6 text-green-600" />
+                </div>
+                <Badge className="bg-green-100 text-green-700">WAU</Badge>
+              </div>
+              <h3 className="text-3xl font-bold text-gray-900 mb-1">24,567</h3>
+              <p className="text-sm text-gray-500">Weekly Active Users</p>
+              <div className="mt-3 flex items-center text-sm">
+                <TrendingUp className="h-4 w-4 text-green-600 mr-1" />
+                <span className="text-green-600 font-medium">+8.3%</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-0 shadow-xl hover:shadow-2xl transition-shadow">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-3 bg-purple-100 rounded-xl">
+                  <TrendingUp className="h-6 w-6 text-purple-600" />
+                </div>
+                <Badge className="bg-purple-100 text-purple-700">MAU</Badge>
+              </div>
+              <h3 className="text-3xl font-bold text-gray-900 mb-1">78,234</h3>
+              <p className="text-sm text-gray-500">Monthly Active Users</p>
+              <div className="mt-3 flex items-center text-sm">
+                <TrendingUp className="h-4 w-4 text-green-600 mr-1" />
+                <span className="text-green-600 font-medium">+15.7%</span>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Registration Timeline */}
+        <Card className="border-0 shadow-xl">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <Users className="h-5 w-5 text-blue-600" />
+              <span>Registration Timeline</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-64 flex items-center justify-center text-gray-400">
+              <div className="text-center">
+                <Activity className="h-12 w-12 mx-auto mb-2 text-blue-400" />
+                <p>Stacked area chart: Clients, Workers, Agencies over time</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Retention Cohort Analysis */}
+        <Card className="border-0 shadow-xl">
+          <CardHeader>
+            <CardTitle>Retention Cohort Analysis</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left p-3 font-medium text-gray-700">
+                      Cohort
+                    </th>
+                    <th className="text-center p-3 font-medium text-gray-700">
+                      Day 1
+                    </th>
+                    <th className="text-center p-3 font-medium text-gray-700">
+                      Day 7
+                    </th>
+                    <th className="text-center p-3 font-medium text-gray-700">
+                      Day 30
+                    </th>
+                    <th className="text-center p-3 font-medium text-gray-700">
+                      Day 90
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    { month: "Jan 2025", d1: 95, d7: 78, d30: 62, d90: 45 },
+                    { month: "Dec 2024", d1: 93, d7: 75, d30: 58, d90: 42 },
+                    { month: "Nov 2024", d1: 91, d7: 72, d30: 55, d90: 38 },
+                    { month: "Oct 2024", d1: 89, d7: 70, d30: 52, d90: 35 },
+                  ].map((cohort, i) => (
+                    <tr key={i} className="border-b hover:bg-gray-50">
+                      <td className="p-3 font-medium">{cohort.month}</td>
+                      <td className="text-center p-3">
+                        <div
+                          className={`inline-block px-3 py-1 rounded ${cohort.d1 >= 90 ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}
+                        >
+                          {cohort.d1}%
+                        </div>
+                      </td>
+                      <td className="text-center p-3">
+                        <div
+                          className={`inline-block px-3 py-1 rounded ${cohort.d7 >= 70 ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"}`}
+                        >
+                          {cohort.d7}%
+                        </div>
+                      </td>
+                      <td className="text-center p-3">
+                        <div
+                          className={`inline-block px-3 py-1 rounded ${cohort.d30 >= 50 ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}
+                        >
+                          {cohort.d30}%
+                        </div>
+                      </td>
+                      <td className="text-center p-3">
+                        <div
+                          className={`inline-block px-3 py-1 rounded ${cohort.d90 >= 40 ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}
+                        >
+                          {cohort.d90}%
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Demographics & Top Cities */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card className="border-0 shadow-xl">
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Users className="h-5 w-5 text-purple-600" />
+                <span>User Demographics</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm text-gray-600">18-24</span>
+                    <span className="text-sm font-medium">2,345</span>
+                  </div>
+                  <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-blue-500 rounded-full"
+                      style={{ width: "25%" }}
+                    ></div>
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm text-gray-600">25-34</span>
+                    <span className="text-sm font-medium">4,567</span>
+                  </div>
+                  <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-green-500 rounded-full"
+                      style={{ width: "48%" }}
+                    ></div>
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm text-gray-600">35-44</span>
+                    <span className="text-sm font-medium">1,890</span>
+                  </div>
+                  <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-purple-500 rounded-full"
+                      style={{ width: "20%" }}
+                    ></div>
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm text-gray-600">45+</span>
+                    <span className="text-sm font-medium">645</span>
+                  </div>
+                  <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-orange-500 rounded-full"
+                      style={{ width: "7%" }}
+                    ></div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-0 shadow-xl">
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <MapPin className="h-5 w-5 text-green-600" />
+                <span>Top 10 Cities</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {[
+                  { city: "Zamboanga City", users: 3456, percentage: 27 },
+                  { city: "Manila", users: 2890, percentage: 22 },
+                  { city: "Cebu City", users: 2134, percentage: 17 },
+                  { city: "Davao City", users: 1567, percentage: 12 },
+                  { city: "Cagayan de Oro", users: 1234, percentage: 10 },
+                ].map((city, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <span className="text-sm font-medium text-gray-500 w-6">
+                        #{i + 1}
+                      </span>
+                      <div>
+                        <p className="font-medium text-gray-900">{city.city}</p>
+                        <p className="text-xs text-gray-500">
+                          {city.users.toLocaleString()} users
+                        </p>
+                      </div>
+                    </div>
+                    <Badge variant="outline">{city.percentage}%</Badge>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Churn Analysis */}
+        <Card className="border-0 shadow-xl">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <AlertTriangle className="h-5 w-5 text-orange-600" />
+              <span>Churn Analysis</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="text-center p-6 bg-orange-50 rounded-xl">
+                <p className="text-4xl font-bold text-orange-600 mb-2">3.8%</p>
+                <p className="text-sm text-gray-600">Monthly Churn Rate</p>
+                <Badge className="mt-2 bg-green-100 text-green-700">
+                  Below 5% target
+                </Badge>
+              </div>
+              <div className="text-center p-6 bg-red-50 rounded-xl">
+                <p className="text-4xl font-bold text-red-600 mb-2">487</p>
+                <p className="text-sm text-gray-600">At-Risk Users</p>
+                <Badge className="mt-2 bg-red-100 text-red-700">
+                  Inactive 30+ days
+                </Badge>
+              </div>
+              <div className="text-center p-6 bg-blue-50 rounded-xl">
+                <p className="text-4xl font-bold text-blue-600 mb-2">92.4%</p>
+                <p className="text-sm text-gray-600">Retention Rate</p>
+                <Badge className="mt-2 bg-blue-100 text-blue-700">
+                  Excellent
+                </Badge>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+      </div>
+    </div>
+  );
+}

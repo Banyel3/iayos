@@ -253,10 +253,10 @@ const navigation: NavItem[] = [
     count: null,
     children: [
       {
-        name: "Dashboard",
+        name: "Overview",
         href: "/admin/analytics",
-        icon: Home,
-        description: "Overview & KPIs",
+        icon: Activity,
+        description: "Analytics overview & KPIs",
       },
       {
         name: "User Analytics",

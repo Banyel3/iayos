@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { Sidebar } from "../components";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ui/generic_button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -118,7 +119,9 @@ export default function AnalyticsDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+    <div className="flex min-h-screen bg-gray-50">
+      <Sidebar />
+      <div className="flex-1 min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
       {/* Header */}
       <div className="relative overflow-hidden bg-gradient-to-r from-indigo-600 via-blue-600 to-purple-600 text-white">
         {/* Blur Orbs */}
@@ -130,7 +133,7 @@ export default function AnalyticsDashboard() {
             <div>
               <div className="flex items-center space-x-3 mb-2">
                 <Activity className="h-8 w-8" />
-                <h1 className="text-3xl font-bold">Analytics Dashboard</h1>
+                <h1 className="text-3xl font-bold">Analytics Overview</h1>
               </div>
               <p className="text-blue-100 text-lg">
                 Comprehensive platform insights and performance metrics
@@ -744,6 +747,7 @@ export default function AnalyticsDashboard() {
             </div>
           </CardContent>
         </Card>
+      </div>
       </div>
     </div>
   );
