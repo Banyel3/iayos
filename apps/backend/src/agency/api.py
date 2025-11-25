@@ -512,3 +512,96 @@ def get_employee_leaderboard(request, sort_by: str = 'rating'):
 	except Exception as e:
 		print(f"Error fetching employee leaderboard: {str(e)}")
 		return Response({"error": "Internal server error"}, status=500)
+
+
+@router.post("/jobs/{job_id}/assign-employee", auth=cookie_auth)
+def assign_job_to_employee_endpoint(
+	request,
+	job_id: int,
+	employee_id: int,
+	assignment_notes: str = None
+):
+	"""
+	Assign an accepted job to a specific employee
+
+	POST /api/agency/jobs/{job_id}/assign-employee
+	Body (FormData):
+		- employee_id: int (required)
+		- assignment_notes: str (optional)
+	"""
+	try:
+		result = services.assign_job_to_employee(
+			agency_account=request.auth,
+			job_id=job_id,
+			employee_id=employee_id,
+			assignment_notes=assignment_notes
+		)
+		return Response(result, status=200)
+
+	except ValueError as e:
+		return Response({'success': False, 'error': str(e)}, status=400)
+	except Exception as e:
+		print(f"❌ Error assigning job to employee: {str(e)}")
+		import traceback
+		traceback.print_exc()
+		return Response(
+			{'success': False, 'error': 'Internal server error'},
+			status=500
+		)
+
+
+@router.post("/jobs/{job_id}/unassign-employee", auth=cookie_auth)
+def unassign_job_from_employee_endpoint(
+	request,
+	job_id: int,
+	reason: str = None
+):
+	"""
+	Unassign an employee from a job
+
+	POST /api/agency/jobs/{job_id}/unassign-employee
+	Body (FormData):
+		- reason: str (optional)
+	"""
+	try:
+		result = services.unassign_job_from_employee(
+			agency_account=request.auth,
+			job_id=job_id,
+			reason=reason
+		)
+		return Response(result, status=200)
+
+	except ValueError as e:
+		return Response({'success': False, 'error': str(e)}, status=400)
+	except Exception as e:
+		print(f"❌ Error unassigning employee: {str(e)}")
+		import traceback
+		traceback.print_exc()
+		return Response(
+			{'success': False, 'error': 'Internal server error'},
+			status=500
+		)
+
+
+@router.get("/employees/{employee_id}/workload", auth=cookie_auth)
+def get_employee_workload_endpoint(request, employee_id: int):
+	"""
+	Get current workload for an employee
+
+	GET /api/agency/employees/{employee_id}/workload
+	"""
+	try:
+		result = services.get_employee_workload(
+			agency_account=request.auth,
+			employee_id=employee_id
+		)
+		return Response(result, status=200)
+
+	except ValueError as e:
+		return Response({'success': False, 'error': str(e)}, status=400)
+	except Exception as e:
+		print(f"❌ Error getting employee workload: {str(e)}")
+		return Response(
+			{'success': False, 'error': 'Internal server error'},
+			status=500
+		)

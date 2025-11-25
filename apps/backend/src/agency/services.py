@@ -716,3 +716,270 @@ def get_employee_leaderboard(account_id, sort_by='rating'):
 		
 	except Accounts.DoesNotExist:
 		raise ValueError("User not found")
+
+
+def assign_job_to_employee(
+	agency_account,
+	job_id: int,
+	employee_id: int,
+	assignment_notes: str = None
+) -> dict:
+	"""
+	Assign an accepted job to a specific agency employee
+
+	Args:
+		agency_account: The authenticated agency account
+		job_id: ID of the job to assign
+		employee_id: ID of the employee to assign
+		assignment_notes: Optional notes about the assignment
+
+	Returns:
+		dict with success status and job details
+
+	Raises:
+		ValueError for validation errors
+	"""
+	from accounts.models import Job, Notification, JobLog
+	from agency.models import AgencyEmployee, Agency
+	from django.utils import timezone
+	from django.db import transaction
+
+	try:
+		# Get agency
+		agency = AgencyProfile.objects.get(accountFK=agency_account)
+	except AgencyProfile.DoesNotExist:
+		raise ValueError("Agency account not found")
+
+	# Get job and validate
+	try:
+		job = Job.objects.select_related(
+			'clientID__profileID__accountFK',
+			'assignedAgencyFK',
+			'assignedWorkerID'
+		).get(jobID=job_id)
+	except Job.DoesNotExist:
+		raise ValueError(f"Job {job_id} not found")
+
+	# Verify job belongs to this agency
+	if job.assignedAgencyFK != agency:
+		raise ValueError("This job is not assigned to your agency")
+
+	# Verify job is in correct status
+	if job.inviteStatus != 'ACCEPTED':
+		raise ValueError(f"Cannot assign job with invite status: {job.inviteStatus}")
+
+	if job.status not in ['ACTIVE', 'ASSIGNED']:
+		raise ValueError(f"Cannot assign job with status: {job.status}")
+
+	# Check if already assigned to an employee
+	if job.assignedEmployeeID:
+		raise ValueError(
+			f"Job is already assigned to {job.assignedEmployeeID.name}. "
+			"Please unassign first if you want to reassign."
+		)
+
+	# Get employee and validate
+	try:
+		employee = AgencyEmployee.objects.select_related(
+			'agencyFK'
+		).get(employeeId=employee_id)
+	except AgencyEmployee.DoesNotExist:
+		raise ValueError(f"Employee {employee_id} not found")
+
+	# Verify employee belongs to this agency
+	if employee.agencyFK != agency:
+		raise ValueError("This employee does not belong to your agency")
+
+	# Verify employee is active
+	if not employee.isActive:
+		raise ValueError(f"Employee {employee.name} is not active")
+
+	# Assign job to employee (atomic transaction)
+	with transaction.atomic():
+		# Update job
+		job.assignedEmployeeID = employee
+		job.employeeAssignedAt = timezone.now()
+		job.assignmentNotes = assignment_notes or ""
+		job.status = 'ASSIGNED'  # Update status to ASSIGNED
+		job.save()
+
+		# Create job log entry
+		JobLog.objects.create(
+			jobID=job,
+			action='EMPLOYEE_ASSIGNED',
+			notes=f"Agency '{agency.businessName}' assigned employee '{employee.name}' to job. Notes: {assignment_notes or 'None'}",
+			changedBy=agency_account,
+			oldStatus='ACTIVE',
+			newStatus='ASSIGNED'
+		)
+
+		# Get employee's account if exists (for notification)
+		employee_account = getattr(employee, 'accountFK', None)
+
+		if employee_account:
+			# Create notification for employee
+			Notification.objects.create(
+				accountFK=employee_account,
+				notificationType='JOB_ASSIGNED',
+				title=f'New Job Assignment: {job.title}',
+				message=f'You have been assigned to work on "{job.title}" for client {job.clientID.profileID.firstName}. Budget: ₱{job.budget}',
+				relatedJobID=job.jobID
+			)
+
+		# Create notification for client
+		Notification.objects.create(
+			accountFK=job.clientID.profileID.accountFK,
+			notificationType='AGENCY_ASSIGNED_WORKER',
+			title=f'Worker Assigned to Your Job',
+			message=f'{agency.businessName} has assigned {employee.name} to work on "{job.title}".',
+			relatedJobID=job.jobID
+		)
+
+		print(f"✅ Job {job_id} assigned to employee {employee.name} (ID: {employee_id})")
+
+	return {
+		'success': True,
+		'message': f'Job successfully assigned to {employee.name}',
+		'job_id': job.jobID,
+		'employee_id': employee.employeeId,
+		'employee_name': employee.name,
+		'assigned_at': job.employeeAssignedAt.isoformat(),
+		'status': job.status
+	}
+
+
+def unassign_job_from_employee(
+	agency_account,
+	job_id: int,
+	reason: str = None
+) -> dict:
+	"""
+	Unassign a job from an employee (for reassignment or cancellation)
+
+	Args:
+		agency_account: The authenticated agency account
+		job_id: ID of the job to unassign
+		reason: Reason for unassignment
+
+	Returns:
+		dict with success status
+	"""
+	from accounts.models import Job, Notification, JobLog
+	from agency.models import Agency
+	from django.utils import timezone
+	from django.db import transaction
+
+	try:
+		agency = AgencyProfile.objects.get(accountFK=agency_account)
+	except AgencyProfile.DoesNotExist:
+		raise ValueError("Agency account not found")
+
+	try:
+		job = Job.objects.select_related(
+			'assignedEmployeeID',
+			'assignedAgencyFK'
+		).get(jobID=job_id)
+	except Job.DoesNotExist:
+		raise ValueError(f"Job {job_id} not found")
+
+	# Verify job belongs to this agency
+	if job.assignedAgencyFK != agency:
+		raise ValueError("This job is not assigned to your agency")
+
+	# Check if job has an assigned employee
+	if not job.assignedEmployeeID:
+		raise ValueError("This job does not have an assigned employee")
+
+	# Verify job hasn't started work yet
+	if job.status == 'IN_PROGRESS':
+		raise ValueError("Cannot unassign employee from job that is already in progress")
+
+	if job.workerMarkedComplete or job.clientMarkedComplete:
+		raise ValueError("Cannot unassign employee from completed job")
+
+	employee_name = job.assignedEmployeeID.name
+	employee_id = job.assignedEmployeeID.employeeId
+
+	with transaction.atomic():
+		# Clear assignment
+		job.assignedEmployeeID = None
+		job.employeeAssignedAt = None
+		job.assignmentNotes = None
+		job.status = 'ACTIVE'  # Revert to ACTIVE for reassignment
+		job.save()
+
+		# Create job log
+		JobLog.objects.create(
+			jobID=job,
+			action='EMPLOYEE_UNASSIGNED',
+			notes=f"Agency '{agency.businessName}' unassigned employee '{employee_name}'. Reason: {reason or 'Not specified'}",
+			changedBy=agency_account,
+			oldStatus='ASSIGNED',
+			newStatus='ACTIVE'
+		)
+
+		print(f"✅ Employee {employee_name} (ID: {employee_id}) unassigned from job {job_id}")
+
+	return {
+		'success': True,
+		'message': f'Employee {employee_name} unassigned from job',
+		'job_id': job.jobID,
+		'unassigned_employee': employee_name
+	}
+
+
+def get_employee_workload(agency_account, employee_id: int) -> dict:
+	"""
+	Get current workload for an employee (for assignment decisions)
+
+	Returns:
+		dict with active jobs count, in-progress count, availability status
+	"""
+	from accounts.models import Job
+	from agency.models import Agency
+
+	try:
+		agency = AgencyProfile.objects.get(accountFK=agency_account)
+	except AgencyProfile.DoesNotExist:
+		raise ValueError("Agency account not found")
+
+	try:
+		employee = AgencyEmployee.objects.get(
+			employeeId=employee_id,
+			agencyFK=agency
+		)
+	except AgencyEmployee.DoesNotExist:
+		raise ValueError(f"Employee {employee_id} not found")
+
+	# Count active and in-progress jobs
+	active_jobs = Job.objects.filter(
+		assignedEmployeeID=employee,
+		status='ASSIGNED'
+	).count()
+
+	in_progress_jobs = Job.objects.filter(
+		assignedEmployeeID=employee,
+		status='IN_PROGRESS'
+	).count()
+
+	total_active = active_jobs + in_progress_jobs
+
+	# Determine availability (simple logic for now)
+	if not employee.isActive:
+		availability = 'INACTIVE'
+	elif total_active >= 3:
+		availability = 'BUSY'
+	elif total_active >= 1:
+		availability = 'WORKING'
+	else:
+		availability = 'AVAILABLE'
+
+	return {
+		'employee_id': employee.employeeId,
+		'employee_name': employee.name,
+		'is_active': employee.isActive,
+		'assigned_jobs_count': active_jobs,
+		'in_progress_jobs_count': in_progress_jobs,
+		'total_active_jobs': total_active,
+		'availability': availability
+	}

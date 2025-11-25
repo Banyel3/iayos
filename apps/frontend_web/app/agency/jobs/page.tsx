@@ -7,8 +7,19 @@ import {
   PendingInviteCard,
   RejectReasonModal,
 } from "@/components/agency";
-import { Loader2, AlertCircle, Briefcase, Mail } from "lucide-react";
+import AssignEmployeeModal from "@/components/agency/AssignEmployeeModal";
+import { Loader2, AlertCircle, Briefcase, Mail, UserPlus, CheckCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+
+interface Employee {
+  employeeId: number;
+  name: string;
+  email: string;
+  role: string;
+  rating: number;
+  totalJobsCompleted: number;
+  isActive: boolean;
+}
 
 interface Job {
   jobID: number;
@@ -27,6 +38,11 @@ interface Job {
   preferredStartDate: string | null;
   materialsNeeded?: string[];
   inviteStatus?: string;
+  assignedEmployeeID?: number;
+  assignedEmployee?: {
+    employeeId: number;
+    name: string;
+  };
   client: {
     id: number;
     name: string;
@@ -37,18 +53,24 @@ interface Job {
   updatedAt: string;
 }
 
-type TabType = "available" | "invites";
+type TabType = "available" | "invites" | "accepted";
 
 export default function AgencyJobsPage() {
   const [activeTab, setActiveTab] = useState<TabType>("available");
   const [jobs, setJobs] = useState<Job[]>([]);
   const [pendingInvites, setPendingInvites] = useState<Job[]>([]);
+  const [acceptedJobs, setAcceptedJobs] = useState<Job[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [accepting, setAccepting] = useState<number | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [selectedJobForReject, setSelectedJobForReject] = useState<Job | null>(
+    null
+  );
+  const [assignModalOpen, setAssignModalOpen] = useState(false);
+  const [selectedJobForAssignment, setSelectedJobForAssignment] = useState<Job | null>(
     null
   );
   const hasFetched = React.useRef(false);
@@ -61,6 +83,8 @@ export default function AgencyJobsPage() {
 
     fetchJobs();
     fetchPendingInvites();
+    fetchAcceptedJobs();
+    fetchEmployees();
   }, []);
 
   // Refetch when tab changes
@@ -71,6 +95,8 @@ export default function AgencyJobsPage() {
       fetchJobs();
     } else if (activeTab === "invites") {
       fetchPendingInvites();
+    } else if (activeTab === "accepted") {
+      fetchAcceptedJobs();
     }
   }, [activeTab]);
 
@@ -132,6 +158,61 @@ export default function AgencyJobsPage() {
       );
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchAcceptedJobs = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const response = await fetch(
+        `${apiUrl}/api/agency/jobs?invite_status=ACCEPTED`,
+        {
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          `Failed to fetch accepted jobs: ${response.statusText}`
+        );
+      }
+
+      const data = await response.json();
+      setAcceptedJobs(data.jobs || []);
+    } catch (err) {
+      console.error("Error fetching accepted jobs:", err);
+      setError(
+        err instanceof Error ? err.message : "Failed to load accepted jobs"
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchEmployees = async () => {
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const response = await fetch(`${apiUrl}/api/agency/employees`, {
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch employees: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      setEmployees(data.employees || []);
+    } catch (err) {
+      console.error("Error fetching employees:", err);
     }
   };
 
@@ -276,6 +357,61 @@ export default function AgencyJobsPage() {
     }
   };
 
+  const handleAssignEmployee = async (employeeId: number, notes: string) => {
+    if (!selectedJobForAssignment) return;
+
+    try {
+      setError(null);
+      setSuccessMessage(null);
+
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const formData = new FormData();
+      formData.append("employee_id", employeeId.toString());
+      if (notes) {
+        formData.append("assignment_notes", notes);
+      }
+
+      const response = await fetch(
+        `${apiUrl}/api/agency/jobs/${selectedJobForAssignment.jobID}/assign-employee`,
+        {
+          method: "POST",
+          credentials: "include",
+          body: formData,
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to assign employee");
+      }
+
+      const result = await response.json();
+
+      // Show success message
+      setSuccessMessage(
+        `Employee successfully assigned to "${selectedJobForAssignment.title}"!`
+      );
+
+      // Scroll to top to show success message
+      window.scrollTo({ top: 0, behavior: "smooth" });
+
+      // Refresh accepted jobs list
+      fetchAcceptedJobs();
+
+      // Close modal
+      setAssignModalOpen(false);
+      setSelectedJobForAssignment(null);
+    } catch (err) {
+      console.error("Error assigning employee:", err);
+      throw err; // Re-throw to let modal handle error display
+    }
+  };
+
+  const handleOpenAssignModal = (job: Job) => {
+    setSelectedJobForAssignment(job);
+    setAssignModalOpen(true);
+  };
+
   // Loading state
   if (loading) {
     return (
@@ -355,6 +491,31 @@ export default function AgencyJobsPage() {
                       }`}
                     >
                       {pendingInvites.length}
+                    </span>
+                  )}
+                </div>
+              </button>
+
+              <button
+                onClick={() => setActiveTab("accepted")}
+                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                  activeTab === "accepted"
+                    ? "border-green-600 text-green-600"
+                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                }`}
+              >
+                <div className="flex items-center space-x-2">
+                  <CheckCircle className="h-5 w-5" />
+                  <span>Accepted Jobs</span>
+                  {acceptedJobs.length > 0 && (
+                    <span
+                      className={`px-2 py-0.5 text-xs rounded-full ${
+                        activeTab === "accepted"
+                          ? "bg-green-100 text-green-600"
+                          : "bg-gray-100 text-gray-600"
+                      }`}
+                    >
+                      {acceptedJobs.length}
                     </span>
                   )}
                 </div>
@@ -456,6 +617,98 @@ export default function AgencyJobsPage() {
             )}
           </>
         )}
+
+        {activeTab === "accepted" && (
+          <>
+            {acceptedJobs.length === 0 ? (
+              <Card>
+                <CardContent className="py-12">
+                  <div className="text-center">
+                    <CheckCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                      No Accepted Jobs
+                    </h3>
+                    <p className="text-gray-600 max-w-md mx-auto">
+                      You haven't accepted any job invitations yet. Accepted jobs
+                      that need employee assignment will appear here.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-6">
+                <div className="text-sm text-gray-600 mb-4">
+                  Showing {acceptedJobs.length} accepted{" "}
+                  {acceptedJobs.length === 1 ? "job" : "jobs"}
+                </div>
+                {acceptedJobs.map((job) => (
+                  <Card key={job.jobID} className="hover:shadow-lg transition-shadow">
+                    <CardContent className="p-6">
+                      <div className="flex justify-between items-start mb-4">
+                        <div>
+                          <h3 className="text-xl font-bold text-gray-900 mb-2">
+                            {job.title}
+                          </h3>
+                          <p className="text-gray-600 mb-3">{job.description}</p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                        <div>
+                          <span className="text-sm text-gray-600">Budget</span>
+                          <p className="font-semibold text-gray-900">₱{job.budget}</p>
+                        </div>
+                        <div>
+                          <span className="text-sm text-gray-600">Category</span>
+                          <p className="font-semibold text-gray-900">
+                            {job.category?.name || "N/A"}
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-sm text-gray-600">Urgency</span>
+                          <p
+                            className={`font-semibold ${
+                              job.urgency === "HIGH"
+                                ? "text-red-600"
+                                : job.urgency === "MEDIUM"
+                                ? "text-orange-600"
+                                : "text-green-600"
+                            }`}
+                          >
+                            {job.urgency}
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-sm text-gray-600">Status</span>
+                          <p className="font-semibold text-gray-900">{job.status}</p>
+                        </div>
+                      </div>
+
+                      {job.assignedEmployee ? (
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <CheckCircle className="text-green-600" size={20} />
+                            <span className="text-green-800 font-medium">
+                              Assigned to: {job.assignedEmployee.name}
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => handleOpenAssignModal(job)}
+                          className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center space-x-2"
+                        >
+                          <UserPlus size={18} />
+                          <span>Assign Employee</span>
+                        </button>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       {/* Reject Reason Modal */}
@@ -468,6 +721,20 @@ export default function AgencyJobsPage() {
         onSubmit={handleRejectInviteSubmit}
         jobTitle={selectedJobForReject?.title || ""}
       />
+
+      {/* Assign Employee Modal */}
+      {selectedJobForAssignment && (
+        <AssignEmployeeModal
+          isOpen={assignModalOpen}
+          onClose={() => {
+            setAssignModalOpen(false);
+            setSelectedJobForAssignment(null);
+          }}
+          job={selectedJobForAssignment}
+          employees={employees}
+          onAssign={handleAssignEmployee}
+        />
+      )}
     </div>
   );
 }
