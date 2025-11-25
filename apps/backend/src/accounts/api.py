@@ -558,6 +558,37 @@ def delete_notification(request, notification_id: int):
         return {"success": False, "error": "Failed to delete notification"}
 
 
+@router.get("/specializations")
+def get_specializations_endpoint(request):
+    """
+    Get all job categories/specializations.
+    Public endpoint - no authentication required.
+    """
+    try:
+        from .models import Specializations
+        
+        categories = Specializations.objects.all().order_by('specializationName')
+        
+        category_list = [
+            {
+                'specializationID': cat.specializationID,
+                'categoryName': cat.specializationName,
+            }
+            for cat in categories
+        ]
+        
+        return category_list
+        
+    except Exception as e:
+        print(f"❌ Error fetching specializations: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to fetch specializations"}, 
+            status=500
+        )
+
+
 #region WORKER ENDPOINTS
 @router.get("/users/workers")
 

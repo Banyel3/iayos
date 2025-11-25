@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
-Test script for INVITE-type job creation (direct worker hiring)
+Test script for INVITE-type job creation (direct worker/agency hiring)
 Tests:
 1. Client can create invite job for a worker
-2. Self-hiring prevention (client cannot invite themselves if they have worker profile)
-3. Worker receives notification
-4. Job appears in worker's applications
+2. Client can create invite job for an agency
+3. Self-hiring prevention (client cannot invite themselves if they have worker profile)
+4. Worker/Agency receives notification
+5. Job appears in worker's/agency's applications
 """
 
 import requests
@@ -102,9 +103,39 @@ def get_categories(token):
         print(f"❌ Failed to get categories: {response.status_code}")
         return []
 
-def create_invite_job(token, worker_id, category_id):
-    """Create an INVITE-type job (direct worker hire)"""
-    print(f"\n📝 Creating INVITE job for worker ID: {worker_id}")
+def get_agencies_list(token):
+    """Get list of available agencies"""
+    print("\n📋 Fetching agencies list...")
+    headers = {"Authorization": f"Bearer {token}"}
+    response = requests.get(
+        f"{MOBILE_API}/agencies/list?page=1&limit=5",
+        headers=headers
+    )
+    
+    if response.status_code == 200:
+        data = response.json()
+        agencies = data.get('agencies', [])
+        print(f"✅ Found {len(agencies)} agencies")
+        
+        if agencies:
+            print("\n   Available agencies:")
+            for a in agencies[:3]:
+                print(f"   - ID: {a['agency_id']}, Name: {a['business_name']}, "
+                      f"Rating: {a.get('average_rating', 0):.1f}, "
+                      f"Jobs: {a.get('completed_jobs', 0)}, "
+                      f"KYC: {a.get('kyc_status', 'UNKNOWN')}")
+        
+        return agencies
+    else:
+        print(f"❌ Failed to get agencies: {response.status_code}")
+        print(f"   Response: {response.text}")
+        return []
+
+def create_invite_job(token, category_id, worker_id=None, agency_id=None):
+    """Create an INVITE-type job (direct worker/agency hire)"""
+    target_type = "worker" if worker_id else "agency"
+    target_id = worker_id if worker_id else agency_id
+    print(f"\n📝 Creating INVITE job for {target_type} ID: {target_id}")
     
     headers = {
         "Authorization": f"Bearer {token}",
@@ -112,8 +143,8 @@ def create_invite_job(token, worker_id, category_id):
     }
     
     job_payload = {
-        "title": f"Test Invite Job - {datetime.now().strftime('%H:%M:%S')}",
-        "description": "This is a test invite job created via Python script. Testing direct worker hiring functionality.",
+        "title": f"Test Invite Job ({target_type}) - {datetime.now().strftime('%H:%M:%S')}",
+        "description": f"This is a test invite job created via Python script. Testing direct {target_type} hiring functionality.",
         "category_id": category_id,
         "budget": 1500.0,
         "location": "Test Location, Zamboanga City",
@@ -121,9 +152,14 @@ def create_invite_job(token, worker_id, category_id):
         "expected_duration": "2-3 hours",
         "preferred_start_date": "2025-11-25",
         "materials_needed": ["Test material 1", "Test material 2"],
-        "worker_id": worker_id,
         "downpayment_method": "WALLET"
     }
+    
+    # Add either worker_id or agency_id (not both)
+    if worker_id:
+        job_payload["worker_id"] = worker_id
+    elif agency_id:
+        job_payload["agency_id"] = agency_id
     
     print(f"   Payload: {json.dumps(job_payload, indent=2)}")
     
@@ -142,7 +178,9 @@ def create_invite_job(token, worker_id, category_id):
         print(f"   Job ID: {data.get('job_id')}")
         print(f"   Title: {data.get('title')}")
         print(f"   Status: {data.get('status')}")
-        print(f"   Invite Status: {data.get('invite_status')}")
+        print(f"   Budget: ₱{data.get('budget')}")
+        print(f"   Escrow Amount: ₱{data.get('escrow_amount')}")
+        print(f"   Commission Fee: ₱{data.get('commission_fee')}")
         return data
     else:
         print(f"\n❌ Failed to create invite job")
@@ -200,7 +238,7 @@ def test_self_hiring_prevention(token):
 
 def main():
     print_section("INVITE JOB CREATION TEST SUITE")
-    print("Testing direct worker hiring (INVITE-type jobs)")
+    print("Testing direct worker AND agency hiring (INVITE-type jobs)")
     print(f"API Base URL: {MOBILE_API}")
     
     # Step 1: Login as client
@@ -210,20 +248,8 @@ def main():
         print("\n❌ Test aborted - Client login failed")
         return
     
-    # Step 2: Get available workers
-    print_section("STEP 2: GET AVAILABLE WORKERS")
-    workers = get_workers_list(client_token)
-    if not workers:
-        print("\n⚠️  No workers found - cannot proceed with invite test")
-        print("   You need at least one worker profile in the database")
-        return
-    
-    target_worker_id = workers[0]['worker_id']
-    target_worker_name = workers[0]['name']
-    print(f"\n✅ Selected worker for test: {target_worker_name} (ID: {target_worker_id})")
-    
-    # Step 3: Get categories
-    print_section("STEP 3: GET JOB CATEGORIES")
+    # Step 2: Get categories
+    print_section("STEP 2: GET JOB CATEGORIES")
     categories = get_categories(client_token)
     if not categories:
         print("\n⚠️  No categories found - using default category ID 1")
@@ -232,51 +258,118 @@ def main():
         category_id = categories[0]['id']
         print(f"\n✅ Selected category: {categories[0]['name']} (ID: {category_id})")
     
-    # Step 4: Create invite job
-    print_section("STEP 4: CREATE INVITE JOB")
-    job = create_invite_job(client_token, target_worker_id, category_id)
+    # TEST A: WORKER INVITATION
+    print_section("TEST A: WORKER INVITATION")
     
-    if job:
-        print("\n✅ Invite job creation SUCCESSFUL!")
+    # Step 3: Get available workers
+    print_section("STEP 3: GET AVAILABLE WORKERS")
+    workers = get_workers_list(client_token)
+    
+    worker_job = None
+    if workers:
+        target_worker_id = workers[0]['worker_id']
+        target_worker_name = workers[0]['name']
+        print(f"\n✅ Selected worker for test: {target_worker_name} (ID: {target_worker_id})")
         
-        # Step 5: Verify job appears in client's list
-        print_section("STEP 5: VERIFY JOB IN CLIENT'S LIST")
-        my_jobs = get_my_jobs(client_token)
+        # Step 4: Create invite job for worker
+        print_section("STEP 4: CREATE INVITE JOB FOR WORKER")
+        worker_job = create_invite_job(client_token, category_id, worker_id=target_worker_id)
         
-        job_found = False
-        for j in my_jobs:
-            if j.get('id') == job.get('job_id'):
-                job_found = True
-                print(f"✅ Job found in client's list!")
-                print(f"   - Type: {j.get('job_type')}")
-                print(f"   - Invite Status: {j.get('invite_status')}")
+        if worker_job:
+            print("\n✅ Worker invite job creation SUCCESSFUL!")
+        else:
+            print("\n❌ Worker invite job creation FAILED")
+    else:
+        print("\n⚠️  No workers found - skipping worker invite test")
+    
+    # TEST B: AGENCY INVITATION
+    print_section("TEST B: AGENCY INVITATION")
+    
+    # Step 5: Get available agencies
+    print_section("STEP 5: GET AVAILABLE AGENCIES")
+    agencies = get_agencies_list(client_token)
+    
+    agency_job = None
+    if agencies:
+        # Find an APPROVED agency
+        approved_agency = None
+        for a in agencies:
+            if a.get('kyc_status') == 'APPROVED':
+                approved_agency = a
                 break
         
-        if not job_found:
-            print(f"⚠️  Job ID {job.get('job_id')} not found in client's list")
+        if approved_agency:
+            target_agency_id = approved_agency['agency_id']
+            target_agency_name = approved_agency['business_name']
+            print(f"\n✅ Selected APPROVED agency for test: {target_agency_name} (ID: {target_agency_id})")
+            
+            # Step 6: Create invite job for agency
+            print_section("STEP 6: CREATE INVITE JOB FOR AGENCY")
+            agency_job = create_invite_job(client_token, category_id, agency_id=target_agency_id)
+            
+            if agency_job:
+                print("\n✅ Agency invite job creation SUCCESSFUL!")
+            else:
+                print("\n❌ Agency invite job creation FAILED")
+        else:
+            print("\n⚠️  No APPROVED agencies found - skipping agency invite test")
+            print("   Note: Only agencies with KYC status = APPROVED can be invited")
     else:
-        print("\n❌ Invite job creation FAILED")
+        print("\n⚠️  No agencies found - skipping agency invite test")
     
-    # Step 6: Test self-hiring prevention
+    # Step 7: Verify jobs appear in client's list
+    print_section("STEP 7: VERIFY JOBS IN CLIENT'S LIST")
+    my_jobs = get_my_jobs(client_token)
+    
+    jobs_found = 0
+    if worker_job and my_jobs:
+        for j in my_jobs:
+            if j.get('id') == worker_job.get('job_id'):
+                jobs_found += 1
+                print(f"✅ Worker job found in client's list!")
+                print(f"   - Type: {j.get('job_type')}")
+                break
+    
+    if agency_job and my_jobs:
+        for j in my_jobs:
+            if j.get('id') == agency_job.get('job_id'):
+                jobs_found += 1
+                print(f"✅ Agency job found in client's list!")
+                print(f"   - Type: {j.get('job_type')}")
+                break
+    
+    # Step 8: Test self-hiring prevention
     test_self_hiring_prevention(client_token)
     
     # Final summary
     print_section("TEST SUMMARY")
     print("✅ Client login - PASSED")
-    print("✅ Get workers list - PASSED")
     print("✅ Get categories - PASSED")
     
-    if job:
-        print("✅ Create invite job - PASSED")
-        print("✅ Verify job in list - PASSED")
+    if workers:
+        print("✅ Get workers list - PASSED")
+        if worker_job:
+            print("✅ Create worker invite job - PASSED")
+        else:
+            print("❌ Create worker invite job - FAILED")
     else:
-        print("❌ Create invite job - FAILED")
+        print("⚠️  Get workers list - SKIPPED (no workers)")
+    
+    if agencies:
+        print("✅ Get agencies list - PASSED")
+        if agency_job:
+            print("✅ Create agency invite job - PASSED")
+        else:
+            print("❌ Create agency invite job - FAILED")
+    else:
+        print("⚠️  Get agencies list - SKIPPED (no agencies)")
     
     print("\n📝 NOTES:")
     print("   - Self-hiring prevention is implemented (cannot invite yourself)")
-    print("   - Worker will receive notification about the invitation")
-    print("   - Worker can accept/reject via their applications list")
+    print("   - Worker/Agency will receive notification about the invitation")
+    print("   - Worker/Agency can accept/reject via their applications list")
     print("   - 50% + 5% commission is held in escrow until job completion")
+    print("   - Agencies must have KYC status = APPROVED to receive invitations")
     
     print("\n" + "="*80)
     print("Test suite completed!")

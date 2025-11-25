@@ -151,60 +151,254 @@ export default function ScheduledReports() {
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar />
       <div className="flex-1 min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
-      {/* Header */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white">
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob pointer-events-none"></div>
-        <div className="absolute top-0 right-1/4 w-96 h-96 bg-indigo-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000 pointer-events-none"></div>
+        {/* Header */}
+        <div className="relative overflow-hidden bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white">
+          <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob pointer-events-none"></div>
+          <div className="absolute top-0 right-1/4 w-96 h-96 bg-indigo-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000 pointer-events-none"></div>
 
-        <div className="relative px-8 py-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="flex items-center space-x-3 mb-2">
-                <Clock className="h-8 w-8" />
-                <h1 className="text-3xl font-bold">Scheduled Reports</h1>
+          <div className="relative px-8 py-8">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="flex items-center space-x-3 mb-2">
+                  <Clock className="h-8 w-8" />
+                  <h1 className="text-3xl font-bold">Scheduled Reports</h1>
+                </div>
+                <p className="text-blue-100 text-lg">
+                  Manage automated report generation and delivery
+                </p>
               </div>
-              <p className="text-blue-100 text-lg">
-                Manage automated report generation and delivery
-              </p>
+              <Button className="bg-white text-blue-600 hover:bg-gray-100">
+                <Plus className="h-4 w-4 mr-2" />
+                Schedule New Report
+              </Button>
             </div>
-            <Button className="bg-white text-blue-600 hover:bg-gray-100">
-              <Plus className="h-4 w-4 mr-2" />
-              Schedule New Report
-            </Button>
           </div>
         </div>
-      </div>
 
-      <div className="px-8 py-6 space-y-6">
-        {/* Tabs */}
-        <div className="flex space-x-2">
-          <Button
-            variant={activeTab === "scheduled" ? "default" : "outline"}
-            onClick={() => setActiveTab("scheduled")}
-            className={activeTab === "scheduled" ? "bg-blue-600" : ""}
-          >
-            <Clock className="h-4 w-4 mr-2" />
-            Scheduled Reports
-          </Button>
-          <Button
-            variant={activeTab === "history" ? "default" : "outline"}
-            onClick={() => setActiveTab("history")}
-            className={activeTab === "history" ? "bg-blue-600" : ""}
-          >
-            <FileText className="h-4 w-4 mr-2" />
-            Report History
-          </Button>
-        </div>
+        <div className="px-8 py-6 space-y-6">
+          {/* Tabs */}
+          <div className="flex space-x-2">
+            <Button
+              variant={activeTab === "scheduled" ? "default" : "outline"}
+              onClick={() => setActiveTab("scheduled")}
+              className={activeTab === "scheduled" ? "bg-blue-600" : ""}
+            >
+              <Clock className="h-4 w-4 mr-2" />
+              Scheduled Reports
+            </Button>
+            <Button
+              variant={activeTab === "history" ? "default" : "outline"}
+              onClick={() => setActiveTab("history")}
+              className={activeTab === "history" ? "bg-blue-600" : ""}
+            >
+              <FileText className="h-4 w-4 mr-2" />
+              Report History
+            </Button>
+          </div>
 
-        {/* Scheduled Reports Tab */}
-        {activeTab === "scheduled" && (
-          <>
+          {/* Scheduled Reports Tab */}
+          {activeTab === "scheduled" && (
+            <>
+              <Card className="border-0 shadow-xl">
+                <CardHeader>
+                  <CardTitle>Active Scheduled Reports</CardTitle>
+                  <p className="text-sm text-gray-600 mt-1">
+                    {
+                      scheduledReports.filter((r) => r.status === "active")
+                        .length
+                    }{" "}
+                    active reports
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="text-left p-3 font-medium text-gray-700">
+                            Report Name
+                          </th>
+                          <th className="text-left p-3 font-medium text-gray-700">
+                            Type
+                          </th>
+                          <th className="text-left p-3 font-medium text-gray-700">
+                            Frequency
+                          </th>
+                          <th className="text-left p-3 font-medium text-gray-700">
+                            Next Run
+                          </th>
+                          <th className="text-left p-3 font-medium text-gray-700">
+                            Recipients
+                          </th>
+                          <th className="text-left p-3 font-medium text-gray-700">
+                            Status
+                          </th>
+                          <th className="text-right p-3 font-medium text-gray-700">
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {scheduledReports.map((report) => (
+                          <tr
+                            key={report.id}
+                            className="border-b hover:bg-gray-50"
+                          >
+                            <td className="p-3">
+                              <div>
+                                <p className="font-medium text-gray-900">
+                                  {report.name}
+                                </p>
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {report.metrics
+                                    .slice(0, 2)
+                                    .map((metric, i) => (
+                                      <Badge
+                                        key={i}
+                                        variant="outline"
+                                        className="text-xs"
+                                      >
+                                        {metric}
+                                      </Badge>
+                                    ))}
+                                  {report.metrics.length > 2 && (
+                                    <Badge
+                                      variant="outline"
+                                      className="text-xs"
+                                    >
+                                      +{report.metrics.length - 2}
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="p-3">
+                              <Badge
+                                className={
+                                  report.type === "Operations"
+                                    ? "bg-blue-100 text-blue-700"
+                                    : report.type === "Financial"
+                                      ? "bg-purple-100 text-purple-700"
+                                      : "bg-green-100 text-green-700"
+                                }
+                              >
+                                {report.type}
+                              </Badge>
+                            </td>
+                            <td className="p-3 text-gray-600">
+                              {report.frequency}
+                            </td>
+                            <td className="p-3">
+                              <div className="flex items-center space-x-2">
+                                <Calendar className="h-4 w-4 text-gray-400" />
+                                <span className="text-gray-900">
+                                  {report.nextRun}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="p-3">
+                              <div className="flex items-center space-x-2">
+                                <Mail className="h-4 w-4 text-gray-400" />
+                                <span className="text-gray-900">
+                                  {report.recipients.length}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="p-3">
+                              <Badge
+                                className={
+                                  report.status === "active"
+                                    ? "bg-green-100 text-green-700"
+                                    : "bg-gray-100 text-gray-700"
+                                }
+                              >
+                                {report.status === "active"
+                                  ? "Active"
+                                  : "Paused"}
+                              </Badge>
+                            </td>
+                            <td className="p-3">
+                              <div className="flex items-center justify-end space-x-1">
+                                <Button variant="ghost" size="sm">
+                                  {report.status === "active" ? (
+                                    <Pause className="h-4 w-4" />
+                                  ) : (
+                                    <Play className="h-4 w-4" />
+                                  )}
+                                </Button>
+                                <Button variant="ghost" size="sm">
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-red-600 hover:text-red-700"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Report Templates */}
+              <Card className="border-0 shadow-xl">
+                <CardHeader>
+                  <CardTitle>Report Templates</CardTitle>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Quick-start templates for common reports
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {templates.map((template, i) => (
+                      <Card
+                        key={i}
+                        className="border-2 hover:border-blue-300 transition-all cursor-pointer"
+                      >
+                        <CardContent className="p-5">
+                          <div className="flex items-start space-x-4">
+                            <div
+                              className={`p-3 bg-${template.color}-100 rounded-xl`}
+                            >
+                              <template.icon
+                                className={`h-6 w-6 text-${template.color}-600`}
+                              />
+                            </div>
+                            <div className="flex-1">
+                              <h3 className="font-semibold text-gray-900 mb-1">
+                                {template.name}
+                              </h3>
+                              <p className="text-sm text-gray-600 mb-3">
+                                {template.description}
+                              </p>
+                              <Button size="sm" variant="outline">
+                                <Plus className="h-4 w-4 mr-2" />
+                                Use Template
+                              </Button>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          )}
+
+          {/* Report History Tab */}
+          {activeTab === "history" && (
             <Card className="border-0 shadow-xl">
               <CardHeader>
-                <CardTitle>Active Scheduled Reports</CardTitle>
+                <CardTitle>Report Generation History</CardTitle>
                 <p className="text-sm text-gray-600 mt-1">
-                  {scheduledReports.filter((r) => r.status === "active").length}{" "}
-                  active reports
+                  Past reports generated and emailed
                 </p>
               </CardHeader>
               <CardContent>
@@ -216,19 +410,13 @@ export default function ScheduledReports() {
                           Report Name
                         </th>
                         <th className="text-left p-3 font-medium text-gray-700">
-                          Type
-                        </th>
-                        <th className="text-left p-3 font-medium text-gray-700">
-                          Frequency
-                        </th>
-                        <th className="text-left p-3 font-medium text-gray-700">
-                          Next Run
-                        </th>
-                        <th className="text-left p-3 font-medium text-gray-700">
-                          Recipients
+                          Generated At
                         </th>
                         <th className="text-left p-3 font-medium text-gray-700">
                           Status
+                        </th>
+                        <th className="text-left p-3 font-medium text-gray-700">
+                          File Size
                         </th>
                         <th className="text-right p-3 font-medium text-gray-700">
                           Actions
@@ -236,96 +424,42 @@ export default function ScheduledReports() {
                       </tr>
                     </thead>
                     <tbody>
-                      {scheduledReports.map((report) => (
+                      {reportHistory.map((report) => (
                         <tr
                           key={report.id}
                           className="border-b hover:bg-gray-50"
                         >
-                          <td className="p-3">
-                            <div>
-                              <p className="font-medium text-gray-900">
-                                {report.name}
-                              </p>
-                              <div className="flex flex-wrap gap-1 mt-1">
-                                {report.metrics.slice(0, 2).map((metric, i) => (
-                                  <Badge
-                                    key={i}
-                                    variant="outline"
-                                    className="text-xs"
-                                  >
-                                    {metric}
-                                  </Badge>
-                                ))}
-                                {report.metrics.length > 2 && (
-                                  <Badge variant="outline" className="text-xs">
-                                    +{report.metrics.length - 2}
-                                  </Badge>
-                                )}
-                              </div>
-                            </div>
+                          <td className="p-3 font-medium text-gray-900">
+                            {report.name}
                           </td>
+                          <td className="p-3 text-gray-600">{report.date}</td>
                           <td className="p-3">
                             <Badge
                               className={
-                                report.type === "Operations"
-                                  ? "bg-blue-100 text-blue-700"
-                                  : report.type === "Financial"
-                                    ? "bg-purple-100 text-purple-700"
-                                    : "bg-green-100 text-green-700"
-                              }
-                            >
-                              {report.type}
-                            </Badge>
-                          </td>
-                          <td className="p-3 text-gray-600">
-                            {report.frequency}
-                          </td>
-                          <td className="p-3">
-                            <div className="flex items-center space-x-2">
-                              <Calendar className="h-4 w-4 text-gray-400" />
-                              <span className="text-gray-900">
-                                {report.nextRun}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="p-3">
-                            <div className="flex items-center space-x-2">
-                              <Mail className="h-4 w-4 text-gray-400" />
-                              <span className="text-gray-900">
-                                {report.recipients.length}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="p-3">
-                            <Badge
-                              className={
-                                report.status === "active"
+                                report.status === "success"
                                   ? "bg-green-100 text-green-700"
-                                  : "bg-gray-100 text-gray-700"
+                                  : "bg-red-100 text-red-700"
                               }
                             >
-                              {report.status === "active" ? "Active" : "Paused"}
+                              {report.status === "success"
+                                ? "✓ Success"
+                                : "✗ Failed"}
                             </Badge>
                           </td>
+                          <td className="p-3 text-gray-600">{report.size}</td>
                           <td className="p-3">
-                            <div className="flex items-center justify-end space-x-1">
-                              <Button variant="ghost" size="sm">
-                                {report.status === "active" ? (
-                                  <Pause className="h-4 w-4" />
-                                ) : (
-                                  <Play className="h-4 w-4" />
-                                )}
-                              </Button>
-                              <Button variant="ghost" size="sm">
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="text-red-600 hover:text-red-700"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+                            <div className="flex items-center justify-end space-x-2">
+                              {report.status === "success" && (
+                                <>
+                                  <Button variant="outline" size="sm">
+                                    <Download className="h-4 w-4 mr-2" />
+                                    Download
+                                  </Button>
+                                  <Button variant="ghost" size="sm">
+                                    <Mail className="h-4 w-4" />
+                                  </Button>
+                                </>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -335,129 +469,8 @@ export default function ScheduledReports() {
                 </div>
               </CardContent>
             </Card>
-
-            {/* Report Templates */}
-            <Card className="border-0 shadow-xl">
-              <CardHeader>
-                <CardTitle>Report Templates</CardTitle>
-                <p className="text-sm text-gray-600 mt-1">
-                  Quick-start templates for common reports
-                </p>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {templates.map((template, i) => (
-                    <Card
-                      key={i}
-                      className="border-2 hover:border-blue-300 transition-all cursor-pointer"
-                    >
-                      <CardContent className="p-5">
-                        <div className="flex items-start space-x-4">
-                          <div
-                            className={`p-3 bg-${template.color}-100 rounded-xl`}
-                          >
-                            <template.icon
-                              className={`h-6 w-6 text-${template.color}-600`}
-                            />
-                          </div>
-                          <div className="flex-1">
-                            <h3 className="font-semibold text-gray-900 mb-1">
-                              {template.name}
-                            </h3>
-                            <p className="text-sm text-gray-600 mb-3">
-                              {template.description}
-                            </p>
-                            <Button size="sm" variant="outline">
-                              <Plus className="h-4 w-4 mr-2" />
-                              Use Template
-                            </Button>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </>
-        )}
-
-        {/* Report History Tab */}
-        {activeTab === "history" && (
-          <Card className="border-0 shadow-xl">
-            <CardHeader>
-              <CardTitle>Report Generation History</CardTitle>
-              <p className="text-sm text-gray-600 mt-1">
-                Past reports generated and emailed
-              </p>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="text-left p-3 font-medium text-gray-700">
-                        Report Name
-                      </th>
-                      <th className="text-left p-3 font-medium text-gray-700">
-                        Generated At
-                      </th>
-                      <th className="text-left p-3 font-medium text-gray-700">
-                        Status
-                      </th>
-                      <th className="text-left p-3 font-medium text-gray-700">
-                        File Size
-                      </th>
-                      <th className="text-right p-3 font-medium text-gray-700">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {reportHistory.map((report) => (
-                      <tr key={report.id} className="border-b hover:bg-gray-50">
-                        <td className="p-3 font-medium text-gray-900">
-                          {report.name}
-                        </td>
-                        <td className="p-3 text-gray-600">{report.date}</td>
-                        <td className="p-3">
-                          <Badge
-                            className={
-                              report.status === "success"
-                                ? "bg-green-100 text-green-700"
-                                : "bg-red-100 text-red-700"
-                            }
-                          >
-                            {report.status === "success"
-                              ? "✓ Success"
-                              : "✗ Failed"}
-                          </Badge>
-                        </td>
-                        <td className="p-3 text-gray-600">{report.size}</td>
-                        <td className="p-3">
-                          <div className="flex items-center justify-end space-x-2">
-                            {report.status === "success" && (
-                              <>
-                                <Button variant="outline" size="sm">
-                                  <Download className="h-4 w-4 mr-2" />
-                                  Download
-                                </Button>
-                                <Button variant="ghost" size="sm">
-                                  <Mail className="h-4 w-4" />
-                                </Button>
-                              </>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-      </div>
+          )}
+        </div>
       </div>
     </div>
   );

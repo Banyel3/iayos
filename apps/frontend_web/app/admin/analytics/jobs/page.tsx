@@ -25,309 +25,311 @@ export default function JobAnalytics() {
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar />
       <div className="flex-1 min-h-screen bg-gradient-to-br from-slate-50 via-green-50 to-emerald-50">
-      {/* Header */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-green-600 via-emerald-600 to-teal-600 text-white">
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-green-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob pointer-events-none"></div>
-        <div className="absolute top-0 right-1/4 w-96 h-96 bg-teal-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000 pointer-events-none"></div>
+        {/* Header */}
+        <div className="relative overflow-hidden bg-gradient-to-r from-green-600 via-emerald-600 to-teal-600 text-white">
+          <div className="absolute top-0 left-1/4 w-96 h-96 bg-green-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob pointer-events-none"></div>
+          <div className="absolute top-0 right-1/4 w-96 h-96 bg-teal-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000 pointer-events-none"></div>
 
-        <div className="relative px-8 py-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="flex items-center space-x-3 mb-2">
-                <Briefcase className="h-8 w-8" />
-                <h1 className="text-3xl font-bold">
-                  Job Marketplace Analytics
-                </h1>
+          <div className="relative px-8 py-8">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="flex items-center space-x-3 mb-2">
+                  <Briefcase className="h-8 w-8" />
+                  <h1 className="text-3xl font-bold">
+                    Job Marketplace Analytics
+                  </h1>
+                </div>
+                <p className="text-green-100 text-lg">
+                  Performance metrics and marketplace insights
+                </p>
               </div>
-              <p className="text-green-100 text-lg">
-                Performance metrics and marketplace insights
-              </p>
-            </div>
-            <div className="flex items-center space-x-3">
-              <select
-                value={dateRange}
-                onChange={(e) => setDateRange(e.target.value)}
-                className="px-4 py-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white focus:outline-none"
-              >
-                <option value="last_7_days">Last 7 Days</option>
-                <option value="last_30_days">Last 30 Days</option>
-                <option value="last_90_days">Last 90 Days</option>
-              </select>
-              <Button className="bg-white/10 backdrop-blur-sm border border-white/20 text-white hover:bg-white/20">
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Refresh
-              </Button>
-              <Button className="bg-white text-green-600 hover:bg-gray-100">
-                <Download className="h-4 w-4 mr-2" />
-                Export
-              </Button>
+              <div className="flex items-center space-x-3">
+                <select
+                  value={dateRange}
+                  onChange={(e) => setDateRange(e.target.value)}
+                  className="px-4 py-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white focus:outline-none"
+                >
+                  <option value="last_7_days">Last 7 Days</option>
+                  <option value="last_30_days">Last 30 Days</option>
+                  <option value="last_90_days">Last 90 Days</option>
+                </select>
+                <Button className="bg-white/10 backdrop-blur-sm border border-white/20 text-white hover:bg-white/20">
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Refresh
+                </Button>
+                <Button className="bg-white text-green-600 hover:bg-gray-100">
+                  <Download className="h-4 w-4 mr-2" />
+                  Export
+                </Button>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <div className="px-8 py-6 space-y-6">
-        {/* Job Volume Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <Card className="border-0 shadow-xl hover:shadow-2xl transition-shadow">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-3 bg-blue-100 rounded-xl">
-                  <Briefcase className="h-6 w-6 text-blue-600" />
+        <div className="px-8 py-6 space-y-6">
+          {/* Job Volume Metrics */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <Card className="border-0 shadow-xl hover:shadow-2xl transition-shadow">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 bg-blue-100 rounded-xl">
+                    <Briefcase className="h-6 w-6 text-blue-600" />
+                  </div>
                 </div>
-              </div>
-              <h3 className="text-3xl font-bold text-gray-900 mb-1">4,567</h3>
-              <p className="text-sm text-gray-500">Jobs Posted</p>
-              <div className="mt-3 flex items-center text-sm">
-                <TrendingUp className="h-4 w-4 text-green-600 mr-1" />
-                <span className="text-green-600 font-medium">+18.5%</span>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-0 shadow-xl hover:shadow-2xl transition-shadow">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-3 bg-green-100 rounded-xl">
-                  <CheckCircle className="h-6 w-6 text-green-600" />
+                <h3 className="text-3xl font-bold text-gray-900 mb-1">4,567</h3>
+                <p className="text-sm text-gray-500">Jobs Posted</p>
+                <div className="mt-3 flex items-center text-sm">
+                  <TrendingUp className="h-4 w-4 text-green-600 mr-1" />
+                  <span className="text-green-600 font-medium">+18.5%</span>
                 </div>
-              </div>
-              <h3 className="text-3xl font-bold text-gray-900 mb-1">3,891</h3>
-              <p className="text-sm text-gray-500">Jobs Completed</p>
-              <div className="mt-3 flex items-center text-sm">
-                <TrendingUp className="h-4 w-4 text-green-600 mr-1" />
-                <span className="text-green-600 font-medium">+15.2%</span>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          <Card className="border-0 shadow-xl hover:shadow-2xl transition-shadow">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-3 bg-purple-100 rounded-xl">
-                  <Activity className="h-6 w-6 text-purple-600" />
+            <Card className="border-0 shadow-xl hover:shadow-2xl transition-shadow">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 bg-green-100 rounded-xl">
+                    <CheckCircle className="h-6 w-6 text-green-600" />
+                  </div>
                 </div>
-              </div>
-              <h3 className="text-3xl font-bold text-gray-900 mb-1">85.2%</h3>
-              <p className="text-sm text-gray-500">Completion Rate</p>
-              <Badge className="mt-2 bg-green-100 text-green-700">
-                Excellent
-              </Badge>
-            </CardContent>
-          </Card>
-
-          <Card className="border-0 shadow-xl hover:shadow-2xl transition-shadow">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-3 bg-orange-100 rounded-xl">
-                  <Clock className="h-6 w-6 text-orange-600" />
+                <h3 className="text-3xl font-bold text-gray-900 mb-1">3,891</h3>
+                <p className="text-sm text-gray-500">Jobs Completed</p>
+                <div className="mt-3 flex items-center text-sm">
+                  <TrendingUp className="h-4 w-4 text-green-600 mr-1" />
+                  <span className="text-green-600 font-medium">+15.2%</span>
                 </div>
-              </div>
-              <h3 className="text-3xl font-bold text-gray-900 mb-1">4.2</h3>
-              <p className="text-sm text-gray-500">Avg Days to Complete</p>
-            </CardContent>
-          </Card>
-        </div>
+              </CardContent>
+            </Card>
 
-        {/* Job Timeline */}
-        <Card className="border-0 shadow-xl">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Briefcase className="h-5 w-5 text-green-600" />
-              <span>Job Volume Timeline</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-64 flex items-center justify-center text-gray-400">
-              <div className="text-center">
-                <Activity className="h-12 w-12 mx-auto mb-2 text-green-400" />
-                <p>Line chart: Jobs Posted vs Jobs Completed over time</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            <Card className="border-0 shadow-xl hover:shadow-2xl transition-shadow">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 bg-purple-100 rounded-xl">
+                    <Activity className="h-6 w-6 text-purple-600" />
+                  </div>
+                </div>
+                <h3 className="text-3xl font-bold text-gray-900 mb-1">85.2%</h3>
+                <p className="text-sm text-gray-500">Completion Rate</p>
+                <Badge className="mt-2 bg-green-100 text-green-700">
+                  Excellent
+                </Badge>
+              </CardContent>
+            </Card>
 
-        {/* Category Performance Table */}
-        <Card className="border-0 shadow-xl">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Package className="h-5 w-5 text-blue-600" />
-              <span>Category Performance</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left p-3 font-medium text-gray-700">
-                      Category
-                    </th>
-                    <th className="text-right p-3 font-medium text-gray-700">
-                      Jobs Posted
-                    </th>
-                    <th className="text-right p-3 font-medium text-gray-700">
-                      Completed
-                    </th>
-                    <th className="text-right p-3 font-medium text-gray-700">
-                      Rate
-                    </th>
-                    <th className="text-right p-3 font-medium text-gray-700">
-                      Avg Budget
-                    </th>
-                    <th className="text-right p-3 font-medium text-gray-700">
-                      Total Revenue
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[
-                    {
-                      name: "Construction",
-                      posted: 1245,
-                      completed: 1089,
-                      rate: 87.5,
-                      budget: 8500,
-                      revenue: 9261500,
-                    },
-                    {
-                      name: "Plumbing",
-                      posted: 987,
-                      completed: 856,
-                      rate: 86.7,
-                      budget: 2500,
-                      revenue: 2140000,
-                    },
-                    {
-                      name: "Electrical",
-                      posted: 876,
-                      completed: 745,
-                      rate: 85.0,
-                      budget: 3200,
-                      revenue: 2384000,
-                    },
-                    {
-                      name: "Carpentry",
-                      posted: 654,
-                      completed: 578,
-                      rate: 88.4,
-                      budget: 4500,
-                      revenue: 2601000,
-                    },
-                    {
-                      name: "Painting",
-                      posted: 543,
-                      completed: 456,
-                      rate: 84.0,
-                      budget: 1800,
-                      revenue: 820800,
-                    },
-                  ].map((cat, i) => (
-                    <tr key={i} className="border-b hover:bg-gray-50">
-                      <td className="p-3 font-medium text-gray-900">
-                        {cat.name}
-                      </td>
-                      <td className="text-right p-3">
-                        {cat.posted.toLocaleString()}
-                      </td>
-                      <td className="text-right p-3">
-                        {cat.completed.toLocaleString()}
-                      </td>
-                      <td className="text-right p-3">
-                        <Badge
-                          className={
-                            cat.rate >= 85
-                              ? "bg-green-100 text-green-700"
-                              : "bg-yellow-100 text-yellow-700"
-                          }
-                        >
-                          {cat.rate}%
-                        </Badge>
-                      </td>
-                      <td className="text-right p-3">
-                        ₱{cat.budget.toLocaleString()}
-                      </td>
-                      <td className="text-right p-3 font-medium">
-                        ₱{cat.revenue.toLocaleString()}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
+            <Card className="border-0 shadow-xl hover:shadow-2xl transition-shadow">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 bg-orange-100 rounded-xl">
+                    <Clock className="h-6 w-6 text-orange-600" />
+                  </div>
+                </div>
+                <h3 className="text-3xl font-bold text-gray-900 mb-1">4.2</h3>
+                <p className="text-sm text-gray-500">Avg Days to Complete</p>
+              </CardContent>
+            </Card>
+          </div>
 
-        {/* Budget & Application Metrics */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Job Timeline */}
           <Card className="border-0 shadow-xl">
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
-                <DollarSign className="h-5 w-5 text-purple-600" />
-                <span>Budget Distribution</span>
+                <Briefcase className="h-5 w-5 text-green-600" />
+                <span>Job Volume Timeline</span>
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                {[
-                  { range: "₱0 - ₱500", count: 567, percentage: 12 },
-                  { range: "₱500 - ₱1,000", count: 1234, percentage: 27 },
-                  { range: "₱1,000 - ₱2,500", count: 1567, percentage: 34 },
-                  { range: "₱2,500 - ₱5,000", count: 890, percentage: 19 },
-                  { range: "₱5,000+", count: 309, percentage: 8 },
-                ].map((budget, i) => (
-                  <div key={i} className="space-y-1">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-700 font-medium">
-                        {budget.range}
-                      </span>
-                      <span className="text-gray-600">{budget.count} jobs</span>
-                    </div>
-                    <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-purple-500 rounded-full"
-                        style={{ width: `${budget.percentage * 3}%` }}
-                      ></div>
-                    </div>
-                  </div>
-                ))}
+              <div className="h-64 flex items-center justify-center text-gray-400">
+                <div className="text-center">
+                  <Activity className="h-12 w-12 mx-auto mb-2 text-green-400" />
+                  <p>Line chart: Jobs Posted vs Jobs Completed over time</p>
+                </div>
               </div>
             </CardContent>
           </Card>
 
+          {/* Category Performance Table */}
           <Card className="border-0 shadow-xl">
             <CardHeader>
-              <CardTitle>Application Metrics</CardTitle>
+              <CardTitle className="flex items-center space-x-2">
+                <Package className="h-5 w-5 text-blue-600" />
+                <span>Category Performance</span>
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-6">
-                <div className="text-center p-6 bg-blue-50 rounded-xl">
-                  <p className="text-4xl font-bold text-blue-600 mb-2">5.8</p>
-                  <p className="text-sm text-gray-600">
-                    Avg Applications per Job
-                  </p>
-                </div>
-                <div className="text-center p-6 bg-green-50 rounded-xl">
-                  <p className="text-4xl font-bold text-green-600 mb-2">
-                    42.5%
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    Application to Hire Rate
-                  </p>
-                </div>
-                <div className="text-center p-6 bg-orange-50 rounded-xl">
-                  <p className="text-4xl font-bold text-orange-600 mb-2">
-                    2.3h
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    Time to First Application
-                  </p>
-                </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left p-3 font-medium text-gray-700">
+                        Category
+                      </th>
+                      <th className="text-right p-3 font-medium text-gray-700">
+                        Jobs Posted
+                      </th>
+                      <th className="text-right p-3 font-medium text-gray-700">
+                        Completed
+                      </th>
+                      <th className="text-right p-3 font-medium text-gray-700">
+                        Rate
+                      </th>
+                      <th className="text-right p-3 font-medium text-gray-700">
+                        Avg Budget
+                      </th>
+                      <th className="text-right p-3 font-medium text-gray-700">
+                        Total Revenue
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[
+                      {
+                        name: "Construction",
+                        posted: 1245,
+                        completed: 1089,
+                        rate: 87.5,
+                        budget: 8500,
+                        revenue: 9261500,
+                      },
+                      {
+                        name: "Plumbing",
+                        posted: 987,
+                        completed: 856,
+                        rate: 86.7,
+                        budget: 2500,
+                        revenue: 2140000,
+                      },
+                      {
+                        name: "Electrical",
+                        posted: 876,
+                        completed: 745,
+                        rate: 85.0,
+                        budget: 3200,
+                        revenue: 2384000,
+                      },
+                      {
+                        name: "Carpentry",
+                        posted: 654,
+                        completed: 578,
+                        rate: 88.4,
+                        budget: 4500,
+                        revenue: 2601000,
+                      },
+                      {
+                        name: "Painting",
+                        posted: 543,
+                        completed: 456,
+                        rate: 84.0,
+                        budget: 1800,
+                        revenue: 820800,
+                      },
+                    ].map((cat, i) => (
+                      <tr key={i} className="border-b hover:bg-gray-50">
+                        <td className="p-3 font-medium text-gray-900">
+                          {cat.name}
+                        </td>
+                        <td className="text-right p-3">
+                          {cat.posted.toLocaleString()}
+                        </td>
+                        <td className="text-right p-3">
+                          {cat.completed.toLocaleString()}
+                        </td>
+                        <td className="text-right p-3">
+                          <Badge
+                            className={
+                              cat.rate >= 85
+                                ? "bg-green-100 text-green-700"
+                                : "bg-yellow-100 text-yellow-700"
+                            }
+                          >
+                            {cat.rate}%
+                          </Badge>
+                        </td>
+                        <td className="text-right p-3">
+                          ₱{cat.budget.toLocaleString()}
+                        </td>
+                        <td className="text-right p-3 font-medium">
+                          ₱{cat.revenue.toLocaleString()}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </CardContent>
           </Card>
+
+          {/* Budget & Application Metrics */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card className="border-0 shadow-xl">
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <DollarSign className="h-5 w-5 text-purple-600" />
+                  <span>Budget Distribution</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {[
+                    { range: "₱0 - ₱500", count: 567, percentage: 12 },
+                    { range: "₱500 - ₱1,000", count: 1234, percentage: 27 },
+                    { range: "₱1,000 - ₱2,500", count: 1567, percentage: 34 },
+                    { range: "₱2,500 - ₱5,000", count: 890, percentage: 19 },
+                    { range: "₱5,000+", count: 309, percentage: 8 },
+                  ].map((budget, i) => (
+                    <div key={i} className="space-y-1">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-700 font-medium">
+                          {budget.range}
+                        </span>
+                        <span className="text-gray-600">
+                          {budget.count} jobs
+                        </span>
+                      </div>
+                      <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-purple-500 rounded-full"
+                          style={{ width: `${budget.percentage * 3}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-xl">
+              <CardHeader>
+                <CardTitle>Application Metrics</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-6">
+                  <div className="text-center p-6 bg-blue-50 rounded-xl">
+                    <p className="text-4xl font-bold text-blue-600 mb-2">5.8</p>
+                    <p className="text-sm text-gray-600">
+                      Avg Applications per Job
+                    </p>
+                  </div>
+                  <div className="text-center p-6 bg-green-50 rounded-xl">
+                    <p className="text-4xl font-bold text-green-600 mb-2">
+                      42.5%
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      Application to Hire Rate
+                    </p>
+                  </div>
+                  <div className="text-center p-6 bg-orange-50 rounded-xl">
+                    <p className="text-4xl font-bold text-orange-600 mb-2">
+                      2.3h
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      Time to First Application
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
-      </div>
       </div>
     </div>
   );

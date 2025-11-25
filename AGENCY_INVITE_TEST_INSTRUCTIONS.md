@@ -20,6 +20,7 @@ The employee assignment system is now fully implemented. To test it end-to-end, 
 ## Option 2: Use API via Postman/Insomnia
 
 ### Step 1: Login as Client
+
 ```http
 POST http://localhost:8000/api/accounts/login
 Content-Type: application/json
@@ -31,6 +32,7 @@ Content-Type: application/json
 ```
 
 ### Step 2: Create Agency Invite Job
+
 ```http
 POST http://localhost:8000/api/mobile/jobs/invite
 Authorization: Bearer {token_from_login}
@@ -52,12 +54,14 @@ Content-Type: application/json
 ```
 
 ### Step 3: Agency Accepts Invitation
+
 ```http
 POST http://localhost:8000/api/agency/jobs/{job_id}/accept
 Cookie: sessionid={agency_session}
 ```
 
 ### Step 4: TEST THE NEW FEATURE! Assign Employee
+
 ```http
 POST http://localhost:8000/api/agency/jobs/{job_id}/assign-employee
 Cookie: sessionid={agency_session}
@@ -74,15 +78,15 @@ assignment_notes: "This employee is experienced in construction"
 docker-compose -f docker-compose.dev.yml exec backend psql -U postgres -d iayos
 
 -- Find or create agency profile
-SELECT "profileId", "fullName", "accountFK_id" 
-FROM accounts_profile 
-WHERE "profileType" = 'AGENCY' 
+SELECT "profileId", "fullName", "accountFK_id"
+FROM accounts_profile
+WHERE "profileType" = 'AGENCY'
 LIMIT 5;
 
 -- Find client profile
-SELECT "profileId", "fullName", "accountFK_id" 
-FROM accounts_profile 
-WHERE "profileType" = 'CLIENT' 
+SELECT "profileId", "fullName", "accountFK_id"
+FROM accounts_profile
+WHERE "profileType" = 'CLIENT'
 LIMIT 5;
 
 -- Create test job invitation
@@ -157,6 +161,7 @@ Once you have a job invitation:
 ## 🚀 Quick Start (If No Test Data)
 
 The fastest way is to:
+
 1. Use Django admin to create 1 agency + 2-3 employees
 2. Use admin to create 1 INVITE-type job for that agency
 3. Login as agency account at frontend

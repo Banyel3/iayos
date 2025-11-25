@@ -8,7 +8,14 @@ import {
   RejectReasonModal,
 } from "@/components/agency";
 import AssignEmployeeModal from "@/components/agency/AssignEmployeeModal";
-import { Loader2, AlertCircle, Briefcase, Mail, UserPlus, CheckCircle } from "lucide-react";
+import {
+  Loader2,
+  AlertCircle,
+  Briefcase,
+  Mail,
+  UserPlus,
+  CheckCircle,
+} from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface Employee {
@@ -70,9 +77,8 @@ export default function AgencyJobsPage() {
     null
   );
   const [assignModalOpen, setAssignModalOpen] = useState(false);
-  const [selectedJobForAssignment, setSelectedJobForAssignment] = useState<Job | null>(
-    null
-  );
+  const [selectedJobForAssignment, setSelectedJobForAssignment] =
+    useState<Job | null>(null);
   const hasFetched = React.useRef(false);
 
   // Fetch jobs based on active tab
@@ -629,8 +635,8 @@ export default function AgencyJobsPage() {
                       No Accepted Jobs
                     </h3>
                     <p className="text-gray-600 max-w-md mx-auto">
-                      You haven't accepted any job invitations yet. Accepted jobs
-                      that need employee assignment will appear here.
+                      You haven't accepted any job invitations yet. Accepted
+                      jobs that need employee assignment will appear here.
                     </p>
                   </div>
                 </CardContent>
@@ -642,24 +648,33 @@ export default function AgencyJobsPage() {
                   {acceptedJobs.length === 1 ? "job" : "jobs"}
                 </div>
                 {acceptedJobs.map((job) => (
-                  <Card key={job.jobID} className="hover:shadow-lg transition-shadow">
+                  <Card
+                    key={job.jobID}
+                    className="hover:shadow-lg transition-shadow"
+                  >
                     <CardContent className="p-6">
                       <div className="flex justify-between items-start mb-4">
                         <div>
                           <h3 className="text-xl font-bold text-gray-900 mb-2">
                             {job.title}
                           </h3>
-                          <p className="text-gray-600 mb-3">{job.description}</p>
+                          <p className="text-gray-600 mb-3">
+                            {job.description}
+                          </p>
                         </div>
                       </div>
 
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                         <div>
                           <span className="text-sm text-gray-600">Budget</span>
-                          <p className="font-semibold text-gray-900">₱{job.budget}</p>
+                          <p className="font-semibold text-gray-900">
+                            ₱{job.budget}
+                          </p>
                         </div>
                         <div>
-                          <span className="text-sm text-gray-600">Category</span>
+                          <span className="text-sm text-gray-600">
+                            Category
+                          </span>
                           <p className="font-semibold text-gray-900">
                             {job.category?.name || "N/A"}
                           </p>
@@ -671,8 +686,8 @@ export default function AgencyJobsPage() {
                               job.urgency === "HIGH"
                                 ? "text-red-600"
                                 : job.urgency === "MEDIUM"
-                                ? "text-orange-600"
-                                : "text-green-600"
+                                  ? "text-orange-600"
+                                  : "text-green-600"
                             }`}
                           >
                             {job.urgency}
@@ -680,7 +695,9 @@ export default function AgencyJobsPage() {
                         </div>
                         <div>
                           <span className="text-sm text-gray-600">Status</span>
-                          <p className="font-semibold text-gray-900">{job.status}</p>
+                          <p className="font-semibold text-gray-900">
+                            {job.status}
+                          </p>
                         </div>
                       </div>
 

@@ -75,28 +75,54 @@ export default function InviteJobCreationModal({
     }
   }, [isOpen]);
 
+  const parseResponseBody = async (response: Response) => {
+    const contentType = response.headers.get("content-type") || "";
+    const text = await response.text();
+
+    if (contentType.includes("application/json")) {
+      try {
+        return text ? JSON.parse(text) : {};
+      } catch (err) {
+        console.error("⚠️ Failed to parse JSON response", err);
+        return {};
+      }
+    }
+
+    return text;
+  };
+
   const fetchCategories = async () => {
     try {
-      const response = await fetch("/api/accounts/specializations", {
+      console.log("🔄 Fetching categories...");
+      const response = await fetch(`/api/accounts/specializations`, {
         credentials: "include",
       });
-      if (response.ok) {
-        const data = await response.json();
+      console.log("📡 Categories response status:", response.status);
+      const data = await parseResponseBody(response);
+      if (response.ok && Array.isArray(data)) {
+        console.log("✅ Categories fetched:", data.length, "categories");
         setCategories(data);
+      } else {
+        console.error(
+          "❌ Failed to fetch categories:",
+          response.status,
+          response.statusText,
+          data
+        );
       }
     } catch (err) {
-      console.error("Error fetching categories:", err);
+      console.error("❌ Error fetching categories:", err);
     }
   };
 
   const fetchWalletBalance = async () => {
     try {
-      const response = await fetch("/api/profiles/wallet-balance", {
+      const response = await fetch(`/api/profiles/wallet-balance`, {
         credentials: "include",
       });
-      if (response.ok) {
-        const data = await response.json();
-        setWalletBalance(data.balance || 0);
+      const data = await parseResponseBody(response);
+      if (response.ok && data && typeof data === "object") {
+        setWalletBalance((data as any).balance || 0);
       }
     } catch (err) {
       console.error("Error fetching wallet balance:", err);
@@ -218,7 +244,7 @@ export default function InviteJobCreationModal({
         payment_method: formData.payment_method,
       };
 
-      const response = await fetch("/api/jobs/create-invite", {
+      const response = await fetch(`/api/jobs/create-invite`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -227,11 +253,22 @@ export default function InviteJobCreationModal({
         body: JSON.stringify(payload),
       });
 
-      const data = await response.json();
+      const responseData = await parseResponseBody(response);
 
       if (!response.ok) {
-        throw new Error(data.error || "Failed to create job invitation");
+        const errorMessage =
+          (responseData && typeof responseData === "object"
+            ? (responseData as any).error
+            : undefined) ||
+          (typeof responseData === "string" ? responseData : null) ||
+          "Failed to create job invitation";
+        throw new Error(errorMessage);
       }
+
+      const data =
+        responseData && typeof responseData === "object"
+          ? (responseData as any)
+          : {};
 
       if (data.requires_payment && data.invoice_url) {
         // GCash payment required
@@ -246,8 +283,8 @@ export default function InviteJobCreationModal({
         // Show success and close
         alert(`Success! Invitation sent to ${agency.businessName}`);
         onClose();
-        // Redirect to my-invite-jobs page
-        window.location.href = "/client/my-invite-jobs";
+        // Redirect to dashboard myRequests page (client jobs)
+        window.location.href = "/dashboard/myRequests";
       }
     } catch (err: any) {
       console.error("Error creating invite job:", err);

@@ -1,9 +1,0 @@
-{
-  "/api/auth/check-rate-limit/route": "app/api/auth/check-rate-limit/route.js",
-  "/auth/login/page": "app/auth/login/page.js",
-  "/favicon.ico/route": "app/favicon.ico/route.js",
-  "/onboard/clients-view/page": "app/onboard/clients-view/page.js",
-  "/onboard/page": "app/onboard/page.js",
-  "/onboard/page/page": "app/onboard/page/page.js",
-  "/page": "app/page.js"
-}

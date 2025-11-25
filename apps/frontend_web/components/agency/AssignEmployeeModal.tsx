@@ -15,7 +15,7 @@ interface Employee {
     assigned_jobs_count: number;
     in_progress_jobs_count: number;
     total_active_jobs: number;
-    availability: 'AVAILABLE' | 'WORKING' | 'BUSY' | 'INACTIVE';
+    availability: "AVAILABLE" | "WORKING" | "BUSY" | "INACTIVE";
   };
 }
 
@@ -44,10 +44,14 @@ export default function AssignEmployeeModal({
   employees,
   onAssign,
 }: AssignEmployeeModalProps) {
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(null);
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(
+    null
+  );
   const [assignmentNotes, setAssignmentNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [employeeWorkloads, setEmployeeWorkloads] = useState<Record<number, Employee['workload']>>({});
+  const [employeeWorkloads, setEmployeeWorkloads] = useState<
+    Record<number, Employee["workload"]>
+  >({});
 
   // Fetch workload for each employee
   useEffect(() => {
@@ -61,13 +65,16 @@ export default function AssignEmployeeModal({
 
           if (response.ok) {
             const data = await response.json();
-            setEmployeeWorkloads(prev => ({
+            setEmployeeWorkloads((prev) => ({
               ...prev,
-              [employee.employeeId]: data
+              [employee.employeeId]: data,
             }));
           }
         } catch (error) {
-          console.error(`Failed to fetch workload for employee ${employee.employeeId}:`, error);
+          console.error(
+            `Failed to fetch workload for employee ${employee.employeeId}:`,
+            error
+          );
         }
       });
     }
@@ -107,14 +114,16 @@ export default function AssignEmployeeModal({
 
     const badge = badges[availability as keyof typeof badges];
     return (
-      <span className={`px-2 py-1 rounded-full text-xs font-medium ${badge.color}`}>
+      <span
+        className={`px-2 py-1 rounded-full text-xs font-medium ${badge.color}`}
+      >
         {badge.text}
       </span>
     );
   };
 
   // Filter active employees
-  const activeEmployees = employees.filter(e => e.isActive);
+  const activeEmployees = employees.filter((e) => e.isActive);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -122,7 +131,9 @@ export default function AssignEmployeeModal({
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-bold text-gray-900">Assign Employee to Job</h2>
+            <h2 className="text-xl font-bold text-gray-900">
+              Assign Employee to Job
+            </h2>
             <p className="text-sm text-gray-600 mt-1">{job?.title}</p>
           </div>
           <button
@@ -141,18 +152,29 @@ export default function AssignEmployeeModal({
               <div className="grid grid-cols-3 gap-4 text-sm">
                 <div>
                   <span className="text-gray-600">Budget:</span>
-                  <span className="ml-2 font-semibold text-gray-900">₱{job.budget}</span>
+                  <span className="ml-2 font-semibold text-gray-900">
+                    ₱{job.budget}
+                  </span>
                 </div>
                 <div>
                   <span className="text-gray-600">Category:</span>
-                  <span className="ml-2 font-semibold text-gray-900">{job.category}</span>
+                  <span className="ml-2 font-semibold text-gray-900">
+                    {job.category}
+                  </span>
                 </div>
                 <div>
                   <span className="text-gray-600">Urgency:</span>
-                  <span className={`ml-2 font-semibold ${
-                    job.urgency === 'HIGH' ? 'text-red-600' :
-                    job.urgency === 'MEDIUM' ? 'text-orange-600' : 'text-green-600'
-                  }`}>{job.urgency}</span>
+                  <span
+                    className={`ml-2 font-semibold ${
+                      job.urgency === "HIGH"
+                        ? "text-red-600"
+                        : job.urgency === "MEDIUM"
+                          ? "text-orange-600"
+                          : "text-green-600"
+                    }`}
+                  >
+                    {job.urgency}
+                  </span>
                 </div>
               </div>
             </div>
@@ -160,7 +182,9 @@ export default function AssignEmployeeModal({
 
           {/* Employee Selection */}
           <div className="space-y-3">
-            <h3 className="font-semibold text-gray-900 mb-3">Select Employee</h3>
+            <h3 className="font-semibold text-gray-900 mb-3">
+              Select Employee
+            </h3>
 
             {activeEmployees.length === 0 ? (
               <div className="text-center py-8">
@@ -178,8 +202,8 @@ export default function AssignEmployeeModal({
                     onClick={() => setSelectedEmployeeId(employee.employeeId)}
                     className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
                       isSelected
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-200 hover:border-gray-300 bg-white'
+                        ? "border-blue-500 bg-blue-50"
+                        : "border-gray-200 hover:border-gray-300 bg-white"
                     }`}
                   >
                     <div className="flex items-start justify-between">
@@ -190,11 +214,16 @@ export default function AssignEmployeeModal({
 
                         <div className="flex-1">
                           <div className="flex items-center space-x-2 mb-1">
-                            <h4 className="font-semibold text-gray-900">{employee.name}</h4>
-                            {workload && getAvailabilityBadge(workload.availability)}
+                            <h4 className="font-semibold text-gray-900">
+                              {employee.name}
+                            </h4>
+                            {workload &&
+                              getAvailabilityBadge(workload.availability)}
                           </div>
 
-                          <p className="text-sm text-gray-600">{employee.role}</p>
+                          <p className="text-sm text-gray-600">
+                            {employee.role}
+                          </p>
 
                           <div className="flex items-center space-x-4 mt-2 text-sm text-gray-600">
                             <span className="flex items-center">
@@ -214,7 +243,10 @@ export default function AssignEmployeeModal({
                       </div>
 
                       {isSelected && (
-                        <CheckCircle className="text-blue-500 flex-shrink-0" size={24} />
+                        <CheckCircle
+                          className="text-blue-500 flex-shrink-0"
+                          size={24}
+                        />
                       )}
                     </div>
                   </button>
