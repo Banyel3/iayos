@@ -255,6 +255,25 @@ def accept_job_invite(request, job_id: int):
         job.status = "ACTIVE"  # Job is now active and ready for work
         job.save()
         
+        # Create conversation between client and agency for this job
+        from profiles.models import Conversation
+        try:
+            conversation, created = Conversation.objects.get_or_create(
+                relatedJobPosting=job,
+                defaults={
+                    'client': job.clientID.profileID,
+                    'worker': None,  # For agency jobs, worker is None
+                    'status': Conversation.ConversationStatus.ACTIVE
+                }
+            )
+            if created:
+                print(f"✅ Created conversation {conversation.conversationID} for INVITE job {job_id}")
+            else:
+                print(f"ℹ️ Conversation already exists for job {job_id}")
+        except Exception as e:
+            print(f"⚠️ Failed to create conversation: {str(e)}")
+            # Don't fail the job acceptance if conversation creation fails
+        
         # Send notification to client
         Notification.objects.create(
             accountFK=job.clientID.profileID.accountFK,

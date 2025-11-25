@@ -1774,78 +1774,11 @@ def apply_for_job(request, job_id: int, data: JobApplicationSchema):
         )
 
 
-@router.post("/{job_id}/accept", auth=cookie_auth)
-def accept_job(request, job_id: int):
-    """
-    Agency accepts a job posting
-    Only agencies can accept jobs (not apply like workers)
-    This creates a relationship between the agency and the job
-    """
-    try:
-        print(f"🏢 Agency {request.auth.email} accepting job {job_id}")
-        
-        # Verify user is an agency
-        from accounts.models import Agency
-        try:
-            agency = Agency.objects.get(accountFK=request.auth)
-        except Agency.DoesNotExist:
-            return Response(
-                {"error": "Only agencies can accept jobs. Individual workers should apply instead."},
-                status=403
-            )
-        
-        # Get the job posting
-        try:
-            job = JobPosting.objects.get(jobID=job_id)
-        except JobPosting.DoesNotExist:
-            return Response(
-                {"error": "Job posting not found"},
-                status=404
-            )
-        
-        # Check if job is still active
-        if job.status != JobPosting.JobStatus.ACTIVE:
-            return Response(
-                {"error": "This job is no longer available for acceptance"},
-                status=400
-            )
-        
-        # For now, we'll send a notification to the client about agency interest
-        # Future: Add AgencyJobAcceptance model to track agency-job relationships
-        from accounts.models import Notification
-        Notification.objects.create(
-            accountFK=job.clientID.profileID.accountFK,
-            notificationType="AGENCY_INTEREST",
-            title=f"Agency Interested in '{job.title}'",
-            message=f"Agency '{agency.businessName}' has expressed interest in your job posting. They will contact you to discuss details.",
-            relatedJobID=job.jobID
-        )
-        print(f"📬 Notification sent to client {job.clientID.profileID.accountFK.email}")
-        
-        # Send notification to agency confirming their interest
-        Notification.objects.create(
-            accountFK=request.auth,
-            notificationType="JOB_ACCEPTANCE_CONFIRMED",
-            title=f"Interest Registered for '{job.title}'",
-            message=f"Your interest in this job has been communicated to the client. They may reach out to discuss further details.",
-            relatedJobID=job.jobID
-        )
-
-        return {
-            "success": True,
-            "message": "Job acceptance registered successfully. The client has been notified.",
-            "job_id": job.jobID,
-            "job_title": job.title
-        }
-        
-    except Exception as e:
-        print(f"❌ Error accepting job: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return Response(
-            {"error": f"Failed to accept job: {str(e)}"},
-            status=500
-        )
+# DEPRECATED: Agencies should NOT apply to LISTING jobs
+# Agencies only work with INVITE-type jobs (direct invitations from clients)
+# This endpoint has been removed to prevent confusion
+# Workers apply to LISTING jobs via submit_application endpoint
+# Agencies receive and accept INVITE jobs via /api/agency/jobs/{job_id}/accept
 
 
 # OLD ENDPOINT REMOVED - Use /api/agency/jobs instead
@@ -2622,6 +2555,18 @@ def client_approve_job_completion(
         job.save()
 
         print(f"✅ Client approved job {job_id} completion with {payment_method_upper} payment.")
+        
+        # Close the conversation for this job
+        from profiles.models import Conversation
+        try:
+            conversation = Conversation.objects.filter(relatedJobPosting=job).first()
+            if conversation:
+                conversation.status = Conversation.ConversationStatus.COMPLETED
+                conversation.save()
+                print(f"✅ Conversation {conversation.conversationID} closed for completed job {job_id}")
+        except Exception as e:
+            print(f"⚠️ Failed to close conversation: {str(e)}")
+            # Don't fail job completion if conversation closing fails
         
         # Log this action for admin verification and audit trail
         approval_time = timezone.now()
