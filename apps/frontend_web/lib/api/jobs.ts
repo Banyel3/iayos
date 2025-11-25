@@ -599,3 +599,52 @@ export async function fetchInProgressJobs(): Promise<MyJobRequest[]> {
 
   return [];
 }
+
+/**
+ * Create a LISTING job (public job post where workers can apply)
+ */
+export interface CreateListingJobParams {
+  title: string;
+  description: string;
+  category_id: number;
+  budget: number;
+  location: string;
+  expected_duration?: string | null;
+  urgency_level?: "LOW" | "MEDIUM" | "HIGH";
+  preferred_start_date?: string | null;
+  materials_needed?: string[];
+}
+
+export interface CreateListingJobResponse {
+  success: boolean;
+  job?: {
+    id: number;
+    title: string;
+    status: string;
+  };
+  error?: string;
+}
+
+export async function createListingJob(
+  params: CreateListingJobParams
+): Promise<CreateListingJobResponse> {
+  const response = await fetch(`${API_BASE_URL}/jobs/create-mobile`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    credentials: "include",
+    body: JSON.stringify(params),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    return {
+      success: false,
+      error:
+        errorData.error || `HTTP ${response.status}: ${response.statusText}`,
+    };
+  }
+
+  return await response.json();
+}

@@ -1349,11 +1349,11 @@ const MyRequestsPage = () => {
                   Active Requests
                 </h2>
                 <button
-                  onClick={() => setIsJobPostModalOpen(true)}
+                  onClick={() => router.push("/dashboard/jobs/create/listing")}
                   className="bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors flex items-center space-x-1"
                 >
                   <span>+</span>
-                  <span>Create a Job Post</span>
+                  <span>Post a Job</span>
                 </button>
               </div>
 
