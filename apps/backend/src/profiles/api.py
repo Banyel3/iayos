@@ -831,10 +831,10 @@ def get_conversation_messages(request, conversation_id: int):
         # Get job info
         job = conversation.relatedJobPosting
         
-        # Get all messages
+        # Get all messages with attachments
         messages = Message.objects.filter(
             conversationID=conversation
-        ).select_related('sender__accountFK').order_by('createdAt')
+        ).select_related('sender__accountFK').prefetch_related('attachments').order_by('createdAt')
         
         # Mark unread messages as read and reset unread count
         Message.objects.filter(
@@ -855,7 +855,20 @@ def get_conversation_messages(request, conversation_id: int):
         for msg in messages:
             is_mine = msg.sender == user_profile
             print(f"   Message from Profile {msg.sender.profileID}: is_mine={is_mine} (comparing with {user_profile.profileID})")
-            formatted_messages.append({
+            
+            # Get attachments for this message
+            attachments = []
+            for attachment in msg.attachments.all():
+                attachments.append({
+                    "attachment_id": attachment.attachmentID,
+                    "file_url": attachment.fileURL,
+                    "file_name": attachment.fileName,
+                    "file_size": attachment.fileSize,
+                    "file_type": attachment.fileType,
+                    "uploaded_at": attachment.uploadedAt.isoformat()
+                })
+            
+            message_data = {
                 "sender_name": f"{msg.sender.firstName} {msg.sender.lastName}",
                 "sender_avatar": msg.sender.profileImg or "/worker1.jpg",
                 "message_text": msg.messageText,
@@ -863,7 +876,13 @@ def get_conversation_messages(request, conversation_id: int):
                 "is_read": msg.isRead,
                 "created_at": msg.createdAt.isoformat(),
                 "is_mine": is_mine
-            })
+            }
+            
+            # Add attachments if present
+            if attachments:
+                message_data["attachments"] = attachments
+            
+            formatted_messages.append(message_data)
         
         # Check review status for this job
         from accounts.models import JobReview

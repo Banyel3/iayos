@@ -10,15 +10,25 @@ import {
 import { ENDPOINTS, apiRequest } from "../api/config";
 import { useSendMessage } from "./useWebSocket";
 
+export type MessageAttachment = {
+  attachment_id: number;
+  file_url: string;
+  file_name: string | null;
+  file_size: number | null;
+  file_type: string | null;
+  uploaded_at: string;
+};
+
 export type Message = {
   sender_name: string;
   sender_avatar: string;
   message_text: string;
-  message_type: "TEXT" | "IMAGE";
+  message_type: "TEXT" | "IMAGE" | "SYSTEM" | "LOCATION" | "FILE";
   is_read: boolean;
   created_at: string;
   is_mine: boolean;
   message_id?: number;
+  attachments?: MessageAttachment[];
 };
 
 export type ConversationDetail = {

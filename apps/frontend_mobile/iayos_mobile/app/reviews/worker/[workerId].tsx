@@ -29,6 +29,8 @@ export default function WorkerReviewsScreen() {
   const { workerId } = useLocalSearchParams();
   const [sortBy, setSortBy] = useState<SortType>("latest");
   const [page, setPage] = useState(1);
+  const [showAllReviews, setShowAllReviews] = useState(false);
+  const INITIAL_REVIEW_LIMIT = 5;
 
   const workerIdNum = Number(workerId);
 
@@ -137,13 +139,27 @@ export default function WorkerReviewsScreen() {
             <Text style={styles.sectionTitle}>
               All Reviews ({reviewsData.total_count})
             </Text>
-            {reviewsData.reviews.map((review) => (
+            {(showAllReviews
+              ? reviewsData.reviews
+              : reviewsData.reviews.slice(0, INITIAL_REVIEW_LIMIT)
+            ).map((review) => (
               <ReviewCard
                 key={review.review_id}
                 review={review}
                 showActions={false}
               />
             ))}
+
+            {/* Show More/Less Button */}
+            {reviewsData.reviews.length > INITIAL_REVIEW_LIMIT && (
+              <View style={styles.showMoreContainer}>
+                <Text style={styles.showMoreButton} onPress={() => setShowAllReviews(!showAllReviews)}>
+                  {showAllReviews
+                    ? "Show less reviews"
+                    : `View ${reviewsData.reviews.length - INITIAL_REVIEW_LIMIT} more ${reviewsData.reviews.length - INITIAL_REVIEW_LIMIT === 1 ? "review" : "reviews"} on this page`}
+                </Text>
+              </View>
+            )}
 
             {/* Pagination Info */}
             {reviewsData.total_pages > 1 && (
@@ -255,5 +271,16 @@ const styles = StyleSheet.create({
   paginationText: {
     fontSize: 14,
     color: "#666",
+  },
+  showMoreContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  showMoreButton: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#007AFF",
+    textDecorationLine: "underline",
   },
 });

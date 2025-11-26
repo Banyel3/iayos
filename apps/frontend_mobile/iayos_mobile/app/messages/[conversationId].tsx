@@ -438,6 +438,9 @@ export default function ChatScreen() {
       Alert.alert("Success", "Image sent successfully!");
       resetProgress();
 
+      // Refetch conversation to show the new image message
+      await refetch();
+
       // Scroll to bottom
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
@@ -481,10 +484,15 @@ export default function ChatScreen() {
           new Date(conversation!.messages[index - 1].created_at).getTime()
       ) > 60000;
 
+    // Extract image URL from attachments if present
+    const imageUrl = item.attachments && item.attachments.length > 0 
+      ? item.attachments[0].file_url 
+      : null;
+
     return (
       <View>
         {showDateSeparator && renderDateSeparator(currentDate)}
-        {item.message_type === "IMAGE" && item.image_url ? (
+        {item.message_type === "IMAGE" && imageUrl ? (
           <View
             style={[
               styles.imageContainer,
@@ -492,7 +500,7 @@ export default function ChatScreen() {
             ]}
           >
             <ImageMessage
-              imageUrl={item.image_url}
+              imageUrl={imageUrl}
               isMine={item.is_mine}
               width={200}
               height={200}
@@ -606,28 +614,37 @@ export default function ChatScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-      {/* Header */}
-      <Stack.Screen
-        options={{
-          title: conversation.other_participant.name,
-          headerBackTitle: "Messages",
-          headerRight: () => (
-            <TouchableOpacity
-              onPress={() => {
-                // Navigate to job details
-                router.push(`/jobs/${conversation.job.id}`);
-              }}
-              style={styles.headerButton}
-            >
-              <Ionicons
-                name="information-circle-outline"
-                size={24}
-                color={Colors.primary}
-              />
-            </TouchableOpacity>
-          ),
-        }}
-      />
+      {/* Custom Header */}
+      <View style={styles.customHeader}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backButton}
+        >
+          <Ionicons
+            name="arrow-back"
+            size={24}
+            color={Colors.textPrimary}
+          />
+        </TouchableOpacity>
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle} numberOfLines={1}>
+            {conversation.other_participant.name}
+          </Text>
+        </View>
+        <TouchableOpacity
+          onPress={() => {
+            // Navigate to job details
+            router.push(`/jobs/${conversation.job.id}`);
+          }}
+          style={styles.infoButton}
+        >
+          <Ionicons
+            name="information-circle-outline"
+            size={24}
+            color={Colors.primary}
+          />
+        </TouchableOpacity>
+      </View>
 
       <KeyboardAvoidingView
         style={styles.keyboardView}
@@ -1135,6 +1152,32 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
+  customHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: "#FFFFFF",
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  backButton: {
+    padding: 4,
+    marginRight: 12,
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: "center",
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+  },
+  infoButton: {
+    padding: 4,
+    marginLeft: 12,
+  },
   keyboardView: {
     flex: 1,
   },
@@ -1166,9 +1209,6 @@ const styles = StyleSheet.create({
     ...Typography.body.medium,
     color: Colors.white,
     fontWeight: "600",
-  },
-  headerButton: {
-    padding: Spacing.sm,
   },
   jobHeader: {
     backgroundColor: Colors.primaryLight,

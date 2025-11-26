@@ -24,6 +24,9 @@ export function ReviewsSection({
   accountId,
   profileType,
 }: ReviewsSectionProps) {
+  const [showAllReviews, setShowAllReviews] = React.useState(false);
+  const INITIAL_REVIEW_LIMIT = 3;
+
   // Fetch review stats
   const {
     data: stats,
@@ -153,18 +156,26 @@ export function ReviewsSection({
           {/* Reviews List */}
           <View style={styles.reviewsList}>
             <Text style={styles.reviewsListTitle}>Recent Reviews</Text>
-            {reviewsData.reviews.map((review) => (
+            {(showAllReviews
+              ? reviewsData.reviews
+              : reviewsData.reviews.slice(0, INITIAL_REVIEW_LIMIT)
+            ).map((review) => (
               <ReviewCard key={review.review_id} review={review} />
             ))}
 
-            {/* Show More Button */}
-            {stats.total_reviews > 10 && (
-              <TouchableOpacity style={styles.showMoreButton}>
+            {/* Show More/Less Button */}
+            {reviewsData.reviews.length > INITIAL_REVIEW_LIMIT && (
+              <TouchableOpacity
+                style={styles.showMoreButton}
+                onPress={() => setShowAllReviews(!showAllReviews)}
+              >
                 <Text style={styles.showMoreText}>
-                  View all {stats.total_reviews} reviews
+                  {showAllReviews
+                    ? "Show less reviews"
+                    : `View ${reviewsData.reviews.length - INITIAL_REVIEW_LIMIT} more ${reviewsData.reviews.length - INITIAL_REVIEW_LIMIT === 1 ? "review" : "reviews"}`}
                 </Text>
                 <Ionicons
-                  name="chevron-forward"
+                  name={showAllReviews ? "chevron-up" : "chevron-down"}
                   size={20}
                   color={Colors.primary}
                 />

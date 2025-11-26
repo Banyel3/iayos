@@ -97,6 +97,7 @@ export default function CreateJobScreen() {
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedMaterials, setSelectedMaterials] = useState<number[]>([]);
+  // Agency jobs only use Wallet payment (no GCash option)
   const [paymentMethod, setPaymentMethod] = useState<"WALLET" | "GCASH">(
     "WALLET"
   );
@@ -709,58 +710,76 @@ export default function CreateJobScreen() {
             {/* Payment Method */}
             <View style={styles.formGroup}>
               <Text style={styles.label}>Payment Method</Text>
-              <View style={styles.paymentRow}>
-                <TouchableOpacity
-                  style={[
-                    styles.paymentButton,
-                    paymentMethod === "WALLET" && styles.paymentButtonActive,
-                  ]}
-                  onPress={() => setPaymentMethod("WALLET")}
-                >
+              {agencyId ? (
+                // Agency jobs: Wallet only (no GCash option)
+                <View style={styles.infoBox}>
                   <Ionicons
                     name="wallet"
                     size={24}
-                    color={
-                      paymentMethod === "WALLET"
-                        ? Colors.primary
-                        : Colors.textSecondary
-                    }
+                    color={Colors.primary}
                   />
-                  <Text
+                  <View style={styles.infoTextContainer}>
+                    <Text style={styles.infoTitle}>Wallet Payment Only</Text>
+                    <Text style={styles.infoText}>
+                      Agency jobs use Wallet payment method. The agency manages payment distribution to their employees.
+                    </Text>
+                  </View>
+                </View>
+              ) : (
+                // Worker jobs: Wallet or GCash
+                <View style={styles.paymentRow}>
+                  <TouchableOpacity
                     style={[
-                      styles.paymentText,
-                      paymentMethod === "WALLET" && styles.paymentTextActive,
+                      styles.paymentButton,
+                      paymentMethod === "WALLET" && styles.paymentButtonActive,
                     ]}
+                    onPress={() => setPaymentMethod("WALLET")}
                   >
-                    Wallet
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.paymentButton,
-                    paymentMethod === "GCASH" && styles.paymentButtonActive,
-                  ]}
-                  onPress={() => setPaymentMethod("GCASH")}
-                >
-                  <Ionicons
-                    name="card"
-                    size={24}
-                    color={
-                      paymentMethod === "GCASH"
-                        ? Colors.primary
-                        : Colors.textSecondary
-                    }
-                  />
-                  <Text
+                    <Ionicons
+                      name="wallet"
+                      size={24}
+                      color={
+                        paymentMethod === "WALLET"
+                          ? Colors.primary
+                          : Colors.textSecondary
+                      }
+                    />
+                    <Text
+                      style={[
+                        styles.paymentText,
+                        paymentMethod === "WALLET" && styles.paymentTextActive,
+                      ]}
+                    >
+                      Wallet
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
                     style={[
-                      styles.paymentText,
-                      paymentMethod === "GCASH" && styles.paymentTextActive,
+                      styles.paymentButton,
+                      paymentMethod === "GCASH" && styles.paymentButtonActive,
                     ]}
+                    onPress={() => setPaymentMethod("GCASH")}
                   >
-                    GCash
-                  </Text>
-                </TouchableOpacity>
-              </View>
+                    <Ionicons
+                      name="card"
+                      size={24}
+                      color={
+                        paymentMethod === "GCASH"
+                          ? Colors.primary
+                          : Colors.textSecondary
+                      }
+                    />
+                    <Text
+                      style={[
+                        styles.paymentText,
+                        paymentMethod === "GCASH" && styles.paymentTextActive,
+                      ]}
+                    >
+                      GCash
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
 
             {/* Info Box */}
