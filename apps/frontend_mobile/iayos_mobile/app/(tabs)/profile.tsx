@@ -554,18 +554,33 @@ export default function ProfileScreen() {
                 )}
               </View>
             </View>
-            <TouchableOpacity
-              style={styles.addFundsButton}
-              activeOpacity={0.8}
-              onPress={() => router.push("/payments/deposit" as any)}
-            >
-              <Ionicons
-                name="add-circle-outline"
-                size={20}
-                color={Colors.white}
-              />
-              <Text style={styles.addFundsText}>Add Funds</Text>
-            </TouchableOpacity>
+            {isWorker ? (
+              <TouchableOpacity
+                style={styles.withdrawButton}
+                activeOpacity={0.8}
+                onPress={() => router.push("/wallet/withdraw" as any)}
+              >
+                <Ionicons
+                  name="arrow-up-circle-outline"
+                  size={20}
+                  color={Colors.white}
+                />
+                <Text style={styles.withdrawText}>Withdraw</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={styles.addFundsButton}
+                activeOpacity={0.8}
+                onPress={() => router.push("/payments/deposit" as any)}
+              >
+                <Ionicons
+                  name="add-circle-outline"
+                  size={20}
+                  color={Colors.white}
+                />
+                <Text style={styles.addFundsText}>Add Funds</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
@@ -660,6 +675,18 @@ export default function ProfileScreen() {
             </View>
           </>
         )}
+
+        {/* Payment Methods Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Payments</Text>
+          <View style={styles.menuCard}>
+            <MenuItem
+              icon="card-outline"
+              label="Payment Methods"
+              onPress={() => router.push("/profile/payment-methods" as any)}
+            />
+          </View>
+        </View>
 
         {/* Settings Section */}
         <View style={styles.section}>
@@ -972,6 +999,20 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   addFundsText: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.semiBold,
+    color: Colors.white,
+  },
+  withdrawButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.success,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
+    gap: Spacing.sm,
+  },
+  withdrawText: {
     fontSize: Typography.fontSize.base,
     fontWeight: Typography.fontWeight.semiBold,
     color: Colors.white,

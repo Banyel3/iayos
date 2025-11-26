@@ -553,43 +553,13 @@ def create_mobile_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[str, Any
                     'success': False,
                     'error': f'Wallet payment failed: {str(e)}'
                 }
-
-        elif payment_method == 'GCASH':
-            # Generate Xendit payment link
-            try:
-                from .xendit_service import create_xendit_payment
-
-                xendit_result = create_xendit_payment(
-                    amount=float(downpayment_amount),
-                    description=f"Job Downpayment - {job.title}",
-                    reference_id=f"JOB_{job.jobID}",
-                    customer_email=user.email,
-                )
-
-                if xendit_result.get('success'):
-                    # Save payment URL
-                    job.downpaymentMethod = 'GCASH'
-                    job.save()
-
-                    payment_result = {
-                        'payment_method': 'GCASH',
-                        'status': 'PENDING',
-                        'payment_url': xendit_result['payment_url'],
-                        'message': 'Please complete payment via GCash',
-                    }
-                else:
-                    job.delete()  # Rollback
-                    return {
-                        'success': False,
-                        'error': 'Failed to generate GCash payment link'
-                    }
-
-            except Exception as e:
-                job.delete()  # Rollback
-                return {
-                    'success': False,
-                    'error': f'GCash payment setup failed: {str(e)}'
-                }
+        else:
+            # Invalid payment method
+            job.delete()  # Rollback
+            return {
+                'success': False,
+                'error': 'Invalid payment method. Only WALLET is supported.'
+            }
 
         return {
             'success': True,
@@ -820,88 +790,8 @@ def create_mobile_invite_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[s
                 }
             }
         
-        elif payment_method == "GCASH":
-            # Create job with pending payment and generate Xendit invoice
-            from .xendit_service import XenditService
-            xendit = XenditService()
-            
-            with db_transaction.atomic():
-                # Create INVITE job with pending payment
-                job = Job.objects.create(
-                    clientID=client_profile,
-                    title=job_data.get('title'),
-                    description=job_data.get('description'),
-                    categoryID=category,
-                    budget=budget,
-                    escrowAmount=escrow_amount,
-                    escrowPaid=False,  # Will be marked true after GCash payment
-                    remainingPayment=remaining_payment,
-                    location=job_data.get('location', ''),
-                    expectedDuration=job_data.get('expected_duration', 'Not specified'),
-                    urgency=job_data.get('urgency_level', 'MEDIUM').upper(),
-                    preferredStartDate=preferred_start_date_obj,
-                    materialsNeeded=job_data.get('materials_needed', []),
-                    jobType="INVITE",
-                    inviteStatus="PENDING",
-                    status="ACTIVE",
-                    assignedAgencyFK=assigned_agency,
-                    assignedWorkerID=assigned_worker
-                )
-                
-                # Create pending transaction
-                transaction = Transaction.objects.create(
-                    walletID=wallet,
-                    transactionType=Transaction.TransactionType.PAYMENT,
-                    amount=downpayment_amount,
-                    balanceAfter=wallet.balance,
-                    status=Transaction.TransactionStatus.PENDING,
-                    description=f"Escrow payment (50%) + Commission (5%) for INVITE job: {job.title}",
-                    relatedJobID=job,
-                    referenceNumber=f"INVITE-ESCROW-PENDING-{job.jobID}-{timezone.now().strftime('%Y%m%d%H%M%S')}"
-                )
-                
-                # Create Xendit invoice
-                invoice_result = xendit.create_invoice(
-                    external_id=f"INVITE-JOB-{job.jobID}",
-                    amount=float(downpayment_amount),
-                    payer_email=user.email,
-                    description=f"Escrow + Commission for INVITE job: {job.title}",
-                    customer_name=f"{profile.firstName} {profile.lastName}"
-                )
-                
-                if invoice_result['success']:
-                    # Store invoice URL in transaction
-                    transaction.paymentMethod = 'GCASH'
-                    transaction.referenceNumber = invoice_result['invoice_id']
-                    transaction.save()
-                    
-                    print(f"✅ INVITE job created with GCash payment: ID={job.jobID}")
-                    
-                    return {
-                        'success': True,
-                        'data': {
-                            'job_posting_id': job.jobID,
-                            'job_type': 'INVITE',
-                            'invite_status': 'PENDING',
-                            'invite_target': invite_target_name,
-                            'escrow_paid': False,
-                            'escrow_amount': float(escrow_amount),
-                            'commission_fee': float(commission_fee),
-                            'downpayment_amount': float(downpayment_amount),
-                            'message': f"INVITE job created. Please complete the ₱{downpayment_amount} payment via GCash.",
-                            'requires_payment': True,
-                            'invoice_url': invoice_result['invoice_url']
-                        }
-                    }
-                else:
-                    # Rollback will happen automatically
-                    return {
-                        'success': False,
-                        'error': f"Failed to create GCash invoice: {invoice_result.get('error', 'Unknown error')}"
-                    }
-        
         else:
-            return {'success': False, 'error': 'Invalid payment method. Use WALLET or GCASH.'}
+            return {'success': False, 'error': 'Invalid payment method. Only WALLET is supported.'}
     
     except Exception as e:
         print(f"❌ Create invite job error: {str(e)}")
@@ -1929,7 +1819,8 @@ def get_my_jobs_mobile(user, status=None, page=1, limit=20):
             jobs_qs = JobPosting.objects.select_related(
                 'clientID__profileID__accountFK',
                 'categoryID',
-                'assignedWorkerID__profileID__accountFK'
+                'assignedWorkerID__profileID__accountFK',
+                'assignedAgencyFK__accountFK'
             ).prefetch_related('photos').filter(
                 clientID__profileID__accountFK=user
             )
@@ -1955,7 +1846,8 @@ def get_my_jobs_mobile(user, status=None, page=1, limit=20):
             jobs_qs = JobPosting.objects.select_related(
                 'clientID__profileID__accountFK',
                 'categoryID',
-                'assignedWorkerID__profileID__accountFK'
+                'assignedWorkerID__profileID__accountFK',
+                'assignedAgencyFK__accountFK'
             ).prefetch_related('photos').filter(
                 Q(assignedWorkerID=worker_profile) | Q(jobID__in=applied_job_ids)
             )
@@ -1984,6 +1876,8 @@ def get_my_jobs_mobile(user, status=None, page=1, limit=20):
         for job in jobs:
             client_profile = job.clientID.profileID if job.clientID else None
 
+            assigned_agency = getattr(job, 'assignedAgencyFK', None)
+
             job_data = {
                 'job_id': job.jobID,
                 'title': job.title,
@@ -2001,6 +1895,7 @@ def get_my_jobs_mobile(user, status=None, page=1, limit=20):
                 'job_type': job.jobType,  # LISTING or INVITE
                 'invite_status': job.inviteStatus,  # PENDING, ACCEPTED, REJECTED
                 'assigned_worker_id': job.assignedWorkerID.profileID.profileID if job.assignedWorkerID else None,
+                'assigned_agency_id': assigned_agency.agencyId if assigned_agency else None,  # type: ignore[attr-defined]
             }
 
             # Add client info
@@ -2013,6 +1908,10 @@ def get_my_jobs_mobile(user, status=None, page=1, limit=20):
                 worker_profile = job.assignedWorkerID.profileID
                 job_data['worker_name'] = f"{worker_profile.firstName or ''} {worker_profile.lastName or ''}".strip()
                 job_data['worker_img'] = worker_profile.profileImg or ''
+
+            if assigned_agency:
+                job_data['agency_name'] = assigned_agency.businessName  # type: ignore[attr-defined]
+                job_data['agency_logo'] = getattr(assigned_agency, 'logo', '')
 
             # For workers, add application status
             if user_profile.profileType == 'WORKER':

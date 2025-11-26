@@ -22,12 +22,24 @@ export default function GCashPaymentScreen() {
   const params = useLocalSearchParams();
 
   const jobId = params.jobId ? parseInt(params.jobId as string) : null;
-  // Accept both 'budget' (old) and 'amount' (new from backend)
-  const jobBudget = params.amount
-    ? parseFloat(params.amount as string)
-    : params.budget
-      ? parseFloat(params.budget as string)
-      : 0;
+  const amountParam =
+    (params.amount as string) ||
+    (params.paymentAmount as string) ||
+    (params.totalAmount as string) ||
+    undefined;
+  const rawBudgetParam = (params.budget as string) || undefined;
+
+  const parsedPaymentAmount = amountParam ? parseFloat(amountParam) : NaN;
+  const paymentAmount = isNaN(parsedPaymentAmount) ? 0 : parsedPaymentAmount;
+
+  const parsedBudget = rawBudgetParam ? parseFloat(rawBudgetParam) : NaN;
+  const derivedBudgetFromPayment = paymentAmount
+    ? Number((paymentAmount / 0.525).toFixed(2))
+    : 0;
+  const jobBudget = !isNaN(parsedBudget)
+    ? parsedBudget
+    : derivedBudgetFromPayment;
+
   const jobTitle = (params.title as string) || "Untitled Job";
   // Accept pre-generated invoice URL from backend
   const backendInvoiceUrl = params.invoiceUrl as string | undefined;
@@ -40,7 +52,8 @@ export default function GCashPaymentScreen() {
 
   const createInvoice = useCreateXenditInvoice();
 
-  const { total } = calculateEscrowAmount(jobBudget);
+  const { total } = calculateEscrowAmount(jobBudget || 0);
+  const chargeAmount = paymentAmount || total;
 
   // Create Xendit invoice on mount ONLY if not provided by backend
   useEffect(() => {
@@ -51,9 +64,9 @@ export default function GCashPaymentScreen() {
     }
 
     // Fallback: create invoice if backend didn't provide one
-    if (jobId && jobBudget) {
+    if (jobId && chargeAmount > 0) {
       createInvoice.mutate(
-        { jobId, amount: total },
+        { jobId, amount: chargeAmount },
         {
           onSuccess: (data) => {
             setXenditUrl(data.invoiceUrl);
@@ -68,7 +81,7 @@ export default function GCashPaymentScreen() {
         }
       );
     }
-  }, [jobId, jobBudget, backendInvoiceUrl]);
+  }, [jobId, chargeAmount, backendInvoiceUrl]);
 
   const handleWebViewNavigationStateChange = (navState: any) => {
     const { url } = navState;
@@ -166,7 +179,10 @@ export default function GCashPaymentScreen() {
     );
   };
 
-  if (!jobId || !jobBudget) {
+  const hasValidPaymentDetails =
+    !!jobId && (!!backendInvoiceUrl || chargeAmount > 0);
+
+  if (!hasValidPaymentDetails) {
     return (
       <View style={styles.errorContainer}>
         <Ionicons name="alert-circle" size={64} color={Colors.error} />
@@ -199,7 +215,7 @@ export default function GCashPaymentScreen() {
       {/* Payment Summary */}
       <View style={styles.summaryContainer}>
         <PaymentSummaryCard
-          jobBudget={jobBudget}
+          jobBudget={jobBudget || 0}
           showBreakdown={false}
           compact
         />

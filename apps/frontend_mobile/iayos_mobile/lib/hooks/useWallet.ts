@@ -25,8 +25,8 @@ interface AddFundsPayload {
 
 interface WithdrawPayload {
   amount: number;
-  account_number: string;
-  account_name: string;
+  payment_method_id: number;
+  notes?: string;
 }
 
 /**
@@ -82,18 +82,14 @@ export function useWithdraw() {
 
   return useMutation({
     mutationFn: async (payload: WithdrawPayload) => {
-      // TODO: Replace with actual withdraw endpoint when backend is ready
-      const response = await apiRequest(
-        `${ENDPOINTS.WALLET_BALANCE}/withdraw`,
-        {
-          method: "POST",
-          body: JSON.stringify(payload),
-        }
-      );
+      const response = await apiRequest(ENDPOINTS.WALLET_WITHDRAW, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || "Failed to withdraw");
+        throw new Error(error.error || "Failed to withdraw");
       }
 
       return response.json();

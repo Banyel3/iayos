@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -25,6 +25,8 @@ import {
   WalletDepositResponse,
 } from "../../lib/hooks/usePayments";
 import WalletBalanceCard from "../../components/WalletBalanceCard";
+import { useQuery } from "@tanstack/react-query";
+import { apiRequest, ENDPOINTS } from "@/lib/api/config";
 
 /**
  * Wallet Deposit Screen
@@ -52,6 +54,44 @@ export default function WalletDepositScreen() {
 
   const { data: walletBalance, refetch: refetchBalance } = useWalletBalance();
   const depositMutation = useWalletDeposit();
+
+  // Fetch payment methods to check if user has GCash set up
+  const { data: paymentMethodsData, isLoading: paymentMethodsLoading } =
+    useQuery({
+      queryKey: ["payment-methods"],
+      queryFn: async () => {
+        const response = await apiRequest(ENDPOINTS.PAYMENT_METHODS);
+        if (!response.ok) throw new Error("Failed to fetch payment methods");
+        const data = await response.json();
+        return data.payment_methods || [];
+      },
+    });
+
+  const hasGCashMethod = paymentMethodsData?.some(
+    (method: any) => method.type === "GCASH"
+  );
+
+  // Check if user has GCash payment method on mount
+  useEffect(() => {
+    if (!paymentMethodsLoading && paymentMethodsData && !hasGCashMethod) {
+      Alert.alert(
+        "GCash Account Required",
+        "You need to add a GCash account before you can deposit funds. Would you like to add one now?",
+        [
+          {
+            text: "Cancel",
+            onPress: () => router.back(),
+            style: "cancel",
+          },
+          {
+            text: "Add GCash Account",
+            onPress: () => router.push("/profile/payment-methods" as any),
+          },
+        ],
+        { cancelable: false }
+      );
+    }
+  }, [paymentMethodsData, paymentMethodsLoading, hasGCashMethod]);
 
   // Preset amounts
   const presetAmounts = [100, 200, 500, 1000, 2000, 5000];
@@ -109,7 +149,9 @@ export default function WalletDepositScreen() {
     isNaN(parsedAmount) ||
     parsedAmount < 100 ||
     parsedAmount > 100000 ||
-    isProcessing;
+    isProcessing ||
+    paymentMethodsLoading ||
+    !hasGCashMethod;
   const formattedDepositAmount = !isNaN(parsedAmount)
     ? formatCurrency(parsedAmount)
     : formatCurrency(0);
@@ -125,6 +167,21 @@ export default function WalletDepositScreen() {
     const amount = parseFloat(depositAmount);
 
     if (!validateAmount(amount)) {
+      return;
+    }
+
+    // Final check before deposit
+    if (!hasGCashMethod) {
+      Alert.alert(
+        "GCash Account Required",
+        "Please add a GCash account first",
+        [
+          {
+            text: "Add GCash Account",
+            onPress: () => router.push("/profile/payment-methods" as any),
+          },
+        ]
+      );
       return;
     }
 
@@ -362,13 +419,22 @@ export default function WalletDepositScreen() {
               size={24}
               color={Colors.primary}
             />
-            <Text style={styles.infoTitle}>Payment Method</Text>
+            <Text style={styles.infoTitle}>Payment Method - GCash Only</Text>
           </View>
           <Text style={styles.infoText}>
             {
-              "You will be redirected to Xendit's secure payment page to complete your deposit via GCash, bank transfer, or other payment methods."
+              "You will be redirected to Xendit's secure payment page to complete your deposit via GCash. Make sure you have a GCash account added to your profile."
             }
           </Text>
+          {!hasGCashMethod && !paymentMethodsLoading && (
+            <TouchableOpacity
+              style={styles.addMethodButton}
+              onPress={() => router.push("/profile/payment-methods" as any)}
+            >
+              <Ionicons name="add-circle" size={20} color={Colors.white} />
+              <Text style={styles.addMethodButtonText}>Add GCash Account</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Deposit Button */}
@@ -518,6 +584,22 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.sm,
     color: Colors.textSecondary,
     lineHeight: 20,
+  },
+  addMethodButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.primary,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginTop: Spacing.md,
+    gap: Spacing.xs,
+  },
+  addMethodButtonText: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.semiBold as any,
+    color: Colors.white,
   },
   depositButton: {
     flexDirection: "row",

@@ -203,7 +203,11 @@ export default function CreateJobScreen() {
           params: {
             invoiceUrl: data.invoice_url,
             jobId: data.job_posting_id.toString(),
-            amount: data.downpayment_amount?.toString() || "0", // Use downpayment_amount (escrow + platform fee)
+            amount:
+              data.downpayment_amount?.toString() ||
+              data.total_amount?.toString() ||
+              "0", // Total amount to be paid now (escrow + platform fee)
+            budget: budget || String(jobData.budget), // full job budget for breakdown
             title: title || "Job Request", // Pass title for better UX
           },
         } as any);

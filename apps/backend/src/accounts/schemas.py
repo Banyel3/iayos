@@ -1,7 +1,7 @@
 from ninja import Schema
 from datetime import datetime
 from pydantic import EmailStr
-from typing import Optional
+from typing import Optional, Literal
 
 class createAccountSchema(Schema):
     #profile table
@@ -113,9 +113,22 @@ class WorkerLocationSchema(Schema):
     specializations: list
 
 class DepositFundsSchema(Schema):
-    """Schema for wallet deposit request"""
+    """Schema for wallet deposit request - GCash only"""
     amount: float
-    payment_method: Optional[str] = "GCASH"
+    payment_method: Optional[str] = "GCASH"  # Only GCash supported
+
+class WithdrawFundsSchema(Schema):
+    """Schema for wallet withdrawal request"""
+    amount: float
+    payment_method_id: int
+    notes: Optional[str] = None
+
+class AddPaymentMethodSchema(Schema):
+    """Schema for adding a payment method (GCash only)"""
+    type: Literal["GCASH"] = "GCASH"
+    account_name: str
+    account_number: str
+    bank_name: Optional[str] = None
 
 # ========================================
 # MOBILE-SPECIFIC SCHEMAS

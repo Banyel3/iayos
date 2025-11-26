@@ -19,8 +19,10 @@ from .schemas import (
     SubmitReviewMobileSchema,
     SendMessageMobileSchema,
     DepositFundsSchema,
+    WithdrawFundsSchema,
     SendVerificationEmailSchema,
     SwitchProfileSchema,
+    AddPaymentMethodSchema,
 )
 from .authentication import jwt_auth, dual_auth  # Use Bearer token auth for mobile, dual_auth for endpoints that support both
 from .profile_metrics_service import get_profile_metrics
@@ -574,8 +576,9 @@ def mobile_my_jobs(
             jobs_qs = JobPosting.objects.filter(
                 clientID=client_profile
             ).select_related(
-                'categoryID', 
-                'assignedWorkerID__profileID__accountFK'
+                'categoryID',
+                'assignedWorkerID__profileID__accountFK',
+                'assignedAgencyFK__accountFK'
             ).prefetch_related('photos')
             print(f"      Jobs query created for client")
         
@@ -598,7 +601,8 @@ def mobile_my_jobs(
                 Q(assignedWorkerID=worker_profile) | Q(jobID__in=applied_job_ids)
             ).select_related(
                 'clientID__profileID__accountFK',
-                'categoryID'
+                'categoryID',
+                'assignedAgencyFK__accountFK'
             ).prefetch_related('photos')
             print(f"      Jobs query created for worker")
         else:
@@ -625,6 +629,8 @@ def mobile_my_jobs(
         job_list = []
         for idx, job in enumerate(jobs):
             print(f"      Processing job {idx + 1}/{len(jobs)}: ID={job.jobID}, Title='{job.title[:30]}...'")
+            assigned_agency = getattr(job, 'assignedAgencyFK', None)
+
             job_data = {
                 'job_id': job.jobID,
                 'title': job.title,
@@ -638,6 +644,7 @@ def mobile_my_jobs(
                 'job_type': job.jobType,  # LISTING or INVITE
                 'invite_status': job.inviteStatus,  # PENDING, ACCEPTED, REJECTED
                 'assigned_worker_id': job.assignedWorkerID.profileID.profileID if job.assignedWorkerID else None,
+                'assigned_agency_id': assigned_agency.agencyId if assigned_agency else None,
             }
             
             if job.clientID:
@@ -649,6 +656,10 @@ def mobile_my_jobs(
                 worker_prof = job.assignedWorkerID.profileID
                 job_data['worker_name'] = f"{worker_prof.firstName or ''} {worker_prof.lastName or ''}".strip()
                 job_data['worker_img'] = worker_prof.profileImg or ''
+
+            if assigned_agency:
+                job_data['agency_name'] = getattr(assigned_agency, 'businessName', '')
+                job_data['agency_logo'] = getattr(assigned_agency, 'logo', '')
             
             if profile.profileType == 'WORKER':
                 application = JobApplication.objects.filter(
@@ -660,6 +671,18 @@ def mobile_my_jobs(
             
             # DEBUG: Log the job data being added
             print(f"         → job_type={job_data.get('job_type')}, invite_status={job_data.get('invite_status')}, assigned_worker_id={job_data.get('assigned_worker_id')}")
+            
+            # EXTRA DEBUG for INVITE jobs
+            if job_data.get('job_type') == 'INVITE':
+                print(f"         🎯 INVITE JOB DETAILS:")
+                print(f"            - Job ID: {job.jobID}")
+                print(f"            - Title: {job.title}")
+                print(f"            - assignedWorkerID: {job.assignedWorkerID}")
+                if job.assignedWorkerID:
+                    print(f"            - assignedWorkerID.profileID: {job.assignedWorkerID.profileID}")
+                    print(f"            - assignedWorkerID.profileID.profileID: {job.assignedWorkerID.profileID.profileID}")
+                print(f"            - assigned_worker_id in response: {job_data.get('assigned_worker_id')}")
+                print(f"            - Current worker profile ID: {worker_profile.profileID.profileID if profile.profileType == 'WORKER' else 'N/A'}")
             
             job_list.append(job_data)
         
@@ -2029,18 +2052,35 @@ def mobile_get_wallet_balance(request):
 def mobile_deposit_funds(request, payload: DepositFundsSchema):
     """
     Mobile wallet deposit via Xendit GCash
+    Requires user to have a verified GCash payment method set up
     TEST MODE: Transaction auto-approved, funds added immediately
     """
     try:
-        from .models import Wallet, Transaction, Profile
+        from .models import Wallet, Transaction, Profile, UserPaymentMethod
         from .xendit_service import XenditService
         from decimal import Decimal
         from django.utils import timezone
         
         amount = payload.amount
-        payment_method = payload.payment_method or "GCASH"
+        payment_method = "GCASH"  # Only GCash supported
 
         print(f"📥 [Mobile] Deposit request: ₱{amount} via {payment_method} from {request.auth.email}")
+        
+        # Validate user has a GCash payment method set up
+        gcash_method = UserPaymentMethod.objects.filter(
+            accountFK=request.auth,
+            methodType='GCASH'
+        ).first()
+        
+        if not gcash_method:
+            return Response(
+                {
+                    "error": "No GCash payment method found",
+                    "error_code": "NO_PAYMENT_METHOD",
+                    "message": "Please add a GCash account before making deposits"
+                },
+                status=400
+            )
         
         if amount <= 0:
             return Response(
@@ -2136,6 +2176,173 @@ def mobile_deposit_funds(request, payload: DepositFundsSchema):
         traceback.print_exc()
         return Response(
             {"error": "Failed to deposit funds"},
+            status=500
+        )
+
+
+@mobile_router.post("/wallet/withdraw", auth=jwt_auth)
+def mobile_withdraw_funds(request, payload: WithdrawFundsSchema):
+    """
+    Withdraw funds from wallet to GCash via Xendit Disbursement
+    Deducts balance immediately and creates disbursement request
+    """
+    try:
+        from .models import Wallet, Transaction, Profile, UserPaymentMethod
+        from .xendit_service import XenditService
+        from decimal import Decimal
+        from django.utils import timezone
+        from django.db import transaction as db_transaction
+        
+        amount = payload.amount
+        payment_method_id = payload.payment_method_id
+        notes = payload.notes or ""
+
+        print(f"💸 [Mobile] Withdraw request: ₱{amount} to payment method {payment_method_id} from {request.auth.email}")
+        
+        # Validate amount
+        if amount <= 0:
+            return Response(
+                {"error": "Amount must be greater than 0"},
+                status=400
+            )
+        
+        # Minimum withdrawal of ₱100
+        if amount < 100:
+            return Response(
+                {"error": "Minimum withdrawal amount is ₱100"},
+                status=400
+            )
+        
+        # Get wallet
+        try:
+            wallet = Wallet.objects.get(accountFK=request.auth)
+        except Wallet.DoesNotExist:
+            return Response(
+                {"error": "Wallet not found"},
+                status=404
+            )
+        
+        # Check sufficient balance
+        if wallet.balance < Decimal(str(amount)):
+            return Response(
+                {"error": f"Insufficient balance. Available: ₱{wallet.balance}"},
+                status=400
+            )
+        
+        # Get payment method
+        try:
+            payment_method = UserPaymentMethod.objects.get(
+                id=payment_method_id,
+                accountFK=request.auth
+            )
+        except UserPaymentMethod.DoesNotExist:
+            return Response(
+                {"error": "Payment method not found"},
+                status=404
+            )
+        
+        # Only GCash supported for now
+        if payment_method.methodType != 'GCASH':
+            return Response(
+                {"error": "Only GCash withdrawals are currently supported"},
+                status=400
+            )
+        
+        # Get user's profile for name
+        try:
+            profile_type = getattr(request.auth, 'profile_type', None)
+            
+            if profile_type:
+                profile = Profile.objects.filter(
+                    accountFK=request.auth,
+                    profileType=profile_type
+                ).first()
+            else:
+                profile = Profile.objects.filter(accountFK=request.auth).first()
+            
+            if profile:
+                user_name = f"{profile.firstName} {profile.lastName}"
+            else:
+                user_name = request.auth.email.split('@')[0]
+        except Exception:
+            user_name = request.auth.email.split('@')[0]
+        
+        print(f"💰 Current balance: ₱{wallet.balance}")
+        
+        # Use atomic transaction to ensure consistency
+        with db_transaction.atomic():
+            # Deduct balance immediately
+            old_balance = wallet.balance
+            wallet.balance -= Decimal(str(amount))
+            wallet.save()
+            
+            # Create pending withdrawal transaction
+            transaction = Transaction.objects.create(
+                walletID=wallet,
+                transactionType=Transaction.TransactionType.WITHDRAWAL,
+                amount=Decimal(str(amount)),
+                balanceAfter=wallet.balance,
+                status=Transaction.TransactionStatus.PENDING,
+                description=f"Withdrawal to GCash - {payment_method.accountNumber}",
+                paymentMethod="GCASH"
+            )
+            
+            print(f"✅ New balance: ₱{wallet.balance}")
+            print(f"📤 Creating Xendit disbursement...")
+            
+            # Create Xendit disbursement
+            disbursement_result = XenditService.create_disbursement(
+                amount=amount,
+                recipient_name=payment_method.accountName,
+                account_number=payment_method.accountNumber,
+                transaction_id=transaction.transactionID,
+                notes=notes or f"Withdrawal from iAyos Wallet - ₱{amount}"
+            )
+            
+            if not disbursement_result.get("success"):
+                # Rollback balance deduction
+                wallet.balance = old_balance
+                wallet.save()
+                transaction.delete()
+                
+                return Response(
+                    {"error": f"Failed to create disbursement: {disbursement_result.get('error', 'Unknown error')}"},
+                    status=500
+                )
+            
+            # Update transaction with Xendit details
+            transaction.xenditInvoiceID = disbursement_result['disbursement_id']
+            transaction.xenditExternalID = disbursement_result['external_id']
+            transaction.xenditPaymentChannel = "GCASH"
+            transaction.xenditPaymentMethod = "DISBURSEMENT"
+            
+            # Mark as completed if disbursement is successful
+            if disbursement_result['status'] == 'COMPLETED':
+                transaction.status = Transaction.TransactionStatus.COMPLETED
+                transaction.completedAt = timezone.now()
+            
+            transaction.save()
+            
+            print(f"📄 Disbursement created: {disbursement_result['disbursement_id']}")
+            print(f"📊 Status: {disbursement_result['status']}")
+        
+        return {
+            "success": True,
+            "transaction_id": transaction.transactionID,
+            "disbursement_id": disbursement_result['disbursement_id'],
+            "amount": amount,
+            "new_balance": float(wallet.balance),
+            "status": disbursement_result['status'],
+            "recipient": payment_method.accountNumber,
+            "message": "Withdrawal request submitted successfully. Funds will be transferred to your GCash within 1-3 business days."
+        }
+        
+    except Exception as e:
+        print(f"❌ [Mobile] Error withdrawing funds: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to process withdrawal"},
             status=500
         )
 
@@ -2728,5 +2935,196 @@ def create_worker_profile(request):
             {"error": "Failed to create worker profile"},
             status=500
         )
+
+
+#region Payment Methods Management
+
+@mobile_router.get("/payment-methods", auth=jwt_auth)
+def get_payment_methods(request):
+    """Get user's payment methods for withdrawals"""
+    try:
+        from .models import UserPaymentMethod
+        
+        methods = UserPaymentMethod.objects.filter(accountFK=request.auth)
+        
+        payment_methods = []
+        for method in methods:
+            payment_methods.append({
+                'id': method.id,
+                'type': method.methodType,
+                'account_name': method.accountName,
+                'account_number': method.accountNumber,
+                'bank_name': method.bankName,
+                'is_primary': method.isPrimary,
+                'is_verified': method.isVerified,
+                'created_at': method.createdAt.isoformat() if method.createdAt else None
+            })
+        
+        return {
+            'payment_methods': payment_methods
+        }
+    except Exception as e:
+        print(f"❌ Get payment methods error: {str(e)}")
+        return Response(
+            {"error": "Failed to fetch payment methods"},
+            status=500
+        )
+
+
+@mobile_router.post("/payment-methods", auth=jwt_auth)
+def add_payment_method(request, payload: AddPaymentMethodSchema):
+    """Add a new payment method"""
+    try:
+        from .models import UserPaymentMethod
+        from django.db import transaction as db_transaction
+        
+        method_type = payload.type or 'GCASH'
+
+        # For now, only GCash is supported
+        if method_type != 'GCASH':
+            return Response(
+                {"error": "Invalid payment method type. Only GCash is supported."},
+                status=400
+            )
+        
+        # Validate required fields
+        if not payload.account_name or not payload.account_number:
+            return Response(
+                {"error": "Account name and number are required"},
+                status=400
+            )
+
+        # Validate and clean GCash number format
+        clean_number = payload.account_number.replace(' ', '').replace('-', '')
+        if not clean_number.startswith('09') or len(clean_number) != 11:
+            return Response(
+                {"error": "Invalid GCash number format (must be 11 digits starting with 09)"},
+                status=400
+            )
+        
+        with db_transaction.atomic():
+            # Check if this is the first payment method (auto-set as primary)
+            has_existing = UserPaymentMethod.objects.filter(accountFK=request.auth).exists()
+            is_first = not has_existing
+            
+            # Create payment method
+            method = UserPaymentMethod.objects.create(
+                accountFK=request.auth,
+                methodType='GCASH',
+                accountName=payload.account_name,
+                accountNumber=clean_number,
+                bankName=None,
+                isPrimary=is_first,  # First one is automatically primary
+                isVerified=False  # Will be verified by admin
+            )
+            
+            print(f"✅ Payment method added: {method.methodType} for {request.auth.email}")
+        
+        return {
+            'success': True,
+            'message': 'Payment method added successfully',
+            'method_id': method.id,
+            'is_primary': method.isPrimary
+        }
+    except Exception as e:
+        print(f"❌ Add payment method error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to add payment method"},
+            status=500
+        )
+
+
+@mobile_router.delete("/payment-methods/{method_id}", auth=jwt_auth)
+def delete_payment_method(request, method_id: int):
+    """Delete a payment method"""
+    try:
+        from .models import UserPaymentMethod
+        from django.db import transaction as db_transaction
+        
+        method = UserPaymentMethod.objects.filter(
+            id=method_id,
+            accountFK=request.auth
+        ).first()
+        
+        if not method:
+            return Response(
+                {"error": "Payment method not found"},
+                status=404
+            )
+        
+        was_primary = method.isPrimary
+        
+        with db_transaction.atomic():
+            method.delete()
+            
+            # If deleted method was primary, set another method as primary
+            if was_primary:
+                next_method = UserPaymentMethod.objects.filter(
+                    accountFK=request.auth
+                ).first()
+                
+                if next_method:
+                    next_method.isPrimary = True
+                    next_method.save()
+                    print(f"✅ Set new primary payment method: {next_method.id}")
+        
+        print(f"✅ Payment method deleted: {method_id} for {request.auth.email}")
+        
+        return {
+            'success': True,
+            'message': 'Payment method removed successfully'
+        }
+    except Exception as e:
+        print(f"❌ Delete payment method error: {str(e)}")
+        return Response(
+            {"error": "Failed to remove payment method"},
+            status=500
+        )
+
+
+@mobile_router.post("/payment-methods/{method_id}/set-primary", auth=jwt_auth)
+def set_primary_payment_method(request, method_id: int):
+    """Set a payment method as primary"""
+    try:
+        from .models import UserPaymentMethod
+        from django.db import transaction as db_transaction
+        
+        method = UserPaymentMethod.objects.filter(
+            id=method_id,
+            accountFK=request.auth
+        ).first()
+        
+        if not method:
+            return Response(
+                {"error": "Payment method not found"},
+                status=404
+            )
+        
+        with db_transaction.atomic():
+            # Remove primary from all other methods
+            UserPaymentMethod.objects.filter(
+                accountFK=request.auth
+            ).update(isPrimary=False)
+            
+            # Set this method as primary
+            method.isPrimary = True
+            method.save()
+        
+        print(f"✅ Set primary payment method: {method_id} for {request.auth.email}")
+        
+        return {
+            'success': True,
+            'message': 'Primary payment method updated'
+        }
+    except Exception as e:
+        print(f"❌ Set primary payment method error: {str(e)}")
+        return Response(
+            {"error": "Failed to update primary payment method"},
+            status=500
+        )
+
+#endregion
 
 #endregion

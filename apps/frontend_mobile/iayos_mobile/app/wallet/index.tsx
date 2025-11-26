@@ -84,8 +84,7 @@ export default function WalletScreen() {
 
   const handleWithdraw = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    // TODO: Implement withdraw screen
-    alert("Withdraw feature coming soon!");
+    router.push("/wallet/withdraw" as any);
   };
 
   const handleLoadMore = () => {
@@ -253,28 +252,28 @@ export default function WalletScreen() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filterTabs}
         >
-          {(["all", "deposit", "payment", "withdrawal"] as TransactionFilter[]).map(
-            (filter) => (
-              <TouchableOpacity
-                key={filter}
+          {(
+            ["all", "deposit", "payment", "withdrawal"] as TransactionFilter[]
+          ).map((filter) => (
+            <TouchableOpacity
+              key={filter}
+              style={[
+                styles.filterTab,
+                activeFilter === filter && styles.filterTabActive,
+              ]}
+              onPress={() => handleFilterChange(filter)}
+              activeOpacity={0.7}
+            >
+              <Text
                 style={[
-                  styles.filterTab,
-                  activeFilter === filter && styles.filterTabActive,
+                  styles.filterTabText,
+                  activeFilter === filter && styles.filterTabTextActive,
                 ]}
-                onPress={() => handleFilterChange(filter)}
-                activeOpacity={0.7}
               >
-                <Text
-                  style={[
-                    styles.filterTabText,
-                    activeFilter === filter && styles.filterTabTextActive,
-                  ]}
-                >
-                  {filter.charAt(0).toUpperCase() + filter.slice(1)}
-                </Text>
-              </TouchableOpacity>
-            )
-          )}
+                {filter.charAt(0).toUpperCase() + filter.slice(1)}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </ScrollView>
 
         {/* Transaction List */}

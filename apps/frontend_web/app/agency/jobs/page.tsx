@@ -2,16 +2,11 @@
 
 import React, { useState, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import {
-  JobCard,
-  PendingInviteCard,
-  RejectReasonModal,
-} from "@/components/agency";
+import { PendingInviteCard, RejectReasonModal } from "@/components/agency";
 import AssignEmployeeModal from "@/components/agency/AssignEmployeeModal";
 import {
   Loader2,
   AlertCircle,
-  Briefcase,
   Mail,
   UserPlus,
   CheckCircle,
@@ -60,11 +55,10 @@ interface Job {
   updatedAt: string;
 }
 
-type TabType = "available" | "invites" | "accepted";
+type TabType = "invites" | "accepted";
 
 export default function AgencyJobsPage() {
-  const [activeTab, setActiveTab] = useState<TabType>("available");
-  const [jobs, setJobs] = useState<Job[]>([]);
+  const [activeTab, setActiveTab] = useState<TabType>("invites");
   const [pendingInvites, setPendingInvites] = useState<Job[]>([]);
   const [acceptedJobs, setAcceptedJobs] = useState<Job[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -87,7 +81,6 @@ export default function AgencyJobsPage() {
     if (hasFetched.current) return;
     hasFetched.current = true;
 
-    fetchJobs();
     fetchPendingInvites();
     fetchAcceptedJobs();
     fetchEmployees();
@@ -97,41 +90,12 @@ export default function AgencyJobsPage() {
   useEffect(() => {
     if (!hasFetched.current) return; // Don't fetch on initial mount
 
-    if (activeTab === "available") {
-      fetchJobs();
-    } else if (activeTab === "invites") {
+    if (activeTab === "invites") {
       fetchPendingInvites();
     } else if (activeTab === "accepted") {
       fetchAcceptedJobs();
     }
   }, [activeTab]);
-
-  const fetchJobs = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      const response = await fetch(`${apiUrl}/api/agency/jobs?status=ACTIVE`, {
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch jobs: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      setJobs(data.jobs || []);
-    } catch (err) {
-      console.error("Error fetching jobs:", err);
-      setError(err instanceof Error ? err.message : "Failed to load jobs");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const fetchPendingInvites = async () => {
     try {
@@ -222,45 +186,6 @@ export default function AgencyJobsPage() {
     }
   };
 
-  const handleAcceptJob = async (jobId: number) => {
-    try {
-      setAccepting(jobId);
-      setError(null);
-      setSuccessMessage(null);
-
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      const response = await fetch(`${apiUrl}/api/jobs/${jobId}/accept`, {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to accept job");
-      }
-
-      const result = await response.json();
-
-      // Show success message
-      setSuccessMessage(result.message || "Job accepted successfully!");
-
-      // Scroll to top to show success message
-      window.scrollTo({ top: 0, behavior: "smooth" });
-
-      // Optionally remove the job from the list
-      setJobs((prevJobs) => prevJobs.filter((job) => job.jobID !== jobId));
-    } catch (err) {
-      console.error("Error accepting job:", err);
-      setError(err instanceof Error ? err.message : "Failed to accept job");
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    } finally {
-      setAccepting(null);
-    }
-  };
-
   const handleAcceptInvite = async (jobId: number) => {
     try {
       setAccepting(jobId);
@@ -281,7 +206,17 @@ export default function AgencyJobsPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to accept invitation");
+        const errorMessage = errorData.error || "Failed to accept invitation";
+
+        // Provide user-friendly message for payment-related errors
+        if (errorMessage.includes("escrow payment")) {
+          throw new Error(
+            "This job invitation cannot be accepted yet. The client has not completed the payment. " +
+              "Please wait for the client to complete their GCash/payment transaction."
+          );
+        }
+
+        throw new Error(errorMessage);
       }
 
       const result = await response.json();
@@ -453,31 +388,6 @@ export default function AgencyJobsPage() {
           <div className="border-b border-gray-200">
             <nav className="-mb-px flex space-x-8">
               <button
-                onClick={() => setActiveTab("available")}
-                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                  activeTab === "available"
-                    ? "border-blue-600 text-blue-600"
-                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                }`}
-              >
-                <div className="flex items-center space-x-2">
-                  <Briefcase className="h-5 w-5" />
-                  <span>Available Jobs</span>
-                  {jobs.length > 0 && (
-                    <span
-                      className={`px-2 py-0.5 text-xs rounded-full ${
-                        activeTab === "available"
-                          ? "bg-blue-100 text-blue-600"
-                          : "bg-gray-100 text-gray-600"
-                      }`}
-                    >
-                      {jobs.length}
-                    </span>
-                  )}
-                </div>
-              </button>
-
-              <button
                 onClick={() => setActiveTab("invites")}
                 className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
                   activeTab === "invites"
@@ -551,41 +461,6 @@ export default function AgencyJobsPage() {
         )}
 
         {/* Tab Content */}
-        {activeTab === "available" && (
-          <>
-            {jobs.length === 0 ? (
-              <Card>
-                <CardContent className="py-12">
-                  <div className="text-center">
-                    <Briefcase className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                      No Jobs Available
-                    </h3>
-                    <p className="text-gray-600 max-w-md mx-auto">
-                      There are currently no jobs available. Check back later
-                      for new opportunities.
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="space-y-6">
-                <div className="text-sm text-gray-600 mb-4">
-                  Showing {jobs.length} {jobs.length === 1 ? "job" : "jobs"}
-                </div>
-                {jobs.map((job) => (
-                  <JobCard
-                    key={job.jobID}
-                    job={job}
-                    onAccept={handleAcceptJob}
-                    accepting={accepting === job.jobID}
-                  />
-                ))}
-              </div>
-            )}
-          </>
-        )}
-
         {activeTab === "invites" && (
           <>
             {pendingInvites.length === 0 ? (

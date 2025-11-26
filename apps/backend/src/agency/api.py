@@ -252,7 +252,7 @@ def accept_job_invite(request, job_id: int):
         from django.utils import timezone
         job.inviteStatus = "ACCEPTED"
         job.inviteRespondedAt = timezone.now()
-        job.status = "ACTIVE"  # Job is now active and ready for work
+        job.status = "IN_PROGRESS"  # Agency accepted, work is starting
         job.save()
         
         # Create conversation between client and agency for this job

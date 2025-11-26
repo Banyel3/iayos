@@ -52,6 +52,10 @@ export const ENDPOINTS = {
     `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/${jobId}/applications/${applicationId}/accept`,
   REJECT_APPLICATION: (jobId: number, applicationId: number) =>
     `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/${jobId}/applications/${applicationId}/reject`,
+  ACCEPT_INVITE: (jobId: number) =>
+    `${API_BASE_URL.replace("/api", "")}/api/jobs/${jobId}/accept-invite`,
+  REJECT_INVITE: (jobId: number) =>
+    `${API_BASE_URL.replace("/api", "")}/api/jobs/${jobId}/reject-invite`,
   APPLY_JOB: (id: number) =>
     `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/${id}/apply`,
   MY_APPLICATIONS: `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/applications/my`,
@@ -164,6 +168,7 @@ export const ENDPOINTS = {
     `${API_BASE_URL.replace("/api", "")}/api/mobile/payments/status/${id}`,
   PAYMENT_HISTORY: `${API_BASE_URL.replace("/api", "")}/api/mobile/payments/history`,
   WALLET_DEPOSIT: `${API_BASE_URL.replace("/api", "")}/api/mobile/wallet/deposit`,
+  WALLET_WITHDRAW: `${API_BASE_URL.replace("/api", "")}/api/mobile/wallet/withdraw`,
   WALLET_TRANSACTIONS: `${API_BASE_URL.replace("/api", "")}/api/mobile/wallet/transactions`,
   CREATE_JOB_WITH_PAYMENT: `${API_BASE_URL.replace("/api", "")}/api/jobs/create-mobile`, // Direct worker/agency hiring
   CREATE_JOB: `${API_BASE_URL.replace("/api", "")}/api/jobs/create-mobile`, // Direct worker/agency hiring
@@ -216,6 +221,14 @@ export const ENDPOINTS = {
   CREATE_CLIENT_PROFILE: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/create-client`,
   CREATE_WORKER_PROFILE: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/create-worker`,
   SWITCH_PROFILE: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/switch-profile`,
+
+  // Payment Methods
+  PAYMENT_METHODS: `${API_BASE_URL.replace("/api", "")}/api/mobile/payment-methods`,
+  ADD_PAYMENT_METHOD: `${API_BASE_URL.replace("/api", "")}/api/mobile/payment-methods`,
+  DELETE_PAYMENT_METHOD: (id: number) =>
+    `${API_BASE_URL.replace("/api", "")}/api/mobile/payment-methods/${id}`,
+  SET_PRIMARY_PAYMENT_METHOD: (id: number) =>
+    `${API_BASE_URL.replace("/api", "")}/api/mobile/payment-methods/${id}/set-primary`,
 
   // Phase 8: Reviews & Ratings (6 endpoints)
   SUBMIT_REVIEW: `${API_BASE_URL.replace("/api", "")}/api/accounts/reviews/submit`,

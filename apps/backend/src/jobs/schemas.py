@@ -26,7 +26,7 @@ class CreateJobPostingMobileSchema(Schema):
     urgency: Optional[str] = "MEDIUM"  # LOW, MEDIUM, HIGH (default MEDIUM)
     preferred_start_date: Optional[str] = None
     materials_needed: Optional[list[str]] = []
-    payment_method: Optional[str] = "WALLET"  # WALLET or GCASH
+    payment_method: Optional[str] = "WALLET"  # WALLET only
     worker_id: Optional[int] = None  # If provided, job is for specific worker
     agency_id: Optional[int] = None  # If provided, job is for specific agency
 
@@ -56,4 +56,4 @@ class SubmitReviewSchema(Schema):
 
 
 class ApproveJobCompletionSchema(Schema):
-    payment_method: Optional[str] = "WALLET"  # WALLET, GCASH, or CASH
+    payment_method: Optional[str] = "WALLET"  # WALLET or CASH only

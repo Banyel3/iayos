@@ -71,6 +71,7 @@ interface JobDetail {
   materialsNeeded?: string[];
   specializations?: string[];
   jobType?: "INVITE" | "LISTING";
+  inviteStatus?: "PENDING" | "ACCEPTED" | "REJECTED";
   assignedWorker?: {
     id: number;
     name: string;
@@ -111,6 +112,8 @@ export default function JobDetailScreen() {
   const [showImageModal, setShowImageModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isSaved, setIsSaved] = useState(false);
+  const [showRejectInviteModal, setShowRejectInviteModal] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
 
   // Application form state
   const [proposalMessage, setProposalMessage] = useState("");
@@ -306,6 +309,78 @@ export default function JobDetailScreen() {
     },
   });
 
+  // Accept job invite mutation (for workers)
+  const acceptInviteMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest(ENDPOINTS.ACCEPT_INVITE(parseInt(id)), {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        const errorData = (await response.json().catch(() => ({}))) as any;
+        throw new Error(errorData.error || "Failed to accept invitation");
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      Alert.alert(
+        "Success",
+        "Job invitation accepted! You can now start working on this job.",
+        [
+          {
+            text: "OK",
+            onPress: () => {
+              queryClient.invalidateQueries({ queryKey: ["jobs"] });
+              queryClient.invalidateQueries({ queryKey: ["jobs", id] });
+              router.back();
+            },
+          },
+        ]
+      );
+    },
+    onError: (error: Error) => {
+      Alert.alert("Error", error.message || "Failed to accept invitation");
+    },
+  });
+
+  // Reject job invite mutation (for workers)
+  const rejectInviteMutation = useMutation({
+    mutationFn: async (reason: string) => {
+      const response = await apiRequest(ENDPOINTS.REJECT_INVITE(parseInt(id)), {
+        method: "POST",
+        body: JSON.stringify({ reason }),
+      });
+
+      if (!response.ok) {
+        const errorData = (await response.json().catch(() => ({}))) as any;
+        throw new Error(errorData.error || "Failed to reject invitation");
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      Alert.alert(
+        "Success",
+        "Job invitation declined. The client has been notified.",
+        [
+          {
+            text: "OK",
+            onPress: () => {
+              queryClient.invalidateQueries({ queryKey: ["jobs"] });
+              router.back();
+            },
+          },
+        ]
+      );
+      setShowRejectInviteModal(false);
+      setRejectReason("");
+    },
+    onError: (error: Error) => {
+      Alert.alert("Error", error.message || "Failed to reject invitation");
+    },
+  });
+
   // Fetch job applications (for clients viewing their open jobs)
   const {
     data: applicationsData,
@@ -470,6 +545,36 @@ export default function JobDetailScreen() {
       estimated_duration: estimatedDuration || null,
       budget_option: budgetOption,
     });
+  };
+
+  const handleAcceptInvite = () => {
+    Alert.alert(
+      "Accept Job Invitation",
+      "Are you sure you want to accept this job invitation? Once accepted, you'll be expected to complete the work.",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Accept",
+          style: "default",
+          onPress: () => acceptInviteMutation.mutate(),
+        },
+      ]
+    );
+  };
+
+  const handleRejectInvite = () => {
+    setShowRejectInviteModal(true);
+  };
+
+  const handleSubmitReject = () => {
+    if (!rejectReason.trim()) {
+      Alert.alert("Error", "Please provide a reason for declining");
+      return;
+    }
+    rejectInviteMutation.mutate(rejectReason);
   };
 
   const getUrgencyColor = (urgency: string) => {
@@ -784,6 +889,72 @@ export default function JobDetailScreen() {
             </View>
           </View>
         )}
+
+        {/* Job Invitation Actions - For workers to accept/reject INVITE jobs */}
+        {isWorker &&
+          job.jobType === "INVITE" &&
+          (job.inviteStatus === "PENDING" ||
+            (!job.inviteStatus && job.status === "ACTIVE")) &&
+          job.status === "ACTIVE" && (
+            <View style={styles.section}>
+              <View style={styles.inviteActionCard}>
+                <View style={styles.inviteActionHeader}>
+                  <Ionicons
+                    name="mail-outline"
+                    size={24}
+                    color={Colors.primary}
+                  />
+                  <Text style={styles.inviteActionTitle}>Job Invitation</Text>
+                </View>
+                <Text style={styles.inviteActionText}>
+                  You've been invited to work on this job. Review the details
+                  and decide whether to accept or decline.
+                </Text>
+                <View style={styles.inviteActionButtons}>
+                  <TouchableOpacity
+                    style={styles.declineButton}
+                    onPress={handleRejectInvite}
+                    disabled={rejectInviteMutation.isPending}
+                    activeOpacity={0.8}
+                  >
+                    {rejectInviteMutation.isPending ? (
+                      <ActivityIndicator size="small" color={Colors.error} />
+                    ) : (
+                      <>
+                        <Ionicons
+                          name="close-circle-outline"
+                          size={20}
+                          color={Colors.error}
+                        />
+                        <Text style={styles.declineButtonText}>Decline</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.acceptInviteButton}
+                    onPress={handleAcceptInvite}
+                    disabled={acceptInviteMutation.isPending}
+                    activeOpacity={0.8}
+                  >
+                    {acceptInviteMutation.isPending ? (
+                      <ActivityIndicator size="small" color={Colors.white} />
+                    ) : (
+                      <>
+                        <Ionicons
+                          name="checkmark-circle-outline"
+                          size={20}
+                          color={Colors.white}
+                        />
+                        <Text style={styles.acceptInviteButtonText}>
+                          Accept Invitation
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          )}
 
         {/* Applications Section - Only for open LISTING jobs by client */}
         {isClient && job.jobType === "LISTING" && !job.assignedWorker && (
@@ -1211,6 +1382,77 @@ export default function JobDetailScreen() {
             </TouchableOpacity>
           </ScrollView>
         </SafeAreaView>
+      </Modal>
+
+      {/* Reject Invite Modal */}
+      <Modal
+        visible={showRejectInviteModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowRejectInviteModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.rejectModalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowRejectInviteModal(false)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={styles.rejectModalContent}>
+              <View style={styles.rejectModalHeader}>
+                <Text style={styles.rejectModalTitle}>Decline Invitation</Text>
+                <TouchableOpacity
+                  onPress={() => setShowRejectInviteModal(false)}
+                >
+                  <Ionicons
+                    name="close"
+                    size={24}
+                    color={Colors.textSecondary}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.rejectModalLabel}>
+                Reason for declining (required)
+              </Text>
+              <TextInput
+                style={styles.rejectModalInput}
+                placeholder="Please explain why you're declining this job invitation..."
+                placeholderTextColor={Colors.textHint}
+                value={rejectReason}
+                onChangeText={setRejectReason}
+                multiline
+                numberOfLines={5}
+                textAlignVertical="top"
+              />
+
+              <View style={styles.rejectModalButtons}>
+                <TouchableOpacity
+                  style={styles.rejectModalCancelButton}
+                  onPress={() => {
+                    setShowRejectInviteModal(false);
+                    setRejectReason("");
+                  }}
+                >
+                  <Text style={styles.rejectModalCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.rejectModalSubmitButton}
+                  onPress={handleSubmitReject}
+                  disabled={rejectInviteMutation.isPending}
+                >
+                  {rejectInviteMutation.isPending ? (
+                    <ActivityIndicator size="small" color={Colors.white} />
+                  ) : (
+                    <Text style={styles.rejectModalSubmitText}>Decline</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
     </SafeAreaView>
   );
@@ -1806,5 +2048,142 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.base,
     fontWeight: "600",
     color: Colors.error,
+  },
+  // Invite Action Styles
+  inviteActionCard: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    borderWidth: 2,
+    borderColor: Colors.primary,
+    ...Shadows.md,
+  },
+  inviteActionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  inviteActionTitle: {
+    fontSize: Typography.fontSize.lg,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+  },
+  inviteActionText: {
+    fontSize: Typography.fontSize.base,
+    color: Colors.textSecondary,
+    lineHeight: 22,
+    marginBottom: Spacing.lg,
+  },
+  inviteActionButtons: {
+    flexDirection: "row",
+    gap: Spacing.md,
+  },
+  declineButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: Spacing.md,
+    backgroundColor: Colors.white,
+    borderWidth: 2,
+    borderColor: Colors.error,
+    borderRadius: BorderRadius.md,
+  },
+  declineButtonText: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: "600",
+    color: Colors.error,
+  },
+  acceptInviteButton: {
+    flex: 1.5,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: Spacing.md,
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.md,
+    ...Shadows.sm,
+  },
+  acceptInviteButtonText: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: "700",
+    color: Colors.white,
+  },
+  // Reject Modal Styles
+  rejectModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: Spacing.xl,
+  },
+  rejectModalContent: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.xl,
+    width: "100%",
+    maxWidth: 400,
+    ...Shadows.lg,
+  },
+  rejectModalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.lg,
+  },
+  rejectModalTitle: {
+    fontSize: Typography.fontSize.xl,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+  },
+  rejectModalLabel: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: "600",
+    color: Colors.textSecondary,
+    marginBottom: Spacing.sm,
+  },
+  rejectModalInput: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    fontSize: Typography.fontSize.base,
+    color: Colors.textPrimary,
+    minHeight: 120,
+    textAlignVertical: "top",
+    marginBottom: Spacing.lg,
+  },
+  rejectModalButtons: {
+    flexDirection: "row",
+    gap: Spacing.md,
+  },
+  rejectModalCancelButton: {
+    flex: 1,
+    paddingVertical: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.md,
+    alignItems: "center",
+  },
+  rejectModalCancelText: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: "600",
+    color: Colors.textSecondary,
+  },
+  rejectModalSubmitButton: {
+    flex: 1,
+    paddingVertical: Spacing.md,
+    backgroundColor: Colors.error,
+    borderRadius: BorderRadius.md,
+    alignItems: "center",
+    ...Shadows.sm,
+  },
+  rejectModalSubmitText: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: "700",
+    color: Colors.white,
   },
 });

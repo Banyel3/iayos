@@ -2,7 +2,7 @@ from ninja import Router, File, Form
 from ninja.responses import Response
 from ninja.files import UploadedFile
 from accounts.authentication import cookie_auth, jwt_auth, dual_auth
-from accounts.models import ClientProfile, Specializations, Profile, WorkerProfile, JobApplication, JobPhoto, Wallet, Transaction, Job, JobLog
+from accounts.models import ClientProfile, Specializations, Profile, WorkerProfile, JobApplication, JobPhoto, Wallet, Transaction, Job, JobLog, Agency
 from accounts.xendit_service import XenditService
 from .models import JobPosting
 # Use Job directly for type checking (JobPosting is just an alias)
@@ -220,94 +220,9 @@ def create_job_posting(request, data: CreateJobPostingSchema):
                 "message": f"Job created successfully! ₱{downpayment} escrow deducted from your wallet."
             }
         
-        elif payment_method == "GCASH":
-            # Use database transaction to ensure atomicity
-            with db_transaction.atomic():
-                # Create job posting first (with escrowPaid=False)
-                job_posting = JobPosting.objects.create(
-                    clientID=client_profile,
-                    title=data.title,
-                    description=data.description,
-                    categoryID=category,
-                    budget=data.budget,
-                    escrowAmount=downpayment,
-                    escrowPaid=False,  # Will be marked true after Xendit payment
-                    remainingPayment=remaining_payment,
-                    location=data.location,
-                    expectedDuration=data.expected_duration,
-                    urgency=data.urgency.upper() if data.urgency else "MEDIUM",
-                    preferredStartDate=preferred_start_date,
-                    materialsNeeded=data.materials_needed if data.materials_needed else [],
-                    status=JobPosting.JobStatus.ACTIVE
-                )
-                
-                # Create pending transaction for escrow payment
-                escrow_transaction = Transaction.objects.create(
-                    walletID=wallet,
-                    transactionType=Transaction.TransactionType.PAYMENT,
-                    amount=downpayment,
-                    balanceAfter=wallet.balance,  # Will update after payment
-                    status=Transaction.TransactionStatus.PENDING,
-                    description=f"Escrow payment (50% downpayment) for job: {job_posting.title}",
-                    relatedJobPosting=job_posting,
-                    referenceNumber=f"ESCROW-{job_posting.jobID}-{timezone.now().strftime('%Y%m%d%H%M%S')}"
-                )
-                
-                print(f"✅ Job posting created: ID={job_posting.jobID}, Title='{job_posting.title}'")
-                print(f"📋 Pending escrow transaction created: ID={escrow_transaction.transactionID}")
-            
-            # Get user profile for Xendit invoice
-            try:
-                profile = Profile.objects.get(accountFK=request.auth)
-                user_name = f"{profile.firstName or ''} {profile.lastName or ''}".strip() or request.auth.email
-            except Profile.DoesNotExist:
-                user_name = request.auth.email
-            
-            # Create Xendit invoice for escrow payment
-            print(f"💳 Creating Xendit invoice for escrow payment...")
-            xendit_result = XenditService.create_gcash_payment(
-                amount=float(downpayment),
-                user_email=request.auth.email,
-                user_name=user_name,
-                transaction_id=escrow_transaction.transactionID
-            )
-            
-            if not xendit_result.get("success"):
-                # If Xendit fails, delete the job and transaction
-                job_posting.delete()
-                escrow_transaction.delete()
-                return Response(
-                    {"error": "Failed to create payment invoice", "details": xendit_result.get("error")},
-                    status=500
-                )
-            
-            # Update transaction with Xendit details
-            escrow_transaction.xenditInvoiceID = xendit_result['invoice_id']
-            escrow_transaction.xenditExternalID = xendit_result['external_id']
-            escrow_transaction.invoiceURL = xendit_result['invoice_url']
-            escrow_transaction.xenditPaymentChannel = "GCASH"
-            escrow_transaction.xenditPaymentMethod = "EWALLET"
-            escrow_transaction.save()
-            
-            print(f"📄 Xendit invoice created: {xendit_result['invoice_id']}")
-            print(f"🔗 Payment URL: {xendit_result['invoice_url']}")
-            
-            return {
-                "success": True,
-                "requires_payment": True,
-                "payment_method": "GCASH",
-                "job_posting_id": job_posting.jobID,
-                "escrow_amount": float(downpayment),
-                "remaining_payment": float(remaining_payment),
-                "invoice_url": xendit_result['invoice_url'],
-                "invoice_id": xendit_result['invoice_id'],
-                "transaction_id": escrow_transaction.transactionID,
-                "message": f"Job created. Please complete the ₱{downpayment} escrow payment via GCash."
-            }
-        
         else:
             return Response(
-                {"error": f"Invalid payment method: {payment_method}. Use 'WALLET' or 'GCASH'."},
+                {"error": f"Invalid payment method: {payment_method}. Only 'WALLET' is supported."},
                 status=400
             )
             # Create job posting first (with escrowPaid=False)
@@ -460,6 +375,8 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
                 status=400
             )
         
+        assigned_agency = None
+
         # If worker_id provided, validate worker exists
         if data.worker_id:
             try:
@@ -468,6 +385,15 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
             except WorkerProfile.DoesNotExist:
                 return Response(
                     {"error": f"Worker with ID {data.worker_id} not found"},
+                    status=400
+                )
+        elif data.agency_id:
+            try:
+                assigned_agency = Agency.objects.select_related('accountFK').get(agencyId=data.agency_id)
+                print(f"✅ Agency validated: {assigned_agency.businessName}")
+            except Agency.DoesNotExist:
+                return Response(
+                    {"error": f"Agency with ID {data.agency_id} not found"},
                     status=400
                 )
         
@@ -536,8 +462,8 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
                 
                 print(f"💸 Deducted ₱{total_to_charge} from wallet (₱{downpayment} escrow + ₱{platform_fee} fee). New balance: ₱{wallet.balance}")
                 
-                # Determine job type: INVITE if worker_id provided (direct hire), otherwise LISTING (open to all)
-                job_type = JobPosting.JobType.INVITE if data.worker_id else JobPosting.JobType.LISTING
+                # Determine job type: INVITE if worker or agency direct hire
+                job_type = JobPosting.JobType.INVITE if (data.worker_id or data.agency_id) else JobPosting.JobType.LISTING
                 
                 # Create job posting with escrowPaid=True (already deducted)
                 job_posting = JobPosting.objects.create(
@@ -556,7 +482,9 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
                     preferredStartDate=preferred_start_date,
                     materialsNeeded=data.materials_needed if data.materials_needed else [],
                     jobType=job_type,
+                    inviteStatus=JobPosting.InviteStatus.PENDING if job_type == JobPosting.JobType.INVITE else None,
                     assignedWorkerID=worker_profile if data.worker_id else None,
+                    assignedAgencyFK=assigned_agency if data.agency_id else None,
                     status=JobPosting.JobStatus.ACTIVE
                 )
                 
@@ -609,6 +537,9 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
                     notification_title = "Worker Requested"
                     worker_name = f"{worker_profile.profileID.firstName} {worker_profile.profileID.lastName}"
                     notification_message = f"You've hired {worker_name} for '{job_posting.title}'. Escrow payment of ₱{downpayment} has been deducted from your wallet."
+                elif data.agency_id and assigned_agency:
+                    notification_title = "Agency Requested"
+                    notification_message = f"You've invited {assigned_agency.businessName} for '{job_posting.title}'. Escrow payment of ₱{downpayment} has been deducted from your wallet."
                 else:
                     notification_title = "Job Posted Successfully"
                     notification_message = f"Your job '{job_posting.title}' is now live! Escrow payment of ₱{downpayment} has been deducted from your wallet."
@@ -628,7 +559,9 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
                 "payment_method": "WALLET",
                 "job_posting_id": job_posting.jobID,
                 "escrow_amount": float(downpayment),
+                "commission_fee": float(platform_fee),
                 "platform_fee": float(platform_fee),
+                "downpayment_amount": float(total_to_charge),  # Total amount charged (escrow + platform fee)
                 "total_amount": float(total_to_charge),
                 "remaining_payment": float(remaining_payment),
                 "new_wallet_balance": float(wallet.balance),
@@ -638,8 +571,8 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
         elif payment_method == "GCASH":
             # Use database transaction to ensure atomicity
             with db_transaction.atomic():
-                # Determine job type: INVITE if worker_id provided (direct hire), otherwise LISTING (open to all)
-                job_type = JobPosting.JobType.INVITE if data.worker_id else JobPosting.JobType.LISTING
+                # Determine job type: INVITE if worker/agency direct hire, otherwise LISTING
+                job_type = JobPosting.JobType.INVITE if (data.worker_id or data.agency_id) else JobPosting.JobType.LISTING
                 
                 # Create job posting first (with escrowPaid=False)
                 job_posting = JobPosting.objects.create(
@@ -657,6 +590,8 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
                     preferredStartDate=preferred_start_date,
                     materialsNeeded=data.materials_needed if data.materials_needed else [],
                     jobType=job_type,
+                    inviteStatus=JobPosting.InviteStatus.PENDING if job_type == JobPosting.JobType.INVITE else None,
+                    assignedAgencyFK=assigned_agency if data.agency_id else None,
                     status=JobPosting.JobStatus.ACTIVE
                 )
                 
@@ -733,7 +668,9 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
                 "payment_method": "GCASH",
                 "job_posting_id": job_posting.jobID,
                 "escrow_amount": float(downpayment),
+                "commission_fee": float(platform_fee),
                 "platform_fee": float(platform_fee),
+                "downpayment_amount": float(total_to_charge),  # Total amount to charge (escrow + platform fee)
                 "total_amount": float(total_to_charge),
                 "remaining_payment": float(remaining_payment),
                 "invoice_url": xendit_result['invoice_url'],
@@ -745,7 +682,7 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
         elif payment_method == "CASH":
             # Cash payment not allowed for initial escrow - only for final payment
             return Response(
-                {"error": "Cash payment is not available for initial escrow payment. Please use WALLET or GCASH. Cash payment can be used for the final 50% payment after job completion."},
+                {"error": "Cash payment is not available for initial escrow payment. Please use WALLET. Cash payment can be used for the final 50% payment after job completion."},
                 status=400
             )
         
@@ -2051,6 +1988,259 @@ def reject_application(request, job_id: int, application_id: int):
         )
 
 
+@router.post("/{job_id}/reject-invite", auth=dual_auth)
+def reject_job_invite_worker(request, job_id: int, reason: str | None = None):
+    """
+    Worker rejects a job invitation
+    - Updates inviteStatus to REJECTED
+    - Refunds escrow to client (if paid)
+    - Client is notified with rejection reason
+    """
+    try:
+        # Verify user is a worker
+        try:
+            profile = Profile.objects.get(accountFK=request.auth)
+            if profile.profileType != "WORKER":
+                return Response(
+                    {"error": "Only workers can reject job invitations"},
+                    status=403
+                )
+            worker_profile = WorkerProfile.objects.get(profileID=profile)
+        except (Profile.DoesNotExist, WorkerProfile.DoesNotExist):
+            return Response(
+                {"error": "Worker profile not found"},
+                status=404
+            )
+        
+        # Get the job
+        try:
+            from accounts.models import Job
+            job = Job.objects.get(jobID=job_id, assignedWorkerID=worker_profile)
+        except Job.DoesNotExist:
+            return Response(
+                {"error": "Job not found or not assigned to you"},
+                status=404
+            )
+        
+        # Verify job is INVITE type
+        if job.jobType != "INVITE":
+            return Response(
+                {"error": "This is not an INVITE-type job"},
+                status=400
+            )
+        
+        # Verify invite is still pending
+        if job.inviteStatus != "PENDING":
+            status_text = job.inviteStatus.lower() if job.inviteStatus else "processed"
+            return Response(
+                {"error": f"Invite has already been {status_text}"},
+                status=400
+            )
+        
+        # Update job status
+        from django.utils import timezone
+        from django.db import transaction as db_transaction
+        
+        with db_transaction.atomic():
+            job.inviteStatus = "REJECTED"
+            job.inviteRejectionReason = reason or "No reason provided"
+            job.inviteRespondedAt = timezone.now()
+            job.status = "CANCELLED"  # Job is cancelled since worker rejected
+            job.save()
+            
+            # Refund escrow to client if it was paid
+            if job.escrowPaid:
+                try:
+                    from accounts.models import Wallet, Transaction
+                    client_wallet = Wallet.objects.get(accountFK=job.clientID.profileID.accountFK)
+                    refund_amount = job.escrowAmount
+                    
+                    # Refund to wallet
+                    client_wallet.balance += refund_amount
+                    client_wallet.save()
+                    
+                    # Create refund transaction
+                    Transaction.objects.create(
+                        walletID=client_wallet,
+                        transactionType=Transaction.TransactionType.REFUND,
+                        amount=refund_amount,
+                        balanceAfter=client_wallet.balance,
+                        status=Transaction.TransactionStatus.COMPLETED,
+                        description=f"Refund for rejected INVITE job: {job.title}",
+                        relatedJobID=job,
+                        completedAt=timezone.now(),
+                        referenceNumber=f"REFUND-{job.jobID}-{timezone.now().strftime('%Y%m%d%H%M%S')}"
+                    )
+                    
+                    print(f"💰 Refunded ₱{refund_amount} to client wallet")
+                except Exception as e:
+                    print(f"⚠️ Refund error: {str(e)}")
+        
+        # Send notification to client
+        from accounts.models import Notification
+        worker_name = f"{profile.firstName} {profile.lastName}".strip()
+        rejection_msg = f"{worker_name} has declined your invitation for '{job.title}'."
+        if reason:
+            rejection_msg += f" Reason: {reason}"
+        rejection_msg += " Your escrow payment has been refunded."
+        
+        Notification.objects.create(
+            accountFK=job.clientID.profileID.accountFK,
+            notificationType="JOB_INVITE_REJECTED",
+            title=f"{worker_name} Declined Your Invitation",
+            message=rejection_msg,
+            relatedJobID=job.jobID
+        )
+        
+        # Send confirmation to worker
+        Notification.objects.create(
+            accountFK=request.auth,
+            notificationType="JOB_INVITE_REJECTED_CONFIRM",
+            title=f"Job Declined: {job.title}",
+            message=f"You've declined the job invitation for '{job.title}'.",
+            relatedJobID=job.jobID
+        )
+        
+        print(f"✅ Worker {worker_profile.profileID.profileID} rejected job {job_id}")
+        
+        return {
+            "success": True,
+            "message": "Job invitation rejected. Client has been notified and refunded.",
+            "job_id": job.jobID,
+            "invite_status": "REJECTED",
+            "refund_processed": job.escrowPaid
+        }
+        
+    except Exception as e:
+        print(f"❌ Error rejecting job invite: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": f"Failed to reject job invite: {str(e)}"},
+            status=500
+        )
+
+
+@router.post("/{job_id}/accept-invite", auth=dual_auth)
+def accept_job_invite_worker(request, job_id: int):
+    """
+    Worker accepts a job invitation
+    - Updates inviteStatus to ACCEPTED
+    - Job becomes ACTIVE and ready for work
+    - Client is notified of acceptance
+    """
+    try:
+        # Verify user is a worker
+        try:
+            profile = Profile.objects.get(accountFK=request.auth)
+            if profile.profileType != "WORKER":
+                return Response(
+                    {"error": "Only workers can accept job invitations"},
+                    status=403
+                )
+            worker_profile = WorkerProfile.objects.get(profileID=profile)
+        except (Profile.DoesNotExist, WorkerProfile.DoesNotExist):
+            return Response(
+                {"error": "Worker profile not found"},
+                status=404
+            )
+        
+        # Get the job
+        try:
+            job = Job.objects.get(jobID=job_id, assignedWorkerID=worker_profile)
+        except Job.DoesNotExist:
+            return Response(
+                {"error": "Job not found or not assigned to you"},
+                status=404
+            )
+        
+        # Verify job is INVITE type
+        if job.jobType != "INVITE":
+            return Response(
+                {"error": "This is not an INVITE-type job"},
+                status=400
+            )
+        
+        # Verify invite is still pending
+        if job.inviteStatus != "PENDING":
+            status_text = job.inviteStatus.lower() if job.inviteStatus else "processed"
+            return Response(
+                {"error": f"Invite has already been {status_text}"},
+                status=400
+            )
+        
+        # Verify escrow is paid
+        if not job.escrowPaid:
+            return Response(
+                {"error": "Cannot accept job - escrow payment is pending"},
+                status=400
+            )
+        
+        # Update job status
+        job.inviteStatus = "ACCEPTED"
+        job.inviteRespondedAt = timezone.now()
+        job.status = "IN_PROGRESS"  # Worker accepted, work is starting
+        job.save()
+        
+        # Create conversation between client and worker for this job
+        from profiles.models import Conversation
+        try:
+            conversation, created = Conversation.objects.get_or_create(
+                relatedJobPosting=job,
+                defaults={
+                    'client': job.clientID.profileID,
+                    'worker': worker_profile.profileID,
+                    'status': Conversation.ConversationStatus.ACTIVE
+                }
+            )
+            if created:
+                print(f"✅ Created conversation {conversation.conversationID} for INVITE job {job_id}")
+            else:
+                print(f"ℹ️ Conversation already exists for job {job_id}")
+        except Exception as e:
+            print(f"⚠️ Failed to create conversation: {str(e)}")
+            # Don't fail the job acceptance if conversation creation fails
+        
+        # Send notification to client
+        from accounts.models import Notification
+        worker_name = f"{profile.firstName} {profile.lastName}".strip()
+        Notification.objects.create(
+            accountFK=job.clientID.profileID.accountFK,
+            notificationType="JOB_INVITE_ACCEPTED",
+            title=f"{worker_name} Accepted Your Invitation",
+            message=f"{worker_name} has accepted your invitation for '{job.title}'. The job is now active!",
+            relatedJobID=job.jobID
+        )
+        
+        # Send confirmation to worker
+        Notification.objects.create(
+            accountFK=request.auth,
+            notificationType="JOB_INVITE_ACCEPTED_CONFIRM",
+            title=f"Job Accepted: {job.title}",
+            message=f"You've accepted the job invitation for '{job.title}'. Start working on the project!",
+            relatedJobID=job.jobID
+        )
+        
+        print(f"✅ Worker {worker_profile.profileID.profileID} accepted job {job_id}")
+        
+        return {
+            "success": True,
+            "message": "Job invitation accepted successfully!",
+            "job_id": job.jobID,
+            "invite_status": "ACCEPTED",
+            "job_status": "ACTIVE"
+        }
+        
+    except Exception as e:
+        print(f"❌ Error accepting job invite: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": f"Failed to accept job invite: {str(e)}"},
+            status=500
+        )
+
+
 #region JOB IMAGE UPLOAD
 
 @router.post("/{job_id}/upload-image", auth=cookie_auth)
@@ -2723,75 +2913,10 @@ def client_approve_job_completion(
                     "worker_id": job.assignedWorkerID.profileID.accountFK.accountID if job.assignedWorkerID else None
                 }
             
-            # Handle GCASH payment (online via Xendit)
-            from accounts.xendit_service import XenditService
-            
-            # Get or create wallet for client
-            wallet, _ = Wallet.objects.get_or_create(
-                accountFK=client_profile.profileID.accountFK,
-                defaults={'balance': 0}
-            )
-            
-            # Create a transaction record for the remaining payment
-            transaction = Transaction.objects.create(
-                walletID=wallet,
-                transactionType="PAYMENT",
-                amount=remaining_amount,
-                balanceAfter=wallet.balance,  # Balance won't change yet (pending)
-                status="PENDING",
-                description=f"Remaining payment for job: {job.title} (GCash)",
-                referenceNumber=f"JOB-{job.jobID}-FINAL-GCASH-{timezone.now().strftime('%Y%m%d%H%M%S')}",
-                relatedJobPosting=job
-            )
-            
-            # Generate Xendit invoice
-            client_name = f"{client_profile.profileID.firstName} {client_profile.profileID.lastName}".strip() or "Client"
-            invoice_result = XenditService.create_gcash_payment(
-                amount=float(remaining_amount),
-                user_email=client_profile.profileID.accountFK.email,
-                user_name=client_name,
-                transaction_id=transaction.transactionID
-            )
-            
-            if invoice_result:
-                print(f"✅ Xendit invoice created for final payment: {invoice_result['invoice_id']}")
-                
-                # Store invoice details in transaction
-                transaction.referenceNumber = f"{transaction.referenceNumber}-{invoice_result['invoice_id']}"
-                transaction.save()
-                
-                return {
-                    "success": True,
-                    "message": "Job completion approved! Please complete the GCash payment.",
-                    "job_id": job_id,
-                    "worker_marked_complete": job.workerMarkedComplete,
-                    "client_marked_complete": job.clientMarkedComplete,
-                    "status": job.status,
-                    "payment_method": "GCASH",
-                    "requires_payment": True,
-                    "requires_proof_upload": False,
-                    "invoice_url": invoice_result["invoice_url"],
-                    "invoice_id": invoice_result["invoice_id"],
-                    "payment_amount": float(remaining_amount),
-                    "prompt_review": False,  # Only after payment
-                    "worker_id": job.assignedWorkerID.profileID.accountFK.accountID if job.assignedWorkerID else None
-                }
-            else:
-                # If invoice creation fails, allow proceeding without payment
-                print(f"⚠️ Xendit invoice creation failed, allowing review without payment")
-                return {
-                    "success": True,
-                    "message": "Job completion approved! Payment processing unavailable, please contact support.",
-                    "job_id": job_id,
-                    "worker_marked_complete": job.workerMarkedComplete,
-                    "client_marked_complete": job.clientMarkedComplete,
-                    "status": job.status,
-                    "payment_method": "GCASH",
-                    "requires_payment": False,
-                    "payment_error": True,
-                    "prompt_review": True,
-                    "worker_id": job.assignedWorkerID.profileID.accountFK.accountID if job.assignedWorkerID else None
-                }
+            # If not WALLET or CASH, return error
+            return Response({
+                "error": f"Invalid payment method: {payment_method_upper}. Only WALLET or CASH is supported."
+            }, status=400)
                 
         except Exception as payment_error:
             print(f"⚠️ Error processing payment: {str(payment_error)}")

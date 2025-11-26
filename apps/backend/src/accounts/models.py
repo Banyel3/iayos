@@ -1374,3 +1374,29 @@ class Barangay(models.Model):
     
     def __str__(self):
         return f"{self.name}, {self.city.name}"
+
+
+class UserPaymentMethod(models.Model):
+    """User's payment methods for withdrawals (GCash, Bank)"""
+    
+    class MethodType(models.TextChoices):
+        GCASH = "GCASH", "GCash"
+        BANK = "BANK", "Bank Account"
+    
+    accountFK = models.ForeignKey(Accounts, on_delete=models.CASCADE, related_name='payment_methods')
+    methodType = models.CharField(max_length=10, choices=MethodType.choices)
+    accountName = models.CharField(max_length=255)  # Name on account
+    accountNumber = models.CharField(max_length=50)  # GCash number or bank account number
+    bankName = models.CharField(max_length=100, null=True, blank=True)  # Only for bank accounts
+    isPrimary = models.BooleanField(default=False)
+    isVerified = models.BooleanField(default=False)
+    createdAt = models.DateTimeField(auto_now_add=True)
+    updatedAt = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-isPrimary', '-createdAt']
+        verbose_name = 'Payment Method'
+        verbose_name_plural = 'Payment Methods'
+    
+    def __str__(self):
+        return f"{self.methodType} - {self.accountName} ({self.accountNumber[-4:]})"

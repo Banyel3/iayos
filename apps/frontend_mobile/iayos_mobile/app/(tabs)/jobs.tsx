@@ -38,10 +38,13 @@ interface MyJob {
   job_type: "INVITE" | "LISTING";
   invite_status?: "PENDING" | "ACCEPTED" | "REJECTED";
   assigned_worker_id?: number | null;
+  assigned_agency_id?: number | null;
   client_name?: string;
   client_img?: string;
   worker_name?: string;
   worker_img?: string;
+  agency_name?: string;
+  agency_logo?: string;
   application_status?: "PENDING" | "ACCEPTED" | "REJECTED" | "WITHDRAWN";
 }
 
@@ -67,11 +70,17 @@ interface MyApplication {
   estimated_duration?: string;
   budget_option: "ACCEPT" | "NEGOTIATE";
   created_at: string;
+  assigned_agency_id?: number | null;
   client_name: string;
   client_img?: string;
 }
-
-type TabType = "open" | "pending" | "applications" | "inProgress" | "past";
+type TabType =
+  | "open"
+  | "pending"
+  | "requests"
+  | "applications"
+  | "inProgress"
+  | "past";
 
 export default function JobsScreen() {
   const { user } = useAuth();
@@ -88,6 +97,7 @@ export default function JobsScreen() {
     switch (tab) {
       case "open":
       case "pending":
+      case "requests":
         return "ACTIVE";
       case "inProgress":
         return "IN_PROGRESS";
@@ -156,6 +166,8 @@ export default function JobsScreen() {
 
   // DEBUG: Log job data to see what's being received
   console.log("📋 Jobs received from backend:", jobs.length);
+  console.log("📋 Current user profile ID:", user?.profile_data?.id);
+  console.log("📋 Active tab:", activeTab);
   jobs.forEach((job, index) => {
     console.log(`  Job ${index + 1}:`, {
       id: job.job_id,
@@ -163,6 +175,7 @@ export default function JobsScreen() {
       job_type: job.job_type,
       invite_status: job.invite_status,
       assigned_worker_id: job.assigned_worker_id,
+      assigned_agency_id: job.assigned_agency_id,
       status: job.status,
     });
   });
@@ -176,13 +189,60 @@ export default function JobsScreen() {
         : true;
     }
     if (activeTab === "pending") {
-      // Pending: INVITE type (job requests) with assigned worker, status ACTIVE (not yet accepted/in progress)
-      // Note: invite_status field may be None/null in DB, so we check job.status === "ACTIVE" instead
-      return isClient
-        ? job.job_type === "INVITE" &&
-            job.assigned_worker_id &&
-            job.status === "ACTIVE"
-        : false;
+      // Pending: INVITE type job requests that already have an assignee (worker or agency)
+      if (!isClient) {
+        return false;
+      }
+
+      const hasAssignee = Boolean(
+        job.assigned_worker_id || job.assigned_agency_id
+      );
+
+      if (!(job.job_type === "INVITE" && hasAssignee)) {
+        return false;
+      }
+
+      // Prefer invite_status when populated, fallback to status for backwards compatibility
+      if (job.invite_status) {
+        return job.invite_status === "PENDING";
+      }
+
+      return job.status === "ACTIVE";
+    }
+    if (activeTab === "requests") {
+      // Requests: INVITE type jobs assigned to this worker (worker job invitations)
+      if (!isWorker) {
+        console.log("  ❌ Not a worker, skipping requests filter");
+        return false;
+      }
+
+      console.log(`\n  🔍 Checking job ${job.job_id} for requests tab:`);
+      console.log(`     job_type: "${job.job_type}" (expected: "INVITE")`);
+      console.log(`     assigned_worker_id: ${job.assigned_worker_id}`);
+      console.log(`     my profile id: ${user?.profile_data?.id}`);
+      console.log(
+        `     invite_status: "${job.invite_status}" (expected: "PENDING")`
+      );
+      console.log(`     status: "${job.status}"`);
+
+      // Must be INVITE type with this worker assigned and pending status
+      const isInviteType = job.job_type === "INVITE";
+      const isAssignedToMe = job.assigned_worker_id === user?.profile_data?.id;
+      // Treat null invite_status as PENDING for backwards compatibility with old jobs
+      const isPendingInvite =
+        job.invite_status === "PENDING" ||
+        (job.invite_status === null && job.status === "ACTIVE");
+      const isActive = job.status === "ACTIVE";
+
+      console.log(`     ✓ isInviteType: ${isInviteType}`);
+      console.log(`     ✓ isAssignedToMe: ${isAssignedToMe}`);
+      console.log(`     ✓ isPendingInvite: ${isPendingInvite}`);
+      console.log(`     ✓ isActive: ${isActive}`);
+      console.log(
+        `     → WILL SHOW: ${isInviteType && isAssignedToMe && isPendingInvite}`
+      );
+
+      return isInviteType && isAssignedToMe && isPendingInvite;
     }
     // For inProgress and past, show all job types
     return true;
@@ -417,6 +477,29 @@ export default function JobsScreen() {
           </View>
         )}
 
+        {isClient && job.agency_name && (
+          <View style={styles.userInfoContainer}>
+            {job.agency_logo ? (
+              <Image
+                source={{ uri: job.agency_logo }}
+                style={styles.userAvatar}
+              />
+            ) : (
+              <View style={[styles.userAvatar, styles.avatarPlaceholder]}>
+                <Ionicons
+                  name="business"
+                  size={16}
+                  color={Colors.textSecondary}
+                />
+              </View>
+            )}
+            <View style={styles.userTextContainer}>
+              <Text style={styles.userLabel}>Agency</Text>
+              <Text style={styles.userName}>{job.agency_name}</Text>
+            </View>
+          </View>
+        )}
+
         {isWorker && job.client_name && (
           <View style={styles.userInfoContainer}>
             {job.client_img ? (
@@ -525,6 +608,23 @@ export default function JobsScreen() {
                 ]}
               >
                 Pending
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {isWorker && (
+            <TouchableOpacity
+              style={[styles.tab, activeTab === "requests" && styles.tabActive]}
+              onPress={() => setActiveTab("requests")}
+              activeOpacity={0.7}
+            >
+              <Text
+                style={[
+                  styles.tabText,
+                  activeTab === "requests" && styles.tabTextActive,
+                ]}
+              >
+                Requests
               </Text>
             </TouchableOpacity>
           )}
@@ -770,9 +870,11 @@ export default function JobsScreen() {
                 ? "No open job posts yet"
                 : activeTab === "pending"
                   ? "No pending job requests"
-                  : activeTab === "inProgress"
-                    ? "No jobs in progress"
-                    : "No completed jobs yet"}
+                  : activeTab === "requests"
+                    ? "No job invitations yet"
+                    : activeTab === "inProgress"
+                      ? "No jobs in progress"
+                      : "No completed jobs yet"}
             </Text>
             {(activeTab === "open" || activeTab === "pending") && isClient && (
               <TouchableOpacity
