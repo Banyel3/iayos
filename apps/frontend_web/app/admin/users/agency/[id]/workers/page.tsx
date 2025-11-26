@@ -5,7 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Input } from "@/components/ui/input";
-import { Search, MapPin, UserCheck, Plus, UserX } from "lucide-react";
+import { Search, MapPin, UserCheck, Plus, UserX, Download, Eye, Star } from "lucide-react";
+import { useAgencyEmployees, exportEmployeesToCSV } from "@/lib/hooks/useAdminAgency";
 
 interface AgencyEmployee {
   id: string;
@@ -22,6 +23,10 @@ interface AgencyEmployee {
   agencyId: string;
 }
 
+// TODO: Replace mock data with useAgencyEmployees(agencyId) hook
+// Hook is created at lib/hooks/useAdminAgency.ts
+// This page needs full refactor to use real API data
+//
 // Mock agency employees data - internal staff, not platform freelancers
 const mockEmployees: AgencyEmployee[] = [
   {
