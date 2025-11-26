@@ -568,4 +568,3 @@ export default function KYCManagementPage() {
     </div>
   );
 }
-}
