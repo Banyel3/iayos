@@ -72,18 +72,16 @@ export default function WithdrawScreen() {
   const { data: walletData, isLoading: walletLoading } = useWallet();
 
   // Fetch payment methods
-  const {
-    data: paymentMethodsData,
-    isLoading: methodsLoading,
-  } = useQuery<PaymentMethodsResponse>({
-    queryKey: ["payment-methods"],
-    queryFn: async () => {
-      const response = await apiRequest(ENDPOINTS.PAYMENT_METHODS);
-      if (!response.ok) throw new Error("Failed to fetch payment methods");
-      const data = (await response.json()) as PaymentMethodsResponse;
-      return data;
-    },
-  });
+  const { data: paymentMethodsData, isLoading: methodsLoading } =
+    useQuery<PaymentMethodsResponse>({
+      queryKey: ["payment-methods"],
+      queryFn: async () => {
+        const response = await apiRequest(ENDPOINTS.PAYMENT_METHODS);
+        if (!response.ok) throw new Error("Failed to fetch payment methods");
+        const data = (await response.json()) as PaymentMethodsResponse;
+        return data;
+      },
+    });
 
   // Withdraw mutation
   const withdrawMutation = useWithdraw();
@@ -258,6 +256,13 @@ export default function WithdrawScreen() {
       </SafeAreaView>
     );
   }
+
+  const isWithdrawDisabled =
+    withdrawMutation.isPending ||
+    !amount ||
+    amountNum < 100 ||
+    amountNum > balance ||
+    !selectedMethodId;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -456,21 +461,10 @@ export default function WithdrawScreen() {
           <TouchableOpacity
             style={[
               styles.withdrawButton,
-              (withdrawMutation.isPending ||
-                !amount ||
-                amountNum < 100 ||
-                amountNum > balance ||
-                !selectedMethodId) &&
-                styles.withdrawButtonDisabled,
+              isWithdrawDisabled && styles.withdrawButtonDisabled,
             ]}
             onPress={handleWithdraw}
-            disabled={
-              withdrawMutation.isPending ||
-              !amount ||
-              amountNum < 100 ||
-              amountNum > balance ||
-              !selectedMethodId
-            }
+            disabled={isWithdrawDisabled}
           >
             {withdrawMutation.isPending ? (
               <ActivityIndicator color={Colors.white} />
@@ -479,9 +473,18 @@ export default function WithdrawScreen() {
                 <Ionicons
                   name="arrow-down-circle"
                   size={20}
-                  color={Colors.white}
+                  color={
+                    isWithdrawDisabled ? Colors.textSecondary : Colors.white
+                  }
                 />
-                <Text style={styles.withdrawButtonText}>Withdraw Now</Text>
+                <Text
+                  style={[
+                    styles.withdrawButtonText,
+                    isWithdrawDisabled && styles.withdrawButtonTextDisabled,
+                  ]}
+                >
+                  Withdraw Now
+                </Text>
               </>
             )}
           </TouchableOpacity>
@@ -774,13 +777,15 @@ const styles = StyleSheet.create({
     ...Shadows.medium,
   },
   withdrawButtonDisabled: {
-    backgroundColor: Colors.textLight,
-    opacity: 0.5,
+    backgroundColor: Colors.border,
   },
   withdrawButtonText: {
     fontSize: Typography.fontSize.lg,
     fontWeight: Typography.fontWeight.bold,
     color: Colors.white,
+  },
+  withdrawButtonTextDisabled: {
+    color: Colors.textSecondary,
   },
   successContainer: {
     flex: 1,
