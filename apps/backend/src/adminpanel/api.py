@@ -8,6 +8,7 @@ from django.shortcuts import redirect
 from django.urls import reverse
 from .service import fetchAll_kyc, review_kyc_items, approve_kyc, reject_kyc, fetch_kyc_logs
 from .service import approve_agency_kyc, reject_agency_kyc, get_admin_dashboard_stats
+from .service import get_agency_kyc_list, review_agency_kyc
 from .service import get_clients_list, get_workers_list, get_agencies_list
 from .service import get_worker_detail, get_client_detail, get_agency_detail
 from .service import get_jobs_list, get_job_applications_list, get_jobs_dashboard_stats
@@ -153,6 +154,76 @@ def create_agency_kyc_from_paths(request):
         import traceback
         traceback.print_exc()
         return {"success": False, "error": str(e)}
+
+
+@router.get("/agency-kyc", auth=cookie_auth)
+def get_agency_kyc_submissions(request, status: Optional[str] = None):
+    """
+    Get list of agency KYC submissions with optional status filtering.
+    
+    Query params:
+    - status: Optional filter (PENDING, APPROVED, REJECTED)
+    """
+    try:
+        submissions = get_agency_kyc_list(status_filter=status)
+        return {
+            "success": True,
+            "submissions": submissions,
+            "count": len(submissions)
+        }
+    except Exception as e:
+        print(f"❌ Error in get_agency_kyc_submissions: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+@router.post("/agency-kyc/{agency_kyc_id}/review", auth=cookie_auth)
+def review_agency_kyc_submission(request, agency_kyc_id: int):
+    """
+    Review (approve or reject) an agency KYC submission.
+    
+    Expects JSON body with:
+    - status: 'APPROVED' or 'REJECTED'
+    - notes: Optional review notes (required for rejection)
+    """
+    import json
+    
+    try:
+        body = json.loads(request.body.decode('utf-8'))
+        status = body.get('status')
+        notes = body.get('notes', '')
+        
+        if not status:
+            return {"success": False, "error": "status is required"}
+        
+        if status.upper() not in ['APPROVED', 'REJECTED']:
+            return {"success": False, "error": "status must be 'APPROVED' or 'REJECTED'"}
+        
+        if status.upper() == 'REJECTED' and not notes:
+            return {"success": False, "error": "notes are required when rejecting"}
+        
+        # Get reviewer from auth
+        reviewer = request.auth
+        if not reviewer:
+            return {"success": False, "error": "authentication required"}
+        
+        result = review_agency_kyc(
+            agency_kyc_id=agency_kyc_id,
+            status=status.upper(),
+            notes=notes,
+            reviewer=reviewer
+        )
+        
+        return result
+    except ValueError as e:
+        return {"success": False, "error": str(e)}
+    except Exception as e:
+        print(f"❌ Error in review_agency_kyc_submission: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
 
 @router.get("/kyc/logs")
 def get_kyc_logs(request, action: str | None = None, limit: int = 100):

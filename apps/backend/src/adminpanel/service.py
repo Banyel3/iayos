@@ -529,6 +529,141 @@ def reject_kyc(request):
         raise
 
 
+from agency.models import AgencyKYC, AgencyKycFile, AgencyEmployee
+
+
+def get_agency_kyc_list(status_filter: Optional[str] = None):
+    """
+    Get list of agency KYC submissions with optional status filtering.
+    
+    Args:
+        status_filter: Optional status filter (PENDING, APPROVED, REJECTED)
+    
+    Returns:
+        List of agency KYC submissions with account and file details
+    """
+    from django.db.models import Prefetch
+    
+    # Base queryset with related data
+    queryset = AgencyKYC.objects.select_related(
+        'accountFK',
+        'reviewedBy'
+    ).prefetch_related(
+        Prefetch('agencykycfile_set', queryset=AgencyKycFile.objects.all())
+    ).order_by('-createdAt')
+    
+    # Apply status filter if provided
+    if status_filter and status_filter.upper() in ['PENDING', 'APPROVED', 'REJECTED']:
+        queryset = queryset.filter(status=status_filter.upper())
+    
+    # Serialize results
+    submissions = []
+    for kyc in queryset:
+        # Get files for this KYC
+        files = []
+        for kyc_file in kyc.agencykycfile_set.all():
+            files.append({
+                'file_id': kyc_file.fileID,
+                'file_type': kyc_file.fileType,
+                'file_url': kyc_file.fileURL,
+                'file_name': kyc_file.fileName or 'document',
+                'uploaded_at': kyc_file.uploadedAt.isoformat() if kyc_file.uploadedAt else None,
+            })
+        
+        submissions.append({
+            'agency_kyc_id': kyc.agencyKycID,
+            'account_id': kyc.accountFK.accountID,
+            'account_email': kyc.accountFK.email,
+            'business_name': getattr(kyc, 'businessName', '') or '',
+            'business_desc': getattr(kyc, 'businessDesc', '') or '',
+            'registration_number': getattr(kyc, 'registrationNumber', '') or '',
+            'status': kyc.status,
+            'notes': kyc.notes or None,
+            'reviewed_at': kyc.reviewedAt.isoformat() if kyc.reviewedAt else None,
+            'reviewed_by_email': kyc.reviewedBy.email if kyc.reviewedBy else None,
+            'submitted_at': kyc.createdAt.isoformat() if kyc.createdAt else None,
+            'files': files,
+        })
+    
+    return submissions
+
+
+def review_agency_kyc(agency_kyc_id: int, status: str, notes: str, reviewer):
+    """
+    Review (approve or reject) an agency KYC submission.
+    
+    Args:
+        agency_kyc_id: ID of the AgencyKYC record
+        status: 'APPROVED' or 'REJECTED'
+        notes: Optional review notes (required for rejection)
+        reviewer: Admin account performing the review
+    """
+    if status not in ['APPROVED', 'REJECTED']:
+        raise ValueError("Status must be 'APPROVED' or 'REJECTED'")
+    
+    # Fetch the AgencyKYC record
+    agency_record = AgencyKYC.objects.select_related('accountFK').get(agencyKycID=agency_kyc_id)
+    account = agency_record.accountFK
+    
+    # If already in final state, return early
+    if agency_record.status == status:
+        return {
+            "success": True,
+            "message": f"Agency KYC already {status.lower()}",
+            "agencyKycID": agency_kyc_id,
+        }
+    
+    # Update status
+    agency_record.status = status
+    agency_record.reviewedAt = timezone.now()
+    agency_record.reviewedBy = reviewer
+    agency_record.notes = notes or ""
+    agency_record.save()
+    
+    # Create audit log
+    kyc_log = KYCLogs.objects.create(
+        kycID=agency_record.agencyKycID,
+        accountFK=account,
+        action=status,
+        reviewedBy=reviewer,
+        reviewedAt=agency_record.reviewedAt,
+        reason=notes or f"Agency KYC {status.lower()}",
+        userEmail=account.email,
+        userAccountID=account.accountID,
+        kycType="AGENCY",
+    )
+    
+    # Create notification
+    if status == "APPROVED":
+        # Mark account as KYC verified
+        account.KYCVerified = True
+        account.save()
+        
+        Notification.objects.create(
+            accountFK=account,
+            notificationType="AGENCY_KYC_APPROVED",
+            title="Agency KYC Verification Approved ✅",
+            message=f"Your agency KYC verification has been approved.",
+            relatedKYCLogID=kyc_log.kycLogID,
+        )
+    else:
+        Notification.objects.create(
+            accountFK=account,
+            notificationType="AGENCY_KYC_REJECTED",
+            title="Agency KYC Verification Rejected",
+            message=f"Your agency KYC submission was rejected. Reason: {notes}",
+            relatedKYCLogID=kyc_log.kycLogID,
+        )
+    
+    return {
+        "success": True,
+        "message": f"Agency KYC {status.lower()} successfully",
+        "agencyKycID": agency_kyc_id,
+        "accountID": account.accountID,
+        "status": status,
+    }
+
+
 def approve_agency_kyc(request):
     """
     Approve an AgencyKYC submission.
