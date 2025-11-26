@@ -282,6 +282,8 @@ else:
 XENDIT_API_KEY = os.getenv("XENDIT_API_KEY")  # Must be set in .env.docker
 XENDIT_WEBHOOK_TOKEN = os.getenv("XENDIT_WEBHOOK_TOKEN", "")  # Optional: for webhook verification
 XENDIT_TEST_MODE = True  # Always True for development
+XENDIT_TEST_ACCOUNT_NAME = os.getenv("XENDIT_TEST_ACCOUNT_NAME", "Test GCash User")
+XENDIT_TEST_ACCOUNT_NUMBER = os.getenv("XENDIT_TEST_ACCOUNT_NUMBER", "09123456789")
 
 # Frontend URL for redirects
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")

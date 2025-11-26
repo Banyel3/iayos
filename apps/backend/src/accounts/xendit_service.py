@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 import uuid
 import logging
 import base64
+import copy
 
 logger = logging.getLogger(__name__)
 
@@ -129,107 +130,221 @@ class XenditService:
     
     @staticmethod
     def create_disbursement(amount: float, recipient_name: str, account_number: str, transaction_id: int, notes: str = ""):
-        """
-        Create a GCash disbursement (payout) via Xendit Disbursement API
-        
-        Args:
-            amount: Amount in PHP to disburse
-            recipient_name: Recipient's name
-            account_number: GCash mobile number (09XXXXXXXXX)
-            transaction_id: Internal transaction ID for reference
-            notes: Optional description
-            
-        Returns:
-            dict: Disbursement details including status
-        """
+        """Create a GCash disbursement (payout) via Xendit APIs."""
         try:
-            # Generate unique external ID
             external_id = f"IAYOS-WITHDRAW-{transaction_id}-{uuid.uuid4().hex[:8]}"
-            
-            # Clean phone number (remove spaces, dashes)
-            clean_number = account_number.replace(' ', '').replace('-', '')
-            
-            # Ensure it starts with +63
-            if clean_number.startswith('09'):
-                phone_number = f"+63{clean_number[1:]}"
-            elif clean_number.startswith('639'):
-                phone_number = f"+{clean_number}"
-            elif clean_number.startswith('+639'):
-                phone_number = clean_number
-            else:
-                return {
-                    "success": False,
-                    "error": "Invalid GCash number format. Must start with 09."
+
+            def normalize_gcash(number: str):
+                raw = (number or "").strip()
+                cleaned = raw.replace(" ", "").replace("-", "")
+                if cleaned.startswith("09") and len(cleaned) == 11:
+                    return cleaned, f"+63{cleaned[1:]}"
+                if cleaned.startswith("639") and len(cleaned) == 12:
+                    local = f"0{cleaned[2:]}"
+                    return local, f"+{cleaned}"
+                if cleaned.startswith("+639") and len(cleaned) == 13:
+                    local = f"0{cleaned[3:]}"
+                    return local, cleaned
+                return None, None
+
+            local_number, phone_number = normalize_gcash(account_number)
+            if not local_number:
+                return {"success": False, "error": "Invalid GCash number format. Use 09XXXXXXXXX"}
+
+            # TEST MODE: Use invoice API instead of disbursements (sandbox doesn't support real payouts)
+            if getattr(settings, 'XENDIT_TEST_MODE', False):
+                print(f"🧪 Xendit TEST MODE: Creating withdrawal invoice instead of real disbursement")
+                
+                # Create a test invoice to simulate withdrawal
+                invoice_data = {
+                    "external_id": external_id,
+                    "amount": float(amount),
+                    "payer_email": "test@iayos.com",
+                    "description": f"TEST MODE Withdrawal: ₱{amount} to {recipient_name} ({local_number})",
+                    "invoice_duration": 86400,  # 24 hours
+                    "currency": "PHP",
+                    "should_send_email": False,
+                    "success_redirect_url": f"{getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')}/wallet?withdrawal=success",
+                    "failure_redirect_url": f"{getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')}/wallet?withdrawal=failed",
                 }
-            
-            # Xendit Disbursement API payload
-            disbursement_data = {
+                
+                print(f"🔐 Xendit TEST Invoice Request:")
+                print(f"   URL: {XenditService.BASE_URL}/v2/invoices")
+                print(f"   Amount: {amount} PHP")
+                print(f"   External ID: {external_id}")
+                print(f"   Recipient: {recipient_name} ({phone_number})")
+                
+                response = requests.post(
+                    f"{XenditService.BASE_URL}/v2/invoices",
+                    json=invoice_data,
+                    headers=XenditService._get_headers(),
+                    timeout=30,
+                )
+                
+                print(f"📡 Xendit TEST Invoice Response: Status {response.status_code}")
+                
+                if response.status_code == 200:
+                    invoice = response.json()
+                    logger.info(
+                        "✅ Xendit TEST Invoice created: %s for withdrawal transaction %s",
+                        invoice.get("id"),
+                        transaction_id,
+                    )
+                    return {
+                        "success": True,
+                        "disbursement_id": invoice.get("id"),
+                        "external_id": invoice.get("external_id"),
+                        "amount": invoice.get("amount"),
+                        "status": "PENDING",  # Invoices start as pending
+                        "invoice_url": invoice.get("invoice_url"),
+                        "test_mode": True,
+                        "message": "Test mode: Invoice created. In production, this would be a real GCash disbursement."
+                    }
+                else:
+                    error_data = response.json() if response.text else {}
+                    error_message = error_data.get("message", f"HTTP {response.status_code}")
+                    logger.error("❌ Xendit TEST Invoice Error: %s", error_message)
+                    print(f"❌ Xendit Response: {response.status_code} - {response.text}")
+                    return {"success": False, "error": error_message, "error_details": error_data}
+
+            # PRODUCTION MODE: Real disbursement logic
+            test_number = getattr(settings, "XENDIT_TEST_ACCOUNT_NUMBER", None)
+            test_name = getattr(settings, "XENDIT_TEST_ACCOUNT_NAME", recipient_name)
+            override_local, override_phone = normalize_gcash(test_number or "")
+            if override_local:
+                print("🔐 Using configured test GCash account for production disbursement")
+                local_number = override_local
+                phone_number = override_phone
+                recipient_name = test_name or recipient_name
+
+            payout_payload = {
+                "reference_id": external_id,
+                "channel_code": "PH_GCASH",
+                "channel_properties": {
+                    "account_name": recipient_name,
+                    "account_holder_name": recipient_name,
+                    "account_number": local_number,
+                },
+                "description": notes or f"Wallet Withdrawal - ₱{amount}",
+                "amount": int(amount),
+                "currency": "PHP",
+            }
+
+            print("🔐 Xendit Disbursement Request (payout API):")
+            print(f"   URL: {XenditService.BASE_URL}/payouts")
+            print(f"   Amount: {amount} PHP")
+            print(f"   Reference ID: {external_id}")
+            print("   Channel: PH_GCASH")
+            print(f"   Recipient: {recipient_name} ({phone_number})")
+
+            response = requests.post(
+                f"{XenditService.BASE_URL}/payouts",
+                json=payout_payload,
+                headers=XenditService._get_headers(),
+                timeout=30,
+            )
+
+            print(f"📡 Xendit Payout Response: Status {response.status_code}")
+
+            if response.status_code in (200, 201):
+                disbursement = response.json()
+                logger.info(
+                    "✅ Xendit Payout created: %s for transaction %s",
+                    disbursement.get("id"),
+                    transaction_id,
+                )
+                return {
+                    "success": True,
+                    "disbursement_id": disbursement.get("id"),
+                    "external_id": disbursement.get("reference_id", external_id),
+                    "amount": disbursement.get("amount"),
+                    "status": disbursement.get("status"),
+                    "channel_code": disbursement.get("channel_code"),
+                    "failure_code": disbursement.get("failure_code"),
+                    "channel_properties": disbursement.get("channel_properties", {}),
+                }
+
+            should_fallback = response.status_code in (400, 403, 404)
+            error_data = response.json() if response.text else {}
+
+            if not should_fallback:
+                error_message = error_data.get("message", f"HTTP {response.status_code}")
+                logger.error("❌ Xendit Payout Error: %s", error_message)
+                print(f"❌ Xendit Response: {response.status_code} - {response.text}")
+                return {"success": False, "error": error_message, "error_details": error_data}
+
+            fallback_reason = error_data.get("message", f"HTTP {response.status_code}")
+            logger.warning(
+                "⚠️ Payout API unavailable (status=%s, reason=%s). Falling back to legacy disbursements.",
+                response.status_code,
+                fallback_reason,
+            )
+
+            # Legacy disbursements use old flat structure, NOT new payout structure
+            legacy_payload = {
                 "external_id": external_id,
-                "amount": float(amount),
+                "amount": int(amount),
                 "bank_code": "GCASH",
                 "account_holder_name": recipient_name,
-                "account_number": phone_number,
+                "account_number": local_number,
                 "description": notes or f"Wallet Withdrawal - ₱{amount}",
-                "email_to": [],  # No email notifications
+                "email_to": [],
                 "email_cc": [],
                 "email_bcc": []
             }
-            
-            print(f"🔐 Xendit Disbursement Request:")
-            print(f"   URL: {XenditService.BASE_URL}/disbursements")
-            print(f"   Amount: {amount} PHP")
-            print(f"   External ID: {external_id}")
-            print(f"   Recipient: {recipient_name} ({phone_number})")
-            
-            # Make API request to Xendit
-            response = requests.post(
+
+            print(f"📤 Legacy Disbursement Payload: bank_code=GCASH, account={local_number}, holder={recipient_name}")
+
+            legacy_response = requests.post(
                 f"{XenditService.BASE_URL}/disbursements",
-                json=disbursement_data,
+                json=legacy_payload,
                 headers=XenditService._get_headers(),
-                timeout=30
+                timeout=30,
             )
-            
-            print(f"📡 Xendit Disbursement Response: Status {response.status_code}")
-            
-            if response.status_code == 200:
-                disbursement = response.json()
-                logger.info(f"✅ Xendit Disbursement created: {disbursement['id']} for transaction {transaction_id}")
-                
+
+            print(f"📡 Legacy Disbursement Response: Status {legacy_response.status_code}")
+
+            if legacy_response.status_code in (200, 201):
+                disbursement = legacy_response.json()
+                logger.info(
+                    "✅ Legacy Disbursement created: %s for transaction %s",
+                    disbursement.get("id"),
+                    transaction_id,
+                )
                 return {
                     "success": True,
-                    "disbursement_id": disbursement['id'],
-                    "external_id": external_id,
-                    "amount": disbursement['amount'],
-                    "status": disbursement['status'],
-                    "bank_code": disbursement.get('bank_code'),
-                    "account_number": disbursement.get('account_number')
+                    "disbursement_id": disbursement.get("id"),
+                    "external_id": disbursement.get("external_id", external_id),
+                    "amount": disbursement.get("amount"),
+                    "status": disbursement.get("status"),
+                    "bank_code": disbursement.get("bank_code"),
+                    "account_number": disbursement.get("account_number"),
+                    "fallback": True,
                 }
-            else:
-                error_data = response.json() if response.text else {}
-                error_message = error_data.get('message', f'HTTP {response.status_code}')
-                logger.error(f"❌ Xendit Disbursement Error: {error_message}")
-                print(f"❌ Xendit Response: {response.status_code} - {response.text}")
-                return {
-                    "success": False,
-                    "error": error_message
-                }
-            
+
+            legacy_error = legacy_response.json() if legacy_response.text else {}
+            legacy_message = legacy_error.get("message", f"HTTP {legacy_response.status_code}")
+            logger.error("❌ Xendit Legacy Disbursement Error: %s", legacy_message)
+            print(f"❌ Xendit Response: {legacy_response.status_code} - {legacy_response.text}")
+            return {
+                "success": False,
+                "error": legacy_message,
+                "error_details": legacy_error,
+                "fallback_attempted": True,
+            }
+
         except requests.exceptions.RequestException as e:
-            logger.error(f"❌ Xendit Disbursement API request failed: {str(e)}")
+            logger.error("❌ Xendit Disbursement API request failed: %s", str(e))
             import traceback
+
             traceback.print_exc()
-            return {
-                "success": False,
-                "error": f"Connection error: {str(e)}"
-            }
+            return {"success": False, "error": f"Connection error: {str(e)}"}
         except Exception as e:
-            logger.error(f"❌ Xendit Disbursement creation failed: {str(e)}")
+            logger.error("❌ Xendit Disbursement creation failed: %s", str(e))
             import traceback
+
             traceback.print_exc()
-            return {
-                "success": False,
-                "error": str(e)
-            }
+            return {"success": False, "error": str(e)}
     
     @staticmethod
     def get_invoice_status(invoice_id: str):

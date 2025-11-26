@@ -1,3 +1,4 @@
+import json
 from ninja import Router, File, Form
 from ninja.responses import Response
 from ninja.files import UploadedFile
@@ -108,17 +109,20 @@ def create_job_posting(request, data: CreateJobPostingSchema):
         downpayment = Decimal(str(data.budget)) * Decimal('0.5')
         remaining_payment = Decimal(str(data.budget)) * Decimal('0.5')
         
-        # Calculate platform fee (5% of escrow for ALL payment methods - this is our revenue)
-        platform_fee = downpayment * Decimal('0.05')  # 5% platform fee on escrow
+        # Calculate platform fee (10% of TOTAL BUDGET - this is our revenue)
+        platform_fee = Decimal(str(data.budget)) * Decimal('0.10')  # 10% platform fee on total budget
         
-        total_to_charge = downpayment + platform_fee  # Total amount to charge client
+        # Client pays: downpayment + platform fee upfront, then remaining payment at completion
+        total_to_charge = downpayment + platform_fee  # Total amount to charge client for first payment
         
         print(f"💰 Payment breakdown:")
         print(f"   Total Budget: ₱{data.budget}")
         print(f"   Downpayment (50%): ₱{downpayment}")
+        print(f"   Platform Fee (10% of budget): ₱{platform_fee}")
+        print(f"   First Payment (downpayment + fee): ₱{total_to_charge}")
         print(f"   Remaining (50%): ₱{remaining_payment}")
-        print(f"   Platform Fee (5%): ₱{platform_fee}")
-        print(f"   Total to Charge: ₱{total_to_charge}")
+        print(f"   Total Client Pays: ₱{Decimal(str(data.budget)) + platform_fee}")
+        print(f"   Worker Receives: ₱{data.budget} (full budget)")
         
         # Get or create client's wallet
         wallet, created = Wallet.objects.get_or_create(
@@ -195,8 +199,22 @@ def create_job_posting(request, data: CreateJobPostingSchema):
                     referenceNumber=f"ESCROW-{job_posting.jobID}-{timezone.now().strftime('%Y%m%d%H%M%S')}"
                 )
                 
+                # Create platform fee transaction record (for revenue tracking)
+                fee_transaction = Transaction.objects.create(
+                    walletID=wallet,
+                    transactionType=Transaction.TransactionType.FEE,
+                    amount=platform_fee,
+                    balanceAfter=wallet.balance,
+                    status=Transaction.TransactionStatus.COMPLETED,
+                    description=f"Platform fee (10% of budget) for job: {job_posting.title}",
+                    relatedJobPosting=job_posting,
+                    completedAt=timezone.now(),
+                    referenceNumber=f"FEE-{job_posting.jobID}-{timezone.now().strftime('%Y%m%d%H%M%S')}"
+                )
+                
                 print(f"✅ Job posting created: ID={job_posting.jobID}, Title='{job_posting.title}'")
                 print(f"✅ Escrow transaction completed: ID={escrow_transaction.transactionID}")
+                print(f"💰 Platform fee transaction recorded: ID={fee_transaction.transactionID}, Amount=₱{platform_fee}")
 
                 # Create escrow payment notification for client
                 from accounts.models import Notification
@@ -412,18 +430,20 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
         downpayment = Decimal(str(data.budget)) * Decimal('0.5')
         remaining_payment = Decimal(str(data.budget)) * Decimal('0.5')
         
-        # Calculate platform fee (5% of escrow for ALL payment methods - this is our revenue)
-        platform_fee = downpayment * Decimal('0.05')  # 5% platform fee on escrow
+        # Calculate platform fee (10% of TOTAL BUDGET - this is our revenue)
+        platform_fee = Decimal(str(data.budget)) * Decimal('0.10')  # 10% platform fee on total budget
         
-        total_to_charge = downpayment + platform_fee  # Total amount to charge client
+        # Client pays: downpayment + platform fee upfront, then remaining payment at completion
+        total_to_charge = downpayment + platform_fee  # Total amount to charge client for first payment
         
         print(f"💰 Payment breakdown:")
         print(f"   Total Budget: ₱{data.budget}")
         print(f"   Downpayment (50%): ₱{downpayment}")
+        print(f"   Platform Fee (10% of budget): ₱{platform_fee}")
+        print(f"   First Payment (downpayment + fee): ₱{total_to_charge}")
         print(f"   Remaining (50%): ₱{remaining_payment}")
-        if platform_fee > 0:
-            print(f"   Platform Fee (5%): ₱{platform_fee}")
-            print(f"   Total to Charge: ₱{total_to_charge}")
+        print(f"   Total Client Pays: ₱{Decimal(str(data.budget)) + platform_fee}")
+        print(f"   Worker Receives: ₱{data.budget} (full budget)")
         
         # Get or create client's wallet
         wallet, created = Wallet.objects.get_or_create(
@@ -526,8 +546,22 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
                     referenceNumber=f"ESCROW-{job_posting.jobID}-{timezone.now().strftime('%Y%m%d%H%M%S')}"
                 )
                 
+                # Create platform fee transaction record (for revenue tracking)
+                fee_transaction = Transaction.objects.create(
+                    walletID=wallet,
+                    transactionType=Transaction.TransactionType.FEE,
+                    amount=platform_fee,
+                    balanceAfter=wallet.balance,
+                    status=Transaction.TransactionStatus.COMPLETED,
+                    description=f"Platform fee (10% of budget) for job: {job_posting.title}",
+                    relatedJobPosting=job_posting,
+                    completedAt=timezone.now(),
+                    referenceNumber=f"FEE-{job_posting.jobID}-{timezone.now().strftime('%Y%m%d%H%M%S')}"
+                )
+                
                 print(f"✅ Job posting created: ID={job_posting.jobID}, Title='{job_posting.title}'")
                 print(f"✅ Escrow transaction completed: ID={escrow_transaction.transactionID}")
+                print(f"💰 Platform fee transaction recorded: ID={fee_transaction.transactionID}, Amount=₱{platform_fee}")
 
                 # Create escrow payment notification for client
                 from accounts.models import Notification
@@ -2347,7 +2381,7 @@ def upload_job_image(request, job_id: int, image: UploadedFile = File(...)):  # 
         )
 
 
-@router.post("/{job_id}/confirm-work-started", auth=cookie_auth)
+@router.post("/{job_id}/confirm-work-started", auth=dual_auth)
 def client_confirm_work_started(request, job_id: int):
     """
     Client confirms that worker has arrived and begun work
@@ -2528,6 +2562,18 @@ def worker_mark_job_complete(request, job_id: int):
                 status=400
             )
         
+        # Extract optional notes/photos from request body (mobile sends JSON)
+        completion_notes = None
+        completion_photos = []
+        if hasattr(request, 'body') and request.body:
+            try:
+                payload = json.loads(request.body.decode('utf-8'))
+                completion_notes = payload.get('notes')
+                completion_photos = payload.get('photos', []) or []
+                print(f"📝 Completion payload received - Notes: {bool(completion_notes)}, Photos: {len(completion_photos)}")
+            except json.JSONDecodeError:
+                print("⚠️ Could not parse completion payload JSON - continuing without notes/photos")
+
         # Mark as complete by worker
         job.workerMarkedComplete = True
         job.workerMarkedCompleteAt = timezone.now()
@@ -2537,7 +2583,7 @@ def worker_mark_job_complete(request, job_id: int):
         
         # Log this action for admin verification and audit trail
         completion_time = timezone.now()
-        notes_text = data.notes if data.notes else "No completion notes provided"
+        notes_text = completion_notes if completion_notes else "No completion notes provided"
         JobLog.objects.create(
             jobID=job,
             notes=f"[{completion_time.strftime('%Y-%m-%d %I:%M:%S %p')}] Worker {worker_profile.profileID.firstName} {worker_profile.profileID.lastName} marked job as complete. Notes: {notes_text}",
@@ -2837,9 +2883,9 @@ def client_approve_job_completion(
                 wallet.balance -= remaining_amount
                 wallet.save()
                 
-                print(f"💸 Deducted ₱{remaining_amount} from wallet. New balance: ₱{wallet.balance}")
+                print(f"💸 Deducted ₱{remaining_amount} from client wallet. New balance: ₱{wallet.balance}")
                 
-                # Create transaction record
+                # Create transaction record for client
                 transaction = Transaction.objects.create(
                     walletID=wallet,
                     transactionType="PAYMENT",
@@ -2850,6 +2896,32 @@ def client_approve_job_completion(
                     referenceNumber=f"JOB-{job.jobID}-FINAL-WALLET-{timezone.now().strftime('%Y%m%d%H%M%S')}",
                     relatedJobPosting=job
                 )
+                
+                # Transfer FULL BUDGET to worker's wallet (worker receives 100% of agreed budget)
+                if job.assignedWorkerID and job.assignedWorkerID.profileID:
+                    worker_wallet, _ = Wallet.objects.get_or_create(
+                        accountFK=job.assignedWorkerID.profileID.accountFK,
+                        defaults={'balance': Decimal('0.00')}
+                    )
+                    
+                    # Worker receives the FULL budget amount (client pays budget + 10% fee)
+                    worker_payment = job.budget
+                    worker_wallet.balance += worker_payment
+                    worker_wallet.save()
+                    
+                    print(f"💰 Credited ₱{worker_payment} (full budget) to worker wallet. New balance: ₱{worker_wallet.balance}")
+                    
+                    # Create earnings transaction record for worker
+                    Transaction.objects.create(
+                        walletID=worker_wallet,
+                        transactionType="EARNINGS",
+                        amount=worker_payment,
+                        balanceAfter=worker_wallet.balance,
+                        status="COMPLETED",
+                        description=f"Payment received for job: {job.title}",
+                        referenceNumber=f"JOB-{job.jobID}-EARNINGS-{timezone.now().strftime('%Y%m%d%H%M%S')}",
+                        relatedJobPosting=job
+                    )
                 
                 # Mark payment as completed
                 job.remainingPaymentPaid = True
@@ -2865,7 +2937,7 @@ def client_approve_job_completion(
                         accountFK=job.assignedWorkerID.profileID.accountFK,
                         notificationType="PAYMENT_RELEASED",
                         title=f"Payment Received! 💰",
-                        message=f"You received ₱{remaining_amount} payment for '{job.title}'. The job is now complete!",
+                        message=f"You received ₱{job.budget} for '{job.title}'. The full amount has been added to your wallet!",
                         relatedJobID=job.jobID
                     )
                     print(f"📬 Payment notification sent to worker {job.assignedWorkerID.profileID.accountFK.email}")
@@ -2898,18 +2970,92 @@ def client_approve_job_completion(
             # Handle CASH payment (manual with proof upload)
             if payment_method_upper == 'CASH':
                 print(f"💵 Cash payment selected - proof uploaded to {cash_proof_url}")
+                
+                # For CASH: Worker receives physical cash from client (remaining 50%)
+                # The downpayment (50%) was already held in escrow during job creation
+                # We now transfer the downpayment to worker's wallet AND log the cash payment
+                # Worker receives full budget: 50% in wallet (from escrow) + 50% physical cash = 100%
+                if job.assignedWorkerID and job.assignedWorkerID.profileID:
+                    worker_wallet, _ = Wallet.objects.get_or_create(
+                        accountFK=job.assignedWorkerID.profileID.accountFK,
+                        defaults={'balance': Decimal('0.00')}
+                    )
+                    
+                    # Transfer downpayment (50%) from escrow to worker's wallet
+                    downpayment = job.budget * Decimal('0.5')
+                    worker_wallet.balance += downpayment
+                    worker_wallet.save()
+                    
+                    print(f"💰 Transferred ₱{downpayment} (50% downpayment escrow) to worker wallet. New balance: ₱{worker_wallet.balance}")
+                    print(f"💵 Worker received ₱{remaining_amount} (50% remaining) in physical cash from client")
+                    print(f"✅ Worker received full budget: ₱{downpayment} (wallet from escrow) + ₱{remaining_amount} (physical cash) = ₱{job.budget}")
+                    
+                    # Create earnings transaction record for the downpayment transfer (from escrow to wallet)
+                    Transaction.objects.create(
+                        walletID=worker_wallet,
+                        transactionType="EARNINGS",
+                        amount=downpayment,
+                        balanceAfter=worker_wallet.balance,
+                        status="COMPLETED",
+                        description=f"Downpayment escrow released for job: {job.title}",
+                        referenceNumber=f"JOB-{job.jobID}-EARNINGS-ESCROW-{timezone.now().strftime('%Y%m%d%H%M%S')}",
+                        relatedJobPosting=job
+                    )
+                    print(f"📝 Downpayment escrow transaction recorded: ₱{downpayment} transferred to wallet")
+                    
+                    # Create CASH payment log (does NOT affect wallet balance - for audit trail only)
+                    Transaction.objects.create(
+                        walletID=worker_wallet,
+                        transactionType="EARNINGS",
+                        amount=remaining_amount,
+                        balanceAfter=worker_wallet.balance,  # Balance stays same - this is just a log
+                        status="COMPLETED",
+                        description=f"Cash payment received for job: {job.title} (physical cash - not wallet deposit)",
+                        referenceNumber=f"JOB-{job.jobID}-CASH-PAYMENT-{timezone.now().strftime('%Y%m%d%H%M%S')}",
+                        relatedJobPosting=job
+                    )
+                    print(f"📝 Cash payment transaction logged: ₱{remaining_amount} received in physical cash (audit trail only)")
+                    
+                    # Create payment notification for the worker
+                    Notification.objects.create(
+                        accountFK=job.assignedWorkerID.profileID.accountFK,
+                        notificationType="PAYMENT_RELEASED",
+                        title=f"Payment Received! 💰",
+                        message=f"You received ₱{job.budget} for '{job.title}': ₱{downpayment} added to wallet + ₱{remaining_amount} cash payment confirmed.",
+                        relatedJobID=job.jobID
+                    )
+                    print(f"📬 Payment notification sent to worker {job.assignedWorkerID.profileID.accountFK.email}")
+                
+                # Mark job as completed
+                job.remainingPaymentPaid = True
+                job.remainingPaymentPaidAt = timezone.now()
+                job.status = "COMPLETED"
+                job.save()
+                
+                print(f"✅ Job {job_id} marked as COMPLETED via CASH payment")
+                
+                # Create payment confirmation for the client
+                Notification.objects.create(
+                    accountFK=client_profile.profileID.accountFK,
+                    notificationType="REMAINING_PAYMENT_PAID",
+                    title=f"Payment Confirmed",
+                    message=f"Your cash payment proof for '{job.title}' was uploaded successfully. Please leave a review!",
+                    relatedJobID=job.jobID
+                )
+                print(f"📬 Payment confirmation sent to client {client_profile.profileID.accountFK.email}")
+                
                 return {
                     "success": True,
                     "message": "Job completion approved! Cash payment proof uploaded successfully. You can now leave a review.",
                     "job_id": job_id,
                     "worker_marked_complete": job.workerMarkedComplete,
                     "client_marked_complete": job.clientMarkedComplete,
-                    "status": job.status,
+                    "status": "COMPLETED",
                     "payment_method": "CASH",
                     "requires_payment": False,
                     "cash_proof_uploaded": True,
                     "payment_amount": float(remaining_amount),
-                    "prompt_review": True,  # Client can review immediately after upload
+                    "prompt_review": True,
                     "worker_id": job.assignedWorkerID.profileID.accountFK.accountID if job.assignedWorkerID else None
                 }
             

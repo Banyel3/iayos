@@ -63,11 +63,11 @@ export default function WalletDepositScreen() {
         const response = await apiRequest(ENDPOINTS.PAYMENT_METHODS);
         if (!response.ok) throw new Error("Failed to fetch payment methods");
         const data = await response.json();
-        return data.payment_methods || [];
+        return data; // Return the full response object with payment_methods property
       },
     });
 
-  const hasGCashMethod = paymentMethodsData?.some(
+  const hasGCashMethod = paymentMethodsData?.payment_methods?.some(
     (method: any) => method.type === "GCASH"
   );
 

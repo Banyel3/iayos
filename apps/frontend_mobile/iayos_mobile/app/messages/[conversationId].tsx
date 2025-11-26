@@ -1020,24 +1020,6 @@ export default function ChatScreen() {
 
             <TouchableOpacity
               style={styles.paymentOption}
-              onPress={() => handlePaymentMethodSelect("GCASH")}
-            >
-              <Ionicons name="card" size={24} color={Colors.primary} />
-              <View style={styles.paymentOptionText}>
-                <Text style={styles.paymentOptionTitle}>GCash</Text>
-                <Text style={styles.paymentOptionDesc}>
-                  Pay securely via GCash
-                </Text>
-              </View>
-              <Ionicons
-                name="chevron-forward"
-                size={20}
-                color={Colors.textSecondary}
-              />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.paymentOption}
               onPress={() => handlePaymentMethodSelect("CASH")}
             >
               <Ionicons name="cash" size={24} color={Colors.primary} />
