@@ -125,6 +125,11 @@ class AgencyEmployee(models.Model):
 	
 	def __str__(self):
 		return f"{self.name} ({self.email}) - {self.agency.email}"
+
+	@property
+	def employeeId(self):
+		"""Alias with lowercase d for backward compatibility."""
+		return self.employeeID
 	
 	def calculate_average_rating(self):
 		"""

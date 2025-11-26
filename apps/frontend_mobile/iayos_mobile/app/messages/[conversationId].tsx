@@ -485,9 +485,10 @@ export default function ChatScreen() {
       ) > 60000;
 
     // Extract image URL from attachments if present
-    const imageUrl = item.attachments && item.attachments.length > 0 
-      ? item.attachments[0].file_url 
-      : null;
+    const imageUrl =
+      item.attachments && item.attachments.length > 0
+        ? item.attachments[0].file_url
+        : null;
 
     return (
       <View>
@@ -620,11 +621,7 @@ export default function ChatScreen() {
           onPress={() => router.back()}
           style={styles.backButton}
         >
-          <Ionicons
-            name="arrow-back"
-            size={24}
-            color={Colors.textPrimary}
-          />
+          <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle} numberOfLines={1}>

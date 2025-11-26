@@ -810,6 +810,27 @@ class Job(models.Model):
         related_name='assigned_jobs',
         help_text="Agency assigned to this job (for agency hires)"
     )
+
+    assignedEmployeeID = models.ForeignKey(
+        'agency.AgencyEmployee',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='assigned_jobs',
+        help_text="Specific agency employee assigned to this job"
+    )
+
+    employeeAssignedAt = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When employee was assigned by agency"
+    )
+
+    assignmentNotes = models.TextField(
+        null=True,
+        blank=True,
+        help_text="Notes from agency about this assignment"
+    )
     
     # Completion Details
     completedAt = models.DateTimeField(null=True, blank=True)
@@ -838,6 +859,7 @@ class Job(models.Model):
             models.Index(fields=['categoryID', 'status']),
             models.Index(fields=['urgency', '-createdAt']),
             models.Index(fields=['assignedWorkerID', 'status']),
+            models.Index(fields=['assignedEmployeeID', 'status'], name='job_assign_emp_status_idx'),
         ]
     
     def __str__(self):

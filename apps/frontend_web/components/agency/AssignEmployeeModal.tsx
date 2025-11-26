@@ -8,7 +8,7 @@ interface Employee {
   name: string;
   email: string;
   role: string;
-  rating: number;
+  rating: number | null;
   totalJobsCompleted: number;
   isActive: boolean;
   workload?: {
@@ -22,8 +22,11 @@ interface Employee {
 interface Job {
   jobID: number;
   title: string;
-  budget: string;
-  category: string;
+  budget: number;
+  category: {
+    id: number;
+    name: string;
+  } | null;
   urgency: string;
 }
 
@@ -81,7 +84,7 @@ export default function AssignEmployeeModal({
   }, [isOpen, employees]);
 
   const handleAssign = async () => {
-    if (!selectedEmployeeId) {
+    if (selectedEmployeeId === null) {
       alert("Please select an employee");
       return;
     }
@@ -126,7 +129,7 @@ export default function AssignEmployeeModal({
   const activeEmployees = employees.filter((e) => e.isActive);
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-white/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
@@ -159,7 +162,7 @@ export default function AssignEmployeeModal({
                 <div>
                   <span className="text-gray-600">Category:</span>
                   <span className="ml-2 font-semibold text-gray-900">
-                    {job.category}
+                    {job.category?.name || "N/A"}
                   </span>
                 </div>
                 <div>
@@ -192,66 +195,71 @@ export default function AssignEmployeeModal({
                 <p className="text-gray-600">No active employees available</p>
               </div>
             ) : (
-              activeEmployees.map((employee) => {
-                const workload = employeeWorkloads[employee.employeeId];
-                const isSelected = selectedEmployeeId === employee.employeeId;
+              <div className="space-y-3">
+                {activeEmployees.map((employee, index) => {
+                  const workload = employeeWorkloads[employee.employeeId];
+                  const isSelected = selectedEmployeeId === employee.employeeId;
 
-                return (
-                  <button
-                    key={employee.employeeId}
-                    onClick={() => setSelectedEmployeeId(employee.employeeId)}
-                    className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
-                      isSelected
-                        ? "border-blue-500 bg-blue-50"
-                        : "border-gray-200 hover:border-gray-300 bg-white"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start space-x-3 flex-1">
-                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold text-lg">
-                          {employee.name.charAt(0)}
-                        </div>
-
-                        <div className="flex-1">
-                          <div className="flex items-center space-x-2 mb-1">
-                            <h4 className="font-semibold text-gray-900">
-                              {employee.name}
-                            </h4>
-                            {workload &&
-                              getAvailabilityBadge(workload.availability)}
+                  return (
+                    <button
+                      key={`employee-${employee.employeeId}-${index}`}
+                      onClick={() => setSelectedEmployeeId(employee.employeeId)}
+                      className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
+                        isSelected
+                          ? "border-blue-500 bg-blue-50"
+                          : "border-gray-200 hover:border-gray-300 bg-white"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start space-x-3 flex-1">
+                          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold text-lg">
+                            {employee.name.charAt(0)}
                           </div>
 
-                          <p className="text-sm text-gray-600">
-                            {employee.role}
-                          </p>
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-2 mb-1">
+                              <h4 className="font-semibold text-gray-900">
+                                {employee.name}
+                              </h4>
+                              {workload &&
+                                getAvailabilityBadge(workload.availability)}
+                            </div>
 
-                          <div className="flex items-center space-x-4 mt-2 text-sm text-gray-600">
-                            <span className="flex items-center">
-                              ⭐ {employee.rating.toFixed(1)}
-                            </span>
-                            <span className="flex items-center">
-                              <Briefcase size={14} className="mr-1" />
-                              {employee.totalJobsCompleted} jobs
-                            </span>
-                            {workload && (
+                            <p className="text-sm text-gray-600">
+                              {employee.role}
+                            </p>
+
+                            <div className="flex items-center space-x-4 mt-2 text-sm text-gray-600">
                               <span className="flex items-center">
-                                📋 {workload.total_active_jobs} active
+                                ⭐{" "}
+                                {employee.rating !== null
+                                  ? employee.rating.toFixed(1)
+                                  : "No rating"}
                               </span>
-                            )}
+                              <span className="flex items-center">
+                                <Briefcase size={14} className="mr-1" />
+                                {employee.totalJobsCompleted} jobs
+                              </span>
+                              {workload && (
+                                <span className="flex items-center">
+                                  📋 {workload.total_active_jobs} active
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
 
-                      {isSelected && (
-                        <CheckCircle
-                          className="text-blue-500 flex-shrink-0"
-                          size={24}
-                        />
-                      )}
-                    </div>
-                  </button>
-                );
-              })
+                        {isSelected && (
+                          <CheckCircle
+                            className="text-blue-500 flex-shrink-0"
+                            size={24}
+                          />
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             )}
           </div>
 
@@ -281,7 +289,7 @@ export default function AssignEmployeeModal({
           </button>
           <button
             onClick={handleAssign}
-            disabled={!selectedEmployeeId || isSubmitting}
+            disabled={selectedEmployeeId === null || isSubmitting}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
           >
             {isSubmitting ? (

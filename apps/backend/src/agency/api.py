@@ -1,4 +1,4 @@
-from ninja import Router
+from ninja import Router, Form
 from ninja.responses import Response
 from accounts.authentication import cookie_auth
 from . import services, schemas
@@ -193,6 +193,22 @@ def get_agency_jobs(request, status: str | None = None, invite_status: str | Non
         return Response({"error": str(e)}, status=400)
     except Exception as e:
         print(f"Error fetching agency jobs: {str(e)}")
+        return Response({"error": "Internal server error"}, status=500)
+
+
+@router.get("/jobs/{job_id}", auth=cookie_auth)
+def get_agency_job_detail(request, job_id: int):
+    """
+    Get detailed information for a specific job assigned to this agency.
+    """
+    try:
+        account_id = request.auth.accountID
+        result = services.get_agency_job_detail(account_id, job_id)
+        return result
+    except ValueError as e:
+        return Response({"error": str(e)}, status=404)
+    except Exception as e:
+        print(f"Error fetching job detail: {str(e)}")
         return Response({"error": "Internal server error"}, status=500)
 
 
@@ -537,8 +553,8 @@ def get_employee_leaderboard(request, sort_by: str = 'rating'):
 def assign_job_to_employee_endpoint(
 	request,
 	job_id: int,
-	employee_id: int,
-	assignment_notes: str = None
+    employee_id: int = Form(...),
+    assignment_notes: str | None = Form(None)
 ):
 	"""
 	Assign an accepted job to a specific employee
@@ -573,7 +589,7 @@ def assign_job_to_employee_endpoint(
 def unassign_job_from_employee_endpoint(
 	request,
 	job_id: int,
-	reason: str = None
+    reason: str | None = Form(None)
 ):
 	"""
 	Unassign an employee from a job

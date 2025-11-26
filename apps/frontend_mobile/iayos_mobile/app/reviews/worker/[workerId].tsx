@@ -153,7 +153,10 @@ export default function WorkerReviewsScreen() {
             {/* Show More/Less Button */}
             {reviewsData.reviews.length > INITIAL_REVIEW_LIMIT && (
               <View style={styles.showMoreContainer}>
-                <Text style={styles.showMoreButton} onPress={() => setShowAllReviews(!showAllReviews)}>
+                <Text
+                  style={styles.showMoreButton}
+                  onPress={() => setShowAllReviews(!showAllReviews)}
+                >
                   {showAllReviews
                     ? "Show less reviews"
                     : `View ${reviewsData.reviews.length - INITIAL_REVIEW_LIMIT} more ${reviewsData.reviews.length - INITIAL_REVIEW_LIMIT === 1 ? "review" : "reviews"} on this page`}

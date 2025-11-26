@@ -446,7 +446,8 @@ def get_agency_jobs(account_id, status_filter=None, invite_status_filter=None, p
 		jobs = Job.objects.filter(query).select_related(
 			'clientID',
 			'clientID__profileID',
-			'categoryID'
+			'categoryID',
+			'assignedEmployeeID'
 		).order_by('-createdAt')[offset:offset + limit]
 		
 		# Format response
@@ -454,6 +455,16 @@ def get_agency_jobs(account_id, status_filter=None, invite_status_filter=None, p
 		for job in jobs:
 			# Get client info
 			client_profile = job.clientID.profileID
+			
+			# Get assigned employee info if exists
+			assigned_employee = None
+			if job.assignedEmployeeID:
+				assigned_employee = {
+					'employeeId': job.assignedEmployeeID.employeeID,
+					'name': job.assignedEmployeeID.name,
+					'email': job.assignedEmployeeID.email,
+					'role': job.assignedEmployeeID.role,
+				}
 			
 			jobs_data.append({
 				'jobID': job.jobID,
@@ -470,6 +481,9 @@ def get_agency_jobs(account_id, status_filter=None, invite_status_filter=None, p
 				'jobType': job.jobType,
 				'expectedDuration': job.expectedDuration,
 				'preferredStartDate': job.preferredStartDate.isoformat() if job.preferredStartDate else None,
+				'assignedEmployeeID': job.assignedEmployeeID.employeeID if job.assignedEmployeeID else None,
+				'assignedEmployee': assigned_employee,
+				'inviteStatus': job.inviteStatus,
 				'client': {
 					'id': client_profile.accountFK.accountID,
 					'name': f"{client_profile.firstName} {client_profile.lastName}",
@@ -500,6 +514,99 @@ def get_agency_jobs(account_id, status_filter=None, invite_status_filter=None, p
 			},
 			'statusCounts': status_counts,
 		}
+		
+	except Accounts.DoesNotExist:
+		raise ValueError("User not found")
+
+
+def get_agency_job_detail(account_id, job_id):
+	"""
+	Get detailed information for a specific job assigned to this agency.
+	
+	Args:
+		account_id: Agency's account ID
+		job_id: Job ID to fetch
+	
+	Returns:
+		Dictionary with complete job details
+	"""
+	try:
+		user = Accounts.objects.get(accountID=account_id)
+		
+		# Verify user has an agency profile
+		try:
+			agency = AgencyProfile.objects.get(accountFK=user)
+		except AgencyProfile.DoesNotExist:
+			raise ValueError("Agency profile not found. Complete KYC first.")
+		
+		# Get job and verify it's assigned to this agency
+		try:
+			job = Job.objects.select_related(
+				'clientID',
+				'clientID__profileID',
+				'categoryID',
+				'assignedEmployeeID'
+			).get(jobID=job_id, assignedAgencyFK=agency)
+		except Job.DoesNotExist:
+			raise ValueError("Job not found or not assigned to your agency")
+		
+		# Get client info
+		client_profile = job.clientID.profileID
+		
+		# Get assigned employee info if exists
+		assigned_employee = None
+		if job.assignedEmployeeID:
+			assigned_employee = {
+				'employeeId': job.assignedEmployeeID.employeeID,
+				'name': job.assignedEmployeeID.name,
+				'email': job.assignedEmployeeID.email,
+				'role': job.assignedEmployeeID.role,
+			}
+		
+		# Parse materials needed if JSON string
+		materials_needed = []
+		if job.materialsNeeded:
+			try:
+				import json
+				if isinstance(job.materialsNeeded, str):
+					materials_needed = json.loads(job.materialsNeeded)
+				elif isinstance(job.materialsNeeded, list):
+					materials_needed = job.materialsNeeded
+			except:
+				materials_needed = []
+		
+		job_data = {
+			'jobID': job.jobID,
+			'title': job.title,
+			'description': job.description,
+			'category': {
+				'id': job.categoryID.specializationID,
+				'name': job.categoryID.specializationName
+			} if job.categoryID else None,
+			'budget': float(job.budget) if job.budget else None,
+			'location': job.location,
+			'urgency': job.urgency,
+			'status': job.status,
+			'jobType': job.jobType,
+			'expectedDuration': job.expectedDuration,
+			'preferredStartDate': job.preferredStartDate.isoformat() if job.preferredStartDate else None,
+			'materialsNeeded': materials_needed,
+			'assignedEmployeeID': job.assignedEmployeeID.employeeID if job.assignedEmployeeID else None,
+			'assignedEmployee': assigned_employee,
+			'employeeAssignedAt': job.employeeAssignedAt.isoformat() if job.employeeAssignedAt else None,
+			'assignmentNotes': job.assignmentNotes,
+			'inviteStatus': job.inviteStatus,
+			'client': {
+				'id': client_profile.accountFK.accountID,
+				'name': f"{client_profile.firstName} {client_profile.lastName}",
+				'avatar': client_profile.profileImg,
+				'email': client_profile.accountFK.email,
+			},
+			'createdAt': job.createdAt.isoformat(),
+			'updatedAt': job.updatedAt.isoformat(),
+		}
+		
+		return {'job': job_data}
 		
 	except Accounts.DoesNotExist:
 		raise ValueError("User not found")
@@ -740,7 +847,6 @@ def assign_job_to_employee(
 		ValueError for validation errors
 	"""
 	from accounts.models import Job, Notification, JobLog
-	from agency.models import AgencyEmployee, Agency
 	from django.utils import timezone
 	from django.db import transaction
 
@@ -755,7 +861,8 @@ def assign_job_to_employee(
 		job = Job.objects.select_related(
 			'clientID__profileID__accountFK',
 			'assignedAgencyFK',
-			'assignedWorkerID'
+			'assignedWorkerID',
+			'assignedEmployeeID'
 		).get(jobID=job_id)
 	except Job.DoesNotExist:
 		raise ValueError(f"Job {job_id} not found")
@@ -768,8 +875,11 @@ def assign_job_to_employee(
 	if job.inviteStatus != 'ACCEPTED':
 		raise ValueError(f"Cannot assign job with invite status: {job.inviteStatus}")
 
-	if job.status not in ['ACTIVE', 'ASSIGNED']:
-		raise ValueError(f"Cannot assign job with status: {job.status}")
+	allowed_statuses = {'ACTIVE', 'ASSIGNED'}
+	if job.status not in allowed_statuses:
+		# Allow rare case where job already moved to IN_PROGRESS but still missing employee
+		if not (job.status == 'IN_PROGRESS' and job.assignedEmployeeID is None):
+			raise ValueError(f"Cannot assign job with status: {job.status}")
 
 	# Check if already assigned to an employee
 	if job.assignedEmployeeID:
@@ -780,14 +890,15 @@ def assign_job_to_employee(
 
 	# Get employee and validate
 	try:
-		employee = AgencyEmployee.objects.select_related(
-			'agencyFK'
-		).get(employeeId=employee_id)
+		employee = AgencyEmployee.objects.select_related('agency').get(
+			employeeID=employee_id,
+			agency=agency_account
+		)
 	except AgencyEmployee.DoesNotExist:
 		raise ValueError(f"Employee {employee_id} not found")
 
 	# Verify employee belongs to this agency
-	if employee.agencyFK != agency:
+	if employee.agency != agency_account:
 		raise ValueError("This employee does not belong to your agency")
 
 	# Verify employee is active
@@ -796,46 +907,47 @@ def assign_job_to_employee(
 
 	# Assign job to employee (atomic transaction)
 	with transaction.atomic():
+		previous_status = job.status
 		# Update job
 		job.assignedEmployeeID = employee
 		job.employeeAssignedAt = timezone.now()
 		job.assignmentNotes = assignment_notes or ""
-		job.status = 'ASSIGNED'  # Update status to ASSIGNED
+		if job.status == 'ACTIVE':
+			job.status = 'ASSIGNED'
 		job.save()
 
-		# Create job log entry
-		JobLog.objects.create(
-			jobID=job,
-			action='EMPLOYEE_ASSIGNED',
-			notes=f"Agency '{agency.businessName}' assigned employee '{employee.name}' to job. Notes: {assignment_notes or 'None'}",
-			changedBy=agency_account,
-			oldStatus='ACTIVE',
-			newStatus='ASSIGNED'
-		)
+	# Create job log entry
+	JobLog.objects.create(
+		jobID=job,
+		notes=f"Employee assigned: Agency '{agency.businessName}' assigned employee '{employee.name}' to job. Notes: {assignment_notes or 'None'}",
+		changedBy=agency_account,
+		oldStatus=previous_status,
+		newStatus=job.status
+	)
 
-		# Get employee's account if exists (for notification)
-		employee_account = getattr(employee, 'accountFK', None)
+	# Get employee's account if exists (for notification)
+	employee_account = getattr(employee, 'accountFK', None)
 
-		if employee_account:
-			# Create notification for employee
-			Notification.objects.create(
-				accountFK=employee_account,
-				notificationType='JOB_ASSIGNED',
-				title=f'New Job Assignment: {job.title}',
-				message=f'You have been assigned to work on "{job.title}" for client {job.clientID.profileID.firstName}. Budget: ₱{job.budget}',
-				relatedJobID=job.jobID
-			)
-
-		# Create notification for client
+	if employee_account:
+		# Create notification for employee
 		Notification.objects.create(
-			accountFK=job.clientID.profileID.accountFK,
-			notificationType='AGENCY_ASSIGNED_WORKER',
-			title=f'Worker Assigned to Your Job',
-			message=f'{agency.businessName} has assigned {employee.name} to work on "{job.title}".',
+			accountFK=employee_account,
+			notificationType='JOB_ASSIGNED',
+			title=f'New Job Assignment: {job.title}',
+			message=f'You have been assigned to work on "{job.title}" for client {job.clientID.profileID.firstName}. Budget: ₱{job.budget}',
 			relatedJobID=job.jobID
 		)
 
-		print(f"✅ Job {job_id} assigned to employee {employee.name} (ID: {employee_id})")
+	# Create notification for client
+	Notification.objects.create(
+		accountFK=job.clientID.profileID.accountFK,
+		notificationType='AGENCY_ASSIGNED_WORKER',
+		title=f'Worker Assigned to Your Job',
+		message=f'{agency.businessName} has assigned {employee.name} to work on "{job.title}".',
+		relatedJobID=job.jobID
+	)
+
+	print(f"✅ Job {job_id} assigned to employee {employee.name} (ID: {employee_id})")
 
 	return {
 		'success': True,
@@ -865,7 +977,6 @@ def unassign_job_from_employee(
 		dict with success status
 	"""
 	from accounts.models import Job, Notification, JobLog
-	from agency.models import Agency
 	from django.utils import timezone
 	from django.db import transaction
 
@@ -900,6 +1011,8 @@ def unassign_job_from_employee(
 	employee_name = job.assignedEmployeeID.name
 	employee_id = job.assignedEmployeeID.employeeId
 
+	previous_status = job.status
+
 	with transaction.atomic():
 		# Clear assignment
 		job.assignedEmployeeID = None
@@ -908,17 +1021,16 @@ def unassign_job_from_employee(
 		job.status = 'ACTIVE'  # Revert to ACTIVE for reassignment
 		job.save()
 
-		# Create job log
-		JobLog.objects.create(
-			jobID=job,
-			action='EMPLOYEE_UNASSIGNED',
-			notes=f"Agency '{agency.businessName}' unassigned employee '{employee_name}'. Reason: {reason or 'Not specified'}",
-			changedBy=agency_account,
-			oldStatus='ASSIGNED',
-			newStatus='ACTIVE'
-		)
-
-		print(f"✅ Employee {employee_name} (ID: {employee_id}) unassigned from job {job_id}")
+	# Create job log
+	JobLog.objects.create(
+		jobID=job,
+		notes=f"Employee unassigned: Agency '{agency.businessName}' unassigned employee '{employee_name}'. Reason: {reason or 'Not specified'}",
+		changedBy=agency_account,
+		oldStatus=previous_status,
+		newStatus='ACTIVE'
+	)
+	
+	print(f"✅ Employee {employee_name} (ID: {employee_id}) unassigned from job {job_id}")
 
 	return {
 		'success': True,
@@ -936,7 +1048,6 @@ def get_employee_workload(agency_account, employee_id: int) -> dict:
 		dict with active jobs count, in-progress count, availability status
 	"""
 	from accounts.models import Job
-	from agency.models import Agency
 
 	try:
 		agency = AgencyProfile.objects.get(accountFK=agency_account)
@@ -945,8 +1056,8 @@ def get_employee_workload(agency_account, employee_id: int) -> dict:
 
 	try:
 		employee = AgencyEmployee.objects.get(
-			employeeId=employee_id,
-			agencyFK=agency
+			employeeID=employee_id,
+			agency=agency_account
 		)
 	except AgencyEmployee.DoesNotExist:
 		raise ValueError(f"Employee {employee_id} not found")
