@@ -372,6 +372,36 @@ def get_agency_by_id(request, account_id: str):
         return {"success": False, "error": str(e)}
 
 
+@router.get("/users/agencies/{account_id}/employees")
+def get_agency_employees_admin(request, account_id: str):
+    """
+    Get all employees for a specific agency (admin access).
+    
+    This endpoint allows admins to view agency employees without requiring
+    agency authentication. It reuses the agency service function but is
+    accessible via admin authentication.
+    
+    Path params:
+    - account_id: The account ID of the agency
+    """
+    try:
+        # Import agency service function
+        from agency.services import get_agency_employees
+        
+        # Fetch employees using agency service (reuse existing logic)
+        employees = get_agency_employees(account_id)
+        
+        return {"success": True, "employees": employees}
+    except ValueError as e:
+        # User/agency not found
+        return {"success": False, "error": str(e)}
+    except Exception as e:
+        print(f"❌ Error fetching agency employees (admin): {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": "Failed to fetch agency employees"}
+
+
 # ==========================================
 # JOBS MANAGEMENT ENDPOINTS
 # ==========================================

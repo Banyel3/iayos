@@ -60,10 +60,9 @@ export function useAgencyEmployees(agencyId: number) {
     queryFn: async () => {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
       
-      // Fetch via admin endpoint (would need to be created)
-      // For now, try agency endpoint directly
+      // Fetch via dedicated admin endpoint
       const response = await fetch(
-        `${apiUrl}/api/agency/employees?agency_id=${agencyId}`,
+        `${apiUrl}/api/adminpanel/users/agencies/${agencyId}/employees`,
         {
           credentials: "include",
         }
@@ -74,24 +73,28 @@ export function useAgencyEmployees(agencyId: number) {
       }
       
       const data = await response.json();
+      
+      if (!data.success) {
+        throw new Error(data.error || "Failed to fetch agency employees");
+      }
 
       // Map backend response to expected format
-      const employees = Array.isArray(data) ? data : data.employees || [];
+      const employees = Array.isArray(data.employees) ? data.employees : [];
       
       return employees.map((emp: any) => ({
-        employee_id: emp.employeeId || emp.employee_id || emp.id,
-        name: emp.name || `${emp.firstName || ''} ${emp.lastName || ''}`.trim(),
+        employee_id: emp.id || emp.employeeID,
+        name: emp.name || '',
         email: emp.email || '',
-        phone: emp.phone || '',
-        role: emp.role || emp.specialization || 'Worker',
+        phone: '', // Not provided by backend
+        role: emp.role || 'Worker',
         rating: emp.rating || 0,
-        total_jobs_completed: emp.totalJobsCompleted || emp.total_jobs_completed || 0,
-        total_earnings: emp.totalEarnings || emp.total_earnings || 0,
+        total_jobs_completed: emp.totalJobsCompleted || 0,
+        total_earnings: emp.totalEarnings || 0,
         is_active: emp.isActive !== false,
-        joined_date: emp.joinedDate || emp.joined_date || emp.createdAt || new Date().toISOString(),
-        employee_of_the_month: emp.employeeOfTheMonth || emp.employee_of_the_month || false,
-        eotm_date: emp.eotmDate || emp.eotm_date || null,
-        eotm_reason: emp.eotmReason || emp.eotm_reason || null,
+        joined_date: new Date().toISOString(), // Not provided by backend
+        employee_of_the_month: emp.employeeOfTheMonth || false,
+        eotm_date: emp.employeeOfTheMonthDate || null,
+        eotm_reason: emp.employeeOfTheMonthReason || null,
       }));
     },
     enabled: !!agencyId && agencyId > 0,
