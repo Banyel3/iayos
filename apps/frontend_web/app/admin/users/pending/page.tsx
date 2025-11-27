@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -18,6 +18,9 @@ import {
   Search,
   Eye,
   FileText,
+  Building2,
+  User,
+  AlertCircle,
 } from "lucide-react";
 import { Sidebar } from "../../components";
 
@@ -26,58 +29,118 @@ interface PendingUser {
   name: string;
   email: string;
   phone: string;
-  type: "worker" | "client";
+  type: "worker" | "client" | "agency";
   submissionDate: string;
   documentsSubmitted: string[];
   priority: "high" | "medium" | "low";
   status: "pending_review" | "under_review" | "requires_action";
+  kycType: "individual" | "agency";
+  accountId: string;
 }
 
-const mockPendingUsers: PendingUser[] = [
-  {
-    id: "1",
-    name: "Alex Rodriguez",
-    email: "alex.rodriguez@example.com",
-    phone: "+1234567890",
-    type: "worker",
-    submissionDate: "2024-03-20",
-    documentsSubmitted: ["ID Card", "Professional License", "Bank Statement"],
-    priority: "high",
-    status: "pending_review",
-  },
-  {
-    id: "2",
-    name: "Emily Davis",
-    email: "emily.davis@example.com",
-    phone: "+1234567891",
-    type: "client",
-    submissionDate: "2024-03-19",
-    documentsSubmitted: ["ID Card", "Proof of Address"],
-    priority: "medium",
-    status: "under_review",
-  },
-  {
-    id: "3",
-    name: "Marcus Johnson",
-    email: "marcus.johnson@example.com",
-    phone: "+1234567892",
-    type: "worker",
-    submissionDate: "2024-03-18",
-    documentsSubmitted: ["ID Card"],
-    priority: "low",
-    status: "requires_action",
-  },
-];
-
 export default function PendingVerificationPage() {
-  const [pendingUsers] = useState<PendingUser[]>(mockPendingUsers);
+  const [pendingUsers, setPendingUsers] = useState<PendingUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [typeFilter, setTypeFilter] = useState<"all" | "worker" | "client">(
+  const [typeFilter, setTypeFilter] = useState<"all" | "worker" | "client" | "agency">(
     "all"
   );
   const [priorityFilter, setPriorityFilter] = useState<
     "all" | "high" | "medium" | "low"
   >("all");
+
+  // Fetch real KYC data from backend
+  useEffect(() => {
+    const fetchPendingKYC = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        const response = await fetch(`${apiUrl}/api/adminpanel/kyc/all`, {
+          credentials: "include",
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch KYC data: ${response.status}`);
+        }
+
+        const data = await response.json();
+        
+        if (!data.success) {
+          throw new Error(data.error || "Failed to fetch KYC data");
+        }
+
+        // Transform individual KYC records
+        const individualKYCs = (data.kyc || [])
+          .filter((kyc: any) => kyc.kycStatus === 'PENDING')
+          .map((kyc: any) => {
+            const user = (data.users || []).find((u: any) => u.accountID === kyc.accountFK_id);
+            const files = (data.kyc_files || []).filter((f: any) => f.kycID_id === kyc.kycID);
+            
+            return {
+              id: kyc.kycID.toString(),
+              accountId: kyc.accountFK_id.toString(),
+              name: user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : 'Unknown',
+              email: user?.email || 'N/A',
+              phone: user?.contactNum || 'N/A',
+              type: (user?.profileType?.toLowerCase() || 'worker') as "worker" | "client" | "agency",
+              submissionDate: kyc.createdAt?.split('T')[0] || 'N/A',
+              documentsSubmitted: files.map((f: any) => f.idType || 'Document'),
+              priority: files.length >= 4 ? 'high' : files.length >= 2 ? 'medium' : 'low',
+              status: 'pending_review' as const,
+              kycType: 'individual' as const,
+            };
+          });
+
+        // Transform agency KYC records
+        const agencyKYCs = (data.agency_kyc || [])
+          .filter((kyc: any) => kyc.status === 'PENDING')
+          .map((kyc: any) => {
+            const agency = (data.agencies || []).find((a: any) => a.accountID === kyc.accountFK_id);
+            const files = (data.agency_kyc_files || []).filter((f: any) => f.agencyKyc_id === kyc.agencyKycID);
+            
+            return {
+              id: `agency_${kyc.agencyKycID}`,
+              accountId: kyc.accountFK_id.toString(),
+              name: agency?.businessName || 'Unknown Agency',
+              email: agency?.email || 'N/A',
+              phone: 'N/A',
+              type: 'agency' as const,
+              submissionDate: kyc.createdAt?.split('T')[0] || 'N/A',
+              documentsSubmitted: files.map((f: any) => {
+                const typeMap: Record<string, string> = {
+                  'BUSINESS_PERMIT': 'Business Permit',
+                  'REPRESENTATIVE_ID_FRONT': 'Rep ID (Front)',
+                  'REPRESENTATIVE_ID_BACK': 'Rep ID (Back)',
+                  'ADDRESS_PROOF': 'Address Proof',
+                  'AUTHORIZATION_LETTER': 'Authorization Letter',
+                };
+                return typeMap[f.fileType] || f.fileType;
+              }),
+              priority: files.length >= 4 ? 'high' : files.length >= 2 ? 'medium' : 'low',
+              status: 'pending_review' as const,
+              kycType: 'agency' as const,
+            };
+          });
+
+        // Combine and sort by submission date (newest first)
+        const allPending = [...individualKYCs, ...agencyKYCs].sort((a, b) => {
+          return new Date(b.submissionDate).getTime() - new Date(a.submissionDate).getTime();
+        });
+
+        setPendingUsers(allPending);
+      } catch (err) {
+        console.error('Error fetching pending KYC:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load pending verifications');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPendingKYC();
+  }, []);
 
   const filteredUsers = pendingUsers.filter((user) => {
     const matchesSearch =
@@ -116,10 +179,28 @@ export default function PendingVerificationPage() {
                 Pending Verification
               </h1>
               <p className="text-muted-foreground">
-                Review and approve user verification requests
+                Review and approve user verification requests (Individual & Agency KYC)
               </p>
             </div>
+            {loading && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Clock className="h-4 w-4 animate-spin" />
+                Loading...
+              </div>
+            )}
           </div>
+
+          {/* Error State */}
+          {error && (
+            <Card className="border-red-200 bg-red-50">
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-2 text-red-600">
+                  <AlertCircle className="h-5 w-5" />
+                  <p className="font-medium">{error}</p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Stats Cards */}
           <div className="grid gap-4 md:grid-cols-4">
@@ -177,6 +258,20 @@ export default function PendingVerificationPage() {
                 </p>
               </CardContent>
             </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Agencies</CardTitle>
+                <Building2 className="h-4 w-4 text-purple-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {pendingUsers.filter((u) => u.type === "agency").length}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Agency applications
+                </p>
+              </CardContent>
+            </Card>
           </div>
 
           {/* Filters */}
@@ -203,13 +298,14 @@ export default function PendingVerificationPage() {
                 <select
                   value={typeFilter}
                   onChange={(e) =>
-                    setTypeFilter(e.target.value as "all" | "worker" | "client")
+                    setTypeFilter(e.target.value as "all" | "worker" | "client" | "agency")
                   }
                   className="px-3 py-2 border rounded-md"
                 >
                   <option value="all">All Types</option>
                   <option value="worker">Workers</option>
                   <option value="client">Clients</option>
+                  <option value="agency">Agencies</option>
                 </select>
                 <select
                   value={priorityFilter}
@@ -229,6 +325,21 @@ export default function PendingVerificationPage() {
             </CardContent>
           </Card>
 
+          {/* Empty State */}
+          {!loading && !error && filteredUsers.length === 0 && (
+            <Card>
+              <CardContent className="pt-6 text-center py-12">
+                <CheckCircle className="h-12 w-12 mx-auto text-green-500 mb-4" />
+                <h3 className="text-lg font-semibold mb-2">No Pending Verifications</h3>
+                <p className="text-muted-foreground">
+                  {searchTerm || typeFilter !== 'all' || priorityFilter !== 'all'
+                    ? 'No verifications match your filters. Try adjusting your search criteria.'
+                    : 'All KYC submissions have been reviewed. Great job!'}
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Pending Users List */}
           <div className="space-y-4">
             {filteredUsers.map((user) => (
@@ -236,10 +347,16 @@ export default function PendingVerificationPage() {
                 <CardContent className="p-6">
                   <div className="flex items-start justify-between">
                     <div className="flex items-start space-x-4">
-                      <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                        <span className="font-semibold text-primary text-lg">
-                          {user.name.charAt(0)}
-                        </span>
+                      <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
+                        user.type === 'agency' ? 'bg-purple-100' : 'bg-primary/10'
+                      }`}>
+                        {user.type === 'agency' ? (
+                          <Building2 className="w-6 h-6 text-purple-600" />
+                        ) : (
+                          <span className="font-semibold text-primary text-lg">
+                            {user.name.charAt(0)}
+                          </span>
+                        )}
                       </div>
                       <div className="space-y-2">
                         <div>
@@ -247,9 +364,11 @@ export default function PendingVerificationPage() {
                           <p className="text-sm text-muted-foreground">
                             {user.email}
                           </p>
-                          <p className="text-sm text-muted-foreground">
-                            {user.phone}
-                          </p>
+                          {user.phone !== 'N/A' && (
+                            <p className="text-sm text-muted-foreground">
+                              {user.phone}
+                            </p>
+                          )}
                         </div>
 
                         <div className="flex items-center space-x-2">
@@ -257,10 +376,13 @@ export default function PendingVerificationPage() {
                             className={`px-2 py-1 rounded-full text-xs font-medium ${
                               user.type === "worker"
                                 ? "bg-blue-100 text-blue-800"
-                                : "bg-green-100 text-green-800"
+                                : user.type === "client"
+                                ? "bg-green-100 text-green-800"
+                                : "bg-purple-100 text-purple-800"
                             }`}
                           >
-                            {user.type}
+                            {user.type === 'agency' && '🏢 '}
+                            {user.type.toUpperCase()}
                           </span>
                           <span
                             className={`px-2 py-1 rounded-full text-xs font-medium ${
