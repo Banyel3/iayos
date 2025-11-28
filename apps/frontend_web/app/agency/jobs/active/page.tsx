@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { useRouter } from 'next/navigation';
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import {
   Clock,
   MapPin,
@@ -13,7 +13,7 @@ import {
   AlertCircle,
   Eye,
   Briefcase,
-} from 'lucide-react';
+} from "lucide-react";
 
 interface ActiveJob {
   jobID: number;
@@ -35,16 +35,21 @@ interface ActiveJob {
 
 export default function ActiveJobsPage() {
   const router = useRouter();
-  const [statusFilter, setStatusFilter] = useState<'all' | 'in_progress' | 'pending'>('all');
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "in_progress" | "pending"
+  >("all");
 
   const { data, isLoading } = useQuery({
-    queryKey: ['agency-active-jobs'],
+    queryKey: ["agency-active-jobs"],
     queryFn: async () => {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-      const response = await fetch(`${apiUrl}/api/agency/jobs?status=IN_PROGRESS`, {
-        credentials: 'include',
-      });
-      if (!response.ok) throw new Error('Failed to fetch jobs');
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const response = await fetch(
+        `${apiUrl}/api/agency/jobs?status=IN_PROGRESS`,
+        {
+          credentials: "include",
+        }
+      );
+      if (!response.ok) throw new Error("Failed to fetch jobs");
       return response.json();
     },
   });
@@ -52,27 +57,45 @@ export default function ActiveJobsPage() {
   const jobs: ActiveJob[] = data?.jobs || [];
 
   const getVisualStatus = (job: ActiveJob): string => {
-    if (job.clientMarkedComplete) return 'COMPLETED';
-    if (job.workerMarkedComplete) return 'PENDING_APPROVAL';
-    if (job.clientConfirmedWorkStarted) return 'IN_PROGRESS';
-    return 'ASSIGNED';
+    if (job.clientMarkedComplete) return "COMPLETED";
+    if (job.workerMarkedComplete) return "PENDING_APPROVAL";
+    if (job.clientConfirmedWorkStarted) return "IN_PROGRESS";
+    return "ASSIGNED";
   };
 
   const getStatusBadge = (job: ActiveJob) => {
     const visualStatus = getVisualStatus(job);
 
     const badges = {
-      ASSIGNED: { color: 'bg-yellow-100 text-yellow-800 border-yellow-200', icon: User, label: 'Assigned' },
-      IN_PROGRESS: { color: 'bg-blue-100 text-blue-800 border-blue-200', icon: Clock, label: 'In Progress' },
-      PENDING_APPROVAL: { color: 'bg-orange-100 text-orange-800 border-orange-200', icon: AlertCircle, label: 'Pending Approval' },
-      COMPLETED: { color: 'bg-green-100 text-green-800 border-green-200', icon: CheckCircle, label: 'Completed' },
+      ASSIGNED: {
+        color: "bg-yellow-100 text-yellow-800 border-yellow-200",
+        icon: User,
+        label: "Assigned",
+      },
+      IN_PROGRESS: {
+        color: "bg-blue-100 text-blue-800 border-blue-200",
+        icon: Clock,
+        label: "In Progress",
+      },
+      PENDING_APPROVAL: {
+        color: "bg-orange-100 text-orange-800 border-orange-200",
+        icon: AlertCircle,
+        label: "Pending Approval",
+      },
+      COMPLETED: {
+        color: "bg-green-100 text-green-800 border-green-200",
+        icon: CheckCircle,
+        label: "Completed",
+      },
     };
 
     const badge = badges[visualStatus as keyof typeof badges];
     const Icon = badge.icon;
 
     return (
-      <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium border ${badge.color}`}>
+      <span
+        className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium border ${badge.color}`}
+      >
         <Icon size={14} />
         {badge.label}
       </span>
@@ -81,30 +104,36 @@ export default function ActiveJobsPage() {
 
   const getUrgencyBadge = (urgency: string) => {
     const colors = {
-      LOW: 'bg-green-100 text-green-800',
-      MEDIUM: 'bg-yellow-100 text-yellow-800',
-      HIGH: 'bg-red-100 text-red-800',
+      LOW: "bg-green-100 text-green-800",
+      MEDIUM: "bg-yellow-100 text-yellow-800",
+      HIGH: "bg-red-100 text-red-800",
     };
 
     return (
-      <span className={`px-2 py-1 rounded-full text-xs font-medium ${colors[urgency as keyof typeof colors]}`}>
+      <span
+        className={`px-2 py-1 rounded-full text-xs font-medium ${colors[urgency as keyof typeof colors]}`}
+      >
         {urgency}
       </span>
     );
   };
 
   const filteredJobs = jobs.filter((job) => {
-    if (statusFilter === 'in_progress') {
+    if (statusFilter === "in_progress") {
       return job.clientConfirmedWorkStarted && !job.workerMarkedComplete;
     }
-    if (statusFilter === 'pending') {
+    if (statusFilter === "pending") {
       return job.workerMarkedComplete && !job.clientMarkedComplete;
     }
     return true;
   });
 
-  const inProgressCount = jobs.filter(j => j.clientConfirmedWorkStarted && !j.workerMarkedComplete).length;
-  const pendingCount = jobs.filter(j => j.workerMarkedComplete && !j.clientMarkedComplete).length;
+  const inProgressCount = jobs.filter(
+    (j) => j.clientConfirmedWorkStarted && !j.workerMarkedComplete
+  ).length;
+  const pendingCount = jobs.filter(
+    (j) => j.workerMarkedComplete && !j.clientMarkedComplete
+  ).length;
 
   if (isLoading) {
     return (
@@ -128,7 +157,9 @@ export default function ActiveJobsPage() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Active Jobs</h1>
-            <p className="text-gray-600">Monitor ongoing jobs and completions</p>
+            <p className="text-gray-600">
+              Monitor ongoing jobs and completions
+            </p>
           </div>
         </div>
       </div>
@@ -136,31 +167,31 @@ export default function ActiveJobsPage() {
       {/* Filters */}
       <div className="mb-6 flex gap-2 flex-wrap">
         <button
-          onClick={() => setStatusFilter('all')}
+          onClick={() => setStatusFilter("all")}
           className={`px-4 py-2 rounded-lg font-medium transition ${
-            statusFilter === 'all'
-              ? 'bg-emerald-600 text-white shadow-sm'
-              : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
+            statusFilter === "all"
+              ? "bg-emerald-600 text-white shadow-sm"
+              : "bg-white text-gray-700 hover:bg-gray-50 border border-gray-200"
           }`}
         >
           All Jobs ({jobs.length})
         </button>
         <button
-          onClick={() => setStatusFilter('in_progress')}
+          onClick={() => setStatusFilter("in_progress")}
           className={`px-4 py-2 rounded-lg font-medium transition ${
-            statusFilter === 'in_progress'
-              ? 'bg-emerald-600 text-white shadow-sm'
-              : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
+            statusFilter === "in_progress"
+              ? "bg-emerald-600 text-white shadow-sm"
+              : "bg-white text-gray-700 hover:bg-gray-50 border border-gray-200"
           }`}
         >
           In Progress ({inProgressCount})
         </button>
         <button
-          onClick={() => setStatusFilter('pending')}
+          onClick={() => setStatusFilter("pending")}
           className={`px-4 py-2 rounded-lg font-medium transition ${
-            statusFilter === 'pending'
-              ? 'bg-emerald-600 text-white shadow-sm'
-              : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
+            statusFilter === "pending"
+              ? "bg-emerald-600 text-white shadow-sm"
+              : "bg-white text-gray-700 hover:bg-gray-50 border border-gray-200"
           }`}
         >
           Pending Approval ({pendingCount})
@@ -208,7 +239,9 @@ export default function ActiveJobsPage() {
               </div>
 
               {/* Description */}
-              <p className="text-gray-700 mb-4 line-clamp-2">{job.description}</p>
+              <p className="text-gray-700 mb-4 line-clamp-2">
+                {job.description}
+              </p>
 
               {/* Info Grid */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
@@ -216,7 +249,9 @@ export default function ActiveJobsPage() {
                   <div className="p-1.5 bg-green-100 rounded">
                     <DollarSign className="text-green-600" size={16} />
                   </div>
-                  <span className="text-gray-700 font-medium">₱{job.budget.toLocaleString()}</span>
+                  <span className="text-gray-700 font-medium">
+                    ₱{job.budget.toLocaleString()}
+                  </span>
                 </div>
                 <div className="flex items-center gap-2 text-sm">
                   <div className="p-1.5 bg-blue-100 rounded">
@@ -228,7 +263,9 @@ export default function ActiveJobsPage() {
                   <div className="p-1.5 bg-purple-100 rounded">
                     <User className="text-purple-600" size={16} />
                   </div>
-                  <span className="text-gray-700 truncate">{job.client.name}</span>
+                  <span className="text-gray-700 truncate">
+                    {job.client.name}
+                  </span>
                 </div>
                 <div className="flex items-center gap-2 text-sm">
                   <div className="p-1.5 bg-gray-100 rounded">
@@ -244,49 +281,62 @@ export default function ActiveJobsPage() {
               {job.assignedEmployee && (
                 <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 mb-4">
                   <p className="text-sm text-emerald-900">
-                    <span className="font-medium">✓ Assigned to:</span> {job.assignedEmployee.name}
+                    <span className="font-medium">✓ Assigned to:</span>{" "}
+                    {job.assignedEmployee.name}
                   </p>
                 </div>
               )}
 
               {/* Progress Indicators */}
               <div className="grid grid-cols-3 gap-2">
-                <div className={`text-center p-3 rounded-lg transition ${
-                  job.clientConfirmedWorkStarted
-                    ? 'bg-green-100 border border-green-300'
-                    : 'bg-gray-100 border border-gray-300'
-                }`}>
+                <div
+                  className={`text-center p-3 rounded-lg transition ${
+                    job.clientConfirmedWorkStarted
+                      ? "bg-green-100 border border-green-300"
+                      : "bg-gray-100 border border-gray-300"
+                  }`}
+                >
                   <CheckCircle
-                    className={`mx-auto ${job.clientConfirmedWorkStarted ? 'text-green-600' : 'text-gray-400'}`}
+                    className={`mx-auto ${job.clientConfirmedWorkStarted ? "text-green-600" : "text-gray-400"}`}
                     size={20}
                   />
-                  <p className={`text-xs mt-1 font-medium ${job.clientConfirmedWorkStarted ? 'text-green-900' : 'text-gray-600'}`}>
+                  <p
+                    className={`text-xs mt-1 font-medium ${job.clientConfirmedWorkStarted ? "text-green-900" : "text-gray-600"}`}
+                  >
                     Work Started
                   </p>
                 </div>
-                <div className={`text-center p-3 rounded-lg transition ${
-                  job.workerMarkedComplete
-                    ? 'bg-orange-100 border border-orange-300'
-                    : 'bg-gray-100 border border-gray-300'
-                }`}>
+                <div
+                  className={`text-center p-3 rounded-lg transition ${
+                    job.workerMarkedComplete
+                      ? "bg-orange-100 border border-orange-300"
+                      : "bg-gray-100 border border-gray-300"
+                  }`}
+                >
                   <CheckCircle
-                    className={`mx-auto ${job.workerMarkedComplete ? 'text-orange-600' : 'text-gray-400'}`}
+                    className={`mx-auto ${job.workerMarkedComplete ? "text-orange-600" : "text-gray-400"}`}
                     size={20}
                   />
-                  <p className={`text-xs mt-1 font-medium ${job.workerMarkedComplete ? 'text-orange-900' : 'text-gray-600'}`}>
+                  <p
+                    className={`text-xs mt-1 font-medium ${job.workerMarkedComplete ? "text-orange-900" : "text-gray-600"}`}
+                  >
                     Worker Complete
                   </p>
                 </div>
-                <div className={`text-center p-3 rounded-lg transition ${
-                  job.clientMarkedComplete
-                    ? 'bg-green-100 border border-green-300'
-                    : 'bg-gray-100 border border-gray-300'
-                }`}>
+                <div
+                  className={`text-center p-3 rounded-lg transition ${
+                    job.clientMarkedComplete
+                      ? "bg-green-100 border border-green-300"
+                      : "bg-gray-100 border border-gray-300"
+                  }`}
+                >
                   <CheckCircle
-                    className={`mx-auto ${job.clientMarkedComplete ? 'text-green-600' : 'text-gray-400'}`}
+                    className={`mx-auto ${job.clientMarkedComplete ? "text-green-600" : "text-gray-400"}`}
                     size={20}
                   />
-                  <p className={`text-xs mt-1 font-medium ${job.clientMarkedComplete ? 'text-green-900' : 'text-gray-600'}`}>
+                  <p
+                    className={`text-xs mt-1 font-medium ${job.clientMarkedComplete ? "text-green-900" : "text-gray-600"}`}
+                  >
                     Client Approved
                   </p>
                 </div>
@@ -296,7 +346,10 @@ export default function ActiveJobsPage() {
               {job.workerMarkedComplete && !job.clientMarkedComplete && (
                 <div className="mt-4 bg-orange-50 border border-orange-200 rounded-lg p-4">
                   <div className="flex items-start gap-3">
-                    <AlertCircle className="text-orange-600 flex-shrink-0 mt-0.5" size={20} />
+                    <AlertCircle
+                      className="text-orange-600 flex-shrink-0 mt-0.5"
+                      size={20}
+                    />
                     <div className="flex-1">
                       <p className="text-sm font-medium text-orange-900">
                         Worker marked this job as complete

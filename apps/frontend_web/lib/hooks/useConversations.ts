@@ -97,7 +97,7 @@ export function useConversationSearch(searchQuery: string) {
  */
 export function useConversation(conversationId: number) {
   const { data } = useConversations("all");
-  
+
   return {
     conversation: data?.conversations.find((c) => c.id === conversationId),
     isLoading: !data,

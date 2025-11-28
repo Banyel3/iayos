@@ -43,9 +43,9 @@ export default function PendingVerificationPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [typeFilter, setTypeFilter] = useState<"all" | "worker" | "client" | "agency">(
-    "all"
-  );
+  const [typeFilter, setTypeFilter] = useState<
+    "all" | "worker" | "client" | "agency"
+  >("all");
   const [priorityFilter, setPriorityFilter] = useState<
     "all" | "high" | "medium" | "low"
   >("all");
@@ -56,8 +56,9 @@ export default function PendingVerificationPage() {
       try {
         setLoading(true);
         setError(null);
-        
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+        const apiUrl =
+          process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
         const response = await fetch(`${apiUrl}/api/adminpanel/kyc/all`, {
           credentials: "include",
         });
@@ -67,73 +68,103 @@ export default function PendingVerificationPage() {
         }
 
         const data = await response.json();
-        
+
         if (!data.success) {
           throw new Error(data.error || "Failed to fetch KYC data");
         }
 
         // Transform individual KYC records
         const individualKYCs = (data.kyc || [])
-          .filter((kyc: any) => kyc.kycStatus === 'PENDING')
+          .filter((kyc: any) => kyc.kycStatus === "PENDING")
           .map((kyc: any) => {
-            const user = (data.users || []).find((u: any) => u.accountID === kyc.accountFK_id);
-            const files = (data.kyc_files || []).filter((f: any) => f.kycID_id === kyc.kycID);
-            
+            const user = (data.users || []).find(
+              (u: any) => u.accountID === kyc.accountFK_id
+            );
+            const files = (data.kyc_files || []).filter(
+              (f: any) => f.kycID_id === kyc.kycID
+            );
+
             return {
               id: kyc.kycID.toString(),
               accountId: kyc.accountFK_id.toString(),
-              name: user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : 'Unknown',
-              email: user?.email || 'N/A',
-              phone: user?.contactNum || 'N/A',
-              type: (user?.profileType?.toLowerCase() || 'worker') as "worker" | "client" | "agency",
-              submissionDate: kyc.createdAt?.split('T')[0] || 'N/A',
-              documentsSubmitted: files.map((f: any) => f.idType || 'Document'),
-              priority: files.length >= 4 ? 'high' : files.length >= 2 ? 'medium' : 'low',
-              status: 'pending_review' as const,
-              kycType: 'individual' as const,
+              name: user
+                ? `${user.firstName || ""} ${user.lastName || ""}`.trim()
+                : "Unknown",
+              email: user?.email || "N/A",
+              phone: user?.contactNum || "N/A",
+              type: (user?.profileType?.toLowerCase() || "worker") as
+                | "worker"
+                | "client"
+                | "agency",
+              submissionDate: kyc.createdAt?.split("T")[0] || "N/A",
+              documentsSubmitted: files.map((f: any) => f.idType || "Document"),
+              priority:
+                files.length >= 4
+                  ? "high"
+                  : files.length >= 2
+                    ? "medium"
+                    : "low",
+              status: "pending_review" as const,
+              kycType: "individual" as const,
             };
           });
 
         // Transform agency KYC records
         const agencyKYCs = (data.agency_kyc || [])
-          .filter((kyc: any) => kyc.status === 'PENDING')
+          .filter((kyc: any) => kyc.status === "PENDING")
           .map((kyc: any) => {
-            const agency = (data.agencies || []).find((a: any) => a.accountID === kyc.accountFK_id);
-            const files = (data.agency_kyc_files || []).filter((f: any) => f.agencyKyc_id === kyc.agencyKycID);
-            
+            const agency = (data.agencies || []).find(
+              (a: any) => a.accountID === kyc.accountFK_id
+            );
+            const files = (data.agency_kyc_files || []).filter(
+              (f: any) => f.agencyKyc_id === kyc.agencyKycID
+            );
+
             return {
               id: `agency_${kyc.agencyKycID}`,
               accountId: kyc.accountFK_id.toString(),
-              name: agency?.businessName || 'Unknown Agency',
-              email: agency?.email || 'N/A',
-              phone: 'N/A',
-              type: 'agency' as const,
-              submissionDate: kyc.createdAt?.split('T')[0] || 'N/A',
+              name: agency?.businessName || "Unknown Agency",
+              email: agency?.email || "N/A",
+              phone: "N/A",
+              type: "agency" as const,
+              submissionDate: kyc.createdAt?.split("T")[0] || "N/A",
               documentsSubmitted: files.map((f: any) => {
                 const typeMap: Record<string, string> = {
-                  'BUSINESS_PERMIT': 'Business Permit',
-                  'REPRESENTATIVE_ID_FRONT': 'Rep ID (Front)',
-                  'REPRESENTATIVE_ID_BACK': 'Rep ID (Back)',
-                  'ADDRESS_PROOF': 'Address Proof',
-                  'AUTHORIZATION_LETTER': 'Authorization Letter',
+                  BUSINESS_PERMIT: "Business Permit",
+                  REPRESENTATIVE_ID_FRONT: "Rep ID (Front)",
+                  REPRESENTATIVE_ID_BACK: "Rep ID (Back)",
+                  ADDRESS_PROOF: "Address Proof",
+                  AUTHORIZATION_LETTER: "Authorization Letter",
                 };
                 return typeMap[f.fileType] || f.fileType;
               }),
-              priority: files.length >= 4 ? 'high' : files.length >= 2 ? 'medium' : 'low',
-              status: 'pending_review' as const,
-              kycType: 'agency' as const,
+              priority:
+                files.length >= 4
+                  ? "high"
+                  : files.length >= 2
+                    ? "medium"
+                    : "low",
+              status: "pending_review" as const,
+              kycType: "agency" as const,
             };
           });
 
         // Combine and sort by submission date (newest first)
         const allPending = [...individualKYCs, ...agencyKYCs].sort((a, b) => {
-          return new Date(b.submissionDate).getTime() - new Date(a.submissionDate).getTime();
+          return (
+            new Date(b.submissionDate).getTime() -
+            new Date(a.submissionDate).getTime()
+          );
         });
 
         setPendingUsers(allPending);
       } catch (err) {
-        console.error('Error fetching pending KYC:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load pending verifications');
+        console.error("Error fetching pending KYC:", err);
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Failed to load pending verifications"
+        );
       } finally {
         setLoading(false);
       }
@@ -179,7 +210,8 @@ export default function PendingVerificationPage() {
                 Pending Verification
               </h1>
               <p className="text-muted-foreground">
-                Review and approve user verification requests (Individual & Agency KYC)
+                Review and approve user verification requests (Individual &
+                Agency KYC)
               </p>
             </div>
             {loading && (
@@ -298,7 +330,9 @@ export default function PendingVerificationPage() {
                 <select
                   value={typeFilter}
                   onChange={(e) =>
-                    setTypeFilter(e.target.value as "all" | "worker" | "client" | "agency")
+                    setTypeFilter(
+                      e.target.value as "all" | "worker" | "client" | "agency"
+                    )
                   }
                   className="px-3 py-2 border rounded-md"
                 >
@@ -330,11 +364,15 @@ export default function PendingVerificationPage() {
             <Card>
               <CardContent className="pt-6 text-center py-12">
                 <CheckCircle className="h-12 w-12 mx-auto text-green-500 mb-4" />
-                <h3 className="text-lg font-semibold mb-2">No Pending Verifications</h3>
+                <h3 className="text-lg font-semibold mb-2">
+                  No Pending Verifications
+                </h3>
                 <p className="text-muted-foreground">
-                  {searchTerm || typeFilter !== 'all' || priorityFilter !== 'all'
-                    ? 'No verifications match your filters. Try adjusting your search criteria.'
-                    : 'All KYC submissions have been reviewed. Great job!'}
+                  {searchTerm ||
+                  typeFilter !== "all" ||
+                  priorityFilter !== "all"
+                    ? "No verifications match your filters. Try adjusting your search criteria."
+                    : "All KYC submissions have been reviewed. Great job!"}
                 </p>
               </CardContent>
             </Card>
@@ -347,10 +385,14 @@ export default function PendingVerificationPage() {
                 <CardContent className="p-6">
                   <div className="flex items-start justify-between">
                     <div className="flex items-start space-x-4">
-                      <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                        user.type === 'agency' ? 'bg-purple-100' : 'bg-primary/10'
-                      }`}>
-                        {user.type === 'agency' ? (
+                      <div
+                        className={`w-12 h-12 rounded-full flex items-center justify-center ${
+                          user.type === "agency"
+                            ? "bg-purple-100"
+                            : "bg-primary/10"
+                        }`}
+                      >
+                        {user.type === "agency" ? (
                           <Building2 className="w-6 h-6 text-purple-600" />
                         ) : (
                           <span className="font-semibold text-primary text-lg">
@@ -364,7 +406,7 @@ export default function PendingVerificationPage() {
                           <p className="text-sm text-muted-foreground">
                             {user.email}
                           </p>
-                          {user.phone !== 'N/A' && (
+                          {user.phone !== "N/A" && (
                             <p className="text-sm text-muted-foreground">
                               {user.phone}
                             </p>
@@ -377,11 +419,11 @@ export default function PendingVerificationPage() {
                               user.type === "worker"
                                 ? "bg-blue-100 text-blue-800"
                                 : user.type === "client"
-                                ? "bg-green-100 text-green-800"
-                                : "bg-purple-100 text-purple-800"
+                                  ? "bg-green-100 text-green-800"
+                                  : "bg-purple-100 text-purple-800"
                             }`}
                           >
-                            {user.type === 'agency' && '🏢 '}
+                            {user.type === "agency" && "🏢 "}
                             {user.type.toUpperCase()}
                           </span>
                           <span

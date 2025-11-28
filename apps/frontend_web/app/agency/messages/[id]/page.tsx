@@ -202,7 +202,10 @@ export default function AgencyChatScreen() {
                 <MapPin className="h-4 w-4 text-blue-600" />
                 <span className="text-gray-700">{job.location}</span>
               </div>
-              <Badge variant="outline" className="text-blue-700 border-blue-300">
+              <Badge
+                variant="outline"
+                className="text-blue-700 border-blue-300"
+              >
                 ₱{job.budget.toLocaleString()}
               </Badge>
             </div>
@@ -260,9 +263,7 @@ export default function AgencyChatScreen() {
         disabled={!isConnected || sendMutation.isPending}
         isUploading={uploadImageMutation.isPending}
         placeholder={
-          isConnected
-            ? "Type a message..."
-            : "Reconnecting... Please wait"
+          isConnected ? "Type a message..." : "Reconnecting... Please wait"
         }
       />
 

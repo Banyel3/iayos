@@ -1,6 +1,6 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery } from "@tanstack/react-query";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 interface AgencyStats {
   total_jobs: number;
@@ -34,19 +34,19 @@ interface RevenueTrendData {
  */
 export function useAgencyStats() {
   return useQuery<AgencyStats>({
-    queryKey: ['agency', 'stats'],
+    queryKey: ["agency", "stats"],
     queryFn: async () => {
       const response = await fetch(`${API_URL}/api/agency/profile`, {
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
       });
 
       if (!response.ok) {
-        throw new Error('Failed to fetch agency stats');
+        throw new Error("Failed to fetch agency stats");
       }
 
       const data = await response.json();
-      
+
       // Transform to stats format
       return {
         total_jobs: data.total_jobs || 0,
@@ -66,25 +66,33 @@ export function useAgencyStats() {
  * Fetch employee leaderboard
  */
 export function useLeaderboard(
-  sortBy: 'rating' | 'jobs' | 'earnings' = 'rating',
+  sortBy: "rating" | "jobs" | "earnings" = "rating",
   limit: number = 10
 ) {
   return useQuery<LeaderboardEmployee[]>({
-    queryKey: ['agency', 'leaderboard', sortBy, limit],
+    queryKey: ["agency", "leaderboard", sortBy, limit],
     queryFn: async () => {
       const params = new URLSearchParams({
-        sort_by: sortBy === 'jobs' ? 'jobs' : sortBy === 'earnings' ? 'earnings' : 'rating',
-        order: 'desc',
+        sort_by:
+          sortBy === "jobs"
+            ? "jobs"
+            : sortBy === "earnings"
+              ? "earnings"
+              : "rating",
+        order: "desc",
         limit: limit.toString(),
       });
 
-      const response = await fetch(`${API_URL}/api/agency/employees/leaderboard?${params}`, {
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-      });
+      const response = await fetch(
+        `${API_URL}/api/agency/employees/leaderboard?${params}`,
+        {
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+        }
+      );
 
       if (!response.ok) {
-        throw new Error('Failed to fetch leaderboard');
+        throw new Error("Failed to fetch leaderboard");
       }
 
       const data = await response.json();
@@ -100,7 +108,12 @@ export function useLeaderboard(
  */
 export function useRevenueTrends(startDate: Date, endDate: Date) {
   return useQuery<RevenueTrendData[]>({
-    queryKey: ['agency', 'revenue-trends', startDate.toISOString(), endDate.toISOString()],
+    queryKey: [
+      "agency",
+      "revenue-trends",
+      startDate.toISOString(),
+      endDate.toISOString(),
+    ],
     queryFn: async () => {
       // For now, generate mock data
       // In production, this would call: GET /api/agency/analytics/revenue-trends?start=X&end=Y
@@ -115,13 +128,16 @@ export function useRevenueTrends(startDate: Date, endDate: Date) {
  * Generate mock revenue trends data
  * TODO: Replace with real API endpoint when analytics backend is implemented
  */
-function generateMockRevenueTrends(startDate: Date, endDate: Date): RevenueTrendData[] {
+function generateMockRevenueTrends(
+  startDate: Date,
+  endDate: Date
+): RevenueTrendData[] {
   const data: RevenueTrendData[] = [];
   const currentDate = new Date(startDate);
 
   while (currentDate <= endDate) {
     data.push({
-      date: currentDate.toISOString().split('T')[0],
+      date: currentDate.toISOString().split("T")[0],
       revenue: Math.floor(Math.random() * 10000) + 5000,
       jobs: Math.floor(Math.random() * 20) + 5,
     });
@@ -139,11 +155,19 @@ export function exportAnalyticsCSV(
   stats: AgencyStats,
   filename?: string
 ) {
-  const timestamp = new Date().toISOString().split('T')[0];
+  const timestamp = new Date().toISOString().split("T")[0];
   const fname = filename || `agency-analytics-${timestamp}.csv`;
 
   // Build CSV content
-  const headers = ['Rank', 'Name', 'Email', 'Role', 'Rating', 'Jobs Completed', 'Total Earnings'];
+  const headers = [
+    "Rank",
+    "Name",
+    "Email",
+    "Role",
+    "Rating",
+    "Jobs Completed",
+    "Total Earnings",
+  ];
   const rows = leaderboard.map((emp) => [
     emp.rank,
     emp.name,
@@ -156,26 +180,26 @@ export function exportAnalyticsCSV(
 
   // Add summary section
   const summary = [
-    [''],
-    ['AGENCY SUMMARY'],
-    ['Total Jobs', stats.total_jobs],
-    ['Completed Jobs', stats.completed_jobs],
-    ['Active Jobs', stats.active_jobs],
-    ['Cancelled Jobs', stats.cancelled_jobs],
-    ['Total Revenue', stats.total_revenue.toFixed(2)],
-    ['Average Rating', stats.average_rating.toFixed(2)],
+    [""],
+    ["AGENCY SUMMARY"],
+    ["Total Jobs", stats.total_jobs],
+    ["Completed Jobs", stats.completed_jobs],
+    ["Active Jobs", stats.active_jobs],
+    ["Cancelled Jobs", stats.cancelled_jobs],
+    ["Total Revenue", stats.total_revenue.toFixed(2)],
+    ["Average Rating", stats.average_rating.toFixed(2)],
   ];
 
   const csvContent = [
-    headers.join(','),
-    ...rows.map((row) => row.join(',')),
-    ...summary.map((row) => row.join(',')),
-  ].join('\n');
+    headers.join(","),
+    ...rows.map((row) => row.join(",")),
+    ...summary.map((row) => row.join(",")),
+  ].join("\n");
 
   // Create download
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
   const url = window.URL.createObjectURL(blob);
-  const link = document.createElement('a');
+  const link = document.createElement("a");
   link.href = url;
   link.download = fname;
   link.click();

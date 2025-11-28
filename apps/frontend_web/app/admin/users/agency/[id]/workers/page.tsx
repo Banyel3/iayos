@@ -5,44 +5,59 @@ import { useParams, useRouter } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Input } from "@/components/ui/input";
-import { 
-  Search, 
-  UserCheck, 
-  Download, 
-  Eye, 
+import {
+  Search,
+  UserCheck,
+  Download,
+  Eye,
   Star,
   TrendingUp,
   Briefcase,
   Award,
   DollarSign,
 } from "lucide-react";
-import { 
-  useAgencyEmployees, 
+import {
+  useAgencyEmployees,
   useEmployeePerformance,
-  exportEmployeesToCSV 
+  exportEmployeesToCSV,
 } from "@/lib/hooks/useAdminAgency";
 
 export default function AgencyWorkersPage() {
   const params = useParams();
   const router = useRouter();
   const agencyId = parseInt(params.id as string);
-  
+
   const { data: employees, isLoading, error } = useAgencyEmployees(agencyId);
-  
+
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "active" | "inactive"
+  >("all");
   const [selectedEmployee, setSelectedEmployee] = useState<number | null>(null);
 
   // Calculate statistics from real data
   const stats = useMemo(() => {
-    if (!employees) return { total: 0, active: 0, avgRating: 0, totalJobs: 0, totalEarnings: 0 };
-    
-    const active = employees.filter(e => e.is_active).length;
+    if (!employees)
+      return {
+        total: 0,
+        active: 0,
+        avgRating: 0,
+        totalJobs: 0,
+        totalEarnings: 0,
+      };
+
+    const active = employees.filter((e) => e.is_active).length;
     const totalRating = employees.reduce((sum, e) => sum + e.rating, 0);
     const avgRating = employees.length > 0 ? totalRating / employees.length : 0;
-    const totalJobs = employees.reduce((sum, e) => sum + e.total_jobs_completed, 0);
-    const totalEarnings = employees.reduce((sum, e) => sum + e.total_earnings, 0);
-    
+    const totalJobs = employees.reduce(
+      (sum, e) => sum + e.total_jobs_completed,
+      0
+    );
+    const totalEarnings = employees.reduce(
+      (sum, e) => sum + e.total_earnings,
+      0
+    );
+
     return {
       total: employees.length,
       active,
@@ -55,13 +70,13 @@ export default function AgencyWorkersPage() {
   // Filter employees based on search and status
   const filteredEmployees = useMemo(() => {
     if (!employees) return [];
-    
+
     return employees.filter((employee) => {
       const matchesSearch =
         employee.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         employee.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
         employee.role.toLowerCase().includes(searchTerm.toLowerCase());
-      
+
       const matchesStatus =
         statusFilter === "all" ||
         (statusFilter === "active" && employee.is_active) ||
@@ -99,7 +114,9 @@ export default function AgencyWorkersPage() {
         <Card>
           <CardContent className="p-12 text-center">
             <p className="text-red-600 font-medium">Failed to load employees</p>
-            <p className="text-gray-600 text-sm mt-2">{(error as Error).message}</p>
+            <p className="text-gray-600 text-sm mt-2">
+              {(error as Error).message}
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -124,7 +141,10 @@ export default function AgencyWorkersPage() {
             Manage and monitor agency employee performance
           </p>
         </div>
-        <Button onClick={handleExportCSV} disabled={!employees || employees.length === 0}>
+        <Button
+          onClick={handleExportCSV}
+          disabled={!employees || employees.length === 0}
+        >
           <Download className="w-4 h-4 mr-2" />
           Export CSV
         </Button>
@@ -134,7 +154,9 @@ export default function AgencyWorkersPage() {
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Employees</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Total Employees
+            </CardTitle>
             <UserCheck className="h-4 w-4 text-gray-600" />
           </CardHeader>
           <CardContent>
@@ -142,21 +164,27 @@ export default function AgencyWorkersPage() {
             <p className="text-xs text-gray-600">Agency workers</p>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Employees</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Active Employees
+            </CardTitle>
             <UserCheck className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{stats.active}</div>
+            <div className="text-2xl font-bold text-green-600">
+              {stats.active}
+            </div>
             <p className="text-xs text-gray-600">Currently working</p>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Average Rating</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Average Rating
+            </CardTitle>
             <Star className="h-4 w-4 text-yellow-600" />
           </CardHeader>
           <CardContent>
@@ -164,7 +192,7 @@ export default function AgencyWorkersPage() {
             <p className="text-xs text-gray-600">★ Overall performance</p>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Jobs</CardTitle>
@@ -192,10 +220,12 @@ export default function AgencyWorkersPage() {
                 />
               </div>
             </div>
-            
+
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as "all" | "active" | "inactive")}
+              onChange={(e) =>
+                setStatusFilter(e.target.value as "all" | "active" | "inactive")
+              }
               className="px-4 py-2 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 transition"
             >
               <option value="all">All Status</option>
@@ -203,9 +233,11 @@ export default function AgencyWorkersPage() {
               <option value="inactive">✗ Inactive</option>
             </select>
           </div>
-          
+
           <div className="mt-4 flex items-center gap-2 text-sm text-gray-600">
-            <span>Showing {filteredEmployees.length} of {stats.total} employees</span>
+            <span>
+              Showing {filteredEmployees.length} of {stats.total} employees
+            </span>
           </div>
         </CardContent>
       </Card>
@@ -214,7 +246,10 @@ export default function AgencyWorkersPage() {
       <div className="space-y-4">
         {filteredEmployees.length > 0 ? (
           filteredEmployees.map((employee) => (
-            <Card key={employee.employee_id} className="hover:shadow-lg transition">
+            <Card
+              key={employee.employee_id}
+              className="hover:shadow-lg transition"
+            >
               <CardContent className="p-6">
                 <div className="flex items-start justify-between">
                   <div className="flex items-start gap-4 flex-1">
@@ -241,12 +276,16 @@ export default function AgencyWorkersPage() {
                           <p className="text-sm text-blue-600 font-medium mb-1">
                             {employee.role}
                           </p>
-                          <p className="text-sm text-gray-600">{employee.email}</p>
+                          <p className="text-sm text-gray-600">
+                            {employee.email}
+                          </p>
                           {employee.phone && (
-                            <p className="text-sm text-gray-600">{employee.phone}</p>
+                            <p className="text-sm text-gray-600">
+                              {employee.phone}
+                            </p>
                           )}
                         </div>
-                        
+
                         <span
                           className={`px-3 py-1 rounded-full text-sm font-medium ${
                             employee.is_active
@@ -263,27 +302,33 @@ export default function AgencyWorkersPage() {
                         <div>
                           <div className="flex items-center gap-2 mb-1">
                             <Star className="w-4 h-4 text-yellow-600" />
-                            <p className="text-xs text-gray-600 font-medium">Rating</p>
+                            <p className="text-xs text-gray-600 font-medium">
+                              Rating
+                            </p>
                           </div>
                           <p className="text-lg font-bold text-gray-900">
                             {employee.rating.toFixed(1)} ★
                           </p>
                         </div>
-                        
+
                         <div>
                           <div className="flex items-center gap-2 mb-1">
                             <Briefcase className="w-4 h-4 text-blue-600" />
-                            <p className="text-xs text-gray-600 font-medium">Jobs Done</p>
+                            <p className="text-xs text-gray-600 font-medium">
+                              Jobs Done
+                            </p>
                           </div>
                           <p className="text-lg font-bold text-gray-900">
                             {employee.total_jobs_completed}
                           </p>
                         </div>
-                        
+
                         <div>
                           <div className="flex items-center gap-2 mb-1">
                             <DollarSign className="w-4 h-4 text-green-600" />
-                            <p className="text-xs text-gray-600 font-medium">Earnings</p>
+                            <p className="text-xs text-gray-600 font-medium">
+                              Earnings
+                            </p>
                           </div>
                           <p className="text-lg font-bold text-gray-900">
                             ₱{employee.total_earnings.toLocaleString()}
@@ -292,7 +337,10 @@ export default function AgencyWorkersPage() {
                       </div>
 
                       <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <span>Joined: {new Date(employee.joined_date).toLocaleDateString()}</span>
+                        <span>
+                          Joined:{" "}
+                          {new Date(employee.joined_date).toLocaleDateString()}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -304,7 +352,9 @@ export default function AgencyWorkersPage() {
           <Card>
             <CardContent className="p-12 text-center">
               <UserCheck className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-xl font-bold text-gray-900 mb-2">No employees found</h3>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">
+                No employees found
+              </h3>
               <p className="text-gray-600 mb-4">
                 {searchTerm || statusFilter !== "all"
                   ? "Try adjusting your search or filters"
@@ -321,8 +371,12 @@ export default function AgencyWorkersPage() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="font-bold text-lg text-gray-900 mb-1">Agency Performance Summary</h3>
-                <p className="text-sm text-gray-600">Cumulative statistics across all employees</p>
+                <h3 className="font-bold text-lg text-gray-900 mb-1">
+                  Agency Performance Summary
+                </h3>
+                <p className="text-sm text-gray-600">
+                  Cumulative statistics across all employees
+                </p>
               </div>
               <div className="flex items-center gap-8">
                 <div className="text-right">

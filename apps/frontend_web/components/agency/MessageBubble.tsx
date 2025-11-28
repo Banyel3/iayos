@@ -93,9 +93,7 @@ export default function MessageBubble({
         {/* Time + Read Receipt */}
         <div className="flex items-center justify-end gap-1 mt-1">
           <span
-            className={`text-xs ${
-              isMine ? "text-blue-100" : "text-gray-500"
-            }`}
+            className={`text-xs ${isMine ? "text-blue-100" : "text-gray-500"}`}
           >
             {showTimestamp ? relativeTime : timeString}
           </span>

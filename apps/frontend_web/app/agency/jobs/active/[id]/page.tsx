@@ -1,7 +1,7 @@
 "use client";
 
-import { useParams, useRouter } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import { useParams, useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
   DollarSign,
@@ -11,9 +11,9 @@ import {
   Briefcase,
   Image as ImageIcon,
   X,
-} from 'lucide-react';
-import { useState } from 'react';
-import JobTimeline from '@/components/agency/JobTimeline';
+} from "lucide-react";
+import { useState } from "react";
+import JobTimeline from "@/components/agency/JobTimeline";
 
 interface JobDetail {
   jobID: number;
@@ -40,13 +40,13 @@ export default function JobDetailPage() {
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
 
   const { data: job, isLoading } = useQuery({
-    queryKey: ['agency-job-detail', jobId],
+    queryKey: ["agency-job-detail", jobId],
     queryFn: async () => {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
       const response = await fetch(`${apiUrl}/api/agency/jobs/${jobId}`, {
-        credentials: 'include',
+        credentials: "include",
       });
-      if (!response.ok) throw new Error('Failed to fetch job');
+      if (!response.ok) throw new Error("Failed to fetch job");
       return response.json() as Promise<JobDetail>;
     },
   });
@@ -86,28 +86,34 @@ export default function JobDetailPage() {
       <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
         <div className="flex items-start justify-between mb-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">{job.title}</h1>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">
+              {job.title}
+            </h1>
             <div className="flex items-center gap-2 flex-wrap">
-              <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                job.clientMarkedComplete
-                  ? 'bg-green-100 text-green-800'
-                  : job.workerMarkedComplete
-                  ? 'bg-orange-100 text-orange-800'
-                  : 'bg-blue-100 text-blue-800'
-              }`}>
+              <span
+                className={`px-3 py-1 rounded-full text-sm font-medium ${
+                  job.clientMarkedComplete
+                    ? "bg-green-100 text-green-800"
+                    : job.workerMarkedComplete
+                      ? "bg-orange-100 text-orange-800"
+                      : "bg-blue-100 text-blue-800"
+                }`}
+              >
                 {job.clientMarkedComplete
-                  ? 'Completed'
+                  ? "Completed"
                   : job.workerMarkedComplete
-                  ? 'Pending Approval'
-                  : 'In Progress'}
+                    ? "Pending Approval"
+                    : "In Progress"}
               </span>
-              <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                job.urgency === 'HIGH'
-                  ? 'bg-red-100 text-red-800'
-                  : job.urgency === 'MEDIUM'
-                  ? 'bg-yellow-100 text-yellow-800'
-                  : 'bg-green-100 text-green-800'
-              }`}>
+              <span
+                className={`px-3 py-1 rounded-full text-sm font-medium ${
+                  job.urgency === "HIGH"
+                    ? "bg-red-100 text-red-800"
+                    : job.urgency === "MEDIUM"
+                      ? "bg-yellow-100 text-yellow-800"
+                      : "bg-green-100 text-green-800"
+                }`}
+              >
                 {job.urgency} Priority
               </span>
             </div>
@@ -124,7 +130,9 @@ export default function JobDetailPage() {
             </div>
             <div>
               <p className="text-sm text-gray-600">Budget</p>
-              <p className="font-semibold text-gray-900">₱{job.budget.toLocaleString()}</p>
+              <p className="font-semibold text-gray-900">
+                ₱{job.budget.toLocaleString()}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -133,7 +141,9 @@ export default function JobDetailPage() {
             </div>
             <div>
               <p className="text-sm text-gray-600">Location</p>
-              <p className="font-semibold text-gray-900 truncate">{job.location}</p>
+              <p className="font-semibold text-gray-900 truncate">
+                {job.location}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -142,7 +152,9 @@ export default function JobDetailPage() {
             </div>
             <div>
               <p className="text-sm text-gray-600">Created</p>
-              <p className="font-semibold text-gray-900">{new Date(job.createdAt).toLocaleDateString()}</p>
+              <p className="font-semibold text-gray-900">
+                {new Date(job.createdAt).toLocaleDateString()}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -161,7 +173,9 @@ export default function JobDetailPage() {
         {/* Left Column - Timeline */}
         <div className="lg:col-span-2">
           <div className="bg-white border border-gray-200 rounded-lg p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-6">Job Timeline</h2>
+            <h2 className="text-xl font-bold text-gray-900 mb-6">
+              Job Timeline
+            </h2>
             <JobTimeline
               clientConfirmedWorkStarted={job.clientConfirmedWorkStarted}
               workerMarkedComplete={job.workerMarkedComplete}
@@ -176,8 +190,12 @@ export default function JobDetailPage() {
             <div className="bg-white border border-gray-200 rounded-lg p-6 mt-6">
               <div className="flex items-center gap-2 mb-4">
                 <ImageIcon className="text-gray-600" size={20} />
-                <h2 className="text-xl font-bold text-gray-900">Completion Photos</h2>
-                <span className="text-sm text-gray-600">({job.photos.length})</span>
+                <h2 className="text-xl font-bold text-gray-900">
+                  Completion Photos
+                </h2>
+                <span className="text-sm text-gray-600">
+                  ({job.photos.length})
+                </span>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 {job.photos.map((photo, index) => (
@@ -200,9 +218,13 @@ export default function JobDetailPage() {
           {/* Completion Notes */}
           {job.completionNotes && (
             <div className="bg-white border border-gray-200 rounded-lg p-6 mt-6">
-              <h2 className="text-xl font-bold text-gray-900 mb-4">Completion Notes</h2>
+              <h2 className="text-xl font-bold text-gray-900 mb-4">
+                Completion Notes
+              </h2>
               <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                <p className="text-gray-700 italic">&ldquo;{job.completionNotes}&rdquo;</p>
+                <p className="text-gray-700 italic">
+                  &ldquo;{job.completionNotes}&rdquo;
+                </p>
               </div>
             </div>
           )}
@@ -241,12 +263,16 @@ export default function JobDetailPage() {
                 <div className="p-2 bg-emerald-100 rounded-lg">
                   <User className="text-emerald-600" size={20} />
                 </div>
-                <h2 className="text-lg font-bold text-gray-900">Assigned Employee</h2>
+                <h2 className="text-lg font-bold text-gray-900">
+                  Assigned Employee
+                </h2>
               </div>
               <div className="space-y-2">
                 <div>
                   <p className="text-sm text-gray-600">Name</p>
-                  <p className="font-semibold text-gray-900">{job.assignedEmployee.name}</p>
+                  <p className="font-semibold text-gray-900">
+                    {job.assignedEmployee.name}
+                  </p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Email</p>

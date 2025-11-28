@@ -1,7 +1,12 @@
 "use client";
 
-import { useState } from 'react';
-import { useLeaderboard, useAgencyStats, useRevenueTrends, exportAnalyticsCSV } from '@/lib/hooks/useAnalytics';
+import { useState } from "react";
+import {
+  useLeaderboard,
+  useAgencyStats,
+  useRevenueTrends,
+  exportAnalyticsCSV,
+} from "@/lib/hooks/useAnalytics";
 import {
   LineChart,
   Line,
@@ -13,7 +18,7 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
-} from 'recharts';
+} from "recharts";
 import {
   TrendingUp,
   Briefcase,
@@ -24,18 +29,23 @@ import {
   Calendar,
   ArrowUpRight,
   ArrowDownRight,
-} from 'lucide-react';
-import { format, subMonths } from 'date-fns';
+} from "lucide-react";
+import { format, subMonths } from "date-fns";
 
 export default function AnalyticsPage() {
   const [dateRange, setDateRange] = useState({
     start: subMonths(new Date(), 3),
     end: new Date(),
   });
-  const [leaderboardSort, setLeaderboardSort] = useState<'rating' | 'jobs' | 'earnings'>('rating');
+  const [leaderboardSort, setLeaderboardSort] = useState<
+    "rating" | "jobs" | "earnings"
+  >("rating");
 
   const { data: stats, isLoading: statsLoading } = useAgencyStats();
-  const { data: leaderboard, isLoading: leaderboardLoading } = useLeaderboard(leaderboardSort, 20);
+  const { data: leaderboard, isLoading: leaderboardLoading } = useLeaderboard(
+    leaderboardSort,
+    20
+  );
   const { data: revenueTrends, isLoading: trendsLoading } = useRevenueTrends(
     dateRange.start,
     dateRange.end
@@ -75,7 +85,9 @@ export default function AnalyticsPage() {
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Analytics Dashboard</h1>
+          <h1 className="text-3xl font-bold text-gray-900">
+            Analytics Dashboard
+          </h1>
           <p className="text-gray-600 mt-1">Track performance and insights</p>
         </div>
         <button
@@ -110,14 +122,19 @@ export default function AnalyticsPage() {
         {/* Jobs Completed */}
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-gray-600 text-sm font-medium">Jobs Completed</h3>
+            <h3 className="text-gray-600 text-sm font-medium">
+              Jobs Completed
+            </h3>
             <div className="p-2 bg-blue-100 rounded-lg">
               <Briefcase className="text-blue-600" size={20} />
             </div>
           </div>
-          <p className="text-3xl font-bold text-gray-900">{stats?.completed_jobs || 0}</p>
+          <p className="text-3xl font-bold text-gray-900">
+            {stats?.completed_jobs || 0}
+          </p>
           <p className="text-sm text-gray-600 mt-2">
-            <span className="font-medium text-gray-900">{completionRate}%</span> completion rate
+            <span className="font-medium text-gray-900">{completionRate}%</span>{" "}
+            completion rate
           </p>
         </div>
 
@@ -129,20 +146,24 @@ export default function AnalyticsPage() {
               <TrendingUp className="text-orange-600" size={20} />
             </div>
           </div>
-          <p className="text-3xl font-bold text-gray-900">{stats?.active_jobs || 0}</p>
+          <p className="text-3xl font-bold text-gray-900">
+            {stats?.active_jobs || 0}
+          </p>
           <p className="text-sm text-gray-600 mt-2">Currently in progress</p>
         </div>
 
         {/* Average Rating */}
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-gray-600 text-sm font-medium">Average Rating</h3>
+            <h3 className="text-gray-600 text-sm font-medium">
+              Average Rating
+            </h3>
             <div className="p-2 bg-yellow-100 rounded-lg">
               <Star className="text-yellow-500" size={20} />
             </div>
           </div>
           <p className="text-3xl font-bold text-gray-900">
-            {stats?.average_rating.toFixed(1) || '0.0'}
+            {stats?.average_rating.toFixed(1) || "0.0"}
           </p>
           <div className="flex items-center gap-1 mt-2">
             <Star className="text-yellow-500 fill-yellow-500" size={14} />
@@ -160,7 +181,9 @@ export default function AnalyticsPage() {
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">Revenue Trends</h3>
+              <h3 className="text-lg font-semibold text-gray-900">
+                Revenue Trends
+              </h3>
               <p className="text-sm text-gray-600">Weekly revenue over time</p>
             </div>
             <Calendar className="text-gray-400" size={20} />
@@ -170,18 +193,23 @@ export default function AnalyticsPage() {
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
               <XAxis
                 dataKey="date"
-                tickFormatter={(date) => format(new Date(date), 'MMM dd')}
+                tickFormatter={(date) => format(new Date(date), "MMM dd")}
                 stroke="#9ca3af"
                 fontSize={12}
               />
               <YAxis stroke="#9ca3af" fontSize={12} />
               <Tooltip
-                formatter={(value: number) => [`₱${value.toLocaleString()}`, 'Revenue']}
-                labelFormatter={(label) => format(new Date(label), 'MMM dd, yyyy')}
+                formatter={(value: number) => [
+                  `₱${value.toLocaleString()}`,
+                  "Revenue",
+                ]}
+                labelFormatter={(label) =>
+                  format(new Date(label), "MMM dd, yyyy")
+                }
                 contentStyle={{
-                  backgroundColor: '#fff',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '8px',
+                  backgroundColor: "#fff",
+                  border: "1px solid #e5e7eb",
+                  borderRadius: "8px",
                 }}
               />
               <Legend />
@@ -191,7 +219,7 @@ export default function AnalyticsPage() {
                 stroke="#3B82F6"
                 strokeWidth={3}
                 name="Revenue"
-                dot={{ fill: '#3B82F6', r: 4 }}
+                dot={{ fill: "#3B82F6", r: 4 }}
                 activeDot={{ r: 6 }}
               />
             </LineChart>
@@ -202,7 +230,9 @@ export default function AnalyticsPage() {
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">Jobs Completed</h3>
+              <h3 className="text-lg font-semibold text-gray-900">
+                Jobs Completed
+              </h3>
               <p className="text-sm text-gray-600">Weekly job completions</p>
             </div>
             <Briefcase className="text-gray-400" size={20} />
@@ -212,21 +242,28 @@ export default function AnalyticsPage() {
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
               <XAxis
                 dataKey="date"
-                tickFormatter={(date) => format(new Date(date), 'MMM dd')}
+                tickFormatter={(date) => format(new Date(date), "MMM dd")}
                 stroke="#9ca3af"
                 fontSize={12}
               />
               <YAxis stroke="#9ca3af" fontSize={12} />
               <Tooltip
-                labelFormatter={(label) => format(new Date(label), 'MMM dd, yyyy')}
+                labelFormatter={(label) =>
+                  format(new Date(label), "MMM dd, yyyy")
+                }
                 contentStyle={{
-                  backgroundColor: '#fff',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '8px',
+                  backgroundColor: "#fff",
+                  border: "1px solid #e5e7eb",
+                  borderRadius: "8px",
                 }}
               />
               <Legend />
-              <Bar dataKey="jobs" fill="#10B981" name="Jobs Completed" radius={[8, 8, 0, 0]} />
+              <Bar
+                dataKey="jobs"
+                fill="#10B981"
+                name="Jobs Completed"
+                radius={[8, 8, 0, 0]}
+              />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -236,12 +273,18 @@ export default function AnalyticsPage() {
       <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
         <div className="flex justify-between items-center mb-6">
           <div>
-            <h3 className="text-lg font-semibold text-gray-900">Employee Leaderboard</h3>
+            <h3 className="text-lg font-semibold text-gray-900">
+              Employee Leaderboard
+            </h3>
             <p className="text-sm text-gray-600">Top performing employees</p>
           </div>
           <select
             value={leaderboardSort}
-            onChange={(e) => setLeaderboardSort(e.target.value as 'rating' | 'jobs' | 'earnings')}
+            onChange={(e) =>
+              setLeaderboardSort(
+                e.target.value as "rating" | "jobs" | "earnings"
+              )
+            }
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
             <option value="rating">Sort by Rating</option>
@@ -276,22 +319,43 @@ export default function AnalyticsPage() {
                 <tr
                   key={employee.employee_id}
                   className={`${
-                    index < 3 ? 'bg-blue-50/50' : ''
+                    index < 3 ? "bg-blue-50/50" : ""
                   } hover:bg-gray-50 transition`}
                 >
                   <td className="px-4 py-4">
                     <div className="flex items-center gap-2">
-                      {index === 0 && <Award className="text-yellow-500 fill-yellow-500" size={20} />}
-                      {index === 1 && <Award className="text-gray-400 fill-gray-400" size={20} />}
-                      {index === 2 && <Award className="text-orange-600 fill-orange-600" size={20} />}
-                      <span className="font-semibold text-gray-900">#{employee.rank}</span>
+                      {index === 0 && (
+                        <Award
+                          className="text-yellow-500 fill-yellow-500"
+                          size={20}
+                        />
+                      )}
+                      {index === 1 && (
+                        <Award
+                          className="text-gray-400 fill-gray-400"
+                          size={20}
+                        />
+                      )}
+                      {index === 2 && (
+                        <Award
+                          className="text-orange-600 fill-orange-600"
+                          size={20}
+                        />
+                      )}
+                      <span className="font-semibold text-gray-900">
+                        #{employee.rank}
+                      </span>
                     </div>
                   </td>
                   <td className="px-4 py-4">
                     <div>
-                      <p className="font-medium text-gray-900">{employee.name}</p>
+                      <p className="font-medium text-gray-900">
+                        {employee.name}
+                      </p>
                       <div className="flex items-center gap-2 mt-1">
-                        <p className="text-sm text-gray-500">{employee.email}</p>
+                        <p className="text-sm text-gray-500">
+                          {employee.email}
+                        </p>
                         {employee.is_employee_of_month && (
                           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
                             🏆 EOTM
@@ -302,14 +366,19 @@ export default function AnalyticsPage() {
                   </td>
                   <td className="px-4 py-4">
                     <div className="flex items-center justify-center gap-1">
-                      <Star className="text-yellow-500 fill-yellow-500" size={16} />
+                      <Star
+                        className="text-yellow-500 fill-yellow-500"
+                        size={16}
+                      />
                       <span className="font-semibold text-gray-900">
                         {employee.rating.toFixed(1)}
                       </span>
                     </div>
                   </td>
                   <td className="px-4 py-4 text-center">
-                    <span className="font-medium text-gray-900">{employee.total_jobs_completed}</span>
+                    <span className="font-medium text-gray-900">
+                      {employee.total_jobs_completed}
+                    </span>
                   </td>
                   <td className="px-4 py-4 text-right">
                     <span className="font-semibold text-green-600">

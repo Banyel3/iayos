@@ -106,7 +106,10 @@ export default function JobDetailPage() {
       ACTIVE: { color: "bg-green-100 text-green-800", icon: CheckCircle },
       ASSIGNED: { color: "bg-blue-100 text-blue-800", icon: User },
       IN_PROGRESS: { color: "bg-orange-100 text-orange-800", icon: Loader2 },
-      COMPLETED: { color: "bg-emerald-100 text-emerald-800", icon: CheckCircle },
+      COMPLETED: {
+        color: "bg-emerald-100 text-emerald-800",
+        icon: CheckCircle,
+      },
       CANCELLED: { color: "bg-red-100 text-red-800", icon: AlertCircle },
     };
 
@@ -117,7 +120,9 @@ export default function JobDetailPage() {
     const Icon = config.icon;
 
     return (
-      <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${config.color}`}>
+      <span
+        className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${config.color}`}
+      >
         <Icon className="w-4 h-4 mr-1" />
         {status.replace("_", " ")}
       </span>
@@ -283,7 +288,9 @@ export default function JobDetailPage() {
                       <div>
                         <div className="text-sm text-gray-600">Start Date</div>
                         <div className="text-lg font-semibold text-gray-900">
-                          {new Date(job.preferredStartDate).toLocaleDateString()}
+                          {new Date(
+                            job.preferredStartDate
+                          ).toLocaleDateString()}
                         </div>
                       </div>
                     </div>
@@ -388,7 +395,10 @@ export default function JobDetailPage() {
                       {job.employeeAssignedAt && (
                         <div className="flex items-center text-sm text-gray-600">
                           <Calendar className="h-4 w-4 mr-2" />
-                          Assigned {new Date(job.employeeAssignedAt).toLocaleDateString()}
+                          Assigned{" "}
+                          {new Date(
+                            job.employeeAssignedAt
+                          ).toLocaleDateString()}
                         </div>
                       )}
                     </div>

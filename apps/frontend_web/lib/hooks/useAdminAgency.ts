@@ -58,8 +58,8 @@ export function useAgencyEmployees(agencyId: number) {
   return useQuery<AgencyEmployee[]>({
     queryKey: ["admin-agency-employees", agencyId],
     queryFn: async () => {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-      
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
       // Fetch via dedicated admin endpoint
       const response = await fetch(
         `${apiUrl}/api/adminpanel/users/agencies/${agencyId}/employees`,
@@ -67,26 +67,26 @@ export function useAgencyEmployees(agencyId: number) {
           credentials: "include",
         }
       );
-      
+
       if (!response.ok) {
         throw new Error("Failed to fetch agency employees");
       }
-      
+
       const data = await response.json();
-      
+
       if (!data.success) {
         throw new Error(data.error || "Failed to fetch agency employees");
       }
 
       // Map backend response to expected format
       const employees = Array.isArray(data.employees) ? data.employees : [];
-      
+
       return employees.map((emp: any) => ({
         employee_id: emp.id || emp.employeeID,
-        name: emp.name || '',
-        email: emp.email || '',
-        phone: '', // Not provided by backend
-        role: emp.role || 'Worker',
+        name: emp.name || "",
+        email: emp.email || "",
+        phone: "", // Not provided by backend
+        role: emp.role || "Worker",
         rating: emp.rating || 0,
         total_jobs_completed: emp.totalJobsCompleted || 0,
         total_earnings: emp.totalEarnings || 0,
@@ -108,19 +108,19 @@ export function useEmployeePerformance(employeeId: number) {
   return useQuery<EmployeePerformance>({
     queryKey: ["employee-performance", employeeId],
     queryFn: async () => {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-      
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
       const response = await fetch(
         `${apiUrl}/api/agency/employees/${employeeId}/performance`,
         {
           credentials: "include",
         }
       );
-      
+
       if (!response.ok) {
         throw new Error("Failed to fetch employee performance");
       }
-      
+
       return response.json();
     },
     enabled: !!employeeId && employeeId > 0,
@@ -143,8 +143,8 @@ export function useBulkUpdateEmployees() {
       action: "activate" | "deactivate";
       agencyId: number;
     }) => {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-      
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
       // This endpoint may need to be created on backend
       // For now, we'll make individual requests
       const updatePromises = employeeIds.map(async (id) => {
@@ -160,16 +160,16 @@ export function useBulkUpdateEmployees() {
             }),
           }
         );
-        
+
         if (!response.ok) {
           throw new Error(`Failed to ${action} employee ${id}`);
         }
-        
+
         return response.json();
       });
 
       await Promise.all(updatePromises);
-      
+
       return { success: true, updated: employeeIds.length };
     },
     onSuccess: (_, variables) => {
@@ -224,11 +224,11 @@ export function exportEmployeesToCSV(
   const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
   const link = document.createElement("a");
   const url = URL.createObjectURL(blob);
-  
+
   link.setAttribute("href", url);
   link.setAttribute("download", `${agencyName}_employees_${Date.now()}.csv`);
   link.style.visibility = "hidden";
-  
+
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);

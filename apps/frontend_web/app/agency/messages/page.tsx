@@ -179,9 +179,15 @@ export default function AgencyMessagesPage() {
                 Connected
               </Badge>
             ) : (
-              <Badge variant="destructive" onClick={reconnect} className="cursor-pointer">
+              <Badge
+                variant="destructive"
+                onClick={reconnect}
+                className="cursor-pointer"
+              >
                 <WifiOff className="h-3 w-3 mr-1" />
-                {connectionState === "connecting" ? "Connecting..." : "Disconnected"}
+                {connectionState === "connecting"
+                  ? "Connecting..."
+                  : "Disconnected"}
               </Badge>
             )}
           </div>

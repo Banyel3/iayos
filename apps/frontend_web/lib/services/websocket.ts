@@ -2,20 +2,25 @@
 // Manages WebSocket connection lifecycle, message sending, and event handling
 // Ported from React Native mobile app
 
-export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'error';
+export type ConnectionState =
+  | "disconnected"
+  | "connecting"
+  | "connected"
+  | "reconnecting"
+  | "error";
 
 export type ChatMessage = {
   conversation_id: number;
   sender_name: string;
   sender_avatar: string | null;
   message: string;
-  type: 'TEXT' | 'IMAGE' | 'SYSTEM';
+  type: "TEXT" | "IMAGE" | "SYSTEM";
   created_at: string;
   is_mine: boolean;
 };
 
 export type WebSocketMessage = {
-  type: 'chat_message' | 'typing_indicator' | 'user_status' | 'error';
+  type: "chat_message" | "typing_indicator" | "user_status" | "error";
   message?: ChatMessage;
   conversation_id?: number;
   user_id?: number;
@@ -29,7 +34,7 @@ type EventCallback = (data: any) => void;
 
 class WebSocketService {
   private ws: WebSocket | null = null;
-  private connectionState: ConnectionState = 'disconnected';
+  private connectionState: ConnectionState = "disconnected";
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private reconnectDelay = 1000;
@@ -43,11 +48,14 @@ class WebSocketService {
   private errorListeners: Set<EventCallback> = new Set();
 
   constructor() {
-    if (typeof window !== 'undefined') {
+    if (typeof window !== "undefined") {
       // Reconnect on page visibility change
-      document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible' && this.connectionState === 'disconnected') {
-          console.log('[WebSocket] Page visible, reconnecting...');
+      document.addEventListener("visibilitychange", () => {
+        if (
+          document.visibilityState === "visible" &&
+          this.connectionState === "disconnected"
+        ) {
+          console.log("[WebSocket] Page visible, reconnecting...");
           this.connect();
         }
       });
@@ -59,31 +67,31 @@ class WebSocketService {
    */
   async connect(): Promise<void> {
     if (this.ws?.readyState === WebSocket.OPEN) {
-      console.log('[WebSocket] Already connected');
+      console.log("[WebSocket] Already connected");
       return;
     }
 
-    if (this.connectionState === 'connecting') {
-      console.log('[WebSocket] Already connecting...');
+    if (this.connectionState === "connecting") {
+      console.log("[WebSocket] Already connecting...");
       return;
     }
 
-    this.connectionState = 'connecting';
-    console.log('[WebSocket] Connecting to inbox WebSocket...');
+    this.connectionState = "connecting";
+    console.log("[WebSocket] Connecting to inbox WebSocket...");
 
     try {
       // Get WebSocket URL from environment or default
-      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsHost = process.env.NEXT_PUBLIC_WS_HOST || 'localhost:8000';
+      const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const wsHost = process.env.NEXT_PUBLIC_WS_HOST || "localhost:8000";
       const wsUrl = `${wsProtocol}//${wsHost}/ws/inbox/`;
 
-      console.log('[WebSocket] Connecting to:', wsUrl);
+      console.log("[WebSocket] Connecting to:", wsUrl);
 
       this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = () => {
-        console.log('[WebSocket] ✅ Connected successfully');
-        this.connectionState = 'connected';
+        console.log("[WebSocket] ✅ Connected successfully");
+        this.connectionState = "connected";
         this.reconnectAttempts = 0;
         this.startHeartbeat();
         this.notifyConnectListeners();
@@ -92,22 +100,22 @@ class WebSocketService {
       this.ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data) as WebSocketMessage;
-          console.log('[WebSocket] 📩 Message received:', data);
+          console.log("[WebSocket] 📩 Message received:", data);
           this.notifyMessageListeners(data);
         } catch (error) {
-          console.error('[WebSocket] Failed to parse message:', error);
+          console.error("[WebSocket] Failed to parse message:", error);
         }
       };
 
       this.ws.onerror = (error) => {
-        console.error('[WebSocket] ❌ Error:', error);
-        this.connectionState = 'error';
-        this.notifyErrorListeners({ error: 'WebSocket error occurred' });
+        console.error("[WebSocket] ❌ Error:", error);
+        this.connectionState = "error";
+        this.notifyErrorListeners({ error: "WebSocket error occurred" });
       };
 
       this.ws.onclose = (event) => {
-        console.log('[WebSocket] 🔌 Disconnected:', event.code, event.reason);
-        this.connectionState = 'disconnected';
+        console.log("[WebSocket] 🔌 Disconnected:", event.code, event.reason);
+        this.connectionState = "disconnected";
         this.stopHeartbeat();
         this.notifyDisconnectListeners();
 
@@ -115,12 +123,12 @@ class WebSocketService {
         if (this.reconnectAttempts < this.maxReconnectAttempts) {
           this.scheduleReconnect();
         } else {
-          console.log('[WebSocket] Max reconnect attempts reached');
+          console.log("[WebSocket] Max reconnect attempts reached");
         }
       };
     } catch (error) {
-      console.error('[WebSocket] Connection failed:', error);
-      this.connectionState = 'error';
+      console.error("[WebSocket] Connection failed:", error);
+      this.connectionState = "error";
       throw error;
     }
   }
@@ -129,20 +137,20 @@ class WebSocketService {
    * Disconnect from WebSocket
    */
   disconnect(): void {
-    console.log('[WebSocket] Manually disconnecting...');
+    console.log("[WebSocket] Manually disconnecting...");
     this.stopHeartbeat();
-    
+
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = null;
     }
 
     if (this.ws) {
-      this.ws.close(1000, 'Client disconnect');
+      this.ws.close(1000, "Client disconnect");
       this.ws = null;
     }
 
-    this.connectionState = 'disconnected';
+    this.connectionState = "disconnected";
     this.reconnectAttempts = this.maxReconnectAttempts; // Prevent auto-reconnect
   }
 
@@ -154,9 +162,11 @@ class WebSocketService {
       return; // Already scheduled
     }
 
-    this.connectionState = 'reconnecting';
+    this.connectionState = "reconnecting";
     const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts);
-    console.log(`[WebSocket] Reconnecting in ${delay}ms... (attempt ${this.reconnectAttempts + 1}/${this.maxReconnectAttempts})`);
+    console.log(
+      `[WebSocket] Reconnecting in ${delay}ms... (attempt ${this.reconnectAttempts + 1}/${this.maxReconnectAttempts})`
+    );
 
     this.reconnectTimeout = setTimeout(() => {
       this.reconnectTimeout = null;
@@ -172,7 +182,7 @@ class WebSocketService {
     this.stopHeartbeat();
     this.heartbeatInterval = setInterval(() => {
       if (this.ws?.readyState === WebSocket.OPEN) {
-        this.ws.send(JSON.stringify({ type: 'ping' }));
+        this.ws.send(JSON.stringify({ type: "ping" }));
       }
     }, 30000); // Every 30 seconds
   }
@@ -187,9 +197,13 @@ class WebSocketService {
   /**
    * Send a message
    */
-  sendMessage(conversationId: number, text: string, type: 'TEXT' | 'IMAGE' = 'TEXT'): boolean {
+  sendMessage(
+    conversationId: number,
+    text: string,
+    type: "TEXT" | "IMAGE" = "TEXT"
+  ): boolean {
     if (this.ws?.readyState !== WebSocket.OPEN) {
-      console.warn('[WebSocket] Cannot send message - not connected');
+      console.warn("[WebSocket] Cannot send message - not connected");
       return false;
     }
 
@@ -199,7 +213,7 @@ class WebSocketService {
       type: type,
     };
 
-    console.log('[WebSocket] 📤 Sending message:', payload);
+    console.log("[WebSocket] 📤 Sending message:", payload);
     this.ws.send(JSON.stringify(payload));
     return true;
   }
@@ -213,7 +227,7 @@ class WebSocketService {
     }
 
     const payload = {
-      action: 'typing',
+      action: "typing",
       conversation_id: conversationId,
       is_typing: true,
     };
@@ -230,7 +244,7 @@ class WebSocketService {
     }
 
     const payload = {
-      action: 'mark_read',
+      action: "mark_read",
       message_id: messageId,
     };
 
@@ -273,19 +287,19 @@ class WebSocketService {
   }
 
   private notifyMessageListeners(data: WebSocketMessage): void {
-    this.messageListeners.forEach(callback => callback(data));
+    this.messageListeners.forEach((callback) => callback(data));
   }
 
   private notifyConnectListeners(): void {
-    this.connectListeners.forEach(callback => callback({}));
+    this.connectListeners.forEach((callback) => callback({}));
   }
 
   private notifyDisconnectListeners(): void {
-    this.disconnectListeners.forEach(callback => callback({}));
+    this.disconnectListeners.forEach((callback) => callback({}));
   }
 
   private notifyErrorListeners(error: any): void {
-    this.errorListeners.forEach(callback => callback(error));
+    this.errorListeners.forEach((callback) => callback(error));
   }
 }
 

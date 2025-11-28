@@ -2,11 +2,7 @@
 // Handles fetching and sending messages
 // Ported from React Native mobile app
 
-import {
-  useQuery,
-  useMutation,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSendMessage } from "./useWebSocketHooks";
 
 export type MessageAttachment = {

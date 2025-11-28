@@ -26,18 +26,13 @@ interface Employee {
 
 const normalizeEmployee = (employee: any): Employee => {
   const employeeId =
-    employee?.employeeId ??
-    employee?.employee_id ??
-    employee?.id ??
-    null;
+    employee?.employeeId ?? employee?.employee_id ?? employee?.id ?? null;
 
   return {
     employeeId: employeeId !== null ? Number(employeeId) : -1,
     name:
       employee?.name ||
-      [employee?.first_name, employee?.last_name]
-        .filter(Boolean)
-        .join(" ") ||
+      [employee?.first_name, employee?.last_name].filter(Boolean).join(" ") ||
       "Unnamed Employee",
     email: employee?.email || "",
     role: employee?.role || employee?.position || "Staff",
@@ -93,7 +88,13 @@ interface Job {
   updatedAt: string;
 }
 
-type TabType = "invites" | "accepted" | "assigned" | "inProgress" | "completed" | "cancelled";
+type TabType =
+  | "invites"
+  | "accepted"
+  | "assigned"
+  | "inProgress"
+  | "completed"
+  | "cancelled";
 
 export default function AgencyJobsPage() {
   const router = useRouter();
@@ -210,7 +211,9 @@ export default function AgencyJobsPage() {
 
       const data = await response.json();
       // Filter for jobs without assigned employees (unassigned)
-      const unassignedJobs = (data.jobs || []).filter((job: Job) => !job.assignedEmployeeID);
+      const unassignedJobs = (data.jobs || []).filter(
+        (job: Job) => !job.assignedEmployeeID
+      );
       setAcceptedJobs(unassignedJobs);
     } catch (err) {
       console.error("Error fetching accepted jobs:", err);
@@ -237,12 +240,16 @@ export default function AgencyJobsPage() {
       );
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch assigned jobs: ${response.statusText}`);
+        throw new Error(
+          `Failed to fetch assigned jobs: ${response.statusText}`
+        );
       }
 
       const data = await response.json();
       // Filter for jobs WITH assigned employees (assigned but not started yet)
-      const assignedJobs = (data.jobs || []).filter((job: Job) => job.assignedEmployeeID);
+      const assignedJobs = (data.jobs || []).filter(
+        (job: Job) => job.assignedEmployeeID
+      );
       setAssignedJobs(assignedJobs);
     } catch (err) {
       console.error("Error fetching assigned jobs:", err);
@@ -266,7 +273,9 @@ export default function AgencyJobsPage() {
       );
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch in-progress jobs: ${response.statusText}`);
+        throw new Error(
+          `Failed to fetch in-progress jobs: ${response.statusText}`
+        );
       }
 
       const data = await response.json();
@@ -293,7 +302,9 @@ export default function AgencyJobsPage() {
       );
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch completed jobs: ${response.statusText}`);
+        throw new Error(
+          `Failed to fetch completed jobs: ${response.statusText}`
+        );
       }
 
       const data = await response.json();
@@ -320,7 +331,9 @@ export default function AgencyJobsPage() {
       );
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch cancelled jobs: ${response.statusText}`);
+        throw new Error(
+          `Failed to fetch cancelled jobs: ${response.statusText}`
+        );
       }
 
       const data = await response.json();
@@ -498,9 +511,7 @@ export default function AgencyJobsPage() {
         }
       );
 
-      const responseData = await response
-        .json()
-        .catch(() => null as unknown);
+      const responseData = await response.json().catch(() => null as unknown);
 
       if (!response.ok) {
         const parsedBody = responseData as any;
@@ -520,7 +531,8 @@ export default function AgencyJobsPage() {
         })();
 
         const errorMessage =
-          derivedMessage || `Failed to assign employee (HTTP ${response.status})`;
+          derivedMessage ||
+          `Failed to assign employee (HTTP ${response.status})`;
         throw new Error(errorMessage);
       }
 
@@ -911,7 +923,8 @@ export default function AgencyJobsPage() {
                       No Assigned Jobs
                     </h3>
                     <p className="text-gray-600 max-w-md mx-auto">
-                      Jobs with assigned employees will appear here. Assign employees to accepted jobs to see them in this tab.
+                      Jobs with assigned employees will appear here. Assign
+                      employees to accepted jobs to see them in this tab.
                     </p>
                   </div>
                 </CardContent>
@@ -948,7 +961,9 @@ export default function AgencyJobsPage() {
                           </p>
                         </div>
                         <div>
-                          <span className="text-sm text-gray-600">Category</span>
+                          <span className="text-sm text-gray-600">
+                            Category
+                          </span>
                           <p className="font-semibold text-gray-900">
                             {job.category?.name || "N/A"}
                           </p>
@@ -979,7 +994,8 @@ export default function AgencyJobsPage() {
                         <div className="flex items-center space-x-2">
                           <CheckCircle className="text-blue-600" size={20} />
                           <span className="text-blue-800 font-medium">
-                            Assigned to: {job.assignedEmployee?.name || "Unknown"}
+                            Assigned to:{" "}
+                            {job.assignedEmployee?.name || "Unknown"}
                           </span>
                         </div>
                       </div>
@@ -1039,7 +1055,9 @@ export default function AgencyJobsPage() {
                           </p>
                         </div>
                         <div>
-                          <span className="text-sm text-gray-600">Category</span>
+                          <span className="text-sm text-gray-600">
+                            Category
+                          </span>
                           <p className="font-semibold text-gray-900">
                             {job.category?.name || "N/A"}
                           </p>
@@ -1060,7 +1078,10 @@ export default function AgencyJobsPage() {
 
                       <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
                         <div className="flex items-center space-x-2">
-                          <Loader2 className="text-orange-600 animate-spin" size={20} />
+                          <Loader2
+                            className="text-orange-600 animate-spin"
+                            size={20}
+                          />
                           <span className="text-orange-800 font-medium">
                             Work in progress...
                           </span>
@@ -1122,7 +1143,9 @@ export default function AgencyJobsPage() {
                           </p>
                         </div>
                         <div>
-                          <span className="text-sm text-gray-600">Category</span>
+                          <span className="text-sm text-gray-600">
+                            Category
+                          </span>
                           <p className="font-semibold text-gray-900">
                             {job.category?.name || "N/A"}
                           </p>
@@ -1205,7 +1228,9 @@ export default function AgencyJobsPage() {
                           </p>
                         </div>
                         <div>
-                          <span className="text-sm text-gray-600">Category</span>
+                          <span className="text-sm text-gray-600">
+                            Category
+                          </span>
                           <p className="font-semibold text-gray-900">
                             {job.category?.name || "N/A"}
                           </p>
