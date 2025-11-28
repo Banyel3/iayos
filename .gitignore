@@ -226,3 +226,28 @@ acli.exe
 
 CLAUDE.md
 AGENTS.md
+
+########################
+# Archive folder (preserved utility scripts)
+########################
+/archive/
+
+########################
+# Test artifacts & logs
+########################
+*_output.txt
+*_results.txt
+*_errors.txt
+test_*.txt
+debug.log
+django_server.log
+django.log
+flutter_debug.log
+
+########################
+# One-time fix scripts
+########################
+fix-*.sh
+fix_*.js
+quick-fixes.sh
+*.iml
