@@ -282,9 +282,8 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app/apps/frontend_mobile/iayos_mobile
 
-# Disable Expo telemetry
+# Disable Expo telemetry but keep interactive mode for QR code
 ENV EXPO_NO_TELEMETRY=1
-ENV CI=1
 
 # Copy package files first for better caching
 COPY apps/frontend_mobile/iayos_mobile/package.json apps/frontend_mobile/iayos_mobile/package-lock.json* ./

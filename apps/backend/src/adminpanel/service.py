@@ -1,6 +1,7 @@
 ﻿from django.conf import settings
 from django.utils import timezone
 from datetime import timedelta
+from typing import Optional
 import hashlib
 import uuid
 
