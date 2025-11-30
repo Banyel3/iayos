@@ -1,7 +1,15 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, User, Briefcase, AlertCircle, CheckCircle, Users, Crown } from "lucide-react";
+import {
+  X,
+  User,
+  Briefcase,
+  AlertCircle,
+  CheckCircle,
+  Users,
+  Crown,
+} from "lucide-react";
 
 interface Employee {
   employeeId: number;
@@ -35,7 +43,11 @@ interface AssignEmployeesModalProps {
   onClose: () => void;
   job: Job;
   employees: Employee[];
-  onAssign: (employeeIds: number[], primaryContactId: number, notes: string) => Promise<void>;
+  onAssign: (
+    employeeIds: number[],
+    primaryContactId: number,
+    notes: string
+  ) => Promise<void>;
 }
 
 const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
@@ -47,7 +59,9 @@ export default function AssignEmployeesModal({
   employees,
   onAssign,
 }: AssignEmployeesModalProps) {
-  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<Set<number>>(new Set());
+  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<Set<number>>(
+    new Set()
+  );
   const [primaryContactId, setPrimaryContactId] = useState<number | null>(null);
   const [assignmentNotes, setAssignmentNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -119,7 +133,8 @@ export default function AssignEmployeesModal({
       return;
     }
 
-    const finalPrimaryContact = primaryContactId || Array.from(selectedEmployeeIds)[0];
+    const finalPrimaryContact =
+      primaryContactId || Array.from(selectedEmployeeIds)[0];
 
     setIsSubmitting(true);
     try {
@@ -223,7 +238,8 @@ export default function AssignEmployeesModal({
             <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
               <div className="flex items-center justify-between">
                 <span className="text-green-800 font-medium">
-                  {selectedEmployeeIds.size} employee{selectedEmployeeIds.size > 1 ? "s" : ""} selected
+                  {selectedEmployeeIds.size} employee
+                  {selectedEmployeeIds.size > 1 ? "s" : ""} selected
                 </span>
                 <button
                   onClick={() => {
@@ -242,7 +258,9 @@ export default function AssignEmployeesModal({
           <div className="space-y-3">
             <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
               Select Employees
-              <span className="text-sm font-normal text-gray-500">(select multiple)</span>
+              <span className="text-sm font-normal text-gray-500">
+                (select multiple)
+              </span>
             </h3>
 
             {activeEmployees.length === 0 ? (
@@ -254,7 +272,9 @@ export default function AssignEmployeesModal({
               <div className="space-y-3">
                 {activeEmployees.map((employee, index) => {
                   const workload = employeeWorkloads[employee.employeeId];
-                  const isSelected = selectedEmployeeIds.has(employee.employeeId);
+                  const isSelected = selectedEmployeeIds.has(
+                    employee.employeeId
+                  );
                   const isPrimary = primaryContactId === employee.employeeId;
 
                   return (
@@ -268,7 +288,9 @@ export default function AssignEmployeesModal({
                     >
                       <div className="flex items-start justify-between">
                         <button
-                          onClick={() => toggleEmployeeSelection(employee.employeeId)}
+                          onClick={() =>
+                            toggleEmployeeSelection(employee.employeeId)
+                          }
                           className="flex items-start space-x-3 flex-1 text-left"
                         >
                           <div className="relative">
@@ -321,14 +343,18 @@ export default function AssignEmployeesModal({
                         </button>
 
                         {/* Set as Primary Contact button (only if selected) */}
-                        {isSelected && !isPrimary && selectedEmployeeIds.size > 1 && (
-                          <button
-                            onClick={() => setPrimaryContactId(employee.employeeId)}
-                            className="ml-2 px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded hover:bg-yellow-200 transition-colors flex items-center gap-1"
-                          >
-                            <Crown size={12} /> Set as Lead
-                          </button>
-                        )}
+                        {isSelected &&
+                          !isPrimary &&
+                          selectedEmployeeIds.size > 1 && (
+                            <button
+                              onClick={() =>
+                                setPrimaryContactId(employee.employeeId)
+                              }
+                              className="ml-2 px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded hover:bg-yellow-200 transition-colors flex items-center gap-1"
+                            >
+                              <Crown size={12} /> Set as Lead
+                            </button>
+                          )}
                       </div>
                     </div>
                   );
@@ -375,7 +401,9 @@ export default function AssignEmployeesModal({
               <>
                 <Users size={18} />
                 <span>
-                  Assign {selectedEmployeeIds.size > 0 ? selectedEmployeeIds.size : ""} Employee{selectedEmployeeIds.size !== 1 ? "s" : ""}
+                  Assign{" "}
+                  {selectedEmployeeIds.size > 0 ? selectedEmployeeIds.size : ""}{" "}
+                  Employee{selectedEmployeeIds.size !== 1 ? "s" : ""}
                 </span>
               </>
             )}

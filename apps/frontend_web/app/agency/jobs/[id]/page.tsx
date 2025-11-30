@@ -60,7 +60,7 @@ interface Job {
     email: string;
     role: string;
   };
-  assignedEmployees?: AssignedEmployee[];  // NEW: Multi-employee support
+  assignedEmployees?: AssignedEmployee[]; // NEW: Multi-employee support
   client: {
     id: number;
     name: string;
@@ -431,15 +431,18 @@ export default function JobDetailPage() {
                     <Users className="h-5 w-5 text-blue-600" />
                     Assigned Team
                     <span className="ml-auto text-sm font-normal bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
-                      {job.assignedEmployees.length} member{job.assignedEmployees.length > 1 ? "s" : ""}
+                      {job.assignedEmployees.length} member
+                      {job.assignedEmployees.length > 1 ? "s" : ""}
                     </span>
                   </h2>
                   <div className="space-y-3">
                     {job.assignedEmployees.map((employee, index) => (
-                      <div 
+                      <div
                         key={employee.employee_id || index}
                         className={`flex items-center space-x-3 p-3 rounded-lg ${
-                          employee.is_primary_contact ? "bg-yellow-50 border border-yellow-200" : "bg-white border border-gray-100"
+                          employee.is_primary_contact
+                            ? "bg-yellow-50 border border-yellow-200"
+                            : "bg-white border border-gray-100"
                         }`}
                       >
                         <div className="relative">
@@ -454,7 +457,9 @@ export default function JobDetailPage() {
                         </div>
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
-                            <span className="font-semibold text-gray-900">{employee.name}</span>
+                            <span className="font-semibold text-gray-900">
+                              {employee.name}
+                            </span>
                             {employee.is_primary_contact && (
                               <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full">
                                 Team Lead
@@ -469,11 +474,15 @@ export default function JobDetailPage() {
                                 {employee.rating.toFixed(1)}
                               </span>
                             )}
-                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                              employee.status === "IN_PROGRESS" ? "bg-orange-100 text-orange-700" :
-                              employee.status === "COMPLETED" ? "bg-green-100 text-green-700" :
-                              "bg-blue-100 text-blue-700"
-                            }`}>
+                            <span
+                              className={`px-2 py-0.5 rounded text-xs font-medium ${
+                                employee.status === "IN_PROGRESS"
+                                  ? "bg-orange-100 text-orange-700"
+                                  : employee.status === "COMPLETED"
+                                    ? "bg-green-100 text-green-700"
+                                    : "bg-blue-100 text-blue-700"
+                              }`}
+                            >
                               {employee.status?.replace("_", " ")}
                             </span>
                           </div>
@@ -484,7 +493,8 @@ export default function JobDetailPage() {
                   {job.employeeAssignedAt && (
                     <div className="mt-4 pt-3 border-t border-gray-200 flex items-center text-sm text-gray-500">
                       <Calendar className="h-4 w-4 mr-2" />
-                      Team assigned on {new Date(job.employeeAssignedAt).toLocaleDateString()}
+                      Team assigned on{" "}
+                      {new Date(job.employeeAssignedAt).toLocaleDateString()}
                     </div>
                   )}
                 </CardContent>

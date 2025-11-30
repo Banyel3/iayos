@@ -497,7 +497,7 @@ export default function AgencyJobsPage() {
       setSuccessMessage(null);
 
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      
+
       const response = await fetch(
         `${apiUrl}/api/agency/jobs/${selectedJobForAssignment.jobID}/assign-employees`,
         {

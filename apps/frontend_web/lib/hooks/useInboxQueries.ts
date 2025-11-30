@@ -166,8 +166,8 @@ export function useSubmitReview() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
-          body: JSON.stringify({ 
-            rating, 
+          body: JSON.stringify({
+            rating,
             message: message.trim() || null,
             review_target,
             employee_id,

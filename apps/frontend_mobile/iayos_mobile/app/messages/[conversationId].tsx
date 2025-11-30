@@ -92,7 +92,7 @@ export default function ChatScreen() {
       // Multi-employee support: check pending_employee_reviews array
       const pendingEmployees = conversation.pending_employee_reviews || [];
       const allEmployeesReviewed = conversation.all_employees_reviewed;
-      
+
       if (allEmployeesReviewed && !conversation.job.agencyReviewed) {
         // All employees reviewed, now rate the agency
         setReviewStep("AGENCY");
@@ -324,20 +324,23 @@ export default function ChatScreen() {
 
     // Check if this is an agency job with employees
     const isAgencyJob = conversation.is_agency_job;
-    const hasMultipleEmployees = (conversation.assigned_employees?.length || 0) > 0;
+    const hasMultipleEmployees =
+      (conversation.assigned_employees?.length || 0) > 0;
     const pendingEmployees = conversation.pending_employee_reviews || [];
-    
+
     // For agency jobs (client reviewing), we need reviews for each employee + agency
     if (isAgencyJob && conversation.my_role === "CLIENT") {
       if (reviewStep === "EMPLOYEE") {
         // Determine which employee is being reviewed
         let currentEmployeeId: number;
         let currentEmployeeName: string;
-        
+
         if (hasMultipleEmployees && pendingEmployees.length > 0) {
           // Multi-employee: use the first pending employee
           currentEmployeeId = pendingEmployees[0];
-          const employee = conversation.assigned_employees?.find(e => e.id === currentEmployeeId);
+          const employee = conversation.assigned_employees?.find(
+            (e) => e.id === currentEmployeeId
+          );
           currentEmployeeName = employee?.name || "Employee";
         } else if (conversation.assigned_employee) {
           // Legacy single employee
@@ -362,15 +365,15 @@ export default function ChatScreen() {
             onSuccess: (data: any) => {
               setRating(0);
               setReviewComment("");
-              
+
               // Check if there are more employees to review
               const remainingEmployees = pendingEmployees.slice(1);
-              
+
               if (remainingEmployees.length > 0) {
                 // More employees to review
                 setCurrentEmployeeIndex(currentEmployeeIndex + 1);
                 const nextEmployee = conversation.assigned_employees?.find(
-                  e => e.id === remainingEmployees[0]
+                  (e) => e.id === remainingEmployees[0]
                 );
                 Alert.alert(
                   "Employee Rated!",
@@ -1091,23 +1094,33 @@ export default function ChatScreen() {
                       <>
                         {/* Multi-employee support: show which employee is being reviewed */}
                         {(() => {
-                          const pendingEmployees = conversation.pending_employee_reviews || [];
-                          const allEmployees = conversation.assigned_employees || [];
+                          const pendingEmployees =
+                            conversation.pending_employee_reviews || [];
+                          const allEmployees =
+                            conversation.assigned_employees || [];
                           const hasMultipleEmployees = allEmployees.length > 1;
                           const totalEmployees = allEmployees.length || 1;
-                          const reviewedCount = totalEmployees - pendingEmployees.length;
-                          
+                          const reviewedCount =
+                            totalEmployees - pendingEmployees.length;
+
                           // Get current employee being reviewed
                           let currentEmployeeName = "Worker";
                           if (reviewStep === "EMPLOYEE") {
-                            if (pendingEmployees.length > 0 && allEmployees.length > 0) {
-                              const currentEmployee = allEmployees.find(e => e.id === pendingEmployees[0]);
-                              currentEmployeeName = currentEmployee?.name || "Employee";
+                            if (
+                              pendingEmployees.length > 0 &&
+                              allEmployees.length > 0
+                            ) {
+                              const currentEmployee = allEmployees.find(
+                                (e) => e.id === pendingEmployees[0]
+                              );
+                              currentEmployeeName =
+                                currentEmployee?.name || "Employee";
                             } else if (conversation.assigned_employee) {
-                              currentEmployeeName = conversation.assigned_employee.name;
+                              currentEmployeeName =
+                                conversation.assigned_employee.name;
                             }
                           }
-                          
+
                           return (
                             <>
                               <Text style={styles.reviewTitle}>
@@ -1120,35 +1133,38 @@ export default function ChatScreen() {
                                   ? `How did ${currentEmployeeName} perform on this job?`
                                   : `How was your experience with ${conversation.other_participant?.name || "the agency"}?`}
                               </Text>
-                              
+
                               {/* Progress indicator */}
-                              {hasMultipleEmployees && reviewStep === "EMPLOYEE" && (
-                                <View style={styles.stepIndicator}>
-                                  <Ionicons
-                                    name="people"
-                                    size={16}
-                                    color={Colors.primary}
-                                  />
-                                  <Text style={styles.stepIndicatorText}>
-                                    Employee {reviewedCount + 1} of {totalEmployees}
-                                  </Text>
-                                </View>
-                              )}
-                              
-                              {employeeReviewSubmitted && reviewStep === "AGENCY" && (
-                                <View style={styles.stepIndicator}>
-                                  <Ionicons
-                                    name="checkmark-circle"
-                                    size={16}
-                                    color={Colors.success}
-                                  />
-                                  <Text style={styles.stepIndicatorText}>
-                                    {hasMultipleEmployees 
-                                      ? `All ${totalEmployees} employees rated! Final step: Agency`
-                                      : "Step 2 of 2: Agency Review"}
-                                  </Text>
-                                </View>
-                              )}
+                              {hasMultipleEmployees &&
+                                reviewStep === "EMPLOYEE" && (
+                                  <View style={styles.stepIndicator}>
+                                    <Ionicons
+                                      name="people"
+                                      size={16}
+                                      color={Colors.primary}
+                                    />
+                                    <Text style={styles.stepIndicatorText}>
+                                      Employee {reviewedCount + 1} of{" "}
+                                      {totalEmployees}
+                                    </Text>
+                                  </View>
+                                )}
+
+                              {employeeReviewSubmitted &&
+                                reviewStep === "AGENCY" && (
+                                  <View style={styles.stepIndicator}>
+                                    <Ionicons
+                                      name="checkmark-circle"
+                                      size={16}
+                                      color={Colors.success}
+                                    />
+                                    <Text style={styles.stepIndicatorText}>
+                                      {hasMultipleEmployees
+                                        ? `All ${totalEmployees} employees rated! Final step: Agency`
+                                        : "Step 2 of 2: Agency Review"}
+                                    </Text>
+                                  </View>
+                                )}
                             </>
                           );
                         })()}
