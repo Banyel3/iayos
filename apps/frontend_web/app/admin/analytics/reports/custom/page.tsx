@@ -70,18 +70,6 @@ export default function CustomReportBuilder() {
         "Refund Rate",
       ],
     },
-    {
-      name: "Engagement Metrics",
-      icon: Activity,
-      color: "orange",
-      metrics: [
-        "Session Duration",
-        "Pages per Session",
-        "Feature Usage",
-        "Bounce Rate",
-        "Return Visitors",
-      ],
-    },
   ];
 
   const chartTypes = [

@@ -245,7 +245,7 @@ export default function TransactionDetailPage() {
                     <div className="bg-gray-50 rounded-lg p-4">
                       <p className="text-sm text-gray-600 mb-1">Amount</p>
                       <p className="text-2xl font-bold text-gray-900">
-                        ₱{detail.transaction.amount.toLocaleString()}
+                        ₱{(detail.transaction?.amount ?? 0).toLocaleString()}
                       </p>
                     </div>
                     <div className="bg-gray-50 rounded-lg p-4">
@@ -297,7 +297,7 @@ export default function TransactionDetailPage() {
                         </p>
                         <p className="text-2xl font-bold text-yellow-900">
                           ₱
-                          {detail.escrow_details.downpayment_amount.toLocaleString()}
+                          {(detail.escrow_details?.downpayment_amount ?? 0).toLocaleString()}
                         </p>
                       </div>
                       <div className="bg-green-50 rounded-lg p-4 border-2 border-green-200">
@@ -306,7 +306,7 @@ export default function TransactionDetailPage() {
                         </p>
                         <p className="text-2xl font-bold text-green-900">
                           ₱
-                          {detail.escrow_details.final_payment_amount.toLocaleString()}
+                          {(detail.escrow_details?.final_payment_amount ?? 0).toLocaleString()}
                         </p>
                       </div>
                     </div>
@@ -330,13 +330,13 @@ export default function TransactionDetailPage() {
                   <h2 className="text-xl font-bold text-gray-900 mb-4">
                     Audit Trail
                   </h2>
-                  {detail.audit_trail.length === 0 ? (
+                  {(detail.audit_trail ?? []).length === 0 ? (
                     <p className="text-gray-600 text-center py-8">
                       No actions taken yet
                     </p>
                   ) : (
                     <div className="space-y-4">
-                      {detail.audit_trail.map((item, index) => (
+                      {(detail.audit_trail ?? []).map((item, index) => (
                         <div
                           key={index}
                           className="border-l-4 border-blue-500 pl-4 py-2 bg-blue-50/50 rounded-r-lg"
@@ -376,24 +376,26 @@ export default function TransactionDetailPage() {
                   <div className="space-y-3">
                     <div>
                       <p className="text-lg font-semibold text-gray-900">
-                        {detail.payer.name}
+                        {detail.payer?.name ?? "N/A"}
                       </p>
                       <p className="text-sm text-gray-600">
-                        {detail.payer.email}
+                        {detail.payer?.email ?? "N/A"}
                       </p>
                     </div>
                     <Badge className="bg-blue-100 text-blue-700">
-                      {detail.payer.profile_type}
+                      {detail.payer?.profile_type ?? "Unknown"}
                     </Badge>
-                    <Link href={`/admin/users/${detail.payer.id}`}>
-                      <Button
-                        variant="outline"
-                        className="w-full border-blue-600 text-blue-600 hover:bg-blue-50"
-                      >
-                        View Profile
-                        <ChevronRight className="h-4 w-4 ml-2" />
-                      </Button>
-                    </Link>
+                    {detail.payer?.id && (
+                      <Link href={`/admin/users/${detail.payer.id}`}>
+                        <Button
+                          variant="outline"
+                          className="w-full border-blue-600 text-blue-600 hover:bg-blue-50"
+                        >
+                          View Profile
+                          <ChevronRight className="h-4 w-4 ml-2" />
+                        </Button>
+                      </Link>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -408,24 +410,26 @@ export default function TransactionDetailPage() {
                   <div className="space-y-3">
                     <div>
                       <p className="text-lg font-semibold text-gray-900">
-                        {detail.payee.name}
+                        {detail.payee?.name ?? "N/A"}
                       </p>
                       <p className="text-sm text-gray-600">
-                        {detail.payee.email}
+                        {detail.payee?.email ?? "N/A"}
                       </p>
                     </div>
                     <Badge className="bg-green-100 text-green-700">
-                      {detail.payee.profile_type}
+                      {detail.payee?.profile_type ?? "Unknown"}
                     </Badge>
-                    <Link href={`/admin/users/${detail.payee.id}`}>
-                      <Button
-                        variant="outline"
-                        className="w-full border-green-600 text-green-600 hover:bg-green-50"
-                      >
-                        View Profile
-                        <ChevronRight className="h-4 w-4 ml-2" />
-                      </Button>
-                    </Link>
+                    {detail.payee?.id && (
+                      <Link href={`/admin/users/${detail.payee.id}`}>
+                        <Button
+                          variant="outline"
+                          className="w-full border-green-600 text-green-600 hover:bg-green-50"
+                        >
+                          View Profile
+                          <ChevronRight className="h-4 w-4 ml-2" />
+                        </Button>
+                      </Link>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -440,24 +444,26 @@ export default function TransactionDetailPage() {
                   <div className="space-y-3">
                     <div>
                       <p className="text-lg font-semibold text-gray-900">
-                        {detail.job.title}
+                        {detail.job?.title ?? "N/A"}
                       </p>
                       <p className="text-sm text-gray-600">
-                        Budget: ₱{detail.job.budget.toLocaleString()}
+                        Budget: ₱{(detail.job?.budget ?? 0).toLocaleString()}
                       </p>
                     </div>
                     <Badge className="bg-purple-100 text-purple-700">
-                      {detail.job.status}
+                      {detail.job?.status ?? "Unknown"}
                     </Badge>
-                    <Link href={`/admin/jobs/listings/${detail.job.id}`}>
-                      <Button
-                        variant="outline"
-                        className="w-full border-purple-600 text-purple-600 hover:bg-purple-50"
-                      >
-                        View Job
-                        <ChevronRight className="h-4 w-4 ml-2" />
-                      </Button>
-                    </Link>
+                    {detail.job?.id && (
+                      <Link href={`/admin/jobs/listings/${detail.job.id}`}>
+                        <Button
+                          variant="outline"
+                          className="w-full border-purple-600 text-purple-600 hover:bg-purple-50"
+                        >
+                          View Job
+                          <ChevronRight className="h-4 w-4 ml-2" />
+                        </Button>
+                      </Link>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -554,12 +560,12 @@ export default function TransactionDetailPage() {
                         type="number"
                         value={refundAmount}
                         onChange={(e) => setRefundAmount(e.target.value)}
-                        max={detail.transaction.amount}
+                        max={detail.transaction?.amount ?? 0}
                         className="w-full p-3 border border-gray-300 rounded-lg"
                         placeholder="0.00"
                       />
                       <p className="text-xs text-gray-500 mt-1">
-                        Max: ₱{detail.transaction.amount.toLocaleString()}
+                        Max: ₱{(detail.transaction?.amount ?? 0).toLocaleString()}
                       </p>
                     </div>
                     <div>

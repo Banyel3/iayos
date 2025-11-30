@@ -143,7 +143,7 @@ export const FAQS: FAQ[] = [
     category: "Payments",
     question: "Are there any fees?",
     answer:
-      "iAyos charges a 5% platform fee on completed jobs. This fee covers payment processing, support, and platform maintenance. There are no hidden charges.",
+      "iAyos charges a 10% platform fee on the escrow downpayment. This fee covers payment processing, support, and platform maintenance. There are no hidden charges.",
   },
   {
     id: 18,

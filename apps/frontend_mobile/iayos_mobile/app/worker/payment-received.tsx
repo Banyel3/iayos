@@ -43,7 +43,7 @@ iAyos Payment Receipt
 
 Job: ${earnings.jobTitle}
 Total Earnings: ₱${formatAmount(earnings.grossAmount)}
-Platform Fee (5%): -₱${formatAmount(earnings.platformFee)}
+Platform Fee (10%): -₱${formatAmount(earnings.platformFee)}
 Net Received: ₱${formatAmount(earnings.netAmount)}
 
 Date: ${format(new Date(), "PPpp")}
@@ -134,7 +134,7 @@ Thank you for using iAyos!
             {/* Platform Fee */}
             <View style={styles.amountRow}>
               <View style={styles.labelWithIcon}>
-                <Text style={styles.amountLabel}>Platform Fee (5%)</Text>
+                <Text style={styles.amountLabel}>Platform Fee (10%)</Text>
                 <Ionicons
                   name="information-circle-outline"
                   size={16}

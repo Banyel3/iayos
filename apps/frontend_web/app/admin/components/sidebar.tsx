@@ -277,18 +277,6 @@ const navigation: NavItem[] = [
         description: "Revenue & transactions",
       },
       {
-        name: "Engagement",
-        href: "/admin/analytics/engagement",
-        icon: Activity,
-        description: "User engagement metrics",
-      },
-      {
-        name: "Geographic",
-        href: "/admin/analytics/geographic",
-        icon: Package,
-        description: "Location analytics",
-      },
-      {
         name: "Custom Reports",
         href: "/admin/analytics/reports/custom",
         icon: FileText,

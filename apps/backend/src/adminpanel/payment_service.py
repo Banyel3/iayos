@@ -255,7 +255,7 @@ def get_transaction_detail(transaction_id: int) -> Dict[str, Any]:
         transaction_id: Transaction ID
         
     Returns:
-        Dictionary with complete transaction details
+        Dictionary with complete transaction details formatted for frontend
     """
     try:
         txn = Transaction.objects.select_related(
@@ -264,62 +264,77 @@ def get_transaction_detail(transaction_id: int) -> Dict[str, Any]:
             'relatedJobPosting__assignedWorkerID__profileID__accountFK'
         ).get(transactionID=transaction_id)
         
-        # User info
+        # User info (wallet owner)
         user = txn.walletID.accountFK if txn.walletID else None
         user_info = None
         if user:
             profile = Profile.objects.filter(accountFK=user).first()
             user_info = {
-                'id': user.accountID,
+                'id': str(user.accountID),
                 'email': user.email,
                 'name': f"{profile.firstName or ''} {profile.lastName or ''}".strip() if profile else user.email,
-                'phone': profile.contactNum if profile else 'N/A'
+                'phone': profile.contactNum if profile else 'N/A',
+                'profile_type': profile.profileType if profile else 'Unknown'
             }
         
-        # Job info
+        # Build payer and payee info from job or wallet owner
+        payer_info = None
+        payee_info = None
         job_info = None
+        
         if txn.relatedJobPosting:
             job = txn.relatedJobPosting
-            client = job.clientID.profileID.accountFK
-            client_profile = job.clientID.profileID
-            worker = job.assignedWorkerID.profileID.accountFK if job.assignedWorkerID else None
-            worker_profile = job.assignedWorkerID.profileID if job.assignedWorkerID else None
             
+            # Client info (payer)
+            if job.clientID and job.clientID.profileID:
+                client = job.clientID.profileID.accountFK
+                client_profile = job.clientID.profileID
+                payer_info = {
+                    'id': str(client.accountID),
+                    'name': f"{client_profile.firstName or ''} {client_profile.lastName or ''}".strip() or client.email,
+                    'email': client.email,
+                    'profile_type': 'CLIENT'
+                }
+            
+            # Worker info (payee)
+            if job.assignedWorkerID and job.assignedWorkerID.profileID:
+                worker = job.assignedWorkerID.profileID.accountFK
+                worker_profile = job.assignedWorkerID.profileID
+                payee_info = {
+                    'id': str(worker.accountID),
+                    'name': f"{worker_profile.firstName or ''} {worker_profile.lastName or ''}".strip() or worker.email,
+                    'email': worker.email,
+                    'profile_type': 'WORKER'
+                }
+            
+            # Job info
             job_info = {
-                'id': job.jobID,
+                'id': str(job.jobID),
                 'title': job.title,
                 'status': job.status,
-                'budget': float(job.budget),
-                'client': {
-                    'id': client.accountID,
-                    'name': f"{client_profile.firstName or ''} {client_profile.lastName or ''}".strip() or client.email,
-                    'email': client.email
-                },
-                'worker': {
-                    'id': worker.accountID,
-                    'name': f"{worker_profile.firstName or ''} {worker_profile.lastName or ''}".strip() or worker.email,
-                    'email': worker.email
-                } if worker and worker_profile else None
+                'budget': float(job.budget)
             }
+        else:
+            # Fallback to wallet owner as payer/payee based on transaction type
+            if user_info:
+                if txn.transactionType in ['DEPOSIT', 'PAYMENT', 'FEE']:
+                    payer_info = user_info
+                elif txn.transactionType in ['WITHDRAWAL', 'REFUND', 'EARNINGS']:
+                    payee_info = user_info
         
         # Escrow details (for PAYMENT type transactions)
         escrow_details = None
         if txn.transactionType == 'PAYMENT':
             days_held = (timezone.now() - txn.createdAt).days
+            downpayment = float(txn.amount)
             escrow_details = {
-                'amount_held': float(txn.amount),
+                'amount_held': downpayment,
+                'downpayment_amount': downpayment,
+                'final_payment_amount': downpayment,  # Same as downpayment (50/50 split)
                 'days_held': days_held,
                 'can_release': txn.status == 'PENDING',
-                'escrow_paid_at': txn.createdAt.isoformat()
-            }
-        
-        # Xendit info (if available)
-        xendit_info = None
-        if txn.xenditInvoiceID or txn.xenditPaymentID:
-            xendit_info = {
-                'invoice_id': txn.xenditInvoiceID,
-                'payment_id': txn.xenditPaymentID,
-                'payment_channel': txn.xenditPaymentChannel
+                'escrow_paid_at': txn.createdAt.isoformat(),
+                'released_at': txn.completedAt.isoformat() if txn.status == 'COMPLETED' and txn.completedAt else None
             }
         
         return {
@@ -330,16 +345,17 @@ def get_transaction_detail(transaction_id: int) -> Dict[str, Any]:
                 'type': txn.transactionType,
                 'amount': float(txn.amount),
                 'balance_after': float(txn.balanceAfter) if txn.balanceAfter else None,
-                'status': txn.status,
-                'payment_method': txn.paymentMethod,
+                'status': txn.status.lower() if txn.status else 'pending',
+                'payment_method': txn.paymentMethod or 'WALLET',
                 'description': txn.description or '',
                 'created_at': txn.createdAt.isoformat(),
-                'completed_at': txn.completedAt.isoformat() if txn.completedAt else None,
-                'user': user_info,
-                'job': job_info,
-                'escrow_details': escrow_details,
-                'xendit_info': xendit_info
-            }
+                'completed_at': txn.completedAt.isoformat() if txn.completedAt else None
+            },
+            'payer': payer_info,
+            'payee': payee_info,
+            'job': job_info,
+            'escrow_details': escrow_details,
+            'audit_trail': []  # TODO: Implement audit trail from AuditLog model
         }
         
     except Transaction.DoesNotExist:

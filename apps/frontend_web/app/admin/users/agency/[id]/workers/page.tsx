@@ -331,7 +331,7 @@ export default function AgencyWorkersPage() {
                             </p>
                           </div>
                           <p className="text-lg font-bold text-gray-900">
-                            ₱{employee.total_earnings.toLocaleString()}
+                            ₱{(employee.total_earnings ?? 0).toLocaleString()}
                           </p>
                         </div>
                       </div>
@@ -382,7 +382,7 @@ export default function AgencyWorkersPage() {
                 <div className="text-right">
                   <p className="text-sm text-gray-600">Total Earnings</p>
                   <p className="text-2xl font-bold text-green-600">
-                    ₱{stats.totalEarnings.toLocaleString()}
+                    ₱{(stats?.totalEarnings ?? 0).toLocaleString()}
                   </p>
                 </div>
                 <div className="text-right">

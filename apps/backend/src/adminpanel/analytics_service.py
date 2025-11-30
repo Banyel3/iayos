@@ -589,36 +589,80 @@ def get_support_statistics(range_param: str = "7days") -> Dict[str, Any]:
 # DASHBOARD OVERVIEW
 # =============================================================================
 
-def get_analytics_overview() -> Dict[str, Any]:
+def get_analytics_overview(period: str = "last_30_days") -> Dict[str, Any]:
     """
     Get a high-level overview of all analytics for the main dashboard.
+    
+    Args:
+        period: Time period for analytics - "last_7_days", "last_30_days", "last_90_days"
     """
+    # Calculate date range based on period
+    now = timezone.now()
+    if period == "last_7_days":
+        start_date = now - timedelta(days=7)
+    elif period == "last_90_days":
+        start_date = now - timedelta(days=90)
+    else:  # last_30_days default
+        start_date = now - timedelta(days=30)
+    
+    # Previous period for growth calculation
+    period_length = now - start_date
+    prev_start = start_date - period_length
+
     total_users = Accounts.objects.count()
+    new_users_period = Accounts.objects.filter(createdAt__gte=start_date).count()
+    prev_new_users = Accounts.objects.filter(createdAt__gte=prev_start, createdAt__lt=start_date).count()
+    
     total_jobs = Job.objects.count()
     active_jobs = Job.objects.filter(status='ACTIVE').count()
     completed_jobs = Job.objects.filter(status='COMPLETED').count()
     total_transactions = Transaction.objects.count()
     
-    # Revenue
+    # Revenue in period
     total_revenue = Transaction.objects.filter(
         transactionType='ESCROW',
         status='COMPLETED'
     ).aggregate(total=Sum('amount'))['total'] or 0
     
+    prev_revenue = Transaction.objects.filter(
+        transactionType='ESCROW',
+        status='COMPLETED',
+        createdAt__gte=prev_start,
+        createdAt__lt=start_date
+    ).aggregate(total=Sum('amount'))['total'] or 0
+    
     platform_fees = float(total_revenue) * 0.05
+    
+    # Calculate growth rates
+    user_growth_rate = ((new_users_period - prev_new_users) / prev_new_users * 100) if prev_new_users > 0 else 0
+    revenue_growth_rate = ((float(total_revenue) - float(prev_revenue)) / float(prev_revenue) * 100) if prev_revenue > 0 else 0
+    
+    # Payment method breakdown (real calculation)
+    payment_methods = Transaction.objects.filter(
+        status='COMPLETED'
+    ).values('paymentMethod').annotate(count=Count('transactionID'))
+    
+    payment_breakdown = {'gcash': 0, 'wallet': 0, 'cash': 0}
+    total_payments = sum(p['count'] for p in payment_methods)
+    for p in payment_methods:
+        method = (p['paymentMethod'] or '').lower()
+        if 'gcash' in method:
+            payment_breakdown['gcash'] = round((p['count'] / total_payments) * 100) if total_payments > 0 else 0
+        elif 'wallet' in method:
+            payment_breakdown['wallet'] = round((p['count'] / total_payments) * 100) if total_payments > 0 else 0
+        elif 'cash' in method:
+            payment_breakdown['cash'] = round((p['count'] / total_payments) * 100) if total_payments > 0 else 0
     
     return {
         'success': True,
         'overview': {
             'users': {
                 'total': total_users,
-                'new': Accounts.objects.filter(
-                    dateJoined__gte=timezone.now() - timedelta(days=30)
-                ).count(),
+                'new': new_users_period,
                 'active': Accounts.objects.filter(
-                    lastLogin__gte=timezone.now() - timedelta(days=7)
+                    last_login__gte=now - timedelta(days=7)
                 ).count(),
-                'growth_rate': 15.3,
+                'growth_rate': round(user_growth_rate, 1),
             },
             'jobs': {
                 'total': total_jobs,
@@ -629,12 +673,12 @@ def get_analytics_overview() -> Dict[str, Any]:
             'revenue': {
                 'total': float(total_revenue),
                 'platform_fees': platform_fees,
-                'growth_rate': 22.5,
+                'growth_rate': round(revenue_growth_rate, 1),
             },
             'transactions': {
                 'count': total_transactions,
                 'avg_value': float(Transaction.objects.aggregate(avg=Avg('amount'))['avg'] or 0),
-                'payment_methods': {'gcash': 45, 'wallet': 35, 'cash': 20},
+                'payment_methods': payment_breakdown,
             },
         }
     }

@@ -332,7 +332,7 @@ export default function InvoicePage() {
                   <tr className="border-b border-gray-200">
                     <td className="py-4">
                       <p className="text-gray-700">
-                        Platform Fee (5% of downpayment)
+                        Platform Fee (10% of downpayment)
                       </p>
                     </td>
                     <td className="text-right py-4 text-gray-700">

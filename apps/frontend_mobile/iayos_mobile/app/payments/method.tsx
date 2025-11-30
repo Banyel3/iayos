@@ -46,7 +46,7 @@ export default function PaymentMethodScreen() {
   const walletBalance = walletData?.balance || 0;
 
   // Check if wallet has sufficient balance
-  const isWalletSufficient = walletBalance >= jobBudget * 0.55; // 50% + 5% fee
+  const isWalletSufficient = walletBalance >= jobBudget * 0.55; // 50% + 10% fee = 55% of budget
 
   const handleMethodSelect = (method: PaymentMethod) => {
     if (method === "wallet" && !isWalletSufficient) {

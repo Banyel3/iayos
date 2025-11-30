@@ -712,7 +712,7 @@ export default function AgencyPage() {
                                                   </div>
                                                   <div className="text-xs text-gray-600">
                                                     ₱
-                                                    {employee.total_earnings.toLocaleString()}
+                                                    {(employee.total_earnings ?? 0).toLocaleString()}
                                                   </div>
                                                 </div>
                                               </div>

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -14,10 +15,72 @@ import {
   Mail,
   Phone,
   ExternalLink,
+  RefreshCw,
+  CheckCircle,
+  Clock,
+  Star,
 } from "lucide-react";
 import { Sidebar } from "../components";
 
+interface SupportStats {
+  open_tickets: number;
+  total_tickets: number;
+  avg_response_time: number;
+  resolution_rate: number;
+  satisfaction_rate: number;
+}
+
 export default function SupportPage() {
+  const [stats, setStats] = useState<SupportStats | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchStats();
+  }, []);
+
+  const fetchStats = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(
+        "http://localhost:8000/api/adminpanel/support/tickets/stats",
+        { credentials: "include" }
+      );
+      const data = await response.json();
+
+      if (data.success) {
+        const ticketStats = data.stats;
+        // Calculate resolution rate: (resolved + closed) / total * 100
+        const resolvedAndClosed = (ticketStats.resolved || 0) + (ticketStats.closed || 0);
+        const total = ticketStats.total || 1;
+        const resolutionRate = Math.round((resolvedAndClosed / total) * 100);
+
+        setStats({
+          open_tickets: ticketStats.open || 0,
+          total_tickets: total,
+          avg_response_time: 2.4, // TODO: calculate from actual data
+          resolution_rate: resolutionRate,
+          satisfaction_rate: 4.8, // TODO: from actual reviews
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching stats:", error);
+      setStats({
+        open_tickets: 0,
+        total_tickets: 0,
+        avg_response_time: 0,
+        resolution_rate: 0,
+        satisfaction_rate: 0,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatTime = (hours: number) => {
+    if (hours < 1) return `${Math.round(hours * 60)}m`;
+    return `${hours.toFixed(1)}h`;
+  };
+
   return (
     <div className="flex">
       <Sidebar />
@@ -31,6 +94,15 @@ export default function SupportPage() {
               Get help and support for platform administration
             </p>
           </div>
+          <Button
+            onClick={fetchStats}
+            variant="outline"
+            size="sm"
+            disabled={loading}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
         </div>
 
         <div className="grid gap-4 md:grid-cols-4">
@@ -42,8 +114,12 @@ export default function SupportPage() {
               <HelpCircle className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">12</div>
-              <p className="text-xs text-muted-foreground">Support tickets</p>
+              <div className="text-2xl font-bold">
+                {loading ? "..." : stats?.open_tickets ?? 0}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                of {stats?.total_tickets ?? 0} total
+              </p>
             </CardContent>
           </Card>
           <Card>
@@ -51,10 +127,12 @@ export default function SupportPage() {
               <CardTitle className="text-sm font-medium">
                 Response Time
               </CardTitle>
-              <MessageSquare className="h-4 w-4 text-green-600" />
+              <Clock className="h-4 w-4 text-green-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">2.4h</div>
+              <div className="text-2xl font-bold">
+                {loading ? "..." : formatTime(stats?.avg_response_time ?? 0)}
+              </div>
               <p className="text-xs text-muted-foreground">Average response</p>
             </CardContent>
           </Card>
@@ -63,10 +141,12 @@ export default function SupportPage() {
               <CardTitle className="text-sm font-medium">
                 Resolution Rate
               </CardTitle>
-              <HelpCircle className="h-4 w-4 text-blue-600" />
+              <CheckCircle className="h-4 w-4 text-blue-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">94%</div>
+              <div className="text-2xl font-bold">
+                {loading ? "..." : `${stats?.resolution_rate ?? 0}%`}
+              </div>
               <p className="text-xs text-muted-foreground">Issues resolved</p>
             </CardContent>
           </Card>
@@ -75,10 +155,12 @@ export default function SupportPage() {
               <CardTitle className="text-sm font-medium">
                 Satisfaction
               </CardTitle>
-              <HelpCircle className="h-4 w-4 text-purple-600" />
+              <Star className="h-4 w-4 text-purple-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">4.8</div>
+              <div className="text-2xl font-bold">
+                {loading ? "..." : stats?.satisfaction_rate?.toFixed(1) ?? "0.0"}
+              </div>
               <p className="text-xs text-muted-foreground">Out of 5.0</p>
             </CardContent>
           </Card>
@@ -111,7 +193,7 @@ export default function SupportPage() {
                 <div>
                   <div className="font-medium">Phone Support</div>
                   <div className="text-sm text-muted-foreground">
-                    +1 (555) 123-4567
+                    +63 (917) 123-4567
                   </div>
                 </div>
                 <Button variant="outline" size="sm">

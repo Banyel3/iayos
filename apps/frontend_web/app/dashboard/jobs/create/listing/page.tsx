@@ -349,9 +349,9 @@ export default function CreateListingJobPage() {
                             </span>
                           </p>
                           <p className="text-gray-600">
-                            • Platform fee (5% of downpayment):{" "}
+                            • Platform fee (10% of downpayment):{" "}
                             <span className="font-semibold">
-                              ₱{(parseFloat(budget) * 0.5 * 0.05).toFixed(2)}
+                              ₱{(parseFloat(budget) * 0.5 * 0.10).toFixed(2)}
                             </span>
                           </p>
                           <p className="text-blue-600 font-semibold border-t border-blue-200 pt-1">
@@ -360,7 +360,7 @@ export default function CreateListingJobPage() {
                               ₱
                               {(
                                 parseFloat(budget) * 0.5 +
-                                parseFloat(budget) * 0.5 * 0.05
+                                parseFloat(budget) * 0.5 * 0.10
                               ).toFixed(2)}
                             </span>
                           </p>
@@ -376,7 +376,7 @@ export default function CreateListingJobPage() {
                               ₱
                               {(
                                 parseFloat(budget) +
-                                parseFloat(budget) * 0.5 * 0.05
+                                parseFloat(budget) * 0.5 * 0.10
                               ).toFixed(2)}
                             </span>
                           </p>

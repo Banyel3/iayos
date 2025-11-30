@@ -337,13 +337,13 @@ export default function ReviewDetailPage() {
                   <h3 className="text-xl font-semibold text-gray-900 mb-4">
                     Action History
                   </h3>
-                  {detail.history.length === 0 ? (
+                  {(detail.history ?? []).length === 0 ? (
                     <p className="text-gray-600 text-center py-8">
                       No actions taken yet
                     </p>
                   ) : (
                     <div className="space-y-4">
-                      {detail.history.map((item, index) => (
+                      {(detail.history ?? []).map((item, index) => (
                         <div
                           key={index}
                           className="border-l-4 border-blue-500 pl-4 py-2 bg-blue-50/50 rounded-r-lg"
