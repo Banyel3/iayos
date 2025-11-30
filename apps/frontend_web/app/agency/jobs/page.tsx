@@ -254,8 +254,9 @@ export default function AgencyJobsPage() {
     try {
       setLoading(true);
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      // Fetch jobs with ASSIGNED status (employees assigned but work not started)
       const response = await fetch(
-        `${apiUrl}/api/agency/jobs?invite_status=ACCEPTED&status=ACTIVE`,
+        `${apiUrl}/api/agency/jobs?invite_status=ACCEPTED&status=ASSIGNED`,
         {
           credentials: "include",
           headers: {
@@ -271,11 +272,8 @@ export default function AgencyJobsPage() {
       }
 
       const data = await response.json();
-      // Filter for jobs WITH assigned employees (assigned but not started yet)
-      const assignedJobs = (data.jobs || []).filter(
-        (job: Job) => job.assignedEmployeeID
-      );
-      setAssignedJobs(assignedJobs);
+      // All ASSIGNED status jobs have employees, no need to filter
+      setAssignedJobs(data.jobs || []);
     } catch (err) {
       console.error("Error fetching assigned jobs:", err);
     } finally {
