@@ -483,6 +483,9 @@ def get_agency_jobs(account_id, status_filter=None, invite_status_filter=None, p
 			'clientID__profileID',
 			'categoryID',
 			'assignedEmployeeID'
+		).prefetch_related(
+			'employee_assignments',
+			'employee_assignments__employee'
 		).order_by('-createdAt')[offset:offset + limit]
 		
 		# Format response
@@ -491,7 +494,7 @@ def get_agency_jobs(account_id, status_filter=None, invite_status_filter=None, p
 			# Get client info
 			client_profile = job.clientID.profileID
 			
-			# Get assigned employee info if exists
+			# Get assigned employee info if exists (legacy single-employee field)
 			assigned_employee = None
 			if job.assignedEmployeeID:
 				assigned_employee = {
@@ -500,6 +503,21 @@ def get_agency_jobs(account_id, status_filter=None, invite_status_filter=None, p
 					'email': job.assignedEmployeeID.email,
 					'role': job.assignedEmployeeID.role,
 				}
+			
+			# Get multi-employee assignments from JobEmployeeAssignment table
+			assignments = job.employee_assignments.filter(
+				status__in=['ASSIGNED', 'IN_PROGRESS']
+			)
+			assigned_employees = []
+			for assignment in assignments:
+				assigned_employees.append({
+					'employeeId': assignment.employee.employeeID,
+					'name': assignment.employee.name,
+					'email': assignment.employee.email,
+					'role': assignment.employee.role,
+					'assignmentStatus': assignment.status,
+					'assignedAt': assignment.assigned_at.isoformat() if assignment.assigned_at else None,
+				})
 			
 			jobs_data.append({
 				'jobID': job.jobID,
@@ -518,6 +536,8 @@ def get_agency_jobs(account_id, status_filter=None, invite_status_filter=None, p
 				'preferredStartDate': job.preferredStartDate.isoformat() if job.preferredStartDate else None,
 				'assignedEmployeeID': job.assignedEmployeeID.employeeID if job.assignedEmployeeID else None,
 				'assignedEmployee': assigned_employee,
+				'assignedEmployees': assigned_employees,  # New multi-employee field
+				'assignmentCount': len(assigned_employees),  # Quick count for filtering
 				'inviteStatus': job.inviteStatus,
 				'client': {
 					'id': client_profile.accountFK.accountID,

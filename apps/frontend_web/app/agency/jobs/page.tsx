@@ -78,6 +78,15 @@ interface Job {
     employeeId: number;
     name: string;
   };
+  assignedEmployees?: {
+    employeeId: number;
+    name: string;
+    email: string;
+    role: string;
+    assignmentStatus: string;
+    assignedAt: string | null;
+  }[];
+  assignmentCount?: number;
   client: {
     id: number;
     name: string;
@@ -222,11 +231,12 @@ export default function AgencyJobsPage() {
 
       // Accepted = ACTIVE jobs without employees + IN_PROGRESS jobs without employees
       // (IN_PROGRESS without employees is a data inconsistency we need to handle)
+      // Use assignmentCount for multi-employee support, fallback to assignedEmployeeID for legacy
       const unassignedActiveJobs = (activeData.jobs || []).filter(
-        (job: Job) => !job.assignedEmployeeID
+        (job: Job) => (job.assignmentCount === 0 || job.assignmentCount === undefined) && !job.assignedEmployeeID
       );
       const unassignedInProgressJobs = (inProgressData.jobs || []).filter(
-        (job: Job) => !job.assignedEmployeeID
+        (job: Job) => (job.assignmentCount === 0 || job.assignmentCount === undefined) && !job.assignedEmployeeID
       );
 
       // Combine and deduplicate by jobID
@@ -272,8 +282,9 @@ export default function AgencyJobsPage() {
 
       const data = await response.json();
       // Filter for jobs WITH assigned employees (assigned but not started yet)
+      // Use assignmentCount for multi-employee support, fallback to assignedEmployeeID for legacy
       const assignedJobs = (data.jobs || []).filter(
-        (job: Job) => job.assignedEmployeeID
+        (job: Job) => (job.assignmentCount && job.assignmentCount > 0) || job.assignedEmployeeID
       );
       setAssignedJobs(assignedJobs);
     } catch (err) {
