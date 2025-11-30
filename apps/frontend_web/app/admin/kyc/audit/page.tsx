@@ -52,19 +52,20 @@ export default function KYCAuditLogPage() {
       setLoading(true);
       setError(null);
 
-      // Note: This endpoint may not exist yet in backend
-      // Placeholder for when backend implements audit logging
+      // Use the real KYC logs endpoint
       const response = await fetch(
-        "http://localhost:8000/api/adminpanel/kyc/audit-log",
+        "http://localhost:8000/api/adminpanel/kyc/logs",
         {
           credentials: "include",
         }
       );
 
       if (!response.ok) {
-        // If endpoint doesn't exist, create mock data for now
-        console.warn("Audit log endpoint not yet implemented, using mock data");
-        setAuditLogs(generateMockAuditLogs());
+        if (response.status === 401) {
+          setError("Authentication required. Please log in again.");
+        } else {
+          setError(`Failed to fetch audit logs: ${response.status}`);
+        }
         setLoading(false);
         return;
       }
@@ -72,60 +73,34 @@ export default function KYCAuditLogPage() {
       const data = await response.json();
 
       if (data.success && data.logs) {
-        setAuditLogs(data.logs);
+        // Transform backend response to frontend interface
+        const transformedLogs: AuditLogEntry[] = data.logs.map((log: any) => ({
+          id: log.kycLogID?.toString() || "",
+          kycId: log.kycID?.toString() || "",
+          userName: log.userEmail?.split("@")[0] || "Unknown User",
+          userEmail: log.userEmail || "",
+          userType: (log.kycType === "AGENCY" ? "agency" : "worker") as "worker" | "client" | "agency",
+          action: log.action?.toLowerCase() === "approved" ? "approved" : 
+                  log.action?.toLowerCase() === "rejected" ? "rejected" : "submitted",
+          performedBy: log.reviewedBy || "System",
+          timestamp: log.reviewedAt || log.createdAt || new Date().toISOString(),
+          notes: log.reason || undefined,
+          previousStatus: "pending",
+          newStatus: log.action?.toLowerCase() === "approved" ? "approved" : 
+                     log.action?.toLowerCase() === "rejected" ? "rejected" : "pending",
+        }));
+        setAuditLogs(transformedLogs);
       } else {
-        setAuditLogs(generateMockAuditLogs());
+        setAuditLogs([]);
       }
 
       setLoading(false);
     } catch (err) {
       console.error("Error fetching audit logs:", err);
-      // Fall back to mock data if API fails
-      setAuditLogs(generateMockAuditLogs());
+      setError("Failed to load audit logs. Please try again.");
+      setAuditLogs([]);
       setLoading(false);
     }
-  };
-
-  const generateMockAuditLogs = (): AuditLogEntry[] => {
-    return [
-      {
-        id: "audit_001",
-        kycId: "kyc_001",
-        userName: "Juan Dela Cruz",
-        userEmail: "juan@example.com",
-        userType: "worker",
-        action: "submitted",
-        performedBy: "System",
-        timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-        newStatus: "pending",
-      },
-      {
-        id: "audit_002",
-        kycId: "kyc_002",
-        userName: "Maria Santos",
-        userEmail: "maria@example.com",
-        userType: "worker",
-        action: "approved",
-        performedBy: "Admin User",
-        timestamp: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
-        notes: "All documents verified successfully",
-        previousStatus: "pending",
-        newStatus: "approved",
-      },
-      {
-        id: "audit_003",
-        kycId: "kyc_003",
-        userName: "Pedro Reyes",
-        userEmail: "pedro@example.com",
-        userType: "client",
-        action: "rejected",
-        performedBy: "Admin User",
-        timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-        notes: "Blurry ID images - unable to verify",
-        previousStatus: "pending",
-        newStatus: "rejected",
-      },
-    ];
   };
 
   const filteredLogs = auditLogs.filter((log) => {

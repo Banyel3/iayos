@@ -3043,3 +3043,121 @@ def delete_job(job_id: str):
             'success': False,
             'error': str(e)
         }
+
+
+def get_job_invoice(job_id: int):
+    """
+    Get invoice data for a completed job.
+    Returns detailed invoice information including client, worker, 
+    payment breakdown, and transaction details.
+    """
+    from accounts.models import Job, Transaction, Profile
+    from decimal import Decimal
+    
+    try:
+        # Get the job with related data
+        job = Job.objects.select_related(
+            'clientID', 'clientID__profileID', 'clientID__profileID__accountFK',
+            'assignedEmployeeID', 'assignedEmployeeID__workerProfile', 
+            'assignedEmployeeID__workerProfile__accountFK',
+            'categoryID'
+        ).get(jobID=job_id)
+        
+        # Get transactions for this job
+        transactions = Transaction.objects.filter(relatedJobPosting=job).order_by('-createdAt')
+        
+        # Get client info
+        client_profile = job.clientID.profileID if job.clientID else None
+        client_account = client_profile.accountFK if client_profile else None
+        
+        # Get worker info - could be from assignedEmployee (agency worker) or direct assignment
+        worker_profile = None
+        worker_account = None
+        
+        if job.assignedEmployeeID:
+            # Agency employee assigned
+            worker_profile = job.assignedEmployeeID.workerProfile
+            worker_account = worker_profile.accountFK if worker_profile else None
+        else:
+            # Check for accepted application
+            from accounts.models import JobApplication
+            accepted_app = JobApplication.objects.filter(
+                jobID=job, 
+                status='ACCEPTED'
+            ).select_related('workerID', 'workerID__accountFK').first()
+            if accepted_app:
+                worker_profile = accepted_app.workerID
+                worker_account = worker_profile.accountFK if worker_profile else None
+        
+        # Calculate amounts
+        budget = float(job.budget) if job.budget else 0
+        downpayment = budget * 0.5
+        platform_fee = downpayment * 0.05  # 5% of downpayment
+        subtotal = budget
+        total_paid = downpayment + platform_fee  # What client paid upfront
+        remaining = budget - downpayment  # Remaining 50%
+        
+        # Get transaction details
+        transaction_data = []
+        for txn in transactions:
+            transaction_data.append({
+                'id': txn.transactionID,
+                'type': txn.transactionType,
+                'amount': float(txn.amount) if txn.amount else 0,
+                'status': txn.status,
+                'payment_method': txn.paymentMethod,
+                'created_at': txn.createdAt.isoformat() if txn.createdAt else None,
+            })
+        
+        return {
+            'success': True,
+            'invoice': {
+                'job_id': job.jobID,
+                'invoice_number': f"INV-{job.jobID:05d}",
+                'title': job.title,
+                'description': job.description,
+                'category': job.categoryID.specializationName if job.categoryID else 'General',
+                'status': job.status,
+                'location': job.location,
+                'created_at': job.createdAt.isoformat() if job.createdAt else None,
+                'completed_at': job.completedAt.isoformat() if job.completedAt else None,
+                'client': {
+                    'id': client_account.accountID if client_account else None,
+                    'name': f"{client_account.firstName or ''} {client_account.lastName or ''}".strip() or client_account.email.split('@')[0] if client_account else 'Unknown',
+                    'email': client_account.email if client_account else '',
+                    'phone': client_account.phoneNumber if client_account else '',
+                    'address': job.location or '',
+                },
+                'worker': {
+                    'id': worker_account.accountID if worker_account else None,
+                    'name': f"{worker_account.firstName or ''} {worker_account.lastName or ''}".strip() or worker_account.email.split('@')[0] if worker_account else 'Unknown',
+                    'email': worker_account.email if worker_account else '',
+                    'phone': worker_account.phoneNumber if worker_account else '',
+                },
+                'budget': budget,
+                'budget_type': 'fixed',
+                'subtotal': subtotal,
+                'downpayment': downpayment,
+                'platform_fee': platform_fee,
+                'remaining_balance': remaining,
+                'final_amount': budget,
+                'payment_status': 'paid' if job.status == 'COMPLETED' else 'pending',
+                'transactions': transaction_data,
+                'materials': job.materials.split(',') if job.materials else [],
+            }
+        }
+        
+    except Job.DoesNotExist:
+        return {
+            'success': False,
+            'error': 'Job not found'
+        }
+    except Exception as e:
+        print(f"❌ Error fetching job invoice: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {
+            'success': False,
+            'error': str(e)
+        }
+

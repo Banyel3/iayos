@@ -500,6 +500,24 @@ def get_job_applications(request, page: int = 1, page_size: int = 20, status: st
         return {"success": False, "error": str(e)}
 
 
+@router.get("/jobs/{job_id}/invoice", auth=cookie_auth)
+def get_job_invoice_endpoint(request, job_id: int):
+    """
+    Get invoice data for a completed job.
+    Returns detailed invoice information including client, worker, 
+    payment breakdown, and transaction details.
+    """
+    try:
+        from adminpanel.service import get_job_invoice
+        result = get_job_invoice(job_id)
+        return result
+    except Exception as e:
+        print(f"❌ Error fetching job invoice: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
 @router.get("/jobs/categories")
 def get_job_categories(request):
     """

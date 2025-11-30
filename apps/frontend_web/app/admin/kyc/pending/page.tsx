@@ -46,45 +46,9 @@ interface KYCFiles {
   clearanceType?: string;
 }
 
-const mockPendingKYC: PendingKYC[] = [
-  {
-    id: "1",
-    userId: "user_1",
-    userName: "John Doe",
-    userEmail: "john.doe@example.com",
-    userType: "worker",
-    submissionDate: "2024-03-20",
-    priority: "high",
-    documentsCount: 3,
-    daysPending: 9,
-  },
-  {
-    id: "2",
-    userId: "user_4",
-    userName: "Sarah Wilson",
-    userEmail: "sarah.wilson@example.com",
-    userType: "client",
-    submissionDate: "2024-03-18",
-    priority: "medium",
-    documentsCount: 2,
-    daysPending: 11,
-  },
-  {
-    id: "3",
-    userId: "user_5",
-    userName: "Alex Martinez",
-    userEmail: "alex.martinez@example.com",
-    userType: "worker",
-    submissionDate: "2024-03-17",
-    priority: "low",
-    documentsCount: 4,
-    daysPending: 12,
-  },
-];
-
 export default function PendingKYCPage() {
-  const [pendingKYC, setPendingKYC] = useState<PendingKYC[]>(mockPendingKYC);
-  const [isLoading, setIsLoading] = useState(false);
+  const [pendingKYC, setPendingKYC] = useState<PendingKYC[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [priorityFilter, setPriorityFilter] = useState<
     "all" | "high" | "medium" | "low"
@@ -354,8 +318,8 @@ export default function PendingKYCPage() {
         });
       }
 
-      // Fallback to mock data on error
-      setPendingKYC(mockPendingKYC);
+      // Keep empty array on error - don't fall back to mock data
+      setPendingKYC([]);
     } finally {
       setIsLoading(false);
     }

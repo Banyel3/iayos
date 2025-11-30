@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Sidebar } from "../../../components";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,6 +18,7 @@ import {
   XCircle,
   Clock,
   AlertCircle,
+  Loader2,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -68,228 +70,103 @@ interface JobDispute {
   assignedTo?: string;
 }
 
-// Mock data - Extended version with more details
-const mockDisputeDetails: Record<string, JobDispute> = {
-  "DISP-003": {
-    id: "DISP-003",
-    jobId: "JOB-089",
-    jobTitle: "Plumbing Repair - Quality Issues",
-    category: "Plumbing",
-    disputedBy: "client",
-    client: {
-      id: "CLI-303",
-      name: "David Anderson",
-      email: "david.anderson@email.com",
-      phone: "+1 (555) 789-4561",
-    },
-    worker: {
-      id: "WRK-203",
-      name: "Carlos Rodriguez",
-      email: "carlos.rodriguez@email.com",
-      phone: "+1 (555) 234-7890",
-    },
-    reason: "Poor Quality",
-    description:
-      "The plumbing repair started leaking again after 3 days. Worker claims it's a different issue but the leak is in the same location. Requesting redo or full refund.",
-    openedDate: "2024-10-10T16:45:00",
-    status: "resolved",
-    priority: "high",
-    jobAmount: 425,
-    disputedAmount: 425,
-    resolution:
-      "After mediation, worker initially refused to return claiming the work was done correctly. IAYOS Support invoked the quality guarantee policy requiring repairs within 7 days to be covered under original work. Worker agreed to return and successfully fixed the connection issue at no additional cost. Client confirmed leak resolved. Dispute closed successfully.",
-    resolvedDate: "2024-10-13T14:30:00",
-    evidence: [
-      {
-        type: "Photos",
-        description: "leak_under_sink_photo1.jpg",
-        submittedBy: "David Anderson (Client)",
-        submittedDate: "2024-10-10T17:00:00",
-      },
-      {
-        type: "Video",
-        description: "water_damage_leak_video.mp4",
-        submittedBy: "David Anderson (Client)",
-        submittedDate: "2024-10-10T17:15:00",
-      },
-      {
-        type: "Work Order",
-        description: "original_repair_invoice_089.pdf",
-        submittedBy: "Carlos Rodriguez (Worker)",
-        submittedDate: "2024-10-11T09:30:00",
-      },
-      {
-        type: "Photos",
-        description: "before_repair_work_photos.jpg",
-        submittedBy: "Carlos Rodriguez (Worker)",
-        submittedDate: "2024-10-11T09:30:00",
-      },
-    ],
-    messages: [
-      {
-        id: "MSG-001",
-        sender: "IAYOS Support",
-        role: "Staff",
-        message:
-          "Hello David, we've received your dispute regarding the plumbing repair. We're reviewing the evidence you submitted. We'll contact the worker and work towards a resolution.",
-        timestamp: "2024-10-10T18:00:00",
-      },
-      {
-        id: "MSG-002",
-        sender: "David Anderson",
-        role: "Client",
-        message:
-          "Thank you. I really need this fixed properly. The leak is causing water damage to my cabinet.",
-        timestamp: "2024-10-10T18:15:00",
-      },
-      {
-        id: "MSG-003",
-        sender: "IAYOS Support",
-        role: "Staff",
-        message:
-          "Hello Carlos, we've received a dispute from your client David Anderson regarding Job #089. He's reporting that the repair is leaking again in the same location. Can you review the evidence and let us know your assessment?",
-        timestamp: "2024-10-11T09:00:00",
-      },
-      {
-        id: "MSG-004",
-        sender: "Carlos Rodriguez",
-        role: "Worker",
-        message:
-          "I've looked at the photos. The work I did was solid, but I can see there is a leak. However, I already completed this job and was paid. This might be a different issue.",
-        timestamp: "2024-10-11T10:30:00",
-      },
-      {
-        id: "MSG-005",
-        sender: "IAYOS Support",
-        role: "Staff",
-        message:
-          "Carlos, we understand your concern. However, looking at the video evidence, the leak appears to be from the same connection point you repaired. We'd like to propose that you return to redo the work at no additional charge to maintain quality standards.",
-        timestamp: "2024-10-11T11:00:00",
-      },
-      {
-        id: "MSG-006",
-        sender: "Carlos Rodriguez",
-        role: "Worker",
-        message:
-          "I don't think that's fair. I did the work correctly. If I go back, I want to be paid for my time.",
-        timestamp: "2024-10-11T11:45:00",
-      },
-      {
-        id: "MSG-007",
-        sender: "IAYOS Support",
-        role: "Staff",
-        message:
-          "Carlos, we appreciate your perspective. However, as per our quality guarantee policy, if a repair fails within 7 days, it's considered part of the original work scope. The evidence clearly shows the same location is leaking. We need you to honor the quality guarantee.",
-        timestamp: "2024-10-11T13:00:00",
-      },
-      {
-        id: "MSG-008",
-        sender: "Carlos Rodriguez",
-        role: "Worker",
-        message:
-          "Fine. I'll go back tomorrow afternoon and check it out. But if it's a completely different issue, we'll need to discuss additional payment.",
-        timestamp: "2024-10-11T14:30:00",
-      },
-      {
-        id: "MSG-009",
-        sender: "IAYOS Support",
-        role: "Staff",
-        message:
-          "Thank you Carlos for agreeing to return. David, Carlos will come by tomorrow afternoon to inspect and fix the issue. Please let us know once the work is completed.",
-        timestamp: "2024-10-11T14:45:00",
-      },
-      {
-        id: "MSG-010",
-        sender: "David Anderson",
-        role: "Client",
-        message:
-          "Great, thank you! Tomorrow afternoon works for me. I'll be home after 2pm.",
-        timestamp: "2024-10-11T15:00:00",
-      },
-      {
-        id: "MSG-011",
-        sender: "Carlos Rodriguez",
-        role: "Worker",
-        message:
-          "Work completed. I found the issue - the connection wasn't properly tightened during the first repair. I've fixed it and tested it thoroughly. Should be good now.",
-        timestamp: "2024-10-13T16:00:00",
-      },
-      {
-        id: "MSG-012",
-        sender: "David Anderson",
-        role: "Client",
-        message:
-          "Yes, confirmed! The leak has stopped. Thank you Carlos for coming back and fixing it properly. And thank you IAYOS support for helping resolve this.",
-        timestamp: "2024-10-13T18:00:00",
-      },
-      {
-        id: "MSG-013",
-        sender: "IAYOS Support",
-        role: "Staff",
-        message:
-          "Excellent! We're glad this was resolved. Carlos, thank you for honoring our quality guarantee. David, thank you for your patience. We're marking this dispute as resolved.",
-        timestamp: "2024-10-13T18:30:00",
-      },
-    ],
-    timeline: [
-      {
-        event: "Dispute Opened",
-        description: "Client filed dispute claiming poor quality work",
-        timestamp: "2024-10-10T16:45:00",
-      },
-      {
-        event: "Evidence Submitted",
-        description: "Client submitted photos and video of leak",
-        timestamp: "2024-10-10T17:15:00",
-      },
-      {
-        event: "Assigned to Admin",
-        description: "Dispute assigned to Admin Support Team for review",
-        timestamp: "2024-10-10T18:00:00",
-      },
-      {
-        event: "Worker Response",
-        description: "Worker submitted original work documentation",
-        timestamp: "2024-10-11T09:30:00",
-      },
-      {
-        event: "Admin Review",
-        description: "Admin requested worker to inspect and resolve issue",
-        timestamp: "2024-10-11T10:00:00",
-      },
-      {
-        event: "Resolution Agreed",
-        description: "Worker agreed to return and fix issue at no cost",
-        timestamp: "2024-10-11T14:30:00",
-      },
-      {
-        event: "Work Completed",
-        description: "Worker completed repair work successfully",
-        timestamp: "2024-10-13T14:15:00",
-      },
-      {
-        event: "Client Confirmation",
-        description: "Client confirmed issue is resolved",
-        timestamp: "2024-10-13T16:30:00",
-      },
-      {
-        event: "Dispute Resolved",
-        description: "Dispute closed successfully by admin",
-        timestamp: "2024-10-13T17:00:00",
-      },
-    ],
-    assignedTo: "Admin Support Team",
-  },
-};
-
 export default function DisputeDetailPage() {
   const params = useParams();
   const router = useRouter();
   const disputeId = params.id as string;
+  const [dispute, setDispute] = useState<JobDispute | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const dispute = mockDisputeDetails[disputeId];
+  useEffect(() => {
+    fetchDisputeDetail();
+  }, [disputeId]);
 
-  if (!dispute) {
+  const fetchDisputeDetail = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(
+        `http://localhost:8000/api/adminpanel/transactions/disputes/${disputeId}`,
+        { credentials: "include" }
+      );
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          setError("Authentication required. Please log in again.");
+        } else if (response.status === 404) {
+          setError("Dispute not found.");
+        } else {
+          setError(`Failed to fetch dispute: ${response.status}`);
+        }
+        return;
+      }
+
+      const data = await response.json();
+
+      if (data.success && data.dispute) {
+        // Transform backend response to frontend interface
+        const d = data.dispute;
+        setDispute({
+          id: d.id?.toString() || d.dispute_id?.toString() || disputeId,
+          jobId: d.job_id?.toString() || "",
+          jobTitle: d.job_title || "Unknown Job",
+          category: d.category || "General",
+          disputedBy: d.disputed_by?.toLowerCase() === "worker" ? "worker" : "client",
+          client: {
+            id: d.client_id?.toString() || "",
+            name: d.client_name || "Unknown Client",
+            email: d.client_email || "",
+            phone: d.client_phone || "",
+          },
+          worker: {
+            id: d.worker_id?.toString() || "",
+            name: d.worker_name || "Unknown Worker",
+            email: d.worker_email || "",
+            phone: d.worker_phone || "",
+          },
+          reason: d.reason || "Not specified",
+          description: d.description || "",
+          openedDate: d.created_at || d.opened_date || new Date().toISOString(),
+          status: (d.status?.toLowerCase()?.replace(" ", "_") || "open") as any,
+          priority: (d.priority?.toLowerCase() || "medium") as any,
+          jobAmount: d.job_amount || d.budget || 0,
+          disputedAmount: d.disputed_amount || d.job_amount || 0,
+          resolution: d.resolution,
+          resolvedDate: d.resolved_date || d.resolved_at,
+          evidence: d.evidence || [],
+          messages: d.messages || [],
+          timeline: d.timeline || [],
+          assignedTo: d.assigned_to || "Support Team",
+        });
+      } else {
+        setError(data.error || "Failed to load dispute details.");
+      }
+    } catch (err) {
+      console.error("Error fetching dispute:", err);
+      setError("Failed to load dispute. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex">
+        <Sidebar />
+        <main className="flex-1 p-6 bg-gray-50">
+          <div className="flex items-center justify-center min-h-[400px]">
+            <div className="flex flex-col items-center space-y-4">
+              <Loader2 className="h-8 w-8 animate-spin text-orange-600" />
+              <p className="text-muted-foreground">Loading dispute details...</p>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  if (error || !dispute) {
     return (
       <div className="flex">
         <Sidebar />
@@ -299,12 +176,12 @@ export default function DisputeDetailPage() {
               <CardContent className="p-12 text-center">
                 <AlertTriangle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                 <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                  Dispute Not Found
+                  {error || "Dispute Not Found"}
                 </h2>
                 <p className="text-gray-600 mb-6">
-                  The requested dispute could not be found.
+                  The requested dispute could not be loaded.
                 </p>
-                <Link href="/admin/jobs/disputes">
+                <Link href="/admin/jobs/backjobs">
                   <Button>
                     <ArrowLeft className="h-4 w-4 mr-2" />
                     Back to Disputes

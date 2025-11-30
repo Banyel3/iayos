@@ -43,33 +43,6 @@ interface JobApplication {
   updated_at: string;
 }
 
-const mockApplications: JobApplication[] = [
-  {
-    id: "APP-001",
-    jobId: "JOB-001",
-    jobTitle: "Residential Plumbing Repair",
-    worker: {
-      id: "WRK-101",
-      name: "Mike Thompson",
-      rating: 4.8,
-      completedJobs: 156,
-      profileImage: "/worker1.jpg"
-    },
-    appliedDate: "2024-01-15T10:30:00Z",
-    status: "pending",
-    proposedRate: 2500,
-    rateType: "fixed",
-    coverLetter: "I have 8 years of experience in plumbing repairs...",
-    estimatedDuration: "1-2 days",
-    availability: "Available immediately",
-    client: {
-      name: "Sarah Johnson",
-      id: "CLT-201"
-    },
-    updated_at: "2024-01-15T10:30:00Z"
-  }
-];
-
 export default function JobApplicationsPage() {
   const [applications, setApplications] = useState<JobApplication[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -77,14 +50,81 @@ export default function JobApplicationsPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchApplications = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams({
+        page: page.toString(),
+        page_size: "20",
+      });
+      if (statusFilter !== "all") {
+        params.append("status", statusFilter.toUpperCase());
+      }
+
+      const response = await fetch(
+        `http://localhost:8000/api/adminpanel/jobs/applications?${params}`,
+        { credentials: "include" }
+      );
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          setError("Authentication required. Please log in again.");
+        } else {
+          setError(`Failed to fetch applications: ${response.status}`);
+        }
+        setApplications([]);
+        return;
+      }
+
+      const data = await response.json();
+
+      if (data.success && data.applications) {
+        // Transform backend response to frontend interface
+        const transformedApps: JobApplication[] = data.applications.map((app: any) => ({
+          id: app.id?.toString() || app.applicationId?.toString() || "",
+          jobId: app.job_id?.toString() || app.jobId?.toString() || "",
+          jobTitle: app.job_title || app.jobTitle || "Unknown Job",
+          worker: {
+            id: app.worker_id?.toString() || app.workerId?.toString() || "",
+            name: app.worker_name || app.workerName || "Unknown Worker",
+            rating: app.worker_rating || app.workerRating || 0,
+            completedJobs: app.worker_completed_jobs || app.workerCompletedJobs || 0,
+            profileImage: app.worker_image || app.workerImage,
+          },
+          appliedDate: app.applied_at || app.appliedAt || app.created_at || new Date().toISOString(),
+          status: (app.status?.toLowerCase() || "pending") as "pending" | "accepted" | "rejected" | "withdrawn",
+          proposedRate: app.proposed_rate || app.proposedRate || 0,
+          rateType: app.rate_type || app.rateType || "fixed",
+          coverLetter: app.cover_letter || app.coverLetter || app.proposal_message || "",
+          estimatedDuration: app.estimated_duration || app.estimatedDuration || "N/A",
+          availability: app.availability || "Available",
+          client: {
+            name: app.client_name || app.clientName || "Unknown Client",
+            id: app.client_id?.toString() || app.clientId?.toString() || "",
+          },
+          updated_at: app.updated_at || app.updatedAt || new Date().toISOString(),
+        }));
+
+        setApplications(transformedApps);
+        setTotalPages(data.total_pages || 1);
+      } else {
+        setApplications([]);
+      }
+    } catch (err) {
+      console.error("Error fetching applications:", err);
+      setError("Failed to load applications. Please try again.");
+      setApplications([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    // Simulate loading
-    setTimeout(() => {
-      setApplications(mockApplications);
-      setIsLoading(false);
-    }, 1000);
-  }, []);
+    fetchApplications();
+  }, [page, statusFilter]);
 
   const filteredApplications = applications.filter((app) => {
     const matchesSearch = app.jobTitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
