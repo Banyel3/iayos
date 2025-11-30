@@ -55,7 +55,61 @@ WORKDIR /app/apps/frontend_web
 RUN npm run build
 
 # ============================================
-# Stage 4: Python Backend Base (Secure Alpine)
+# Stage 4: Flutter Base Image
+# ============================================
+FROM debian:bookworm-slim AS flutter-base
+
+# Install Flutter dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    git \
+    unzip \
+    xz-utils \
+    zip \
+    libglu1-mesa \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Flutter SDK
+ENV FLUTTER_VERSION=3.24.5
+ENV FLUTTER_HOME=/opt/flutter
+ENV PATH="$FLUTTER_HOME/bin:$PATH"
+
+RUN git clone https://github.com/flutter/flutter.git -b stable --depth 1 $FLUTTER_HOME \
+    && flutter precache --android \
+    && flutter config --no-analytics \
+    && flutter doctor -v
+
+WORKDIR /app
+
+# ============================================
+# Stage 5: Flutter Mobile Build (Android APK)
+# ============================================
+FROM flutter-base AS mobile-builder
+
+# Copy Flutter mobile app source
+COPY apps/frontend_mobile/iayos_mobile ./apps/frontend_mobile/iayos_mobile
+
+WORKDIR /app/apps/frontend_mobile/iayos_mobile
+
+# Get Flutter dependencies
+RUN flutter pub get
+
+# Build Android APK (release mode)
+RUN flutter build apk --release --split-per-abi
+
+# ============================================
+# Stage 6: Flutter Mobile Production
+# ============================================
+FROM scratch AS mobile-production
+
+# Copy built APKs to a scratch image for extraction
+COPY --from=mobile-builder /app/apps/frontend_mobile/iayos_mobile/build/app/outputs/flutter-apk/*.apk /
+
+# Note: This stage outputs APK files that can be extracted with:
+# docker build --target mobile-production --output type=local,dest=./output .
+
+# ============================================
+# Stage 7: Python Backend Base (Secure Alpine)
 # ============================================
 FROM python:3.12-alpine AS backend-base
 
@@ -73,7 +127,7 @@ RUN addgroup -g 1001 -S appgroup \
 WORKDIR /app/backend
 
 # ============================================
-# Stage 5: Backend Dependencies (Secure)
+# Stage 8: Backend Dependencies (Secure)
 # ============================================
 FROM backend-base AS backend-deps
 
@@ -105,7 +159,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     && find /app/.local -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
 
 # ============================================
-# Stage 6: Backend Builder
+# Stage 9: Backend Builder
 # ============================================
 FROM backend-deps AS backend-builder
 
@@ -113,7 +167,7 @@ FROM backend-deps AS backend-builder
 COPY apps/backend .
 
 # ============================================
-# Stage 7: Frontend Production (Secure)
+# Stage 10: Frontend Production (Secure)
 # ============================================
 FROM node:22-alpine AS frontend-production
 
@@ -156,7 +210,7 @@ EXPOSE 3000
 CMD ["npm", "start"]
 
 # ============================================
-# Stage 8: Backend Production (Secure)
+# Stage 11: Backend Production (Secure)
 # ============================================
 FROM python:3.12-alpine AS backend-production
 
@@ -201,7 +255,7 @@ EXPOSE 8000
 CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "2", "--worker-class", "sync", "--timeout", "120", "--max-requests", "1000", "--max-requests-jitter", "50", "--preload", "src.iayos_project.wsgi:application"]
 
 # ============================================
-# Stage 9: Frontend Development (Node only)
+# Stage 12: Frontend Development (Node only)
 # ============================================
 FROM base AS frontend-development
 
@@ -228,7 +282,7 @@ EXPOSE 3000
 CMD ["sh", "-c", "cd /app/apps/frontend_web && npx next dev"]
 
 # ============================================
-# Stage 10: Backend Development (Secure)
+# Stage 13: Backend Development (Secure)
 # ============================================
 FROM backend-base AS backend-development
 
@@ -268,38 +322,3 @@ EXPOSE 8000
 
 # Default dev command (compose overrides)
 CMD ["python", "src/manage.py", "runserver", "0.0.0.0:8000"]
-
-# ============================================
-# Stage 11: React Native Expo Development
-# ============================================
-FROM node:22-slim AS expo-development
-
-# Install required packages for Expo CLI and networking
-RUN apt-get update && apt-get install -y \
-    git \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /app/apps/frontend_mobile/iayos_mobile
-
-# Disable Expo telemetry but keep interactive mode for QR code
-ENV EXPO_NO_TELEMETRY=1
-
-# Copy package files first for better caching
-COPY apps/frontend_mobile/iayos_mobile/package.json apps/frontend_mobile/iayos_mobile/package-lock.json* ./
-
-# Install dependencies
-RUN npm install
-
-# Copy the rest of the mobile app source
-COPY apps/frontend_mobile/iayos_mobile .
-
-# Expose Expo ports
-# 8081 - Metro bundler
-# 19000 - Expo dev server
-# 19001 - Expo dev tools  
-# 19002 - Expo debugger
-EXPOSE 8081 19000 19001 19002
-
-# Start Expo with LAN mode for physical device testing
-CMD ["npx", "expo", "start", "--host", "lan"]

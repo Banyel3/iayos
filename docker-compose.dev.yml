@@ -58,34 +58,26 @@ services:
         npx next dev
       "
 
-  # React Native Expo Mobile Development
+  # Flutter Mobile Development (optional - for running Flutter in container)
   mobile:
     build:
       context: .
       dockerfile: Dockerfile
-      target: expo-development
+      target: flutter-base
     container_name: iayos-mobile-dev
-    ports:
-      - "8081:8081" # Metro bundler
-      - "19000:19000" # Expo dev server
-      - "19001:19001" # Expo dev tools
-      - "19002:19002" # Expo debugger
     volumes:
       # Mount mobile source code for hot reload
       - ./apps/frontend_mobile/iayos_mobile:/app/apps/frontend_mobile/iayos_mobile
-      # Prevent host node_modules from overriding container's Linux deps
-      - /app/apps/frontend_mobile/iayos_mobile/node_modules
-    environment:
-      - EXPO_NO_TELEMETRY=1
-      - REACT_NATIVE_PACKAGER_HOSTNAME=0.0.0.0
-      - EXPO_DEVTOOLS_LISTEN_ADDRESS=0.0.0.0
     networks:
       - iayos-network
+    working_dir: /app/apps/frontend_mobile/iayos_mobile
     command: >
       sh -c "
-        npm install &&
-        npx expo start --host lan
+        flutter pub get &&
+        echo 'Flutter mobile container ready. Use: docker exec -it iayos-mobile-dev flutter run'
       "
+    profiles:
+      - mobile # This service won't start by default, use: docker-compose --profile mobile up
 
 networks:
   iayos-network:
