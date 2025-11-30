@@ -53,6 +53,8 @@ class JobApplicationSchema(Schema):
 class SubmitReviewSchema(Schema):
     rating: int  # 1-5 stars
     message: Optional[str] = None  # Optional review message
+    review_target: Optional[str] = None  # For agency jobs: "EMPLOYEE" or "AGENCY"
+    employee_id: Optional[int] = None  # For multi-employee jobs: specific employee to review
 
 
 class ApproveJobCompletionSchema(Schema):

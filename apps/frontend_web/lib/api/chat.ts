@@ -16,12 +16,23 @@ export interface JobInfo {
   remainingPaymentPaid?: boolean;
 }
 
+export interface AssignedEmployee {
+  name: string;
+  avatar: string | null;
+  rating: number | null;
+  is_employee_of_month: boolean;
+}
+
 export interface OtherParticipant {
-  profile_id: number;
+  profile_id?: number;
   name: string;
   avatar: string | null;
   profile_type: string;
-  city: string | null;
+  city?: string | null;
+  location?: string | null;
+  job_title?: string | null;
+  is_agency?: boolean;
+  assigned_employee?: AssignedEmployee | null;
 }
 
 export interface Conversation {

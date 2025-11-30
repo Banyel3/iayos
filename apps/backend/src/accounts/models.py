@@ -811,19 +811,30 @@ class Job(models.Model):
         help_text="Agency assigned to this job (for agency hires)"
     )
 
+    # LEGACY: Single employee assignment (kept for backward compatibility)
+    # New jobs should use assignedEmployees (ManyToMany) instead
     assignedEmployeeID = models.ForeignKey(
         'agency.AgencyEmployee',
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='assigned_jobs',
-        help_text="Specific agency employee assigned to this job"
+        related_name='legacy_assigned_jobs',
+        help_text="LEGACY: Single employee assignment. Use assignedEmployees for new jobs."
+    )
+
+    # NEW: Multiple employees can be assigned via through table
+    assignedEmployees = models.ManyToManyField(
+        'agency.AgencyEmployee',
+        through='JobEmployeeAssignment',
+        blank=True,
+        related_name='assigned_jobs_multi',
+        help_text="Multiple agency employees assigned to this job"
     )
 
     employeeAssignedAt = models.DateTimeField(
         null=True,
         blank=True,
-        help_text="When employee was assigned by agency"
+        help_text="When first employee was assigned by agency"
     )
 
     assignmentNotes = models.TextField(
@@ -893,6 +904,72 @@ class Job(models.Model):
         
         # Normal save
         super().save(*args, **kwargs)
+
+
+class JobEmployeeAssignment(models.Model):
+    """
+    Through table for many-to-many relationship between Jobs and AgencyEmployees.
+    Allows multiple employees to be assigned to a single job.
+    """
+    assignmentID = models.BigAutoField(primary_key=True)
+    job = models.ForeignKey(
+        Job,
+        on_delete=models.CASCADE,
+        related_name='employee_assignments'
+    )
+    employee = models.ForeignKey(
+        'agency.AgencyEmployee',
+        on_delete=models.CASCADE,
+        related_name='job_assignments'
+    )
+    
+    # Assignment metadata
+    assignedAt = models.DateTimeField(auto_now_add=True)
+    assignedBy = models.ForeignKey(
+        'Accounts',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='employee_assignments_made',
+        help_text="The agency owner who made this assignment"
+    )
+    notes = models.TextField(blank=True, default="")
+    
+    # Role in the job
+    isPrimaryContact = models.BooleanField(
+        default=False,
+        help_text="If true, this employee is the team lead/primary contact for this job"
+    )
+    
+    # Status tracking
+    class AssignmentStatus(models.TextChoices):
+        ASSIGNED = "ASSIGNED", "Assigned"
+        IN_PROGRESS = "IN_PROGRESS", "In Progress"
+        COMPLETED = "COMPLETED", "Completed"
+        REMOVED = "REMOVED", "Removed from job"
+    
+    status = models.CharField(
+        max_length=15,
+        choices=AssignmentStatus.choices,
+        default="ASSIGNED"
+    )
+    
+    # Completion tracking per employee
+    employeeMarkedComplete = models.BooleanField(default=False)
+    employeeMarkedCompleteAt = models.DateTimeField(null=True, blank=True)
+    completionNotes = models.TextField(blank=True, default="")
+    
+    class Meta:
+        db_table = 'job_employee_assignments'
+        unique_together = ['job', 'employee']  # Prevent duplicate assignments
+        ordering = ['-isPrimaryContact', 'assignedAt']  # Primary contact first
+        indexes = [
+            models.Index(fields=['job', 'status']),
+            models.Index(fields=['employee', 'status']),
+        ]
+    
+    def __str__(self):
+        return f"{self.employee.name} assigned to {self.job.title}"
 
 
 class JobPhoto(models.Model):
@@ -1110,6 +1187,7 @@ class JobReview(models.Model):
     """
     Reviews and ratings for completed jobs
     Both clients and workers can review each other after job completion
+    For agency jobs, clients can review both the employee AND the agency
     """
     reviewID = models.BigAutoField(primary_key=True)
     jobID = models.ForeignKey(
@@ -1125,11 +1203,31 @@ class JobReview(models.Model):
         related_name='reviews_given'
     )
     
-    # Who received the review
+    # Who received the review (for regular worker/client reviews)
     revieweeID = models.ForeignKey(
         Accounts,
         on_delete=models.CASCADE,
-        related_name='reviews_received'
+        related_name='reviews_received',
+        null=True,
+        blank=True
+    )
+    
+    # For agency employee reviews
+    revieweeEmployeeID = models.ForeignKey(
+        'agency.AgencyEmployee',
+        on_delete=models.CASCADE,
+        related_name='reviews_received',
+        null=True,
+        blank=True
+    )
+    
+    # For agency reviews
+    revieweeAgencyID = models.ForeignKey(
+        Agency,
+        on_delete=models.CASCADE,
+        related_name='reviews_received',
+        null=True,
+        blank=True
     )
     
     # Review Type (to identify if it's from client or worker)
@@ -1192,16 +1290,14 @@ class JobReview(models.Model):
             models.Index(fields=['jobID', '-createdAt']),
             models.Index(fields=['reviewerID', '-createdAt']),
             models.Index(fields=['revieweeID', '-createdAt']),
+            models.Index(fields=['revieweeEmployeeID', '-createdAt']),
+            models.Index(fields=['revieweeAgencyID', '-createdAt']),
             models.Index(fields=['status', '-createdAt']),
             models.Index(fields=['isFlagged', '-createdAt']),
         ]
-        # Prevent duplicate reviews from same reviewer for same job
-        constraints = [
-            models.UniqueConstraint(
-                fields=['jobID', 'reviewerID'],
-                name='unique_job_reviewer'
-            )
-        ]
+        # Note: Unique constraint removed to allow multiple reviews for agency jobs
+        # (client reviews employee + agency separately)
+        # Uniqueness is now enforced in the API layer
     
     def __str__(self):
         return f"Review by {self.reviewerID.email} for job #{self.jobID.jobID} - {self.rating}★"

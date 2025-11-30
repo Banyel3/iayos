@@ -231,7 +231,9 @@ export const ENDPOINTS = {
     `${API_BASE_URL.replace("/api", "")}/api/mobile/payment-methods/${id}/set-primary`,
 
   // Phase 8: Reviews & Ratings (6 endpoints)
-  SUBMIT_REVIEW: `${API_BASE_URL.replace("/api", "")}/api/accounts/reviews/submit`,
+  // Use jobs API for review submission (supports agency employee reviews)
+  SUBMIT_REVIEW: (jobId: number) =>
+    `${API_BASE_URL.replace("/api", "")}/api/jobs/${jobId}/review`,
   WORKER_REVIEWS: (workerId: number, page = 1, limit = 20, sort = "latest") =>
     `${API_BASE_URL.replace("/api", "")}/api/accounts/reviews/worker/${workerId}?page=${page}&limit=${limit}&sort=${sort}`,
   REVIEW_STATS: (workerId: number) =>

@@ -2,15 +2,16 @@
 
 // Agency Chat Screen
 // 1-on-1 messaging with real-time updates, image uploads, and typing indicators
-// Ported from React Native mobile app
+// Uses agency-specific hooks for conversations
 
 import React, { useEffect, useRef, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import {
-  useMessages,
-  useSendMessageMutation,
-  useUploadImageMessage,
-} from "@/lib/hooks/useMessages";
+  useAgencyMessages,
+  useAgencySendMessage,
+  useAgencyMarkComplete,
+  useAgencySubmitReview,
+} from "@/lib/hooks/useAgencyConversations";
 import {
   useMessageListener,
   useTypingIndicator,
@@ -30,8 +31,15 @@ import {
   MoreVertical,
   Briefcase,
   MapPin,
+  User,
+  Building2,
+  CheckCircle,
+  Clock,
+  Star,
+  AlertCircle,
 } from "lucide-react";
 import { format, isSameDay } from "date-fns";
+import type { AgencyMessage } from "@/lib/hooks/useAgencyConversations";
 
 export default function AgencyChatScreen() {
   const router = useRouter();
@@ -41,16 +49,26 @@ export default function AgencyChatScreen() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [showImageModal, setShowImageModal] = useState<string | null>(null);
 
-  // Fetch conversation and messages
+  // Job action state
+  const [showMarkCompleteModal, setShowMarkCompleteModal] = useState(false);
+  const [completionNotes, setCompletionNotes] = useState("");
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [reviewRating, setReviewRating] = useState(0);
+  const [reviewText, setReviewText] = useState("");
+
+  // Fetch conversation and messages using agency hooks
   const {
     data: conversation,
     isLoading,
     refetch,
-  } = useMessages(conversationId);
+  } = useAgencyMessages(conversationId);
 
-  // Send message mutation
-  const sendMutation = useSendMessageMutation();
-  const uploadImageMutation = useUploadImageMessage();
+  // Send message mutation using agency hook
+  const sendMutation = useAgencySendMessage();
+
+  // Job action mutations
+  const markCompleteMutation = useAgencyMarkComplete();
+  const submitReviewMutation = useAgencySubmitReview();
 
   // WebSocket connection state
   const { isConnected } = useWebSocketConnection();
@@ -79,17 +97,54 @@ export default function AgencyChatScreen() {
     });
   };
 
-  // Handle image upload
+  // Handle image upload (simplified - images sent as text for now)
   const handleImageSelect = (file: File) => {
-    uploadImageMutation.mutate({
-      conversationId,
-      imageFile: file,
-    });
+    // For now, just alert that image upload isn't supported in agency chat
+    alert("Image upload will be available soon. Please send a text message.");
   };
 
   // Handle back navigation
   const handleBack = () => {
     router.back();
+  };
+
+  // Handle mark job as complete
+  const handleMarkComplete = () => {
+    if (!conversation?.job.id) return;
+
+    markCompleteMutation.mutate(
+      { jobId: conversation.job.id, completionNotes },
+      {
+        onSuccess: () => {
+          setShowMarkCompleteModal(false);
+          setCompletionNotes("");
+          refetch();
+        },
+        onError: (error) => {
+          alert(error.message || "Failed to mark job as complete");
+        },
+      }
+    );
+  };
+
+  // Handle submit review
+  const handleSubmitReview = () => {
+    if (!conversation?.job.id || reviewRating === 0) return;
+
+    submitReviewMutation.mutate(
+      { jobId: conversation.job.id, rating: reviewRating, reviewText },
+      {
+        onSuccess: () => {
+          setShowReviewModal(false);
+          setReviewRating(0);
+          setReviewText("");
+          refetch();
+        },
+        onError: (error) => {
+          alert(error.message || "Failed to submit review");
+        },
+      }
+    );
   };
 
   // Get initials for avatar fallback
@@ -139,7 +194,8 @@ export default function AgencyChatScreen() {
     );
   }
 
-  const { other_participant, job, messages } = conversation;
+  // Agency conversation uses client, assigned_employee, and job
+  const { client, assigned_employee, job, messages } = conversation;
 
   return (
     <div className="flex flex-col h-screen bg-gray-50">
@@ -147,7 +203,7 @@ export default function AgencyChatScreen() {
       <Card className="rounded-none border-b">
         <CardHeader className="p-4">
           <div className="flex items-center justify-between">
-            {/* Left: Back button + Participant info */}
+            {/* Left: Back button + Client info */}
             <div className="flex items-center gap-3 flex-1 min-w-0">
               <Button
                 variant="ghost"
@@ -159,15 +215,15 @@ export default function AgencyChatScreen() {
               </Button>
 
               <Avatar className="h-10 w-10 flex-shrink-0">
-                <AvatarImage src={other_participant.avatar} />
+                <AvatarImage src={client.avatar || ""} />
                 <AvatarFallback className="bg-blue-100 text-blue-700">
-                  {getInitials(other_participant.name)}
+                  {getInitials(client.name)}
                 </AvatarFallback>
               </Avatar>
 
               <div className="flex-1 min-w-0">
                 <h2 className="text-lg font-semibold text-gray-900 truncate">
-                  {other_participant.name}
+                  {client.name}
                 </h2>
                 <div className="flex items-center gap-2 text-sm text-gray-600">
                   <Briefcase className="h-3 w-3" />
@@ -195,9 +251,9 @@ export default function AgencyChatScreen() {
             </div>
           </div>
 
-          {/* Job info banner */}
+          {/* Job info banner with assigned employee */}
           <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center justify-between gap-2 mb-2">
               <div className="flex items-center gap-2 text-sm">
                 <MapPin className="h-4 w-4 text-blue-600" />
                 <span className="text-gray-700">{job.location}</span>
@@ -209,13 +265,145 @@ export default function AgencyChatScreen() {
                 ₱{job.budget.toLocaleString()}
               </Badge>
             </div>
+            {assigned_employee && (
+              <div className="flex items-center gap-2 text-sm text-gray-600 pt-2 border-t border-blue-200">
+                <User className="h-4 w-4 text-blue-600" />
+                <span>Assigned: {assigned_employee.name}</span>
+                {assigned_employee.employeeOfTheMonth && (
+                  <Badge
+                    variant="default"
+                    className="text-xs bg-amber-500 hover:bg-amber-600"
+                  >
+                    🏆 EOTM
+                  </Badge>
+                )}
+                {assigned_employee.rating && (
+                  <Badge variant="secondary" className="text-xs">
+                    ⭐ {assigned_employee.rating.toFixed(1)}
+                  </Badge>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Job Status & Actions Section */}
+          <div className="mt-3">
+            {/* Status: Waiting for client to confirm work started */}
+            {job.status === "IN_PROGRESS" &&
+              !job.clientConfirmedWorkStarted && (
+                <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-yellow-600" />
+                    <span className="text-sm text-yellow-800 font-medium">
+                      Waiting for client to confirm work has started
+                    </span>
+                  </div>
+                  <p className="text-xs text-yellow-600 mt-1">
+                    The client needs to confirm that your employee has arrived
+                    and started working
+                  </p>
+                </div>
+              )}
+
+            {/* Status: Ready to mark complete */}
+            {job.status === "IN_PROGRESS" &&
+              job.clientConfirmedWorkStarted &&
+              !job.workerMarkedComplete && (
+                <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 text-blue-600" />
+                      <span className="text-sm text-blue-800 font-medium">
+                        Client confirmed work has started
+                      </span>
+                    </div>
+                    <Button
+                      size="sm"
+                      className="bg-green-600 hover:bg-green-700"
+                      onClick={() => setShowMarkCompleteModal(true)}
+                    >
+                      <CheckCircle className="h-4 w-4 mr-1" />
+                      Mark Complete
+                    </Button>
+                  </div>
+                  <p className="text-xs text-blue-600 mt-1">
+                    Once the job is finished, mark it as complete for the client
+                    to approve
+                  </p>
+                </div>
+              )}
+
+            {/* Status: Waiting for client approval */}
+            {job.workerMarkedComplete && !job.clientMarkedComplete && (
+              <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-amber-600 animate-pulse" />
+                  <span className="text-sm text-amber-800 font-medium">
+                    ⏳ Waiting for client to approve completion
+                  </span>
+                </div>
+                <p className="text-xs text-amber-600 mt-1">
+                  You've marked the job as complete. The client will review and
+                  approve the work.
+                </p>
+              </div>
+            )}
+
+            {/* Status: Completed - Show review section */}
+            {job.clientMarkedComplete && (
+              <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+                <div className="flex items-center gap-2 mb-2">
+                  <CheckCircle className="h-4 w-4 text-green-600" />
+                  <span className="text-sm text-green-800 font-medium">
+                    ✅ Job Completed Successfully!
+                  </span>
+                </div>
+
+                {/* Both parties reviewed - fully closed */}
+                {job.workerReviewed && job.clientReviewed ? (
+                  <div className="flex items-center gap-2 mt-2 pt-2 border-t border-green-200">
+                    <CheckCircle className="h-3 w-3 text-green-600" />
+                    <span className="text-xs text-green-700">
+                      Both parties have submitted reviews. This job is complete.
+                    </span>
+                  </div>
+                ) : !job.workerReviewed ? (
+                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-green-200">
+                    <span className="text-sm text-gray-600">
+                      Leave a review for the client
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-green-500 text-green-700 hover:bg-green-100"
+                      onClick={() => setShowReviewModal(true)}
+                    >
+                      <Star className="h-4 w-4 mr-1" />
+                      Leave Review
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 mt-2 pt-2 border-t border-green-200">
+                    <CheckCircle className="h-3 w-3 text-green-600" />
+                    <span className="text-xs text-green-700">
+                      You've submitted your review
+                    </span>
+                    {!job.clientReviewed && (
+                      <span className="text-xs text-gray-500 ml-2">
+                        • Waiting for client's review
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </CardHeader>
       </Card>
 
       {/* Messages list */}
       <div className="flex-1 overflow-y-auto p-4">
-        {messages.map((message, index) => {
+        {messages.map((message: AgencyMessage, index: number) => {
           const currentDate = new Date(message.created_at);
           const previousDate =
             index > 0 ? new Date(messages[index - 1].created_at) : undefined;
@@ -223,13 +411,59 @@ export default function AgencyChatScreen() {
           return (
             <div key={`${message.message_id}-${index}`}>
               {renderDateSeparator(currentDate, previousDate)}
-              <MessageBubble
-                message={message}
-                onImagePress={() =>
-                  message.message_type === "IMAGE" &&
-                  setShowImageModal(message.message_text)
-                }
-              />
+              {/* Inline message bubble for agency chat */}
+              <div
+                className={`flex mb-3 ${
+                  message.is_mine ? "justify-end" : "justify-start"
+                }`}
+              >
+                {!message.is_mine && (
+                  <Avatar className="h-8 w-8 mr-2 flex-shrink-0">
+                    <AvatarImage src={message.sender_avatar || ""} />
+                    <AvatarFallback className="bg-gray-200 text-gray-600 text-xs">
+                      {getInitials(message.sender_name)}
+                    </AvatarFallback>
+                  </Avatar>
+                )}
+                <div
+                  className={`max-w-[70%] rounded-2xl px-4 py-2 ${
+                    message.is_mine
+                      ? "bg-blue-600 text-white rounded-br-sm"
+                      : "bg-white border border-gray-200 text-gray-900 rounded-bl-sm"
+                  }`}
+                >
+                  {!message.is_mine && (
+                    <p className="text-xs font-medium text-gray-500 mb-1">
+                      {message.sender_name}
+                      {message.sent_by_agency && (
+                        <Badge variant="outline" className="ml-2 text-xs py-0">
+                          <Building2 className="h-3 w-3 mr-1" />
+                          Agency
+                        </Badge>
+                      )}
+                    </p>
+                  )}
+                  {message.message_type === "IMAGE" ? (
+                    <img
+                      src={message.message_text}
+                      alt="Image"
+                      className="max-w-full rounded-lg cursor-pointer"
+                      onClick={() => setShowImageModal(message.message_text)}
+                    />
+                  ) : (
+                    <p className="text-sm whitespace-pre-wrap">
+                      {message.message_text}
+                    </p>
+                  )}
+                  <p
+                    className={`text-xs mt-1 ${
+                      message.is_mine ? "text-blue-200" : "text-gray-400"
+                    }`}
+                  >
+                    {format(new Date(message.created_at), "h:mm a")}
+                  </p>
+                </div>
+              </div>
             </div>
           );
         })}
@@ -248,24 +482,36 @@ export default function AgencyChatScreen() {
                 style={{ animationDelay: "0.2s" }}
               />
             </div>
-            <span>{other_participant.name} is typing...</span>
+            <span>{client.name} is typing...</span>
           </div>
         )}
 
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Message input */}
-      <MessageInput
-        onSend={handleSendMessage}
-        onTyping={sendTyping}
-        onImageSelect={handleImageSelect}
-        disabled={!isConnected || sendMutation.isPending}
-        isUploading={uploadImageMutation.isPending}
-        placeholder={
-          isConnected ? "Type a message..." : "Reconnecting... Please wait"
-        }
-      />
+      {/* Message input or Conversation Closed banner */}
+      {job.clientMarkedComplete && job.workerReviewed && job.clientReviewed ? (
+        <div className="p-4 bg-gray-100 border-t border-gray-200">
+          <div className="flex items-center justify-center gap-2 text-gray-600">
+            <CheckCircle className="h-5 w-5 text-green-600" />
+            <span className="text-sm font-medium">
+              This conversation has been closed. Both parties have submitted
+              reviews.
+            </span>
+          </div>
+        </div>
+      ) : (
+        <MessageInput
+          onSend={handleSendMessage}
+          onTyping={sendTyping}
+          onImageSelect={handleImageSelect}
+          disabled={!isConnected || sendMutation.isPending}
+          isUploading={false}
+          placeholder={
+            isConnected ? "Type a message..." : "Reconnecting... Please wait"
+          }
+        />
+      )}
 
       {/* Image modal */}
       {showImageModal && (
@@ -286,6 +532,151 @@ export default function AgencyChatScreen() {
           >
             ✕
           </Button>
+        </div>
+      )}
+
+      {/* Mark Complete Modal */}
+      {showMarkCompleteModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md">
+            <CardHeader className="pb-2">
+              <h3 className="text-lg font-semibold">Mark Job as Complete</h3>
+              <p className="text-sm text-gray-500">
+                Confirm that the work has been completed for "{job.title}"
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Completion Notes (optional)
+                </label>
+                <textarea
+                  className="w-full border rounded-lg p-3 text-sm resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  rows={3}
+                  placeholder="Add any notes about the completed work..."
+                  value={completionNotes}
+                  onChange={(e) => setCompletionNotes(e.target.value)}
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => {
+                    setShowMarkCompleteModal(false);
+                    setCompletionNotes("");
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1 bg-green-600 hover:bg-green-700"
+                  onClick={handleMarkComplete}
+                  disabled={markCompleteMutation.isPending}
+                >
+                  {markCompleteMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Submitting...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      Confirm Complete
+                    </>
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Review Modal */}
+      {showReviewModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md">
+            <CardHeader className="pb-2">
+              <h3 className="text-lg font-semibold">Leave a Review</h3>
+              <p className="text-sm text-gray-500">
+                Rate your experience with {client.name}
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Star Rating */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Rating
+                </label>
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => setReviewRating(star)}
+                      className="focus:outline-none"
+                    >
+                      <Star
+                        className={`h-8 w-8 transition-colors ${
+                          star <= reviewRating
+                            ? "fill-yellow-400 text-yellow-400"
+                            : "text-gray-300 hover:text-yellow-300"
+                        }`}
+                      />
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Review Text */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Your Review
+                </label>
+                <textarea
+                  className="w-full border rounded-lg p-3 text-sm resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  rows={4}
+                  placeholder="Share your experience working with this client..."
+                  value={reviewText}
+                  onChange={(e) => setReviewText(e.target.value)}
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => {
+                    setShowReviewModal(false);
+                    setReviewRating(0);
+                    setReviewText("");
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1"
+                  onClick={handleSubmitReview}
+                  disabled={
+                    reviewRating === 0 || submitReviewMutation.isPending
+                  }
+                >
+                  {submitReviewMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Submitting...
+                    </>
+                  ) : (
+                    <>
+                      <Star className="h-4 w-4 mr-2" />
+                      Submit Review
+                    </>
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       )}
     </div>

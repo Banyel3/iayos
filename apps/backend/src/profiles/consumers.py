@@ -3,7 +3,7 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.contrib.auth import get_user_model
 from .models import Conversation, Message, Profile
-from accounts.models import Job, JobReview
+from accounts.models import Job, JobReview, Agency
 
 User = get_user_model()
 
@@ -12,9 +12,11 @@ class InboxConsumer(AsyncWebsocketConsumer):
     """
     Single WebSocket consumer for ALL conversations belonging to a user.
     Handles message routing based on conversation_id in the message payload.
+    Supports both regular users (with Profile) and agency users (with Agency).
     """
     async def connect(self):
         self.user = self.scope.get('user')
+        self.is_agency = False
         
         print(f"[InboxWS] Connection attempt for user: {self.user}")
         print(f"[InboxWS] Is authenticated: {self.user.is_authenticated if self.user else 'No user'}")
@@ -24,12 +26,17 @@ class InboxConsumer(AsyncWebsocketConsumer):
             await self.close()
             return
         
-        # Get user's profile
+        # Check if user is an agency or has a profile
         self.profile = await self.get_user_profile()
-        if not self.profile:
-            print(f"[InboxWS] REJECTED: Profile not found for user")
+        self.agency = await self.get_user_agency()
+        
+        if not self.profile and not self.agency:
+            print(f"[InboxWS] REJECTED: Neither Profile nor Agency found for user")
             await self.close()
             return
+        
+        self.is_agency = self.agency is not None
+        print(f"[InboxWS] User type: {'Agency' if self.is_agency else 'Profile'}")
         
         # Get ALL conversations this user is part of
         conversation_ids = await self.get_user_conversations()
@@ -93,6 +100,12 @@ class InboxConsumer(AsyncWebsocketConsumer):
             message = await self.save_message(conversation_id, message_text, message_type)
             print(f"[InboxWS] ✅ Message saved with ID: {message.messageID}")
 
+            # Determine sender info (works for both Profile and Agency senders)
+            sender_name = message.get_sender_name()
+            sender_avatar = None
+            if message.sender and hasattr(message.sender, 'profilePicture') and message.sender.profilePicture:
+                sender_avatar = message.sender.profilePicture.url
+
             # Broadcast to conversation group
             room_group_name = f'chat_{conversation_id}'
             await self.channel_layer.group_send(
@@ -101,8 +114,8 @@ class InboxConsumer(AsyncWebsocketConsumer):
                     'type': 'chat_message',
                     'message': {
                         'conversation_id': int(conversation_id),
-                        'sender_name': f"{message.sender.firstName} {message.sender.lastName}",
-                        'sender_avatar': message.sender.profilePicture.url if message.sender.profilePicture else None,
+                        'sender_name': sender_name,
+                        'sender_avatar': sender_avatar,
                         'message': message.messageText,
                         'type': message.messageType,
                         'created_at': message.createdAt.isoformat(),
@@ -194,49 +207,110 @@ class InboxConsumer(AsyncWebsocketConsumer):
             return None
 
     @database_sync_to_async
-    def get_user_conversations(self):
-        """Get all conversation IDs the user is part of"""
+    def get_user_agency(self):
+        """Get agency record for user if they are an agency owner"""
         try:
-            profile = Profile.objects.get(accountFK=self.user)
-            conversations = Conversation.objects.filter(
-                client=profile
-            ) | Conversation.objects.filter(
-                worker=profile
-            )
-            return list(conversations.values_list('conversationID', flat=True))
+            return Agency.objects.get(accountFK=self.user)
+        except Agency.DoesNotExist:
+            return None
+
+    @database_sync_to_async
+    def get_user_conversations(self):
+        """Get all conversation IDs the user is part of (supports both Profile and Agency users)"""
+        try:
+            conversations = Conversation.objects.none()
+            
+            # Check for Profile-based conversations (client or worker)
+            try:
+                profile = Profile.objects.get(accountFK=self.user)
+                conversations = Conversation.objects.filter(
+                    client=profile
+                ) | Conversation.objects.filter(
+                    worker=profile
+                )
+            except Profile.DoesNotExist:
+                pass
+            
+            # Check for Agency-based conversations (directly via agency field)
+            try:
+                agency = Agency.objects.get(accountFK=self.user)
+                agency_conversations = Conversation.objects.filter(agency=agency)
+                conversations = conversations | agency_conversations
+                print(f"[InboxWS] Found {agency_conversations.count()} agency conversations")
+            except Agency.DoesNotExist:
+                pass
+            
+            result = list(conversations.distinct().values_list('conversationID', flat=True))
+            print(f"[InboxWS] Total conversations: {len(result)}")
+            return result
         except Exception as e:
             print(f"[InboxWS] ERROR getting conversations: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return []
 
     @database_sync_to_async
     def verify_conversation_access(self, conversation_id):
+        """Verify user has access to conversation (supports both Profile and Agency)"""
         try:
-            profile = Profile.objects.get(accountFK=self.user)
             conversation = Conversation.objects.get(conversationID=conversation_id)
             
-            has_access = (conversation.client.profileID == profile.profileID or 
-                         conversation.worker.profileID == profile.profileID)
-            print(f"[InboxWS] Access check for conv {conversation_id}: {has_access}")
-            return has_access
-        except (Profile.DoesNotExist, Conversation.DoesNotExist) as e:
-            print(f"[InboxWS] ERROR: {str(e)}")
+            # Check Profile-based access (client or worker)
+            try:
+                profile = Profile.objects.get(accountFK=self.user)
+                if conversation.client.profileID == profile.profileID:
+                    print(f"[InboxWS] Client access granted for conv {conversation_id}")
+                    return True
+                if conversation.worker and conversation.worker.profileID == profile.profileID:
+                    print(f"[InboxWS] Worker access granted for conv {conversation_id}")
+                    return True
+            except Profile.DoesNotExist:
+                pass
+            
+            # Check Agency-based access (directly via agency field)
+            try:
+                agency = Agency.objects.get(accountFK=self.user)
+                if conversation.agency and conversation.agency.agencyId == agency.agencyId:
+                    print(f"[InboxWS] Agency access granted for conv {conversation_id}")
+                    return True
+            except Agency.DoesNotExist:
+                pass
+            
+            print(f"[InboxWS] Access DENIED for conv {conversation_id}")
+            return False
+        except Conversation.DoesNotExist as e:
+            print(f"[InboxWS] ERROR: Conversation {conversation_id} not found")
             return False
 
     @database_sync_to_async
     def save_message(self, conversation_id, message_text, message_type):
+        """Save a message - supports both Profile and Agency senders"""
         try:
-            print(f"[InboxWS] 🔍 Looking up profile for user: {self.user.email}")
-            profile = Profile.objects.get(accountFK=self.user)
-            print(f"[InboxWS] ✅ Found profile: {profile.profileID}")
+            conversation = Conversation.objects.get(conversationID=conversation_id)
+            
+            # Try to get profile for sender
+            profile = None
+            agency = None
+            try:
+                profile = Profile.objects.get(accountFK=self.user)
+                print(f"[InboxWS] ✅ Sender profile: {profile.profileID}")
+            except Profile.DoesNotExist:
+                # For agency users without profile, get their agency
+                print(f"[InboxWS] ⚠️ No profile for user {self.user.email}, checking if agency...")
+                try:
+                    agency = Agency.objects.get(accountFK=self.user)
+                    print(f"[InboxWS] ✅ Sender agency: {agency.agencyId} ({agency.businessName})")
+                except Agency.DoesNotExist:
+                    print(f"[InboxWS] ❌ No profile or agency found for user!")
+                    raise Exception("User has no profile or agency")
             
             print(f"[InboxWS] 🔍 Looking up conversation: {conversation_id}")
-            conversation = Conversation.objects.get(conversationID=conversation_id)
-            print(f"[InboxWS] ✅ Found conversation: {conversation.conversationID}")
             
             print(f"[InboxWS] 💾 Creating message...")
             message = Message.objects.create(
                 conversationID=conversation, 
-                sender=profile, 
+                sender=profile,  # None if agency user
+                senderAgency=agency,  # None if profile user
                 messageText=message_text, 
                 messageType=message_type, 
                 isRead=False
@@ -286,38 +360,67 @@ class InboxConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def get_conversation_messages(self, conversation_id):
-        """Fetch all messages for a conversation (same as REST API)"""
+        """Fetch all messages for a conversation (same as REST API). Supports agencies."""
         try:
             conversation = Conversation.objects.get(conversationID=conversation_id)
             messages = Message.objects.filter(conversationID=conversation).order_by('createdAt')
             
-            # Mark messages as read for this user
-            profile = Profile.objects.get(accountFK=self.user)
-            if conversation.client == profile:
-                conversation.unreadCountClient = 0
-            else:
-                conversation.unreadCountWorker = 0
-            conversation.save(update_fields=['unreadCountClient' if conversation.client == profile else 'unreadCountWorker'])
+            # Try to get profile or agency for this user
+            profile = None
+            agency = None
+            is_client = False
+            my_role = 'UNKNOWN'
+            
+            try:
+                profile = Profile.objects.get(accountFK=self.user)
+                if conversation.client == profile:
+                    conversation.unreadCountClient = 0
+                    is_client = True
+                    my_role = 'CLIENT'
+                else:
+                    conversation.unreadCountWorker = 0
+                    my_role = 'WORKER'
+                conversation.save(update_fields=['unreadCountClient' if is_client else 'unreadCountWorker'])
+            except Profile.DoesNotExist:
+                # Check if agency user
+                try:
+                    agency = Agency.objects.get(accountFK=self.user)
+                    # Agency user viewing - clear their unread
+                    conversation.unreadCountWorker = 0
+                    conversation.save(update_fields=['unreadCountWorker'])
+                    my_role = 'AGENCY'
+                except Agency.DoesNotExist:
+                    pass
             
             # Format messages
             formatted_messages = []
             for msg in messages:
+                # Determine if this is my message
+                is_mine = False
+                if profile and msg.sender == profile:
+                    is_mine = True
+                elif agency and msg.senderAgency == agency:
+                    is_mine = True
+                
                 formatted_messages.append({
-                    'sender_name': f"{msg.sender.firstName} {msg.sender.lastName}",
-                    'sender_avatar': msg.sender.profileImg or "/worker1.jpg",
+                    'sender_name': msg.get_sender_name(),
+                    'sender_avatar': msg.sender.profileImg if msg.sender else "/agency-default.jpg",
                     'message_text': msg.messageText,
                     'message_type': msg.messageType,
                     'is_read': msg.isRead,
                     'created_at': msg.createdAt.isoformat(),
-                    'is_mine': msg.sender == profile
+                    'is_mine': is_mine
                 })
             
             # Get job data
             job = conversation.relatedJobPosting
-            is_client = conversation.client == profile
             
             # Get review status
-            worker_account = job.assignedWorkerID.profileID.accountFK if job.assignedWorkerID else None
+            worker_account = None
+            if job.assignedWorkerID:
+                worker_account = job.assignedWorkerID.profileID.accountFK
+            elif job.assignedAgencyFK:
+                worker_account = job.assignedAgencyFK.accountFK
             client_account = job.clientID.profileID.accountFK
             
             worker_reviewed = False
@@ -335,7 +438,7 @@ class InboxConsumer(AsyncWebsocketConsumer):
                 ).exists()
             
             conversation_data = {
-                'my_role': 'CLIENT' if is_client else 'WORKER',
+                'my_role': my_role,
                 'job': {
                     'id': job.jobID,
                     'title': job.title,

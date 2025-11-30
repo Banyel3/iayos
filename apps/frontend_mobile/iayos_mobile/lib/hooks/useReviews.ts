@@ -110,10 +110,16 @@ export function useSubmitReview() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (data: SubmitReviewRequest): Promise<Review> => {
-      const response = await apiRequest(ENDPOINTS.SUBMIT_REVIEW, {
+    mutationFn: async (data: SubmitReviewRequest): Promise<any> => {
+      // Use the jobs API endpoint which supports agency employee reviews
+      const response = await apiRequest(ENDPOINTS.SUBMIT_REVIEW(data.job_id), {
         method: "POST",
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          rating: data.rating,
+          message: data.comment,
+          review_target: data.review_target, // "EMPLOYEE" or "AGENCY" for agency jobs
+          employee_id: data.employee_id, // For multi-employee agency jobs
+        }),
       });
 
       if (!response.ok) {

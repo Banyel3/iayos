@@ -1260,13 +1260,20 @@ def get_workers_list_mobile(user, latitude=None, longitude=None, page=1, limit=2
             }
 
         print(f"  🔍 Querying worker profiles...")
-        # Get all worker profiles
+        
+        # Get accounts that own agencies (to exclude them from worker list)
+        from .models import Agency
+        agency_owner_account_ids = Agency.objects.values_list('accountFK_id', flat=True)
+        
+        # Get all worker profiles, excluding agency owners
         workers = WorkerProfile.objects.select_related(
             'profileID',
             'profileID__accountFK'
         ).filter(
             profileID__accountFK__isVerified=True,
             profileID__accountFK__KYCVerified=True
+        ).exclude(
+            profileID__accountFK__accountID__in=agency_owner_account_ids
         ).order_by('-profileID__accountFK__createdAt')
 
         total_count = workers.count()

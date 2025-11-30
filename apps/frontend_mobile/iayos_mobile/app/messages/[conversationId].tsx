@@ -11,11 +11,14 @@ import {
   KeyboardAvoidingView,
   Platform,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   Image,
   Alert,
   ActionSheetIOS,
   Modal,
   TextInput,
+  Keyboard,
+  ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, router, Stack } from "expo-router";
@@ -68,6 +71,13 @@ export default function ChatScreen() {
   // Review state
   const [rating, setRating] = useState(0);
   const [reviewComment, setReviewComment] = useState("");
+  // For agency jobs: track if we're reviewing employee or agency
+  const [reviewStep, setReviewStep] = useState<"EMPLOYEE" | "AGENCY">(
+    "EMPLOYEE"
+  );
+  const [employeeReviewSubmitted, setEmployeeReviewSubmitted] = useState(false);
+  // For multi-employee agency jobs: track current employee index
+  const [currentEmployeeIndex, setCurrentEmployeeIndex] = useState(0);
 
   // Fetch conversation and messages
   const {
@@ -75,6 +85,36 @@ export default function ChatScreen() {
     isLoading,
     refetch,
   } = useMessages(conversationId);
+
+  // For agency jobs: Auto-set review step based on what's already reviewed
+  useEffect(() => {
+    if (conversation?.is_agency_job && conversation.job) {
+      // Multi-employee support: check pending_employee_reviews array
+      const pendingEmployees = conversation.pending_employee_reviews || [];
+      const allEmployeesReviewed = conversation.all_employees_reviewed;
+      
+      if (allEmployeesReviewed && !conversation.job.agencyReviewed) {
+        // All employees reviewed, now rate the agency
+        setReviewStep("AGENCY");
+        setEmployeeReviewSubmitted(true);
+      } else if (pendingEmployees.length === 0 && !allEmployeesReviewed) {
+        // Legacy: single employee check for backwards compatibility
+        if (
+          conversation.job.employeeReviewed &&
+          !conversation.job.agencyReviewed
+        ) {
+          setReviewStep("AGENCY");
+          setEmployeeReviewSubmitted(true);
+        }
+      }
+    }
+  }, [
+    conversation?.is_agency_job,
+    conversation?.job?.employeeReviewed,
+    conversation?.job?.agencyReviewed,
+    conversation?.pending_employee_reviews,
+    conversation?.all_employees_reviewed,
+  ]);
 
   // Check if conversation is closed (both parties reviewed)
   const isConversationClosed =
@@ -130,9 +170,15 @@ export default function ChatScreen() {
   const handleConfirmWorkStarted = () => {
     if (!conversation) return;
 
+    // For agency jobs, show employee name if assigned, otherwise agency name
+    const workerName =
+      conversation.assigned_employee?.name ||
+      conversation.other_participant?.name ||
+      "the worker";
+
     Alert.alert(
       "Confirm Work Started",
-      `Are you sure the worker ${conversation.other_participant.name} has arrived and started working?`,
+      `Are you sure ${workerName} has arrived and started working?`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -276,35 +322,149 @@ export default function ChatScreen() {
       return;
     }
 
-    // Get reviewee ID based on role
-    // CLIENT reviews the assigned worker, WORKER reviews the client
-    const revieweeId =
-      conversation.my_role === "CLIENT"
-        ? conversation.job.assignedWorkerId // Worker being reviewed
-        : conversation.job.clientId; // Client being reviewed
+    // Check if this is an agency job with employees
+    const isAgencyJob = conversation.is_agency_job;
+    const hasMultipleEmployees = (conversation.assigned_employees?.length || 0) > 0;
+    const pendingEmployees = conversation.pending_employee_reviews || [];
+    
+    // For agency jobs (client reviewing), we need reviews for each employee + agency
+    if (isAgencyJob && conversation.my_role === "CLIENT") {
+      if (reviewStep === "EMPLOYEE") {
+        // Determine which employee is being reviewed
+        let currentEmployeeId: number;
+        let currentEmployeeName: string;
+        
+        if (hasMultipleEmployees && pendingEmployees.length > 0) {
+          // Multi-employee: use the first pending employee
+          currentEmployeeId = pendingEmployees[0];
+          const employee = conversation.assigned_employees?.find(e => e.id === currentEmployeeId);
+          currentEmployeeName = employee?.name || "Employee";
+        } else if (conversation.assigned_employee) {
+          // Legacy single employee
+          currentEmployeeId = conversation.assigned_employee.id;
+          currentEmployeeName = conversation.assigned_employee.name;
+        } else {
+          Alert.alert("Error", "No employee assigned to review");
+          return;
+        }
 
-    if (!revieweeId) {
-      Alert.alert("Error", "Unable to determine who to review");
-      return;
-    }
+        submitReviewMutation.mutate(
+          {
+            job_id: conversation.job.id,
+            reviewee_id: currentEmployeeId,
+            rating,
+            comment: reviewComment,
+            reviewer_type: "CLIENT",
+            review_target: "EMPLOYEE",
+            employee_id: currentEmployeeId, // For multi-employee support
+          },
+          {
+            onSuccess: (data: any) => {
+              setRating(0);
+              setReviewComment("");
+              
+              // Check if there are more employees to review
+              const remainingEmployees = pendingEmployees.slice(1);
+              
+              if (remainingEmployees.length > 0) {
+                // More employees to review
+                setCurrentEmployeeIndex(currentEmployeeIndex + 1);
+                const nextEmployee = conversation.assigned_employees?.find(
+                  e => e.id === remainingEmployees[0]
+                );
+                Alert.alert(
+                  "Employee Rated!",
+                  `You gave ${currentEmployeeName} a ${rating}-star rating. Now please rate ${nextEmployee?.name || "the next employee"}.`
+                );
+                // Refetch to get updated pending list
+                refetch();
+              } else if (data.needs_agency_review) {
+                // All employees reviewed, move to agency review
+                setEmployeeReviewSubmitted(true);
+                setReviewStep("AGENCY");
+                Alert.alert(
+                  "Employees Rated!",
+                  `Great! Now please rate the agency (${conversation.other_participant?.name}).`
+                );
+                refetch();
+              } else {
+                // All reviews done
+                refetch();
+                Alert.alert("Thank You!", "Your reviews have been submitted.");
+              }
+            },
+            onError: (error: any) => {
+              const errorMessage = error.message || "Failed to submit review";
 
-    submitReviewMutation.mutate(
-      {
-        job_id: conversation.job.id,
-        reviewee_id: revieweeId,
-        rating,
-        comment: reviewComment,
-        reviewer_type: conversation.my_role as "CLIENT" | "WORKER",
-      },
-      {
-        onSuccess: () => {
-          setRating(0);
-          setReviewComment("");
-          // Refresh conversation to update review status
-          refetch();
-        },
+              // Check if employee was already reviewed
+              if (errorMessage.toLowerCase().includes("already reviewed")) {
+                setRating(0);
+                setReviewComment("");
+                refetch(); // Refresh to get updated pending list
+                Alert.alert(
+                  "Already Rated",
+                  "You've already rated this employee. Refreshing..."
+                );
+              } else {
+                Alert.alert("Error", errorMessage);
+              }
+            },
+          }
+        );
+      } else {
+        // Agency review step
+        submitReviewMutation.mutate(
+          {
+            job_id: conversation.job.id,
+            reviewee_id: 0, // Backend uses job's agency
+            rating,
+            comment: reviewComment,
+            reviewer_type: "CLIENT",
+            review_target: "AGENCY",
+          },
+          {
+            onSuccess: () => {
+              setRating(0);
+              setReviewComment("");
+              refetch();
+              Alert.alert("Thank You!", "Your reviews have been submitted.");
+            },
+            onError: (error: any) => {
+              Alert.alert("Error", error.message || "Failed to submit review");
+            },
+          }
+        );
       }
-    );
+    } else {
+      // Regular job or agency reviewing client
+      const revieweeId =
+        conversation.my_role === "CLIENT"
+          ? conversation.job.assignedWorkerId // Worker being reviewed
+          : conversation.job.clientId; // Client being reviewed
+
+      if (!revieweeId) {
+        Alert.alert("Error", "Unable to determine who to review");
+        return;
+      }
+
+      submitReviewMutation.mutate(
+        {
+          job_id: conversation.job.id,
+          reviewee_id: revieweeId,
+          rating,
+          comment: reviewComment,
+          reviewer_type: conversation.my_role as "CLIENT" | "WORKER",
+        },
+        {
+          onSuccess: () => {
+            setRating(0);
+            setReviewComment("");
+            // Refresh conversation to update review status
+            refetch();
+          },
+        }
+      );
+    }
   };
 
   // Handle send message
@@ -531,7 +691,10 @@ export default function ChatScreen() {
     return (
       <View style={styles.typingContainer}>
         <Image
-          source={{ uri: conversation?.other_participant.avatar }}
+          source={{
+            uri:
+              conversation?.other_participant?.avatar || "/worker-default.jpg",
+          }}
           style={styles.typingAvatar}
         />
         <TypingIndicator />
@@ -625,8 +788,34 @@ export default function ChatScreen() {
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle} numberOfLines={1}>
-            {conversation.other_participant.name}
+            {conversation.other_participant?.name || "Unknown"}
           </Text>
+          {/* Show assigned worker for agency jobs (client view) */}
+          {conversation.is_agency_job &&
+            conversation.assigned_employee &&
+            conversation.my_role === "CLIENT" && (
+              <View style={styles.assignedWorkerBadge}>
+                <Ionicons name="person" size={12} color={Colors.primary} />
+                <Text style={styles.assignedWorkerText}>
+                  Worker: {conversation.assigned_employee.name}
+                </Text>
+              </View>
+            )}
+          {/* Show "No worker assigned" for agency jobs without assignment */}
+          {conversation.is_agency_job &&
+            !conversation.assigned_employee &&
+            conversation.my_role === "CLIENT" && (
+              <View style={styles.noWorkerBadge}>
+                <Ionicons
+                  name="time-outline"
+                  size={12}
+                  color={Colors.textSecondary}
+                />
+                <Text style={styles.noWorkerText}>
+                  Awaiting worker assignment
+                </Text>
+              </View>
+            )}
         </View>
         <TouchableOpacity
           onPress={() => {
@@ -860,104 +1049,200 @@ export default function ChatScreen() {
 
           {/* Review Section - Shows after client approves completion */}
           {conversation.job.clientMarkedComplete && !isConversationClosed && (
-            <View style={styles.reviewSection}>
-              {/* Check if current user already reviewed */}
-              {(conversation.my_role === "CLIENT" &&
-                conversation.job.clientReviewed) ||
-              (conversation.my_role === "WORKER" &&
-                conversation.job.workerReviewed) ? (
-                // User has already reviewed - show waiting or thank you message
-                <View style={styles.reviewWaitingContainer}>
-                  <Ionicons
-                    name="checkmark-circle"
-                    size={48}
-                    color={Colors.success}
-                  />
-                  <Text style={styles.reviewWaitingTitle}>
-                    Thank you for your review!
-                  </Text>
-                  {((conversation.my_role === "CLIENT" &&
-                    !conversation.job.workerReviewed) ||
-                    (conversation.my_role === "WORKER" &&
-                      !conversation.job.clientReviewed)) && (
-                    <Text style={styles.reviewWaitingText}>
-                      Waiting for{" "}
-                      {conversation.my_role === "CLIENT" ? "worker" : "client"}{" "}
-                      to review...
+            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+              <ScrollView
+                style={styles.reviewSection}
+                keyboardShouldPersistTaps="handled"
+              >
+                {/* Check if current user already reviewed */}
+                {(conversation.my_role === "CLIENT" &&
+                  conversation.job.clientReviewed) ||
+                (conversation.my_role === "WORKER" &&
+                  conversation.job.workerReviewed) ? (
+                  // User has already reviewed - show waiting or thank you message
+                  <View style={styles.reviewWaitingContainer}>
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={48}
+                      color={Colors.success}
+                    />
+                    <Text style={styles.reviewWaitingTitle}>
+                      Thank you for your review!
                     </Text>
-                  )}
-                </View>
-              ) : (
-                // User hasn't reviewed yet - show review form
-                <>
-                  <Text style={styles.reviewTitle}>
-                    Rate{" "}
-                    {conversation.my_role === "CLIENT" ? "Worker" : "Client"}
-                  </Text>
-                  <Text style={styles.reviewSubtitle}>
-                    How was your experience with{" "}
-                    {conversation.other_participant.name}?
-                  </Text>
-
-                  {/* Star Rating */}
-                  <View style={styles.starsContainer}>
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <TouchableOpacity
-                        key={star}
-                        onPress={() => setRating(star)}
-                        style={styles.starButton}
-                      >
-                        <Ionicons
-                          name={star <= rating ? "star" : "star-outline"}
-                          size={36}
-                          color={star <= rating ? "#FFB800" : Colors.border}
-                        />
-                      </TouchableOpacity>
-                    ))}
+                    {((conversation.my_role === "CLIENT" &&
+                      !conversation.job.workerReviewed) ||
+                      (conversation.my_role === "WORKER" &&
+                        !conversation.job.clientReviewed)) && (
+                      <Text style={styles.reviewWaitingText}>
+                        Waiting for{" "}
+                        {conversation.my_role === "CLIENT"
+                          ? "worker"
+                          : "client"}{" "}
+                        to review...
+                      </Text>
+                    )}
                   </View>
-
-                  {/* Review Comment Input */}
-                  <TextInput
-                    style={styles.reviewInput}
-                    placeholder="Write your review here..."
-                    placeholderTextColor={Colors.textSecondary}
-                    value={reviewComment}
-                    onChangeText={setReviewComment}
-                    multiline
-                    numberOfLines={4}
-                    textAlignVertical="top"
-                  />
-
-                  {/* Submit Review Button */}
-                  <TouchableOpacity
-                    style={[
-                      styles.submitReviewButton,
-                      (rating === 0 ||
-                        !reviewComment.trim() ||
-                        submitReviewMutation.isPending) &&
-                        styles.submitReviewButtonDisabled,
-                    ]}
-                    onPress={handleSubmitReview}
-                    disabled={
-                      rating === 0 ||
-                      !reviewComment.trim() ||
-                      submitReviewMutation.isPending
-                    }
-                  >
-                    {submitReviewMutation.isPending ? (
-                      <ActivityIndicator size="small" color={Colors.white} />
+                ) : (
+                  // User hasn't reviewed yet - show review form
+                  <>
+                    {/* Dynamic title based on agency job review step */}
+                    {conversation.is_agency_job &&
+                    conversation.my_role === "CLIENT" ? (
+                      <>
+                        {/* Multi-employee support: show which employee is being reviewed */}
+                        {(() => {
+                          const pendingEmployees = conversation.pending_employee_reviews || [];
+                          const allEmployees = conversation.assigned_employees || [];
+                          const hasMultipleEmployees = allEmployees.length > 1;
+                          const totalEmployees = allEmployees.length || 1;
+                          const reviewedCount = totalEmployees - pendingEmployees.length;
+                          
+                          // Get current employee being reviewed
+                          let currentEmployeeName = "Worker";
+                          if (reviewStep === "EMPLOYEE") {
+                            if (pendingEmployees.length > 0 && allEmployees.length > 0) {
+                              const currentEmployee = allEmployees.find(e => e.id === pendingEmployees[0]);
+                              currentEmployeeName = currentEmployee?.name || "Employee";
+                            } else if (conversation.assigned_employee) {
+                              currentEmployeeName = conversation.assigned_employee.name;
+                            }
+                          }
+                          
+                          return (
+                            <>
+                              <Text style={styles.reviewTitle}>
+                                {reviewStep === "EMPLOYEE"
+                                  ? `Rate ${currentEmployeeName}`
+                                  : "Rate the Agency"}
+                              </Text>
+                              <Text style={styles.reviewSubtitle}>
+                                {reviewStep === "EMPLOYEE"
+                                  ? `How did ${currentEmployeeName} perform on this job?`
+                                  : `How was your experience with ${conversation.other_participant?.name || "the agency"}?`}
+                              </Text>
+                              
+                              {/* Progress indicator */}
+                              {hasMultipleEmployees && reviewStep === "EMPLOYEE" && (
+                                <View style={styles.stepIndicator}>
+                                  <Ionicons
+                                    name="people"
+                                    size={16}
+                                    color={Colors.primary}
+                                  />
+                                  <Text style={styles.stepIndicatorText}>
+                                    Employee {reviewedCount + 1} of {totalEmployees}
+                                  </Text>
+                                </View>
+                              )}
+                              
+                              {employeeReviewSubmitted && reviewStep === "AGENCY" && (
+                                <View style={styles.stepIndicator}>
+                                  <Ionicons
+                                    name="checkmark-circle"
+                                    size={16}
+                                    color={Colors.success}
+                                  />
+                                  <Text style={styles.stepIndicatorText}>
+                                    {hasMultipleEmployees 
+                                      ? `All ${totalEmployees} employees rated! Final step: Agency`
+                                      : "Step 2 of 2: Agency Review"}
+                                  </Text>
+                                </View>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </>
                     ) : (
                       <>
-                        <Ionicons name="send" size={18} color={Colors.white} />
-                        <Text style={styles.submitReviewButtonText}>
-                          Submit Review
+                        <Text style={styles.reviewTitle}>
+                          Rate{" "}
+                          {conversation.my_role === "CLIENT"
+                            ? "Worker"
+                            : "Client"}
+                        </Text>
+                        <Text style={styles.reviewSubtitle}>
+                          How was your experience with{" "}
+                          {conversation.assigned_employee?.name ||
+                            conversation.other_participant?.name ||
+                            "them"}
+                          ?
                         </Text>
                       </>
                     )}
-                  </TouchableOpacity>
-                </>
-              )}
-            </View>
+
+                    {/* Star Rating */}
+                    <View style={styles.starsContainer}>
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <TouchableOpacity
+                          key={star}
+                          onPress={() => setRating(star)}
+                          style={styles.starButton}
+                        >
+                          <Ionicons
+                            name={star <= rating ? "star" : "star-outline"}
+                            size={36}
+                            color={star <= rating ? "#FFB800" : Colors.border}
+                          />
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+
+                    {/* Review Comment Input */}
+                    <TextInput
+                      style={styles.reviewInput}
+                      placeholder="Write your review here..."
+                      placeholderTextColor={Colors.textSecondary}
+                      value={reviewComment}
+                      onChangeText={setReviewComment}
+                      multiline
+                      numberOfLines={4}
+                      textAlignVertical="top"
+                      blurOnSubmit={true}
+                      returnKeyType="done"
+                      onSubmitEditing={Keyboard.dismiss}
+                    />
+
+                    {/* Submit Review Button */}
+                    <TouchableOpacity
+                      style={[
+                        styles.submitReviewButton,
+                        (rating === 0 ||
+                          !reviewComment.trim() ||
+                          submitReviewMutation.isPending) &&
+                          styles.submitReviewButtonDisabled,
+                      ]}
+                      onPress={() => {
+                        Keyboard.dismiss();
+                        handleSubmitReview();
+                      }}
+                      disabled={
+                        rating === 0 ||
+                        !reviewComment.trim() ||
+                        submitReviewMutation.isPending
+                      }
+                    >
+                      {submitReviewMutation.isPending ? (
+                        <ActivityIndicator size="small" color={Colors.white} />
+                      ) : (
+                        <>
+                          <Ionicons
+                            name="send"
+                            size={18}
+                            color={Colors.white}
+                          />
+                          <Text style={styles.submitReviewButtonText}>
+                            Submit Review
+                          </Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                    {/* Extra space to ensure button is above keyboard */}
+                    <View style={{ height: 20 }} />
+                  </>
+                )}
+              </ScrollView>
+            </TouchableWithoutFeedback>
           )}
         </View>
 
@@ -1170,6 +1455,35 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "600",
     color: Colors.textPrimary,
+  },
+  assignedWorkerBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 2,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    backgroundColor: Colors.primaryLight || "#E3F2FD",
+    borderRadius: 10,
+  },
+  assignedWorkerText: {
+    fontSize: 11,
+    color: Colors.primary,
+    marginLeft: 4,
+    fontWeight: "500",
+  },
+  noWorkerBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 2,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    backgroundColor: "#F5F5F5",
+    borderRadius: 10,
+  },
+  noWorkerText: {
+    fontSize: 11,
+    color: Colors.textSecondary,
+    marginLeft: 4,
   },
   infoButton: {
     padding: 4,
@@ -1545,6 +1859,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.lg,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
+    maxHeight: 400, // Allow scrolling if content is tall
   },
   reviewWaitingContainer: {
     alignItems: "center",
@@ -1644,5 +1959,20 @@ const styles = StyleSheet.create({
     ...Typography.body.medium,
     color: Colors.white,
     fontWeight: "600",
+  },
+  stepIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#E8F5E9",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.small,
+    gap: Spacing.xs,
+    marginBottom: Spacing.md,
+  },
+  stepIndicatorText: {
+    ...Typography.body.small,
+    color: Colors.success,
+    fontWeight: "500",
   },
 });

@@ -1020,9 +1020,40 @@ const InboxPage = () => {
                   className="w-8 h-8 rounded-full object-cover"
                 />
                 <div>
-                  <h2 className="text-sm font-semibold text-gray-900">
-                    {selectedChat.other_participant.name}
-                  </h2>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-sm font-semibold text-gray-900">
+                      {selectedChat.other_participant.name}
+                    </h2>
+                    {selectedChat.other_participant.is_agency && (
+                      <span className="px-1.5 py-0.5 text-[10px] bg-blue-100 text-blue-700 rounded-md">
+                        Agency
+                      </span>
+                    )}
+                  </div>
+                  {/* Show assigned employee if agency */}
+                  {selectedChat.other_participant.assigned_employee && (
+                    <div className="flex items-center gap-1 text-xs text-gray-600">
+                      <span>
+                        👤{" "}
+                        {selectedChat.other_participant.assigned_employee.name}
+                      </span>
+                      {selectedChat.other_participant.assigned_employee
+                        .is_employee_of_month && (
+                        <span className="px-1 py-0.5 text-[9px] bg-amber-100 text-amber-700 rounded">
+                          🏆 EOTM
+                        </span>
+                      )}
+                      {selectedChat.other_participant.assigned_employee
+                        .rating && (
+                        <span className="text-yellow-600">
+                          ⭐{" "}
+                          {selectedChat.other_participant.assigned_employee.rating.toFixed(
+                            1
+                          )}
+                        </span>
+                      )}
+                    </div>
+                  )}
                   <p className="text-xs flex items-center">
                     {isConnected ? (
                       <>

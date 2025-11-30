@@ -94,3 +94,80 @@ class EmployeeLeaderboardResponse(Schema):
 	sortBy: str
 	totalCount: int
 
+
+# Agency Chat/Messaging Schemas
+
+class AgencyConversationJobSchema(Schema):
+	"""Job info within a conversation"""
+	id: int
+	title: str
+	status: str
+	budget: float
+	location: str
+	workerMarkedComplete: bool
+	clientMarkedComplete: bool
+	workerReviewed: bool
+	clientReviewed: bool
+	assignedEmployeeId: Optional[int]
+	assignedEmployeeName: Optional[str]
+
+
+class AgencyConversationParticipantSchema(Schema):
+	"""Other participant info"""
+	name: str
+	avatar: Optional[str]
+	profile_type: str
+	city: Optional[str]
+	job_title: Optional[str]
+
+
+class AgencyConversationSchema(Schema):
+	"""Schema for a single agency conversation"""
+	id: int
+	job: AgencyConversationJobSchema
+	client: AgencyConversationParticipantSchema
+	assigned_employee: Optional[LeaderboardEmployeeSchema]
+	last_message: Optional[str]
+	last_message_time: Optional[datetime]
+	unread_count: int
+	is_archived: bool
+	status: str
+	created_at: datetime
+
+
+class AgencyConversationsResponse(Schema):
+	"""Response for agency conversations list"""
+	success: bool
+	conversations: List[AgencyConversationSchema]
+	total: int
+
+
+class AgencyMessageSchema(Schema):
+	"""Schema for a single message"""
+	message_id: int
+	sender_name: str
+	sender_avatar: Optional[str]
+	message_text: str
+	message_type: str
+	is_read: bool
+	created_at: datetime
+	is_mine: bool
+	sent_by_agency: bool
+
+
+class AgencyConversationDetailSchema(Schema):
+	"""Detailed conversation with messages"""
+	conversation_id: int
+	job: AgencyConversationJobSchema
+	client: AgencyConversationParticipantSchema
+	assigned_employee: Optional[LeaderboardEmployeeSchema]
+	messages: List[AgencyMessageSchema]
+	total_messages: int
+	status: str
+
+
+class AgencySendMessageSchema(Schema):
+	"""Schema for sending a message"""
+	message_text: str
+	message_type: str = "TEXT"
+

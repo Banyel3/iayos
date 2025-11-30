@@ -2492,52 +2492,92 @@ def client_confirm_work_started(request, job_id: int):
 @router.post("/{job_id}/mark-complete", auth=dual_auth)
 def worker_mark_job_complete(request, job_id: int):
     """
-    Worker marks the job as complete (phase 1 of two-phase completion)
+    Worker or Agency marks the job as complete (phase 1 of two-phase completion)
     Sets workerMarkedComplete=True and timestamp
     Notifies client to verify completion
+    
+    Supports:
+    - Regular workers marking their assigned jobs complete
+    - Agency owners marking jobs complete for their assigned employees
     """
     try:
-        print(f"✅ Worker marking job {job_id} as complete")
+        print(f"✅ Marking job {job_id} as complete")
         
-        # Get worker's profile (support dual profiles via profile_type in JWT)
-        profile_type = getattr(request.auth, 'profile_type', 'WORKER')
+        # First, get the job to check if it's an agency job
         try:
-            profile = Profile.objects.filter(
-                accountFK=request.auth,
-                profileType=profile_type
-            ).first()
-            
-            if not profile:
-                profile = Profile.objects.filter(accountFK=request.auth, profileType='WORKER').first()
-            
-            if not profile:
-                return Response(
-                    {"error": "Worker profile not found"},
-                    status=400
-                )
-            
-            worker_profile = WorkerProfile.objects.select_related('profileID__accountFK').get(
-                profileID=profile
-            )
-        except WorkerProfile.DoesNotExist:
-            return Response(
-                {"error": "Worker profile not found"},
-                status=400
-            )
-        
-        # Get the job
-        try:
-            job = JobPosting.objects.select_related('clientID__profileID__accountFK').get(jobID=job_id)
+            job = JobPosting.objects.select_related(
+                'clientID__profileID__accountFK',
+                'assignedWorkerID__profileID__accountFK',
+                'assignedEmployeeID__agency'
+            ).get(jobID=job_id)
         except JobPosting.DoesNotExist:
             return Response(
                 {"error": "Job not found"},
                 status=404
             )
         
-        # Verify worker is assigned to this job
-        if not job.assignedWorkerID or job.assignedWorkerID.profileID.profileID != worker_profile.profileID.profileID:
+        # Check if this is an agency job (has assignedEmployeeID)
+        is_agency_job = job.assignedEmployeeID is not None
+        worker_name = None
+        is_authorized = False
+        
+        if is_agency_job:
+            # Agency job - verify the requesting user is the agency owner
+            # Note: AgencyEmployee.agency is a FK to Accounts (the agency owner), not to Agency model
+            print(f"📋 This is an agency job. Assigned employee: {job.assignedEmployeeID.name}")
+            agency_owner_account = job.assignedEmployeeID.agency  # This IS the Accounts object
+            
+            print(f"📋 Agency owner account ID: {agency_owner_account.accountID}, Request auth ID: {request.auth.accountID}")
+            
+            if agency_owner_account.accountID == request.auth.accountID:
+                is_authorized = True
+                worker_name = job.assignedEmployeeID.name
+                print(f"✅ Agency owner {request.auth.email} authorized to mark complete")
+            else:
+                return Response(
+                    {"error": "Only the agency owner can mark this job as complete"},
+                    status=403
+                )
+        else:
+            # Regular worker job - verify worker is assigned
+            profile_type = getattr(request.auth, 'profile_type', 'WORKER')
+            try:
+                profile = Profile.objects.filter(
+                    accountFK=request.auth,
+                    profileType=profile_type
+                ).first()
+                
+                if not profile:
+                    profile = Profile.objects.filter(accountFK=request.auth, profileType='WORKER').first()
+                
+                if not profile:
+                    return Response(
+                        {"error": "Worker profile not found"},
+                        status=400
+                    )
+                
+                worker_profile = WorkerProfile.objects.select_related('profileID__accountFK').get(
+                    profileID=profile
+                )
+            except WorkerProfile.DoesNotExist:
+                return Response(
+                    {"error": "Worker profile not found"},
+                    status=400
+                )
+            
+            # Verify worker is assigned to this job
+            if not job.assignedWorkerID or job.assignedWorkerID.profileID.profileID != worker_profile.profileID.profileID:
+                return Response(
+                    {"error": "You are not assigned to this job"},
+                    status=403
+                )
+            
+            is_authorized = True
+            worker_name = f"{worker_profile.profileID.firstName} {worker_profile.profileID.lastName}"
+        
+        if not is_authorized:
             return Response(
-                {"error": "You are not assigned to this job"},
+                {"error": "You are not authorized to mark this job as complete"},
                 status=403
             )
         
@@ -2579,14 +2619,14 @@ def worker_mark_job_complete(request, job_id: int):
         job.workerMarkedCompleteAt = timezone.now()
         job.save()
 
-        print(f"✅ Worker marked job {job_id} as complete. Waiting for client approval.")
+        print(f"✅ Job {job_id} marked as complete by {worker_name}. Waiting for client approval.")
         
         # Log this action for admin verification and audit trail
         completion_time = timezone.now()
         notes_text = completion_notes if completion_notes else "No completion notes provided"
         JobLog.objects.create(
             jobID=job,
-            notes=f"[{completion_time.strftime('%Y-%m-%d %I:%M:%S %p')}] Worker {worker_profile.profileID.firstName} {worker_profile.profileID.lastName} marked job as complete. Notes: {notes_text}",
+            notes=f"[{completion_time.strftime('%Y-%m-%d %I:%M:%S %p')}] {worker_name} marked job as complete. Notes: {notes_text}",
             changedBy=request.auth,
             oldStatus=job.status,
             newStatus=job.status  # Status stays IN_PROGRESS until client approves
@@ -2594,7 +2634,6 @@ def worker_mark_job_complete(request, job_id: int):
 
         # Create notification for the client
         from accounts.models import Notification
-        worker_name = f"{worker_profile.profileID.firstName} {worker_profile.profileID.lastName}"
         Notification.objects.create(
             accountFK=job.clientID.profileID.accountFK,
             notificationType="JOB_COMPLETED_WORKER",
@@ -2897,28 +2936,40 @@ def client_approve_job_completion(
                     relatedJobPosting=job
                 )
                 
-                # Transfer FULL BUDGET to worker's wallet (worker receives 100% of agreed budget)
+                # Transfer FULL BUDGET to worker's/agency's wallet (they receive 100% of agreed budget)
+                recipient_account = None
+                recipient_type = None
+                
                 if job.assignedWorkerID and job.assignedWorkerID.profileID:
-                    worker_wallet, _ = Wallet.objects.get_or_create(
-                        accountFK=job.assignedWorkerID.profileID.accountFK,
+                    # Individual worker job
+                    recipient_account = job.assignedWorkerID.profileID.accountFK
+                    recipient_type = "worker"
+                elif job.assignedAgencyFK:
+                    # Agency job - payment goes to agency wallet (B2B partner)
+                    recipient_account = job.assignedAgencyFK.accountFK
+                    recipient_type = "agency"
+                
+                if recipient_account:
+                    recipient_wallet, _ = Wallet.objects.get_or_create(
+                        accountFK=recipient_account,
                         defaults={'balance': Decimal('0.00')}
                     )
                     
-                    # Worker receives the FULL budget amount (client pays budget + 10% fee)
-                    worker_payment = job.budget
-                    worker_wallet.balance += worker_payment
-                    worker_wallet.save()
+                    # Recipient receives the FULL budget amount (client pays budget + platform fee)
+                    recipient_payment = job.budget
+                    recipient_wallet.balance += recipient_payment
+                    recipient_wallet.save()
                     
-                    print(f"💰 Credited ₱{worker_payment} (full budget) to worker wallet. New balance: ₱{worker_wallet.balance}")
+                    print(f"💰 Credited ₱{recipient_payment} (full budget) to {recipient_type} wallet. New balance: ₱{recipient_wallet.balance}")
                     
-                    # Create earnings transaction record for worker
+                    # Create earnings transaction record
                     Transaction.objects.create(
-                        walletID=worker_wallet,
+                        walletID=recipient_wallet,
                         transactionType="EARNINGS",
-                        amount=worker_payment,
-                        balanceAfter=worker_wallet.balance,
+                        amount=recipient_payment,
+                        balanceAfter=recipient_wallet.balance,
                         status="COMPLETED",
-                        description=f"Payment received for job: {job.title}",
+                        description=f"Payment received for job: {job.title}" + (f" (Agency: {job.assignedAgencyFK.businessName})" if recipient_type == "agency" else ""),
                         referenceNumber=f"JOB-{job.jobID}-EARNINGS-{timezone.now().strftime('%Y%m%d%H%M%S')}",
                         relatedJobPosting=job
                     )
@@ -2931,16 +2982,26 @@ def client_approve_job_completion(
 
                 print(f"✅ Job {job_id} marked as COMPLETED via WALLET payment")
 
-                # Create payment notification for the worker
-                if job.assignedWorkerID and job.assignedWorkerID.profileID:
-                    Notification.objects.create(
-                        accountFK=job.assignedWorkerID.profileID.accountFK,
-                        notificationType="PAYMENT_RELEASED",
-                        title=f"Payment Received! 💰",
-                        message=f"You received ₱{job.budget} for '{job.title}'. The full amount has been added to your wallet!",
-                        relatedJobID=job.jobID
-                    )
-                    print(f"📬 Payment notification sent to worker {job.assignedWorkerID.profileID.accountFK.email}")
+                # Create payment notification for the worker/agency
+                if recipient_account:
+                    if recipient_type == "agency":
+                        Notification.objects.create(
+                            accountFK=recipient_account,
+                            notificationType="PAYMENT_RELEASED",
+                            title=f"Payment Received! 💰",
+                            message=f"Your agency received ₱{job.budget} for '{job.title}'. The full amount has been added to your agency wallet!",
+                            relatedJobID=job.jobID
+                        )
+                        print(f"📬 Payment notification sent to agency {recipient_account.email}")
+                    else:
+                        Notification.objects.create(
+                            accountFK=recipient_account,
+                            notificationType="PAYMENT_RELEASED",
+                            title=f"Payment Received! 💰",
+                            message=f"You received ₱{job.budget} for '{job.title}'. The full amount has been added to your wallet!",
+                            relatedJobID=job.jobID
+                        )
+                        print(f"📬 Payment notification sent to worker {recipient_account.email}")
 
                 # Create payment confirmation for the client
                 Notification.objects.create(
@@ -2964,6 +3025,8 @@ def client_approve_job_completion(
                     "payment_completed": True,
                     "prompt_review": True,
                     "worker_id": job.assignedWorkerID.profileID.accountFK.accountID if job.assignedWorkerID else None,
+                    "agency_id": job.assignedAgencyFK.agencyId if job.assignedAgencyFK else None,
+                    "recipient_type": recipient_type,
                     "new_wallet_balance": float(wallet.balance)
                 }
             
@@ -2971,33 +3034,46 @@ def client_approve_job_completion(
             if payment_method_upper == 'CASH':
                 print(f"💵 Cash payment selected - proof uploaded to {cash_proof_url}")
                 
-                # For CASH: Worker receives physical cash from client (remaining 50%)
+                # For CASH: Worker/Agency receives physical cash from client (remaining 50%)
                 # The downpayment (50%) was already held in escrow during job creation
-                # We now transfer the downpayment to worker's wallet AND log the cash payment
-                # Worker receives full budget: 50% in wallet (from escrow) + 50% physical cash = 100%
+                # We now transfer the downpayment to recipient's wallet AND log the cash payment
+                # Recipient receives full budget: 50% in wallet (from escrow) + 50% physical cash = 100%
+                
+                cash_recipient_account = None
+                cash_recipient_type = None
+                
                 if job.assignedWorkerID and job.assignedWorkerID.profileID:
-                    worker_wallet, _ = Wallet.objects.get_or_create(
-                        accountFK=job.assignedWorkerID.profileID.accountFK,
+                    # Individual worker job
+                    cash_recipient_account = job.assignedWorkerID.profileID.accountFK
+                    cash_recipient_type = "worker"
+                elif job.assignedAgencyFK:
+                    # Agency job - payment goes to agency wallet (B2B partner)
+                    cash_recipient_account = job.assignedAgencyFK.accountFK
+                    cash_recipient_type = "agency"
+                
+                if cash_recipient_account:
+                    recipient_wallet, _ = Wallet.objects.get_or_create(
+                        accountFK=cash_recipient_account,
                         defaults={'balance': Decimal('0.00')}
                     )
                     
-                    # Transfer downpayment (50%) from escrow to worker's wallet
+                    # Transfer downpayment (50%) from escrow to recipient's wallet
                     downpayment = job.budget * Decimal('0.5')
-                    worker_wallet.balance += downpayment
-                    worker_wallet.save()
+                    recipient_wallet.balance += downpayment
+                    recipient_wallet.save()
                     
-                    print(f"💰 Transferred ₱{downpayment} (50% downpayment escrow) to worker wallet. New balance: ₱{worker_wallet.balance}")
-                    print(f"💵 Worker received ₱{remaining_amount} (50% remaining) in physical cash from client")
-                    print(f"✅ Worker received full budget: ₱{downpayment} (wallet from escrow) + ₱{remaining_amount} (physical cash) = ₱{job.budget}")
+                    print(f"💰 Transferred ₱{downpayment} (50% downpayment escrow) to {cash_recipient_type} wallet. New balance: ₱{recipient_wallet.balance}")
+                    print(f"💵 {cash_recipient_type.capitalize()} received ₱{remaining_amount} (50% remaining) in physical cash from client")
+                    print(f"✅ {cash_recipient_type.capitalize()} received full budget: ₱{downpayment} (wallet from escrow) + ₱{remaining_amount} (physical cash) = ₱{job.budget}")
                     
                     # Create earnings transaction record for the downpayment transfer (from escrow to wallet)
                     Transaction.objects.create(
-                        walletID=worker_wallet,
+                        walletID=recipient_wallet,
                         transactionType="EARNINGS",
                         amount=downpayment,
-                        balanceAfter=worker_wallet.balance,
+                        balanceAfter=recipient_wallet.balance,
                         status="COMPLETED",
-                        description=f"Downpayment escrow released for job: {job.title}",
+                        description=f"Downpayment escrow released for job: {job.title}" + (f" (Agency: {job.assignedAgencyFK.businessName})" if cash_recipient_type == "agency" else ""),
                         referenceNumber=f"JOB-{job.jobID}-EARNINGS-ESCROW-{timezone.now().strftime('%Y%m%d%H%M%S')}",
                         relatedJobPosting=job
                     )
@@ -3005,26 +3081,36 @@ def client_approve_job_completion(
                     
                     # Create CASH payment log (does NOT affect wallet balance - for audit trail only)
                     Transaction.objects.create(
-                        walletID=worker_wallet,
+                        walletID=recipient_wallet,
                         transactionType="EARNINGS",
                         amount=remaining_amount,
-                        balanceAfter=worker_wallet.balance,  # Balance stays same - this is just a log
+                        balanceAfter=recipient_wallet.balance,  # Balance stays same - this is just a log
                         status="COMPLETED",
-                        description=f"Cash payment received for job: {job.title} (physical cash - not wallet deposit)",
+                        description=f"Cash payment received for job: {job.title} (physical cash - not wallet deposit)" + (f" (Agency: {job.assignedAgencyFK.businessName})" if cash_recipient_type == "agency" else ""),
                         referenceNumber=f"JOB-{job.jobID}-CASH-PAYMENT-{timezone.now().strftime('%Y%m%d%H%M%S')}",
                         relatedJobPosting=job
                     )
                     print(f"📝 Cash payment transaction logged: ₱{remaining_amount} received in physical cash (audit trail only)")
                     
-                    # Create payment notification for the worker
-                    Notification.objects.create(
-                        accountFK=job.assignedWorkerID.profileID.accountFK,
-                        notificationType="PAYMENT_RELEASED",
-                        title=f"Payment Received! 💰",
-                        message=f"You received ₱{job.budget} for '{job.title}': ₱{downpayment} added to wallet + ₱{remaining_amount} cash payment confirmed.",
-                        relatedJobID=job.jobID
-                    )
-                    print(f"📬 Payment notification sent to worker {job.assignedWorkerID.profileID.accountFK.email}")
+                    # Create payment notification for the worker/agency
+                    if cash_recipient_type == "agency":
+                        Notification.objects.create(
+                            accountFK=cash_recipient_account,
+                            notificationType="PAYMENT_RELEASED",
+                            title=f"Payment Received! 💰",
+                            message=f"Your agency received ₱{job.budget} for '{job.title}': ₱{downpayment} added to agency wallet + ₱{remaining_amount} cash payment confirmed.",
+                            relatedJobID=job.jobID
+                        )
+                        print(f"📬 Payment notification sent to agency {cash_recipient_account.email}")
+                    else:
+                        Notification.objects.create(
+                            accountFK=cash_recipient_account,
+                            notificationType="PAYMENT_RELEASED",
+                            title=f"Payment Received! 💰",
+                            message=f"You received ₱{job.budget} for '{job.title}': ₱{downpayment} added to wallet + ₱{remaining_amount} cash payment confirmed.",
+                            relatedJobID=job.jobID
+                        )
+                        print(f"📬 Payment notification sent to worker {cash_recipient_account.email}")
                 
                 # Mark job as completed
                 job.remainingPaymentPaid = True
@@ -3056,7 +3142,9 @@ def client_approve_job_completion(
                     "cash_proof_uploaded": True,
                     "payment_amount": float(remaining_amount),
                     "prompt_review": True,
-                    "worker_id": job.assignedWorkerID.profileID.accountFK.accountID if job.assignedWorkerID else None
+                    "worker_id": job.assignedWorkerID.profileID.accountFK.accountID if job.assignedWorkerID else None,
+                    "agency_id": job.assignedAgencyFK.agencyId if job.assignedAgencyFK else None,
+                    "recipient_type": cash_recipient_type if cash_recipient_account else None
                 }
             
             # If not WALLET or CASH, return error
@@ -3203,30 +3291,32 @@ def upload_cash_payment_proof(request, job_id: int):
         )
 
 
-@router.post("/{job_id}/review", auth=cookie_auth)
+@router.post("/{job_id}/review", auth=dual_auth)
 def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
     """
     Submit a review for a completed job
     Both client and worker can review each other after both mark the job complete
     Can only submit one review per job per person
+    
+    For agency jobs, the client must submit TWO reviews:
+    1. review_target="EMPLOYEE" - Rate the assigned employee
+    2. review_target="AGENCY" - Rate the agency itself
     """
     try:
         print(f"⭐ Submitting review for job {job_id}")
         
-        # Get user's profile
+        # Get user's profile (may not exist for agency owners)
         try:
             profile = Profile.objects.get(accountFK=request.auth)
         except Profile.DoesNotExist:
-            return Response(
-                {"error": "Profile not found"},
-                status=400
-            )
+            profile = None  # Agency owners may not have a profile
         
-        # Get the job
+        # Get the job with agency employee info
         try:
             job = JobPosting.objects.select_related(
                 'clientID__profileID',
-                'assignedWorkerID__profileID'
+                'assignedWorkerID__profileID',
+                'assignedEmployeeID__agency'
             ).get(jobID=job_id)
         except JobPosting.DoesNotExist:
             return Response(
@@ -3241,11 +3331,16 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                 status=400
             )
         
-        # Determine reviewer type first to check payment requirement
-        is_client = job.clientID.profileID.profileID == profile.profileID
-        is_worker = job.assignedWorkerID and job.assignedWorkerID.profileID.profileID == profile.profileID
+        # Check if this is an agency job
+        is_agency_job = job.assignedEmployeeID is not None
         
-        if not (is_client or is_worker):
+        # Determine reviewer type first to check payment requirement
+        # Agency owners may not have a Profile, so check for None
+        is_client = profile is not None and job.clientID.profileID.profileID == profile.profileID
+        is_worker = profile is not None and job.assignedWorkerID and job.assignedWorkerID.profileID.profileID == profile.profileID
+        is_agency_owner = is_agency_job and job.assignedEmployeeID.agency == request.auth
+        
+        if not (is_client or is_worker or is_agency_owner):
             return Response(
                 {"error": "You are not part of this job"},
                 status=403
@@ -3258,22 +3353,6 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                 status=400
             )
         
-        # Job can be IN_PROGRESS or COMPLETED - we allow reviews once both marked complete
-        # The job will transition to COMPLETED after both reviews are submitted
-        
-        reviewer_profile = profile
-        if is_client:
-            if not job.assignedWorkerID or not job.assignedWorkerID.profileID:
-                return Response(
-                    {"error": "Cannot review: No worker assigned to this job"},
-                    status=400
-                )
-            reviewee_profile = job.assignedWorkerID.profileID
-            reviewer_type = "CLIENT"
-        else:
-            reviewee_profile = job.clientID.profileID
-            reviewer_type = "WORKER"
-        
         # Validate rating
         if data.rating < 1 or data.rating > 5:
             return Response(
@@ -3281,54 +3360,331 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                 status=400
             )
         
-        # Check if review already exists
-        from accounts.models import JobReview
-        existing_review = JobReview.objects.filter(
-            jobID=job,
-            reviewerID=request.auth
-        ).first()
+        from accounts.models import JobReview, JobEmployeeAssignment
+        from agency.models import AgencyEmployee
         
-        if existing_review:
-            return Response(
-                {"error": "You have already submitted a review for this job"},
-                status=400
+        # Handle agency job reviews (client rates employee + agency separately)
+        if is_agency_job and is_client:
+            review_target = data.review_target or "EMPLOYEE"  # Default to employee first
+            
+            if review_target == "EMPLOYEE":
+                # Get all assigned employees (multi-employee support)
+                assigned_employees = JobEmployeeAssignment.objects.filter(
+                    job=job,
+                    status__in=['ASSIGNED', 'IN_PROGRESS', 'COMPLETED']
+                ).select_related('employee')
+                
+                # If employee_id is provided, review that specific employee
+                # Otherwise, use legacy assignedEmployeeID (backward compatibility)
+                if data.employee_id:
+                    try:
+                        assignment = assigned_employees.get(employee_id=data.employee_id)
+                        employee = assignment.employee
+                    except JobEmployeeAssignment.DoesNotExist:
+                        return Response(
+                            {"error": f"Employee {data.employee_id} is not assigned to this job"},
+                            status=400
+                        )
+                else:
+                    # Fallback to legacy single employee
+                    employee = job.assignedEmployeeID
+                    if not employee:
+                        return Response(
+                            {"error": "No employee assigned to this job"},
+                            status=400
+                        )
+                
+                # Check if this specific employee review already exists
+                existing_employee_review = JobReview.objects.filter(
+                    jobID=job,
+                    reviewerID=request.auth,
+                    reviewerType="CLIENT",
+                    revieweeEmployeeID=employee
+                ).first()
+                
+                if existing_employee_review:
+                    return Response(
+                        {"error": f"You have already reviewed {employee.name}"},
+                        status=400
+                    )
+                
+                # Create employee review
+                review = JobReview.objects.create(
+                    jobID=job,
+                    reviewerID=request.auth,
+                    revieweeID=None,  # No Accounts for employee
+                    revieweeEmployeeID=employee,
+                    reviewerType="CLIENT",
+                    rating=data.rating,
+                    comment=data.message or "",
+                    status="ACTIVE"
+                )
+                
+                # Update employee's rating (simple average)
+                from django.db.models import Avg
+                employee_reviews = JobReview.objects.filter(
+                    revieweeEmployeeID=employee,
+                    status="ACTIVE"
+                )
+                avg_rating = employee_reviews.aggregate(avg=Avg('rating'))['avg']
+                if avg_rating:
+                    employee.rating = avg_rating
+                    employee.save(update_fields=['rating'])
+                
+                print(f"✅ Employee review submitted: {employee.name} got {data.rating} stars")
+                
+                # Check which employees still need reviews
+                all_assigned_employee_ids = list(assigned_employees.values_list('employee_id', flat=True))
+                reviewed_employee_ids = list(JobReview.objects.filter(
+                    jobID=job,
+                    reviewerID=request.auth,
+                    reviewerType="CLIENT",
+                    revieweeEmployeeID__isnull=False
+                ).values_list('revieweeEmployeeID', flat=True))
+                
+                employees_needing_review = [
+                    eid for eid in all_assigned_employee_ids 
+                    if eid not in reviewed_employee_ids
+                ]
+                
+                # Check if agency review is still needed
+                agency_review_exists = JobReview.objects.filter(
+                    jobID=job,
+                    reviewerID=request.auth,
+                    reviewerType="CLIENT",
+                    revieweeAgencyID__isnull=False
+                ).exists()
+                
+                # Build pending employees info
+                pending_employees = []
+                if employees_needing_review:
+                    pending = AgencyEmployee.objects.filter(employeeID__in=employees_needing_review)
+                    pending_employees = [
+                        {"employee_id": emp.employeeID, "name": emp.name}
+                        for emp in pending
+                    ]
+                
+                all_employees_reviewed = len(employees_needing_review) == 0
+                
+                if all_employees_reviewed:
+                    message = "All employees reviewed! Now please rate the agency."
+                else:
+                    message = f"Employee review submitted! {len(employees_needing_review)} more employee(s) to review."
+                
+                return {
+                    "success": True,
+                    "message": message,
+                    "review_id": review.reviewID,
+                    "rating": float(review.rating),
+                    "reviewer_type": "CLIENT",
+                    "review_target": "EMPLOYEE",
+                    "employee_reviewed": {
+                        "employee_id": employee.employeeID,
+                        "name": employee.name
+                    },
+                    "all_employees_reviewed": all_employees_reviewed,
+                    "pending_employee_reviews": pending_employees,
+                    "needs_agency_review": not agency_review_exists,
+                    "job_completed": False
+                }
+                
+            elif review_target == "AGENCY":
+                # Review the agency
+                from accounts.models import Agency
+                try:
+                    agency = Agency.objects.get(accountFK=job.assignedEmployeeID.agency)
+                except Agency.DoesNotExist:
+                    return Response(
+                        {"error": "Agency not found"},
+                        status=400
+                    )
+                
+                # Check if agency review already exists
+                existing_agency_review = JobReview.objects.filter(
+                    jobID=job,
+                    reviewerID=request.auth,
+                    reviewerType="CLIENT",
+                    revieweeAgencyID=agency
+                ).first()
+                
+                if existing_agency_review:
+                    return Response(
+                        {"error": "You have already reviewed this agency"},
+                        status=400
+                    )
+                
+                # Create agency review
+                review = JobReview.objects.create(
+                    jobID=job,
+                    reviewerID=request.auth,
+                    revieweeID=None,
+                    revieweeAgencyID=agency,
+                    reviewerType="CLIENT",
+                    rating=data.rating,
+                    comment=data.message or "",
+                    status="ACTIVE"
+                )
+                
+                print(f"✅ Agency review submitted: {agency.businessName} got {data.rating} stars")
+                
+                # Check if ALL employees have been reviewed (multi-employee support)
+                assigned_employees = JobEmployeeAssignment.objects.filter(
+                    job=job,
+                    status__in=['ASSIGNED', 'IN_PROGRESS', 'COMPLETED']
+                ).values_list('employee_id', flat=True)
+                
+                reviewed_employees = JobReview.objects.filter(
+                    jobID=job,
+                    reviewerID=request.auth,
+                    reviewerType="CLIENT",
+                    revieweeEmployeeID__isnull=False
+                ).values_list('revieweeEmployeeID', flat=True)
+                
+                all_employees_reviewed = set(assigned_employees).issubset(set(reviewed_employees))
+                
+                # For backward compatibility, also check legacy single employee
+                if not assigned_employees and job.assignedEmployeeID:
+                    all_employees_reviewed = job.assignedEmployeeID.employeeID in reviewed_employees
+                
+                job_completed = False
+                pending_employee_reviews = []
+                
+                if all_employees_reviewed:
+                    # All reviews submitted - mark job complete
+                    job.status = "COMPLETED"
+                    job.completedAt = timezone.now()
+                    job.save()
+                    job_completed = True
+                    print(f"🎉 All reviews submitted! Agency job {job_id} marked as COMPLETED.")
+                    message = "Agency review submitted! Thank you for your feedback."
+                else:
+                    # Still have employees to review
+                    unreviewed = set(assigned_employees) - set(reviewed_employees)
+                    pending = AgencyEmployee.objects.filter(employeeID__in=unreviewed)
+                    pending_employee_reviews = [
+                        {"employee_id": emp.employeeID, "name": emp.name}
+                        for emp in pending
+                    ]
+                    message = f"Agency review submitted! Please also review {len(pending_employee_reviews)} remaining employee(s)."
+                
+                return {
+                    "success": True,
+                    "message": message,
+                    "review_id": review.reviewID,
+                    "rating": float(review.rating),
+                    "reviewer_type": "CLIENT",
+                    "review_target": "AGENCY",
+                    "needs_agency_review": False,
+                    "pending_employee_reviews": pending_employee_reviews,
+                    "job_completed": job_completed
+                }
+            else:
+                return Response(
+                    {"error": "Invalid review_target. Must be 'EMPLOYEE' or 'AGENCY'"},
+                    status=400
+                )
+        
+        # Handle agency reviewing client (agency owner on behalf of employee)
+        elif is_agency_job and is_agency_owner:
+            reviewee_profile = job.clientID.profileID
+            reviewer_type = "WORKER"  # Agency acts as worker
+            
+            # Check if review already exists
+            existing_review = JobReview.objects.filter(
+                jobID=job,
+                reviewerID=request.auth
+            ).first()
+            
+            if existing_review:
+                return Response(
+                    {"error": "You have already submitted a review for this job"},
+                    status=400
+                )
+            
+            # Create the review
+            review = JobReview.objects.create(
+                jobID=job,
+                reviewerID=request.auth,
+                revieweeID=reviewee_profile.accountFK,
+                reviewerType=reviewer_type,
+                rating=data.rating,
+                comment=data.message or "",
+                status="ACTIVE"
             )
+            
+            print(f"✅ Agency review of client submitted for job {job_id}")
+            
+            return {
+                "success": True,
+                "message": "Review submitted successfully!",
+                "review_id": review.reviewID,
+                "rating": float(review.rating),
+                "reviewer_type": reviewer_type,
+                "job_completed": False  # Agency jobs complete after client reviews
+            }
         
-        # Create the review
-        review = JobReview.objects.create(
-            jobID=job,
-            reviewerID=request.auth,
-            revieweeID=reviewee_profile.accountFK,
-            reviewerType=reviewer_type,
-            rating=data.rating,
-            comment=data.message or "",
-            status="ACTIVE"
-        )
-        
-        print(f"✅ Review submitted successfully for job {job_id}")
-        print(f"   Reviewer: {reviewer_profile.firstName} ({reviewer_type})")
-        print(f"   Rating: {data.rating} stars")
-        
-        # Check if both parties have now submitted reviews
-        total_reviews = JobReview.objects.filter(jobID=job).count()
-        
-        job_completed = False
-        if total_reviews >= 2 and job.workerMarkedComplete and job.clientMarkedComplete:
-            # Both reviews exist and both parties marked complete - NOW mark job as COMPLETED
-            job.status = "COMPLETED"
-            job.completedAt = timezone.now()
-            job.save()
-            job_completed = True
-            print(f"🎉 Both reviews submitted! Job {job_id} marked as COMPLETED.")
-        
-        return {
-            "success": True,
-            "message": "Review submitted successfully!",
-            "review_id": review.reviewID,
-            "rating": float(review.rating),
-            "reviewer_type": reviewer_type,
-            "job_completed": job_completed
-        }
+        # Regular job (non-agency) - original logic
+        else:
+            reviewer_profile = profile
+            if is_client:
+                if not job.assignedWorkerID or not job.assignedWorkerID.profileID:
+                    return Response(
+                        {"error": "Cannot review: No worker assigned to this job"},
+                        status=400
+                    )
+                reviewee_profile = job.assignedWorkerID.profileID
+                reviewer_type = "CLIENT"
+            else:
+                reviewee_profile = job.clientID.profileID
+                reviewer_type = "WORKER"
+            
+            # Check if review already exists
+            existing_review = JobReview.objects.filter(
+                jobID=job,
+                reviewerID=request.auth
+            ).first()
+            
+            if existing_review:
+                return Response(
+                    {"error": "You have already submitted a review for this job"},
+                    status=400
+                )
+            
+            # Create the review
+            review = JobReview.objects.create(
+                jobID=job,
+                reviewerID=request.auth,
+                revieweeID=reviewee_profile.accountFK,
+                reviewerType=reviewer_type,
+                rating=data.rating,
+                comment=data.message or "",
+                status="ACTIVE"
+            )
+            
+            print(f"✅ Review submitted successfully for job {job_id}")
+            print(f"   Reviewer: {reviewer_profile.firstName} ({reviewer_type})")
+            print(f"   Rating: {data.rating} stars")
+            
+            # Check if both parties have now submitted reviews
+            total_reviews = JobReview.objects.filter(jobID=job).count()
+            
+            job_completed = False
+            if total_reviews >= 2 and job.workerMarkedComplete and job.clientMarkedComplete:
+                # Both reviews exist and both parties marked complete - NOW mark job as COMPLETED
+                job.status = "COMPLETED"
+                job.completedAt = timezone.now()
+                job.save()
+                job_completed = True
+                print(f"🎉 Both reviews submitted! Job {job_id} marked as COMPLETED.")
+            
+            return {
+                "success": True,
+                "message": "Review submitted successfully!",
+                "review_id": review.reviewID,
+                "rating": float(review.rating),
+                "reviewer_type": reviewer_type,
+                "job_completed": job_completed
+            }
         
     except Exception as e:
         print(f"❌ Error submitting review: {str(e)}")

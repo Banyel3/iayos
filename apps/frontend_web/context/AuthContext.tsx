@@ -18,6 +18,7 @@ const clearAllAuthCaches = () => {
   const cacheKeys = [
     "cached_user",
     "cached_worker_availability",
+    "ws_token", // WebSocket authentication token
     // Add any future cache keys here
   ];
 
@@ -101,6 +102,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setUser(null);
         clearAllAuthCaches();
         throw new Error("Login failed");
+      }
+
+      // Get the login response which includes tokens
+      const loginData = await response.json();
+
+      // Store access token for WebSocket authentication
+      // (Cookies are HTTP-only, so WebSocket needs token via query param)
+      if (loginData.access) {
+        localStorage.setItem("ws_token", loginData.access);
       }
 
       // Login successful - now fetch user data

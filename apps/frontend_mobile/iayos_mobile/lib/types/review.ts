@@ -58,10 +58,12 @@ export interface MyReviewsResponse {
 
 export interface SubmitReviewRequest {
   job_id: number;
-  reviewee_id: number; // Account ID of person being reviewed
+  reviewee_id: number; // Account ID of person being reviewed (or employee ID for agency jobs)
   rating: number; // 1.0 to 5.0
   comment: string;
   reviewer_type: "CLIENT" | "WORKER";
+  review_target?: "EMPLOYEE" | "AGENCY"; // For agency jobs: client reviews employee then agency
+  employee_id?: number; // For multi-employee agency jobs: specific employee being reviewed
 }
 
 export interface EditReviewRequest {

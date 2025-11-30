@@ -44,17 +44,39 @@ export type ConversationDetail = {
     clientMarkedComplete: boolean;
     workerReviewed: boolean;
     clientReviewed: boolean;
+    // Agency job review tracking - null for non-agency jobs
+    employeeReviewed?: boolean | null;
+    agencyReviewed?: boolean | null;
     assignedWorkerId?: number;
     clientId?: number;
   };
   other_participant: {
     name: string;
     avatar: string;
-    profile_type: string;
-    city: string | null;
-    job_title: string | null;
-  };
-  my_role: "CLIENT" | "WORKER";
+    profile_type?: string;
+    role?: string; // For agency: "AGENCY"
+    city?: string | null;
+    job_title?: string | null;
+  } | null;
+  assigned_employee?: {
+    id: number;
+    name: string;
+    avatar: string;
+    rating?: number | null;
+  } | null;
+  // Multi-employee support for agency jobs
+  assigned_employees?: Array<{
+    id: number;
+    name: string;
+    avatar: string;
+    rating?: number | null;
+    isPrimaryContact?: boolean;
+    reviewSubmitted?: boolean;
+  }>;
+  pending_employee_reviews?: number[]; // Employee IDs not yet reviewed
+  all_employees_reviewed?: boolean;
+  is_agency_job?: boolean;
+  my_role: "CLIENT" | "WORKER" | "AGENCY";
   messages: Message[];
   total_messages: number;
 };
@@ -62,6 +84,7 @@ export type ConversationDetail = {
 /**
  * Fetch messages for a conversation
  * Auto-marks messages as read on fetch
+ * Uses polling as fallback when WebSocket is unavailable
  */
 export function useMessages(conversationId: number) {
   return useQuery({
@@ -78,7 +101,8 @@ export function useMessages(conversationId: number) {
       return data;
     },
     enabled: !!conversationId,
-    staleTime: 10000, // 10 seconds
+    staleTime: 5000, // 5 seconds - consider data fresh for 5s
+    refetchInterval: 3000, // Poll every 3 seconds as fallback for WebSocket
     refetchOnWindowFocus: true,
     refetchOnMount: true,
   });

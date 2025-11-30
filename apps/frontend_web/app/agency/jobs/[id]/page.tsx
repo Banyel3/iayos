@@ -19,7 +19,22 @@ import {
   Mail,
   Phone,
   Package,
+  Users,
+  Crown,
+  Star,
 } from "lucide-react";
+
+interface AssignedEmployee {
+  employee_id: number;
+  name: string;
+  email?: string;
+  role?: string;
+  avatar?: string;
+  rating?: number;
+  is_primary_contact: boolean;
+  status: string;
+  assigned_at?: string;
+}
 
 interface Job {
   jobID: number;
@@ -45,6 +60,7 @@ interface Job {
     email: string;
     role: string;
   };
+  assignedEmployees?: AssignedEmployee[];  // NEW: Multi-employee support
   client: {
     id: number;
     name: string;
@@ -403,6 +419,74 @@ export default function JobDetailPage() {
                       )}
                     </div>
                   </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Assigned Team (Multi-Employee) */}
+            {job.assignedEmployees && job.assignedEmployees.length > 0 && (
+              <Card className="border-blue-200 bg-blue-50/30">
+                <CardContent className="p-6">
+                  <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                    <Users className="h-5 w-5 text-blue-600" />
+                    Assigned Team
+                    <span className="ml-auto text-sm font-normal bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
+                      {job.assignedEmployees.length} member{job.assignedEmployees.length > 1 ? "s" : ""}
+                    </span>
+                  </h2>
+                  <div className="space-y-3">
+                    {job.assignedEmployees.map((employee, index) => (
+                      <div 
+                        key={employee.employee_id || index}
+                        className={`flex items-center space-x-3 p-3 rounded-lg ${
+                          employee.is_primary_contact ? "bg-yellow-50 border border-yellow-200" : "bg-white border border-gray-100"
+                        }`}
+                      >
+                        <div className="relative">
+                          <div className="h-10 w-10 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center text-white font-bold">
+                            {employee.name?.charAt(0) || "?"}
+                          </div>
+                          {employee.is_primary_contact && (
+                            <div className="absolute -top-1 -right-1 w-5 h-5 bg-yellow-400 rounded-full flex items-center justify-center">
+                              <Crown className="w-3 h-3 text-yellow-800" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-gray-900">{employee.name}</span>
+                            {employee.is_primary_contact && (
+                              <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full">
+                                Team Lead
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3 text-sm text-gray-500">
+                            {employee.role && <span>{employee.role}</span>}
+                            {employee.rating && (
+                              <span className="flex items-center gap-1">
+                                <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                                {employee.rating.toFixed(1)}
+                              </span>
+                            )}
+                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                              employee.status === "IN_PROGRESS" ? "bg-orange-100 text-orange-700" :
+                              employee.status === "COMPLETED" ? "bg-green-100 text-green-700" :
+                              "bg-blue-100 text-blue-700"
+                            }`}>
+                              {employee.status?.replace("_", " ")}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {job.employeeAssignedAt && (
+                    <div className="mt-4 pt-3 border-t border-gray-200 flex items-center text-sm text-gray-500">
+                      <Calendar className="h-4 w-4 mr-2" />
+                      Team assigned on {new Date(job.employeeAssignedAt).toLocaleDateString()}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             )}

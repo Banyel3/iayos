@@ -1264,10 +1264,18 @@ def get_workers_list(page: int = 1, page_size: int = 50, search: str | None = No
     """Get paginated list of worker accounts with their details."""
     from django.db.models import Q, Avg
     from django.core.paginator import Paginator
+    from accounts.models import Agency
     
     try:
-        # Get all profiles with type WORKER
-        workers_query = Profile.objects.filter(profileType='WORKER').select_related('accountFK')
+        # Get account IDs that own agencies (to exclude from workers list)
+        agency_owner_account_ids = Agency.objects.values_list('accountFK_id', flat=True)
+        
+        # Get all profiles with type WORKER, excluding agency owners
+        workers_query = Profile.objects.filter(
+            profileType='WORKER'
+        ).exclude(
+            accountFK__accountID__in=agency_owner_account_ids
+        ).select_related('accountFK')
         
         # Apply search filter
         if search:

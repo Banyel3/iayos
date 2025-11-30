@@ -530,6 +530,8 @@ def get_agency_job_detail(account_id, job_id):
 	Returns:
 		Dictionary with complete job details
 	"""
+	from accounts.models import JobEmployeeAssignment
+	
 	try:
 		user = Accounts.objects.get(accountID=account_id)
 		
@@ -553,7 +555,7 @@ def get_agency_job_detail(account_id, job_id):
 		# Get client info
 		client_profile = job.clientID.profileID
 		
-		# Get assigned employee info if exists
+		# Get assigned employee info if exists (legacy single employee)
 		assigned_employee = None
 		if job.assignedEmployeeID:
 			assigned_employee = {
@@ -562,6 +564,42 @@ def get_agency_job_detail(account_id, job_id):
 				'email': job.assignedEmployeeID.email,
 				'role': job.assignedEmployeeID.role,
 			}
+		
+		# Get ALL assigned employees (multi-employee support)
+		assigned_employees = []
+		assignments = JobEmployeeAssignment.objects.filter(
+			job=job,
+			status__in=['ASSIGNED', 'IN_PROGRESS', 'COMPLETED']
+		).select_related('employee').order_by('-isPrimaryContact', 'assignedAt')
+		
+		for assignment in assignments:
+			emp = assignment.employee
+			assigned_employees.append({
+				'employee_id': emp.employeeID,
+				'name': emp.name,
+				'email': emp.email,
+				'role': emp.role,
+				'avatar': emp.avatar,
+				'rating': float(emp.rating) if emp.rating else None,
+				'is_primary_contact': assignment.isPrimaryContact,
+				'status': assignment.status,
+				'assigned_at': assignment.assignedAt.isoformat() if assignment.assignedAt else None,
+			})
+		
+		# Fallback: if no M2M assignments but legacy field is set
+		if not assigned_employees and job.assignedEmployeeID:
+			emp = job.assignedEmployeeID
+			assigned_employees.append({
+				'employee_id': emp.employeeID,
+				'name': emp.name,
+				'email': emp.email,
+				'role': emp.role,
+				'avatar': emp.avatar,
+				'rating': float(emp.rating) if emp.rating else None,
+				'is_primary_contact': True,
+				'status': 'ASSIGNED',
+				'assigned_at': job.employeeAssignedAt.isoformat() if job.employeeAssignedAt else None,
+			})
 		
 		# Parse materials needed if JSON string
 		materials_needed = []
@@ -592,7 +630,8 @@ def get_agency_job_detail(account_id, job_id):
 			'preferredStartDate': job.preferredStartDate.isoformat() if job.preferredStartDate else None,
 			'materialsNeeded': materials_needed,
 			'assignedEmployeeID': job.assignedEmployeeID.employeeID if job.assignedEmployeeID else None,
-			'assignedEmployee': assigned_employee,
+			'assignedEmployee': assigned_employee,  # Legacy single employee
+			'assignedEmployees': assigned_employees,  # NEW: All assigned employees
 			'employeeAssignedAt': job.employeeAssignedAt.isoformat() if job.employeeAssignedAt else None,
 			'assignmentNotes': job.assignmentNotes,
 			'inviteStatus': job.inviteStatus,
@@ -1093,4 +1132,412 @@ def get_employee_workload(agency_account, employee_id: int) -> dict:
 		'in_progress_jobs_count': in_progress_jobs,
 		'total_active_jobs': total_active,
 		'availability': availability
+	}
+
+
+# ============================================================
+# MULTI-EMPLOYEE ASSIGNMENT FUNCTIONS (NEW)
+# ============================================================
+
+def assign_employees_to_job(
+	agency_account,
+	job_id: int,
+	employee_ids: list,
+	primary_contact_id: int = None,
+	assignment_notes: str = None
+) -> dict:
+	"""
+	Assign multiple employees to a job.
+	
+	Args:
+		agency_account: The authenticated agency account
+		job_id: ID of the job to assign employees to
+		employee_ids: List of employee IDs to assign
+		primary_contact_id: ID of employee who is the primary contact/team lead
+		assignment_notes: Optional notes about the assignment
+	
+	Returns:
+		dict with success status and assignment details
+	"""
+	from accounts.models import Job, JobEmployeeAssignment, Notification, JobLog
+	from django.utils import timezone
+	from django.db import transaction
+	
+	if not employee_ids:
+		raise ValueError("At least one employee must be specified")
+	
+	# Validate primary contact is in the list
+	if primary_contact_id and primary_contact_id not in employee_ids:
+		raise ValueError("Primary contact must be in the list of assigned employees")
+	
+	# If no primary contact specified, use the first employee
+	if not primary_contact_id:
+		primary_contact_id = employee_ids[0]
+	
+	try:
+		agency = AgencyProfile.objects.get(accountFK=agency_account)
+	except AgencyProfile.DoesNotExist:
+		raise ValueError("Agency account not found")
+	
+	# Get job and validate
+	try:
+		job = Job.objects.select_related(
+			'clientID__profileID__accountFK',
+			'assignedAgencyFK'
+		).get(jobID=job_id)
+	except Job.DoesNotExist:
+		raise ValueError(f"Job {job_id} not found")
+	
+	# Verify job belongs to this agency
+	if job.assignedAgencyFK != agency:
+		raise ValueError("This job is not assigned to your agency")
+	
+	# Verify job is in correct status
+	if job.inviteStatus != 'ACCEPTED':
+		raise ValueError(f"Cannot assign employees to job with invite status: {job.inviteStatus}")
+	
+	allowed_statuses = {'ACTIVE', 'ASSIGNED'}
+	if job.status not in allowed_statuses:
+		raise ValueError(f"Cannot assign employees to job with status: {job.status}")
+	
+	# Get all employees and validate
+	employees = AgencyEmployee.objects.filter(
+		employeeID__in=employee_ids,
+		agency=agency_account
+	)
+	
+	found_ids = set(emp.employeeID for emp in employees)
+	missing_ids = set(employee_ids) - found_ids
+	if missing_ids:
+		raise ValueError(f"Employees not found: {missing_ids}")
+	
+	# Check all employees are active
+	inactive_employees = [emp for emp in employees if not emp.isActive]
+	if inactive_employees:
+		names = ', '.join(emp.name for emp in inactive_employees)
+		raise ValueError(f"The following employees are not active: {names}")
+	
+	# Check for already assigned employees
+	existing_assignments = JobEmployeeAssignment.objects.filter(
+		job=job,
+		employee_id__in=employee_ids,
+		status__in=['ASSIGNED', 'IN_PROGRESS']
+	).values_list('employee_id', flat=True)
+	
+	if existing_assignments:
+		existing_names = AgencyEmployee.objects.filter(
+			employeeID__in=existing_assignments
+		).values_list('name', flat=True)
+		raise ValueError(f"Already assigned: {', '.join(existing_names)}")
+	
+	assignments_created = []
+	
+	with transaction.atomic():
+		for employee in employees:
+			is_primary = (employee.employeeID == primary_contact_id)
+			
+			assignment = JobEmployeeAssignment.objects.create(
+				job=job,
+				employee=employee,
+				assignedBy=agency_account,
+				notes=assignment_notes or "",
+				isPrimaryContact=is_primary,
+				status='ASSIGNED'
+			)
+			assignments_created.append({
+				'assignment_id': assignment.assignmentID,
+				'employee_id': employee.employeeID,
+				'employee_name': employee.name,
+				'is_primary_contact': is_primary
+			})
+		
+		# Update job metadata
+		if not job.employeeAssignedAt:
+			job.employeeAssignedAt = timezone.now()
+		if job.status == 'ACTIVE':
+			job.status = 'ASSIGNED'
+		job.assignmentNotes = assignment_notes or ""
+		
+		# Also set legacy field to primary contact for backward compatibility
+		primary_employee = next(emp for emp in employees if emp.employeeID == primary_contact_id)
+		job.assignedEmployeeID = primary_employee
+		job.save()
+	
+	# Create job log
+	employee_names = ', '.join(emp.name for emp in employees)
+	JobLog.objects.create(
+		jobID=job,
+		notes=f"Multi-employee assignment: {len(employees)} employees assigned ({employee_names}). Primary contact: {primary_employee.name}",
+		changedBy=agency_account,
+		oldStatus='ACTIVE',
+		newStatus=job.status
+	)
+	
+	# Create notification for client
+	Notification.objects.create(
+		accountFK=job.clientID.profileID.accountFK,
+		notificationType='AGENCY_ASSIGNED_WORKER',
+		title=f'Team Assigned to Your Job',
+		message=f'{agency.businessName} has assigned {len(employees)} workers to "{job.title}". Team lead: {primary_employee.name}.',
+		relatedJobID=job.jobID
+	)
+	
+	print(f"✅ {len(employees)} employees assigned to job {job_id}")
+	
+	return {
+		'success': True,
+		'message': f'{len(employees)} employees assigned to job',
+		'job_id': job.jobID,
+		'job_status': job.status,
+		'assignments': assignments_created,
+		'primary_contact': {
+			'employee_id': primary_employee.employeeID,
+			'name': primary_employee.name
+		}
+	}
+
+
+def remove_employee_from_job(
+	agency_account,
+	job_id: int,
+	employee_id: int,
+	reason: str = None
+) -> dict:
+	"""
+	Remove a single employee from a multi-employee job assignment.
+	
+	Args:
+		agency_account: The authenticated agency account
+		job_id: ID of the job
+		employee_id: ID of the employee to remove
+		reason: Optional reason for removal
+	
+	Returns:
+		dict with success status
+	"""
+	from accounts.models import Job, JobEmployeeAssignment, JobLog
+	from django.utils import timezone
+	from django.db import transaction
+	
+	try:
+		agency = AgencyProfile.objects.get(accountFK=agency_account)
+	except AgencyProfile.DoesNotExist:
+		raise ValueError("Agency account not found")
+	
+	# Get job
+	try:
+		job = Job.objects.get(jobID=job_id)
+	except Job.DoesNotExist:
+		raise ValueError(f"Job {job_id} not found")
+	
+	# Verify job belongs to this agency
+	if job.assignedAgencyFK != agency:
+		raise ValueError("This job is not assigned to your agency")
+	
+	# Find the assignment
+	try:
+		assignment = JobEmployeeAssignment.objects.select_related('employee').get(
+			job=job,
+			employee_id=employee_id,
+			status__in=['ASSIGNED', 'IN_PROGRESS']
+		)
+	except JobEmployeeAssignment.DoesNotExist:
+		raise ValueError(f"Employee {employee_id} is not assigned to this job")
+	
+	# Check if this is the only employee
+	active_assignments = JobEmployeeAssignment.objects.filter(
+		job=job,
+		status__in=['ASSIGNED', 'IN_PROGRESS']
+	).count()
+	
+	if active_assignments <= 1:
+		raise ValueError("Cannot remove the last employee. Use unassign_all instead.")
+	
+	employee_name = assignment.employee.name
+	was_primary = assignment.isPrimaryContact
+	
+	with transaction.atomic():
+		# Mark assignment as removed
+		assignment.status = 'REMOVED'
+		assignment.notes = f"{assignment.notes}\nRemoved: {reason or 'No reason provided'}"
+		assignment.save()
+		
+		# If this was the primary contact, assign a new one
+		if was_primary:
+			next_primary = JobEmployeeAssignment.objects.filter(
+				job=job,
+				status__in=['ASSIGNED', 'IN_PROGRESS']
+			).exclude(assignmentID=assignment.assignmentID).first()
+			
+			if next_primary:
+				next_primary.isPrimaryContact = True
+				next_primary.save()
+				
+				# Update legacy field
+				job.assignedEmployeeID = next_primary.employee
+				job.save()
+	
+	# Create log
+	JobLog.objects.create(
+		jobID=job,
+		notes=f"Employee removed: {employee_name}. Reason: {reason or 'Not specified'}",
+		changedBy=agency_account,
+		oldStatus=job.status,
+		newStatus=job.status
+	)
+	
+	print(f"✅ Employee {employee_name} removed from job {job_id}")
+	
+	return {
+		'success': True,
+		'message': f'{employee_name} removed from job',
+		'job_id': job.jobID,
+		'removed_employee': employee_name,
+		'was_primary_contact': was_primary
+	}
+
+
+def get_job_assigned_employees(agency_account, job_id: int) -> dict:
+	"""
+	Get all employees assigned to a job.
+	
+	Args:
+		agency_account: The authenticated agency account
+		job_id: ID of the job
+	
+	Returns:
+		dict with list of assigned employees
+	"""
+	from accounts.models import Job, JobEmployeeAssignment
+	
+	try:
+		agency = AgencyProfile.objects.get(accountFK=agency_account)
+	except AgencyProfile.DoesNotExist:
+		raise ValueError("Agency account not found")
+	
+	# Get job
+	try:
+		job = Job.objects.get(jobID=job_id)
+	except Job.DoesNotExist:
+		raise ValueError(f"Job {job_id} not found")
+	
+	# Verify job belongs to this agency
+	if job.assignedAgencyFK != agency:
+		raise ValueError("This job is not assigned to your agency")
+	
+	# Get all active assignments
+	assignments = JobEmployeeAssignment.objects.filter(
+		job=job,
+		status__in=['ASSIGNED', 'IN_PROGRESS', 'COMPLETED']
+	).select_related('employee').order_by('-isPrimaryContact', 'assignedAt')
+	
+	employees = []
+	for assignment in assignments:
+		emp = assignment.employee
+		employees.append({
+			'assignment_id': assignment.assignmentID,
+			'employee_id': emp.employeeID,
+			'name': emp.name,
+			'email': emp.email,
+			'role': emp.role,
+			'avatar': emp.avatar,
+			'rating': float(emp.rating) if emp.rating else None,
+			'is_primary_contact': assignment.isPrimaryContact,
+			'status': assignment.status,
+			'assigned_at': assignment.assignedAt.isoformat(),
+			'marked_complete': assignment.employeeMarkedComplete,
+			'marked_complete_at': assignment.employeeMarkedCompleteAt.isoformat() if assignment.employeeMarkedCompleteAt else None,
+		})
+	
+	return {
+		'job_id': job.jobID,
+		'job_title': job.title,
+		'total_assigned': len(employees),
+		'employees': employees
+	}
+
+
+def set_primary_contact(
+	agency_account,
+	job_id: int,
+	employee_id: int
+) -> dict:
+	"""
+	Change the primary contact for a job.
+	
+	Args:
+		agency_account: The authenticated agency account
+		job_id: ID of the job
+		employee_id: ID of the employee to make primary contact
+	
+	Returns:
+		dict with success status
+	"""
+	from accounts.models import Job, JobEmployeeAssignment, JobLog
+	from django.db import transaction
+	
+	try:
+		agency = AgencyProfile.objects.get(accountFK=agency_account)
+	except AgencyProfile.DoesNotExist:
+		raise ValueError("Agency account not found")
+	
+	# Get job
+	try:
+		job = Job.objects.get(jobID=job_id)
+	except Job.DoesNotExist:
+		raise ValueError(f"Job {job_id} not found")
+	
+	# Verify job belongs to this agency
+	if job.assignedAgencyFK != agency:
+		raise ValueError("This job is not assigned to your agency")
+	
+	# Find the assignment
+	try:
+		new_primary = JobEmployeeAssignment.objects.select_related('employee').get(
+			job=job,
+			employee_id=employee_id,
+			status__in=['ASSIGNED', 'IN_PROGRESS']
+		)
+	except JobEmployeeAssignment.DoesNotExist:
+		raise ValueError(f"Employee {employee_id} is not assigned to this job")
+	
+	if new_primary.isPrimaryContact:
+		return {
+			'success': True,
+			'message': f'{new_primary.employee.name} is already the primary contact',
+			'job_id': job.jobID
+		}
+	
+	with transaction.atomic():
+		# Remove primary from current
+		JobEmployeeAssignment.objects.filter(
+			job=job,
+			isPrimaryContact=True
+		).update(isPrimaryContact=False)
+		
+		# Set new primary
+		new_primary.isPrimaryContact = True
+		new_primary.save()
+		
+		# Update legacy field
+		job.assignedEmployeeID = new_primary.employee
+		job.save()
+	
+	# Create log
+	JobLog.objects.create(
+		jobID=job,
+		notes=f"Primary contact changed to: {new_primary.employee.name}",
+		changedBy=agency_account,
+		oldStatus=job.status,
+		newStatus=job.status
+	)
+	
+	return {
+		'success': True,
+		'message': f'{new_primary.employee.name} is now the primary contact',
+		'job_id': job.jobID,
+		'primary_contact': {
+			'employee_id': new_primary.employee.employeeID,
+			'name': new_primary.employee.name
+		}
 	}

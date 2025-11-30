@@ -617,15 +617,49 @@ def check_payment_status(request, transaction_id: int):
 
 #region CHAT ENDPOINTS
 
-def get_participant_info(profile: Profile, job_title: str = None) -> dict:
-    """Helper function to get participant information"""
-    return {
-        "name": f"{profile.firstName} {profile.lastName}",
-        "avatar": profile.profileImg or "/worker1.jpg",
-        "profile_type": profile.profileType,
-        "city": profile.accountFK.city if profile.accountFK else None,
-        "job_title": job_title
-    }
+def get_participant_info(profile: Profile = None, agency = None, job_title: str = None, job = None) -> dict:
+    """Helper function to get participant information (supports both Profile and Agency)"""
+    if profile:
+        return {
+            "name": f"{profile.firstName} {profile.lastName}",
+            "avatar": profile.profileImg or "/worker1.jpg",
+            "profile_type": profile.profileType,
+            "location": profile.location if hasattr(profile, 'location') else None,
+            "job_title": job_title,
+            "is_agency": False,
+            "assigned_employee": None
+        }
+    elif agency:
+        # Get assigned employee info if job is provided
+        assigned_employee = None
+        if job and job.assignedEmployeeID:
+            emp = job.assignedEmployeeID
+            # AgencyEmployee has direct fields (name, avatar, rating), not a workerProfile FK
+            assigned_employee = {
+                "name": emp.name,
+                "avatar": emp.avatar,
+                "rating": float(emp.rating) if emp.rating else None,
+                "is_employee_of_month": emp.employeeOfTheMonth
+            }
+        return {
+            "name": agency.businessName,
+            "avatar": None,  # Agencies don't have profile pics yet
+            "profile_type": "AGENCY",
+            "location": agency.city if hasattr(agency, 'city') else None,
+            "job_title": job_title,
+            "is_agency": True,
+            "assigned_employee": assigned_employee
+        }
+    else:
+        return {
+            "name": "Unknown",
+            "avatar": "/worker1.jpg",
+            "profile_type": "UNKNOWN",
+            "location": None,
+            "job_title": job_title,
+            "is_agency": False,
+            "assigned_employee": None
+        }
 
 
 @router.get("/chat/conversations", auth=dual_auth)
@@ -700,11 +734,19 @@ def get_conversations(request, filter: str = "all"):
         
         result = []
         for conv in conversations:
-            # Determine the other participant (if user is client, show worker; if worker, show client)
+            # Determine the other participant (if user is client, show worker/agency; if worker, show client)
             is_client = conv.client == user_profile
-            other_participant = conv.worker if is_client else conv.client
             
-            print(f"  📨 Conv {conv.conversationID}: Client={conv.client.accountFK.email}, Worker={conv.worker.accountFK.email}, Job={conv.relatedJobPosting.title}")
+            # Handle agency conversations - other party might be agency instead of worker
+            if is_client:
+                other_participant = conv.worker  # Could be None for agency jobs
+                other_agency = conv.agency  # Check if this is an agency conversation
+            else:
+                other_participant = conv.client
+                other_agency = None
+            
+            worker_info = conv.worker.accountFK.email if conv.worker else (conv.agency.businessName if conv.agency else "N/A")
+            print(f"  📨 Conv {conv.conversationID}: Client={conv.client.accountFK.email}, Worker/Agency={worker_info}, Job={conv.relatedJobPosting.title}")
             
             # Get job info
             job = conv.relatedJobPosting
@@ -717,11 +759,19 @@ def get_conversations(request, filter: str = "all"):
             
             # Check review status for this job
             from accounts.models import JobReview
-            worker_account = job.assignedWorkerID.profileID.accountFK if job.assignedWorkerID else None
+            # Worker account can be from assignedWorkerID or assignedAgencyFK
+            worker_account = None
+            if job.assignedWorkerID:
+                worker_account = job.assignedWorkerID.profileID.accountFK
+            elif job.assignedAgencyFK:
+                worker_account = job.assignedAgencyFK.accountFK
             client_account = job.clientID.profileID.accountFK
             
             worker_reviewed = False
             client_reviewed = False
+            
+            # Check if this is an agency job
+            is_agency_job = job.assignedEmployeeID is not None
             
             if worker_account and client_account:
                 worker_reviewed = JobReview.objects.filter(
@@ -729,10 +779,26 @@ def get_conversations(request, filter: str = "all"):
                     reviewerID=worker_account
                 ).exists()
                 
-                client_reviewed = JobReview.objects.filter(
-                    jobID=job,
-                    reviewerID=client_account
-                ).exists()
+                if is_agency_job:
+                    # For agency jobs, client must have reviewed BOTH employee AND agency
+                    employee_review_exists = JobReview.objects.filter(
+                        jobID=job,
+                        reviewerID=client_account,
+                        revieweeEmployeeID__isnull=False
+                    ).exists()
+                    
+                    agency_review_exists = JobReview.objects.filter(
+                        jobID=job,
+                        reviewerID=client_account,
+                        revieweeAgencyID__isnull=False
+                    ).exists()
+                    
+                    client_reviewed = employee_review_exists and agency_review_exists
+                else:
+                    client_reviewed = JobReview.objects.filter(
+                        jobID=job,
+                        reviewerID=client_account
+                    ).exists()
             
             result.append({
                 "id": conv.conversationID,
@@ -748,7 +814,7 @@ def get_conversations(request, filter: str = "all"):
                     "clientReviewed": client_reviewed,
                     "remainingPaymentPaid": job.remainingPaymentPaid
                 },
-                "other_participant": get_participant_info(other_participant, job.title),
+                "other_participant": get_participant_info(profile=other_participant, agency=other_agency, job_title=job.title, job=job),
                 "my_role": "CLIENT" if is_client else "WORKER",
                 "last_message": conv.lastMessageText,
                 "last_message_time": conv.lastMessageTime.isoformat() if conv.lastMessageTime else None,
@@ -782,6 +848,7 @@ def get_conversation_messages(request, conversation_id: int):
     """
     Get all messages in a specific job conversation.
     Also marks messages as read.
+    Supports both regular (client-worker) and agency (client-agency) conversations.
     """
     try:
         # Get user's profile
@@ -802,7 +869,8 @@ def get_conversation_messages(request, conversation_id: int):
             conversation = Conversation.objects.select_related(
                 'client__accountFK',
                 'worker__accountFK',
-                'relatedJobPosting'
+                'relatedJobPosting',
+                'agency'
             ).get(conversationID=conversation_id)
         except Conversation.DoesNotExist:
             return Response(
@@ -810,23 +878,42 @@ def get_conversation_messages(request, conversation_id: int):
                 status=404
             )
         
-        # Verify user is a participant (either client or worker)
+        # Check if this is an agency conversation
+        is_agency_conversation = conversation.agency is not None and conversation.worker is None
+        
+        # Verify user is a participant (either client, worker, or agency owner)
         is_client = conversation.client == user_profile
-        is_worker = conversation.worker == user_profile
+        is_worker = conversation.worker == user_profile if conversation.worker else False
+        
+        # For agency conversations, check if user is the agency owner
+        is_agency_owner = False
+        if is_agency_conversation and conversation.agency:
+            is_agency_owner = conversation.agency.accountFK == request.auth
         
         print(f"   Conversation ID: {conversation.conversationID}")
         print(f"   Client Profile ID: {conversation.client.profileID}")
-        print(f"   Worker Profile ID: {conversation.worker.profileID}")
-        print(f"   Is Client: {is_client}, Is Worker: {is_worker}")
+        print(f"   Is Agency Conversation: {is_agency_conversation}")
+        if conversation.worker:
+            print(f"   Worker Profile ID: {conversation.worker.profileID}")
+        if conversation.agency:
+            print(f"   Agency: {conversation.agency.businessName}")
+        print(f"   Is Client: {is_client}, Is Worker: {is_worker}, Is Agency Owner: {is_agency_owner}")
         
-        if not (is_client or is_worker):
+        if not (is_client or is_worker or is_agency_owner):
             return Response(
                 {"error": "You are not a participant in this conversation"},
                 status=403
             )
         
         # Determine the other participant
-        other_participant = conversation.worker if is_client else conversation.client
+        if is_agency_conversation:
+            # For agency conversations
+            other_participant = conversation.client if is_agency_owner else None
+            other_agency = conversation.agency if is_client else None
+        else:
+            # For regular worker conversations
+            other_participant = conversation.worker if is_client else conversation.client
+            other_agency = None
         
         # Get job info
         job = conversation.relatedJobPosting
@@ -837,24 +924,44 @@ def get_conversation_messages(request, conversation_id: int):
         ).select_related('sender__accountFK').prefetch_related('attachments').order_by('createdAt')
         
         # Mark unread messages as read and reset unread count
-        Message.objects.filter(
-            conversationID=conversation,
-            sender=other_participant,
-            isRead=False
-        ).update(isRead=True, readAt=timezone.now())
+        # For agency conversations, mark all messages not from current user as read
+        if other_participant:
+            Message.objects.filter(
+                conversationID=conversation,
+                sender=other_participant,
+                isRead=False
+            ).update(isRead=True, readAt=timezone.now())
+        else:
+            # For agency-side view, mark messages from client as read
+            Message.objects.filter(
+                conversationID=conversation,
+                isRead=False
+            ).exclude(sender=user_profile).update(isRead=True, readAt=timezone.now())
         
         # Reset unread count for this user
         if is_client:
             conversation.unreadCountClient = 0
         else:
+            # Both worker and agency use unreadCountWorker
             conversation.unreadCountWorker = 0
         conversation.save(update_fields=['unreadCountClient' if is_client else 'unreadCountWorker'])
         
         # Format messages
         formatted_messages = []
         for msg in messages:
-            is_mine = msg.sender == user_profile
-            print(f"   Message from Profile {msg.sender.profileID}: is_mine={is_mine} (comparing with {user_profile.profileID})")
+            # Handle messages from agency (sender is None, senderAgency is set)
+            if msg.sender is None:
+                # This is an agency message
+                is_mine = is_agency_owner  # Mine if I'm the agency owner
+                sender_name = conversation.agency.businessName if conversation.agency else "Agency"
+                sender_avatar = "/agency-default.jpg"  # Agency model doesn't have avatar/logo field
+                print(f"   Message from Agency: is_mine={is_mine}")
+            else:
+                # Regular message from a Profile
+                is_mine = msg.sender == user_profile
+                sender_name = f"{msg.sender.firstName} {msg.sender.lastName}"
+                sender_avatar = msg.sender.profileImg or "/worker1.jpg"
+                print(f"   Message from Profile {msg.sender.profileID}: is_mine={is_mine} (comparing with {user_profile.profileID})")
             
             # Get attachments for this message
             attachments = []
@@ -869,8 +976,8 @@ def get_conversation_messages(request, conversation_id: int):
                 })
             
             message_data = {
-                "sender_name": f"{msg.sender.firstName} {msg.sender.lastName}",
-                "sender_avatar": msg.sender.profileImg or "/worker1.jpg",
+                "sender_name": sender_name,
+                "sender_avatar": sender_avatar,
                 "message_text": msg.messageText,
                 "message_type": msg.messageType,
                 "is_read": msg.isRead,
@@ -892,7 +999,66 @@ def get_conversation_messages(request, conversation_id: int):
         worker_reviewed = False
         client_reviewed = False
         
-        if worker_account and client_account:
+        # Check if this is an agency job (for review logic)
+        is_agency_job_for_reviews = job.assignedEmployeeID is not None
+        employee_review_exists = False
+        agency_review_exists = False
+        employees_pending_review = []  # For multi-employee support
+        
+        # For agency jobs, check employee and agency reviews separately
+        if is_agency_job_for_reviews and client_account:
+            from accounts.models import JobEmployeeAssignment
+            
+            # Get all assigned employees (multi-employee support)
+            assigned_employees = JobEmployeeAssignment.objects.filter(
+                job=job,
+                status__in=['ASSIGNED', 'IN_PROGRESS', 'COMPLETED']
+            ).select_related('employee')
+            
+            # Get all employee IDs that have been reviewed
+            reviewed_employee_ids = set(JobReview.objects.filter(
+                jobID=job,
+                reviewerID=client_account,
+                revieweeEmployeeID__isnull=False
+            ).values_list('revieweeEmployeeID', flat=True))
+            
+            # Check if ALL employees have been reviewed
+            all_assigned_ids = set(a.employee_id for a in assigned_employees)
+            
+            # Backward compatibility: if no M2M assignments, check legacy field
+            if not all_assigned_ids and job.assignedEmployeeID:
+                all_assigned_ids = {job.assignedEmployeeID.employeeID}
+            
+            employee_review_exists = all_assigned_ids.issubset(reviewed_employee_ids) if all_assigned_ids else False
+            
+            # Build list of employees still pending review
+            pending_ids = all_assigned_ids - reviewed_employee_ids
+            if pending_ids:
+                from agency.models import AgencyEmployee
+                pending_emps = AgencyEmployee.objects.filter(employeeID__in=pending_ids)
+                employees_pending_review = [
+                    {"employee_id": emp.employeeID, "name": emp.name, "avatar": emp.avatar}
+                    for emp in pending_emps
+                ]
+            
+            agency_review_exists = JobReview.objects.filter(
+                jobID=job,
+                reviewerID=client_account,
+                revieweeAgencyID__isnull=False
+            ).exists()
+            
+            client_reviewed = employee_review_exists and agency_review_exists
+            
+            # For agency jobs, worker_reviewed is tracked separately (agency reviews client)
+            # Get the agency account for checking if agency reviewed the client
+            if job.assignedEmployeeID and job.assignedEmployeeID.agency:
+                agency_account = job.assignedEmployeeID.agency
+                worker_reviewed = JobReview.objects.filter(
+                    jobID=job,
+                    reviewerID=agency_account
+                ).exists()
+        elif worker_account and client_account:
+            # Regular (non-agency) job
             worker_reviewed = JobReview.objects.filter(
                 jobID=job,
                 reviewerID=worker_account
@@ -902,6 +1068,72 @@ def get_conversation_messages(request, conversation_id: int):
                 jobID=job,
                 reviewerID=client_account
             ).exists()
+        
+        # Build other_participant_info - handle agency case
+        if other_participant:
+            other_participant_info = get_participant_info(other_participant, job.title)
+        elif other_agency:
+            # Client viewing agency conversation - show agency info
+            other_participant_info = {
+                "id": other_agency.agencyId,
+                "name": other_agency.businessName,
+                "avatar": "/agency-default.jpg",  # Agency model doesn't have avatar/logo field
+                "role": "AGENCY",
+                "account_id": other_agency.accountFK.accountID if other_agency.accountFK else None,
+            }
+        else:
+            other_participant_info = None
+        
+        # Determine my_role
+        if is_client:
+            my_role = "CLIENT"
+        elif is_agency_owner:
+            my_role = "AGENCY"
+        else:
+            my_role = "WORKER"
+        
+        # Get assigned employee info for agency jobs (legacy single employee)
+        assigned_employee_info = None
+        if is_agency_conversation and job.assignedEmployeeID:
+            emp = job.assignedEmployeeID
+            assigned_employee_info = {
+                "id": emp.employeeID,
+                "name": emp.name,
+                "avatar": emp.avatar or "/worker-default.jpg",
+                "rating": float(emp.rating) if emp.rating else None,
+            }
+        
+        # Get ALL assigned employees for multi-employee jobs
+        assigned_employees_list = []
+        if is_agency_conversation:
+            from accounts.models import JobEmployeeAssignment
+            assignments = JobEmployeeAssignment.objects.filter(
+                job=job,
+                status__in=['ASSIGNED', 'IN_PROGRESS', 'COMPLETED']
+            ).select_related('employee').order_by('-isPrimaryContact', 'assignedAt')
+            
+            for assignment in assignments:
+                emp = assignment.employee
+                assigned_employees_list.append({
+                    "employee_id": emp.employeeID,
+                    "name": emp.name,
+                    "avatar": emp.avatar or "/worker-default.jpg",
+                    "rating": float(emp.rating) if emp.rating else None,
+                    "is_primary_contact": assignment.isPrimaryContact,
+                    "status": assignment.status,
+                })
+            
+            # Fallback to legacy if no M2M assignments
+            if not assigned_employees_list and job.assignedEmployeeID:
+                emp = job.assignedEmployeeID
+                assigned_employees_list.append({
+                    "employee_id": emp.employeeID,
+                    "name": emp.name,
+                    "avatar": emp.avatar or "/worker-default.jpg",
+                    "rating": float(emp.rating) if emp.rating else None,
+                    "is_primary_contact": True,
+                    "status": "ASSIGNED",
+                })
         
         return {
             "success": True,
@@ -917,11 +1149,17 @@ def get_conversation_messages(request, conversation_id: int):
                 "clientMarkedComplete": job.clientMarkedComplete,
                 "workerReviewed": worker_reviewed,
                 "clientReviewed": client_reviewed,
+                "employeeReviewed": employee_review_exists if is_agency_job_for_reviews else None,
+                "agencyReviewed": agency_review_exists if is_agency_job_for_reviews else None,
+                "employeesPendingReview": employees_pending_review if is_agency_job_for_reviews else [],
                 "assignedWorkerId": worker_account.accountID if worker_account else None,
                 "clientId": client_account.accountID if client_account else None
             },
-            "other_participant": get_participant_info(other_participant, job.title),
-            "my_role": "CLIENT" if is_client else "WORKER",
+            "other_participant": other_participant_info,
+            "assigned_employee": assigned_employee_info,  # Legacy single employee
+            "assigned_employees": assigned_employees_list,  # NEW: All assigned employees
+            "is_agency_job": is_agency_conversation,
+            "my_role": my_role,
             "messages": formatted_messages,
             "total_messages": len(formatted_messages)
         }

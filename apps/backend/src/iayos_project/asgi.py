@@ -9,12 +9,17 @@ https://docs.djangoproject.com/en/5.2/howto/deployment/asgi/
 
 import os
 
+# CRITICAL: Set Django settings BEFORE any Django imports
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'iayos_project.settings')
+
+# Initialize Django ASGI application early to ensure settings are loaded
+import django
+django.setup()
+
 from django.core.asgi import get_asgi_application
 from channels.routing import ProtocolTypeRouter, URLRouter
 from profiles.middleware import SessionAuthMiddleware
 from profiles.routing import websocket_urlpatterns
-
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'iayos_project.settings')
 
 application = ProtocolTypeRouter({
     "http": get_asgi_application(),

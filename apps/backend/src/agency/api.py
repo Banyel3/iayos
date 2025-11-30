@@ -481,21 +481,21 @@ def update_employee_rating(request, employee_id: int, rating: float, reason: str
 
 
 @router.post("/employees/{employee_id}/set-eotm", auth=cookie_auth, response=schemas.SetEmployeeOfMonthResponse)
-def set_employee_of_month(request, employee_id: int, reason: str):
+def set_employee_of_month(request, employee_id: int, payload: schemas.SetEmployeeOfMonthSchema):
 	"""
 	Set an employee as Employee of the Month.
 	Only one employee can be EOTM per agency at a time.
 	
 	Args:
 		employee_id: ID of the employee to set as EOTM
-		reason: Reason for selection (required)
+		payload: Request body containing reason for selection
 	
 	Returns:
 		Updated employee EOTM info
 	"""
 	try:
 		account_id = request.auth.accountID
-		result = services.set_employee_of_month(account_id, employee_id, reason)
+		result = services.set_employee_of_month(account_id, employee_id, payload.reason)
 		return result
 	except ValueError as e:
 		return Response({"error": str(e)}, status=400)
@@ -638,5 +638,994 @@ def get_employee_workload_endpoint(request, employee_id: int):
 		print(f"❌ Error getting employee workload: {str(e)}")
 		return Response(
 			{'success': False, 'error': 'Internal server error'},
+			status=500
+		)
+
+
+# ============================================================
+# Multi-Employee Assignment Endpoints (NEW)
+# ============================================================
+
+@router.post("/jobs/{job_id}/assign-employees", auth=cookie_auth)
+def assign_employees_to_job_endpoint(request, job_id: int):
+	"""
+	Assign multiple employees to a job.
+	
+	POST /api/agency/jobs/{job_id}/assign-employees
+	Body (JSON):
+		- employee_ids: list[int] (required) - List of employee IDs to assign
+		- primary_contact_id: int (optional) - ID of employee to be team lead
+		- assignment_notes: str (optional)
+	"""
+	import json
+	try:
+		data = json.loads(request.body)
+		employee_ids = data.get('employee_ids', [])
+		primary_contact_id = data.get('primary_contact_id')
+		assignment_notes = data.get('assignment_notes', '')
+		
+		if not employee_ids:
+			return Response({'success': False, 'error': 'employee_ids is required'}, status=400)
+		
+		result = services.assign_employees_to_job(
+			agency_account=request.auth,
+			job_id=job_id,
+			employee_ids=employee_ids,
+			primary_contact_id=primary_contact_id,
+			assignment_notes=assignment_notes
+		)
+		return Response(result, status=200)
+	
+	except json.JSONDecodeError:
+		return Response({'success': False, 'error': 'Invalid JSON body'}, status=400)
+	except ValueError as e:
+		return Response({'success': False, 'error': str(e)}, status=400)
+	except Exception as e:
+		print(f"❌ Error assigning employees to job: {str(e)}")
+		import traceback
+		traceback.print_exc()
+		return Response(
+			{'success': False, 'error': 'Internal server error'},
+			status=500
+		)
+
+
+@router.delete("/jobs/{job_id}/employees/{employee_id}", auth=cookie_auth)
+def remove_employee_from_job_endpoint(request, job_id: int, employee_id: int):
+	"""
+	Remove a single employee from a multi-employee job.
+	
+	DELETE /api/agency/jobs/{job_id}/employees/{employee_id}
+	Query params:
+		- reason: str (optional)
+	"""
+	try:
+		reason = request.GET.get('reason', '')
+		
+		result = services.remove_employee_from_job(
+			agency_account=request.auth,
+			job_id=job_id,
+			employee_id=employee_id,
+			reason=reason
+		)
+		return Response(result, status=200)
+	
+	except ValueError as e:
+		return Response({'success': False, 'error': str(e)}, status=400)
+	except Exception as e:
+		print(f"❌ Error removing employee from job: {str(e)}")
+		import traceback
+		traceback.print_exc()
+		return Response(
+			{'success': False, 'error': 'Internal server error'},
+			status=500
+		)
+
+
+@router.get("/jobs/{job_id}/employees", auth=cookie_auth)
+def get_job_employees_endpoint(request, job_id: int):
+	"""
+	Get all employees assigned to a job.
+	
+	GET /api/agency/jobs/{job_id}/employees
+	"""
+	try:
+		result = services.get_job_assigned_employees(
+			agency_account=request.auth,
+			job_id=job_id
+		)
+		return Response(result, status=200)
+	
+	except ValueError as e:
+		return Response({'success': False, 'error': str(e)}, status=400)
+	except Exception as e:
+		print(f"❌ Error getting job employees: {str(e)}")
+		return Response(
+			{'success': False, 'error': 'Internal server error'},
+			status=500
+		)
+
+
+@router.put("/jobs/{job_id}/primary-contact/{employee_id}", auth=cookie_auth)
+def set_primary_contact_endpoint(request, job_id: int, employee_id: int):
+	"""
+	Change the primary contact/team lead for a job.
+	
+	PUT /api/agency/jobs/{job_id}/primary-contact/{employee_id}
+	"""
+	try:
+		result = services.set_primary_contact(
+			agency_account=request.auth,
+			job_id=job_id,
+			employee_id=employee_id
+		)
+		return Response(result, status=200)
+	
+	except ValueError as e:
+		return Response({'success': False, 'error': str(e)}, status=400)
+	except Exception as e:
+		print(f"❌ Error setting primary contact: {str(e)}")
+		return Response(
+			{'success': False, 'error': 'Internal server error'},
+			status=500
+		)
+
+
+# ============================================================
+# Agency Chat/Messaging Endpoints
+# ============================================================
+
+@router.get("/conversations", auth=cookie_auth)
+def get_agency_conversations(request, filter: str = "all"):
+	"""
+	Get all conversations for jobs managed by this agency.
+	Shows conversations where agency employees are assigned.
+	
+	Query params:
+	- filter: 'all', 'unread', or 'archived' (default: 'all')
+	"""
+	try:
+		from profiles.models import Conversation, Message
+		from accounts.models import Job, Profile
+		from django.db.models import Q, Count, Max
+		
+		account = request.auth
+		
+		# Verify user is an agency (has AgencyKYC)
+		from .models import AgencyKYC, AgencyEmployee
+		agency_kyc = AgencyKYC.objects.filter(accountFK=account).first()
+		if not agency_kyc:
+			return Response({"error": "Agency account not found"}, status=400)
+		
+		print(f"\n🏢 === AGENCY CONVERSATIONS DEBUG ===")
+		print(f"📧 Agency account: {account.email}")
+		
+		# Get all employees of this agency
+		agency_employees = AgencyEmployee.objects.filter(agency=account)
+		print(f"👥 Agency employees: {agency_employees.count()}")
+		
+		# Get agency's profile (to find conversations where agency is worker)
+		agency_profile = Profile.objects.filter(accountFK=account).first()
+		
+		# Find all jobs where:
+		# 1. Job was sent to agency (inviteStatus = ACCEPTED, invitedAgencyID exists)
+		# 2. Or job has an assigned employee from this agency
+		from .models import AgencyEmployee
+		
+		# Get conversations where agency is the worker (for INVITE jobs)
+		conversations_query = Conversation.objects.filter(
+			Q(worker=agency_profile) |  # Agency is in worker role
+			Q(relatedJobPosting__assignedEmployeeID__agency=account)  # Employee from this agency is assigned
+		).select_related(
+			'client__accountFK',
+			'worker__accountFK',
+			'relatedJobPosting',
+			'relatedJobPosting__assignedEmployeeID',
+			'lastMessageSender'
+		).distinct()
+		
+		print(f"💬 Total conversations found: {conversations_query.count()}")
+		
+		# Apply filters
+		if filter == "archived":
+			# For agencies, use worker archived status
+			conversations_query = conversations_query.filter(archivedByWorker=True)
+		else:
+			conversations_query = conversations_query.filter(archivedByWorker=False)
+			
+			if filter == "unread":
+				conversations_query = conversations_query.filter(unreadCountWorker__gt=0)
+		
+		conversations = conversations_query.order_by('-updatedAt')
+		
+		print(f"📊 After filters: {conversations.count()} conversations")
+		
+		result = []
+		for conv in conversations:
+			job = conv.relatedJobPosting
+			client_profile = conv.client
+			
+			# Get assigned employee info if exists
+			assigned_employee = None
+			if job.assignedEmployeeID:
+				emp = job.assignedEmployeeID
+				assigned_employee = {
+					"employeeId": emp.employeeID,
+					"name": emp.name,
+					"email": emp.email,
+					"role": emp.role,
+					"avatar": emp.avatar,
+					"rating": float(emp.rating) if emp.rating else None,
+					"totalJobsCompleted": emp.totalJobsCompleted,
+					"totalEarnings": float(emp.totalEarnings) if emp.totalEarnings else 0,
+					"employeeOfTheMonth": emp.employeeOfTheMonth,
+					"rank": 0
+				}
+			
+			# Get client info
+			client_info = {
+				"name": f"{client_profile.firstName} {client_profile.lastName}".strip() or client_profile.accountFK.email,
+				"avatar": client_profile.profileImg,
+				"profile_type": "CLIENT",
+				"location": client_profile.location if hasattr(client_profile, 'location') else None,
+				"job_title": None
+			}
+			
+			# Count unread (agency is worker side)
+			unread_count = conv.unreadCountWorker
+			is_archived = conv.archivedByWorker
+			
+			# Check review status
+			from accounts.models import JobReview
+			worker_reviewed = JobReview.objects.filter(jobID=job, reviewerID=account).exists()
+			client_reviewed = JobReview.objects.filter(jobID=job, reviewerID=client_profile.accountFK).exists()
+			
+			result.append({
+				"id": conv.conversationID,
+				"job": {
+					"id": job.jobID,
+					"title": job.title,
+					"status": job.status,
+					"budget": float(job.budget),
+					"location": job.location,
+					"workerMarkedComplete": job.workerMarkedComplete,
+					"clientMarkedComplete": job.clientMarkedComplete,
+					"workerReviewed": worker_reviewed,
+					"clientReviewed": client_reviewed,
+					"assignedEmployeeId": job.assignedEmployeeID.employeeID if job.assignedEmployeeID else None,
+					"assignedEmployeeName": job.assignedEmployeeID.name if job.assignedEmployeeID else None
+				},
+				"client": client_info,
+				"assigned_employee": assigned_employee,
+				"last_message": conv.lastMessageText,
+				"last_message_time": conv.updatedAt.isoformat() if conv.updatedAt else None,
+				"unread_count": unread_count,
+				"is_archived": is_archived,
+				"status": conv.status,
+				"created_at": conv.createdAt.isoformat()
+			})
+		
+		return Response({
+			"success": True,
+			"conversations": result,
+			"total": len(result)
+		})
+		
+	except Exception as e:
+		print(f"❌ Error getting agency conversations: {str(e)}")
+		import traceback
+		traceback.print_exc()
+		return Response({"error": "Internal server error"}, status=500)
+
+
+@router.get("/conversations/{conversation_id}/messages", auth=cookie_auth)
+def get_agency_conversation_messages(request, conversation_id: int):
+	"""
+	Get messages for a specific conversation.
+	Marks messages as read for the agency.
+	"""
+	try:
+		from profiles.models import Conversation, Message
+		from accounts.models import Profile
+		from .models import AgencyKYC
+		
+		account = request.auth
+		
+		# Verify agency
+		agency_kyc = AgencyKYC.objects.filter(accountFK=account).first()
+		if not agency_kyc:
+			return Response({"error": "Agency account not found"}, status=400)
+		
+		agency_profile = Profile.objects.filter(accountFK=account).first()
+		
+		# Get conversation
+		conv = Conversation.objects.filter(
+			conversationID=conversation_id
+		).select_related(
+			'client__accountFK',
+			'worker__accountFK',
+			'relatedJobPosting',
+			'relatedJobPosting__assignedEmployeeID'
+		).first()
+		
+		if not conv:
+			return Response({"error": "Conversation not found"}, status=404)
+		
+		# Verify agency has access (via agency field on conversation)
+		job = conv.relatedJobPosting
+		from accounts.models import Agency
+		agency = Agency.objects.filter(accountFK=account).first()
+		has_access = (
+			(conv.agency and conv.agency == agency) or
+			(conv.worker and conv.worker == agency_profile) or 
+			(job.assignedAgencyFK and job.assignedAgencyFK == agency)
+		)
+		
+		if not has_access:
+			return Response({"error": "Access denied"}, status=403)
+		
+		# Get messages
+		messages = Message.objects.filter(
+			conversationID=conv
+		).select_related('sender__accountFK', 'senderAgency').order_by('createdAt')
+		
+		# Mark messages as read (agency is worker side)
+		Message.objects.filter(
+			conversationID=conv,
+			isRead=False
+		).exclude(sender=agency_profile).update(isRead=True)
+		
+		# Reset unread count
+		conv.unreadCountWorker = 0
+		conv.save(update_fields=['unreadCountWorker'])
+		
+		# Build response
+		client_profile = conv.client
+		client_info = {
+			"name": f"{client_profile.firstName} {client_profile.lastName}".strip() or client_profile.accountFK.email,
+			"avatar": client_profile.profileImg,
+			"profile_type": "CLIENT",
+			"location": client_profile.location if hasattr(client_profile, 'location') else None,
+			"job_title": None
+		}
+		
+		# Get assigned employee
+		assigned_employee = None
+		if job.assignedEmployeeID:
+			emp = job.assignedEmployeeID
+			assigned_employee = {
+				"employeeId": emp.employeeID,
+				"name": emp.name,
+				"email": emp.email,
+				"role": emp.role,
+				"avatar": emp.avatar,
+				"rating": float(emp.rating) if emp.rating else None,
+				"totalJobsCompleted": emp.totalJobsCompleted,
+				"totalEarnings": float(emp.totalEarnings) if emp.totalEarnings else 0,
+				"employeeOfTheMonth": emp.employeeOfTheMonth,
+				"rank": 0
+			}
+		
+		# Check review status
+		from accounts.models import JobReview
+		worker_reviewed = JobReview.objects.filter(jobID=job, reviewerID=account).exists()
+		client_reviewed = JobReview.objects.filter(jobID=job, reviewerID=client_profile.accountFK).exists()
+		
+		messages_list = []
+		for msg in messages:
+			# Check if message is from agency (either via senderAgency or via agency_profile)
+			is_mine = (msg.senderAgency and msg.senderAgency == agency) or (msg.sender and msg.sender == agency_profile)
+			sent_by_agency = is_mine
+			
+			# Get sender name from either Profile or Agency
+			sender_name = msg.get_sender_name() if hasattr(msg, 'get_sender_name') else (
+				f"{msg.sender.firstName} {msg.sender.lastName}".strip() if msg.sender else 
+				(msg.senderAgency.businessName if msg.senderAgency else "Unknown")
+			)
+			sender_avatar = msg.sender.profileImg if msg.sender else None
+			
+			messages_list.append({
+				"message_id": msg.messageID,
+				"sender_name": sender_name,
+				"sender_avatar": sender_avatar,
+				"message_text": msg.messageText,
+				"message_type": msg.messageType,
+				"is_read": msg.isRead,
+				"created_at": msg.createdAt.isoformat(),
+				"is_mine": is_mine,
+				"sent_by_agency": sent_by_agency
+			})
+		
+		return Response({
+			"conversation_id": conv.conversationID,
+			"job": {
+				"id": job.jobID,
+				"title": job.title,
+				"status": job.status,
+				"budget": float(job.budget),
+				"location": job.location,
+				"clientConfirmedWorkStarted": job.clientConfirmedWorkStarted,
+				"workerMarkedComplete": job.workerMarkedComplete,
+				"clientMarkedComplete": job.clientMarkedComplete,
+				"workerReviewed": worker_reviewed,
+				"clientReviewed": client_reviewed,
+				"assignedEmployeeId": job.assignedEmployeeID.employeeID if job.assignedEmployeeID else None,
+				"assignedEmployeeName": job.assignedEmployeeID.name if job.assignedEmployeeID else None
+			},
+			"client": client_info,
+			"assigned_employee": assigned_employee,
+			"messages": messages_list,
+			"total_messages": len(messages_list),
+			"status": conv.status
+		})
+		
+	except Exception as e:
+		print(f"❌ Error getting conversation messages: {str(e)}")
+		import traceback
+		traceback.print_exc()
+		return Response({"error": "Internal server error"}, status=500)
+
+
+@router.post("/conversations/{conversation_id}/send", auth=cookie_auth)
+def send_agency_message(request, conversation_id: int, payload: schemas.AgencySendMessageSchema):
+	"""
+	Send a message in a conversation on behalf of the agency.
+	"""
+	try:
+		from profiles.models import Conversation, Message
+		from accounts.models import Profile, Agency
+		from .models import AgencyKYC
+		
+		account = request.auth
+		
+		# Verify agency exists
+		agency = Agency.objects.filter(accountFK=account).first()
+		if not agency:
+			return Response({"error": "Agency account not found"}, status=400)
+		
+		# Agency profile is optional (agency users may not have one)
+		agency_profile = Profile.objects.filter(accountFK=account).first()
+		
+		# Get conversation
+		conv = Conversation.objects.filter(
+			conversationID=conversation_id
+		).select_related(
+			'client__accountFK',
+			'worker__accountFK',
+			'agency',
+			'relatedJobPosting',
+			'relatedJobPosting__assignedAgencyFK'
+		).first()
+		
+		if not conv:
+			return Response({"error": "Conversation not found"}, status=404)
+		
+		# Verify agency has access (via agency field on conversation)
+		job = conv.relatedJobPosting
+		has_access = (
+			(conv.agency and conv.agency == agency) or
+			(conv.worker and agency_profile and conv.worker == agency_profile) or 
+			(job.assignedAgencyFK and job.assignedAgencyFK == agency)
+		)
+		
+		if not has_access:
+			return Response({"error": "Access denied"}, status=403)
+		
+		# Create message - use senderAgency for agency users without profile
+		message = Message.objects.create(
+			conversationID=conv,
+			sender=agency_profile,  # May be None
+			senderAgency=agency if not agency_profile else None,  # Use agency if no profile
+			messageText=payload.message_text,
+			messageType=payload.message_type,
+			isRead=False
+		)
+		
+		# Update conversation - Note: Message.save() already handles some of this
+		conv.lastMessageText = payload.message_text[:100] if len(payload.message_text) > 100 else payload.message_text
+		conv.lastMessageSender = agency_profile  # May be None for agency users
+		conv.unreadCountClient += 1  # Increment client's unread
+		conv.save(update_fields=['lastMessageText', 'lastMessageSender', 'unreadCountClient', 'updatedAt'])
+		
+		# Get sender name
+		sender_name = agency.businessName
+		if agency_profile:
+			sender_name = f"{agency_profile.firstName} {agency_profile.lastName}".strip() or agency.businessName
+		
+		# Send WebSocket notification (if available)
+		try:
+			from channels.layers import get_channel_layer
+			from asgiref.sync import async_to_sync
+			
+			channel_layer = get_channel_layer()
+			if channel_layer:
+				async_to_sync(channel_layer.group_send)(
+					f"chat_{conv.conversationID}",
+					{
+						"type": "chat_message",
+						"message": {
+							"conversation_id": conv.conversationID,
+							"message_id": message.messageID,
+							"sender_name": sender_name,
+							"sender_avatar": agency_profile.profileImg if agency_profile else None,
+							"message": message.messageText,
+							"type": message.messageType,
+							"created_at": message.createdAt.isoformat(),
+							"is_mine": False
+						}
+					}
+				)
+		except Exception as ws_error:
+			print(f"⚠️ WebSocket notification failed: {ws_error}")
+		
+		return Response({
+			"success": True,
+			"message": {
+				"message_id": message.messageID,
+				"sender_name": sender_name,
+				"sender_avatar": agency_profile.profileImg if agency_profile else None,
+				"message_text": message.messageText,
+				"message_type": message.messageType,
+				"is_read": False,
+				"created_at": message.createdAt.isoformat(),
+				"is_mine": True,
+				"sent_by_agency": True
+			}
+		})
+		
+	except Exception as e:
+		print(f"❌ Error sending message: {str(e)}")
+		import traceback
+		traceback.print_exc()
+		return Response({"error": "Internal server error"}, status=500)
+
+
+@router.post("/conversations/{conversation_id}/toggle-archive", auth=cookie_auth)
+def toggle_agency_archive(request, conversation_id: int):
+	"""Toggle archive status for a conversation."""
+	try:
+		from profiles.models import Conversation
+		from accounts.models import Profile
+		from .models import AgencyKYC
+		
+		account = request.auth
+		
+		# Verify agency
+		agency_kyc = AgencyKYC.objects.filter(accountFK=account).first()
+		if not agency_kyc:
+			return Response({"error": "Agency account not found"}, status=400)
+		
+		agency_profile = Profile.objects.filter(accountFK=account).first()
+		
+		# Get conversation
+		conv = Conversation.objects.filter(conversationID=conversation_id).first()
+		if not conv:
+			return Response({"error": "Conversation not found"}, status=404)
+		
+		# Toggle archive (agency is worker side)
+		conv.archivedByWorker = not conv.archivedByWorker
+		conv.save(update_fields=['archivedByWorker'])
+		
+		return Response({
+			"success": True,
+			"is_archived": conv.archivedByWorker,
+			"message": "Conversation archived" if conv.archivedByWorker else "Conversation unarchived"
+		})
+		
+	except Exception as e:
+		print(f"❌ Error toggling archive: {str(e)}")
+		return Response({"error": "Internal server error"}, status=500)
+
+
+# ============================================
+# AGENCY PAYMENT METHODS MANAGEMENT
+# ============================================
+
+@router.get("/payment-methods", auth=cookie_auth)
+def get_agency_payment_methods(request):
+	"""Get agency's payment methods for withdrawals"""
+	try:
+		from accounts.models import UserPaymentMethod
+		from .models import AgencyKYC
+		
+		account = request.auth
+		
+		# Verify this is an agency account
+		agency = AgencyKYC.objects.filter(accountFK=account).first()
+		if not agency:
+			return Response({"error": "Agency account not found"}, status=400)
+		
+		methods = UserPaymentMethod.objects.filter(accountFK=account)
+		
+		payment_methods = []
+		for method in methods:
+			payment_methods.append({
+				'id': method.id,
+				'type': method.methodType,
+				'account_name': method.accountName,
+				'account_number': method.accountNumber,
+				'bank_name': method.bankName,
+				'is_primary': method.isPrimary,
+				'is_verified': method.isVerified,
+				'created_at': method.createdAt.isoformat() if method.createdAt else None
+			})
+		
+		return {
+			'payment_methods': payment_methods
+		}
+	except Exception as e:
+		print(f"❌ Get agency payment methods error: {str(e)}")
+		return Response(
+			{"error": "Failed to fetch payment methods"},
+			status=500
+		)
+
+
+@router.post("/payment-methods", auth=cookie_auth)
+def add_agency_payment_method(request):
+	"""Add a new payment method for agency withdrawals"""
+	try:
+		from accounts.models import UserPaymentMethod
+		from .models import AgencyKYC
+		from django.db import transaction as db_transaction
+		import json
+		
+		account = request.auth
+		
+		# Verify this is an agency account
+		agency = AgencyKYC.objects.filter(accountFK=account).first()
+		if not agency:
+			return Response({"error": "Agency account not found"}, status=400)
+		
+		# Parse request body
+		try:
+			data = json.loads(request.body)
+		except:
+			return Response({"error": "Invalid JSON body"}, status=400)
+		
+		account_name = data.get('account_name', '').strip()
+		account_number = data.get('account_number', '').strip()
+		method_type = data.get('type', 'GCASH')
+		
+		# For now, only GCash is supported
+		if method_type != 'GCASH':
+			return Response(
+				{"error": "Invalid payment method type. Only GCash is supported."},
+				status=400
+			)
+		
+		# Validate required fields
+		if not account_name or not account_number:
+			return Response(
+				{"error": "Account name and number are required"},
+				status=400
+			)
+		
+		# Validate and clean GCash number format
+		clean_number = account_number.replace(' ', '').replace('-', '')
+		if not clean_number.startswith('09') or len(clean_number) != 11:
+			return Response(
+				{"error": "Invalid GCash number format (must be 11 digits starting with 09)"},
+				status=400
+			)
+		
+		with db_transaction.atomic():
+			# Check if this is the first payment method (auto-set as primary)
+			has_existing = UserPaymentMethod.objects.filter(accountFK=account).exists()
+			is_first = not has_existing
+			
+			# Create payment method
+			method = UserPaymentMethod.objects.create(
+				accountFK=account,
+				methodType='GCASH',
+				accountName=account_name,
+				accountNumber=clean_number,
+				bankName=None,
+				isPrimary=is_first,  # First one is automatically primary
+				isVerified=False  # Will be verified later
+			)
+			
+			print(f"✅ Agency payment method added: {method.methodType} for {account.email}")
+		
+		return {
+			'success': True,
+			'message': 'Payment method added successfully',
+			'method_id': method.id,
+			'is_primary': method.isPrimary
+		}
+	except Exception as e:
+		print(f"❌ Add agency payment method error: {str(e)}")
+		import traceback
+		traceback.print_exc()
+		return Response(
+			{"error": "Failed to add payment method"},
+			status=500
+		)
+
+
+@router.delete("/payment-methods/{method_id}", auth=cookie_auth)
+def delete_agency_payment_method(request, method_id: int):
+	"""Delete an agency payment method"""
+	try:
+		from accounts.models import UserPaymentMethod
+		from .models import AgencyKYC
+		from django.db import transaction as db_transaction
+		
+		account = request.auth
+		
+		# Verify this is an agency account
+		agency = AgencyKYC.objects.filter(accountFK=account).first()
+		if not agency:
+			return Response({"error": "Agency account not found"}, status=400)
+		
+		method = UserPaymentMethod.objects.filter(
+			id=method_id,
+			accountFK=account
+		).first()
+		
+		if not method:
+			return Response(
+				{"error": "Payment method not found"},
+				status=404
+			)
+		
+		was_primary = method.isPrimary
+		
+		with db_transaction.atomic():
+			method.delete()
+			
+			# If deleted method was primary, set another method as primary
+			if was_primary:
+				next_method = UserPaymentMethod.objects.filter(
+					accountFK=account
+				).first()
+				
+				if next_method:
+					next_method.isPrimary = True
+					next_method.save()
+					print(f"✅ Set new primary payment method: {next_method.id}")
+		
+		print(f"✅ Agency payment method deleted: {method_id} for {account.email}")
+		
+		return {
+			'success': True,
+			'message': 'Payment method removed successfully'
+		}
+	except Exception as e:
+		print(f"❌ Delete agency payment method error: {str(e)}")
+		return Response(
+			{"error": "Failed to remove payment method"},
+			status=500
+		)
+
+
+@router.post("/payment-methods/{method_id}/set-primary", auth=cookie_auth)
+def set_primary_agency_payment_method(request, method_id: int):
+	"""Set an agency payment method as primary"""
+	try:
+		from accounts.models import UserPaymentMethod
+		from .models import AgencyKYC
+		from django.db import transaction as db_transaction
+		
+		account = request.auth
+		
+		# Verify this is an agency account
+		agency = AgencyKYC.objects.filter(accountFK=account).first()
+		if not agency:
+			return Response({"error": "Agency account not found"}, status=400)
+		
+		method = UserPaymentMethod.objects.filter(
+			id=method_id,
+			accountFK=account
+		).first()
+		
+		if not method:
+			return Response(
+				{"error": "Payment method not found"},
+				status=404
+			)
+		
+		with db_transaction.atomic():
+			# Remove primary from all other methods
+			UserPaymentMethod.objects.filter(
+				accountFK=account
+			).update(isPrimary=False)
+			
+			# Set this method as primary
+			method.isPrimary = True
+			method.save()
+		
+		print(f"✅ Set primary agency payment method: {method_id} for {account.email}")
+		
+		return {
+			'success': True,
+			'message': 'Primary payment method updated'
+		}
+	except Exception as e:
+		print(f"❌ Set primary agency payment method error: {str(e)}")
+		return Response(
+			{"error": "Failed to update primary payment method"},
+			status=500
+		)
+
+
+# ============================================
+# AGENCY WALLET WITHDRAWAL (with Xendit)
+# ============================================
+
+@router.post("/wallet/withdraw", auth=cookie_auth)
+def agency_withdraw_funds(request):
+	"""
+	Withdraw funds from agency wallet to GCash via Xendit Disbursement.
+	Requires a saved payment method (GCash account).
+	Deducts balance immediately and creates Xendit disbursement request.
+	"""
+	try:
+		from accounts.models import Wallet, Transaction, UserPaymentMethod
+		from accounts.xendit_service import XenditService
+		from .models import AgencyKYC
+		from decimal import Decimal
+		from django.utils import timezone
+		from django.db import transaction as db_transaction
+		import json
+		
+		account = request.auth
+		
+		# Verify this is an agency account
+		agency = AgencyKYC.objects.filter(accountFK=account).first()
+		if not agency:
+			return Response({"error": "Agency account not found"}, status=400)
+		
+		# Parse request body
+		try:
+			data = json.loads(request.body)
+		except:
+			return Response({"error": "Invalid JSON body"}, status=400)
+		
+		amount = data.get('amount', 0)
+		payment_method_id = data.get('payment_method_id')
+		notes = data.get('notes', '')
+		
+		print(f"💸 [Agency] Withdraw request: ₱{amount} to payment method {payment_method_id} from {account.email}")
+		
+		# Validate amount
+		if not amount or amount <= 0:
+			return Response(
+				{"error": "Amount must be greater than 0"},
+				status=400
+			)
+		
+		# Minimum withdrawal of ₱100
+		if amount < 100:
+			return Response(
+				{"error": "Minimum withdrawal amount is ₱100"},
+				status=400
+			)
+		
+		# BLOCKER: Require payment method
+		if not payment_method_id:
+			return Response(
+				{"error": "Payment method is required. Please add a GCash account first."},
+				status=400
+			)
+		
+		# Get wallet
+		try:
+			wallet = Wallet.objects.get(accountFK=account)
+		except Wallet.DoesNotExist:
+			return Response(
+				{"error": "Wallet not found"},
+				status=404
+			)
+		
+		# Check sufficient balance
+		if wallet.balance < Decimal(str(amount)):
+			return Response(
+				{"error": f"Insufficient balance. Available: ₱{wallet.balance}"},
+				status=400
+			)
+		
+		# Get payment method and validate ownership
+		try:
+			payment_method = UserPaymentMethod.objects.get(
+				id=payment_method_id,
+				accountFK=account
+			)
+		except UserPaymentMethod.DoesNotExist:
+			return Response(
+				{"error": "Payment method not found. Please add a GCash account."},
+				status=404
+			)
+		
+		# Only GCash supported for now
+		if payment_method.methodType != 'GCASH':
+			return Response(
+				{"error": "Only GCash withdrawals are currently supported"},
+				status=400
+			)
+		
+		# Get agency business name from Agency model (not AgencyKYC)
+		from accounts.models import Agency as AgencyModel
+		agency_profile = AgencyModel.objects.filter(accountFK=account).first()
+		business_name = (agency_profile.businessName if agency_profile else None) or account.email.split('@')[0]
+		
+		print(f"💰 Agency balance: ₱{wallet.balance}")
+		
+		# Use atomic transaction to ensure consistency
+		with db_transaction.atomic():
+			# Deduct balance immediately
+			old_balance = wallet.balance
+			wallet.balance -= Decimal(str(amount))
+			wallet.save()
+			
+			# Create pending withdrawal transaction
+			transaction = Transaction.objects.create(
+				walletID=wallet,
+				transactionType='WITHDRAWAL',
+				amount=Decimal(str(amount)),
+				balanceAfter=wallet.balance,
+				status='PENDING',
+				description=f"Withdrawal to GCash - {payment_method.accountNumber}",
+				paymentMethod="GCASH"
+			)
+			
+			print(f"✅ New balance: ₱{wallet.balance}")
+			print(f"📤 Creating Xendit disbursement for agency...")
+			
+			# Create Xendit disbursement
+			disbursement_result = XenditService.create_disbursement(
+				amount=amount,
+				recipient_name=payment_method.accountName,
+				account_number=payment_method.accountNumber,
+				transaction_id=transaction.transactionID,
+				notes=notes or f"Agency withdrawal - {business_name} - ₱{amount}"
+			)
+			
+			if not disbursement_result.get("success"):
+				# Rollback balance deduction
+				wallet.balance = old_balance
+				wallet.save()
+				transaction.delete()
+				
+				print(f"❌ Xendit disbursement failed: {disbursement_result.get('error')}")
+				return Response(
+					{"error": f"Failed to process withdrawal: {disbursement_result.get('error', 'Payment provider error')}"},
+					status=500
+				)
+			
+			# Update transaction with Xendit details
+			transaction.xenditInvoiceID = disbursement_result.get('disbursement_id', '')
+			transaction.xenditExternalID = disbursement_result.get('external_id', '')
+			transaction.xenditPaymentChannel = "GCASH"
+			transaction.xenditPaymentMethod = "DISBURSEMENT"
+			
+			# Mark as completed if disbursement is successful
+			if disbursement_result.get('status') == 'COMPLETED':
+				transaction.status = 'COMPLETED'
+				transaction.completedAt = timezone.now()
+			
+			transaction.save()
+			
+			print(f"📄 Disbursement created: {disbursement_result.get('disbursement_id')}")
+			print(f"📊 Status: {disbursement_result.get('status')}")
+		
+		return {
+			"success": True,
+			"transaction_id": transaction.transactionID,
+			"disbursement_id": disbursement_result.get('disbursement_id'),
+			"amount": amount,
+			"new_balance": float(wallet.balance),
+			"status": disbursement_result.get('status', 'PENDING'),
+			"recipient": payment_method.accountNumber,
+			"recipient_name": payment_method.accountName,
+			"message": "Withdrawal request submitted successfully. Funds will be transferred to your GCash within 1-3 business days."
+		}
+		
+	except Exception as e:
+		print(f"❌ [Agency] Error withdrawing funds: {str(e)}")
+		import traceback
+		traceback.print_exc()
+		return Response(
+			{"error": "Failed to process withdrawal"},
 			status=500
 		)

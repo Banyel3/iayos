@@ -80,12 +80,23 @@ class WebSocketService {
     console.log("[WebSocket] Connecting to inbox WebSocket...");
 
     try {
-      // Get WebSocket URL from environment or default
-      const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const wsHost = process.env.NEXT_PUBLIC_WS_HOST || "localhost:8000";
-      const wsUrl = `${wsProtocol}//${wsHost}/ws/inbox/`;
+      // Get WebSocket URL from environment
+      // NEXT_PUBLIC_WS_URL should be like "ws://localhost:8000" or "wss://api.example.com"
+      const wsBaseUrl = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000";
 
-      console.log("[WebSocket] Connecting to:", wsUrl);
+      // Get auth token from localStorage (stored during login)
+      const token =
+        typeof window !== "undefined" ? localStorage.getItem("ws_token") : null;
+
+      // Build WebSocket URL with token as query param for authentication
+      const wsUrl = token
+        ? `${wsBaseUrl}/ws/inbox/?token=${encodeURIComponent(token)}`
+        : `${wsBaseUrl}/ws/inbox/`;
+
+      console.log(
+        "[WebSocket] Connecting to:",
+        wsUrl.replace(/token=.*/, "token=***")
+      );
 
       this.ws = new WebSocket(wsUrl);
 

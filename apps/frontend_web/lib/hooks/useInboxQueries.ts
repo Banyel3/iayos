@@ -141,6 +141,7 @@ export function useApproveJobCompletion() {
 
 /**
  * Hook to submit a review
+ * Supports multi-employee agency jobs with review_target and employee_id
  */
 export function useSubmitReview() {
   const queryClient = useQueryClient();
@@ -150,10 +151,14 @@ export function useSubmitReview() {
       jobId,
       rating,
       message,
+      review_target,
+      employee_id,
     }: {
       jobId: number;
       rating: number;
       message: string;
+      review_target?: "EMPLOYEE" | "AGENCY"; // For agency jobs
+      employee_id?: number; // For multi-employee agency jobs
     }) => {
       const response = await fetch(
         `http://localhost:8000/api/jobs/${jobId}/review`,
@@ -161,7 +166,12 @@ export function useSubmitReview() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
-          body: JSON.stringify({ rating, message: message.trim() || null }),
+          body: JSON.stringify({ 
+            rating, 
+            message: message.trim() || null,
+            review_target,
+            employee_id,
+          }),
         }
       );
 

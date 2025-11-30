@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { PendingInviteCard, RejectReasonModal } from "@/components/agency";
-import AssignEmployeeModal from "@/components/agency/AssignEmployeeModal";
+import AssignEmployeesModal from "@/components/agency/AssignEmployeesModal";
 import {
   Loader2,
   AlertCircle,
@@ -482,13 +482,14 @@ export default function AgencyJobsPage() {
     }
   };
 
-  const handleAssignEmployee = async (
-    employeeId: number | null | undefined,
+  const handleAssignEmployees = async (
+    employeeIds: number[],
+    primaryContactId: number,
     notes: string
   ) => {
     if (!selectedJobForAssignment) return;
-    if (employeeId === null || employeeId === undefined) {
-      throw new Error("Invalid employee selected");
+    if (!employeeIds || employeeIds.length === 0) {
+      throw new Error("No employees selected");
     }
 
     try {
@@ -496,18 +497,20 @@ export default function AgencyJobsPage() {
       setSuccessMessage(null);
 
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      const formData = new FormData();
-      formData.append("employee_id", employeeId.toString());
-      if (notes?.trim()) {
-        formData.append("assignment_notes", notes.trim());
-      }
-
+      
       const response = await fetch(
-        `${apiUrl}/api/agency/jobs/${selectedJobForAssignment.jobID}/assign-employee`,
+        `${apiUrl}/api/agency/jobs/${selectedJobForAssignment.jobID}/assign-employees`,
         {
           method: "POST",
           credentials: "include",
-          body: formData,
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            employee_ids: employeeIds,
+            primary_contact_id: primaryContactId,
+            assignment_notes: notes?.trim() || "",
+          }),
         }
       );
 
@@ -532,13 +535,14 @@ export default function AgencyJobsPage() {
 
         const errorMessage =
           derivedMessage ||
-          `Failed to assign employee (HTTP ${response.status})`;
+          `Failed to assign employees (HTTP ${response.status})`;
         throw new Error(errorMessage);
       }
 
       // Show success message
+      const count = employeeIds.length;
       setSuccessMessage(
-        `Employee successfully assigned to "${selectedJobForAssignment.title}"!`
+        `${count} employee${count > 1 ? "s" : ""} successfully assigned to "${selectedJobForAssignment.title}"!`
       );
 
       // Scroll to top to show success message
@@ -552,7 +556,7 @@ export default function AgencyJobsPage() {
       setAssignModalOpen(false);
       setSelectedJobForAssignment(null);
     } catch (err) {
-      console.error("Error assigning employee:", err);
+      console.error("Error assigning employees:", err);
       throw err; // Re-throw to let modal handle error display
     }
   };
@@ -1277,9 +1281,9 @@ export default function AgencyJobsPage() {
         jobTitle={selectedJobForReject?.title || ""}
       />
 
-      {/* Assign Employee Modal */}
+      {/* Assign Employees Modal (Multi-Employee Support) */}
       {selectedJobForAssignment && (
-        <AssignEmployeeModal
+        <AssignEmployeesModal
           isOpen={assignModalOpen}
           onClose={() => {
             setAssignModalOpen(false);
@@ -1287,7 +1291,7 @@ export default function AgencyJobsPage() {
           }}
           job={selectedJobForAssignment}
           employees={employees}
-          onAssign={handleAssignEmployee}
+          onAssign={handleAssignEmployees}
         />
       )}
     </div>

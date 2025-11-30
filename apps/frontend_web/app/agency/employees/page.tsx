@@ -170,16 +170,16 @@ export default function EmployeesPage() {
     }
 
     try {
-      const formData = new FormData();
-      formData.append("reason", eotmReason);
-
       const employeeId = selectedEmployee.employeeId || selectedEmployee.id;
       const res = await fetch(
         `${API_BASE}/api/agency/employees/${employeeId}/set-eotm`,
         {
           method: "POST",
           credentials: "include",
-          body: formData,
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ reason: eotmReason }),
         }
       );
 

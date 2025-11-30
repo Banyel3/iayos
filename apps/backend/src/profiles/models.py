@@ -62,21 +62,38 @@ class WorkerProduct(models.Model):
 
 class Conversation(models.Model):
     """
-    Represents a chat conversation between two profiles for a specific job.
-    Created automatically when a job application is accepted.
+    Represents a chat conversation between a client and either a worker or agency for a specific job.
+    Created automatically when a job application is accepted or agency invite is accepted.
+    
+    For regular jobs: client + worker (Profile)
+    For agency jobs: client + agency (Agency model)
     """
     conversationID = models.BigAutoField(primary_key=True)
     
-    # Participants - Client and Worker
+    # Client participant (always required)
     client = models.ForeignKey(
         Profile,
         on_delete=models.CASCADE,
         related_name='conversations_as_client'
     )
+    
+    # Worker participant (for regular jobs - nullable for agency jobs)
     worker = models.ForeignKey(
         Profile,
         on_delete=models.CASCADE,
-        related_name='conversations_as_worker'
+        related_name='conversations_as_worker',
+        null=True,
+        blank=True
+    )
+    
+    # Agency participant (for agency jobs - nullable for regular jobs)
+    from accounts.models import Agency
+    agency = models.ForeignKey(
+        Agency,
+        on_delete=models.CASCADE,
+        related_name='conversations_as_agency',
+        null=True,
+        blank=True
     )
     
     # Required: Link to job posting - each conversation is tied to a specific job
@@ -100,11 +117,11 @@ class Conversation(models.Model):
     
     # Unread counts for each participant
     unreadCountClient = models.IntegerField(default=0)
-    unreadCountWorker = models.IntegerField(default=0)
+    unreadCountWorker = models.IntegerField(default=0)  # Also used for agency
     
     # Archive flags - each participant can archive independently
     archivedByClient = models.BooleanField(default=False)
-    archivedByWorker = models.BooleanField(default=False)
+    archivedByWorker = models.BooleanField(default=False)  # Also used for agency
     
     # Conversation status
     class ConversationStatus(models.TextChoices):
@@ -128,6 +145,7 @@ class Conversation(models.Model):
         indexes = [
             models.Index(fields=['client', '-updatedAt']),
             models.Index(fields=['worker', '-updatedAt']),
+            models.Index(fields=['agency', '-updatedAt']),
             models.Index(fields=['relatedJobPosting']),
             models.Index(fields=['status']),
         ]
@@ -139,8 +157,24 @@ class Conversation(models.Model):
             )
         ]
     
+    @property
+    def is_agency_conversation(self):
+        """Check if this is an agency conversation"""
+        return self.agency is not None
+    
+    @property
+    def service_provider_name(self):
+        """Get the name of the service provider (worker or agency)"""
+        if self.agency:
+            return self.agency.businessName
+        elif self.worker:
+            return f"{self.worker.firstName} {self.worker.lastName}"
+        return "Unknown"
+    
     def __str__(self):
         job_title = self.relatedJobPosting.title if self.relatedJobPosting else "Unknown Job"
+        if self.agency:
+            return f"Conversation for '{job_title}' between {self.client.firstName} (Client) and {self.agency.businessName} (Agency)"
         return f"Conversation for '{job_title}' between {self.client.firstName} (Client) and {self.worker.firstName} (Worker)"
     
     def get_unread_count_for_profile(self, profile_id):
@@ -170,7 +204,8 @@ class Conversation(models.Model):
 
 class Message(models.Model):
     """
-    Individual messages within a job conversation
+    Individual messages within a job conversation.
+    Supports both Profile senders (clients/workers) and Agency senders.
     """
     messageID = models.BigAutoField(primary_key=True)
     conversationID = models.ForeignKey(
@@ -179,11 +214,22 @@ class Message(models.Model):
         related_name='messages'
     )
     
-    # Message sender - using Profile
+    # Message sender - Profile (for clients/workers)
     sender = models.ForeignKey(
         Profile,
         on_delete=models.CASCADE,
-        related_name='sent_messages'
+        related_name='sent_messages',
+        null=True,
+        blank=True
+    )
+    
+    # Message sender - Agency (for agency users without profile)
+    senderAgency = models.ForeignKey(
+        'accounts.Agency',
+        on_delete=models.CASCADE,
+        related_name='sent_messages',
+        null=True,
+        blank=True
     )
     
     # Message content
@@ -236,7 +282,20 @@ class Message(models.Model):
         ]
     
     def __str__(self):
-        return f"Message from {self.sender.firstName} {self.sender.lastName} at {self.createdAt}"
+        sender_name = self.get_sender_name()
+        return f"Message from {sender_name} at {self.createdAt}"
+    
+    def get_sender_name(self):
+        """Get sender name (works for both Profile and Agency senders)"""
+        if self.sender:
+            return f"{self.sender.firstName} {self.sender.lastName}"
+        elif self.senderAgency:
+            return self.senderAgency.businessName
+        return "Unknown"
+    
+    def get_sender(self):
+        """Get sender object (Profile or Agency)"""
+        return self.sender or self.senderAgency
     
     def save(self, *args, **kwargs):
         """Update conversation's last message info"""
@@ -246,14 +305,18 @@ class Message(models.Model):
         conv = self.conversationID
         conv.lastMessageText = self.messageText[:100]  # Store first 100 chars
         conv.lastMessageTime = self.createdAt
-        conv.lastMessageSender = self.sender
+        conv.lastMessageSender = self.sender  # Note: This is still Profile-based
         
         # Update unread count for the recipient
-        if self.sender == conv.client:
-            # Client sent message, increment worker's unread count
-            conv.unreadCountWorker += 1
-        else:
-            # Worker sent message, increment client's unread count
+        if self.sender:
+            if self.sender == conv.client:
+                # Client sent message, increment worker's unread count
+                conv.unreadCountWorker += 1
+            else:
+                # Worker sent message, increment client's unread count
+                conv.unreadCountClient += 1
+        elif self.senderAgency:
+            # Agency sent message, increment client's unread count
             conv.unreadCountClient += 1
         
         conv.save(update_fields=['lastMessageText', 'lastMessageTime', 'lastMessageSender', 'unreadCountClient', 'unreadCountWorker', 'updatedAt'])
