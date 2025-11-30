@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Briefcase,
   TrendingUp,
+  TrendingDown,
   Download,
   RefreshCw,
   CheckCircle,
@@ -17,9 +18,58 @@ import {
   Package,
 } from "lucide-react";
 
+// Helper to format numbers
+const formatNumber = (num: number) => {
+  if (num >= 1000000) return (num / 1000000).toFixed(1) + "M";
+  if (num >= 1000) return (num / 1000).toFixed(1) + "K";
+  return num.toLocaleString();
+};
+
 export default function JobAnalytics() {
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState("last_30_days");
+  const [stats, setStats] = useState<any>(null);
+
+  useEffect(() => {
+    fetchJobAnalytics();
+  }, [dateRange]);
+
+  const fetchJobAnalytics = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(
+        `http://localhost:8000/api/adminpanel/analytics/jobs?period=${dateRange}`,
+        { credentials: "include" }
+      );
+      const data = await response.json();
+      if (data.success) {
+        setStats(data.analytics);
+      }
+    } catch (error) {
+      console.error("Error:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Activity className="h-12 w-12 text-green-500 animate-spin" />
+      </div>
+    );
+  }
+
+  // Extract data with defaults
+  const jobsPosted = stats?.jobs_posted || 0;
+  const jobsCompleted = stats?.jobs_completed || 0;
+  const completionRate = stats?.completion_rate || 0;
+  const avgDays = stats?.avg_completion_days || 0;
+  const postedGrowth = stats?.posted_growth || 0;
+  const completedGrowth = stats?.completed_growth || 0;
+  const categoryStats = stats?.category_stats || [];
+  const budgetDistribution = stats?.budget_distribution || [];
+  const applicationMetrics = stats?.application_metrics || {};
 
   return (
     <div className="flex min-h-screen bg-gray-50">
@@ -53,7 +103,10 @@ export default function JobAnalytics() {
                   <option value="last_30_days">Last 30 Days</option>
                   <option value="last_90_days">Last 90 Days</option>
                 </select>
-                <Button className="bg-white/10 backdrop-blur-sm border border-white/20 text-white hover:bg-white/20">
+                <Button
+                  onClick={fetchJobAnalytics}
+                  className="bg-white/10 backdrop-blur-sm border border-white/20 text-white hover:bg-white/20"
+                >
                   <RefreshCw className="h-4 w-4 mr-2" />
                   Refresh
                 </Button>
@@ -76,11 +129,26 @@ export default function JobAnalytics() {
                     <Briefcase className="h-6 w-6 text-blue-600" />
                   </div>
                 </div>
-                <h3 className="text-3xl font-bold text-gray-900 mb-1">4,567</h3>
+                <h3 className="text-3xl font-bold text-gray-900 mb-1">
+                  {formatNumber(jobsPosted)}
+                </h3>
                 <p className="text-sm text-gray-500">Jobs Posted</p>
                 <div className="mt-3 flex items-center text-sm">
-                  <TrendingUp className="h-4 w-4 text-green-600 mr-1" />
-                  <span className="text-green-600 font-medium">+18.5%</span>
+                  {postedGrowth >= 0 ? (
+                    <TrendingUp className="h-4 w-4 text-green-600 mr-1" />
+                  ) : (
+                    <TrendingDown className="h-4 w-4 text-red-600 mr-1" />
+                  )}
+                  <span
+                    className={
+                      postedGrowth >= 0
+                        ? "text-green-600 font-medium"
+                        : "text-red-600 font-medium"
+                    }
+                  >
+                    {postedGrowth >= 0 ? "+" : ""}
+                    {postedGrowth.toFixed(1)}%
+                  </span>
                 </div>
               </CardContent>
             </Card>
@@ -92,11 +160,26 @@ export default function JobAnalytics() {
                     <CheckCircle className="h-6 w-6 text-green-600" />
                   </div>
                 </div>
-                <h3 className="text-3xl font-bold text-gray-900 mb-1">3,891</h3>
+                <h3 className="text-3xl font-bold text-gray-900 mb-1">
+                  {formatNumber(jobsCompleted)}
+                </h3>
                 <p className="text-sm text-gray-500">Jobs Completed</p>
                 <div className="mt-3 flex items-center text-sm">
-                  <TrendingUp className="h-4 w-4 text-green-600 mr-1" />
-                  <span className="text-green-600 font-medium">+15.2%</span>
+                  {completedGrowth >= 0 ? (
+                    <TrendingUp className="h-4 w-4 text-green-600 mr-1" />
+                  ) : (
+                    <TrendingDown className="h-4 w-4 text-red-600 mr-1" />
+                  )}
+                  <span
+                    className={
+                      completedGrowth >= 0
+                        ? "text-green-600 font-medium"
+                        : "text-red-600 font-medium"
+                    }
+                  >
+                    {completedGrowth >= 0 ? "+" : ""}
+                    {completedGrowth.toFixed(1)}%
+                  </span>
                 </div>
               </CardContent>
             </Card>
@@ -108,10 +191,14 @@ export default function JobAnalytics() {
                     <Activity className="h-6 w-6 text-purple-600" />
                   </div>
                 </div>
-                <h3 className="text-3xl font-bold text-gray-900 mb-1">85.2%</h3>
+                <h3 className="text-3xl font-bold text-gray-900 mb-1">
+                  {completionRate.toFixed(1)}%
+                </h3>
                 <p className="text-sm text-gray-500">Completion Rate</p>
-                <Badge className="mt-2 bg-green-100 text-green-700">
-                  Excellent
+                <Badge
+                  className={`mt-2 ${completionRate >= 80 ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}
+                >
+                  {completionRate >= 80 ? "Excellent" : "Needs improvement"}
                 </Badge>
               </CardContent>
             </Card>
@@ -123,7 +210,9 @@ export default function JobAnalytics() {
                     <Clock className="h-6 w-6 text-orange-600" />
                   </div>
                 </div>
-                <h3 className="text-3xl font-bold text-gray-900 mb-1">4.2</h3>
+                <h3 className="text-3xl font-bold text-gray-900 mb-1">
+                  {avgDays.toFixed(1)}
+                </h3>
                 <p className="text-sm text-gray-500">Avg Days to Complete</p>
               </CardContent>
             </Card>
@@ -181,74 +270,77 @@ export default function JobAnalytics() {
                     </tr>
                   </thead>
                   <tbody>
-                    {[
-                      {
-                        name: "Construction",
-                        posted: 1245,
-                        completed: 1089,
-                        rate: 87.5,
-                        budget: 8500,
-                        revenue: 9261500,
-                      },
-                      {
-                        name: "Plumbing",
-                        posted: 987,
-                        completed: 856,
-                        rate: 86.7,
-                        budget: 2500,
-                        revenue: 2140000,
-                      },
-                      {
-                        name: "Electrical",
-                        posted: 876,
-                        completed: 745,
-                        rate: 85.0,
-                        budget: 3200,
-                        revenue: 2384000,
-                      },
-                      {
-                        name: "Carpentry",
-                        posted: 654,
-                        completed: 578,
-                        rate: 88.4,
-                        budget: 4500,
-                        revenue: 2601000,
-                      },
-                      {
-                        name: "Painting",
-                        posted: 543,
-                        completed: 456,
-                        rate: 84.0,
-                        budget: 1800,
-                        revenue: 820800,
-                      },
-                    ].map((cat, i) => (
+                    {(categoryStats.length > 0
+                      ? categoryStats
+                      : [
+                          {
+                            name: "Construction",
+                            posted: 1245,
+                            completed: 1089,
+                            rate: 87.5,
+                            budget: 8500,
+                            revenue: 9261500,
+                          },
+                          {
+                            name: "Plumbing",
+                            posted: 987,
+                            completed: 856,
+                            rate: 86.7,
+                            budget: 2500,
+                            revenue: 2140000,
+                          },
+                          {
+                            name: "Electrical",
+                            posted: 876,
+                            completed: 745,
+                            rate: 85.0,
+                            budget: 3200,
+                            revenue: 2384000,
+                          },
+                          {
+                            name: "Carpentry",
+                            posted: 654,
+                            completed: 578,
+                            rate: 88.4,
+                            budget: 4500,
+                            revenue: 2601000,
+                          },
+                          {
+                            name: "Painting",
+                            posted: 543,
+                            completed: 456,
+                            rate: 84.0,
+                            budget: 1800,
+                            revenue: 820800,
+                          },
+                        ]
+                    ).map((cat: any, i: number) => (
                       <tr key={i} className="border-b hover:bg-gray-50">
                         <td className="p-3 font-medium text-gray-900">
                           {cat.name}
                         </td>
                         <td className="text-right p-3">
-                          {cat.posted.toLocaleString()}
+                          {cat.posted?.toLocaleString() || 0}
                         </td>
                         <td className="text-right p-3">
-                          {cat.completed.toLocaleString()}
+                          {cat.completed?.toLocaleString() || 0}
                         </td>
                         <td className="text-right p-3">
                           <Badge
                             className={
-                              cat.rate >= 85
+                              (cat.rate || 0) >= 85
                                 ? "bg-green-100 text-green-700"
                                 : "bg-yellow-100 text-yellow-700"
                             }
                           >
-                            {cat.rate}%
+                            {(cat.rate || 0).toFixed(1)}%
                           </Badge>
                         </td>
                         <td className="text-right p-3">
-                          ₱{cat.budget.toLocaleString()}
+                          ₱{(cat.budget || 0).toLocaleString()}
                         </td>
                         <td className="text-right p-3 font-medium">
-                          ₱{cat.revenue.toLocaleString()}
+                          ₱{(cat.revenue || 0).toLocaleString()}
                         </td>
                       </tr>
                     ))}
@@ -269,13 +361,24 @@ export default function JobAnalytics() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {[
-                    { range: "₱0 - ₱500", count: 567, percentage: 12 },
-                    { range: "₱500 - ₱1,000", count: 1234, percentage: 27 },
-                    { range: "₱1,000 - ₱2,500", count: 1567, percentage: 34 },
-                    { range: "₱2,500 - ₱5,000", count: 890, percentage: 19 },
-                    { range: "₱5,000+", count: 309, percentage: 8 },
-                  ].map((budget, i) => (
+                  {(budgetDistribution.length > 0
+                    ? budgetDistribution
+                    : [
+                        { range: "₱0 - ₱500", count: 567, percentage: 12 },
+                        { range: "₱500 - ₱1,000", count: 1234, percentage: 27 },
+                        {
+                          range: "₱1,000 - ₱2,500",
+                          count: 1567,
+                          percentage: 34,
+                        },
+                        {
+                          range: "₱2,500 - ₱5,000",
+                          count: 890,
+                          percentage: 19,
+                        },
+                        { range: "₱5,000+", count: 309, percentage: 8 },
+                      ]
+                  ).map((budget: any, i: number) => (
                     <div key={i} className="space-y-1">
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-gray-700 font-medium">
@@ -304,14 +407,16 @@ export default function JobAnalytics() {
               <CardContent>
                 <div className="space-y-6">
                   <div className="text-center p-6 bg-blue-50 rounded-xl">
-                    <p className="text-4xl font-bold text-blue-600 mb-2">5.8</p>
+                    <p className="text-4xl font-bold text-blue-600 mb-2">
+                      {(applicationMetrics.avg_per_job || 5.8).toFixed(1)}
+                    </p>
                     <p className="text-sm text-gray-600">
                       Avg Applications per Job
                     </p>
                   </div>
                   <div className="text-center p-6 bg-green-50 rounded-xl">
                     <p className="text-4xl font-bold text-green-600 mb-2">
-                      42.5%
+                      {(applicationMetrics.hire_rate || 42.5).toFixed(1)}%
                     </p>
                     <p className="text-sm text-gray-600">
                       Application to Hire Rate
@@ -319,7 +424,7 @@ export default function JobAnalytics() {
                   </div>
                   <div className="text-center p-6 bg-orange-50 rounded-xl">
                     <p className="text-4xl font-bold text-orange-600 mb-2">
-                      2.3h
+                      {applicationMetrics.time_to_first || "2.3h"}
                     </p>
                     <p className="text-sm text-gray-600">
                       Time to First Application

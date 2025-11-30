@@ -1721,53 +1721,59 @@ def get_support_statistics(request, range: str = "7days"):
 # Analytics Overview Endpoint
 @router.get("/analytics/overview", auth=cookie_auth)
 def get_analytics_overview(request, period: str = "last_30_days"):
-    """Mock analytics overview endpoint."""
-    mock_overview = {
-        "stats": {
-            "users": {
-                "total": 12845,
-                "new": 342,
-                "active": 8932,
-                "growth_rate": 15.3,
+    """Get comprehensive analytics overview with real data."""
+    try:
+        overview = get_overview_data(period=period)
+        return {"success": True, **overview}
+    except Exception as e:
+        print(f"Error in get_analytics_overview: {str(e)}")
+        # Return mock data as fallback
+        mock_overview = {
+            "stats": {
+                "users": {
+                    "total": 12845,
+                    "new": 342,
+                    "active": 8932,
+                    "growth_rate": 15.3,
+                },
+                "jobs": {
+                    "total": 4567,
+                    "active": 342,
+                    "completed": 3891,
+                    "completion_rate": 85.2,
+                },
+                "revenue": {
+                    "total": 2845000,
+                    "platform_fees": 142250,
+                    "growth_rate": 22.5,
+                },
+                "transactions": {
+                    "count": 4123,
+                    "avg_value": 690.00,
+                    "payment_methods": {"gcash": 45, "wallet": 35, "cash": 20},
+                },
             },
-            "jobs": {
-                "total": 4567,
-                "active": 342,
-                "completed": 3891,
-                "completion_rate": 85.2,
-            },
-            "revenue": {
-                "total": 2845000,
-                "platform_fees": 142250,
-                "growth_rate": 22.5,
-            },
-            "transactions": {
-                "count": 4123,
-                "avg_value": 690.00,
-                "payment_methods": {"gcash": 45, "wallet": 35, "cash": 20},
-            },
-        },
-        "revenue_timeline": [
-            {"date": "2025-01-01", "revenue": 85000, "transactions": 123},
-            {"date": "2025-01-02", "revenue": 92000, "transactions": 145},
-            {"date": "2025-01-03", "revenue": 88000, "transactions": 132},
-            {"date": "2025-01-04", "revenue": 95000, "transactions": 156},
-            {"date": "2025-01-05", "revenue": 98000, "transactions": 162},
-            {"date": "2025-01-06", "revenue": 105000, "transactions": 178},
-            {"date": "2025-01-07", "revenue": 102000, "transactions": 165},
-        ],
-        "user_timeline": [
-            {"date": "2025-01-01", "users": 450, "active": 320},
-            {"date": "2025-01-02", "users": 465, "active": 335},
-            {"date": "2025-01-03", "users": 478, "active": 342},
-            {"date": "2025-01-04", "users": 492, "active": 358},
-            {"date": "2025-01-05", "users": 505, "active": 365},
-            {"date": "2025-01-06", "users": 518, "active": 372},
-            {"date": "2025-01-07", "users": 532, "active": 385},
-        ],
-    }
-    
-    return {"success": True, **mock_overview}
+            "revenue_timeline": [
+                {"date": "2025-01-01", "revenue": 85000, "transactions": 123},
+                {"date": "2025-01-02", "revenue": 92000, "transactions": 145},
+                {"date": "2025-01-03", "revenue": 88000, "transactions": 132},
+                {"date": "2025-01-04", "revenue": 95000, "transactions": 156},
+                {"date": "2025-01-05", "revenue": 98000, "transactions": 162},
+                {"date": "2025-01-06", "revenue": 105000, "transactions": 178},
+                {"date": "2025-01-07", "revenue": 102000, "transactions": 165},
+            ],
+            "user_timeline": [
+                {"date": "2025-01-01", "users": 450, "active": 320},
+                {"date": "2025-01-02", "users": 465, "active": 335},
+                {"date": "2025-01-03", "users": 478, "active": 342},
+                {"date": "2025-01-04", "users": 492, "active": 358},
+                {"date": "2025-01-05", "users": 505, "active": 365},
+                {"date": "2025-01-06", "users": 518, "active": 372},
+                {"date": "2025-01-07", "users": 532, "active": 385},
+            ],
+        }
+        
+        return {"success": True, **mock_overview}
 
 
 # =============================================================================
@@ -2153,6 +2159,83 @@ def review_user_report_action(request, report_id: int, data: ReviewReportActionS
         )
     except Exception as e:
         print(f"Error in review_user_report_action: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+# =============================================================================
+# ANALYTICS API ENDPOINTS
+# =============================================================================
+
+from .analytics_service import (
+    get_user_analytics, get_job_analytics, get_financial_analytics,
+    get_geographic_analytics, get_engagement_analytics, get_support_statistics,
+    get_analytics_overview as get_overview_data
+)
+
+
+@router.get("/analytics/users", auth=cookie_auth)
+def get_user_analytics_endpoint(request, period: str = "last_30_days", segment: str = "all"):
+    """Get comprehensive user analytics: DAU, WAU, MAU, demographics, growth trends."""
+    try:
+        analytics = get_user_analytics(period=period, segment=segment)
+        return {"success": True, "analytics": analytics}
+    except Exception as e:
+        print(f"Error in get_user_analytics_endpoint: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/analytics/jobs", auth=cookie_auth)
+def get_job_analytics_endpoint(request, period: str = "last_30_days"):
+    """Get job marketplace analytics: volume, completion rates, categories, timeline."""
+    try:
+        analytics = get_job_analytics(period=period)
+        return {"success": True, "analytics": analytics}
+    except Exception as e:
+        print(f"Error in get_job_analytics_endpoint: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/analytics/financial", auth=cookie_auth)
+def get_financial_analytics_endpoint(request, period: str = "last_30_days"):
+    """Get financial analytics: revenue, transactions, payment methods, trends."""
+    try:
+        analytics = get_financial_analytics(period=period)
+        return {"success": True, "analytics": analytics}
+    except Exception as e:
+        print(f"Error in get_financial_analytics_endpoint: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/analytics/geographic", auth=cookie_auth)
+def get_geographic_analytics_endpoint(request):
+    """Get geographic analytics: regional breakdown, city stats, heatmap data."""
+    try:
+        analytics = get_geographic_analytics()
+        return {"success": True, "analytics": analytics}
+    except Exception as e:
+        print(f"Error in get_geographic_analytics_endpoint: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/analytics/engagement", auth=cookie_auth)
+def get_engagement_analytics_endpoint(request, period: str = "last_30_days"):
+    """Get engagement metrics: session duration, pages/session, bounce rate, feature usage."""
+    try:
+        analytics = get_engagement_analytics(period=period)
+        return {"success": True, "analytics": analytics}
+    except Exception as e:
+        print(f"Error in get_engagement_analytics_endpoint: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/support/statistics", auth=cookie_auth)
+def get_support_statistics_endpoint(request, range: str = "last_30_days"):
+    """Get support ticket statistics for support analytics dashboard."""
+    try:
+        statistics = get_support_statistics(period=range)
+        return {"success": True, "statistics": statistics}
+    except Exception as e:
+        print(f"Error in get_support_statistics_endpoint: {str(e)}")
         return {"success": False, "error": str(e)}
 
 

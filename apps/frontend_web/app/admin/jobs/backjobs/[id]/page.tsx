@@ -112,7 +112,8 @@ export default function DisputeDetailPage() {
           jobId: d.job_id?.toString() || "",
           jobTitle: d.job_title || "Unknown Job",
           category: d.category || "General",
-          disputedBy: d.disputed_by?.toLowerCase() === "worker" ? "worker" : "client",
+          disputedBy:
+            d.disputed_by?.toLowerCase() === "worker" ? "worker" : "client",
           client: {
             id: d.client_id?.toString() || "",
             name: d.client_name || "Unknown Client",
@@ -158,7 +159,9 @@ export default function DisputeDetailPage() {
           <div className="flex items-center justify-center min-h-[400px]">
             <div className="flex flex-col items-center space-y-4">
               <Loader2 className="h-8 w-8 animate-spin text-orange-600" />
-              <p className="text-muted-foreground">Loading dispute details...</p>
+              <p className="text-muted-foreground">
+                Loading dispute details...
+              </p>
             </div>
           </div>
         </main>

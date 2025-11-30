@@ -79,15 +79,27 @@ export default function KYCAuditLogPage() {
           kycId: log.kycID?.toString() || "",
           userName: log.userEmail?.split("@")[0] || "Unknown User",
           userEmail: log.userEmail || "",
-          userType: (log.kycType === "AGENCY" ? "agency" : "worker") as "worker" | "client" | "agency",
-          action: log.action?.toLowerCase() === "approved" ? "approved" : 
-                  log.action?.toLowerCase() === "rejected" ? "rejected" : "submitted",
+          userType: (log.kycType === "AGENCY" ? "agency" : "worker") as
+            | "worker"
+            | "client"
+            | "agency",
+          action:
+            log.action?.toLowerCase() === "approved"
+              ? "approved"
+              : log.action?.toLowerCase() === "rejected"
+                ? "rejected"
+                : "submitted",
           performedBy: log.reviewedBy || "System",
-          timestamp: log.reviewedAt || log.createdAt || new Date().toISOString(),
+          timestamp:
+            log.reviewedAt || log.createdAt || new Date().toISOString(),
           notes: log.reason || undefined,
           previousStatus: "pending",
-          newStatus: log.action?.toLowerCase() === "approved" ? "approved" : 
-                     log.action?.toLowerCase() === "rejected" ? "rejected" : "pending",
+          newStatus:
+            log.action?.toLowerCase() === "approved"
+              ? "approved"
+              : log.action?.toLowerCase() === "rejected"
+                ? "rejected"
+                : "pending",
         }));
         setAuditLogs(transformedLogs);
       } else {

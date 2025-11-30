@@ -177,16 +177,20 @@ export default function InvoicePage() {
                     {invoice.invoice_number}
                   </p>
                   <p>
-                    <span className="font-semibold">Job ID:</span> {invoice.job_id}
+                    <span className="font-semibold">Job ID:</span>{" "}
+                    {invoice.job_id}
                   </p>
                   <p>
                     <span className="font-semibold">Date Issued:</span>{" "}
-                    {invoice.completed_at 
-                      ? new Date(invoice.completed_at).toLocaleDateString("en-US", {
-                          year: "numeric",
-                          month: "long",
-                          day: "numeric",
-                        })
+                    {invoice.completed_at
+                      ? new Date(invoice.completed_at).toLocaleDateString(
+                          "en-US",
+                          {
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                          }
+                        )
                       : "Pending"}
                   </p>
                   <p>
@@ -244,7 +248,9 @@ export default function InvoicePage() {
                 <h4 className="font-bold text-xl text-gray-900 mb-2">
                   {invoice.title}
                 </h4>
-                <p className="text-sm text-gray-600 mb-4">{invoice.description}</p>
+                <p className="text-sm text-gray-600 mb-4">
+                  {invoice.description}
+                </p>
                 <div className="grid grid-cols-3 gap-4 text-sm">
                   <div>
                     <p className="text-gray-500">Category</p>
@@ -289,38 +295,51 @@ export default function InvoicePage() {
                       </p>
                     </td>
                     <td className="text-right py-4 font-semibold text-gray-900">
-                      ₱{invoice.budget.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                      ₱
+                      {invoice.budget.toLocaleString("en-PH", {
+                        minimumFractionDigits: 2,
+                      })}
                     </td>
                   </tr>
 
-                  {invoice.materials && invoice.materials.length > 0 && invoice.materials.map((material, index) => (
-                    <tr key={index} className="border-b border-gray-200">
-                      <td className="py-4">
-                        <p className="font-medium text-gray-900">
-                          Materials: {material}
-                        </p>
-                      </td>
-                      <td className="text-right py-4 font-medium text-gray-900">
-                        -
-                      </td>
-                    </tr>
-                  ))}
+                  {invoice.materials &&
+                    invoice.materials.length > 0 &&
+                    invoice.materials.map((material, index) => (
+                      <tr key={index} className="border-b border-gray-200">
+                        <td className="py-4">
+                          <p className="font-medium text-gray-900">
+                            Materials: {material}
+                          </p>
+                        </td>
+                        <td className="text-right py-4 font-medium text-gray-900">
+                          -
+                        </td>
+                      </tr>
+                    ))}
 
                   <tr className="border-b border-gray-200">
                     <td className="py-4">
                       <p className="text-gray-700">50% Downpayment (Escrow)</p>
                     </td>
                     <td className="text-right py-4 text-gray-700">
-                      ₱{invoice.downpayment.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                      ₱
+                      {invoice.downpayment.toLocaleString("en-PH", {
+                        minimumFractionDigits: 2,
+                      })}
                     </td>
                   </tr>
 
                   <tr className="border-b border-gray-200">
                     <td className="py-4">
-                      <p className="text-gray-700">Platform Fee (5% of downpayment)</p>
+                      <p className="text-gray-700">
+                        Platform Fee (5% of downpayment)
+                      </p>
                     </td>
                     <td className="text-right py-4 text-gray-700">
-                      ₱{invoice.platform_fee.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                      ₱
+                      {invoice.platform_fee.toLocaleString("en-PH", {
+                        minimumFractionDigits: 2,
+                      })}
                     </td>
                   </tr>
 
@@ -329,7 +348,10 @@ export default function InvoicePage() {
                       <p className="text-gray-700">Remaining Balance (50%)</p>
                     </td>
                     <td className="text-right py-4 text-gray-700">
-                      ₱{invoice.remaining_balance.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                      ₱
+                      {invoice.remaining_balance.toLocaleString("en-PH", {
+                        minimumFractionDigits: 2,
+                      })}
                     </td>
                   </tr>
 
@@ -341,7 +363,10 @@ export default function InvoicePage() {
                     </td>
                     <td className="text-right py-4">
                       <p className="text-2xl font-bold text-blue-600">
-                        ₱{invoice.final_amount.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                        ₱
+                        {invoice.final_amount.toLocaleString("en-PH", {
+                          minimumFractionDigits: 2,
+                        })}
                       </p>
                     </td>
                   </tr>
@@ -358,18 +383,31 @@ export default function InvoicePage() {
                 <div className="bg-blue-50 rounded-lg p-6">
                   <div className="space-y-3">
                     {invoice.transactions.map((txn, index) => (
-                      <div key={index} className="flex justify-between text-sm border-b border-blue-100 pb-2 last:border-0">
+                      <div
+                        key={index}
+                        className="flex justify-between text-sm border-b border-blue-100 pb-2 last:border-0"
+                      >
                         <div>
-                          <p className="font-semibold text-gray-900">{txn.type}</p>
+                          <p className="font-semibold text-gray-900">
+                            {txn.type}
+                          </p>
                           <p className="text-gray-500 text-xs">
-                            {txn.payment_method} • {txn.created_at ? new Date(txn.created_at).toLocaleString() : "N/A"}
+                            {txn.payment_method} •{" "}
+                            {txn.created_at
+                              ? new Date(txn.created_at).toLocaleString()
+                              : "N/A"}
                           </p>
                         </div>
                         <div className="text-right">
                           <p className="font-semibold text-gray-900">
-                            ₱{txn.amount.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                            ₱
+                            {txn.amount.toLocaleString("en-PH", {
+                              minimumFractionDigits: 2,
+                            })}
                           </p>
-                          <p className={`text-xs ${txn.status === 'COMPLETED' ? 'text-green-600' : 'text-yellow-600'}`}>
+                          <p
+                            className={`text-xs ${txn.status === "COMPLETED" ? "text-green-600" : "text-yellow-600"}`}
+                          >
                             {txn.status}
                           </p>
                         </div>

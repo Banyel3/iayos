@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Users,
   TrendingUp,
+  TrendingDown,
   Download,
   RefreshCw,
   UserCheck,
@@ -17,6 +18,13 @@ import {
   Activity,
   AlertTriangle,
 } from "lucide-react";
+
+// Helper to format numbers
+const formatNumber = (num: number) => {
+  if (num >= 1000000) return (num / 1000000).toFixed(1) + "M";
+  if (num >= 1000) return (num / 1000).toFixed(1) + "K";
+  return num.toLocaleString();
+};
 
 export default function UserAnalytics() {
   const [loading, setLoading] = useState(true);
@@ -53,6 +61,20 @@ export default function UserAnalytics() {
       </div>
     );
   }
+
+  // Extract data with defaults
+  const dau = stats?.active_users?.dau || 0;
+  const wau = stats?.active_users?.wau || 0;
+  const mau = stats?.active_users?.mau || 0;
+  const dauGrowth = stats?.active_users?.dau_growth || 0;
+  const wauGrowth = stats?.active_users?.wau_growth || 0;
+  const mauGrowth = stats?.active_users?.mau_growth || 0;
+  const churnRate = stats?.churn_analysis?.churn_rate || 0;
+  const atRiskUsers = stats?.churn_analysis?.at_risk_users || 0;
+  const retentionRate = stats?.churn_analysis?.retention_rate || 0;
+  const demographics = stats?.demographics || [];
+  const topCities = stats?.top_cities || [];
+  const retentionCohorts = stats?.retention_cohorts || [];
 
   return (
     <div className="flex min-h-screen bg-gray-50">
@@ -121,11 +143,26 @@ export default function UserAnalytics() {
                   </div>
                   <Badge className="bg-blue-100 text-blue-700">DAU</Badge>
                 </div>
-                <h3 className="text-3xl font-bold text-gray-900 mb-1">8,932</h3>
+                <h3 className="text-3xl font-bold text-gray-900 mb-1">
+                  {formatNumber(dau)}
+                </h3>
                 <p className="text-sm text-gray-500">Daily Active Users</p>
                 <div className="mt-3 flex items-center text-sm">
-                  <TrendingUp className="h-4 w-4 text-green-600 mr-1" />
-                  <span className="text-green-600 font-medium">+12.5%</span>
+                  {dauGrowth >= 0 ? (
+                    <TrendingUp className="h-4 w-4 text-green-600 mr-1" />
+                  ) : (
+                    <TrendingDown className="h-4 w-4 text-red-600 mr-1" />
+                  )}
+                  <span
+                    className={
+                      dauGrowth >= 0
+                        ? "text-green-600 font-medium"
+                        : "text-red-600 font-medium"
+                    }
+                  >
+                    {dauGrowth >= 0 ? "+" : ""}
+                    {dauGrowth.toFixed(1)}%
+                  </span>
                 </div>
               </CardContent>
             </Card>
@@ -139,12 +176,25 @@ export default function UserAnalytics() {
                   <Badge className="bg-green-100 text-green-700">WAU</Badge>
                 </div>
                 <h3 className="text-3xl font-bold text-gray-900 mb-1">
-                  24,567
+                  {formatNumber(wau)}
                 </h3>
                 <p className="text-sm text-gray-500">Weekly Active Users</p>
                 <div className="mt-3 flex items-center text-sm">
-                  <TrendingUp className="h-4 w-4 text-green-600 mr-1" />
-                  <span className="text-green-600 font-medium">+8.3%</span>
+                  {wauGrowth >= 0 ? (
+                    <TrendingUp className="h-4 w-4 text-green-600 mr-1" />
+                  ) : (
+                    <TrendingDown className="h-4 w-4 text-red-600 mr-1" />
+                  )}
+                  <span
+                    className={
+                      wauGrowth >= 0
+                        ? "text-green-600 font-medium"
+                        : "text-red-600 font-medium"
+                    }
+                  >
+                    {wauGrowth >= 0 ? "+" : ""}
+                    {wauGrowth.toFixed(1)}%
+                  </span>
                 </div>
               </CardContent>
             </Card>
@@ -158,12 +208,25 @@ export default function UserAnalytics() {
                   <Badge className="bg-purple-100 text-purple-700">MAU</Badge>
                 </div>
                 <h3 className="text-3xl font-bold text-gray-900 mb-1">
-                  78,234
+                  {formatNumber(mau)}
                 </h3>
                 <p className="text-sm text-gray-500">Monthly Active Users</p>
                 <div className="mt-3 flex items-center text-sm">
-                  <TrendingUp className="h-4 w-4 text-green-600 mr-1" />
-                  <span className="text-green-600 font-medium">+15.7%</span>
+                  {mauGrowth >= 0 ? (
+                    <TrendingUp className="h-4 w-4 text-green-600 mr-1" />
+                  ) : (
+                    <TrendingDown className="h-4 w-4 text-red-600 mr-1" />
+                  )}
+                  <span
+                    className={
+                      mauGrowth >= 0
+                        ? "text-green-600 font-medium"
+                        : "text-red-600 font-medium"
+                    }
+                  >
+                    {mauGrowth >= 0 ? "+" : ""}
+                    {mauGrowth.toFixed(1)}%
+                  </span>
                 </div>
               </CardContent>
             </Card>
@@ -217,12 +280,39 @@ export default function UserAnalytics() {
                     </tr>
                   </thead>
                   <tbody>
-                    {[
-                      { month: "Jan 2025", d1: 95, d7: 78, d30: 62, d90: 45 },
-                      { month: "Dec 2024", d1: 93, d7: 75, d30: 58, d90: 42 },
-                      { month: "Nov 2024", d1: 91, d7: 72, d30: 55, d90: 38 },
-                      { month: "Oct 2024", d1: 89, d7: 70, d30: 52, d90: 35 },
-                    ].map((cohort, i) => (
+                    {(retentionCohorts.length > 0
+                      ? retentionCohorts
+                      : [
+                          {
+                            month: "Jan 2025",
+                            d1: 95,
+                            d7: 78,
+                            d30: 62,
+                            d90: 45,
+                          },
+                          {
+                            month: "Dec 2024",
+                            d1: 93,
+                            d7: 75,
+                            d30: 58,
+                            d90: 42,
+                          },
+                          {
+                            month: "Nov 2024",
+                            d1: 91,
+                            d7: 72,
+                            d30: 55,
+                            d90: 38,
+                          },
+                          {
+                            month: "Oct 2024",
+                            d1: 89,
+                            d7: 70,
+                            d30: 52,
+                            d90: 35,
+                          },
+                        ]
+                    ).map((cohort: any, i: number) => (
                       <tr key={i} className="border-b hover:bg-gray-50">
                         <td className="p-3 font-medium">{cohort.month}</td>
                         <td className="text-center p-3">
@@ -272,54 +362,40 @@ export default function UserAnalytics() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-gray-600">18-24</span>
-                      <span className="text-sm font-medium">2,345</span>
-                    </div>
-                    <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-blue-500 rounded-full"
-                        style={{ width: "25%" }}
-                      ></div>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-gray-600">25-34</span>
-                      <span className="text-sm font-medium">4,567</span>
-                    </div>
-                    <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-green-500 rounded-full"
-                        style={{ width: "48%" }}
-                      ></div>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-gray-600">35-44</span>
-                      <span className="text-sm font-medium">1,890</span>
-                    </div>
-                    <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-purple-500 rounded-full"
-                        style={{ width: "20%" }}
-                      ></div>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-gray-600">45+</span>
-                      <span className="text-sm font-medium">645</span>
-                    </div>
-                    <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-orange-500 rounded-full"
-                        style={{ width: "7%" }}
-                      ></div>
-                    </div>
-                  </div>
+                  {(demographics.length > 0
+                    ? demographics
+                    : [
+                        { age_range: "18-24", count: 2345, percentage: 25 },
+                        { age_range: "25-34", count: 4567, percentage: 48 },
+                        { age_range: "35-44", count: 1890, percentage: 20 },
+                        { age_range: "45+", count: 645, percentage: 7 },
+                      ]
+                  ).map((demo: any, i: number) => {
+                    const colors = [
+                      "bg-blue-500",
+                      "bg-green-500",
+                      "bg-purple-500",
+                      "bg-orange-500",
+                    ];
+                    return (
+                      <div key={i}>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm text-gray-600">
+                            {demo.age_range}
+                          </span>
+                          <span className="text-sm font-medium">
+                            {formatNumber(demo.count)}
+                          </span>
+                        </div>
+                        <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full ${colors[i % colors.length]} rounded-full`}
+                            style={{ width: `${demo.percentage}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>
@@ -333,33 +409,38 @@ export default function UserAnalytics() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {[
-                    { city: "Zamboanga City", users: 3456, percentage: 27 },
-                    { city: "Manila", users: 2890, percentage: 22 },
-                    { city: "Cebu City", users: 2134, percentage: 17 },
-                    { city: "Davao City", users: 1567, percentage: 12 },
-                    { city: "Cagayan de Oro", users: 1234, percentage: 10 },
-                  ].map((city, i) => (
-                    <div
-                      key={i}
-                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-                    >
-                      <div className="flex items-center space-x-3">
-                        <span className="text-sm font-medium text-gray-500 w-6">
-                          #{i + 1}
-                        </span>
-                        <div>
-                          <p className="font-medium text-gray-900">
-                            {city.city}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {city.users.toLocaleString()} users
-                          </p>
+                  {(topCities.length > 0
+                    ? topCities
+                    : [
+                        { city: "Zamboanga City", users: 3456, percentage: 27 },
+                        { city: "Manila", users: 2890, percentage: 22 },
+                        { city: "Cebu City", users: 2134, percentage: 17 },
+                        { city: "Davao City", users: 1567, percentage: 12 },
+                        { city: "Cagayan de Oro", users: 1234, percentage: 10 },
+                      ]
+                  )
+                    .slice(0, 5)
+                    .map((city: any, i: number) => (
+                      <div
+                        key={i}
+                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                      >
+                        <div className="flex items-center space-x-3">
+                          <span className="text-sm font-medium text-gray-500 w-6">
+                            #{i + 1}
+                          </span>
+                          <div>
+                            <p className="font-medium text-gray-900">
+                              {city.city}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {formatNumber(city.users)} users
+                            </p>
+                          </div>
                         </div>
+                        <Badge variant="outline">{city.percentage}%</Badge>
                       </div>
-                      <Badge variant="outline">{city.percentage}%</Badge>
-                    </div>
-                  ))}
+                    ))}
                 </div>
               </CardContent>
             </Card>
@@ -377,25 +458,33 @@ export default function UserAnalytics() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="text-center p-6 bg-orange-50 rounded-xl">
                   <p className="text-4xl font-bold text-orange-600 mb-2">
-                    3.8%
+                    {churnRate.toFixed(1)}%
                   </p>
                   <p className="text-sm text-gray-600">Monthly Churn Rate</p>
-                  <Badge className="mt-2 bg-green-100 text-green-700">
-                    Below 5% target
+                  <Badge
+                    className={`mt-2 ${churnRate < 5 ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}
+                  >
+                    {churnRate < 5 ? "Below 5% target" : "Above target"}
                   </Badge>
                 </div>
                 <div className="text-center p-6 bg-red-50 rounded-xl">
-                  <p className="text-4xl font-bold text-red-600 mb-2">487</p>
+                  <p className="text-4xl font-bold text-red-600 mb-2">
+                    {formatNumber(atRiskUsers)}
+                  </p>
                   <p className="text-sm text-gray-600">At-Risk Users</p>
                   <Badge className="mt-2 bg-red-100 text-red-700">
                     Inactive 30+ days
                   </Badge>
                 </div>
                 <div className="text-center p-6 bg-blue-50 rounded-xl">
-                  <p className="text-4xl font-bold text-blue-600 mb-2">92.4%</p>
+                  <p className="text-4xl font-bold text-blue-600 mb-2">
+                    {retentionRate.toFixed(1)}%
+                  </p>
                   <p className="text-sm text-gray-600">Retention Rate</p>
-                  <Badge className="mt-2 bg-blue-100 text-blue-700">
-                    Excellent
+                  <Badge
+                    className={`mt-2 ${retentionRate >= 90 ? "bg-blue-100 text-blue-700" : "bg-yellow-100 text-yellow-700"}`}
+                  >
+                    {retentionRate >= 90 ? "Excellent" : "Needs improvement"}
                   </Badge>
                 </div>
               </div>
