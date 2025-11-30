@@ -91,7 +91,6 @@ interface Job {
 type TabType =
   | "invites"
   | "accepted"
-  | "assigned"
   | "inProgress"
   | "completed"
   | "cancelled";
@@ -101,7 +100,6 @@ export default function AgencyJobsPage() {
   const [activeTab, setActiveTab] = useState<TabType>("invites");
   const [pendingInvites, setPendingInvites] = useState<Job[]>([]);
   const [acceptedJobs, setAcceptedJobs] = useState<Job[]>([]);
-  const [assignedJobs, setAssignedJobs] = useState<Job[]>([]);
   const [inProgressJobs, setInProgressJobs] = useState<Job[]>([]);
   const [completedJobs, setCompletedJobs] = useState<Job[]>([]);
   const [cancelledJobs, setCancelledJobs] = useState<Job[]>([]);
@@ -127,7 +125,6 @@ export default function AgencyJobsPage() {
 
     fetchPendingInvites();
     fetchAcceptedJobs();
-    fetchAssignedJobs();
     fetchInProgressJobs();
     fetchCompletedJobs();
     fetchCancelledJobs();
@@ -142,8 +139,6 @@ export default function AgencyJobsPage() {
       fetchPendingInvites();
     } else if (activeTab === "accepted") {
       fetchAcceptedJobs();
-    } else if (activeTab === "assigned") {
-      fetchAssignedJobs();
     } else if (activeTab === "inProgress") {
       fetchInProgressJobs();
     } else if (activeTab === "completed") {
@@ -245,37 +240,6 @@ export default function AgencyJobsPage() {
       setError(
         err instanceof Error ? err.message : "Failed to load accepted jobs"
       );
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchAssignedJobs = async () => {
-    try {
-      setLoading(true);
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      // Fetch jobs with ASSIGNED status (employees assigned but work not started)
-      const response = await fetch(
-        `${apiUrl}/api/agency/jobs?invite_status=ACCEPTED&status=ASSIGNED`,
-        {
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(
-          `Failed to fetch assigned jobs: ${response.statusText}`
-        );
-      }
-
-      const data = await response.json();
-      // All ASSIGNED status jobs have employees, no need to filter
-      setAssignedJobs(data.jobs || []);
-    } catch (err) {
-      console.error("Error fetching assigned jobs:", err);
     } finally {
       setLoading(false);
     }
@@ -570,15 +534,15 @@ export default function AgencyJobsPage() {
       // Show success message
       const count = employeeIds.length;
       setSuccessMessage(
-        `${count} employee${count > 1 ? "s" : ""} successfully assigned to "${selectedJobForAssignment.title}"!`
+        `${count} employee${count > 1 ? "s" : ""} successfully assigned to "${selectedJobForAssignment.title}"! Job is now In Progress.`
       );
 
       // Scroll to top to show success message
       window.scrollTo({ top: 0, behavior: "smooth" });
 
-      // Refresh both accepted and assigned jobs lists
+      // Refresh accepted and in-progress jobs lists (job moves from accepted to in-progress)
       await fetchAcceptedJobs();
-      await fetchAssignedJobs();
+      await fetchInProgressJobs();
 
       // Close modal
       setAssignModalOpen(false);
@@ -673,31 +637,6 @@ export default function AgencyJobsPage() {
                       }`}
                     >
                       {acceptedJobs.length}
-                    </span>
-                  )}
-                </div>
-              </button>
-
-              <button
-                onClick={() => setActiveTab("assigned")}
-                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${
-                  activeTab === "assigned"
-                    ? "border-blue-600 text-blue-600"
-                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                }`}
-              >
-                <div className="flex items-center space-x-2">
-                  <UserPlus className="h-5 w-5" />
-                  <span>Assigned</span>
-                  {assignedJobs.length > 0 && (
-                    <span
-                      className={`px-2 py-0.5 text-xs rounded-full ${
-                        activeTab === "assigned"
-                          ? "bg-blue-100 text-blue-600"
-                          : "bg-gray-100 text-gray-600"
-                      }`}
-                    >
-                      {assignedJobs.length}
                     </span>
                   )}
                 </div>
@@ -939,101 +878,6 @@ export default function AgencyJobsPage() {
                           <span>Assign Employee</span>
                         </button>
                       )}
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </>
-        )}
-
-        {activeTab === "assigned" && (
-          <>
-            {assignedJobs.length === 0 ? (
-              <Card>
-                <CardContent className="py-12">
-                  <div className="text-center">
-                    <UserPlus className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                      No Assigned Jobs
-                    </h3>
-                    <p className="text-gray-600 max-w-md mx-auto">
-                      Jobs with assigned employees will appear here. Assign
-                      employees to accepted jobs to see them in this tab.
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="space-y-6">
-                <div className="text-sm text-gray-600 mb-4">
-                  Showing {assignedJobs.length} assigned{" "}
-                  {assignedJobs.length === 1 ? "job" : "jobs"}
-                </div>
-                {assignedJobs.map((job) => (
-                  <Card
-                    key={job.jobID}
-                    className="hover:shadow-lg transition-shadow cursor-pointer"
-                    onClick={() => router.push(`/agency/jobs/${job.jobID}`)}
-                  >
-                    <CardContent className="p-6">
-                      <div className="flex justify-between items-start mb-4">
-                        <div>
-                          <h3 className="text-xl font-bold text-gray-900 mb-2 hover:text-blue-600 transition-colors">
-                            {job.title}
-                          </h3>
-                          <p className="text-gray-600 mb-3">
-                            {job.description}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                        <div>
-                          <span className="text-sm text-gray-600">Budget</span>
-                          <p className="font-semibold text-gray-900">
-                            ₱{job.budget}
-                          </p>
-                        </div>
-                        <div>
-                          <span className="text-sm text-gray-600">
-                            Category
-                          </span>
-                          <p className="font-semibold text-gray-900">
-                            {job.category?.name || "N/A"}
-                          </p>
-                        </div>
-                        <div>
-                          <span className="text-sm text-gray-600">Urgency</span>
-                          <p
-                            className={`font-semibold ${
-                              job.urgency === "HIGH"
-                                ? "text-red-600"
-                                : job.urgency === "MEDIUM"
-                                  ? "text-orange-600"
-                                  : "text-green-600"
-                            }`}
-                          >
-                            {job.urgency}
-                          </p>
-                        </div>
-                        <div>
-                          <span className="text-sm text-gray-600">Client</span>
-                          <p className="font-semibold text-gray-900">
-                            {job.client.name}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center justify-between">
-                        <div className="flex items-center space-x-2">
-                          <CheckCircle className="text-blue-600" size={20} />
-                          <span className="text-blue-800 font-medium">
-                            Assigned to:{" "}
-                            {job.assignedEmployee?.name || "Unknown"}
-                          </span>
-                        </div>
-                      </div>
                     </CardContent>
                   </Card>
                 ))}

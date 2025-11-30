@@ -458,7 +458,7 @@ def get_agency_jobs(account_id, status_filter=None, invite_status_filter=None, p
 		
 		# Apply status filter
 		if status_filter:
-			valid_statuses = ['ACTIVE', 'ASSIGNED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']
+			valid_statuses = ['ACTIVE', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']
 			if status_filter.upper() not in valid_statuses:
 				raise ValueError(f"Invalid status. Must be one of: {', '.join(valid_statuses)}")
 			query &= Q(status=status_filter.upper())
@@ -987,7 +987,7 @@ def assign_job_to_employee(
 		job.employeeAssignedAt = timezone.now()
 		job.assignmentNotes = assignment_notes or ""
 		if job.status == 'ACTIVE':
-			job.status = 'ASSIGNED'
+			job.status = 'IN_PROGRESS'  # Go directly to IN_PROGRESS when employees assigned
 		job.save()
 
 	# Create job log entry
@@ -1231,8 +1231,8 @@ def assign_employees_to_job(
 	if job.inviteStatus != 'ACCEPTED':
 		raise ValueError(f"Cannot assign employees to job with invite status: {job.inviteStatus}")
 	
-	# Only allow assignment for ACTIVE or ASSIGNED jobs (not IN_PROGRESS or COMPLETED)
-	allowed_statuses = {'ACTIVE', 'ASSIGNED'}
+	# Only allow assignment for ACTIVE jobs (not IN_PROGRESS or COMPLETED)
+	allowed_statuses = {'ACTIVE'}
 	if job.status not in allowed_statuses:
 		raise ValueError(f"Cannot assign employees to job with status: {job.status}")
 	
@@ -1291,7 +1291,7 @@ def assign_employees_to_job(
 		if not job.employeeAssignedAt:
 			job.employeeAssignedAt = timezone.now()
 		if job.status == 'ACTIVE':
-			job.status = 'ASSIGNED'
+			job.status = 'IN_PROGRESS'  # Go directly to IN_PROGRESS when employees assigned
 		job.assignmentNotes = assignment_notes or ""
 		
 		# Also set legacy field to primary contact for backward compatibility
