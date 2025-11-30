@@ -23,13 +23,19 @@ export default async function AgencyLayout({
   let user: any = null;
 
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+    
     const res = await fetch(`${serverApiUrl}/api/accounts/me`, {
       headers: {
         cookie: cookieHeader,
         Accept: "application/json",
       },
       cache: "no-store", // Don't cache auth checks to prevent stale data
+      signal: controller.signal,
     });
+    
+    clearTimeout(timeoutId);
 
     if (!res.ok) {
       // Not authenticated
