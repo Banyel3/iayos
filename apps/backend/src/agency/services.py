@@ -458,7 +458,7 @@ def get_agency_jobs(account_id, status_filter=None, invite_status_filter=None, p
 		
 		# Apply status filter
 		if status_filter:
-			valid_statuses = ['ACTIVE', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']
+			valid_statuses = ['ACTIVE', 'ASSIGNED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']
 			if status_filter.upper() not in valid_statuses:
 				raise ValueError(f"Invalid status. Must be one of: {', '.join(valid_statuses)}")
 			query &= Q(status=status_filter.upper())
