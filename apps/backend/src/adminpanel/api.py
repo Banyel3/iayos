@@ -1,5 +1,5 @@
 from typing import List, Optional
-from ninja import Router
+from ninja import Router, Schema
 # from .schemas import createAccountSchema, logInSchema, createAgencySchema, forgotPasswordSchema, resetPasswordSchema
 # from .services import create_account_individ, create_account_agency, login_account, _verify_account, forgot_password_request, reset_password_verify, logout_account, refresh_token, fetch_currentUser, generateCookie
 from ninja.responses import Response
@@ -22,6 +22,14 @@ from .payment_service import (
     process_payout, get_disputes_list, get_dispute_detail, resolve_dispute,
     get_disputes_statistics, get_revenue_trends, get_payment_methods_breakdown,
     get_top_performers
+)
+from .support_service import (
+    get_tickets, get_ticket_detail, create_ticket, reply_to_ticket,
+    update_ticket_status, assign_ticket, get_ticket_stats,
+    get_canned_responses, create_canned_response, update_canned_response,
+    delete_canned_response, increment_canned_response_usage,
+    get_faqs, create_faq, update_faq, delete_faq, increment_faq_view,
+    get_reports, get_report_detail, create_report, review_report, get_report_stats
 )
 
 router = Router(tags=["adminpanel"])
@@ -1762,6 +1770,390 @@ def get_analytics_overview(request, period: str = "last_30_days"):
     return {"success": True, **mock_overview}
 
 
+# =============================================================================
+# SUPPORT TICKETS API
+# =============================================================================
+
+@router.get("/support/tickets", auth=cookie_auth)
+def get_support_tickets(
+    request,
+    page: int = 1,
+    limit: int = 30,
+    status: Optional[str] = None,
+    priority: Optional[str] = None,
+    category: Optional[str] = None,
+    assigned_to: Optional[int] = None,
+    search: Optional[str] = None,
+):
+    """Get paginated list of support tickets with filters."""
+    try:
+        return get_tickets(
+            page=page,
+            limit=limit,
+            status=status,
+            priority=priority,
+            category=category,
+            assigned_to=assigned_to,
+            search=search,
+        )
+    except Exception as e:
+        print(f"Error in get_support_tickets: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/support/tickets/stats", auth=cookie_auth)
+def get_tickets_stats(request):
+    """Get support ticket statistics."""
+    try:
+        return get_ticket_stats()
+    except Exception as e:
+        print(f"Error in get_tickets_stats: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/support/tickets/{ticket_id}", auth=cookie_auth)
+def get_ticket_by_id(request, ticket_id: int):
+    """Get detailed information about a specific ticket."""
+    try:
+        return get_ticket_detail(ticket_id)
+    except Exception as e:
+        print(f"Error in get_ticket_by_id: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+class CreateTicketSchema(Schema):
+    subject: str
+    content: str
+    category: str = "general"
+    priority: str = "medium"
+
+
+@router.post("/support/tickets", auth=cookie_auth)
+def create_support_ticket(request, data: CreateTicketSchema):
+    """Create a new support ticket."""
+    try:
+        return create_ticket(
+            user=request.auth,
+            subject=data.subject,
+            content=data.content,
+            category=data.category,
+            priority=data.priority,
+        )
+    except Exception as e:
+        print(f"Error in create_support_ticket: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+class ReplyTicketSchema(Schema):
+    content: Optional[str] = None
+    message: Optional[str] = None  # Alias for content (frontend uses 'message')
+    attachment_url: Optional[str] = None
+    is_internal_note: bool = False
+
+
+@router.post("/support/tickets/{ticket_id}/reply", auth=cookie_auth)
+def reply_to_support_ticket(request, ticket_id: int, data: ReplyTicketSchema):
+    """Add a reply to a support ticket."""
+    try:
+        # Use message if content not provided
+        actual_content = data.content or data.message or ""
+        if not actual_content:
+            return {"success": False, "error": "Content or message is required"}
+        
+        return reply_to_ticket(
+            ticket_id=ticket_id,
+            sender=request.auth,
+            content=actual_content,
+            attachment_url=data.attachment_url,
+        )
+    except Exception as e:
+        print(f"Error in reply_to_support_ticket: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+class UpdateTicketStatusSchema(Schema):
+    status: str
+
+
+@router.put("/support/tickets/{ticket_id}/status", auth=cookie_auth)
+def update_support_ticket_status(request, ticket_id: int, data: UpdateTicketStatusSchema):
+    """Update ticket status."""
+    try:
+        return update_ticket_status(
+            ticket_id=ticket_id,
+            status=data.status,
+            admin=request.auth,
+        )
+    except Exception as e:
+        print(f"Error in update_support_ticket_status: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+class AssignTicketSchema(Schema):
+    admin_id: int
+
+
+@router.put("/support/tickets/{ticket_id}/assign", auth=cookie_auth)
+def assign_support_ticket(request, ticket_id: int, data: AssignTicketSchema):
+    """Assign a ticket to an admin."""
+    try:
+        return assign_ticket(ticket_id=ticket_id, admin_id=data.admin_id)
+    except Exception as e:
+        print(f"Error in assign_support_ticket: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+# =============================================================================
+# CANNED RESPONSES API
+# =============================================================================
+
+@router.get("/support/canned-responses", auth=cookie_auth)
+def get_all_canned_responses(request, category: Optional[str] = None, search: Optional[str] = None):
+    """Get list of canned responses."""
+    try:
+        return get_canned_responses(category=category, search=search)
+    except Exception as e:
+        print(f"Error in get_all_canned_responses: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+class CannedResponseSchema(Schema):
+    title: str
+    content: str
+    category: str = "general"
+    shortcuts: Optional[List[str]] = None
+
+
+@router.post("/support/canned-responses", auth=cookie_auth)
+def create_new_canned_response(request, data: CannedResponseSchema):
+    """Create a new canned response."""
+    try:
+        return create_canned_response(
+            title=data.title,
+            content=data.content,
+            category=data.category,
+            shortcuts=data.shortcuts,
+            created_by=request.auth,
+        )
+    except Exception as e:
+        print(f"Error in create_new_canned_response: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+@router.put("/support/canned-responses/{response_id}", auth=cookie_auth)
+def update_existing_canned_response(request, response_id: int, data: CannedResponseSchema):
+    """Update an existing canned response."""
+    try:
+        return update_canned_response(
+            response_id=response_id,
+            title=data.title,
+            content=data.content,
+            category=data.category,
+            shortcuts=data.shortcuts,
+        )
+    except Exception as e:
+        print(f"Error in update_existing_canned_response: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+@router.delete("/support/canned-responses/{response_id}", auth=cookie_auth)
+def delete_existing_canned_response(request, response_id: int):
+    """Delete a canned response."""
+    try:
+        return delete_canned_response(response_id)
+    except Exception as e:
+        print(f"Error in delete_existing_canned_response: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+@router.post("/support/canned-responses/{response_id}/use", auth=cookie_auth)
+def use_canned_response(request, response_id: int):
+    """Increment usage count when a canned response is used."""
+    try:
+        return increment_canned_response_usage(response_id)
+    except Exception as e:
+        print(f"Error in use_canned_response: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+# =============================================================================
+# FAQs API
+# =============================================================================
+
+@router.get("/support/faqs", auth=cookie_auth)
+def get_all_faqs(request, category: Optional[str] = None, published_only: bool = False):
+    """Get list of FAQs (admin sees all, including unpublished)."""
+    try:
+        return get_faqs(category=category, published_only=published_only)
+    except Exception as e:
+        print(f"Error in get_all_faqs: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+class FAQSchema(Schema):
+    question: str
+    answer: str
+    category: str = "general"
+    sort_order: int = 0
+    is_published: bool = True
+
+
+@router.post("/support/faqs", auth=cookie_auth)
+def create_new_faq(request, data: FAQSchema):
+    """Create a new FAQ."""
+    try:
+        return create_faq(
+            question=data.question,
+            answer=data.answer,
+            category=data.category,
+            sort_order=data.sort_order,
+            is_published=data.is_published,
+        )
+    except Exception as e:
+        print(f"Error in create_new_faq: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+@router.put("/support/faqs/{faq_id}", auth=cookie_auth)
+def update_existing_faq(request, faq_id: int, data: FAQSchema):
+    """Update an existing FAQ."""
+    try:
+        return update_faq(
+            faq_id=faq_id,
+            question=data.question,
+            answer=data.answer,
+            category=data.category,
+            sort_order=data.sort_order,
+            is_published=data.is_published,
+        )
+    except Exception as e:
+        print(f"Error in update_existing_faq: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+@router.delete("/support/faqs/{faq_id}", auth=cookie_auth)
+def delete_existing_faq(request, faq_id: int):
+    """Delete an FAQ."""
+    try:
+        return delete_faq(faq_id)
+    except Exception as e:
+        print(f"Error in delete_existing_faq: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+@router.post("/support/faqs/{faq_id}/view")
+def record_faq_view(request, faq_id: int):
+    """Record a view of an FAQ (public endpoint)."""
+    try:
+        return increment_faq_view(faq_id)
+    except Exception as e:
+        print(f"Error in record_faq_view: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+# =============================================================================
+# USER REPORTS API
+# =============================================================================
+
+@router.get("/support/reports", auth=cookie_auth)
+def get_user_reports(
+    request,
+    page: int = 1,
+    limit: int = 30,
+    status: Optional[str] = None,
+    report_type: Optional[str] = None,
+    type: Optional[str] = None,  # Alias for report_type (frontend uses 'type')
+):
+    """Get paginated list of user reports."""
+    try:
+        # Use 'type' parameter if report_type not specified
+        actual_type = report_type or type
+        return get_reports(
+            page=page,
+            limit=limit,
+            status=status,
+            report_type=actual_type,
+        )
+    except Exception as e:
+        print(f"Error in get_user_reports: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/support/reports/stats", auth=cookie_auth)
+def get_reports_stats(request):
+    """Get user report statistics."""
+    try:
+        return get_report_stats()
+    except Exception as e:
+        print(f"Error in get_reports_stats: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/support/reports/{report_id}", auth=cookie_auth)
+def get_report_by_id(request, report_id: int):
+    """Get detailed information about a specific report."""
+    try:
+        return get_report_detail(report_id)
+    except Exception as e:
+        print(f"Error in get_report_by_id: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+class ReviewReportSchema(Schema):
+    status: str
+    action_taken: str = "none"
+    admin_notes: str = ""
+
+
+class ReviewReportActionSchema(Schema):
+    """Schema for frontend action-based review."""
+    action: str  # warning, suspend, ban, dismiss, resolve
+    notes: str = ""
+    duration: Optional[int] = None  # For suspend action
+
+
+@router.put("/support/reports/{report_id}/review", auth=cookie_auth)
+def review_user_report(request, report_id: int, data: ReviewReportSchema):
+    """Review and take action on a report."""
+    try:
+        return review_report(
+            report_id=report_id,
+            admin=request.auth,
+            status=data.status,
+            action_taken=data.action_taken,
+            admin_notes=data.admin_notes,
+        )
+    except Exception as e:
+        print(f"Error in review_user_report: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+@router.post("/support/reports/{report_id}/review", auth=cookie_auth)
+def review_user_report_action(request, report_id: int, data: ReviewReportActionSchema):
+    """Review a report using action-based approach (frontend uses this)."""
+    try:
+        # Map action to status and action_taken
+        action_mapping = {
+            "warning": {"status": "resolved", "action_taken": "warning"},
+            "suspend": {"status": "resolved", "action_taken": "suspended"},
+            "ban": {"status": "resolved", "action_taken": "banned"},
+            "dismiss": {"status": "dismissed", "action_taken": "none"},
+            "resolve": {"status": "resolved", "action_taken": "none"},
+            "investigate": {"status": "investigating", "action_taken": "none"},
+        }
+        
+        mapping = action_mapping.get(data.action, {"status": "pending", "action_taken": "none"})
+        
+        return review_report(
+            report_id=report_id,
+            admin=request.auth,
+            status=mapping["status"],
+            action_taken=mapping["action_taken"],
+            admin_notes=data.notes,
+        )
+    except Exception as e:
+        print(f"Error in review_user_report_action: {str(e)}")
+        return {"success": False, "error": str(e)}
 
 
 
