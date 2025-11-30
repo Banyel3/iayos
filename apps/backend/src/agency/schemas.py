@@ -171,3 +171,42 @@ class AgencySendMessageSchema(Schema):
 	message_text: str
 	message_type: str = "TEXT"
 
+
+# Agency Reviews Schemas
+
+class AgencyReviewSchema(Schema):
+	"""Schema for a single agency review"""
+	review_id: int
+	job_id: int
+	job_title: str
+	client_name: str
+	client_avatar: Optional[str]
+	rating: float
+	comment: str
+	created_at: datetime
+	review_type: str  # "AGENCY" or "EMPLOYEE"
+	employee_name: Optional[str]  # Only for employee reviews
+	employee_id: Optional[int]  # Only for employee reviews
+
+
+class AgencyReviewsStatsSchema(Schema):
+	"""Statistics for agency reviews"""
+	total_reviews: int
+	average_rating: float
+	positive_reviews: int  # rating >= 4
+	neutral_reviews: int   # rating >= 3 and < 4
+	negative_reviews: int  # rating < 3
+	agency_reviews_count: int
+	employee_reviews_count: int
+
+
+class AgencyReviewsListResponse(Schema):
+	"""Response for agency reviews list"""
+	success: bool
+	reviews: List[AgencyReviewSchema]
+	stats: AgencyReviewsStatsSchema
+	total: int
+	page: int
+	limit: int
+	total_pages: int
+

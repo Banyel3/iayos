@@ -187,22 +187,37 @@ export default function AgencyMessagesPage() {
                 </span>
               </div>
 
-              {/* Assigned Employee */}
-              {conversation.assigned_employee && (
+              {/* Assigned Employees (Multi-employee support) */}
+              {conversation.assigned_employees &&
+              conversation.assigned_employees.length > 0 ? (
                 <div className="flex items-center gap-2 text-xs text-gray-500 mb-2 bg-gray-50 p-1.5 rounded">
                   <Users className="h-3 w-3 text-green-600" />
                   <span>
-                    Assigned to:{" "}
+                    Assigned ({conversation.assigned_employees.length}):{" "}
                     <span className="font-medium text-gray-700">
-                      {conversation.assigned_employee.name}
+                      {conversation.assigned_employees
+                        .map((e) => e.name)
+                        .join(", ")}
                     </span>
                   </span>
-                  {conversation.assigned_employee.employeeOfTheMonth && (
-                    <Badge className="bg-yellow-100 text-yellow-800 text-xs">
-                      🏆 EOTM
-                    </Badge>
-                  )}
                 </div>
+              ) : (
+                conversation.assigned_employee && (
+                  <div className="flex items-center gap-2 text-xs text-gray-500 mb-2 bg-gray-50 p-1.5 rounded">
+                    <Users className="h-3 w-3 text-green-600" />
+                    <span>
+                      Assigned to:{" "}
+                      <span className="font-medium text-gray-700">
+                        {conversation.assigned_employee.name}
+                      </span>
+                    </span>
+                    {conversation.assigned_employee.employeeOfTheMonth && (
+                      <Badge className="bg-yellow-100 text-yellow-800 text-xs">
+                        🏆 EOTM
+                      </Badge>
+                    )}
+                  </div>
+                )
               )}
 
               {/* Last Message */}

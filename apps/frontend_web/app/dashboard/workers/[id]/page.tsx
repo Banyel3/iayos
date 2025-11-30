@@ -7,6 +7,11 @@ import { useAuth } from "@/context/AuthContext";
 import MobileNav from "@/components/ui/mobile-nav";
 import DesktopNavbar from "@/components/ui/desktop-sidebar";
 import NotificationBell from "@/components/notifications/NotificationBell";
+import {
+  useWorkerReviews,
+  StarRating,
+  formatReviewDate,
+} from "@/lib/hooks/useWorkerReviews";
 
 interface WorkerProfileData {
   id: string;
@@ -28,6 +33,18 @@ const WorkerProfileViewPage = () => {
   const workerId = params.id as string;
 
   const [workerData, setWorkerData] = useState<WorkerProfileData | null>(null);
+  const [isLoadingWorker, setIsLoadingWorker] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isReviewsExpanded, setIsReviewsExpanded] = useState(true);
+  const [reviewsPage, setReviewsPage] = useState(1);
+
+  // Fetch worker reviews
+  const {
+    reviews,
+    isLoading: isLoadingReviews,
+    total_count: totalReviews,
+    total_pages: totalReviewPages,
+  } = useWorkerReviews(workerId, reviewsPage, 5);
   const [isLoadingWorker, setIsLoadingWorker] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -346,6 +363,145 @@ const WorkerProfileViewPage = () => {
               {workerData.experience.toLowerCase()} of experience. Verified and
               trusted by the iAyos community.
             </p>
+          </div>
+
+          {/* Reviews Section - Mobile */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+            {/* Collapsible Header */}
+            <button
+              onClick={() => setIsReviewsExpanded(!isReviewsExpanded)}
+              className="w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 transition-colors"
+            >
+              <div className="flex items-center space-x-2">
+                <svg
+                  className="w-5 h-5 text-yellow-500"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                </svg>
+                <h3 className="text-lg font-bold text-gray-900">
+                  Reviews & Ratings
+                </h3>
+                <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-0.5 rounded-full">
+                  {totalReviews || 0}
+                </span>
+              </div>
+              <svg
+                className={`w-5 h-5 text-gray-500 transition-transform duration-200 ${isReviewsExpanded ? "rotate-180" : ""}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M19 9l-7 7-7-7"
+                />
+              </svg>
+            </button>
+
+            {/* Collapsible Content */}
+            {isReviewsExpanded && (
+              <div className="p-4">
+                {isLoadingReviews ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                    <span className="ml-2 text-gray-600">
+                      Loading reviews...
+                    </span>
+                  </div>
+                ) : reviews && reviews.length > 0 ? (
+                  <div className="space-y-4">
+                    {reviews.map((review) => (
+                      <div
+                        key={review.review_id}
+                        className="border-b border-gray-100 pb-4 last:border-0 last:pb-0"
+                      >
+                        <div className="flex items-start space-x-3">
+                          <Image
+                            src={
+                              review.reviewer_profile_img ||
+                              "/default-avatar.png"
+                            }
+                            alt={review.reviewer_name}
+                            width={40}
+                            height={40}
+                            className="w-10 h-10 rounded-full object-cover"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between mb-1">
+                              <h4 className="font-medium text-gray-900 truncate">
+                                {review.reviewer_name}
+                              </h4>
+                              <span className="text-xs text-gray-500">
+                                {formatReviewDate(review.created_at)}
+                              </span>
+                            </div>
+                            <StarRating rating={review.rating} />
+                            {review.comment && (
+                              <p className="mt-2 text-sm text-gray-600 line-clamp-3">
+                                {review.comment}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* Pagination for Mobile */}
+                    {totalReviewPages > 1 && (
+                      <div className="flex items-center justify-center space-x-2 pt-4">
+                        <button
+                          onClick={() =>
+                            setReviewsPage(Math.max(1, reviewsPage - 1))
+                          }
+                          disabled={reviewsPage === 1}
+                          className="px-3 py-1 text-sm bg-gray-100 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-200"
+                        >
+                          Previous
+                        </button>
+                        <span className="text-sm text-gray-600">
+                          Page {reviewsPage} of {totalReviewPages}
+                        </span>
+                        <button
+                          onClick={() =>
+                            setReviewsPage(
+                              Math.min(totalReviewPages, reviewsPage + 1)
+                            )
+                          }
+                          disabled={reviewsPage === totalReviewPages}
+                          className="px-3 py-1 text-sm bg-gray-100 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-200"
+                        >
+                          Next
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <svg
+                      className="w-12 h-12 text-gray-300 mx-auto mb-3"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={1.5}
+                        d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                      />
+                    </svg>
+                    <p className="text-gray-500 text-sm">No reviews yet</p>
+                    <p className="text-gray-400 text-xs mt-1">
+                      Be the first to hire and review this worker!
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 

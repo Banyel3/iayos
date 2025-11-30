@@ -449,6 +449,15 @@ class kyc(models.Model):
         PENDING = "PENDING", 'pending'
         APPROVED = "APPROVED", 'approved'
         REJECTED = "Rejected", "rejected"
+    
+    class RejectionCategory(models.TextChoices):
+        INVALID_DOCUMENT = "INVALID_DOCUMENT", "Invalid Document"
+        EXPIRED_DOCUMENT = "EXPIRED_DOCUMENT", "Expired Document"
+        UNCLEAR_IMAGE = "UNCLEAR_IMAGE", "Unclear/Blurry Image"
+        MISMATCH_INFO = "MISMATCH_INFO", "Information Mismatch"
+        INCOMPLETE = "INCOMPLETE", "Incomplete Submission"
+        OTHER = "OTHER", "Other"
+    
     kyc_status = models.CharField(
         max_length=10, choices=KycStatus.choices, default="PENDING", blank=True
     )
@@ -461,8 +470,39 @@ class kyc(models.Model):
         related_name="reviewed_kyc"
     )
     notes = models.CharField(max_length=211)
+    
+    # KYC Enhancement fields (Module 6)
+    rejectionCategory = models.CharField(
+        max_length=30, 
+        choices=RejectionCategory.choices, 
+        null=True, 
+        blank=True,
+        help_text="Category of rejection reason"
+    )
+    rejectionReason = models.TextField(
+        blank=True, 
+        default="",
+        help_text="Detailed rejection reason for the user"
+    )
+    resubmissionCount = models.IntegerField(
+        default=0,
+        help_text="Number of times the user has resubmitted KYC documents"
+    )
+    maxResubmissions = models.IntegerField(
+        default=3,
+        help_text="Maximum allowed resubmission attempts"
+    )
+    
     createdAt = models.DateTimeField(auto_now_add=True)
     updatedAt = models.DateTimeField(auto_now=True)
+    
+    def can_resubmit(self):
+        """Check if user can still resubmit KYC documents."""
+        return self.kyc_status == 'REJECTED' and self.resubmissionCount < self.maxResubmissions
+    
+    def get_remaining_attempts(self):
+        """Get number of remaining resubmission attempts."""
+        return max(0, self.maxResubmissions - self.resubmissionCount)
 
 class kycFiles(models.Model):
     kycFileID = models.BigAutoField(primary_key=True)

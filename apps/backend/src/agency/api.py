@@ -846,7 +846,7 @@ def get_agency_conversations(request, filter: str = "all"):
 			job = conv.relatedJobPosting
 			client_profile = conv.client
 			
-			# Get assigned employee info if exists
+			# Get assigned employee info if exists (legacy single employee)
 			assigned_employee = None
 			if job.assignedEmployeeID:
 				emp = job.assignedEmployeeID
@@ -862,6 +862,41 @@ def get_agency_conversations(request, filter: str = "all"):
 					"employeeOfTheMonth": emp.employeeOfTheMonth,
 					"rank": 0
 				}
+			
+			# Get ALL assigned employees from M2M (multi-employee support)
+			from accounts.models import JobEmployeeAssignment
+			assigned_employees = []
+			assignments = JobEmployeeAssignment.objects.filter(
+				job=job,
+				status__in=['ASSIGNED', 'IN_PROGRESS', 'COMPLETED']
+			).select_related('employee').order_by('-isPrimaryContact', 'assignedAt')
+			
+			for assignment in assignments:
+				emp = assignment.employee
+				assigned_employees.append({
+					"employeeId": emp.employeeID,
+					"name": emp.name,
+					"email": emp.email,
+					"role": emp.role,
+					"avatar": emp.avatar,
+					"rating": float(emp.rating) if emp.rating else None,
+					"isPrimaryContact": assignment.isPrimaryContact,
+					"status": assignment.status,
+				})
+			
+			# Fallback: if no M2M assignments but legacy field is set
+			if not assigned_employees and job.assignedEmployeeID:
+				emp = job.assignedEmployeeID
+				assigned_employees.append({
+					"employeeId": emp.employeeID,
+					"name": emp.name,
+					"email": emp.email,
+					"role": emp.role,
+					"avatar": emp.avatar,
+					"rating": float(emp.rating) if emp.rating else None,
+					"isPrimaryContact": True,
+					"status": "ASSIGNED",
+				})
 			
 			# Get client info
 			client_info = {
@@ -898,6 +933,7 @@ def get_agency_conversations(request, filter: str = "all"):
 				},
 				"client": client_info,
 				"assigned_employee": assigned_employee,
+				"assigned_employees": assigned_employees,  # Multi-employee support
 				"last_message": conv.lastMessageText,
 				"last_message_time": conv.updatedAt.isoformat() if conv.updatedAt else None,
 				"unread_count": unread_count,
@@ -990,7 +1026,7 @@ def get_agency_conversation_messages(request, conversation_id: int):
 			"job_title": None
 		}
 		
-		# Get assigned employee
+		# Get assigned employee (legacy single employee)
 		assigned_employee = None
 		if job.assignedEmployeeID:
 			emp = job.assignedEmployeeID
@@ -1006,6 +1042,41 @@ def get_agency_conversation_messages(request, conversation_id: int):
 				"employeeOfTheMonth": emp.employeeOfTheMonth,
 				"rank": 0
 			}
+		
+		# Get ALL assigned employees from M2M (multi-employee support)
+		from accounts.models import JobEmployeeAssignment
+		assigned_employees = []
+		assignments = JobEmployeeAssignment.objects.filter(
+			job=job,
+			status__in=['ASSIGNED', 'IN_PROGRESS', 'COMPLETED']
+		).select_related('employee').order_by('-isPrimaryContact', 'assignedAt')
+		
+		for assignment in assignments:
+			emp = assignment.employee
+			assigned_employees.append({
+				"employeeId": emp.employeeID,
+				"name": emp.name,
+				"email": emp.email,
+				"role": emp.role,
+				"avatar": emp.avatar,
+				"rating": float(emp.rating) if emp.rating else None,
+				"isPrimaryContact": assignment.isPrimaryContact,
+				"status": assignment.status,
+			})
+		
+		# Fallback: if no M2M assignments but legacy field is set
+		if not assigned_employees and job.assignedEmployeeID:
+			emp = job.assignedEmployeeID
+			assigned_employees.append({
+				"employeeId": emp.employeeID,
+				"name": emp.name,
+				"email": emp.email,
+				"role": emp.role,
+				"avatar": emp.avatar,
+				"rating": float(emp.rating) if emp.rating else None,
+				"isPrimaryContact": True,
+				"status": "ASSIGNED",
+			})
 		
 		# Check review status
 		from accounts.models import JobReview
@@ -1055,6 +1126,7 @@ def get_agency_conversation_messages(request, conversation_id: int):
 			},
 			"client": client_info,
 			"assigned_employee": assigned_employee,
+			"assigned_employees": assigned_employees,  # Multi-employee support
 			"messages": messages_list,
 			"total_messages": len(messages_list),
 			"status": conv.status
@@ -1628,5 +1700,51 @@ def agency_withdraw_funds(request):
 		traceback.print_exc()
 		return Response(
 			{"error": "Failed to process withdrawal"},
+			status=500
+		)
+
+
+@router.get("/reviews", auth=cookie_auth, response=schemas.AgencyReviewsListResponse)
+def get_agency_reviews_endpoint(request, page: int = 1, limit: int = 10, review_type: str = None):
+	"""
+	Get reviews for the authenticated agency.
+	
+	GET /api/agency/reviews
+	Query params:
+		- page: int (default 1)
+		- limit: int (default 10, max 50)
+		- review_type: str (optional) - 'AGENCY', 'EMPLOYEE', or None for all
+	
+	Returns reviews for both the agency and its employees.
+	"""
+	try:
+		# Validate pagination
+		if page < 1:
+			page = 1
+		if limit < 1:
+			limit = 10
+		if limit > 50:
+			limit = 50
+		
+		# Validate review_type
+		if review_type and review_type not in ['AGENCY', 'EMPLOYEE']:
+			review_type = None
+		
+		result = services.get_agency_reviews(
+			account_id=request.auth.accountID,
+			page=page,
+			limit=limit,
+			review_type=review_type
+		)
+		return result
+	
+	except ValueError as e:
+		return Response({'success': False, 'error': str(e)}, status=400)
+	except Exception as e:
+		print(f"❌ Error fetching agency reviews: {str(e)}")
+		import traceback
+		traceback.print_exc()
+		return Response(
+			{'success': False, 'error': 'Internal server error'},
 			status=500
 		)

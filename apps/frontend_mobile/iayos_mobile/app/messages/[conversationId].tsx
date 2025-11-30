@@ -793,9 +793,25 @@ export default function ChatScreen() {
           <Text style={styles.headerTitle} numberOfLines={1}>
             {conversation.other_participant?.name || "Unknown"}
           </Text>
-          {/* Show assigned worker for agency jobs (client view) */}
+          {/* Show assigned workers for agency jobs (client view) - Multi-employee support */}
+          {conversation.is_agency_job &&
+            conversation.my_role === "CLIENT" &&
+            conversation.assigned_employees &&
+            conversation.assigned_employees.length > 0 && (
+              <View style={styles.assignedWorkerBadge}>
+                <Ionicons name="people" size={12} color={Colors.primary} />
+                <Text style={styles.assignedWorkerText} numberOfLines={1}>
+                  {conversation.assigned_employees.length === 1
+                    ? `Worker: ${conversation.assigned_employees[0].name}`
+                    : `Workers (${conversation.assigned_employees.length}): ${conversation.assigned_employees.map((e) => e.name).join(", ")}`}
+                </Text>
+              </View>
+            )}
+          {/* Fallback: Show legacy single assigned worker */}
           {conversation.is_agency_job &&
             conversation.assigned_employee &&
+            (!conversation.assigned_employees ||
+              conversation.assigned_employees.length === 0) &&
             conversation.my_role === "CLIENT" && (
               <View style={styles.assignedWorkerBadge}>
                 <Ionicons name="person" size={12} color={Colors.primary} />
@@ -807,6 +823,8 @@ export default function ChatScreen() {
           {/* Show "No worker assigned" for agency jobs without assignment */}
           {conversation.is_agency_job &&
             !conversation.assigned_employee &&
+            (!conversation.assigned_employees ||
+              conversation.assigned_employees.length === 0) &&
             conversation.my_role === "CLIENT" && (
               <View style={styles.noWorkerBadge}>
                 <Ionicons

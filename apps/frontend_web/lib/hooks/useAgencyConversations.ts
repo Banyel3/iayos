@@ -43,11 +43,24 @@ export type AgencyEmployee = {
   rank: number;
 };
 
+// For multi-employee assignment display
+export type AssignedEmployee = {
+  employeeId: number;
+  name: string;
+  email: string;
+  role: string;
+  avatar: string | null;
+  rating: number | null;
+  isPrimaryContact: boolean;
+  status: string;
+};
+
 export type AgencyConversation = {
   id: number;
   job: AgencyConversationJob;
   client: AgencyConversationParticipant;
   assigned_employee: AgencyEmployee | null;
+  assigned_employees: AssignedEmployee[]; // Multi-employee support
   last_message: string | null;
   last_message_time: string | null;
   unread_count: number;
@@ -79,6 +92,7 @@ export type AgencyConversationDetail = {
   job: AgencyConversationJob;
   client: AgencyConversationParticipant;
   assigned_employee: AgencyEmployee | null;
+  assigned_employees: AssignedEmployee[]; // Multi-employee support
   messages: AgencyMessage[];
   total_messages: number;
   status: string;

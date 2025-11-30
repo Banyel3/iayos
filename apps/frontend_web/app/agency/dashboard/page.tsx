@@ -4,9 +4,19 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/form_button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Briefcase, Star, Users } from "lucide-react";
+import {
+  Briefcase,
+  Star,
+  Users,
+  Clock,
+  CheckCircle,
+  AlertCircle,
+  ArrowRight,
+} from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { formatDistanceToNow } from "date-fns";
 
 interface AgencyStats {
   total_employees: number;
@@ -16,9 +26,22 @@ interface AgencyStats {
   completed_jobs: number;
 }
 
+interface RecentJob {
+  id: string;
+  title: string;
+  status: string;
+  inviteStatus: string;
+  budget: number;
+  updatedAt: string;
+  assignedEmployeeId?: number;
+  assignedEmployeeName?: string;
+}
+
 export default function AgencyDashboardPage() {
   const router = useRouter();
   const [stats, setStats] = useState<AgencyStats | null>(null);
+  const [recentActivity, setRecentActivity] = useState<RecentJob[]>([]);
+  const [pendingAssignments, setPendingAssignments] = useState<RecentJob[]>([]);
   const [loading, setLoading] = useState(true);
 
   const API_BASE =
@@ -44,10 +67,74 @@ export default function AgencyDashboardPage() {
     }
   };
 
+  const fetchRecentActivity = async () => {
+    try {
+      // Fetch recent jobs (IN_PROGRESS or recently updated)
+      const res = await fetch(
+        `${API_BASE}/api/agency/jobs?status=IN_PROGRESS&limit=5`,
+        {
+          credentials: "include",
+        }
+      );
+
+      if (res.ok) {
+        const data = await res.json();
+        const jobs = data.jobs || [];
+        setRecentActivity(
+          jobs.map((job: any) => ({
+            id: job.id,
+            title: job.title,
+            status: job.status,
+            inviteStatus: job.invite_status,
+            budget: job.budget,
+            updatedAt: job.updated_at,
+            assignedEmployeeId: job.assigned_employee?.id,
+            assignedEmployeeName: job.assigned_employee?.name,
+          }))
+        );
+      }
+    } catch (error) {
+      console.error("Error fetching recent activity:", error);
+    }
+  };
+
+  const fetchPendingAssignments = async () => {
+    try {
+      // Fetch accepted jobs that need employee assignment
+      const res = await fetch(
+        `${API_BASE}/api/agency/jobs?invite_status=ACCEPTED&limit=5`,
+        {
+          credentials: "include",
+        }
+      );
+
+      if (res.ok) {
+        const data = await res.json();
+        const jobs = data.jobs || [];
+        // Filter to only show unassigned jobs
+        const unassigned = jobs.filter((job: any) => !job.assigned_employee);
+        setPendingAssignments(
+          unassigned.map((job: any) => ({
+            id: job.id,
+            title: job.title,
+            status: job.status,
+            inviteStatus: job.invite_status,
+            budget: job.budget,
+            updatedAt: job.updated_at,
+          }))
+        );
+      }
+    } catch (error) {
+      console.error("Error fetching pending assignments:", error);
+    }
+  };
+
   // Fetch stats on mount - auth is handled by layout
   useEffect(() => {
     const controller = new AbortController();
     fetchStats();
+    fetchRecentActivity();
+    fetchPendingAssignments();
     return () => controller.abort();
   }, []);
 
@@ -191,22 +278,115 @@ export default function AgencyDashboardPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Card>
-              <CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Recent Worker Activity</CardTitle>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => router.push("/agency/jobs/active")}
+                >
+                  View All <ArrowRight className="w-4 h-4 ml-1" />
+                </Button>
               </CardHeader>
               <CardContent>
-                <p className="text-sm text-gray-600">
-                  No recent activity to show (mock).
-                </p>
+                {recentActivity.length > 0 ? (
+                  <div className="space-y-3">
+                    {recentActivity.map((job) => (
+                      <div
+                        key={job.id}
+                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition"
+                        onClick={() =>
+                          router.push(`/agency/jobs/active/${job.id}`)
+                        }
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">
+                            {job.title}
+                          </p>
+                          <div className="flex items-center gap-2 mt-1">
+                            {job.assignedEmployeeName ? (
+                              <span className="text-xs text-gray-600 flex items-center gap-1">
+                                <Users className="w-3 h-3" />
+                                {job.assignedEmployeeName}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-orange-600 flex items-center gap-1">
+                                <AlertCircle className="w-3 h-3" />
+                                Unassigned
+                              </span>
+                            )}
+                            <span className="text-xs text-gray-400">•</span>
+                            <span className="text-xs text-gray-500">
+                              {formatDistanceToNow(new Date(job.updatedAt), {
+                                addSuffix: true,
+                              })}
+                            </span>
+                          </div>
+                        </div>
+                        <Badge
+                          variant="default"
+                          className="bg-green-500 text-xs"
+                        >
+                          In Progress
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-6 text-gray-500">
+                    <Clock className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                    <p className="text-sm">No active jobs in progress</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
             <Card>
-              <CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Pending Assignments</CardTitle>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => router.push("/agency/jobs")}
+                >
+                  View All <ArrowRight className="w-4 h-4 ml-1" />
+                </Button>
               </CardHeader>
               <CardContent>
-                <p className="text-sm text-gray-600">No pending jobs (mock).</p>
+                {pendingAssignments.length > 0 ? (
+                  <div className="space-y-3">
+                    {pendingAssignments.map((job) => (
+                      <div
+                        key={job.id}
+                        className="flex items-center justify-between p-3 bg-orange-50 rounded-lg hover:bg-orange-100 cursor-pointer transition border border-orange-200"
+                        onClick={() => router.push(`/agency/jobs`)}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">
+                            {job.title}
+                          </p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-xs text-green-600 font-medium">
+                              ₱{job.budget.toLocaleString()}
+                            </span>
+                            <span className="text-xs text-gray-400">•</span>
+                            <span className="text-xs text-orange-600 font-medium">
+                              Needs employee assignment
+                            </span>
+                          </div>
+                        </div>
+                        <Button size="sm" variant="outline" className="text-xs">
+                          Assign
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-6 text-gray-500">
+                    <CheckCircle className="w-8 h-8 mx-auto mb-2 text-green-300" />
+                    <p className="text-sm">All jobs have been assigned</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>

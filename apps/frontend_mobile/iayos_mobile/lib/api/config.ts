@@ -235,14 +235,14 @@ export const ENDPOINTS = {
   SUBMIT_REVIEW: (jobId: number) =>
     `${API_BASE_URL.replace("/api", "")}/api/jobs/${jobId}/review`,
   WORKER_REVIEWS: (workerId: number, page = 1, limit = 20, sort = "latest") =>
-    `${API_BASE_URL.replace("/api", "")}/api/accounts/reviews/worker/${workerId}?page=${page}&limit=${limit}&sort=${sort}`,
+    `${API_BASE_URL.replace("/api", "")}/api/mobile/reviews/worker/${workerId}?page=${page}&limit=${limit}`,
   REVIEW_STATS: (workerId: number) =>
-    `${API_BASE_URL.replace("/api", "")}/api/accounts/reviews/stats/${workerId}`,
-  MY_REVIEWS: `${API_BASE_URL.replace("/api", "")}/api/accounts/reviews/my-reviews`,
+    `${API_BASE_URL.replace("/api", "")}/api/mobile/reviews/stats/${workerId}`,
+  MY_REVIEWS: `${API_BASE_URL.replace("/api", "")}/api/mobile/reviews/my-reviews`,
   EDIT_REVIEW: (reviewId: number) =>
-    `${API_BASE_URL.replace("/api", "")}/api/accounts/reviews/${reviewId}`,
+    `${API_BASE_URL.replace("/api", "")}/api/mobile/reviews/${reviewId}`,
   REPORT_REVIEW: (reviewId: number) =>
-    `${API_BASE_URL.replace("/api", "")}/api/accounts/reviews/${reviewId}/report`,
+    `${API_BASE_URL.replace("/api", "")}/api/mobile/reviews/${reviewId}/report`,
 };
 
 import AsyncStorage from "@react-native-async-storage/async-storage";

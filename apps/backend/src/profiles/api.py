@@ -999,8 +999,8 @@ def get_conversation_messages(request, conversation_id: int):
         worker_reviewed = False
         client_reviewed = False
         
-        # Check if this is an agency job (for review logic)
-        is_agency_job_for_reviews = job.assignedEmployeeID is not None
+        # Check if this is an agency job (for review logic) - use is_agency_conversation
+        is_agency_job_for_reviews = is_agency_conversation
         employee_review_exists = False
         agency_review_exists = False
         employees_pending_review = []  # For multi-employee support
@@ -1115,11 +1115,11 @@ def get_conversation_messages(request, conversation_id: int):
             for assignment in assignments:
                 emp = assignment.employee
                 assigned_employees_list.append({
-                    "employee_id": emp.employeeID,
+                    "id": emp.employeeID,
                     "name": emp.name,
                     "avatar": emp.avatar or "/worker-default.jpg",
                     "rating": float(emp.rating) if emp.rating else None,
-                    "is_primary_contact": assignment.isPrimaryContact,
+                    "isPrimaryContact": assignment.isPrimaryContact,
                     "status": assignment.status,
                 })
             
@@ -1127,11 +1127,11 @@ def get_conversation_messages(request, conversation_id: int):
             if not assigned_employees_list and job.assignedEmployeeID:
                 emp = job.assignedEmployeeID
                 assigned_employees_list.append({
-                    "employee_id": emp.employeeID,
+                    "id": emp.employeeID,
                     "name": emp.name,
                     "avatar": emp.avatar or "/worker-default.jpg",
                     "rating": float(emp.rating) if emp.rating else None,
-                    "is_primary_contact": True,
+                    "isPrimaryContact": True,
                     "status": "ASSIGNED",
                 })
         
@@ -1158,6 +1158,9 @@ def get_conversation_messages(request, conversation_id: int):
             "other_participant": other_participant_info,
             "assigned_employee": assigned_employee_info,  # Legacy single employee
             "assigned_employees": assigned_employees_list,  # NEW: All assigned employees
+            # Multi-employee review tracking (for frontend convenience)
+            "pending_employee_reviews": [e["employee_id"] for e in employees_pending_review] if is_agency_job_for_reviews else [],
+            "all_employees_reviewed": employee_review_exists if is_agency_job_for_reviews else None,
             "is_agency_job": is_agency_conversation,
             "my_role": my_role,
             "messages": formatted_messages,

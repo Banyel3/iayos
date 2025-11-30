@@ -1,11 +1,12 @@
 from .models import AgencyKYC, AgencyKycFile, AgencyEmployee
-from accounts.models import Accounts, Agency as AgencyProfile, Profile, Job, Notification
+from accounts.models import Accounts, Agency as AgencyProfile, Profile, Job, Notification, JobReview
 from iayos_project.utils import upload_agency_doc
 from django.db.models import Avg, Count, Q
 from django.utils import timezone
 from datetime import timedelta
 import uuid
 import os
+import math
 
 
 def upload_agency_kyc(payload, business_permit, rep_front, rep_back, address_proof, auth_letter):
@@ -1577,3 +1578,122 @@ def set_primary_contact(
 			'name': new_primary.employee.name
 		}
 	}
+
+
+def get_agency_reviews(account_id: int, page: int = 1, limit: int = 10, review_type: str = None):
+	"""
+	Get reviews for an agency (includes both agency reviews and employee reviews).
+	
+	Args:
+		account_id: The agency owner's account ID
+		page: Page number (1-indexed)
+		limit: Items per page
+		review_type: Filter by type - 'AGENCY', 'EMPLOYEE', or None for all
+	
+	Returns:
+		Dict with reviews, stats, and pagination info
+	"""
+	try:
+		user = Accounts.objects.get(accountID=account_id)
+		
+		# Get the agency profile
+		try:
+			agency = AgencyProfile.objects.get(accountFK=user)
+		except AgencyProfile.DoesNotExist:
+			raise ValueError("Agency profile not found")
+		
+		# Get all agency employees
+		employees = AgencyEmployee.objects.filter(agency=user)
+		employee_ids = list(employees.values_list('employeeID', flat=True))
+		
+		# Get reviews where:
+		# 1. revieweeAgencyID = this agency, OR
+		# 2. revieweeEmployeeID is one of this agency's employees
+		base_query = JobReview.objects.filter(
+			Q(revieweeAgencyID=agency) | Q(revieweeEmployeeID__in=employee_ids)
+		).select_related(
+			'jobID', 
+			'reviewerID', 
+			'revieweeAgencyID', 
+			'revieweeEmployeeID'
+		).order_by('-createdAt')
+		
+		# Apply review_type filter for pagination
+		if review_type == 'AGENCY':
+			reviews_query = base_query.filter(revieweeAgencyID=agency)
+		elif review_type == 'EMPLOYEE':
+			reviews_query = base_query.filter(revieweeEmployeeID__in=employee_ids)
+		else:
+			reviews_query = base_query
+		
+		total = reviews_query.count()
+		
+		# Calculate stats
+		all_ratings = list(reviews_query.values_list('rating', flat=True))
+		avg_rating = sum(float(r) for r in all_ratings) / len(all_ratings) if all_ratings else 0.0
+		positive_count = sum(1 for r in all_ratings if float(r) >= 4.0)
+		neutral_count = sum(1 for r in all_ratings if 3.0 <= float(r) < 4.0)
+		negative_count = sum(1 for r in all_ratings if float(r) < 3.0)
+		
+		agency_reviews_count = reviews_query.filter(revieweeAgencyID=agency).count()
+		employee_reviews_count = reviews_query.filter(revieweeEmployeeID__in=employee_ids).count()
+		
+		# Pagination
+		start_idx = (page - 1) * limit
+		end_idx = start_idx + limit
+		reviews_page = reviews_query[start_idx:end_idx]
+		
+		# Build response
+		reviews_data = []
+		for review in reviews_page:
+			# Get reviewer (client) info
+			reviewer_profile = Profile.objects.filter(accountFK=review.reviewerID).first()
+			client_name = f"{reviewer_profile.firstName} {reviewer_profile.lastName}" if reviewer_profile else "Unknown Client"
+			client_avatar = reviewer_profile.profileImg if reviewer_profile else None
+			
+			# Determine review type and employee info
+			if review.revieweeEmployeeID:
+				review_type = "EMPLOYEE"
+				employee_name = review.revieweeEmployeeID.name
+				employee_id = review.revieweeEmployeeID.employeeID
+			else:
+				review_type = "AGENCY"
+				employee_name = None
+				employee_id = None
+			
+			reviews_data.append({
+				"review_id": review.reviewID,
+				"job_id": review.jobID.jobID,
+				"job_title": review.jobID.title,
+				"client_name": client_name,
+				"client_avatar": client_avatar,
+				"rating": float(review.rating) if review.rating else 0.0,
+				"comment": review.comment,
+				"created_at": review.createdAt,
+				"review_type": review_type,
+				"employee_name": employee_name,
+				"employee_id": employee_id
+			})
+		
+		total_pages = math.ceil(total / limit) if total > 0 else 1
+		
+		return {
+			"success": True,
+			"reviews": reviews_data,
+			"stats": {
+				"total_reviews": total,
+				"average_rating": round(avg_rating, 2),
+				"positive_reviews": positive_count,
+				"neutral_reviews": neutral_count,
+				"negative_reviews": negative_count,
+				"agency_reviews_count": agency_reviews_count,
+				"employee_reviews_count": employee_reviews_count
+			},
+			"total": total,
+			"page": page,
+			"limit": limit,
+			"total_pages": total_pages
+		}
+	
+	except Accounts.DoesNotExist:
+		raise ValueError("User not found")

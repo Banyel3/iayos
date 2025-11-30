@@ -1262,10 +1262,15 @@ def get_workers_list_mobile(user, latitude=None, longitude=None, page=1, limit=2
         print(f"  🔍 Querying worker profiles...")
         
         # Get accounts that own agencies (to exclude them from worker list)
+        # Agency owners manage agencies, they don't appear as individual workers
         from .models import Agency
         agency_owner_account_ids = Agency.objects.values_list('accountFK_id', flat=True)
         
-        # Get all worker profiles, excluding agency owners
+        # NOTE: Agency employees (AgencyEmployee table) are SEPARATE from individual workers.
+        # A person can be both an agency employee AND an individual worker - these are two
+        # different systems that coexist. We only exclude agency OWNERS from the workers list.
+        
+        # Get all worker profiles, excluding agency owners only
         workers = WorkerProfile.objects.select_related(
             'profileID',
             'profileID__accountFK'
@@ -1630,6 +1635,7 @@ def get_worker_detail_mobile_v2(user, worker_id):
         # Build worker detail data matching mobile interface
         worker_data = {
             'id': worker.id,
+            'accountId': account.accountID,  # Add account ID for reviews lookup
             'firstName': profile.firstName or '',
             'lastName': profile.lastName or '',
             'email': account.email or '',
@@ -2209,7 +2215,7 @@ def get_worker_reviews_mobile(worker_id: int, page: int = 1, limit: int = 20) ->
             revieweeID=worker_account,
             status='ACTIVE'
         ).select_related(
-            'reviewerID__profile',
+            'reviewerID',
             'jobID'
         ).order_by('-createdAt')
 
@@ -2222,7 +2228,8 @@ def get_worker_reviews_mobile(worker_id: int, page: int = 1, limit: int = 20) ->
         # Format reviews
         review_list = []
         for review in reviews:
-            reviewer_profile = review.reviewerID.profile if hasattr(review.reviewerID, 'profile') else None
+            # Get reviewer's profile (Profile -> Account via accountFK)
+            reviewer_profile = Profile.objects.filter(accountFK=review.reviewerID).first()
             reviewer_name = "Anonymous"
             reviewer_img = None
 

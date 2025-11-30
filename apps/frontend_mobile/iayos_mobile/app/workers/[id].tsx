@@ -13,7 +13,7 @@
  * - Create job request button
  */
 
-import React from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -36,6 +36,7 @@ import {
 } from "@/constants/theme";
 import { useQuery } from "@tanstack/react-query";
 import { fetchJson, ENDPOINTS } from "@/lib/api/config";
+import { useWorkerReviews } from "@/lib/hooks/useReviews";
 
 interface WorkerCertification {
   id: number;
@@ -60,6 +61,7 @@ interface WorkerMaterial {
 
 interface WorkerDetail {
   id: number;
+  accountId: number; // Account ID for reviews lookup
   firstName: string;
   lastName: string;
   email: string;
@@ -254,6 +256,10 @@ export default function WorkerDetailScreen() {
   const router = useRouter();
   const { user } = useAuth();
 
+  // State for collapsible sections
+  const [isReviewsExpanded, setIsReviewsExpanded] = useState(true);
+  const [reviewsPage, setReviewsPage] = useState(1);
+
   // Fetch worker details
   const { data, isLoading, error } = useQuery({
     queryKey: ["worker", id],
@@ -266,6 +272,13 @@ export default function WorkerDetailScreen() {
     },
     enabled: !!id,
   });
+
+  // Fetch worker reviews using accountId (not workerProfileId)
+  const { data: reviewsData, isLoading: isLoadingReviews } = useWorkerReviews(
+    data?.accountId || 0, // Use accountId from worker data
+    reviewsPage,
+    5
+  );
 
   // Show skeleton while loading
   if (isLoading) {
@@ -448,6 +461,172 @@ export default function WorkerDetailScreen() {
                 />
               </View>
             </View>
+          </View>
+
+          {/* Reviews Section - Collapsible */}
+          <View style={styles.section}>
+            <TouchableOpacity
+              style={styles.collapsibleHeader}
+              onPress={() => setIsReviewsExpanded(!isReviewsExpanded)}
+              activeOpacity={0.7}
+            >
+              <View style={styles.collapsibleTitleRow}>
+                <Ionicons name="star" size={22} color={Colors.warning} />
+                <Text style={styles.sectionTitle}>Reviews & Ratings</Text>
+                <View style={styles.reviewCountBadge}>
+                  <Text style={styles.reviewCountBadgeText}>
+                    {reviewsData?.total_count || data.reviewCount || 0}
+                  </Text>
+                </View>
+              </View>
+              <Ionicons
+                name={isReviewsExpanded ? "chevron-up" : "chevron-down"}
+                size={24}
+                color={Colors.textSecondary}
+              />
+            </TouchableOpacity>
+
+            {isReviewsExpanded && (
+              <View style={styles.reviewsContent}>
+                {isLoadingReviews ? (
+                  <View style={styles.reviewsLoading}>
+                    <ActivityIndicator size="small" color={Colors.primary} />
+                    <Text style={styles.reviewsLoadingText}>
+                      Loading reviews...
+                    </Text>
+                  </View>
+                ) : reviewsData?.reviews && reviewsData.reviews.length > 0 ? (
+                  <>
+                    {reviewsData.reviews.map((review) => (
+                      <View key={review.review_id} style={styles.reviewCard}>
+                        <View style={styles.reviewHeader}>
+                          {review.reviewer_profile_img ? (
+                            <Image
+                              source={{ uri: review.reviewer_profile_img }}
+                              style={styles.reviewerAvatar}
+                            />
+                          ) : (
+                            <View
+                              style={[
+                                styles.reviewerAvatar,
+                                styles.reviewerAvatarPlaceholder,
+                              ]}
+                            >
+                              <Text style={styles.reviewerAvatarText}>
+                                {review.reviewer_name?.charAt(0) || "?"}
+                              </Text>
+                            </View>
+                          )}
+                          <View style={styles.reviewerInfo}>
+                            <Text style={styles.reviewerName}>
+                              {review.reviewer_name}
+                            </Text>
+                            <Text style={styles.reviewDate}>
+                              {new Date(review.created_at).toLocaleDateString(
+                                "en-US",
+                                {
+                                  month: "short",
+                                  day: "numeric",
+                                  year: "numeric",
+                                }
+                              )}
+                            </Text>
+                          </View>
+                          <View style={styles.reviewRating}>
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <Ionicons
+                                key={star}
+                                name={
+                                  star <= review.rating
+                                    ? "star"
+                                    : "star-outline"
+                                }
+                                size={14}
+                                color={
+                                  star <= review.rating
+                                    ? Colors.warning
+                                    : Colors.textHint
+                                }
+                              />
+                            ))}
+                          </View>
+                        </View>
+                        {review.comment && (
+                          <Text style={styles.reviewComment}>
+                            {review.comment}
+                          </Text>
+                        )}
+                      </View>
+                    ))}
+
+                    {/* Pagination */}
+                    {reviewsData.total_pages > 1 && (
+                      <View style={styles.reviewsPagination}>
+                        <TouchableOpacity
+                          style={[
+                            styles.paginationButton,
+                            reviewsPage === 1 &&
+                              styles.paginationButtonDisabled,
+                          ]}
+                          onPress={() =>
+                            setReviewsPage(Math.max(1, reviewsPage - 1))
+                          }
+                          disabled={reviewsPage === 1}
+                        >
+                          <Ionicons
+                            name="chevron-back"
+                            size={18}
+                            color={
+                              reviewsPage === 1
+                                ? Colors.textHint
+                                : Colors.primary
+                            }
+                          />
+                        </TouchableOpacity>
+                        <Text style={styles.paginationText}>
+                          {reviewsPage} of {reviewsData.total_pages}
+                        </Text>
+                        <TouchableOpacity
+                          style={[
+                            styles.paginationButton,
+                            reviewsPage === reviewsData.total_pages &&
+                              styles.paginationButtonDisabled,
+                          ]}
+                          onPress={() =>
+                            setReviewsPage(
+                              Math.min(reviewsData.total_pages, reviewsPage + 1)
+                            )
+                          }
+                          disabled={reviewsPage === reviewsData.total_pages}
+                        >
+                          <Ionicons
+                            name="chevron-forward"
+                            size={18}
+                            color={
+                              reviewsPage === reviewsData.total_pages
+                                ? Colors.textHint
+                                : Colors.primary
+                            }
+                          />
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </>
+                ) : (
+                  <View style={styles.emptyState}>
+                    <Ionicons
+                      name="chatbubble-outline"
+                      size={48}
+                      color={Colors.textHint}
+                    />
+                    <Text style={styles.emptyStateText}>
+                      No reviews yet. Be the first to hire and review this
+                      worker!
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
           </View>
 
           {/* Performance Ratings */}
@@ -1286,6 +1465,122 @@ const styles = StyleSheet.create({
   },
   hireButtonTextDisabled: {
     color: Colors.textHint,
+  },
+  // Reviews Section Styles
+  collapsibleHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingBottom: 12,
+  },
+  collapsibleTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  reviewCountBadge: {
+    backgroundColor: Colors.primaryLight,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.pill,
+    marginLeft: 4,
+  },
+  reviewCountBadgeText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: Colors.primary,
+  },
+  reviewsContent: {
+    marginTop: 8,
+  },
+  reviewsLoading: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 24,
+    gap: 8,
+  },
+  reviewsLoadingText: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+  },
+  reviewCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.md,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  reviewHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  reviewerAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
+  reviewerAvatarPlaceholder: {
+    backgroundColor: Colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  reviewerAvatarText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: Colors.white,
+  },
+  reviewerInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  reviewerName: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+  },
+  reviewDate: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  reviewRating: {
+    flexDirection: "row",
+    gap: 2,
+  },
+  reviewComment: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: Colors.textSecondary,
+    marginTop: 8,
+  },
+  reviewsPagination: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 16,
+    marginTop: 8,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  paginationButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.backgroundSecondary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  paginationButtonDisabled: {
+    opacity: 0.5,
+  },
+  paginationText: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: Colors.textSecondary,
   },
   // Skeleton styles
   skeletonBox: {

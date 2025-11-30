@@ -194,8 +194,9 @@ export default function AgencyChatScreen() {
     );
   }
 
-  // Agency conversation uses client, assigned_employee, and job
-  const { client, assigned_employee, job, messages } = conversation;
+  // Agency conversation uses client, assigned_employee(s), and job
+  const { client, assigned_employee, assigned_employees, job, messages } =
+    conversation;
 
   return (
     <div className="flex flex-col h-screen bg-gray-50">
@@ -265,24 +266,49 @@ export default function AgencyChatScreen() {
                 ₱{job.budget.toLocaleString()}
               </Badge>
             </div>
-            {assigned_employee && (
-              <div className="flex items-center gap-2 text-sm text-gray-600 pt-2 border-t border-blue-200">
-                <User className="h-4 w-4 text-blue-600" />
-                <span>Assigned: {assigned_employee.name}</span>
-                {assigned_employee.employeeOfTheMonth && (
-                  <Badge
-                    variant="default"
-                    className="text-xs bg-amber-500 hover:bg-amber-600"
-                  >
-                    🏆 EOTM
-                  </Badge>
-                )}
-                {assigned_employee.rating && (
-                  <Badge variant="secondary" className="text-xs">
-                    ⭐ {assigned_employee.rating.toFixed(1)}
-                  </Badge>
-                )}
+            {/* Multi-employee display */}
+            {assigned_employees && assigned_employees.length > 0 ? (
+              <div className="flex flex-col gap-1 text-sm text-gray-600 pt-2 border-t border-blue-200">
+                <div className="flex items-center gap-2">
+                  <User className="h-4 w-4 text-blue-600" />
+                  <span className="font-medium">
+                    Assigned Workers ({assigned_employees.length}):
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2 ml-6">
+                  {assigned_employees.map((emp) => (
+                    <Badge
+                      key={emp.employeeId}
+                      variant={emp.isPrimaryContact ? "default" : "secondary"}
+                      className={`text-xs ${emp.isPrimaryContact ? "bg-blue-600" : ""}`}
+                    >
+                      {emp.name}
+                      {emp.isPrimaryContact && " ⭐"}
+                      {emp.rating && ` (${emp.rating.toFixed(1)})`}
+                    </Badge>
+                  ))}
+                </div>
               </div>
+            ) : (
+              assigned_employee && (
+                <div className="flex items-center gap-2 text-sm text-gray-600 pt-2 border-t border-blue-200">
+                  <User className="h-4 w-4 text-blue-600" />
+                  <span>Assigned: {assigned_employee.name}</span>
+                  {assigned_employee.employeeOfTheMonth && (
+                    <Badge
+                      variant="default"
+                      className="text-xs bg-amber-500 hover:bg-amber-600"
+                    >
+                      🏆 EOTM
+                    </Badge>
+                  )}
+                  {assigned_employee.rating && (
+                    <Badge variant="secondary" className="text-xs">
+                      ⭐ {assigned_employee.rating.toFixed(1)}
+                    </Badge>
+                  )}
+                </div>
+              )
             )}
           </div>
 
