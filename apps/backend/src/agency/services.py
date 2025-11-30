@@ -194,30 +194,64 @@ def create_agency_kyc_from_paths(account_id: int, file_map: dict, businessName: 
 # Employee management services
 
 def get_agency_employees(account_id):
-	"""Fetch all employees for a given agency account."""
+	"""Fetch all employees for a given agency account with dynamic stats."""
+	from accounts.models import Job, JobReview
+	from django.db.models import Avg
+	
 	try:
 		user = Accounts.objects.get(accountID=account_id)
 		employees = AgencyEmployee.objects.filter(agency=user)
 		
-		return [
-			{
+		result = []
+		for emp in employees:
+			# Calculate active jobs count dynamically
+			active_jobs_count = Job.objects.filter(
+				assignedEmployeeID=emp,
+				status__in=['ASSIGNED', 'IN_PROGRESS']
+			).count()
+			
+			# Calculate completed jobs from actual job records
+			completed_jobs_count = Job.objects.filter(
+				assignedEmployeeID=emp,
+				status='COMPLETED'
+			).count()
+			
+			# Use stored totalJobsCompleted if no completed jobs found (backwards compat)
+			final_completed_count = completed_jobs_count if completed_jobs_count > 0 else emp.totalJobsCompleted
+			
+			# Calculate average rating from job reviews
+			reviews = JobReview.objects.filter(
+				revieweeID=emp.employeeID,
+				status='ACTIVE'
+			)
+			avg_rating = None
+			if reviews.exists():
+				avg_rating = reviews.aggregate(avg=Avg('rating'))['avg']
+			
+			# Use calculated rating, fall back to stored rating, then 0
+			final_rating = float(avg_rating) if avg_rating else (float(emp.rating) if emp.rating else 0)
+			
+			result.append({
 				"id": emp.employeeID,
+				"employeeId": emp.employeeID,  # Frontend expects this field name
 				"name": emp.name,
 				"email": emp.email,
 				"role": emp.role,
 				"avatar": emp.avatar,
-				"rating": float(emp.rating) if emp.rating else None,
+				"rating": final_rating,
 				# Agency Phase 2 performance fields
 				"employeeOfTheMonth": emp.employeeOfTheMonth,
 				"employeeOfTheMonthDate": emp.employeeOfTheMonthDate.isoformat() if emp.employeeOfTheMonthDate else None,
 				"employeeOfTheMonthReason": emp.employeeOfTheMonthReason,
 				"lastRatingUpdate": emp.lastRatingUpdate.isoformat() if emp.lastRatingUpdate else None,
-				"totalJobsCompleted": emp.totalJobsCompleted,
+				"totalJobsCompleted": final_completed_count,
 				"totalEarnings": float(emp.totalEarnings),
 				"isActive": emp.isActive,
-			}
-			for emp in employees
-		]
+				# Dynamic active jobs count
+				"activeJobs": active_jobs_count,
+			})
+		
+		return result
 	except Accounts.DoesNotExist:
 		raise ValueError("User not found")
 

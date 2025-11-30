@@ -193,13 +193,16 @@ export default function AgencyJobsPage() {
       setError(null);
 
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      
+
       // Fetch both ACTIVE and IN_PROGRESS jobs - we'll filter by employee assignment
       const [activeResponse, inProgressResponse] = await Promise.all([
-        fetch(`${apiUrl}/api/agency/jobs?invite_status=ACCEPTED&status=ACTIVE`, {
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-        }),
+        fetch(
+          `${apiUrl}/api/agency/jobs?invite_status=ACCEPTED&status=ACTIVE`,
+          {
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+          }
+        ),
         fetch(`${apiUrl}/api/agency/jobs?status=IN_PROGRESS`, {
           credentials: "include",
           headers: { "Content-Type": "application/json" },
@@ -207,12 +210,16 @@ export default function AgencyJobsPage() {
       ]);
 
       if (!activeResponse.ok) {
-        throw new Error(`Failed to fetch accepted jobs: ${activeResponse.statusText}`);
+        throw new Error(
+          `Failed to fetch accepted jobs: ${activeResponse.statusText}`
+        );
       }
 
       const activeData = await activeResponse.json();
-      const inProgressData = inProgressResponse.ok ? await inProgressResponse.json() : { jobs: [] };
-      
+      const inProgressData = inProgressResponse.ok
+        ? await inProgressResponse.json()
+        : { jobs: [] };
+
       // Accepted = ACTIVE jobs without employees + IN_PROGRESS jobs without employees
       // (IN_PROGRESS without employees is a data inconsistency we need to handle)
       const unassignedActiveJobs = (activeData.jobs || []).filter(
@@ -221,13 +228,17 @@ export default function AgencyJobsPage() {
       const unassignedInProgressJobs = (inProgressData.jobs || []).filter(
         (job: Job) => !job.assignedEmployeeID
       );
-      
+
       // Combine and deduplicate by jobID
-      const allUnassigned = [...unassignedActiveJobs, ...unassignedInProgressJobs];
+      const allUnassigned = [
+        ...unassignedActiveJobs,
+        ...unassignedInProgressJobs,
+      ];
       const uniqueJobs = allUnassigned.filter(
-        (job, index, self) => index === self.findIndex((j) => j.jobID === job.jobID)
+        (job, index, self) =>
+          index === self.findIndex((j) => j.jobID === job.jobID)
       );
-      
+
       setAcceptedJobs(uniqueJobs);
     } catch (err) {
       console.error("Error fetching accepted jobs:", err);
@@ -920,7 +931,10 @@ export default function AgencyJobsPage() {
                         </div>
                       ) : (
                         <button
-                          onClick={() => handleOpenAssignModal(job)}
+                          onClick={(e) => {
+                            e.stopPropagation(); // Prevent card click from navigating
+                            handleOpenAssignModal(job);
+                          }}
                           className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center space-x-2"
                         >
                           <UserPlus size={18} />
