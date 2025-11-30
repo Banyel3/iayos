@@ -292,7 +292,7 @@ export default function AgencyPage() {
             <div className="text-center">
               <div className="relative">
                 <div className="animate-spin rounded-full h-16 w-16 border-4 border-gray-200 border-t-blue-600 mx-auto"></div>
-                <Building className="h-6 w-6 text-blue-600 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" />
+                <Building2 className="h-6 w-6 text-blue-600 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" />
               </div>
               <p className="mt-6 text-lg font-medium text-gray-700">
                 Loading agencies...

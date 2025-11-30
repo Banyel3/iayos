@@ -82,14 +82,14 @@ export default function AgencyDashboardPage() {
         const jobs = data.jobs || [];
         setRecentActivity(
           jobs.map((job: any) => ({
-            id: job.id,
+            id: job.jobID,
             title: job.title,
             status: job.status,
-            inviteStatus: job.invite_status,
+            inviteStatus: job.inviteStatus,
             budget: job.budget,
-            updatedAt: job.updated_at,
-            assignedEmployeeId: job.assigned_employee?.id,
-            assignedEmployeeName: job.assigned_employee?.name,
+            updatedAt: job.updatedAt,
+            assignedEmployeeId: job.assignedEmployee?.employeeId,
+            assignedEmployeeName: job.assignedEmployee?.name,
           }))
         );
       }
@@ -101,8 +101,9 @@ export default function AgencyDashboardPage() {
   const fetchPendingAssignments = async () => {
     try {
       // Fetch accepted jobs that need employee assignment
+      // Filter by status=ACTIVE to exclude COMPLETED/CANCELLED jobs
       const res = await fetch(
-        `${API_BASE}/api/agency/jobs?invite_status=ACCEPTED&limit=5`,
+        `${API_BASE}/api/agency/jobs?invite_status=ACCEPTED&status=ACTIVE&limit=10`,
         {
           credentials: "include",
         }
@@ -111,16 +112,19 @@ export default function AgencyDashboardPage() {
       if (res.ok) {
         const data = await res.json();
         const jobs = data.jobs || [];
-        // Filter to only show unassigned jobs
-        const unassigned = jobs.filter((job: any) => !job.assigned_employee);
+        // Filter to only show unassigned jobs (jobs without an assigned employee)
+        // Backend returns assignedEmployee in camelCase
+        const unassigned = jobs.filter(
+          (job: any) => !job.assignedEmployee && !job.assignedEmployeeID
+        );
         setPendingAssignments(
-          unassigned.map((job: any) => ({
-            id: job.id,
+          unassigned.slice(0, 5).map((job: any) => ({
+            id: job.jobID,
             title: job.title,
             status: job.status,
-            inviteStatus: job.invite_status,
+            inviteStatus: job.inviteStatus,
             budget: job.budget,
-            updatedAt: job.updated_at,
+            updatedAt: job.updatedAt,
           }))
         );
       }

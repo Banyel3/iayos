@@ -436,3 +436,290 @@ class UserReport(models.Model):
     
     def __str__(self):
         return f"Report #{self.reportID}: {self.reason}"
+
+
+# =============================================================================
+# AUDIT LOG SYSTEM
+# =============================================================================
+
+class AuditLog(models.Model):
+    """
+    Comprehensive audit log for tracking all admin actions in the platform.
+    Records who did what, when, and the before/after states.
+    """
+    auditLogID = models.BigAutoField(primary_key=True)
+    
+    # Who performed the action
+    adminFK = models.ForeignKey(
+        Accounts,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='audit_logs',
+        help_text="Admin who performed the action"
+    )
+    adminEmail = models.EmailField(
+        max_length=64,
+        help_text="Snapshot of admin email (in case account is deleted)"
+    )
+    
+    # What action was performed
+    class ActionType(models.TextChoices):
+        LOGIN = "login", "Login"
+        LOGOUT = "logout", "Logout"
+        KYC_APPROVAL = "kyc_approval", "KYC Approval"
+        KYC_REJECTION = "kyc_rejection", "KYC Rejection"
+        PAYMENT_RELEASE = "payment_release", "Payment Release"
+        PAYMENT_REFUND = "payment_refund", "Payment Refund"
+        USER_BAN = "user_ban", "User Ban"
+        USER_UNBAN = "user_unban", "User Unban"
+        USER_SUSPEND = "user_suspend", "User Suspend"
+        SETTINGS_CHANGE = "settings_change", "Settings Change"
+        ADMIN_CREATE = "admin_create", "Admin Create"
+        ADMIN_UPDATE = "admin_update", "Admin Update"
+        ADMIN_DELETE = "admin_delete", "Admin Delete"
+        JOB_UPDATE = "job_update", "Job Update"
+        JOB_CANCEL = "job_cancel", "Job Cancel"
+        TICKET_REPLY = "ticket_reply", "Ticket Reply"
+        TICKET_CLOSE = "ticket_close", "Ticket Close"
+        REPORT_REVIEW = "report_review", "Report Review"
+        FAQ_CREATE = "faq_create", "FAQ Create"
+        FAQ_UPDATE = "faq_update", "FAQ Update"
+        FAQ_DELETE = "faq_delete", "FAQ Delete"
+    
+    action = models.CharField(
+        max_length=30,
+        choices=ActionType.choices,
+        help_text="Type of action performed"
+    )
+    
+    # What entity was affected
+    class EntityType(models.TextChoices):
+        USER = "user", "User"
+        ADMIN = "admin", "Admin"
+        JOB = "job", "Job"
+        KYC = "kyc", "KYC"
+        PAYMENT = "payment", "Payment"
+        TICKET = "ticket", "Support Ticket"
+        REPORT = "report", "Report"
+        SETTINGS = "settings", "Settings"
+        FAQ = "faq", "FAQ"
+        CATEGORY = "category", "Category"
+    
+    entityType = models.CharField(
+        max_length=20,
+        choices=EntityType.choices,
+        help_text="Type of entity affected"
+    )
+    entityID = models.CharField(
+        max_length=50,
+        blank=True,
+        default="",
+        help_text="ID of the affected entity"
+    )
+    
+    # Details and state changes
+    details = models.JSONField(
+        default=dict,
+        help_text="Additional details about the action"
+    )
+    beforeValue = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="State before the change"
+    )
+    afterValue = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="State after the change"
+    )
+    
+    # Request metadata
+    ipAddress = models.GenericIPAddressField(
+        null=True,
+        blank=True,
+        help_text="IP address of the admin"
+    )
+    userAgent = models.TextField(
+        blank=True,
+        default="",
+        help_text="Browser/client user agent"
+    )
+    
+    # Timestamp
+    createdAt = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-createdAt']
+        verbose_name = "Audit Log"
+        verbose_name_plural = "Audit Logs"
+        indexes = [
+            models.Index(fields=['-createdAt']),
+            models.Index(fields=['action']),
+            models.Index(fields=['adminFK']),
+            models.Index(fields=['entityType']),
+            models.Index(fields=['entityType', 'entityID']),
+        ]
+    
+    def __str__(self):
+        return f"[{self.createdAt.strftime('%Y-%m-%d %H:%M')}] {self.adminEmail}: {self.action}"
+
+
+# =============================================================================
+# PLATFORM SETTINGS (Singleton)
+# =============================================================================
+
+class PlatformSettings(models.Model):
+    """
+    Singleton model for storing platform-wide configuration settings.
+    Only one instance should exist.
+    """
+    settingsID = models.BigAutoField(primary_key=True)
+    
+    # Financial Settings
+    platformFeePercentage = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=5.00,
+        help_text="Platform fee percentage (e.g., 5.00 for 5%)"
+    )
+    escrowHoldingDays = models.IntegerField(
+        default=7,
+        help_text="Days to hold funds in escrow before release"
+    )
+    maxJobBudget = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=100000.00,
+        help_text="Maximum allowed job budget"
+    )
+    minJobBudget = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=100.00,
+        help_text="Minimum allowed job budget"
+    )
+    
+    # Verification Settings
+    workerVerificationRequired = models.BooleanField(
+        default=True,
+        help_text="Require KYC verification for workers"
+    )
+    autoApproveKYC = models.BooleanField(
+        default=False,
+        help_text="Automatically approve KYC submissions"
+    )
+    kycDocumentExpiryDays = models.IntegerField(
+        default=365,
+        help_text="Days until KYC documents expire"
+    )
+    
+    # System Settings
+    maintenanceMode = models.BooleanField(
+        default=False,
+        help_text="Enable maintenance mode (blocks user access)"
+    )
+    sessionTimeoutMinutes = models.IntegerField(
+        default=60,
+        help_text="Session timeout in minutes"
+    )
+    maxUploadSizeMB = models.IntegerField(
+        default=10,
+        help_text="Maximum file upload size in MB"
+    )
+    
+    # Metadata
+    lastUpdated = models.DateTimeField(auto_now=True)
+    updatedBy = models.ForeignKey(
+        Accounts,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='settings_updates',
+        help_text="Admin who last updated settings"
+    )
+    
+    class Meta:
+        verbose_name = "Platform Settings"
+        verbose_name_plural = "Platform Settings"
+    
+    def save(self, *args, **kwargs):
+        """Ensure only one instance exists (singleton pattern)."""
+        if not self.pk and PlatformSettings.objects.exists():
+            raise ValueError("Only one PlatformSettings instance allowed.")
+        return super().save(*args, **kwargs)
+    
+    @classmethod
+    def get_settings(cls):
+        """Get or create the singleton settings instance."""
+        settings, created = cls.objects.get_or_create(pk=1)
+        return settings
+    
+    def __str__(self):
+        return f"Platform Settings (Updated: {self.lastUpdated.strftime('%Y-%m-%d %H:%M')})"
+
+
+# =============================================================================
+# ADMIN ROLES (Enhanced)
+# =============================================================================
+
+class AdminAccount(models.Model):
+    """
+    Extended admin account with roles and permissions.
+    Links to the main Accounts model.
+    """
+    adminID = models.BigAutoField(primary_key=True)
+    
+    accountFK = models.OneToOneField(
+        Accounts,
+        on_delete=models.CASCADE,
+        related_name='admin_profile',
+        help_text="Linked user account"
+    )
+    
+    class Role(models.TextChoices):
+        SUPER_ADMIN = "super_admin", "Super Admin"
+        ADMIN = "admin", "Admin"
+        MODERATOR = "moderator", "Moderator"
+    
+    role = models.CharField(
+        max_length=15,
+        choices=Role.choices,
+        default=Role.MODERATOR
+    )
+    
+    # JSON list of permission strings
+    permissions = models.JSONField(
+        default=list,
+        help_text="List of permission strings"
+    )
+    
+    isActive = models.BooleanField(
+        default=True,
+        help_text="Whether this admin account is active"
+    )
+    
+    lastLogin = models.DateTimeField(
+        null=True,
+        blank=True
+    )
+    
+    createdAt = models.DateTimeField(auto_now_add=True)
+    updatedAt = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = "Admin Account"
+        verbose_name_plural = "Admin Accounts"
+        indexes = [
+            models.Index(fields=['role']),
+            models.Index(fields=['isActive']),
+        ]
+    
+    def has_permission(self, permission: str) -> bool:
+        """Check if admin has a specific permission."""
+        if self.role == self.Role.SUPER_ADMIN:
+            return True
+        return permission in self.permissions
+    
+    def __str__(self):
+        return f"{self.accountFK.email} ({self.role})"
+

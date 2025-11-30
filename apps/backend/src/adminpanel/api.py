@@ -31,6 +31,15 @@ from .support_service import (
     get_faqs, create_faq, update_faq, delete_faq, increment_faq_view,
     get_reports, get_report_detail, create_report, review_report, get_report_stats
 )
+from .audit_service import (
+    log_action, get_audit_logs, get_audit_log_detail, export_audit_logs,
+    get_admin_activity, get_audit_statistics
+)
+from .settings_service import (
+    get_platform_settings, update_platform_settings,
+    get_admins, get_admin_detail, create_admin, update_admin, delete_admin,
+    update_admin_last_login, get_all_permissions, check_admin_permission
+)
 
 router = Router(tags=["adminpanel"])
 
@@ -1124,13 +1133,18 @@ def get_top_performers_data(request, period: str = 'last_30_days'):
         return {"success": False, "error": str(e)}
 
 
+# ============================================================
+# MODULE 6: SETTINGS, AUDIT LOGS & ADMIN MANAGEMENT
+# ============================================================
+
 @router.get("/settings/audit-logs", auth=cookie_auth)
-def get_audit_logs(
+def get_audit_logs_endpoint(
     request,
     page: int = 1,
     limit: int = 100,
     admin_id: str | None = None,
     action_type: str | None = None,
+    entity_type: str | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
     search: str | None = None
@@ -1138,86 +1152,255 @@ def get_audit_logs(
     """
     Get audit logs with filtering and pagination.
     
-    NOTE: This is a placeholder endpoint returning mock data.
-    To implement full audit logging:
-    1. Create AuditLog model in adminpanel/models.py
-    2. Add logging middleware/decorators to track admin actions
-    3. Implement proper service function in adminpanel/service.py
+    Tracks all admin actions including:
+    - Login/logout events
+    - KYC approvals/rejections
+    - Payment releases/refunds
+    - User bans/suspensions
+    - Settings changes
+    - Admin account management
     """
     try:
-        from datetime import datetime, timedelta
-        
-        # Mock data for demonstration
-        # In production, this should query the AuditLog model
-        mock_logs = [
-            {
-                "id": "1",
-                "admin_id": "13",
-                "admin_email": request.auth.email,
-                "action": "login",
-                "details": {"ip": "172.18.0.1", "success": True},
-                "ip_address": "172.18.0.1",
-                "timestamp": (datetime.now() - timedelta(minutes=5)).isoformat(),
-                "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-            },
-            {
-                "id": "2",
-                "admin_id": "13",
-                "admin_email": request.auth.email,
-                "action": "kyc_approval",
-                "details": {"kyc_id": "123", "user_id": "45"},
-                "ip_address": "172.18.0.1",
-                "timestamp": (datetime.now() - timedelta(hours=1)).isoformat(),
-                "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-                "before_value": {"status": "PENDING"},
-                "after_value": {"status": "APPROVED"},
-            },
-            {
-                "id": "3",
-                "admin_id": "13",
-                "admin_email": request.auth.email,
-                "action": "settings_change",
-                "details": {"setting": "platform_fee", "old_value": "5%", "new_value": "7%"},
-                "ip_address": "172.18.0.1",
-                "timestamp": (datetime.now() - timedelta(hours=3)).isoformat(),
-                "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-                "before_value": {"platform_fee": 5},
-                "after_value": {"platform_fee": 7},
-            },
-        ]
-        
-        # Filter by action type if provided
-        if action_type and action_type != "all":
-            mock_logs = [log for log in mock_logs if log["action"] == action_type]
-        
-        # Filter by search term if provided
-        if search:
-            search_lower = search.lower()
-            mock_logs = [
-                log for log in mock_logs 
-                if search_lower in str(log["details"]).lower() 
-                or search_lower in log["action"].lower()
-            ]
-        
-        # Calculate pagination
-        total = len(mock_logs)
-        total_pages = max(1, (total + limit - 1) // limit)
-        start_idx = (page - 1) * limit
-        end_idx = start_idx + limit
-        paginated_logs = mock_logs[start_idx:end_idx]
-        
-        return {
-            "success": True,
-            "logs": paginated_logs,
-            "total": total,
-            "page": page,
-            "total_pages": total_pages,
-        }
-        
+        result = get_audit_logs(
+            page=page,
+            limit=limit,
+            admin_id=admin_id,
+            action_type=action_type,
+            entity_type=entity_type,
+            date_from=date_from,
+            date_to=date_to,
+            search=search
+        )
+        return result
     except Exception as e:
-        print(f"❌ Error in get_audit_logs: {str(e)}")
+        print(f"❌ Error in get_audit_logs_endpoint: {str(e)}")
         import traceback
         traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/settings/audit-logs/{log_id}", auth=cookie_auth)
+def get_audit_log_detail_endpoint(request, log_id: int):
+    """Get details of a specific audit log entry."""
+    try:
+        result = get_audit_log_detail(log_id)
+        return result
+    except Exception as e:
+        print(f"❌ Error in get_audit_log_detail_endpoint: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/settings/audit-logs/export", auth=cookie_auth)
+def export_audit_logs_endpoint(
+    request,
+    admin_id: str | None = None,
+    action_type: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None
+):
+    """Export audit logs to CSV format."""
+    try:
+        from django.http import HttpResponse
+        
+        csv_content = export_audit_logs(
+            admin_id=admin_id,
+            action_type=action_type,
+            date_from=date_from,
+            date_to=date_to
+        )
+        
+        response = HttpResponse(csv_content, content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename="audit-logs.csv"'
+        return response
+    except Exception as e:
+        print(f"❌ Error in export_audit_logs_endpoint: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/settings/audit-logs/statistics", auth=cookie_auth)
+def get_audit_statistics_endpoint(request):
+    """Get audit log statistics (total counts, top admins, top actions)."""
+    try:
+        result = get_audit_statistics()
+        return result
+    except Exception as e:
+        print(f"❌ Error in get_audit_statistics_endpoint: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/settings/audit-logs/admin/{admin_id}/activity", auth=cookie_auth)
+def get_admin_activity_endpoint(request, admin_id: int, days: int = 30):
+    """Get activity summary for a specific admin."""
+    try:
+        result = get_admin_activity(admin_id, days)
+        return result
+    except Exception as e:
+        print(f"❌ Error in get_admin_activity_endpoint: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+# Platform Settings endpoints
+@router.get("/settings/platform", auth=cookie_auth)
+def get_platform_settings_endpoint(request):
+    """Get current platform settings."""
+    try:
+        result = get_platform_settings()
+        return result
+    except Exception as e:
+        print(f"❌ Error in get_platform_settings_endpoint: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+class PlatformSettingsSchema(Schema):
+    platform_fee_percentage: Optional[float] = None
+    escrow_holding_days: Optional[int] = None
+    max_job_budget: Optional[float] = None
+    min_job_budget: Optional[float] = None
+    worker_verification_required: Optional[bool] = None
+    auto_approve_kyc: Optional[bool] = None
+    kyc_document_expiry_days: Optional[int] = None
+    maintenance_mode: Optional[bool] = None
+    session_timeout_minutes: Optional[int] = None
+    max_upload_size_mb: Optional[int] = None
+
+
+@router.put("/settings/platform", auth=cookie_auth)
+def update_platform_settings_endpoint(request, data: PlatformSettingsSchema):
+    """Update platform settings."""
+    try:
+        # Convert Schema to dict, excluding None values
+        settings_data = {k: v for k, v in data.dict().items() if v is not None}
+        
+        result = update_platform_settings(
+            admin=request.auth,
+            data=settings_data,
+            request=request
+        )
+        return result
+    except Exception as e:
+        print(f"❌ Error in update_platform_settings_endpoint: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+# Admin Management endpoints
+@router.get("/settings/admins", auth=cookie_auth)
+def get_admins_endpoint(request):
+    """Get list of all admin accounts."""
+    try:
+        result = get_admins(request.auth)
+        return result
+    except Exception as e:
+        print(f"❌ Error in get_admins_endpoint: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/settings/admins/{admin_id}", auth=cookie_auth)
+def get_admin_detail_endpoint(request, admin_id: int):
+    """Get details of a specific admin account."""
+    try:
+        result = get_admin_detail(admin_id)
+        return result
+    except Exception as e:
+        print(f"❌ Error in get_admin_detail_endpoint: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+class CreateAdminSchema(Schema):
+    email: str
+    password: str
+    role: str = "moderator"
+    permissions: List[str] = []
+    send_welcome_email: bool = True
+
+
+@router.post("/settings/admins", auth=cookie_auth)
+def create_admin_endpoint(request, data: CreateAdminSchema):
+    """Create a new admin account."""
+    try:
+        result = create_admin(
+            creator=request.auth,
+            email=data.email,
+            password=data.password,
+            role=data.role,
+            permissions=data.permissions,
+            request=request
+        )
+        return result
+    except Exception as e:
+        print(f"❌ Error in create_admin_endpoint: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+class UpdateAdminSchema(Schema):
+    role: Optional[str] = None
+    permissions: Optional[List[str]] = None
+    is_active: Optional[bool] = None
+    password: Optional[str] = None
+
+
+@router.put("/settings/admins/{admin_id}", auth=cookie_auth)
+def update_admin_endpoint(request, admin_id: int, data: UpdateAdminSchema):
+    """Update an admin account."""
+    try:
+        # Convert Schema to dict, excluding None values
+        update_data = {k: v for k, v in data.dict().items() if v is not None}
+        
+        result = update_admin(
+            updater=request.auth,
+            admin_id=admin_id,
+            data=update_data,
+            request=request
+        )
+        return result
+    except Exception as e:
+        print(f"❌ Error in update_admin_endpoint: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+@router.delete("/settings/admins/{admin_id}", auth=cookie_auth)
+def delete_admin_endpoint(request, admin_id: int, reassign_to: int | None = None):
+    """Delete an admin account. Optionally reassign tasks to another admin."""
+    try:
+        result = delete_admin(
+            deleter=request.auth,
+            admin_id=admin_id,
+            reassign_to_id=reassign_to,
+            request=request
+        )
+        return result
+    except Exception as e:
+        print(f"❌ Error in delete_admin_endpoint: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+# Add endpoint for updating permissions specifically (used by frontend)
+@router.put("/settings/admins/{admin_id}/permissions", auth=cookie_auth)
+def update_admin_permissions_endpoint(request, admin_id: int, data: UpdateAdminSchema):
+    """Update an admin's role and permissions."""
+    try:
+        # Convert Schema to dict, excluding None values
+        update_data = {k: v for k, v in data.dict().items() if v is not None}
+        
+        result = update_admin(
+            updater=request.auth,
+            admin_id=admin_id,
+            data=update_data,
+            request=request
+        )
+        return result
+    except Exception as e:
+        print(f"❌ Error in update_admin_permissions_endpoint: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/settings/permissions", auth=cookie_auth)
+def get_permissions_endpoint(request):
+    """Get list of all available permissions."""
+    try:
+        permissions = get_all_permissions()
+        return {"success": True, "permissions": permissions}
+    except Exception as e:
+        print(f"❌ Error in get_permissions_endpoint: {str(e)}")
         return {"success": False, "error": str(e)}
 
 
