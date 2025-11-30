@@ -220,8 +220,9 @@ def get_agency_employees(account_id):
 			final_completed_count = completed_jobs_count if completed_jobs_count > 0 else emp.totalJobsCompleted
 			
 			# Calculate average rating from job reviews
+			# Use revieweeEmployeeID field which references AgencyEmployee
 			reviews = JobReview.objects.filter(
-				revieweeID=emp.employeeID,
+				revieweeEmployeeID=emp,
 				status='ACTIVE'
 			)
 			avg_rating = None
