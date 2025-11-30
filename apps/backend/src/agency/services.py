@@ -1231,8 +1231,8 @@ def assign_employees_to_job(
 	if job.inviteStatus != 'ACCEPTED':
 		raise ValueError(f"Cannot assign employees to job with invite status: {job.inviteStatus}")
 	
-	# Allow ACTIVE, ASSIGNED, or IN_PROGRESS (for legacy jobs that were marked IN_PROGRESS before fix)
-	allowed_statuses = {'ACTIVE', 'ASSIGNED', 'IN_PROGRESS'}
+	# Only allow assignment for ACTIVE or ASSIGNED jobs (not IN_PROGRESS or COMPLETED)
+	allowed_statuses = {'ACTIVE', 'ASSIGNED'}
 	if job.status not in allowed_statuses:
 		raise ValueError(f"Cannot assign employees to job with status: {job.status}")
 	
