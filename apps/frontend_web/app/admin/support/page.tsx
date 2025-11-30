@@ -50,7 +50,8 @@ export default function SupportPage() {
       if (data.success) {
         const ticketStats = data.stats;
         // Calculate resolution rate: (resolved + closed) / total * 100
-        const resolvedAndClosed = (ticketStats.resolved || 0) + (ticketStats.closed || 0);
+        const resolvedAndClosed =
+          (ticketStats.resolved || 0) + (ticketStats.closed || 0);
         const total = ticketStats.total || 1;
         const resolutionRate = Math.round((resolvedAndClosed / total) * 100);
 
@@ -100,7 +101,9 @@ export default function SupportPage() {
             size="sm"
             disabled={loading}
           >
-            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+            <RefreshCw
+              className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`}
+            />
             Refresh
           </Button>
         </div>
@@ -115,7 +118,7 @@ export default function SupportPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {loading ? "..." : stats?.open_tickets ?? 0}
+                {loading ? "..." : (stats?.open_tickets ?? 0)}
               </div>
               <p className="text-xs text-muted-foreground">
                 of {stats?.total_tickets ?? 0} total
@@ -159,7 +162,9 @@ export default function SupportPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {loading ? "..." : stats?.satisfaction_rate?.toFixed(1) ?? "0.0"}
+                {loading
+                  ? "..."
+                  : (stats?.satisfaction_rate?.toFixed(1) ?? "0.0")}
               </div>
               <p className="text-xs text-muted-foreground">Out of 5.0</p>
             </CardContent>

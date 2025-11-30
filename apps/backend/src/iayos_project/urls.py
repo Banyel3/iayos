@@ -10,6 +10,7 @@ from profiles.api import router as profiles_router
 from agency.api import router as agency_router
 from jobs.api import router as jobs_router
 from client.api import router as client_router
+from ml.api import router as ml_router  # Machine Learning predictions
 
 api = NinjaExtraAPI()
 
@@ -21,6 +22,7 @@ api.add_router("/profiles/", profiles_router)
 api.add_router("/agency/", agency_router)
 api.add_router("/client/", client_router)  # Client-specific endpoints (agency discovery, INVITE jobs)
 api.add_router("/jobs/", jobs_router)
+api.add_router("/ml/", ml_router)  # Machine Learning predictions
 
 urlpatterns = [
     path("admin/", admin.site.urls),

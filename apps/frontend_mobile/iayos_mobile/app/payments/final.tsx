@@ -47,7 +47,7 @@ export default function FinalPaymentScreen() {
   // Calculate final payment (remaining 50% + 10% fee on that 50%)
   // Worker receives full budget, client pays platform fee on top
   const halfBudget = budget / 2; // 50% to worker
-  const platformFee = halfBudget * 0.10; // 10% of the 50% (5% of total budget)
+  const platformFee = halfBudget * 0.1; // 10% of the 50% (5% of total budget)
   const totalAmount = halfBudget + platformFee; // Total client pays
 
   const paymentBreakdown = {

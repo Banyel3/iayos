@@ -505,13 +505,13 @@ export default function InviteJobCreationModal({
                       <p className="text-xs">
                         • Platform fee (10% of downpayment):{" "}
                         <span className="font-semibold">
-                          ₱{(downpayment * 0.10).toFixed(2)}
+                          ₱{(downpayment * 0.1).toFixed(2)}
                         </span>
                       </p>
                       <p className="border-t border-blue-200 pt-1 font-semibold text-blue-600">
                         • You pay now (downpayment + fee):{" "}
                         <span className="font-bold">
-                          ₱{(downpayment + downpayment * 0.10).toFixed(2)}
+                          ₱{(downpayment + downpayment * 0.1).toFixed(2)}
                         </span>
                       </p>
                       <p>
@@ -523,7 +523,7 @@ export default function InviteJobCreationModal({
                       <p className="border-t border-blue-200 pt-1 font-semibold text-gray-900">
                         • Grand Total:{" "}
                         <span className="font-bold">
-                          ₱{(budget + downpayment * 0.10).toFixed(2)}
+                          ₱{(budget + downpayment * 0.1).toFixed(2)}
                         </span>
                       </p>
                     </div>
@@ -671,7 +671,7 @@ export default function InviteJobCreationModal({
                       + Platform fee (10% of downpayment):
                     </span>
                     <span className="font-medium text-gray-900 text-xs">
-                      ₱{(downpayment * 0.10).toFixed(2)}
+                      ₱{(downpayment * 0.1).toFixed(2)}
                     </span>
                   </div>
                   <div className="flex justify-between border-t pt-2 bg-blue-100 -mx-4 px-4 py-2">
@@ -679,7 +679,7 @@ export default function InviteJobCreationModal({
                       Total Downpayment (You pay now):
                     </span>
                     <span className="font-bold text-blue-600">
-                      ₱{(downpayment + downpayment * 0.10).toFixed(2)}
+                      ₱{(downpayment + downpayment * 0.1).toFixed(2)}
                     </span>
                   </div>
                   <div className="flex justify-between mt-3">
@@ -695,12 +695,13 @@ export default function InviteJobCreationModal({
                       Grand Total:
                     </span>
                     <span className="font-bold text-lg text-gray-900">
-                      ₱{(budget + downpayment * 0.10).toFixed(2)}
+                      ₱{(budget + downpayment * 0.1).toFixed(2)}
                     </span>
                   </div>
                 </div>
                 <div className="mt-3 p-2 bg-blue-100 rounded text-xs text-blue-800">
-                  💡 The 10% platform fee applies only to the downpayment escrow.
+                  💡 The 10% platform fee applies only to the downpayment
+                  escrow.
                 </div>
               </div>
 

@@ -61,7 +61,8 @@ INSTALLED_APPS = [
     'agency',
     'adminpanel',
     'jobs',
-    'profiles'
+    'profiles',
+    'ml',  # Machine Learning - Job Completion Time Prediction
 
 ]
 

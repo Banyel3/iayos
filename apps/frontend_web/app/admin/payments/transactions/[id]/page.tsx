@@ -297,7 +297,9 @@ export default function TransactionDetailPage() {
                         </p>
                         <p className="text-2xl font-bold text-yellow-900">
                           ₱
-                          {(detail.escrow_details?.downpayment_amount ?? 0).toLocaleString()}
+                          {(
+                            detail.escrow_details?.downpayment_amount ?? 0
+                          ).toLocaleString()}
                         </p>
                       </div>
                       <div className="bg-green-50 rounded-lg p-4 border-2 border-green-200">
@@ -306,7 +308,9 @@ export default function TransactionDetailPage() {
                         </p>
                         <p className="text-2xl font-bold text-green-900">
                           ₱
-                          {(detail.escrow_details?.final_payment_amount ?? 0).toLocaleString()}
+                          {(
+                            detail.escrow_details?.final_payment_amount ?? 0
+                          ).toLocaleString()}
                         </p>
                       </div>
                     </div>
@@ -565,7 +569,8 @@ export default function TransactionDetailPage() {
                         placeholder="0.00"
                       />
                       <p className="text-xs text-gray-500 mt-1">
-                        Max: ₱{(detail.transaction?.amount ?? 0).toLocaleString()}
+                        Max: ₱
+                        {(detail.transaction?.amount ?? 0).toLocaleString()}
                       </p>
                     </div>
                     <div>

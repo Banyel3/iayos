@@ -276,7 +276,7 @@ export const useWalletDeposit = () => {
 // Worker receives full job budget, client pays platform fee on top
 export const calculateEscrowAmount = (jobBudget: number) => {
   const halfBudget = jobBudget * 0.5; // 50% to worker
-  const platformFee = halfBudget * 0.10; // 10% of the 50% (5% of total budget)
+  const platformFee = halfBudget * 0.1; // 10% of the 50% (5% of total budget)
   const total = halfBudget + platformFee; // Total client pays for escrow
 
   return {

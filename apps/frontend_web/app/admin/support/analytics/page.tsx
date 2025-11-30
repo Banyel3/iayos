@@ -395,12 +395,13 @@ export default function SupportAnalyticsPage() {
                   Tickets by Category
                 </h3>
                 <div className="space-y-3">
-                  {stats.tickets_by_category.map((item) => {
-                    const total = stats.tickets_by_category.reduce(
+                  {(stats.tickets_by_category ?? []).map((item) => {
+                    const total = (stats.tickets_by_category ?? []).reduce(
                       (sum, i) => sum + i.count,
                       0
                     );
-                    const percentage = ((item.count / total) * 100).toFixed(1);
+                    const percentage =
+                      total > 0 ? ((item.count / total) * 100).toFixed(1) : "0";
                     return (
                       <div key={item.category}>
                         <div className="flex justify-between mb-1">
@@ -431,7 +432,7 @@ export default function SupportAnalyticsPage() {
                   Tickets by Priority & Status
                 </h3>
                 <div className="space-y-4">
-                  {stats.tickets_by_priority.map((item) => {
+                  {(stats.tickets_by_priority ?? []).map((item) => {
                     const total = item.open + item.in_progress + item.resolved;
                     return (
                       <div key={item.priority}>
@@ -493,9 +494,10 @@ export default function SupportAnalyticsPage() {
                 Response Time Trend
               </h3>
               <div className="h-64 flex items-end gap-2">
-                {stats.response_time_trend.map((item, index) => {
+                {(stats.response_time_trend ?? []).map((item, index) => {
                   const maxTime = Math.max(
-                    ...stats.response_time_trend.map((t) => t.time)
+                    ...(stats.response_time_trend ?? []).map((t) => t.time),
+                    1
                   );
                   const height = (item.time / maxTime) * 100;
                   return (
@@ -553,7 +555,7 @@ export default function SupportAnalyticsPage() {
                   Most Active Agents
                 </h3>
                 <div className="space-y-3">
-                  {stats.top_agents.map((agent, index) => (
+                  {(stats.top_agents ?? []).map((agent, index) => (
                     <div
                       key={index}
                       className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
@@ -588,7 +590,7 @@ export default function SupportAnalyticsPage() {
                   Most Common Issues
                 </h3>
                 <div className="space-y-3">
-                  {stats.common_issues.map((issue, index) => (
+                  {(stats.common_issues ?? []).map((issue, index) => (
                     <div
                       key={index}
                       className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
@@ -617,7 +619,7 @@ export default function SupportAnalyticsPage() {
                   Users with Most Tickets
                 </h3>
                 <div className="space-y-3">
-                  {stats.active_users.map((user, index) => (
+                  {(stats.active_users ?? []).map((user, index) => (
                     <div
                       key={index}
                       className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"

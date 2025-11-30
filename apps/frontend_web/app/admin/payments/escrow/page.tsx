@@ -514,7 +514,10 @@ export default function EscrowMonitorPage() {
                           </td>
                           <td className="p-4">
                             <p className="font-semibold text-gray-900">
-                              ₱{(escrow.downpayment_amount ?? 0).toLocaleString()}
+                              ₱
+                              {(
+                                escrow.downpayment_amount ?? 0
+                              ).toLocaleString()}
                             </p>
                           </td>
                           <td className="p-4">
