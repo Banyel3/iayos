@@ -25,7 +25,7 @@ export default async function AgencyLayout({
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
-
+    
     const res = await fetch(`${serverApiUrl}/api/accounts/me`, {
       headers: {
         cookie: cookieHeader,
@@ -34,7 +34,7 @@ export default async function AgencyLayout({
       cache: "no-store", // Don't cache auth checks to prevent stale data
       signal: controller.signal,
     });
-
+    
     clearTimeout(timeoutId);
 
     if (!res.ok) {
