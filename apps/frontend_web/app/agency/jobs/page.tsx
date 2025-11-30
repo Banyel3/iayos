@@ -193,28 +193,42 @@ export default function AgencyJobsPage() {
       setError(null);
 
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      const response = await fetch(
-        `${apiUrl}/api/agency/jobs?invite_status=ACCEPTED&status=ACTIVE`,
-        {
+      
+      // Fetch both ACTIVE and IN_PROGRESS jobs - we'll filter by employee assignment
+      const [activeResponse, inProgressResponse] = await Promise.all([
+        fetch(`${apiUrl}/api/agency/jobs?invite_status=ACCEPTED&status=ACTIVE`, {
           credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
-      );
+          headers: { "Content-Type": "application/json" },
+        }),
+        fetch(`${apiUrl}/api/agency/jobs?status=IN_PROGRESS`, {
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+        }),
+      ]);
 
-      if (!response.ok) {
-        throw new Error(
-          `Failed to fetch accepted jobs: ${response.statusText}`
-        );
+      if (!activeResponse.ok) {
+        throw new Error(`Failed to fetch accepted jobs: ${activeResponse.statusText}`);
       }
 
-      const data = await response.json();
-      // Filter for jobs without assigned employees (unassigned)
-      const unassignedJobs = (data.jobs || []).filter(
+      const activeData = await activeResponse.json();
+      const inProgressData = inProgressResponse.ok ? await inProgressResponse.json() : { jobs: [] };
+      
+      // Accepted = ACTIVE jobs without employees + IN_PROGRESS jobs without employees
+      // (IN_PROGRESS without employees is a data inconsistency we need to handle)
+      const unassignedActiveJobs = (activeData.jobs || []).filter(
         (job: Job) => !job.assignedEmployeeID
       );
-      setAcceptedJobs(unassignedJobs);
+      const unassignedInProgressJobs = (inProgressData.jobs || []).filter(
+        (job: Job) => !job.assignedEmployeeID
+      );
+      
+      // Combine and deduplicate by jobID
+      const allUnassigned = [...unassignedActiveJobs, ...unassignedInProgressJobs];
+      const uniqueJobs = allUnassigned.filter(
+        (job, index, self) => index === self.findIndex((j) => j.jobID === job.jobID)
+      );
+      
+      setAcceptedJobs(uniqueJobs);
     } catch (err) {
       console.error("Error fetching accepted jobs:", err);
       setError(
@@ -279,7 +293,12 @@ export default function AgencyJobsPage() {
       }
 
       const data = await response.json();
-      setInProgressJobs(data.jobs || []);
+      // Only show IN_PROGRESS jobs that have an assigned employee
+      // Jobs without employees should appear in Accepted tab instead
+      const jobsWithEmployees = (data.jobs || []).filter(
+        (job: Job) => job.assignedEmployeeID
+      );
+      setInProgressJobs(jobsWithEmployees);
     } catch (err) {
       console.error("Error fetching in-progress jobs:", err);
     } finally {
