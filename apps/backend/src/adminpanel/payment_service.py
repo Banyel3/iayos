@@ -21,6 +21,7 @@ from accounts.models import (
     Transaction, Job, Profile, Wallet, JobDispute, 
     ClientProfile, WorkerProfile, Accounts
 )
+from adminpanel.audit_service import log_action
 
 
 # ===============================
@@ -370,13 +371,15 @@ def get_transaction_detail(transaction_id: int) -> Dict[str, Any]:
         }
 
 
-def release_escrow(transaction_id: int, reason: Optional[str] = None) -> Dict[str, Any]:
+def release_escrow(transaction_id: int, reason: Optional[str] = None, admin=None, request=None) -> Dict[str, Any]:
     """
     Release escrow payment to worker
     
     Args:
         transaction_id: Transaction ID
         reason: Optional reason for release
+        admin: Admin user performing the action
+        request: HTTP request object for audit logging
         
     Returns:
         Success/error response
@@ -399,6 +402,9 @@ def release_escrow(transaction_id: int, reason: Optional[str] = None) -> Dict[st
                 'error': f'Cannot release transaction with status: {txn.status}'
             }
         
+        # Store before state for audit
+        before_state = {"status": txn.status, "amount": float(txn.amount)}
+        
         # Update transaction status
         txn.status = 'COMPLETED'
         txn.completedAt = timezone.now()
@@ -412,6 +418,19 @@ def release_escrow(transaction_id: int, reason: Optional[str] = None) -> Dict[st
             job.escrowPaid = True
             job.escrowPaidAt = timezone.now()
             job.save()
+        
+        # Log audit trail
+        if admin:
+            log_action(
+                admin=admin,
+                action="payment_release",
+                entity_type="payment",
+                entity_id=str(transaction_id),
+                details={"action": "escrow_released", "reason": reason or "N/A", "amount": float(txn.amount)},
+                before_value=before_state,
+                after_value={"status": "COMPLETED", "amount": float(txn.amount)},
+                request=request
+            )
         
         return {
             'success': True,
@@ -435,7 +454,9 @@ def process_refund(
     transaction_id: int,
     amount: float,
     reason: str,
-    refund_to: str = 'WALLET'
+    refund_to: str = 'WALLET',
+    admin=None,
+    request=None
 ) -> Dict[str, Any]:
     """
     Process refund for a transaction
@@ -445,6 +466,8 @@ def process_refund(
         amount: Refund amount
         reason: Reason for refund
         refund_to: Refund destination (WALLET/GCASH/BANK_TRANSFER)
+        admin: Admin user performing the action
+        request: HTTP request object for audit logging
         
     Returns:
         Success/error response
@@ -485,6 +508,19 @@ def process_refund(
         # Update original transaction
         original_txn.description = f"{original_txn.description or ''}\nRefunded: ₱{amount} - {reason}".strip()
         original_txn.save()
+        
+        # Log audit trail
+        if admin:
+            log_action(
+                admin=admin,
+                action="payment_refund",
+                entity_type="payment",
+                entity_id=str(transaction_id),
+                details={"action": "refund_processed", "amount": amount, "reason": reason, "refund_to": refund_to},
+                before_value={"original_amount": float(original_txn.amount)},
+                after_value={"refund_amount": amount, "refund_txn_id": str(refund_txn.transactionID)},
+                request=request
+            )
         
         return {
             'success': True,
@@ -1186,7 +1222,9 @@ def resolve_dispute(
     dispute_id: int,
     resolution: str,
     decision: str,
-    refund_amount: Optional[float] = None
+    refund_amount: Optional[float] = None,
+    admin=None,
+    request=None
 ) -> Dict[str, Any]:
     """
     Resolve a job dispute
@@ -1196,6 +1234,8 @@ def resolve_dispute(
         resolution: Resolution details/notes
         decision: Resolution decision (FAVOR_CLIENT/FAVOR_WORKER/PARTIAL)
         refund_amount: Optional refund amount (if applicable)
+        admin: Admin user performing the action
+        request: HTTP request object for audit logging
         
     Returns:
         Success/error response
@@ -1204,6 +1244,9 @@ def resolve_dispute(
         dispute = JobDispute.objects.select_related('jobID').get(
             disputeID=dispute_id
         )
+        
+        # Store before state for audit
+        before_state = {"status": dispute.status, "resolution": dispute.resolution}
         
         # Update dispute status
         dispute.status = 'RESOLVED'
@@ -1225,11 +1268,26 @@ def resolve_dispute(
                     transaction_id=escrow_txn.transactionID,
                     amount=refund_amount,
                     reason=f"Dispute #{dispute_id} resolved: {decision}",
-                    refund_to='WALLET'
+                    refund_to='WALLET',
+                    admin=admin,
+                    request=request
                 )
                 
                 if refund_result['success']:
                     refund_txn_id = refund_result.get('refund_transaction_id')
+        
+        # Log audit trail
+        if admin:
+            log_action(
+                admin=admin,
+                action="dispute_resolve",
+                entity_type="payment",
+                entity_id=str(dispute_id),
+                details={"decision": decision, "resolution": resolution, "refund_amount": refund_amount or 0},
+                before_value=before_state,
+                after_value={"status": "RESOLVED", "decision": decision},
+                request=request
+            )
         
         return {
             'success': True,

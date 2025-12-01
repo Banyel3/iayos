@@ -611,6 +611,9 @@ def approve_backjob(request, dispute_id: int):
         if dispute.status != 'OPEN':
             return {"success": False, "error": "This backjob has already been processed"}
         
+        # Store before state for audit
+        before_state = {"status": dispute.status, "priority": dispute.priority}
+        
         # Update dispute
         dispute.status = 'UNDER_REVIEW'
         dispute.priority = priority
@@ -626,6 +629,18 @@ def approve_backjob(request, dispute_id: int):
             action="BACKJOB_APPROVED",
             performedBy=request.auth,
             notes=f"Admin approved backjob request. Priority: {priority}"
+        )
+        
+        # Log audit trail
+        log_action(
+            admin=request.auth,
+            action="backjob_approve",
+            entity_type="job",
+            entity_id=str(dispute_id),
+            details={"job_id": job.jobID, "job_title": job.title, "priority": priority, "notes": admin_notes},
+            before_value=before_state,
+            after_value={"status": "UNDER_REVIEW", "priority": priority},
+            request=request
         )
         
         # Notify the worker or agency
@@ -694,6 +709,9 @@ def reject_backjob(request, dispute_id: int):
         if dispute.status != 'OPEN':
             return {"success": False, "error": "This backjob has already been processed"}
         
+        # Store before state for audit
+        before_state = {"status": dispute.status}
+        
         # Update dispute
         dispute.status = 'CLOSED'
         dispute.resolution = f"Rejected: {rejection_reason}"
@@ -708,6 +726,18 @@ def reject_backjob(request, dispute_id: int):
             action="BACKJOB_REJECTED",
             performedBy=request.auth,
             notes=f"Admin rejected backjob request. Reason: {rejection_reason}"
+        )
+        
+        # Log audit trail
+        log_action(
+            admin=request.auth,
+            action="backjob_reject",
+            entity_type="job",
+            entity_id=str(dispute_id),
+            details={"job_id": job.jobID, "job_title": job.title, "reason": rejection_reason},
+            before_value=before_state,
+            after_value={"status": "CLOSED", "reason": rejection_reason},
+            request=request
         )
         
         # Notify the client
@@ -836,7 +866,7 @@ def suspend_user_account(request, account_id: str):
         if not reason or not reason.strip():
             return {"success": False, "error": "Reason is required"}
         
-        result = suspend_account(account_id, reason, request.auth)
+        result = suspend_account(account_id, reason, request.auth, request)
         return result
         
     except Exception as e:
@@ -865,7 +895,7 @@ def ban_user_account(request, account_id: str):
         if not reason or not reason.strip():
             return {"success": False, "error": "Reason is required"}
         
-        result = ban_account(account_id, reason, request.auth)
+        result = ban_account(account_id, reason, request.auth, request)
         return result
         
     except Exception as e:
@@ -881,7 +911,7 @@ def activate_user_account(request, account_id: str):
     Activate/reactivate a user account (remove suspension or ban).
     """
     try:
-        result = activate_account(account_id, request.auth)
+        result = activate_account(account_id, request.auth, request)
         return result
         
     except Exception as e:
@@ -897,7 +927,7 @@ def delete_user_account(request, account_id: str):
     Soft delete a user account (mark as inactive/banned).
     """
     try:
-        result = delete_account(account_id, request.auth)
+        result = delete_account(account_id, request.auth, request)
         return result
         
     except Exception as e:
@@ -997,7 +1027,7 @@ def release_escrow_payment(request, transaction_id: int):
     try:
         body = request.data if hasattr(request, 'data') else {}
         reason = body.get('reason', None)
-        result = release_escrow(transaction_id, reason)
+        result = release_escrow(transaction_id, reason, admin=request.auth, request=request)
         return result
     except Exception as e:
         print(f"❌ Error in release_escrow_payment: {str(e)}")
@@ -1020,7 +1050,7 @@ def refund_transaction(request, transaction_id: int):
         if not amount or not reason:
             return {"success": False, "error": "Amount and reason are required"}
         
-        result = process_refund(transaction_id, amount, reason, refund_to)
+        result = process_refund(transaction_id, amount, reason, refund_to, admin=request.auth, request=request)
         return result
     except Exception as e:
         print(f"❌ Error in refund_transaction: {str(e)}")
@@ -1225,7 +1255,7 @@ def resolve_job_dispute(request, dispute_id: int):
         if not all([resolution, decision]):
             return {"success": False, "error": "Resolution and decision are required"}
         
-        result = resolve_dispute(dispute_id, resolution, decision, refund_amount)
+        result = resolve_dispute(dispute_id, resolution, decision, refund_amount, admin=request.auth, request=request)
         return result
     except Exception as e:
         print(f"❌ Error in resolve_job_dispute: {str(e)}")

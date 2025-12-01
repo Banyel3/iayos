@@ -6,12 +6,19 @@ Handles suspend, ban, activate, and delete operations for user accounts.
 from django.utils import timezone
 from datetime import timedelta
 from accounts.models import Accounts, Notification
+from adminpanel.audit_service import log_action
 
 
-def suspend_account(account_id: str, reason: str, admin_user):
+def suspend_account(account_id: str, reason: str, admin_user, request=None):
     """Suspend an account (temporary restriction)."""
     try:
         account = Accounts.objects.get(accountID=account_id)
+        
+        # Store before state for audit
+        before_state = {
+            "is_active": account.is_active,
+            "is_suspended": getattr(account, 'is_suspended', False),
+        }
         
         # Suspend for 30 days by default
         account.is_suspended = True
@@ -33,6 +40,18 @@ def suspend_account(account_id: str, reason: str, admin_user):
         except Exception:
             pass
         
+        # Log audit trail
+        log_action(
+            admin=admin_user,
+            action="user_suspend",
+            entity_type="user",
+            entity_id=str(account_id),
+            details={"email": account.email, "action": "suspended", "reason": reason},
+            before_value=before_state,
+            after_value={"is_active": False, "is_suspended": True, "reason": reason},
+            request=request
+        )
+        
         print(f"✅ Account {account_id} suspended by admin {admin_user.accountID}")
         return {'success': True, 'message': 'Account suspended successfully'}
         
@@ -45,10 +64,16 @@ def suspend_account(account_id: str, reason: str, admin_user):
         raise
 
 
-def ban_account(account_id: str, reason: str, admin_user):
+def ban_account(account_id: str, reason: str, admin_user, request=None):
     """Ban an account permanently."""
     try:
         account = Accounts.objects.get(accountID=account_id)
+        
+        # Store before state for audit
+        before_state = {
+            "is_active": account.is_active,
+            "is_banned": getattr(account, 'is_banned', False),
+        }
         
         account.is_banned = True
         account.banned_at = timezone.now()
@@ -68,6 +93,18 @@ def ban_account(account_id: str, reason: str, admin_user):
         except:
             pass
         
+        # Log audit trail
+        log_action(
+            admin=admin_user,
+            action="user_ban",
+            entity_type="user",
+            entity_id=str(account_id),
+            details={"email": account.email, "action": "banned", "reason": reason},
+            before_value=before_state,
+            after_value={"is_active": False, "is_banned": True, "reason": reason},
+            request=request
+        )
+        
         print(f"✅ Account {account_id} banned by admin {admin_user.accountID}")
         return {'success': True, 'message': 'Account banned successfully'}
         
@@ -80,10 +117,17 @@ def ban_account(account_id: str, reason: str, admin_user):
         raise
 
 
-def activate_account(account_id: str, admin_user):
+def activate_account(account_id: str, admin_user, request=None):
     """Activate/reactivate an account (remove suspension or ban)."""
     try:
         account = Accounts.objects.get(accountID=account_id)
+        
+        # Store before state for audit
+        before_state = {
+            "is_active": account.is_active,
+            "is_suspended": getattr(account, 'is_suspended', False),
+            "is_banned": getattr(account, 'is_banned', False),
+        }
         
         # Clear all restrictions
         account.is_active = True
@@ -106,6 +150,18 @@ def activate_account(account_id: str, admin_user):
         except:
             pass
         
+        # Log audit trail
+        log_action(
+            admin=admin_user,
+            action="user_activate",
+            entity_type="user",
+            entity_id=str(account_id),
+            details={"email": account.email, "action": "reactivated"},
+            before_value=before_state,
+            after_value={"is_active": True, "is_suspended": False, "is_banned": False},
+            request=request
+        )
+        
         print(f"✅ Account {account_id} activated by admin {admin_user.accountID}")
         return {'success': True, 'message': 'Account activated successfully'}
         
@@ -118,10 +174,17 @@ def activate_account(account_id: str, admin_user):
         raise
 
 
-def delete_account(account_id: str, admin_user):
+def delete_account(account_id: str, admin_user, request=None):
     """Soft delete an account (mark as inactive, don't actually delete)."""
     try:
         account = Accounts.objects.get(accountID=account_id)
+        
+        # Store before state for audit
+        before_state = {
+            "is_active": account.is_active,
+            "is_banned": getattr(account, 'is_banned', False),
+            "email": account.email,
+        }
         
         # Soft delete - just mark as inactive and banned
         account.is_active = False
@@ -130,6 +193,18 @@ def delete_account(account_id: str, admin_user):
         account.banned_reason = "Account deleted by administrator"
         account.banned_by = admin_user
         account.save()
+        
+        # Log audit trail
+        log_action(
+            admin=admin_user,
+            action="user_delete",
+            entity_type="user",
+            entity_id=str(account_id),
+            details={"email": account.email, "action": "soft-deleted"},
+            before_value=before_state,
+            after_value={"is_active": False, "is_banned": True, "deleted": True},
+            request=request
+        )
         
         print(f"✅ Account {account_id} soft-deleted by admin {admin_user.accountID}")
         return {'success': True, 'message': 'Account deleted successfully'}

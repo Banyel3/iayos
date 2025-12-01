@@ -1,6 +1,7 @@
 # services.py
 from .models import Accounts, Profile, Agency, kyc, kycFiles
 from adminpanel.models import SystemRoles
+from adminpanel.audit_service import log_action
 from django.utils.dateparse import parse_date
 from django.utils import timezone
 from datetime import timedelta, date
@@ -140,7 +141,7 @@ def create_account_agency(data):
     return result
 
 
-def login_account(data):
+def login_account(data, request=None):
     try:
         user = Accounts.objects.get(email__iexact=data.email)
     except Accounts.DoesNotExist:
@@ -151,6 +152,22 @@ def login_account(data):
 
     if not user.isVerified:
         raise ValueError("Please verify your email before logging in")
+    
+    # Log user login for audit trail
+    try:
+        log_action(
+            admin=user,  # For user actions, user is the "admin"
+            action="user_login",
+            entity_type="user",
+            entity_id=str(user.accountID),
+            details={"email": user.email, "action": "login"},
+            before_value={},
+            after_value={"logged_in": True},
+            request=request
+        )
+    except Exception as e:
+        # Don't block login if audit log fails
+        print(f"⚠️ Failed to log user login: {e}")
     
     return generateCookie(user)
 
@@ -299,7 +316,7 @@ def forgot_password_request(data):
         "email": user.email
     }
 
-def reset_password_verify(verifyToken, userID, data):
+def reset_password_verify(verifyToken, userID, data, request=None):
     """Reset user password with verification token"""
     
     # 1️⃣ Validate passwords match
@@ -324,6 +341,22 @@ def reset_password_verify(verifyToken, userID, data):
     user.verifyToken = None
     user.verifyTokenExpiry = None
     user.save()
+    
+    # 6️⃣ Log password reset for audit trail
+    try:
+        log_action(
+            admin=user,  # For user actions, user is the "admin"
+            action="password_reset",
+            entity_type="user",
+            entity_id=str(user.accountID),
+            details={"email": user.email, "action": "password_reset"},
+            before_value={},
+            after_value={"password_changed": True},
+            request=request
+        )
+    except Exception as e:
+        # Don't block password reset if audit log fails
+        print(f"⚠️ Failed to log password reset: {e}")
     
     return {"message": "Password updated successfully"}
 

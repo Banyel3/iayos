@@ -1685,7 +1685,7 @@ def mobile_update_profile(request, payload: dict):
 
     try:
         user = request.auth
-        result = update_user_profile_mobile(user, payload)
+        result = update_user_profile_mobile(user, payload, request)
 
         if result['success']:
             return result['data']

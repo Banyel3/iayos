@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any, Tuple
 from .services import generateCookie
 from decimal import Decimal
+from adminpanel.audit_service import log_action
 
 
 def get_reviewer_info(account: Accounts, profile_type: Optional[str] = None) -> Tuple[str, Optional[str]]:
@@ -1122,7 +1123,7 @@ def get_user_profile_mobile(user):
         }
 
 
-def update_user_profile_mobile(user, payload):
+def update_user_profile_mobile(user, payload, request=None):
     """
     Update user profile
     Allowed fields: firstName, lastName, contactNum, birthDate
@@ -1156,17 +1157,30 @@ def update_user_profile_mobile(user, payload):
                 'error': 'Failed to get profile'
             }
 
+        # Store before state for audit
+        before_state = {
+            "firstName": profile.firstName,
+            "lastName": profile.lastName,
+            "contactNum": profile.contactNum,
+            "birthDate": str(profile.birthDate) if profile.birthDate else None
+        }
+
         # Update allowed fields
+        updated_fields = {}
         if 'firstName' in payload:
             profile.firstName = payload['firstName']
+            updated_fields['firstName'] = payload['firstName']
         if 'lastName' in payload:
             profile.lastName = payload['lastName']
+            updated_fields['lastName'] = payload['lastName']
         if 'contactNum' in payload:
             profile.contactNum = payload['contactNum']
+            updated_fields['contactNum'] = payload['contactNum']
         if 'birthDate' in payload and payload['birthDate']:
             # Parse date string (YYYY-MM-DD)
             try:
                 profile.birthDate = datetime.strptime(payload['birthDate'], '%Y-%m-%d').date()
+                updated_fields['birthDate'] = payload['birthDate']
             except ValueError:
                 return {
                     'success': False,
@@ -1174,6 +1188,23 @@ def update_user_profile_mobile(user, payload):
                 }
 
         profile.save()
+
+        # Log profile update for audit trail
+        if updated_fields:
+            try:
+                log_action(
+                    admin=user,  # For user actions, user is the "admin"
+                    action="profile_update",
+                    entity_type="user",
+                    entity_id=str(user.accountID),
+                    details={"email": user.email, "updated_fields": list(updated_fields.keys())},
+                    before_value=before_state,
+                    after_value=updated_fields,
+                    request=request
+                )
+            except Exception as e:
+                # Don't block profile update if audit log fails
+                print(f"⚠️ Failed to log profile update: {e}")
 
         # Return updated profile
         return get_user_profile_mobile(user)

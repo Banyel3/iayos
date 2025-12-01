@@ -8,6 +8,7 @@ import uuid
 from accounts.models import Accounts, kyc, kycFiles, Profile, Notification, Agency, WorkerProfile
 from agency.models import AgencyKYC, AgencyKycFile
 from adminpanel.models import SystemRoles, KYCLogs
+from adminpanel.audit_service import log_action
 
 
 
@@ -390,6 +391,19 @@ def approve_kyc(request):
             relatedKYCLogID=kyc_log.kycLogID,
         )
         
+        # Log audit trail for KYC approval
+        if reviewer:
+            log_action(
+                admin=reviewer,
+                action="kyc_approval",
+                entity_type="kyc",
+                entity_id=str(kyc_id),
+                details={"email": user_account.email, "action": "approved", "kyc_type": "USER"},
+                before_value={"kyc_status": "PENDING", "KYCVerified": False},
+                after_value={"kyc_status": "APPROVED", "KYCVerified": True},
+                request=request
+            )
+        
         print(f"âœ… KYC approved successfully!")
         print(f"   - KYC ID: {kyc_id}")
         print(f"   - User: {user_account.email}")
@@ -495,6 +509,19 @@ def reject_kyc(request):
             message=f"Your KYC verification was not approved. Reason: {reason}. You can resubmit your documents with the correct information.",
             relatedKYCLogID=kyc_log.kycLogID,
         )
+        
+        # Log audit trail for KYC rejection
+        if reviewer:
+            log_action(
+                admin=reviewer,
+                action="kyc_rejection",
+                entity_type="kyc",
+                entity_id=str(kyc_id),
+                details={"email": user_account.email, "action": "rejected", "reason": reason, "kyc_type": "USER"},
+                before_value={"kyc_status": "PENDING"},
+                after_value={"kyc_status": "REJECTED", "reason": reason},
+                request=request
+            )
         
         print(f"âœ… KYC rejected successfully!")
         print(f"   - KYC ID: {kyc_id}")
@@ -733,6 +760,19 @@ def approve_agency_kyc(request):
             message=f"Your agency KYC verification has been approved.",
             relatedKYCLogID=kyc_log.kycLogID,
         )
+        
+        # Log audit trail for Agency KYC approval
+        if reviewer:
+            log_action(
+                admin=reviewer,
+                action="kyc_approval",
+                entity_type="kyc",
+                entity_id=str(agency_kyc_id),
+                details={"email": account.email, "action": "approved", "kyc_type": "AGENCY"},
+                before_value={"status": "PENDING", "KYCVerified": False},
+                after_value={"status": "APPROVED", "KYCVerified": True},
+                request=request
+            )
 
         # Mark the agency account as verified so the verification wall is removed
         try:
@@ -831,6 +871,19 @@ def reject_agency_kyc(request):
             message=f"Your agency KYC was not approved. Reason: {reason}. You may resubmit your documents.",
             relatedKYCLogID=kyc_log.kycLogID,
         )
+        
+        # Log audit trail for Agency KYC rejection
+        if reviewer:
+            log_action(
+                admin=reviewer,
+                action="kyc_rejection",
+                entity_type="kyc",
+                entity_id=str(agency_kyc_id),
+                details={"email": account.email, "action": "rejected", "reason": reason, "kyc_type": "AGENCY"},
+                before_value={"status": "PENDING"},
+                after_value={"status": "REJECTED", "reason": reason},
+                request=request
+            )
 
         print(f"âœ… Agency KYC rejected: {agency_kyc_id} for account {account.email}")
 

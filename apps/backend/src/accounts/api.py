@@ -133,7 +133,7 @@ def register_agency(request, payload: createAgencySchema):
 @router.post("/login")
 def login(request, payload: logInSchema):
     try:
-        result = login_account(payload)
+        result = login_account(payload, request)
         return result
     except ValueError as e:
         return {"error": [{"message": str(e)}]}
@@ -218,7 +218,7 @@ def forgot_password_send_verify(request, payload: forgotPasswordSchema):
 @router.post("/forgot-password/verify")
 def forgot_password_verify(request, payload: resetPasswordSchema, verifyToken: str, id: int):
     try:
-        result = reset_password_verify(verifyToken, id, payload)
+        result = reset_password_verify(verifyToken, id, payload, request)
         return result
     except ValueError as e:
         return {"error": [{"message": str(e)}]}

@@ -464,6 +464,7 @@ class AuditLog(models.Model):
     
     # What action was performed
     class ActionType(models.TextChoices):
+        # Admin actions
         LOGIN = "login", "Login"
         LOGOUT = "logout", "Logout"
         KYC_APPROVAL = "kyc_approval", "KYC Approval"
@@ -473,6 +474,8 @@ class AuditLog(models.Model):
         USER_BAN = "user_ban", "User Ban"
         USER_UNBAN = "user_unban", "User Unban"
         USER_SUSPEND = "user_suspend", "User Suspend"
+        USER_ACTIVATE = "user_activate", "User Activate"
+        USER_DELETE = "user_delete", "User Delete"
         SETTINGS_CHANGE = "settings_change", "Settings Change"
         ADMIN_CREATE = "admin_create", "Admin Create"
         ADMIN_UPDATE = "admin_update", "Admin Update"
@@ -485,6 +488,13 @@ class AuditLog(models.Model):
         FAQ_CREATE = "faq_create", "FAQ Create"
         FAQ_UPDATE = "faq_update", "FAQ Update"
         FAQ_DELETE = "faq_delete", "FAQ Delete"
+        BACKJOB_APPROVE = "backjob_approve", "Backjob Approve"
+        BACKJOB_REJECT = "backjob_reject", "Backjob Reject"
+        DISPUTE_RESOLVE = "dispute_resolve", "Dispute Resolve"
+        # User actions (for tracking login, password, profile changes)
+        USER_LOGIN = "user_login", "User Login"
+        PASSWORD_RESET = "password_reset", "Password Reset"
+        PROFILE_UPDATE = "profile_update", "Profile Update"
     
     action = models.CharField(
         max_length=30,
