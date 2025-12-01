@@ -609,10 +609,14 @@ def mobile_my_jobs(
             print(f"      ❌ Invalid profile type: {profile.profileType}")
             return Response({"error": "Invalid profile type"}, status=400)
         
-        # Filter by status if provided
+        # Filter by status if provided (supports comma-separated values like "COMPLETED,CANCELLED")
         if status_filter:
-            print(f"\n   🔎 Filtering by status: {status_filter.upper()}")
-            jobs_qs = jobs_qs.filter(status=status_filter.upper())
+            statuses = [s.strip().upper() for s in status_filter.split(',')]
+            print(f"\n   🔎 Filtering by status: {statuses}")
+            if len(statuses) == 1:
+                jobs_qs = jobs_qs.filter(status=statuses[0])
+            else:
+                jobs_qs = jobs_qs.filter(status__in=statuses)
         
         # Order by created date
         jobs_qs = jobs_qs.order_by('-createdAt')
@@ -1876,6 +1880,38 @@ def mobile_agency_detail(request, agency_id: int):
         )
 
 
+@mobile_router.get("/clients/{client_id}", auth=jwt_auth)
+def mobile_client_detail(request, client_id: int):
+    """
+    Get client profile details.
+    Allows workers to view client profile information.
+    """
+    from .mobile_services import get_client_detail_mobile
+
+    try:
+        user = request.auth
+        result = get_client_detail_mobile(user, client_id)
+
+        if result['success']:
+            return {
+                'success': True,
+                'client': result['data']
+            }
+        else:
+            return Response(
+                {"error": result.get('error', 'Client not found')},
+                status=404
+            )
+    except Exception as e:
+        print(f"[ERROR] Mobile client detail error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to fetch client details"},
+            status=500
+        )
+
+
 @mobile_router.get("/workers/{worker_id}", auth=jwt_auth)
 def mobile_worker_detail(request, worker_id: int):
     """
@@ -2476,6 +2512,38 @@ def mobile_get_worker_reviews(request, worker_id: int, page: int = 1, limit: int
         traceback.print_exc()
         return Response(
             {"error": "Failed to fetch worker reviews"},
+            status=500
+        )
+
+
+@mobile_router.get("/reviews/client/{client_id}", auth=jwt_auth)
+def mobile_get_client_reviews(request, client_id: int, page: int = 1, limit: int = 20):
+    """
+    Get all reviews for a specific client (reviews from workers about the client)
+    Returns paginated reviews with reviewer info
+    """
+    from .mobile_services import get_client_reviews_mobile
+
+    try:
+        result = get_client_reviews_mobile(
+            client_id=client_id,
+            page=page,
+            limit=limit
+        )
+
+        if result['success']:
+            return result['data']
+        else:
+            return Response(
+                {"error": result.get('error', 'Failed to fetch reviews')},
+                status=400
+            )
+    except Exception as e:
+        print(f"❌ [Mobile] Get client reviews error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to fetch client reviews"},
             status=500
         )
 

@@ -22,7 +22,13 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { Colors, Typography, Spacing, BorderRadius, Shadows } from "@/constants/theme";
+import {
+  Colors,
+  Typography,
+  Spacing,
+  BorderRadius,
+  Shadows,
+} from "@/constants/theme";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 
@@ -30,9 +36,9 @@ interface EstimatedCompletion {
   predicted_hours: number;
   confidence_interval_lower: number;
   confidence_interval_upper: number;
-  confidence_level: 'high' | 'medium' | 'low';
+  confidence_level: "high" | "medium" | "low";
   formatted_duration: string;
-  source: 'ml' | 'fallback';
+  source: "ml" | "fallback";
 }
 
 interface ApplicantCardProps {
@@ -68,7 +74,14 @@ export default function ApplicantCard({
   onReject,
   style,
 }: ApplicantCardProps) {
-  const { worker, proposed_budget, status, created_at, cover_letter, estimated_duration } = application;
+  const {
+    worker,
+    proposed_budget,
+    status,
+    created_at,
+    cover_letter,
+    estimated_duration,
+  } = application;
 
   const handleViewProfile = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -120,12 +133,7 @@ export default function ApplicantCard({
         );
       } else if (i === fullStars && hasHalfStar) {
         stars.push(
-          <Ionicons
-            key={i}
-            name="star-half"
-            size={14}
-            color={Colors.warning}
-          />
+          <Ionicons key={i} name="star-half" size={14} color={Colors.warning} />
         );
       } else {
         stars.push(
@@ -206,7 +214,11 @@ export default function ApplicantCard({
       {(platformEstimate || estimated_duration) && (
         <View style={styles.estimateComparisonContainer}>
           <View style={styles.estimateHeader}>
-            <Ionicons name="time-outline" size={16} color={Colors.textSecondary} />
+            <Ionicons
+              name="time-outline"
+              size={16}
+              color={Colors.textSecondary}
+            />
             <Text style={styles.estimateTitle}>Time Estimate</Text>
           </View>
           <View style={styles.estimateGrid}>
@@ -216,12 +228,20 @@ export default function ApplicantCard({
                 <Text style={styles.platformEstimateValue}>
                   {platformEstimate.formatted_duration}
                 </Text>
-                <Text style={[
-                  styles.confidenceText,
-                  platformEstimate.confidence_level === 'high' && { color: Colors.success },
-                  platformEstimate.confidence_level === 'medium' && { color: Colors.warning },
-                  platformEstimate.confidence_level === 'low' && { color: Colors.error },
-                ]}>
+                <Text
+                  style={[
+                    styles.confidenceText,
+                    platformEstimate.confidence_level === "high" && {
+                      color: Colors.success,
+                    },
+                    platformEstimate.confidence_level === "medium" && {
+                      color: Colors.warning,
+                    },
+                    platformEstimate.confidence_level === "low" && {
+                      color: Colors.error,
+                    },
+                  ]}
+                >
                   {platformEstimate.confidence_level} confidence
                 </Text>
               </View>
@@ -269,7 +289,11 @@ export default function ApplicantCard({
 
       {/* Action Buttons */}
       <View style={styles.actions}>
-        <Button variant="outline" onPress={handleViewProfile} style={styles.actionButton}>
+        <Button
+          variant="outline"
+          onPress={handleViewProfile}
+          style={styles.actionButton}
+        >
           <Ionicons
             name="person-outline"
             size={16}

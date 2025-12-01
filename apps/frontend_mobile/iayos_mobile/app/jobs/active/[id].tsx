@@ -43,11 +43,13 @@ interface ActiveJobDetail {
   started_at: string | null;
   worker_marked_complete_at: string | null;
   client: {
+    id: number;
     name: string;
     avatar: string;
     phone: string;
   };
   worker: {
+    id: number;
     name: string;
     avatar: string;
     phone: string;
@@ -404,12 +406,14 @@ export default function ActiveJobDetailScreen() {
         </View>
 
         {/* ML Estimated Completion Time - Countdown mode for active jobs */}
-        {job.estimated_completion && !job.client_marked_complete && (
+        {(isLoading ||
+          (job.estimated_completion && !job.client_marked_complete)) && (
           <View style={styles.section}>
-            <EstimatedTimeCard 
-              prediction={job.estimated_completion}
-              countdownMode={job.status === 'IN_PROGRESS' && !!job.started_at}
-              jobStartTime={job.started_at || undefined}
+            <EstimatedTimeCard
+              prediction={job?.estimated_completion || null}
+              countdownMode={job?.status === "IN_PROGRESS" && !!job?.started_at}
+              jobStartTime={job?.started_at || undefined}
+              isLoading={isLoading}
             />
           </View>
         )}
@@ -419,31 +423,79 @@ export default function ActiveJobDetailScreen() {
           <Text style={styles.sectionTitle}>
             {isWorker ? "Client Information" : "Worker Information"}
           </Text>
-          <View style={styles.userCard}>
-            <Image
-              source={{
-                uri: isWorker
-                  ? job.client.avatar || "https://via.placeholder.com/60"
-                  : job.worker?.avatar || "https://via.placeholder.com/60",
-              }}
-              style={styles.userAvatar}
-            />
-            <View style={styles.userInfo}>
-              <Text style={styles.userName}>
-                {isWorker ? job.client.name : job.worker?.name || "Unknown"}
-              </Text>
-              <View style={styles.userContact}>
-                <Ionicons
-                  name="call-outline"
-                  size={16}
-                  color={Colors.textSecondary}
-                />
-                <Text style={styles.userPhone}>
-                  {isWorker ? job.client.phone : job.worker?.phone || "N/A"}
-                </Text>
+          {isWorker ? (
+            /* Client info - clickable for workers */
+            <TouchableOpacity
+              style={styles.userCard}
+              onPress={() =>
+                job.client?.id &&
+                router.push(`/clients/${job.client.id}` as any)
+              }
+              activeOpacity={0.7}
+            >
+              <Image
+                source={{
+                  uri: job.client.avatar || "https://via.placeholder.com/60",
+                }}
+                style={styles.userAvatar}
+              />
+              <View style={styles.userInfo}>
+                <Text style={styles.userName}>{job.client.name}</Text>
+                <View style={styles.userContact}>
+                  <Ionicons
+                    name="call-outline"
+                    size={16}
+                    color={Colors.textSecondary}
+                  />
+                  <Text style={styles.userPhone}>{job.client.phone}</Text>
+                </View>
+                <Text style={styles.tapToViewHint}>Tap to view profile</Text>
               </View>
-            </View>
-          </View>
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={Colors.textSecondary}
+              />
+            </TouchableOpacity>
+          ) : (
+            /* Worker info - clickable */
+            <TouchableOpacity
+              style={styles.userCard}
+              onPress={() =>
+                job.worker?.id &&
+                router.push(`/workers/${job.worker.id}` as any)
+              }
+              activeOpacity={0.7}
+            >
+              <Image
+                source={{
+                  uri: job.worker?.avatar || "https://via.placeholder.com/60",
+                }}
+                style={styles.userAvatar}
+              />
+              <View style={styles.userInfo}>
+                <Text style={styles.userName}>
+                  {job.worker?.name || "Unknown"}
+                </Text>
+                <View style={styles.userContact}>
+                  <Ionicons
+                    name="call-outline"
+                    size={16}
+                    color={Colors.textSecondary}
+                  />
+                  <Text style={styles.userPhone}>
+                    {job.worker?.phone || "N/A"}
+                  </Text>
+                </View>
+                <Text style={styles.tapToViewHint}>Tap to view profile</Text>
+              </View>
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={Colors.textSecondary}
+              />
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Completion Notes (if marked complete) */}
@@ -825,6 +877,11 @@ const styles = StyleSheet.create({
   userPhone: {
     fontSize: Typography.fontSize.sm,
     color: Colors.textSecondary,
+  },
+  tapToViewHint: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.primary,
+    marginTop: Spacing.xs,
   },
   notesCard: {
     backgroundColor: Colors.white,

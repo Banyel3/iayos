@@ -30,9 +30,9 @@ interface EstimatedCompletion {
   predicted_hours: number;
   confidence_interval_lower: number;
   confidence_interval_upper: number;
-  confidence_level: 'high' | 'medium' | 'low';
+  confidence_level: "high" | "medium" | "low";
   formatted_duration: string;
-  source: 'ml' | 'fallback';
+  source: "ml" | "fallback";
 }
 
 interface JobApplicationsResponse {

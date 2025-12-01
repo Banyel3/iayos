@@ -13,10 +13,14 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  SafeAreaView,
+  Image,
+  TouchableOpacity,
 } from "react-native";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { useAuth } from "@/context/AuthContext";
 import {
   Colors,
   Typography,
@@ -32,6 +36,7 @@ import {
   usePortfolioManagement,
   type PortfolioImage,
 } from "@/lib/hooks/usePortfolioManagement";
+import * as ImagePicker from "expo-image-picker";
 
 // ===== TYPES =====
 
@@ -48,6 +53,8 @@ interface WorkerProfile {
 }
 
 interface UpdateProfileData {
+  firstName: string;
+  lastName: string;
   bio: string;
   hourlyRate: string;
   phoneNumber: string;
@@ -59,13 +66,24 @@ interface UpdateProfileData {
 export default function EditProfileScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
-  // Form state
+  // Form state - basic info
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
+
+  // Form state - worker specific
   const [bio, setBio] = useState("");
   const [hourlyRate, setHourlyRate] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [skills, setSkills] = useState("");
   const [hasChanges, setHasChanges] = useState(false);
+
+  // Avatar state
+  const [avatarUri, setAvatarUri] = useState<string | null>(null);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [avatarChanged, setAvatarChanged] = useState(false);
 
   // Portfolio state
   const [viewerVisible, setViewerVisible] = useState(false);
@@ -98,19 +116,111 @@ export default function EditProfileScreen() {
     },
   });
 
-  // Initialize form with current values
+  // Initialize form with current values from auth context and profile
   useEffect(() => {
+    // Load basic info from auth context
+    if (user?.profile_data) {
+      setFirstName(user.profile_data.firstName || "");
+      setLastName(user.profile_data.lastName || "");
+      setEmail(user.email || "");
+      setPhoneNumber(user.profile_data.contactNum || "");
+      setAvatarUri(user.profile_data.profileImg || null);
+    }
+
+    // Load worker-specific data from profile query
     if (profile) {
       setBio(profile.bio || "");
       setHourlyRate(profile.hourlyRate ? profile.hourlyRate.toString() : "");
-      setPhoneNumber(profile.user.phoneNumber || "");
-      setSkills(profile.skills.join(", "));
+      setSkills(profile.skills?.join(", ") || "");
+      // Override phone if profile has it
+      if (profile.user?.phoneNumber) {
+        setPhoneNumber(profile.user.phoneNumber);
+      }
     }
-  }, [profile]);
+  }, [user, profile]);
+
+  // Avatar upload handler
+  const handleAvatarPress = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert(
+        "Permission Required",
+        "Please grant camera roll access to change your photo."
+      );
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      uploadAvatar(result.assets[0].uri);
+    }
+  };
+
+  const uploadAvatar = async (uri: string) => {
+    setIsUploadingAvatar(true);
+    try {
+      const formData = new FormData();
+      const filename = uri.split("/").pop() || "avatar.jpg";
+      const match = /\.(\w+)$/.exec(filename);
+      const type = match ? `image/${match[1]}` : "image/jpeg";
+
+      formData.append("profile_image", {
+        uri,
+        name: filename,
+        type,
+      } as any);
+
+      const response = await apiRequest(ENDPOINTS.UPLOAD_AVATAR, {
+        method: "POST",
+        body: formData,
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
+      if (response.ok) {
+        setAvatarUri(uri);
+        setAvatarChanged(true);
+        Alert.alert("Success", "Profile photo updated!");
+        // Invalidate queries to refresh user data
+        queryClient.invalidateQueries({ queryKey: ["worker-profile"] });
+      } else {
+        throw new Error("Failed to upload avatar");
+      }
+    } catch (error) {
+      Alert.alert("Error", "Failed to update profile photo. Please try again.");
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
 
   // Update profile mutation
   const updateMutation = useMutation({
     mutationFn: async (data: UpdateProfileData) => {
+      // First update basic profile info
+      const profileResponse = await apiRequest(
+        ENDPOINTS.UPDATE_PROFILE(user?.profile_data?.id || 0),
+        {
+          method: "PUT",
+          body: JSON.stringify({
+            first_name: data.firstName,
+            last_name: data.lastName,
+            contact_num: data.phoneNumber,
+          }),
+        }
+      );
+
+      if (!profileResponse.ok) {
+        throw new Error("Failed to update basic profile");
+      }
+
+      // Then update worker-specific fields
       const response = await apiRequest(ENDPOINTS.UPDATE_WORKER_PROFILE, {
         method: "PUT",
         body: JSON.stringify({
@@ -148,20 +258,48 @@ export default function EditProfileScreen() {
 
   // Track if form has changes
   useEffect(() => {
-    if (!profile) return;
+    const originalFirstName = user?.profile_data?.firstName || "";
+    const originalLastName = user?.profile_data?.lastName || "";
+    const originalPhone =
+      user?.profile_data?.contactNum || profile?.user?.phoneNumber || "";
+    const originalBio = profile?.bio || "";
+    const originalRate = profile?.hourlyRate
+      ? profile.hourlyRate.toString()
+      : "";
+    const originalSkills = profile?.skills?.join(", ") || "";
 
     const changed =
-      bio !== (profile.bio || "") ||
-      hourlyRate !==
-        (profile.hourlyRate ? profile.hourlyRate.toString() : "") ||
-      phoneNumber !== (profile.user.phoneNumber || "") ||
-      skills !== profile.skills.join(", ");
+      avatarChanged ||
+      firstName !== originalFirstName ||
+      lastName !== originalLastName ||
+      bio !== originalBio ||
+      hourlyRate !== originalRate ||
+      phoneNumber !== originalPhone ||
+      skills !== originalSkills;
 
     setHasChanges(changed);
-  }, [bio, hourlyRate, phoneNumber, skills, profile]);
+  }, [
+    firstName,
+    lastName,
+    bio,
+    hourlyRate,
+    phoneNumber,
+    skills,
+    profile,
+    user,
+    avatarChanged,
+  ]);
 
   // Validation
   const validateForm = (): string | null => {
+    // Required fields
+    if (!firstName.trim()) {
+      return "First name is required";
+    }
+    if (!lastName.trim()) {
+      return "Last name is required";
+    }
+
     // Bio validation
     if (bio.trim().length > 0 && bio.trim().length < 50) {
       return "Bio must be at least 50 characters";
@@ -223,6 +361,8 @@ export default function EditProfileScreen() {
     }
 
     updateMutation.mutate({
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
       bio: bio.trim(),
       hourlyRate: hourlyRate.trim(),
       phoneNumber: phoneNumber.trim(),
@@ -253,369 +393,451 @@ export default function EditProfileScreen() {
   // ===== LOADING STATE =====
   if (isLoading) {
     return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color={Colors.primary} />
-        <Text style={styles.loadingText}>Loading profile...</Text>
-      </View>
+      <SafeAreaView style={styles.container}>
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={styles.loadingText}>Loading profile...</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
   // ===== MAIN CONTENT =====
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
+    <SafeAreaView style={styles.container}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         {/* Header */}
         <View style={styles.header}>
-          <Pressable style={styles.cancelButton} onPress={handleCancel}>
-            <Ionicons name="close" size={24} color={Colors.textPrimary} />
-          </Pressable>
+          <TouchableOpacity onPress={handleCancel} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color={Colors.white} />
+          </TouchableOpacity>
           <Text style={styles.headerTitle}>Edit Profile</Text>
-          <Pressable
+          <TouchableOpacity
             style={[
-              styles.saveButton,
+              styles.saveHeaderButton,
               (!hasChanges || updateMutation.isPending) &&
-                styles.saveButtonDisabled,
+                styles.saveHeaderButtonDisabled,
             ]}
             onPress={handleSave}
             disabled={!hasChanges || updateMutation.isPending}
           >
             {updateMutation.isPending ? (
-              <ActivityIndicator size="small" color={Colors.textLight} />
+              <ActivityIndicator size="small" color={Colors.white} />
             ) : (
               <Text
                 style={[
-                  styles.saveButtonText,
-                  !hasChanges && styles.saveButtonTextDisabled,
+                  styles.saveHeaderButtonText,
+                  !hasChanges && styles.saveHeaderButtonTextDisabled,
                 ]}
               >
                 Save
               </Text>
             )}
-          </Pressable>
+          </TouchableOpacity>
         </View>
 
-        {/* Bio Field */}
-        <View style={styles.fieldContainer}>
-          <Text style={styles.label}>
-            Bio <Text style={styles.optional}>(optional)</Text>
-          </Text>
-          <TextInput
-            style={[styles.textArea, bio.length > 0 && styles.textAreaActive]}
-            value={bio}
-            onChangeText={setBio}
-            placeholder="Tell clients about your experience, skills, and what makes you stand out..."
-            placeholderTextColor={Colors.textSecondary}
-            multiline
-            numberOfLines={6}
-            maxLength={500}
-            textAlignVertical="top"
-          />
-          <View style={styles.fieldFooter}>
-            <Text
-              style={[
-                styles.hint,
-                bio.length > 0 && bio.length < 50 && styles.hintWarning,
-              ]}
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Avatar Section */}
+          <View style={styles.avatarSection}>
+            <TouchableOpacity
+              style={styles.avatarContainer}
+              onPress={handleAvatarPress}
+              disabled={isUploadingAvatar}
             >
-              {bio.length > 0 && bio.length < 50
-                ? `${50 - bio.length} more characters needed`
-                : "Minimum 50 characters recommended"}
-            </Text>
-            <Text style={styles.charCount}>{bio.length}/500</Text>
+              {avatarUri ? (
+                <Image source={{ uri: avatarUri }} style={styles.avatar} />
+              ) : (
+                <View style={[styles.avatar, styles.avatarPlaceholder]}>
+                  <Text style={styles.avatarInitials}>
+                    {firstName.charAt(0)}
+                    {lastName.charAt(0)}
+                  </Text>
+                </View>
+              )}
+              {isUploadingAvatar ? (
+                <View style={styles.avatarOverlay}>
+                  <ActivityIndicator size="small" color={Colors.white} />
+                </View>
+              ) : (
+                <View style={styles.avatarEditBadge}>
+                  <Ionicons name="camera" size={16} color={Colors.white} />
+                </View>
+              )}
+            </TouchableOpacity>
+            <Text style={styles.avatarHint}>Tap to change photo</Text>
           </View>
-        </View>
 
-        {/* Hourly Rate Field */}
-        <View style={styles.fieldContainer}>
-          <Text style={styles.label}>
-            Hourly Rate <Text style={styles.optional}>(optional)</Text>
-          </Text>
-          <View style={styles.inputWithIcon}>
-            <Text style={styles.currencySymbol}>₱</Text>
-            <TextInput
-              style={[
-                styles.input,
-                hourlyRate.length > 0 && styles.inputActive,
-              ]}
-              value={hourlyRate}
-              onChangeText={setHourlyRate}
-              placeholder="0.00"
-              placeholderTextColor={Colors.textSecondary}
-              keyboardType="decimal-pad"
-            />
-            <Text style={styles.inputSuffix}>/hour</Text>
-          </View>
-          <Text style={styles.hint}>Set your preferred hourly rate</Text>
-        </View>
+          {/* Basic Info Section */}
+          <View style={styles.formSection}>
+            <Text style={styles.sectionHeader}>Basic Information</Text>
 
-        {/* Phone Number Field */}
-        <View style={styles.fieldContainer}>
-          <Text style={styles.label}>
-            Phone Number <Text style={styles.optional}>(optional)</Text>
-          </Text>
-          <View style={styles.inputWithIcon}>
-            <Ionicons
-              name="call-outline"
-              size={20}
-              color={Colors.textSecondary}
-            />
-            <TextInput
-              style={[
-                styles.input,
-                styles.inputWithPadding,
-                phoneNumber.length > 0 && styles.inputActive,
-              ]}
-              value={phoneNumber}
-              onChangeText={setPhoneNumber}
-              placeholder="+63 XXX XXX XXXX"
-              placeholderTextColor={Colors.textSecondary}
-              keyboardType="phone-pad"
-            />
-          </View>
-          <Text style={styles.hint}>Add your contact number</Text>
-        </View>
-
-        {/* Skills Field */}
-        <View style={styles.fieldContainer}>
-          <Text style={styles.label}>
-            Skills <Text style={styles.optional}>(optional)</Text>
-          </Text>
-          <TextInput
-            style={[styles.input, skills.length > 0 && styles.inputActive]}
-            value={skills}
-            onChangeText={setSkills}
-            placeholder="e.g. Plumbing, Electrical, Carpentry"
-            placeholderTextColor={Colors.textSecondary}
-          />
-          <Text style={styles.hint}>Separate multiple skills with commas</Text>
-        </View>
-
-        {/* Certifications Section */}
-        <View style={styles.managementSection}>
-          <View style={styles.managementHeader}>
-            <View>
-              <Text style={styles.sectionTitle}>Certifications</Text>
-              <Text style={styles.managementHint}>
-                Add professional certifications
-              </Text>
-            </View>
-            <Ionicons name="ribbon" size={32} color={Colors.primary} />
-          </View>
-          <Pressable
-            style={styles.manageButton}
-            onPress={() => router.push("/profile/certifications" as any)}
-          >
-            <Ionicons
-              name="settings-outline"
-              size={20}
-              color={Colors.primary}
-            />
-            <Text style={styles.manageButtonText}>Manage Certifications</Text>
-            <Ionicons name="chevron-forward" size={20} color={Colors.primary} />
-          </Pressable>
-        </View>
-
-        {/* Materials Management */}
-        <View style={styles.managementSection}>
-          <View style={styles.managementHeader}>
-            <View>
-              <Text style={styles.sectionTitle}>Materials & Products</Text>
-              <Text style={styles.managementHint}>
-                List materials or products you offer
-              </Text>
-            </View>
-            <Ionicons name="cube" size={32} color={Colors.primary} />
-          </View>
-          <Pressable
-            style={styles.manageButton}
-            onPress={() => router.push("/profile/materials" as any)}
-          >
-            <Ionicons
-              name="settings-outline"
-              size={20}
-              color={Colors.primary}
-            />
-            <Text style={styles.manageButtonText}>Manage Materials</Text>
-            <Ionicons name="chevron-forward" size={20} color={Colors.primary} />
-          </Pressable>
-        </View>
-
-        {/* Portfolio Section */}
-        <View style={styles.portfolioSection}>
-          <View style={styles.portfolioHeader}>
-            <Text style={styles.sectionTitle}>Portfolio</Text>
-            <Text style={styles.portfolioCount}>
-              {portfolioImages.length} / 10
-            </Text>
-          </View>
-          <Text style={styles.portfolioHint}>
-            Showcase your work with up to 10 images
-          </Text>
-
-          {/* Upload Component */}
-          {canAddMore && (
-            <View style={styles.uploadContainer}>
-              <PortfolioUpload
-                maxImages={10}
-                disabled={!canAddMore}
-                onUploadComplete={() => {
-                  queryClient.invalidateQueries({
-                    queryKey: ["worker-profile"],
-                  });
-                }}
+            {/* First Name */}
+            <View style={styles.fieldContainer}>
+              <Text style={styles.label}>First Name *</Text>
+              <TextInput
+                style={styles.input}
+                value={firstName}
+                onChangeText={setFirstName}
+                placeholder="Enter your first name"
+                placeholderTextColor={Colors.textSecondary}
               />
-              {remainingSlots > 0 && (
-                <Text style={styles.uploadHint}>
-                  {remainingSlots} {remainingSlots === 1 ? "slot" : "slots"}{" "}
-                  remaining
+            </View>
+
+            {/* Last Name */}
+            <View style={styles.fieldContainer}>
+              <Text style={styles.label}>Last Name *</Text>
+              <TextInput
+                style={styles.input}
+                value={lastName}
+                onChangeText={setLastName}
+                placeholder="Enter your last name"
+                placeholderTextColor={Colors.textSecondary}
+              />
+            </View>
+
+            {/* Email (Read-only) */}
+            <View style={styles.fieldContainer}>
+              <Text style={styles.label}>Email Address</Text>
+              <TextInput
+                style={[styles.input, styles.inputReadonly]}
+                value={email}
+                editable={false}
+                placeholderTextColor={Colors.textSecondary}
+              />
+              <Text style={styles.hint}>Email cannot be changed</Text>
+            </View>
+
+            {/* Phone Number */}
+            <View style={styles.fieldContainer}>
+              <Text style={styles.label}>Contact Number</Text>
+              <TextInput
+                style={styles.input}
+                value={phoneNumber}
+                onChangeText={setPhoneNumber}
+                placeholder="09123456789"
+                placeholderTextColor={Colors.textSecondary}
+                keyboardType="phone-pad"
+                maxLength={11}
+              />
+            </View>
+          </View>
+
+          {/* Worker Profile Section */}
+          <View style={styles.formSection}>
+            <Text style={styles.sectionHeader}>Worker Profile</Text>
+
+            {/* Bio Field */}
+            <View style={styles.fieldContainer}>
+              <Text style={styles.label}>
+                Bio <Text style={styles.optional}>(optional)</Text>
+              </Text>
+              <TextInput
+                style={[
+                  styles.textArea,
+                  bio.length > 0 && styles.textAreaActive,
+                ]}
+                value={bio}
+                onChangeText={setBio}
+                placeholder="Tell clients about your experience, skills, and what makes you stand out..."
+                placeholderTextColor={Colors.textSecondary}
+                multiline
+                numberOfLines={6}
+                maxLength={500}
+                textAlignVertical="top"
+              />
+              <View style={styles.fieldFooter}>
+                <Text
+                  style={[
+                    styles.hint,
+                    bio.length > 0 && bio.length < 50 && styles.hintWarning,
+                  ]}
+                >
+                  {bio.length > 0 && bio.length < 50
+                    ? `${50 - bio.length} more characters needed`
+                    : "Minimum 50 characters recommended"}
                 </Text>
+                <Text style={styles.charCount}>{bio.length}/500</Text>
+              </View>
+            </View>
+
+            {/* Hourly Rate Field */}
+            <View style={styles.fieldContainer}>
+              <Text style={styles.label}>
+                Hourly Rate <Text style={styles.optional}>(optional)</Text>
+              </Text>
+              <View style={styles.inputWithIcon}>
+                <Text style={styles.currencySymbol}>₱</Text>
+                <TextInput
+                  style={[
+                    styles.input,
+                    styles.inputWithPadding,
+                    hourlyRate.length > 0 && styles.inputActive,
+                  ]}
+                  value={hourlyRate}
+                  onChangeText={setHourlyRate}
+                  placeholder="0.00"
+                  placeholderTextColor={Colors.textSecondary}
+                  keyboardType="decimal-pad"
+                />
+                <Text style={styles.inputSuffix}>/hour</Text>
+              </View>
+              <Text style={styles.hint}>Set your preferred hourly rate</Text>
+            </View>
+
+            {/* Skills Field */}
+            <View style={styles.fieldContainer}>
+              <Text style={styles.label}>
+                Skills <Text style={styles.optional}>(optional)</Text>
+              </Text>
+              <TextInput
+                style={[styles.input, skills.length > 0 && styles.inputActive]}
+                value={skills}
+                onChangeText={setSkills}
+                placeholder="e.g. Plumbing, Electrical, Carpentry"
+                placeholderTextColor={Colors.textSecondary}
+              />
+              <Text style={styles.hint}>
+                Separate multiple skills with commas
+              </Text>
+            </View>
+          </View>
+
+          {/* Certifications Section */}
+          <View style={styles.managementSection}>
+            <View style={styles.managementHeader}>
+              <View>
+                <Text style={styles.sectionTitle}>Certifications</Text>
+                <Text style={styles.managementHint}>
+                  Add professional certifications
+                </Text>
+              </View>
+              <Ionicons name="ribbon" size={32} color={Colors.primary} />
+            </View>
+            <Pressable
+              style={styles.manageButton}
+              onPress={() => router.push("/profile/certifications" as any)}
+            >
+              <Ionicons
+                name="settings-outline"
+                size={20}
+                color={Colors.primary}
+              />
+              <Text style={styles.manageButtonText}>Manage Certifications</Text>
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={Colors.primary}
+              />
+            </Pressable>
+          </View>
+
+          {/* Materials Management */}
+          <View style={styles.managementSection}>
+            <View style={styles.managementHeader}>
+              <View>
+                <Text style={styles.sectionTitle}>Materials & Products</Text>
+                <Text style={styles.managementHint}>
+                  List materials or products you offer
+                </Text>
+              </View>
+              <Ionicons name="cube" size={32} color={Colors.primary} />
+            </View>
+            <Pressable
+              style={styles.manageButton}
+              onPress={() => router.push("/profile/materials" as any)}
+            >
+              <Ionicons
+                name="settings-outline"
+                size={20}
+                color={Colors.primary}
+              />
+              <Text style={styles.manageButtonText}>Manage Materials</Text>
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={Colors.primary}
+              />
+            </Pressable>
+          </View>
+
+          {/* Portfolio Section */}
+          <View style={styles.portfolioSection}>
+            <View style={styles.portfolioHeader}>
+              <Text style={styles.sectionTitle}>Portfolio</Text>
+              <Text style={styles.portfolioCount}>
+                {portfolioImages.length} / 10
+              </Text>
+            </View>
+            <Text style={styles.portfolioHint}>
+              Showcase your work with up to 10 images
+            </Text>
+
+            {/* Upload Component */}
+            {canAddMore && (
+              <View style={styles.uploadContainer}>
+                <PortfolioUpload
+                  maxImages={10}
+                  disabled={!canAddMore}
+                  onUploadComplete={() => {
+                    queryClient.invalidateQueries({
+                      queryKey: ["worker-profile"],
+                    });
+                  }}
+                />
+                {remainingSlots > 0 && (
+                  <Text style={styles.uploadHint}>
+                    {remainingSlots} {remainingSlots === 1 ? "slot" : "slots"}{" "}
+                    remaining
+                  </Text>
+                )}
+              </View>
+            )}
+
+            {/* Portfolio Grid */}
+            {portfolioImages.length > 0 && (
+              <View style={styles.portfolioGrid}>
+                <PortfolioGrid
+                  images={portfolioImages}
+                  onImageTap={(image, index) => {
+                    setViewerIndex(index);
+                    setViewerVisible(true);
+                  }}
+                  onEdit={(image) => {
+                    setEditingCaption({
+                      id: image.id,
+                      caption: image.caption || "",
+                    });
+                  }}
+                  onDelete={(image) => {
+                    deleteImage.mutate(image.id);
+                  }}
+                  onReorder={(newOrder) => {
+                    reorderImages.mutate(newOrder);
+                  }}
+                  editable={true}
+                />
+              </View>
+            )}
+          </View>
+
+          {/* Edit Caption Modal */}
+          {editingCaption && (
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                <Text style={styles.modalTitle}>Edit Caption</Text>
+                <TextInput
+                  style={styles.captionInput}
+                  value={editingCaption.caption}
+                  onChangeText={(text) =>
+                    setEditingCaption({ ...editingCaption, caption: text })
+                  }
+                  placeholder="Enter caption (optional)"
+                  placeholderTextColor={Colors.textSecondary}
+                  multiline
+                  maxLength={200}
+                />
+                <Text style={styles.captionCharCount}>
+                  {editingCaption.caption.length}/200
+                </Text>
+                <View style={styles.modalButtons}>
+                  <Pressable
+                    style={[styles.modalButton, styles.modalButtonCancel]}
+                    onPress={() => setEditingCaption(null)}
+                  >
+                    <Text style={styles.modalButtonTextCancel}>Cancel</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.modalButton, styles.modalButtonSave]}
+                    onPress={() => {
+                      if (editingCaption) {
+                        updateCaption.mutate({
+                          id: editingCaption.id,
+                          caption: editingCaption.caption,
+                        });
+                        setEditingCaption(null);
+                      }
+                    }}
+                  >
+                    <Text style={styles.modalButtonTextSave}>Save</Text>
+                  </Pressable>
+                </View>
+              </View>
+            </View>
+          )}
+
+          {/* Image Viewer */}
+          <ImageViewer
+            visible={viewerVisible}
+            images={portfolioImages}
+            initialIndex={viewerIndex}
+            onClose={() => setViewerVisible(false)}
+            onEdit={(image: PortfolioImage) => {
+              setViewerVisible(false);
+              setEditingCaption({ id: image.id, caption: image.caption || "" });
+            }}
+            onDelete={(image: PortfolioImage) => {
+              setViewerVisible(false);
+              deleteImage.mutate(image.id);
+            }}
+            showActions={true}
+          />
+
+          {/* Preview Changes */}
+          {hasChanges && (
+            <View style={styles.previewContainer}>
+              <Text style={styles.previewTitle}>Preview Changes</Text>
+
+              {bio.trim() !== (profile?.bio || "") && (
+                <View style={styles.previewItem}>
+                  <Text style={styles.previewLabel}>Bio:</Text>
+                  <Text style={styles.previewValue} numberOfLines={2}>
+                    {bio.trim() || "None"}
+                  </Text>
+                </View>
+              )}
+
+              {hourlyRate.trim() !==
+                (profile?.hourlyRate?.toString() || "") && (
+                <View style={styles.previewItem}>
+                  <Text style={styles.previewLabel}>Hourly Rate:</Text>
+                  <Text style={styles.previewValue}>
+                    {hourlyRate
+                      ? `₱${parseFloat(hourlyRate).toFixed(2)}/hour`
+                      : "Not set"}
+                  </Text>
+                </View>
+              )}
+
+              {phoneNumber.trim() !== (profile?.user.phoneNumber || "") && (
+                <View style={styles.previewItem}>
+                  <Text style={styles.previewLabel}>Phone:</Text>
+                  <Text style={styles.previewValue}>
+                    {phoneNumber.trim() || "Not set"}
+                  </Text>
+                </View>
+              )}
+
+              {skills.trim() !== (profile?.skills?.join(", ") || "") && (
+                <View style={styles.previewItem}>
+                  <Text style={styles.previewLabel}>Skills:</Text>
+                  <Text style={styles.previewValue} numberOfLines={2}>
+                    {skills.trim() || "None"}
+                  </Text>
+                </View>
               )}
             </View>
           )}
-
-          {/* Portfolio Grid */}
-          {portfolioImages.length > 0 && (
-            <View style={styles.portfolioGrid}>
-              <PortfolioGrid
-                images={portfolioImages}
-                onImageTap={(image, index) => {
-                  setViewerIndex(index);
-                  setViewerVisible(true);
-                }}
-                onEdit={(image) => {
-                  setEditingCaption({
-                    id: image.id,
-                    caption: image.caption || "",
-                  });
-                }}
-                onDelete={(image) => {
-                  deleteImage.mutate(image.id);
-                }}
-                onReorder={(newOrder) => {
-                  reorderImages.mutate(newOrder);
-                }}
-                editable={true}
-              />
-            </View>
-          )}
-        </View>
-
-        {/* Edit Caption Modal */}
-        {editingCaption && (
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>Edit Caption</Text>
-              <TextInput
-                style={styles.captionInput}
-                value={editingCaption.caption}
-                onChangeText={(text) =>
-                  setEditingCaption({ ...editingCaption, caption: text })
-                }
-                placeholder="Enter caption (optional)"
-                placeholderTextColor={Colors.textSecondary}
-                multiline
-                maxLength={200}
-              />
-              <Text style={styles.captionCharCount}>
-                {editingCaption.caption.length}/200
-              </Text>
-              <View style={styles.modalButtons}>
-                <Pressable
-                  style={[styles.modalButton, styles.modalButtonCancel]}
-                  onPress={() => setEditingCaption(null)}
-                >
-                  <Text style={styles.modalButtonTextCancel}>Cancel</Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.modalButton, styles.modalButtonSave]}
-                  onPress={() => {
-                    if (editingCaption) {
-                      updateCaption.mutate({
-                        id: editingCaption.id,
-                        caption: editingCaption.caption,
-                      });
-                      setEditingCaption(null);
-                    }
-                  }}
-                >
-                  <Text style={styles.modalButtonTextSave}>Save</Text>
-                </Pressable>
-              </View>
-            </View>
-          </View>
-        )}
-
-        {/* Image Viewer */}
-        <ImageViewer
-          visible={viewerVisible}
-          images={portfolioImages}
-          initialIndex={viewerIndex}
-          onClose={() => setViewerVisible(false)}
-          onEdit={(image: PortfolioImage) => {
-            setViewerVisible(false);
-            setEditingCaption({ id: image.id, caption: image.caption || "" });
-          }}
-          onDelete={(image: PortfolioImage) => {
-            setViewerVisible(false);
-            deleteImage.mutate(image.id);
-          }}
-          showActions={true}
-        />
-
-        {/* Preview Changes */}
-        {hasChanges && (
-          <View style={styles.previewContainer}>
-            <Text style={styles.previewTitle}>Preview Changes</Text>
-
-            {bio.trim() !== (profile?.bio || "") && (
-              <View style={styles.previewItem}>
-                <Text style={styles.previewLabel}>Bio:</Text>
-                <Text style={styles.previewValue} numberOfLines={2}>
-                  {bio.trim() || "None"}
-                </Text>
-              </View>
-            )}
-
-            {hourlyRate.trim() !== (profile?.hourlyRate?.toString() || "") && (
-              <View style={styles.previewItem}>
-                <Text style={styles.previewLabel}>Hourly Rate:</Text>
-                <Text style={styles.previewValue}>
-                  {hourlyRate
-                    ? `₱${parseFloat(hourlyRate).toFixed(2)}/hour`
-                    : "Not set"}
-                </Text>
-              </View>
-            )}
-
-            {phoneNumber.trim() !== (profile?.user.phoneNumber || "") && (
-              <View style={styles.previewItem}>
-                <Text style={styles.previewLabel}>Phone:</Text>
-                <Text style={styles.previewValue}>
-                  {phoneNumber.trim() || "Not set"}
-                </Text>
-              </View>
-            )}
-
-            {skills.trim() !== profile?.skills.join(", ") && (
-              <View style={styles.previewItem}>
-                <Text style={styles.previewLabel}>Skills:</Text>
-                <Text style={styles.previewValue} numberOfLines={2}>
-                  {skills.trim() || "None"}
-                </Text>
-              </View>
-            )}
-          </View>
-        )}
-      </ScrollView>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
@@ -624,13 +846,13 @@ export default function EditProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: "#F8F9FA",
   },
   centerContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: Colors.background,
+    backgroundColor: "#F8F9FA",
   },
   loadingText: {
     ...Typography.body.medium,
@@ -641,7 +863,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: Spacing.xl,
+    paddingBottom: 40,
   },
 
   // Header
@@ -649,43 +871,108 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.md,
-    backgroundColor: Colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    backgroundColor: Colors.primary,
   },
-  cancelButton: {
+  backButton: {
     padding: Spacing.xs,
   },
   headerTitle: {
-    ...Typography.heading.h3,
-    color: Colors.textPrimary,
+    fontSize: 20,
+    fontWeight: "600",
+    color: Colors.white,
   },
-  saveButton: {
+  saveHeaderButton: {
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.md,
-    backgroundColor: Colors.primary,
+    backgroundColor: "rgba(255,255,255,0.2)",
     borderRadius: BorderRadius.medium,
     minWidth: 60,
     alignItems: "center",
   },
-  saveButtonDisabled: {
-    backgroundColor: Colors.backgroundSecondary,
+  saveHeaderButtonDisabled: {
+    backgroundColor: "rgba(255,255,255,0.1)",
   },
-  saveButtonText: {
+  saveHeaderButtonText: {
     ...Typography.body.medium,
-    color: Colors.textLight,
+    color: Colors.white,
     fontWeight: "600",
   },
-  saveButtonTextDisabled: {
+  saveHeaderButtonTextDisabled: {
+    color: "rgba(255,255,255,0.5)",
+  },
+
+  // Avatar Section
+  avatarSection: {
+    alignItems: "center",
+    paddingVertical: Spacing.xl,
+    backgroundColor: Colors.white,
+    marginBottom: Spacing.md,
+  },
+  avatarContainer: {
+    position: "relative",
+  },
+  avatar: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+  },
+  avatarPlaceholder: {
+    backgroundColor: Colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarInitials: {
+    fontSize: 36,
+    fontWeight: "700",
+    color: Colors.white,
+  },
+  avatarOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    borderRadius: 50,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarEditBadge: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: Colors.white,
+  },
+  avatarHint: {
+    ...Typography.body.small,
     color: Colors.textSecondary,
+    marginTop: Spacing.sm,
+  },
+
+  // Form Sections
+  formSection: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    marginHorizontal: Spacing.md,
+    marginBottom: Spacing.md,
+    padding: Spacing.lg,
+    ...Shadows.small,
+  },
+  sectionHeader: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+    marginBottom: Spacing.md,
   },
 
   // Form Fields
   fieldContainer: {
-    marginTop: Spacing.lg,
-    paddingHorizontal: Spacing.md,
+    marginBottom: Spacing.lg,
   },
   label: {
     ...Typography.body.medium,
@@ -702,11 +989,16 @@ const styles = StyleSheet.create({
     ...Typography.body.medium,
     color: Colors.textPrimary,
     backgroundColor: Colors.surface,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: Colors.border,
-    borderRadius: BorderRadius.medium,
-    paddingVertical: Spacing.sm,
+    borderRadius: 12,
+    paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.md,
+  },
+  inputReadonly: {
+    backgroundColor: "#F5F5F5",
+    color: Colors.textSecondary,
+    borderColor: "#E0E0E0",
   },
   inputActive: {
     borderColor: Colors.primary,
@@ -716,15 +1008,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: Colors.surface,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: Colors.border,
-    borderRadius: BorderRadius.medium,
+    borderRadius: 12,
     paddingHorizontal: Spacing.md,
   },
   inputWithPadding: {
     borderWidth: 0,
     flex: 1,
     marginLeft: Spacing.xs,
+    paddingVertical: Spacing.md,
   },
   currencySymbol: {
     ...Typography.body.large,

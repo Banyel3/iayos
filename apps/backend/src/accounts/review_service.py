@@ -8,7 +8,7 @@ from decimal import Decimal
 from datetime import datetime, timedelta
 from django.db.models import Avg, Count, Q
 from django.utils import timezone
-from .models import JobReview, Job, Accounts, Profile
+from .models import JobReview, Job, Accounts, Profile, Agency
 from .review_schemas import (
     SubmitReviewRequest, ReviewResponse, ReviewListResponse,
     ReviewStatsResponse, RatingBreakdown, AddReviewResponseRequest,
@@ -290,15 +290,23 @@ def report_review(review_id: int, reporter: Accounts, payload: ReportReviewReque
 def _format_review_response(review: JobReview, current_user: Accounts = None) -> ReviewResponse:
     """Format a JobReview model into ReviewResponse schema"""
 
-    # Get reviewer profile info
-    reviewer_profile = None
+    # Get reviewer profile info (handles both profiles and agencies)
     reviewer_name = "Anonymous"
     reviewer_profile_img = None
 
-    if hasattr(review.reviewerID, 'profile'):
-        profile = review.reviewerID.profile
-        reviewer_name = f"{profile.firstName} {profile.lastName}"
-        reviewer_profile_img = profile.profileImg
+    # First try to get a regular profile
+    try:
+        profile = Profile.objects.filter(accountFK=review.reviewerID).first()
+        if profile:
+            reviewer_name = f"{profile.firstName} {profile.lastName}".strip()
+            reviewer_profile_img = profile.profileImg
+        else:
+            # Check if this is an agency account
+            agency = Agency.objects.filter(accountFK=review.reviewerID).first()
+            if agency:
+                reviewer_name = agency.businessName or "Agency"
+    except Exception:
+        pass
 
     # Check if current user can edit (within 24 hours)
     can_edit = False

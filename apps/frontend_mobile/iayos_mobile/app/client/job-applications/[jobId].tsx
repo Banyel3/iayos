@@ -35,7 +35,10 @@ import {
 } from "@/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { useJobApplications, useManageApplication } from "@/lib/hooks/useJobApplications";
+import {
+  useJobApplications,
+  useManageApplication,
+} from "@/lib/hooks/useJobApplications";
 import ApplicantCard from "@/components/Client/ApplicantCard";
 import EmptyState from "@/components/ui/EmptyState";
 import SkeletonCard from "@/components/ui/SkeletonCard";
@@ -115,11 +118,9 @@ export default function JobApplicationsScreen() {
         [{ text: "OK" }]
       );
     } catch (error: any) {
-      Alert.alert(
-        "Error",
-        error.message || "Failed to update application",
-        [{ text: "OK" }]
-      );
+      Alert.alert("Error", error.message || "Failed to update application", [
+        { text: "OK" },
+      ]);
     }
   };
 
@@ -262,10 +263,10 @@ export default function JobApplicationsScreen() {
               >
                 {manageMutation.isPending ? (
                   <ActivityIndicator size="small" color={Colors.white} />
+                ) : selectedApplication?.action === "ACCEPTED" ? (
+                  "Accept"
                 ) : (
-                  selectedApplication?.action === "ACCEPTED"
-                    ? "Accept"
-                    : "Reject"
+                  "Reject"
                 )}
               </Button>
             </View>

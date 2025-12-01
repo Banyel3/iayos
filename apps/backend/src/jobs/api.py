@@ -3587,7 +3587,7 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
         # Handle agency reviewing client (agency owner on behalf of employee)
         elif is_agency_job and is_agency_owner:
             reviewee_profile = job.clientID.profileID
-            reviewer_type = "WORKER"  # Agency acts as worker
+            reviewer_type = "AGENCY"  # Agency account reviewing client
             
             # Check if review already exists
             existing_review = JobReview.objects.filter(

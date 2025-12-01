@@ -1270,10 +1270,11 @@ class JobReview(models.Model):
         blank=True
     )
     
-    # Review Type (to identify if it's from client or worker)
+    # Review Type (to identify if it's from client, worker, or agency)
     class ReviewerType(models.TextChoices):
         CLIENT = "CLIENT", "Client"
         WORKER = "WORKER", "Worker"
+        AGENCY = "AGENCY", "Agency"
     
     reviewerType = models.CharField(
         max_length=10,

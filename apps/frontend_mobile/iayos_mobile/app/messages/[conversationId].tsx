@@ -884,13 +884,19 @@ export default function ChatScreen() {
                 ₱{conversation.job.budget.toLocaleString()}
               </Text>
               {/* ML Estimated Completion Time - Compact mode */}
-              {conversation.job.estimatedCompletion && 
-               conversation.job.status !== 'COMPLETED' && (
-                <EstimatedTimeCard 
-                  prediction={conversation.job.estimatedCompletion}
+              {(isLoading ||
+                (conversation.job.estimatedCompletion &&
+                  conversation.job.status !== "COMPLETED")) && (
+                <EstimatedTimeCard
+                  prediction={conversation?.job?.estimatedCompletion || null}
                   compact={true}
-                  countdownMode={conversation.job.status === 'IN_PROGRESS'}
-                  jobStartTime={conversation.job.clientConfirmedWorkStarted ? new Date().toISOString() : undefined}
+                  countdownMode={conversation?.job?.status === "IN_PROGRESS"}
+                  jobStartTime={
+                    conversation?.job?.clientConfirmedWorkStarted
+                      ? new Date().toISOString()
+                      : undefined
+                  }
+                  isLoading={isLoading}
                 />
               )}
             </View>

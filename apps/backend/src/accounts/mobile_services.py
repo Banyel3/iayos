@@ -3,14 +3,53 @@
 
 from .models import (
     Accounts, Profile, WorkerProfile, ClientProfile,
-    JobPosting, JobApplication, Specializations, JobPhoto, JobReview, Job
+    JobPosting, JobApplication, Specializations, JobPhoto, JobReview, Job, Agency
 )
 from django.db.models import Q, Count, Avg, Prefetch
 from django.utils import timezone
 from datetime import datetime, timedelta
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Tuple
 from .services import generateCookie
 from decimal import Decimal
+
+
+def get_reviewer_info(account: Accounts, profile_type: Optional[str] = None) -> Tuple[str, Optional[str]]:
+    """
+    Get reviewer name and profile image for an account.
+    Handles both regular user profiles and agency accounts.
+    
+    Args:
+        account: The Accounts instance of the reviewer
+        profile_type: Optional profile type filter (WORKER/CLIENT)
+    
+    Returns:
+        Tuple of (reviewer_name, reviewer_profile_img)
+    """
+    reviewer_name = "Anonymous"
+    reviewer_img = None
+    
+    try:
+        # First, try to get a regular profile
+        if profile_type:
+            profile = Profile.objects.filter(accountFK=account, profileType=profile_type).first()
+        else:
+            profile = Profile.objects.filter(accountFK=account).first()
+        
+        if profile:
+            reviewer_name = f"{profile.firstName} {profile.lastName}".strip()
+            reviewer_img = profile.profileImg
+            return (reviewer_name, reviewer_img)
+        
+        # If no profile found, check if this is an agency account
+        agency = Agency.objects.filter(accountFK=account).first()
+        if agency:
+            reviewer_name = agency.businessName or "Agency"
+            # Agencies don't have profile images in the same way, 
+            # but could potentially add agency logo in the future
+    except Exception:
+        pass
+    
+    return (reviewer_name, reviewer_img)
 
 
 def get_mobile_job_list(
@@ -2160,28 +2199,9 @@ def submit_review_mobile(user: Accounts, job_id: int, rating: int, comment: str,
             status='ACTIVE'
         )
 
-        # Format response
-        reviewer_profile = None
-        reviewer_name = "Anonymous"
-        reviewer_img = None
-        try:
-            # Get profile_type from JWT if available, try both if not found
-            profile_type = getattr(user, 'profile_type', None)
-            
-            if profile_type:
-                reviewer_profile = Profile.objects.filter(
-                    accountFK=user,
-                    profileType=profile_type
-                ).first()
-            else:
-                # Fallback: get any profile
-                reviewer_profile = Profile.objects.filter(accountFK=user).first()
-        except Exception:
-            pass
-
-        if reviewer_profile:
-            reviewer_name = f"{reviewer_profile.firstName} {reviewer_profile.lastName}".strip()
-            reviewer_img = reviewer_profile.profileImg
+        # Format response - use helper function to get name (handles agencies too)
+        profile_type = getattr(user, 'profile_type', None)
+        reviewer_name, reviewer_img = get_reviewer_info(user, profile_type)
 
         return {
             'success': True,
@@ -2248,14 +2268,8 @@ def get_worker_reviews_mobile(worker_id: int, page: int = 1, limit: int = 20) ->
         # Format reviews
         review_list = []
         for review in reviews:
-            # Get reviewer's profile (Profile -> Account via accountFK)
-            reviewer_profile = Profile.objects.filter(accountFK=review.reviewerID).first()
-            reviewer_name = "Anonymous"
-            reviewer_img = None
-
-            if reviewer_profile:
-                reviewer_name = f"{reviewer_profile.firstName} {reviewer_profile.lastName}".strip()
-                reviewer_img = reviewer_profile.profileImg
+            # Get reviewer info (handles both profiles and agencies)
+            reviewer_name, reviewer_img = get_reviewer_info(review.reviewerID)
 
             # Check if can edit (within 24 hours)
             can_edit = False
@@ -2319,17 +2333,12 @@ def get_job_reviews_mobile(job_id: int) -> Dict[str, Any]:
         reviews_qs = JobReview.objects.filter(
             jobID=job,
             status='ACTIVE'
-        ).select_related('reviewerID__profile').order_by('-createdAt')
+        ).order_by('-createdAt')
 
         review_list = []
         for review in reviews_qs:
-            reviewer_profile = review.reviewerID.profile if hasattr(review.reviewerID, 'profile') else None
-            reviewer_name = "Anonymous"
-            reviewer_img = None
-
-            if reviewer_profile:
-                reviewer_name = f"{reviewer_profile.firstName} {reviewer_profile.lastName}".strip()
-                reviewer_img = reviewer_profile.profileImg
+            # Get reviewer info (handles both profiles and agencies)
+            reviewer_name, reviewer_img = get_reviewer_info(review.reviewerID)
 
             can_edit = (timezone.now() - review.createdAt) <= timedelta(hours=24)
 
@@ -2491,17 +2500,12 @@ def get_review_stats_mobile(worker_id: int) -> Dict[str, Any]:
         }
 
         # Recent reviews (last 5)
-        recent_reviews = reviews.select_related('reviewerID__profile').order_by('-createdAt')[:5]
+        recent_reviews = reviews.select_related('reviewerID', 'jobID').order_by('-createdAt')[:5]
         recent_list = []
 
         for review in recent_reviews:
-            reviewer_profile = review.reviewerID.profile if hasattr(review.reviewerID, 'profile') else None
-            reviewer_name = "Anonymous"
-            reviewer_img = None
-
-            if reviewer_profile:
-                reviewer_name = f"{reviewer_profile.firstName} {reviewer_profile.lastName}".strip()
-                reviewer_img = reviewer_profile.profileImg
+            # Get reviewer info (handles both profiles and agencies)
+            reviewer_name, reviewer_img = get_reviewer_info(review.reviewerID)
 
             recent_list.append({
                 'review_id': review.reviewID,
@@ -2574,28 +2578,9 @@ def edit_review_mobile(user: Accounts, review_id: int, rating: int, comment: str
         review.comment = comment.strip()
         review.save()
 
-        # Format response
-        reviewer_profile = None
-        reviewer_name = "Anonymous"
-        reviewer_img = None
-        try:
-            # Get profile_type from JWT if available, try both if not found
-            profile_type = getattr(user, 'profile_type', None)
-            
-            if profile_type:
-                reviewer_profile = Profile.objects.filter(
-                    accountFK=user,
-                    profileType=profile_type
-                ).first()
-            else:
-                # Fallback: get any profile
-                reviewer_profile = Profile.objects.filter(accountFK=user).first()
-        except Exception:
-            pass
-
-        if reviewer_profile:
-            reviewer_name = f"{reviewer_profile.firstName} {reviewer_profile.lastName}".strip()
-            reviewer_img = reviewer_profile.profileImg
+        # Format response - use helper function to get name (handles agencies too)
+        profile_type = getattr(user, 'profile_type', None)
+        reviewer_name, reviewer_img = get_reviewer_info(user, profile_type)
 
         can_edit = (timezone.now() - review.createdAt) <= timedelta(hours=24)
 
@@ -2762,3 +2747,197 @@ def get_pending_reviews_mobile(user: Accounts) -> Dict[str, Any]:
         import traceback
         traceback.print_exc()
         return {'success': False, 'error': f'Failed to fetch pending reviews: {str(e)}'}
+
+
+def get_client_detail_mobile(user, client_id):
+    """
+    Get detailed client profile for mobile app.
+    Allows workers to view client profile details.
+    
+    Returns data matching ClientDetail interface:
+    {
+        id, firstName, lastName, email, phoneNumber, profilePicture,
+        description, rating, reviewCount, jobsPosted, jobsCompleted,
+        totalSpent, city, province, joinedDate, verified
+    }
+    """
+    try:
+        from .models import Profile, ClientProfile, JobReview, Job
+        from django.db.models import Avg, Count, Sum
+        
+        print(f"📱 [CLIENT DETAIL] Looking up client with account_id={client_id}")
+        
+        # Get client profile by account ID
+        try:
+            profile = Profile.objects.filter(
+                accountFK__accountID=client_id,
+                profileType='CLIENT'
+            ).select_related('accountFK').first()
+            
+            if not profile:
+                print(f"   ❌ Client profile not found for account_id={client_id}")
+                return {
+                    'success': False,
+                    'error': 'Client not found'
+                }
+                
+            account = profile.accountFK
+            
+            # Get ClientProfile for additional details
+            try:
+                client_profile = ClientProfile.objects.get(profileID=profile)
+            except ClientProfile.DoesNotExist:
+                client_profile = None
+                
+        except Exception as e:
+            print(f"   ❌ Error fetching client: {str(e)}")
+            return {
+                'success': False,
+                'error': 'Client not found'
+            }
+        
+        print(f"   ✅ Found client: {profile.firstName} {profile.lastName}")
+        
+        # Get reviews about this client (from workers who completed jobs)
+        reviews_qs = JobReview.objects.filter(
+            revieweeID=account,
+            reviewerType='WORKER',  # Workers reviewing the client
+            status='ACTIVE'
+        )
+        avg_rating = reviews_qs.aggregate(Avg('rating'))['rating__avg'] or 0.0
+        review_count = reviews_qs.count()
+        
+        # Get job statistics
+        jobs_posted = 0
+        jobs_completed = 0
+        total_spent = 0
+        
+        if client_profile:
+            jobs = Job.objects.filter(clientID=client_profile)
+            jobs_posted = jobs.count()
+            jobs_completed = jobs.filter(status='COMPLETED').count()
+            total_spent = jobs.filter(
+                status='COMPLETED',
+                budget__isnull=False
+            ).aggregate(total=Sum('budget'))['total'] or 0
+        
+        # Build response
+        data = {
+            'id': account.accountID,
+            'firstName': profile.firstName or '',
+            'lastName': profile.lastName or '',
+            'email': account.email,
+            'phoneNumber': profile.contactNum or None,
+            'profilePicture': profile.profileImg if profile.profileImg else None,
+            'description': client_profile.description if client_profile else None,
+            'rating': round(float(avg_rating), 1),
+            'reviewCount': review_count,
+            'jobsPosted': jobs_posted,
+            'jobsCompleted': jobs_completed,
+            'totalSpent': float(total_spent),
+            'city': account.city or None,
+            'province': account.province or None,
+            'joinedDate': account.createdAt.isoformat() if account.createdAt else None,
+            'verified': account.isVerified or False,
+        }
+        
+        print(f"   ✅ Client details: rating={data['rating']}, jobs={jobs_posted}")
+        
+        return {
+            'success': True,
+            'data': data
+        }
+        
+    except Exception as e:
+        print(f"❌ [Mobile] Get client detail error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {'success': False, 'error': f'Failed to fetch client details: {str(e)}'}
+
+
+def get_client_reviews_mobile(client_id: int, page: int = 1, limit: int = 10) -> Dict[str, Any]:
+    """
+    Get all reviews for a specific client (reviews from workers about the client).
+    
+    Args:
+        client_id: Account ID of the client
+        page: Page number
+        limit: Reviews per page
+        
+    Returns:
+        Paginated list of reviews with reviewer info
+    """
+    try:
+        # Get client account
+        try:
+            client_account = Accounts.objects.get(accountID=client_id)
+        except Accounts.DoesNotExist:
+            return {'success': False, 'error': 'Client not found'}
+        
+        # Get reviews where client is reviewee (from workers)
+        reviews_qs = JobReview.objects.filter(
+            revieweeID=client_account,
+            reviewerType='WORKER',  # Reviews from workers about the client
+            status='ACTIVE'
+        ).select_related(
+            'reviewerID',
+            'jobID'
+        ).order_by('-createdAt')
+        
+        total_count = reviews_qs.count()
+        
+        # Calculate average rating
+        avg_rating = reviews_qs.aggregate(Avg('rating'))['rating__avg'] or 0.0
+        
+        # Rating distribution
+        rating_distribution = {5: 0, 4: 0, 3: 0, 2: 0, 1: 0}
+        for review in reviews_qs:
+            rating = int(review.rating)
+            if rating in rating_distribution:
+                rating_distribution[rating] += 1
+        
+        # Pagination
+        offset = (page - 1) * limit
+        reviews = reviews_qs[offset:offset + limit]
+        
+        # Format reviews
+        review_list = []
+        for review in reviews:
+            # Get reviewer info (handles both profiles and agencies)
+            reviewer_name, reviewer_img = get_reviewer_info(review.reviewerID)
+            
+            # Get job title
+            job_title = review.jobID.title if review.jobID else "Job"
+            
+            review_list.append({
+                'review_id': review.reviewID,
+                'job_id': review.jobID.jobID if review.jobID else None,
+                'job_title': job_title,
+                'reviewer_id': review.reviewerID.accountID,
+                'reviewer_name': reviewer_name,
+                'reviewer_profile_img': reviewer_img,
+                'rating': float(review.rating),
+                'comment': review.comment,
+                'created_at': review.createdAt.isoformat(),
+            })
+        
+        return {
+            'success': True,
+            'data': {
+                'reviews': review_list,
+                'total_count': total_count,
+                'average_rating': round(float(avg_rating), 1),
+                'rating_distribution': rating_distribution,
+                'page': page,
+                'limit': limit,
+                'total_pages': (total_count + limit - 1) // limit if total_count > 0 else 1
+            }
+        }
+        
+    except Exception as e:
+        print(f"❌ [Mobile] Get client reviews error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {'success': False, 'error': f'Failed to fetch client reviews: {str(e)}'}
+
+

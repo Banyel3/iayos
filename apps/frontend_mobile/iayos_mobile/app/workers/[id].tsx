@@ -317,6 +317,13 @@ export default function WorkerDetailScreen() {
 
   const fullName = `${data.firstName} ${data.lastName}`;
 
+  // Check if the current user is viewing their own profile
+  // Compare using accountId OR workerProfileId (the route param is workerProfileId)
+  const isOwnProfile =
+    user?.id === data.accountId ||
+    user?.accountID === data.accountId ||
+    user?.profile_data?.workerProfileId === Number(id);
+
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
@@ -329,7 +336,9 @@ export default function WorkerDetailScreen() {
           >
             <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Worker Profile</Text>
+          <Text style={styles.headerTitle}>
+            {isOwnProfile ? "My Public Profile" : "Worker Profile"}
+          </Text>
           <TouchableOpacity style={styles.shareButton}>
             <Ionicons
               name="share-outline"
@@ -343,6 +352,16 @@ export default function WorkerDetailScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 120 }}
         >
+          {/* Self-View Banner */}
+          {isOwnProfile && (
+            <View style={styles.selfViewBanner}>
+              <Ionicons name="eye-outline" size={18} color={Colors.info} />
+              <Text style={styles.selfViewBannerText}>
+                This is how clients see your public profile
+              </Text>
+            </View>
+          )}
+
           {/* Hero Section */}
           <View style={styles.heroSection}>
             <View style={styles.avatarContainer}>
@@ -948,34 +967,56 @@ export default function WorkerDetailScreen() {
 
         {/* Bottom Action Button */}
         <View style={styles.bottomActions}>
-          {!user?.kycVerified && (
-            <View style={styles.kycWarningBanner}>
-              <Ionicons name="warning" size={20} color={Colors.warning} />
-              <Text style={styles.kycWarningText}>
-                Complete KYC verification to hire workers
-              </Text>
-            </View>
-          )}
-          <TouchableOpacity
-            style={[
-              styles.hireButton,
-              !user?.kycVerified && styles.hireButtonDisabled,
-            ]}
-            onPress={() => router.push(`/jobs/create?workerId=${id}` as any)}
-            disabled={!user?.kycVerified}
-          >
-            <Text
-              style={[
-                styles.hireButtonText,
-                !user?.kycVerified && styles.hireButtonTextDisabled,
-              ]}
+          {isOwnProfile ? (
+            // Show Edit Profile button when viewing own profile
+            <TouchableOpacity
+              style={styles.hireButton}
+              onPress={() => router.push("/profile/edit" as any)}
             >
-              {user?.kycVerified ? "Hire Worker" : "KYC Verification Required"}
-            </Text>
-            {user?.kycVerified && (
-              <Ionicons name="arrow-forward" size={20} color={Colors.white} />
-            )}
-          </TouchableOpacity>
+              <Ionicons name="create-outline" size={20} color={Colors.white} />
+              <Text style={styles.hireButtonText}>Edit My Profile</Text>
+            </TouchableOpacity>
+          ) : (
+            // Show Hire Worker button when viewing someone else's profile
+            <>
+              {!user?.kycVerified && (
+                <View style={styles.kycWarningBanner}>
+                  <Ionicons name="warning" size={20} color={Colors.warning} />
+                  <Text style={styles.kycWarningText}>
+                    Complete KYC verification to hire workers
+                  </Text>
+                </View>
+              )}
+              <TouchableOpacity
+                style={[
+                  styles.hireButton,
+                  !user?.kycVerified && styles.hireButtonDisabled,
+                ]}
+                onPress={() =>
+                  router.push(`/jobs/create?workerId=${id}` as any)
+                }
+                disabled={!user?.kycVerified}
+              >
+                <Text
+                  style={[
+                    styles.hireButtonText,
+                    !user?.kycVerified && styles.hireButtonTextDisabled,
+                  ]}
+                >
+                  {user?.kycVerified
+                    ? "Hire Worker"
+                    : "KYC Verification Required"}
+                </Text>
+                {user?.kycVerified && (
+                  <Ionicons
+                    name="arrow-forward"
+                    size={20}
+                    color={Colors.white}
+                  />
+                )}
+              </TouchableOpacity>
+            </>
+          )}
         </View>
       </SafeAreaView>
     </>
@@ -1045,6 +1086,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: Colors.white,
+  },
+  selfViewBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#E0F2FE",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  selfViewBannerText: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: Colors.info,
   },
   heroSection: {
     backgroundColor: Colors.white,

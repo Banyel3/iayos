@@ -1216,16 +1216,20 @@ const InboxPage = () => {
                   </div>
 
                   {/* ML Estimated Completion Time - Compact inline */}
-                  {(selectedChat.job as any).estimatedCompletion && 
-                   selectedChat.job.status !== 'COMPLETED' && (
-                    <div className="mb-3 flex justify-center">
-                      <EstimatedTimeCard 
-                        prediction={(selectedChat.job as any).estimatedCompletion}
-                        compact={true}
-                        countdownMode={selectedChat.job.status === 'IN_PROGRESS'}
-                      />
-                    </div>
-                  )}
+                  {(selectedChat.job as any).estimatedCompletion &&
+                    selectedChat.job.status !== "COMPLETED" && (
+                      <div className="mb-3 flex justify-center">
+                        <EstimatedTimeCard
+                          prediction={
+                            (selectedChat.job as any).estimatedCompletion
+                          }
+                          compact={true}
+                          countdownMode={
+                            selectedChat.job.status === "IN_PROGRESS"
+                          }
+                        />
+                      </div>
+                    )}
 
                   {/* Job Completion Banner - Two-Phase System */}
                   {selectedChat.job.status === "IN_PROGRESS" && (

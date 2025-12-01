@@ -25,6 +25,8 @@ export const reviewKeys = {
   all: ["reviews"] as const,
   workerReviews: (workerId: number) =>
     [...reviewKeys.all, "worker", workerId] as const,
+  clientReviews: (clientId: number) =>
+    [...reviewKeys.all, "client", clientId] as const,
   workerStats: (workerId: number) =>
     [...reviewKeys.all, "stats", workerId] as const,
   myReviews: () => [...reviewKeys.all, "my-reviews"] as const,
@@ -55,6 +57,30 @@ export function useWorkerReviews(
       return response.json();
     },
     enabled: !!workerId,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+}
+
+// ============================================================================
+// FETCH CLIENT REVIEWS
+// ============================================================================
+
+export function useClientReviews(clientId: number, page = 1, limit = 20) {
+  return useQuery({
+    queryKey: [...reviewKeys.clientReviews(clientId), page, limit],
+    queryFn: async (): Promise<ReviewListResponse> => {
+      const response = await apiRequest(
+        ENDPOINTS.CLIENT_REVIEWS(clientId, page, limit)
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to fetch client reviews");
+      }
+
+      return response.json();
+    },
+    enabled: !!clientId,
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }

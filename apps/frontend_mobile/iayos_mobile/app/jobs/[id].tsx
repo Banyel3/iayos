@@ -807,11 +807,12 @@ export default function JobDetailScreen() {
         </View>
 
         {/* ML Estimated Completion Time */}
-        {job.estimatedCompletion && job.status !== 'COMPLETED' && (
+        {(isLoading ||
+          (job.estimatedCompletion && job.status !== "COMPLETED")) && (
           <View style={styles.section}>
-            <EstimatedTimeCard 
-              prediction={job.estimatedCompletion}
-              workerEstimate={job.expectedDuration}
+            <EstimatedTimeCard
+              prediction={job?.estimatedCompletion || null}
+              isLoading={isLoading}
             />
           </View>
         )}
@@ -874,32 +875,6 @@ export default function JobDetailScreen() {
                 <Text style={styles.listItemText}>{material}</Text>
               </View>
             ))}
-          </View>
-        )}
-
-        {/* Assigned Worker - Only for INVITE jobs */}
-        {job.jobType === "INVITE" && job.assignedWorker && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Assigned Worker</Text>
-            <View style={styles.posterCard}>
-              <Image
-                source={{
-                  uri:
-                    job.assignedWorker.avatar ||
-                    "https://via.placeholder.com/60",
-                }}
-                style={styles.posterAvatar}
-              />
-              <View style={styles.posterInfo}>
-                <Text style={styles.posterName}>{job.assignedWorker.name}</Text>
-                <View style={styles.posterRating}>
-                  <Ionicons name="star" size={16} color="#F59E0B" />
-                  <Text style={styles.posterRatingText}>
-                    {job.assignedWorker.rating.toFixed(1)} rating
-                  </Text>
-                </View>
-              </View>
-            </View>
           </View>
         )}
 
@@ -1167,36 +1142,223 @@ export default function JobDetailScreen() {
           </View>
         )}
 
-        {/* Posted By */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Posted By</Text>
-          <View style={styles.posterCard}>
-            <Image
-              source={{
-                uri: job.postedBy?.avatar || "https://via.placeholder.com/60",
-              }}
-              style={styles.posterAvatar}
-            />
-            <View style={styles.posterInfo}>
-              <Text style={styles.posterName}>
-                {job.postedBy?.name || "Unknown Client"}
-              </Text>
-              <View style={styles.posterRating}>
-                <Ionicons name="star" size={16} color="#F59E0B" />
-                <Text style={styles.posterRatingText}>
-                  {(job.postedBy?.rating || 0).toFixed(1)} rating
-                </Text>
-              </View>
-              <Text style={styles.postedTime}>Posted {job.postedAt}</Text>
+        {/* Client & Worker Info - Different display based on job type */}
+        {job.jobType === "INVITE" ||
+        job.status === "IN_PROGRESS" ||
+        job.status === "COMPLETED" ? (
+          <>
+            {/* Client Section - clickable for workers */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Client</Text>
+              {isWorker && job.postedBy?.id ? (
+                /* Worker viewing client - clickable */
+                <TouchableOpacity
+                  style={styles.posterCard}
+                  onPress={() =>
+                    router.push(`/clients/${job.postedBy?.id}` as any)
+                  }
+                  activeOpacity={0.7}
+                >
+                  <Image
+                    source={{
+                      uri:
+                        job.postedBy?.avatar ||
+                        "https://via.placeholder.com/60",
+                    }}
+                    style={styles.posterAvatar}
+                  />
+                  <View style={styles.posterInfo}>
+                    <Text style={styles.posterName}>
+                      {job.postedBy?.name || "Unknown Client"}
+                    </Text>
+                    <View style={styles.posterRating}>
+                      <Ionicons name="star" size={16} color="#F59E0B" />
+                      <Text style={styles.posterRatingText}>
+                        {(job.postedBy?.rating || 0).toFixed(1)} rating
+                      </Text>
+                    </View>
+                    <Text style={styles.tapToViewHint}>
+                      Tap to view profile
+                    </Text>
+                  </View>
+                  <Ionicons
+                    name="chevron-forward"
+                    size={20}
+                    color={Colors.textSecondary}
+                  />
+                </TouchableOpacity>
+              ) : (
+                /* Client viewing their own job - not clickable */
+                <View style={styles.posterCard}>
+                  <Image
+                    source={{
+                      uri:
+                        job.postedBy?.avatar ||
+                        "https://via.placeholder.com/60",
+                    }}
+                    style={styles.posterAvatar}
+                  />
+                  <View style={styles.posterInfo}>
+                    <Text style={styles.posterName}>
+                      {job.postedBy?.name || "Unknown Client"}
+                      {isClient && job.postedBy?.id === user?.accountID
+                        ? " (You)"
+                        : ""}
+                    </Text>
+                    <View style={styles.posterRating}>
+                      <Ionicons name="star" size={16} color="#F59E0B" />
+                      <Text style={styles.posterRatingText}>
+                        {(job.postedBy?.rating || 0).toFixed(1)} rating
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              )}
             </View>
+
+            {/* Worker Section - Show if assigned, only clickable for clients viewing other workers */}
+            {job.assignedWorker && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Worker</Text>
+                {isClient && job.assignedWorker?.id !== user?.accountID ? (
+                  /* Client viewing worker - clickable */
+                  <TouchableOpacity
+                    style={styles.posterCard}
+                    onPress={() =>
+                      router.push(`/workers/${job.assignedWorker?.id}` as any)
+                    }
+                    activeOpacity={0.7}
+                  >
+                    <Image
+                      source={{
+                        uri:
+                          job.assignedWorker?.avatar ||
+                          "https://via.placeholder.com/60",
+                      }}
+                      style={styles.posterAvatar}
+                    />
+                    <View style={styles.posterInfo}>
+                      <Text style={styles.posterName}>
+                        {job.assignedWorker?.name || "Unknown Worker"}
+                      </Text>
+                      <View style={styles.posterRating}>
+                        <Ionicons name="star" size={16} color="#F59E0B" />
+                        <Text style={styles.posterRatingText}>
+                          {(job.assignedWorker?.rating || 0).toFixed(1)} rating
+                        </Text>
+                      </View>
+                      <Text style={styles.tapToViewHint}>
+                        Tap to view profile
+                      </Text>
+                    </View>
+                    <Ionicons
+                      name="chevron-forward"
+                      size={20}
+                      color={Colors.textSecondary}
+                    />
+                  </TouchableOpacity>
+                ) : (
+                  /* Worker viewing their own info - not clickable */
+                  <View style={styles.posterCard}>
+                    <Image
+                      source={{
+                        uri:
+                          job.assignedWorker?.avatar ||
+                          "https://via.placeholder.com/60",
+                      }}
+                      style={styles.posterAvatar}
+                    />
+                    <View style={styles.posterInfo}>
+                      <Text style={styles.posterName}>
+                        {job.assignedWorker?.name || "Unknown Worker"}
+                        {job.assignedWorker?.id === user?.accountID && " (You)"}
+                      </Text>
+                      <View style={styles.posterRating}>
+                        <Ionicons name="star" size={16} color="#F59E0B" />
+                        <Text style={styles.posterRatingText}>
+                          {(job.assignedWorker?.rating || 0).toFixed(1)} rating
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                )}
+              </View>
+            )}
+          </>
+        ) : (
+          /* LISTING Jobs - Show "Posted By" - clickable for workers */
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Posted By</Text>
+            {isWorker && job.postedBy?.id ? (
+              /* Worker viewing client - clickable */
+              <TouchableOpacity
+                style={styles.posterCard}
+                onPress={() =>
+                  router.push(`/clients/${job.postedBy?.id}` as any)
+                }
+                activeOpacity={0.7}
+              >
+                <Image
+                  source={{
+                    uri:
+                      job.postedBy?.avatar || "https://via.placeholder.com/60",
+                  }}
+                  style={styles.posterAvatar}
+                />
+                <View style={styles.posterInfo}>
+                  <Text style={styles.posterName}>
+                    {job.postedBy?.name || "Unknown Client"}
+                  </Text>
+                  <View style={styles.posterRating}>
+                    <Ionicons name="star" size={16} color="#F59E0B" />
+                    <Text style={styles.posterRatingText}>
+                      {(job.postedBy?.rating || 0).toFixed(1)} rating
+                    </Text>
+                  </View>
+                  <Text style={styles.postedTime}>Posted {job.postedAt}</Text>
+                  <Text style={styles.tapToViewHint}>Tap to view profile</Text>
+                </View>
+                <Ionicons
+                  name="chevron-forward"
+                  size={20}
+                  color={Colors.textSecondary}
+                />
+              </TouchableOpacity>
+            ) : (
+              /* Client viewing their own post - not clickable */
+              <View style={styles.posterCard}>
+                <Image
+                  source={{
+                    uri:
+                      job.postedBy?.avatar || "https://via.placeholder.com/60",
+                  }}
+                  style={styles.posterAvatar}
+                />
+                <View style={styles.posterInfo}>
+                  <Text style={styles.posterName}>
+                    {job.postedBy?.name || "Unknown Client"}
+                    {isClient && job.postedBy?.id === user?.accountID
+                      ? " (You)"
+                      : ""}
+                  </Text>
+                  <View style={styles.posterRating}>
+                    <Ionicons name="star" size={16} color="#F59E0B" />
+                    <Text style={styles.posterRatingText}>
+                      {(job.postedBy?.rating || 0).toFixed(1)} rating
+                    </Text>
+                  </View>
+                  <Text style={styles.postedTime}>Posted {job.postedAt}</Text>
+                </View>
+              </View>
+            )}
           </View>
-        </View>
+        )}
 
         <View style={{ height: 100 }} />
       </ScrollView>
 
-      {/* Apply Button (Fixed at bottom) */}
-      {isWorker && (
+      {/* Apply Button (Fixed at bottom) - Only for LISTING jobs, not INVITE jobs */}
+      {isWorker && job?.jobType !== "INVITE" && (
         <View style={styles.applyButtonContainer}>
           {!user?.kycVerified && (
             <View style={styles.kycWarningBanner}>
@@ -1687,6 +1849,11 @@ const styles = StyleSheet.create({
   postedTime: {
     fontSize: Typography.fontSize.sm,
     color: Colors.textSecondary,
+  },
+  tapToViewHint: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.primary,
+    marginTop: Spacing.xs,
   },
   applyButtonContainer: {
     position: "absolute",

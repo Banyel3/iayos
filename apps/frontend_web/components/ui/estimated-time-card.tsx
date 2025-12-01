@@ -1,9 +1,9 @@
 /**
  * EstimatedTimeCard Component (Web/Next.js)
- * 
+ *
  * Displays ML-predicted job completion time with confidence indicator.
  * Shows time range, confidence level, and disclaimers for low confidence.
- * 
+ *
  * Used in:
  * - Job Detail pages
  * - Active Job pages (with countdown mode)
@@ -13,9 +13,9 @@
 
 "use client";
 
-import React from 'react';
-import { Clock, BarChart3, AlertCircle, Timer } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import React from "react";
+import { Clock, BarChart3, AlertCircle, Timer } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export interface EstimatedCompletion {
   predicted_hours: number;
@@ -23,7 +23,7 @@ export interface EstimatedCompletion {
   confidence_interval_upper: number | null;
   confidence_level: number;
   formatted_duration: string;
-  source: 'model' | 'microservice' | 'fallback';
+  source: "model" | "microservice" | "fallback";
   is_low_confidence: boolean;
 }
 
@@ -40,6 +40,8 @@ interface EstimatedTimeCardProps {
   workerEstimate?: string;
   /** Custom className */
   className?: string;
+  /** Show loading skeleton */
+  isLoading?: boolean;
 }
 
 /**
@@ -57,7 +59,7 @@ function formatDuration(hours: number): string {
   } else {
     const days = Math.floor(hours / 24);
     const remainingHours = Math.round(hours % 24);
-    if (remainingHours === 0) return `${days} day${days > 1 ? 's' : ''}`;
+    if (remainingHours === 0) return `${days} day${days > 1 ? "s" : ""}`;
     return `${days}d ${remainingHours}h`;
   }
 }
@@ -66,39 +68,39 @@ function formatDuration(hours: number): string {
  * Format time range from confidence interval
  */
 function formatTimeRange(lower: number | null, upper: number | null): string {
-  if (lower === null || upper === null) return '';
+  if (lower === null || upper === null) return "";
   return `${formatDuration(lower)} - ${formatDuration(upper)}`;
 }
 
 /**
  * Get confidence level info and styling
  */
-function getConfidenceInfo(level: number): { 
-  label: string; 
-  textClass: string; 
+function getConfidenceInfo(level: number): {
+  label: string;
+  textClass: string;
   bgClass: string;
   dotClass: string;
 } {
   if (level >= 0.8) {
-    return { 
-      label: 'High confidence', 
-      textClass: 'text-green-600', 
-      bgClass: 'bg-green-100',
-      dotClass: 'bg-green-500'
+    return {
+      label: "High confidence",
+      textClass: "text-green-600",
+      bgClass: "bg-green-100",
+      dotClass: "bg-green-500",
     };
   } else if (level >= 0.5) {
-    return { 
-      label: 'Moderate confidence', 
-      textClass: 'text-amber-600', 
-      bgClass: 'bg-amber-100',
-      dotClass: 'bg-amber-500'
+    return {
+      label: "Moderate confidence",
+      textClass: "text-amber-600",
+      bgClass: "bg-amber-100",
+      dotClass: "bg-amber-500",
     };
   } else {
-    return { 
-      label: 'Limited data', 
-      textClass: 'text-gray-500', 
-      bgClass: 'bg-gray-100',
-      dotClass: 'bg-gray-400'
+    return {
+      label: "Limited data",
+      textClass: "text-gray-500",
+      bgClass: "bg-gray-100",
+      dotClass: "bg-gray-400",
     };
   }
 }
@@ -114,7 +116,7 @@ function calculateRemainingTime(
   const now = new Date();
   const elapsedHours = (now.getTime() - start.getTime()) / (1000 * 60 * 60);
   const remainingHours = predictedHours - elapsedHours;
-  
+
   return {
     remainingHours: Math.max(0, remainingHours),
     isOverdue: remainingHours < 0,
@@ -128,19 +130,58 @@ export function EstimatedTimeCard({
   jobStartTime,
   workerEstimate,
   className,
+  isLoading = false,
 }: EstimatedTimeCardProps) {
+  // Loading state - show skeleton
+  if (isLoading) {
+    if (compact) {
+      return (
+        <div className={cn("flex items-center gap-1.5", className)}>
+          <div className="h-3.5 w-3.5 bg-gray-200 rounded animate-pulse" />
+          <div className="h-4 w-20 bg-gray-200 rounded animate-pulse" />
+        </div>
+      );
+    }
+    // Full card loading skeleton
+    return (
+      <div
+        className={cn(
+          "bg-white rounded-lg border border-gray-200 p-4 shadow-sm",
+          className
+        )}
+      >
+        <div className="flex items-center gap-2 mb-3">
+          <div className="p-2 bg-gray-200 rounded-lg animate-pulse w-9 h-9" />
+          <div className="h-5 w-44 bg-gray-200 rounded animate-pulse" />
+        </div>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex-1">
+            <div className="h-8 w-24 bg-gray-200 rounded animate-pulse" />
+            <div className="h-4 w-32 bg-gray-200 rounded animate-pulse mt-1" />
+          </div>
+          <div className="h-6 w-14 bg-gray-200 rounded-full animate-pulse" />
+        </div>
+        <div className="h-8 w-full bg-gray-100 rounded animate-pulse" />
+      </div>
+    );
+  }
+
   if (!prediction || prediction.predicted_hours === null) {
     return null;
   }
 
   const confidenceInfo = getConfidenceInfo(prediction.confidence_level);
-  const hasRange = prediction.confidence_interval_lower !== null && 
-                   prediction.confidence_interval_upper !== null;
-  
+  const hasRange =
+    prediction.confidence_interval_lower !== null &&
+    prediction.confidence_interval_upper !== null;
+
   // Calculate countdown if in countdown mode
   let countdownData = null;
   if (countdownMode && jobStartTime) {
-    countdownData = calculateRemainingTime(prediction.predicted_hours, jobStartTime);
+    countdownData = calculateRemainingTime(
+      prediction.predicted_hours,
+      jobStartTime
+    );
   }
 
   // Compact mode for inline display
@@ -168,16 +209,20 @@ export function EstimatedTimeCard({
 
   // Full card mode
   return (
-    <div className={cn(
-      "bg-white rounded-lg border border-gray-200 p-4 shadow-sm",
-      className
-    )}>
+    <div
+      className={cn(
+        "bg-white rounded-lg border border-gray-200 p-4 shadow-sm",
+        className
+      )}
+    >
       {/* Header */}
       <div className="flex items-center gap-2 mb-3">
         <div className="p-2 bg-blue-100 rounded-lg">
           <BarChart3 className="h-5 w-5 text-blue-600" />
         </div>
-        <h3 className="font-semibold text-gray-900">Estimated Completion Time</h3>
+        <h3 className="font-semibold text-gray-900">
+          Estimated Completion Time
+        </h3>
       </div>
 
       {/* Main prediction */}
@@ -187,7 +232,8 @@ export function EstimatedTimeCard({
             <>
               {countdownData.isOverdue ? (
                 <p className="text-2xl font-bold text-red-500">
-                  Overdue by {formatDuration(Math.abs(countdownData.remainingHours))}
+                  Overdue by{" "}
+                  {formatDuration(Math.abs(countdownData.remainingHours))}
                 </p>
               ) : (
                 <>
@@ -205,10 +251,12 @@ export function EstimatedTimeCard({
               </p>
               {hasRange && (
                 <p className="text-sm text-gray-500">
-                  ({formatTimeRange(
+                  (
+                  {formatTimeRange(
                     prediction.confidence_interval_lower,
                     prediction.confidence_interval_upper
-                  )})
+                  )}
+                  )
                 </p>
               )}
             </>
@@ -216,11 +264,15 @@ export function EstimatedTimeCard({
         </div>
 
         {/* Confidence badge */}
-        <div className={cn(
-          "flex items-center gap-1.5 px-2.5 py-1 rounded-full",
-          confidenceInfo.bgClass
-        )}>
-          <div className={cn("w-2 h-2 rounded-full", confidenceInfo.dotClass)} />
+        <div
+          className={cn(
+            "flex items-center gap-1.5 px-2.5 py-1 rounded-full",
+            confidenceInfo.bgClass
+          )}
+        >
+          <div
+            className={cn("w-2 h-2 rounded-full", confidenceInfo.dotClass)}
+          />
           <span className={cn("text-sm font-medium", confidenceInfo.textClass)}>
             {Math.round(prediction.confidence_level * 100)}%
           </span>
@@ -233,7 +285,9 @@ export function EstimatedTimeCard({
           <div className="flex items-center">
             <div className="flex-1 text-center">
               <p className="text-xs text-gray-500 mb-0.5">Platform Estimate</p>
-              <p className="font-semibold text-gray-900">{prediction.formatted_duration}</p>
+              <p className="font-semibold text-gray-900">
+                {prediction.formatted_duration}
+              </p>
             </div>
             <div className="w-px h-8 bg-gray-200 mx-3" />
             <div className="flex-1 text-center">
@@ -256,9 +310,9 @@ export function EstimatedTimeCard({
 
       {/* Source indicator */}
       <p className="text-[10px] text-gray-400 text-right mt-2">
-        {prediction.source === 'model' || prediction.source === 'microservice'
-          ? 'Powered by ML'
-          : 'Statistical estimate'}
+        {prediction.source === "model" || prediction.source === "microservice"
+          ? "Powered by ML"
+          : "Statistical estimate"}
       </p>
     </div>
   );

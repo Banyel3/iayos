@@ -31,7 +31,7 @@ interface MyJob {
   description: string;
   budget: number;
   location: string;
-  status: "ACTIVE" | "IN_PROGRESS" | "COMPLETED" | "PENDING";
+  status: "ACTIVE" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED" | "PENDING";
   urgency_level: "LOW" | "MEDIUM" | "HIGH";
   category_name: string;
   created_at: string;
@@ -102,7 +102,8 @@ export default function JobsScreen() {
       case "inProgress":
         return "IN_PROGRESS";
       case "past":
-        return "COMPLETED";
+        // For past jobs, include both completed and cancelled
+        return "COMPLETED,CANCELLED";
       default:
         return "ACTIVE";
     }
@@ -346,6 +347,8 @@ export default function JobsScreen() {
         return { bg: "#FEF3C7", text: "#92400E" };
       case "COMPLETED":
         return { bg: "#D1FAE5", text: "#065F46" };
+      case "CANCELLED":
+        return { bg: "#FEE2E2", text: "#991B1B" };
       default:
         return { bg: "#F3F4F6", text: "#6B7280" };
     }

@@ -108,7 +108,7 @@ export const ENDPOINTS = {
     `${API_BASE_URL.replace("/api", "")}/api/mobile/applications/${id}/withdraw`,
 
   // Phase 5: Photo Upload (Avatar & Portfolio)
-  UPLOAD_AVATAR: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/avatar`,
+  UPLOAD_AVATAR: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/upload-image`,
   DELETE_AVATAR: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/avatar`,
   UPLOAD_PORTFOLIO_IMAGE: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/portfolio`,
   PORTFOLIO_LIST: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/portfolio`,
@@ -137,6 +137,10 @@ export const ENDPOINTS = {
   NEARBY_WORKERS: `${API_BASE_URL.replace("/api", "")}/api/mobile/workers/list`,
   WORKER_DETAIL: (id: number) =>
     `${API_BASE_URL.replace("/api", "")}/api/mobile/workers/detail/${id}`,
+
+  // Client
+  CLIENT_DETAIL: (id: number) =>
+    `${API_BASE_URL.replace("/api", "")}/api/mobile/clients/${id}`,
 
   // Locations
   GET_CITIES: `${API_BASE_URL.replace("/api", "")}/api/mobile/locations/cities`,
@@ -236,6 +240,8 @@ export const ENDPOINTS = {
     `${API_BASE_URL.replace("/api", "")}/api/jobs/${jobId}/review`,
   WORKER_REVIEWS: (workerId: number, page = 1, limit = 20, sort = "latest") =>
     `${API_BASE_URL.replace("/api", "")}/api/mobile/reviews/worker/${workerId}?page=${page}&limit=${limit}`,
+  CLIENT_REVIEWS: (clientId: number, page = 1, limit = 20) =>
+    `${API_BASE_URL.replace("/api", "")}/api/mobile/reviews/client/${clientId}?page=${page}&limit=${limit}`,
   REVIEW_STATS: (workerId: number) =>
     `${API_BASE_URL.replace("/api", "")}/api/mobile/reviews/stats/${workerId}`,
   MY_REVIEWS: `${API_BASE_URL.replace("/api", "")}/api/mobile/reviews/my-reviews`,

@@ -1,19 +1,19 @@
 /**
  * EstimatedTimeCard Component
- * 
+ *
  * Displays ML-predicted job completion time with confidence indicator.
  * Shows time range, confidence level, and disclaimers for low confidence.
- * 
+ *
  * Used in:
  * - Job Detail screen
  * - Active Job screen (with countdown mode)
  * - Conversation header (compact mode)
  */
 
-import React from 'react';
-import { View, Text, StyleSheet, ViewStyle } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { Colors, Typography, BorderRadius, Spacing } from '@/constants/theme';
+import React from "react";
+import { View, Text, StyleSheet, ViewStyle } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { Colors, Typography, BorderRadius, Spacing } from "@/constants/theme";
 
 export interface EstimatedCompletion {
   predicted_hours: number;
@@ -21,7 +21,7 @@ export interface EstimatedCompletion {
   confidence_interval_upper: number | null;
   confidence_level: number;
   formatted_duration: string;
-  source: 'model' | 'microservice' | 'fallback';
+  source: "model" | "microservice" | "fallback";
   is_low_confidence: boolean;
 }
 
@@ -38,6 +38,35 @@ interface EstimatedTimeCardProps {
   workerEstimate?: string;
   /** Custom container style */
   style?: ViewStyle;
+  /** Show loading skeleton */
+  isLoading?: boolean;
+}
+
+/**
+ * Skeleton placeholder for loading state
+ */
+function SkeletonBox({
+  width,
+  height,
+  style,
+}: {
+  width: number | `${number}%`;
+  height: number;
+  style?: ViewStyle;
+}) {
+  return (
+    <View
+      style={[
+        {
+          width,
+          height,
+          backgroundColor: Colors.backgroundSecondary,
+          borderRadius: BorderRadius.small,
+        },
+        style,
+      ]}
+    />
+  );
 }
 
 /**
@@ -55,7 +84,7 @@ function formatDuration(hours: number): string {
   } else {
     const days = Math.floor(hours / 24);
     const remainingHours = Math.round(hours % 24);
-    if (remainingHours === 0) return `${days} day${days > 1 ? 's' : ''}`;
+    if (remainingHours === 0) return `${days} day${days > 1 ? "s" : ""}`;
     return `${days}d ${remainingHours}h`;
   }
 }
@@ -64,20 +93,36 @@ function formatDuration(hours: number): string {
  * Format time range from confidence interval
  */
 function formatTimeRange(lower: number | null, upper: number | null): string {
-  if (lower === null || upper === null) return '';
+  if (lower === null || upper === null) return "";
   return `${formatDuration(lower)} - ${formatDuration(upper)}`;
 }
 
 /**
  * Get confidence level label and color
  */
-function getConfidenceInfo(level: number): { label: string; color: string; bgColor: string } {
+function getConfidenceInfo(level: number): {
+  label: string;
+  color: string;
+  bgColor: string;
+} {
   if (level >= 0.8) {
-    return { label: 'High confidence', color: Colors.success, bgColor: Colors.successLight };
+    return {
+      label: "High confidence",
+      color: Colors.success,
+      bgColor: Colors.successLight,
+    };
   } else if (level >= 0.5) {
-    return { label: 'Moderate confidence', color: Colors.warning, bgColor: Colors.warningLight };
+    return {
+      label: "Moderate confidence",
+      color: Colors.warning,
+      bgColor: Colors.warningLight,
+    };
   } else {
-    return { label: 'Limited data', color: Colors.textSecondary, bgColor: Colors.backgroundSecondary };
+    return {
+      label: "Limited data",
+      color: Colors.textSecondary,
+      bgColor: Colors.backgroundSecondary,
+    };
   }
 }
 
@@ -92,7 +137,7 @@ function calculateRemainingTime(
   const now = new Date();
   const elapsedHours = (now.getTime() - start.getTime()) / (1000 * 60 * 60);
   const remainingHours = predictedHours - elapsedHours;
-  
+
   return {
     remainingHours: Math.max(0, remainingHours),
     isOverdue: remainingHours < 0,
@@ -106,19 +151,59 @@ export function EstimatedTimeCard({
   jobStartTime,
   workerEstimate,
   style,
+  isLoading = false,
 }: EstimatedTimeCardProps) {
+  // Loading state - show skeleton
+  if (isLoading) {
+    if (compact) {
+      return (
+        <View style={[styles.compactContainer, style]}>
+          <SkeletonBox width={14} height={14} />
+          <SkeletonBox width={80} height={14} style={{ marginLeft: 4 }} />
+        </View>
+      );
+    }
+    // Full card loading skeleton
+    return (
+      <View style={[styles.container, style]}>
+        <View style={styles.header}>
+          <SkeletonBox
+            width={28}
+            height={28}
+            style={{ borderRadius: BorderRadius.medium }}
+          />
+          <SkeletonBox width={180} height={16} style={{ marginLeft: 8 }} />
+        </View>
+        <View style={[styles.predictionRow, { marginTop: 12 }]}>
+          <View style={styles.mainPrediction}>
+            <SkeletonBox width={100} height={28} />
+            <SkeletonBox width={140} height={14} style={{ marginTop: 4 }} />
+          </View>
+          <SkeletonBox width={60} height={24} style={{ borderRadius: 12 }} />
+        </View>
+        <View style={{ marginTop: 12 }}>
+          <SkeletonBox width="100%" height={32} />
+        </View>
+      </View>
+    );
+  }
+
   if (!prediction || prediction.predicted_hours === null) {
     return null;
   }
 
   const confidenceInfo = getConfidenceInfo(prediction.confidence_level);
-  const hasRange = prediction.confidence_interval_lower !== null && 
-                   prediction.confidence_interval_upper !== null;
-  
+  const hasRange =
+    prediction.confidence_interval_lower !== null &&
+    prediction.confidence_interval_upper !== null;
+
   // Calculate countdown if in countdown mode
   let countdownData = null;
   if (countdownMode && jobStartTime) {
-    countdownData = calculateRemainingTime(prediction.predicted_hours, jobStartTime);
+    countdownData = calculateRemainingTime(
+      prediction.predicted_hours,
+      jobStartTime
+    );
   }
 
   // Compact mode for conversation header
@@ -162,7 +247,8 @@ export function EstimatedTimeCard({
             <>
               {countdownData.isOverdue ? (
                 <Text style={[styles.predictionValue, styles.overdueText]}>
-                  Overdue by {formatDuration(Math.abs(countdownData.remainingHours))}
+                  Overdue by{" "}
+                  {formatDuration(Math.abs(countdownData.remainingHours))}
                 </Text>
               ) : (
                 <>
@@ -180,10 +266,12 @@ export function EstimatedTimeCard({
               </Text>
               {hasRange && (
                 <Text style={styles.rangeText}>
-                  ({formatTimeRange(
+                  (
+                  {formatTimeRange(
                     prediction.confidence_interval_lower,
                     prediction.confidence_interval_upper
-                  )})
+                  )}
+                  )
                 </Text>
               )}
             </>
@@ -191,9 +279,21 @@ export function EstimatedTimeCard({
         </View>
 
         {/* Confidence badge */}
-        <View style={[styles.confidenceBadge, { backgroundColor: confidenceInfo.bgColor }]}>
-          <View style={[styles.confidenceDot, { backgroundColor: confidenceInfo.color }]} />
-          <Text style={[styles.confidenceText, { color: confidenceInfo.color }]}>
+        <View
+          style={[
+            styles.confidenceBadge,
+            { backgroundColor: confidenceInfo.bgColor },
+          ]}
+        >
+          <View
+            style={[
+              styles.confidenceDot,
+              { backgroundColor: confidenceInfo.color },
+            ]}
+          />
+          <Text
+            style={[styles.confidenceText, { color: confidenceInfo.color }]}
+          >
             {Math.round(prediction.confidence_level * 100)}%
           </Text>
         </View>
@@ -205,7 +305,9 @@ export function EstimatedTimeCard({
           <View style={styles.comparisonRow}>
             <View style={styles.comparisonItem}>
               <Text style={styles.comparisonLabel}>Platform Estimate</Text>
-              <Text style={styles.comparisonValue}>{prediction.formatted_duration}</Text>
+              <Text style={styles.comparisonValue}>
+                {prediction.formatted_duration}
+              </Text>
             </View>
             <View style={styles.comparisonDivider} />
             <View style={styles.comparisonItem}>
@@ -219,7 +321,11 @@ export function EstimatedTimeCard({
       {/* Low confidence disclaimer */}
       {prediction.is_low_confidence && (
         <View style={styles.disclaimerContainer}>
-          <Ionicons name="information-circle-outline" size={16} color={Colors.textSecondary} />
+          <Ionicons
+            name="information-circle-outline"
+            size={16}
+            color={Colors.textSecondary}
+          />
           <Text style={styles.disclaimerText}>
             Based on limited data. Actual time may vary.
           </Text>
@@ -228,9 +334,9 @@ export function EstimatedTimeCard({
 
       {/* Source indicator (subtle) */}
       <Text style={styles.sourceText}>
-        {prediction.source === 'model' || prediction.source === 'microservice'
-          ? 'Powered by ML'
-          : 'Statistical estimate'}
+        {prediction.source === "model" || prediction.source === "microservice"
+          ? "Powered by ML"
+          : "Statistical estimate"}
       </Text>
     </View>
   );
@@ -245,8 +351,8 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: Spacing.sm,
   },
   iconContainer: {
@@ -254,19 +360,19 @@ const styles = StyleSheet.create({
     height: 32,
     borderRadius: 16,
     backgroundColor: Colors.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: Spacing.sm,
   },
   title: {
     fontSize: Typography.body.medium.fontSize,
-    fontWeight: '600',
+    fontWeight: "600",
     color: Colors.textPrimary,
   },
   predictionRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: Spacing.sm,
   },
   mainPrediction: {
@@ -274,22 +380,22 @@ const styles = StyleSheet.create({
   },
   predictionValue: {
     fontSize: 24,
-    fontWeight: '700',
+    fontWeight: "700",
     color: Colors.textPrimary,
   },
   predictionLabel: {
-    fontSize: Typography.body.sm.fontSize,
+    fontSize: Typography.body.small.fontSize,
     color: Colors.textSecondary,
     marginTop: 2,
   },
   rangeText: {
-    fontSize: Typography.body.sm.fontSize,
+    fontSize: Typography.body.small.fontSize,
     color: Colors.textSecondary,
     marginTop: 2,
   },
   confidenceBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: Spacing.sm,
     paddingVertical: Spacing.xs,
     borderRadius: BorderRadius.full,
@@ -301,8 +407,8 @@ const styles = StyleSheet.create({
     marginRight: 6,
   },
   confidenceText: {
-    fontSize: Typography.body.sm.fontSize,
-    fontWeight: '600',
+    fontSize: Typography.body.small.fontSize,
+    fontWeight: "600",
   },
   comparisonSection: {
     marginTop: Spacing.sm,
@@ -311,21 +417,21 @@ const styles = StyleSheet.create({
     borderTopColor: Colors.border,
   },
   comparisonRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   comparisonItem: {
     flex: 1,
-    alignItems: 'center',
+    alignItems: "center",
   },
   comparisonLabel: {
-    fontSize: Typography.body.xs.fontSize,
+    fontSize: Typography.fontSize.xs,
     color: Colors.textSecondary,
     marginBottom: 2,
   },
   comparisonValue: {
     fontSize: Typography.body.medium.fontSize,
-    fontWeight: '600',
+    fontWeight: "600",
     color: Colors.textPrimary,
   },
   comparisonDivider: {
@@ -335,8 +441,8 @@ const styles = StyleSheet.create({
     marginHorizontal: Spacing.sm,
   },
   disclaimerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: Colors.warningLight,
     paddingHorizontal: Spacing.sm,
     paddingVertical: Spacing.xs,
@@ -344,7 +450,7 @@ const styles = StyleSheet.create({
     marginTop: Spacing.sm,
   },
   disclaimerText: {
-    fontSize: Typography.body.xs.fontSize,
+    fontSize: Typography.fontSize.xs,
     color: Colors.textSecondary,
     marginLeft: Spacing.xs,
     flex: 1,
@@ -352,7 +458,7 @@ const styles = StyleSheet.create({
   sourceText: {
     fontSize: 10,
     color: Colors.textHint,
-    textAlign: 'right',
+    textAlign: "right",
     marginTop: Spacing.xs,
   },
   overdueText: {
@@ -360,17 +466,17 @@ const styles = StyleSheet.create({
   },
   // Compact styles
   compactContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
   },
   compactText: {
-    fontSize: Typography.body.sm.fontSize,
+    fontSize: Typography.body.small.fontSize,
     color: Colors.primary,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   compactDisclaimer: {
-    fontSize: Typography.body.xs.fontSize,
+    fontSize: Typography.fontSize.xs,
     color: Colors.textHint,
   },
 });
