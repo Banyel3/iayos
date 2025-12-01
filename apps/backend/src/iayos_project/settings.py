@@ -239,6 +239,11 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
+# Media files (User uploads)
+# Used when USE_LOCAL_DB=true for offline/defense mode
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
@@ -292,6 +297,37 @@ elif SUPABASE_URL and SUPABASE_ANON_KEY:
         print(f"✗ Failed to initialize Supabase client: {e}")
 else:
     print("✗ SUPABASE_URL or SUPABASE_SECRET_KEY not set. File storage features will be disabled.")
+
+# =====================================================
+# UNIFIED STORAGE ADAPTER
+# =====================================================
+# When USE_LOCAL_DB=true, use local file storage instead of Supabase
+# This enables fully offline operation for defense demos
+
+USE_LOCAL_STORAGE = os.getenv('USE_LOCAL_DB', 'false').lower() == 'true'
+
+if USE_LOCAL_STORAGE:
+    from iayos_project.local_storage import create_local_storage_client
+    
+    # Get the backend URL for serving media files
+    # In defense mode, this should be the laptop's hotspot IP
+    BACKEND_URL = os.getenv('EXPO_PUBLIC_API_URL', 'http://localhost:8000')
+    
+    STORAGE = create_local_storage_client(
+        media_root=str(MEDIA_ROOT),
+        media_url=MEDIA_URL,
+        base_url=BACKEND_URL
+    )
+    print(f"✓ Local file storage enabled (offline mode)")
+    print(f"  Media root: {MEDIA_ROOT}")
+    print(f"  Media URL: {BACKEND_URL}{MEDIA_URL}")
+else:
+    # Use Supabase for cloud storage
+    STORAGE = SUPABASE
+    if STORAGE:
+        print("✓ Using Supabase for file storage (cloud mode)")
+    else:
+        print("⚠ No file storage configured - uploads will fail")
 
 # Xendit Configuration
 XENDIT_API_KEY = os.getenv("XENDIT_API_KEY")  # Must be set in .env.docker

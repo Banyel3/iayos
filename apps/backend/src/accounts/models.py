@@ -584,6 +584,12 @@ class Notification(models.Model):
 
         # Review Notifications
         REVIEW_RECEIVED = "REVIEW_RECEIVED", "Review Received"
+        
+        # Backjob/Dispute Notifications
+        BACKJOB_REQUESTED = "BACKJOB_REQUESTED", "Backjob Requested"
+        BACKJOB_APPROVED = "BACKJOB_APPROVED", "Backjob Approved"
+        BACKJOB_REJECTED = "BACKJOB_REJECTED", "Backjob Rejected"
+        BACKJOB_COMPLETED = "BACKJOB_COMPLETED", "Backjob Completed"
 
         # System Notifications
         SYSTEM = "SYSTEM", "System"
@@ -1221,6 +1227,34 @@ class JobDispute(models.Model):
     
     def __str__(self):
         return f"Dispute #{self.disputeID} - {self.jobID.title}"
+
+
+class DisputeEvidence(models.Model):
+    """
+    Evidence images attached to job disputes/backjob requests
+    """
+    evidenceID = models.BigAutoField(primary_key=True)
+    disputeID = models.ForeignKey(
+        JobDispute,
+        on_delete=models.CASCADE,
+        related_name='evidence'
+    )
+    imageURL = models.CharField(max_length=500)
+    description = models.TextField(blank=True, null=True)
+    uploadedBy = models.ForeignKey(
+        'Accounts',
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='dispute_evidence'
+    )
+    createdAt = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'dispute_evidence'
+        ordering = ['-createdAt']
+    
+    def __str__(self):
+        return f"Evidence #{self.evidenceID} for Dispute #{self.disputeID_id}"
 
 
 class JobReview(models.Model):

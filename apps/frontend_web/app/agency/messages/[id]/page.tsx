@@ -48,6 +48,7 @@ export default function AgencyChatScreen() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [showImageModal, setShowImageModal] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   // Job action state
   const [showMarkCompleteModal, setShowMarkCompleteModal] = useState(false);
@@ -97,10 +98,59 @@ export default function AgencyChatScreen() {
     });
   };
 
-  // Handle image upload (simplified - images sent as text for now)
-  const handleImageSelect = (file: File) => {
-    // For now, just alert that image upload isn't supported in agency chat
-    alert("Image upload will be available soon. Please send a text message.");
+  // Handle image upload
+  const handleImageSelect = async (file: File) => {
+    if (isUploading) return;
+
+    // Validate file size (5MB max)
+    if (file.size > 5 * 1024 * 1024) {
+      alert("Image size must be less than 5MB");
+      return;
+    }
+
+    // Validate file type
+    const allowedTypes = ["image/jpeg", "image/png", "image/jpg", "image/webp"];
+    if (!allowedTypes.includes(file.type)) {
+      alert("Invalid file type. Allowed: JPEG, PNG, JPG, WEBP");
+      return;
+    }
+
+    setIsUploading(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("image", file);
+
+      const response = await fetch(
+        `http://localhost:8000/api/agency/conversations/${conversationId}/upload-image`,
+        {
+          method: "POST",
+          body: formData,
+          credentials: "include",
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Upload failed");
+      }
+
+      const result = await response.json();
+      console.log("Image uploaded:", result);
+
+      // Refetch conversation to show the new image
+      refetch();
+
+      // Scroll to bottom
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      }, 100);
+    } catch (error) {
+      console.error("Image upload error:", error);
+      alert(error instanceof Error ? error.message : "Failed to upload image");
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   // Handle back navigation
@@ -469,13 +519,17 @@ export default function AgencyChatScreen() {
                       )}
                     </p>
                   )}
-                  {message.message_type === "IMAGE" ? (
+                  {message.message_type === "IMAGE" && message.message_text ? (
                     <img
                       src={message.message_text}
                       alt="Image"
                       className="max-w-full rounded-lg cursor-pointer"
                       onClick={() => setShowImageModal(message.message_text)}
                     />
+                  ) : message.message_type === "IMAGE" ? (
+                    <div className="text-sm text-gray-500 italic">
+                      [Image not available]
+                    </div>
                   ) : (
                     <p className="text-sm whitespace-pre-wrap">
                       {message.message_text}
@@ -532,7 +586,7 @@ export default function AgencyChatScreen() {
           onTyping={sendTyping}
           onImageSelect={handleImageSelect}
           disabled={!isConnected || sendMutation.isPending}
-          isUploading={false}
+          isUploading={isUploading}
           placeholder={
             isConnected ? "Type a message..." : "Reconnecting... Please wait"
           }

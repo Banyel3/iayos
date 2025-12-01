@@ -1,5 +1,5 @@
 // lib/utils/image-utils.ts
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 
 export interface CompressionOptions {

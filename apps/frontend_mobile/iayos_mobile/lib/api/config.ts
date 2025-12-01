@@ -249,6 +249,15 @@ export const ENDPOINTS = {
     `${API_BASE_URL.replace("/api", "")}/api/mobile/reviews/${reviewId}`,
   REPORT_REVIEW: (reviewId: number) =>
     `${API_BASE_URL.replace("/api", "")}/api/mobile/reviews/${reviewId}/report`,
+
+  // Backjobs / Disputes
+  REQUEST_BACKJOB: (jobId: number) =>
+    `${API_BASE_URL.replace("/api", "")}/api/jobs/${jobId}/request-backjob`,
+  MY_BACKJOBS: `${API_BASE_URL.replace("/api", "")}/api/jobs/my-backjobs`,
+  BACKJOB_STATUS: (jobId: number) =>
+    `${API_BASE_URL.replace("/api", "")}/api/jobs/${jobId}/backjob-status`,
+  COMPLETE_BACKJOB: (jobId: number) =>
+    `${API_BASE_URL.replace("/api", "")}/api/jobs/${jobId}/complete-backjob`,
 };
 
 import AsyncStorage from "@react-native-async-storage/async-storage";

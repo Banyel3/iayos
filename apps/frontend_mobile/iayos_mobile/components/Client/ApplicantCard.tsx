@@ -293,13 +293,10 @@ export default function ApplicantCard({
           variant="outline"
           onPress={handleViewProfile}
           style={styles.actionButton}
+          iconLeft={
+            <Ionicons name="person-outline" size={16} color={Colors.primary} />
+          }
         >
-          <Ionicons
-            name="person-outline"
-            size={16}
-            color={Colors.primary}
-            style={{ marginRight: 4 }}
-          />
           View Profile
         </Button>
 
@@ -309,26 +306,28 @@ export default function ApplicantCard({
               variant="success"
               onPress={handleAccept}
               style={styles.actionButton}
+              iconLeft={
+                <Ionicons
+                  name="checkmark-circle-outline"
+                  size={16}
+                  color={Colors.white}
+                />
+              }
             >
-              <Ionicons
-                name="checkmark-circle-outline"
-                size={16}
-                color={Colors.white}
-                style={{ marginRight: 4 }}
-              />
               Accept
             </Button>
             <Button
               variant="danger"
               onPress={handleReject}
               style={styles.actionButton}
+              iconLeft={
+                <Ionicons
+                  name="close-circle-outline"
+                  size={16}
+                  color={Colors.white}
+                />
+              }
             >
-              <Ionicons
-                name="close-circle-outline"
-                size={16}
-                color={Colors.white}
-                style={{ marginRight: 4 }}
-              />
               Reject
             </Button>
           </>

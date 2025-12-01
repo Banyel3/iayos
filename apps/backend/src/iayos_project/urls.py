@@ -1,5 +1,7 @@
 from django.contrib import admin
 from django.urls import path, include
+from django.conf import settings
+from django.conf.urls.static import static
 from ninja_extra import NinjaExtraAPI
 
 # Import routers from your apps
@@ -29,3 +31,7 @@ urlpatterns = [
     path("api/", api.urls),  # mounts all the API routes
     path("auth/", include("allauth.urls")),
 ]
+
+# Serve media files in development (for local storage / offline mode)
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

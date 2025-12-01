@@ -6,6 +6,7 @@ from ninja.responses import Response
 from accounts.authentication import cookie_auth
 from django.shortcuts import redirect
 from django.urls import reverse
+from django.utils import timezone
 from .service import fetchAll_kyc, review_kyc_items, approve_kyc, reject_kyc, fetch_kyc_logs
 from .service import approve_agency_kyc, reject_agency_kyc, get_admin_dashboard_stats
 from .service import get_agency_kyc_list, review_agency_kyc
@@ -581,6 +582,155 @@ def get_disputes(request, page: int = 1, page_size: int = 20, status: str | None
         return {"success": True, **result}
     except Exception as e:
         print(f"❌ Error fetching disputes: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+@router.post("/jobs/disputes/{dispute_id}/approve-backjob", auth=cookie_auth)
+def approve_backjob(request, dispute_id: int):
+    """
+    Admin approves a backjob request.
+    Changes status from OPEN to UNDER_REVIEW and notifies the worker/agency.
+    """
+    from accounts.models import JobDispute, Notification, Agency
+    from jobs.models import JobLog
+    
+    try:
+        body = request.data if hasattr(request, 'data') else {}
+        admin_notes = body.get('notes', '')
+        priority = body.get('priority', 'MEDIUM')
+        
+        dispute = JobDispute.objects.select_related(
+            'jobID',
+            'jobID__assignedWorkerID__profileID__accountFK',
+            'jobID__assignedAgencyFK__accountFK',
+            'jobID__clientID__profileID__accountFK'
+        ).get(disputeID=dispute_id)
+        
+        if dispute.status != 'OPEN':
+            return {"success": False, "error": "This backjob has already been processed"}
+        
+        # Update dispute
+        dispute.status = 'UNDER_REVIEW'
+        dispute.priority = priority
+        if admin_notes:
+            dispute.resolution = f"Admin notes: {admin_notes}"
+        dispute.save()
+        
+        job = dispute.jobID
+        
+        # Create job log
+        JobLog.objects.create(
+            jobID=job,
+            action="BACKJOB_APPROVED",
+            performedBy=request.auth,
+            notes=f"Admin approved backjob request. Priority: {priority}"
+        )
+        
+        # Notify the worker or agency
+        notify_account = None
+        if job.assignedAgencyFK:
+            notify_account = job.assignedAgencyFK.accountFK
+        elif job.assignedWorkerID:
+            notify_account = job.assignedWorkerID.profileID.accountFK
+        
+        if notify_account:
+            Notification.objects.create(
+                accountFK=notify_account,
+                notificationType="BACKJOB_APPROVED",
+                title="New Backjob Assigned",
+                message=f"You have a new backjob for '{job.title}'. The client has requested rework. Please review and complete.",
+                relatedJobID=job.jobID
+            )
+        
+        # Also notify the client that their backjob was approved
+        if job.clientID:
+            Notification.objects.create(
+                accountFK=job.clientID.profileID.accountFK,
+                notificationType="BACKJOB_APPROVED",
+                title="Backjob Request Approved",
+                message=f"Your backjob request for '{job.title}' has been approved. The worker/agency has been notified.",
+                relatedJobID=job.jobID
+            )
+        
+        return {
+            "success": True,
+            "message": "Backjob approved and assigned to worker/agency",
+            "dispute_id": dispute.disputeID,
+            "status": dispute.status
+        }
+        
+    except JobDispute.DoesNotExist:
+        return {"success": False, "error": "Dispute not found"}
+    except Exception as e:
+        print(f"❌ Error approving backjob: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+@router.post("/jobs/disputes/{dispute_id}/reject-backjob", auth=cookie_auth)
+def reject_backjob(request, dispute_id: int):
+    """
+    Admin rejects a backjob request.
+    Changes status from OPEN to CLOSED and notifies the client.
+    """
+    from accounts.models import JobDispute, Notification
+    from jobs.models import JobLog
+    
+    try:
+        body = request.data if hasattr(request, 'data') else {}
+        rejection_reason = body.get('reason', 'Backjob request was not approved')
+        
+        if not rejection_reason or len(rejection_reason) < 10:
+            return {"success": False, "error": "Please provide a valid rejection reason (at least 10 characters)"}
+        
+        dispute = JobDispute.objects.select_related(
+            'jobID',
+            'jobID__clientID__profileID__accountFK'
+        ).get(disputeID=dispute_id)
+        
+        if dispute.status != 'OPEN':
+            return {"success": False, "error": "This backjob has already been processed"}
+        
+        # Update dispute
+        dispute.status = 'CLOSED'
+        dispute.resolution = f"Rejected: {rejection_reason}"
+        dispute.resolvedDate = timezone.now()
+        dispute.save()
+        
+        job = dispute.jobID
+        
+        # Create job log
+        JobLog.objects.create(
+            jobID=job,
+            action="BACKJOB_REJECTED",
+            performedBy=request.auth,
+            notes=f"Admin rejected backjob request. Reason: {rejection_reason}"
+        )
+        
+        # Notify the client
+        if job.clientID:
+            Notification.objects.create(
+                accountFK=job.clientID.profileID.accountFK,
+                notificationType="BACKJOB_REJECTED",
+                title="Backjob Request Rejected",
+                message=f"Your backjob request for '{job.title}' was not approved. Reason: {rejection_reason}",
+                relatedJobID=job.jobID
+            )
+        
+        return {
+            "success": True,
+            "message": "Backjob request rejected",
+            "dispute_id": dispute.disputeID,
+            "status": dispute.status
+        }
+        
+    except JobDispute.DoesNotExist:
+        return {"success": False, "error": "Dispute not found"}
+    except Exception as e:
+        print(f"❌ Error rejecting backjob: {str(e)}")
         import traceback
         traceback.print_exc()
         return {"success": False, "error": str(e)}

@@ -1,7 +1,9 @@
 // lib/hooks/useImageUpload.ts
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useCallback } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { compressImage } from "@/lib/utils/image-utils";
+import { API_BASE_URL } from "@/lib/api/config";
 
 export interface UploadProgress {
   loaded: number;
@@ -80,6 +82,16 @@ export const useImageUpload = () => {
           });
         }
 
+        // Get auth token from storage (before Promise to avoid async issues)
+        const token = await AsyncStorage.getItem("access_token");
+
+        // Build full endpoint URL if relative path provided
+        let fullEndpoint = endpoint;
+        if (endpoint.startsWith("/")) {
+          // Relative path - prepend base URL
+          fullEndpoint = `${API_BASE_URL.replace("/api", "")}${endpoint}`;
+        }
+
         // Upload with progress tracking
         return new Promise((resolve, reject) => {
           const xhr = new XMLHttpRequest();
@@ -129,10 +141,15 @@ export const useImageUpload = () => {
           };
 
           // Configure and send request
-          xhr.open("POST", endpoint);
+          xhr.open("POST", fullEndpoint);
           xhr.timeout = 60000; // 60 second timeout
           xhr.setRequestHeader("Accept", "application/json");
-          // Note: credentials must be handled by the endpoint configuration
+
+          // Add Authorization header for authenticated uploads
+          if (token) {
+            xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+          }
+
           xhr.send(formData);
         });
       } catch (error) {
@@ -225,6 +242,15 @@ export const useMultiImageUpload = () => {
             formData.append("caption", caption);
           }
 
+          // Get auth token before creating Promise
+          const token = await AsyncStorage.getItem("access_token");
+
+          // Build full endpoint URL if relative path provided
+          let fullEndpoint = endpoint;
+          if (endpoint.startsWith("/")) {
+            fullEndpoint = `${API_BASE_URL.replace("/api", "")}${endpoint}`;
+          }
+
           const result = await new Promise<UploadResult>((resolve) => {
             const xhr = new XMLHttpRequest();
 
@@ -260,9 +286,16 @@ export const useMultiImageUpload = () => {
             xhr.onerror = () =>
               resolve({ success: false, error: "Network error" });
 
-            xhr.open("POST", endpoint);
+            // Configure and send request
+            xhr.open("POST", fullEndpoint);
             xhr.timeout = 60000;
             xhr.setRequestHeader("Accept", "application/json");
+
+            // Add Authorization header
+            if (token) {
+              xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+            }
+
             xhr.send(formData);
           });
 

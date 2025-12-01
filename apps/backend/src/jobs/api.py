@@ -3,7 +3,7 @@ from ninja import Router, File, Form
 from ninja.responses import Response
 from ninja.files import UploadedFile
 from accounts.authentication import cookie_auth, jwt_auth, dual_auth
-from accounts.models import ClientProfile, Specializations, Profile, WorkerProfile, JobApplication, JobPhoto, Wallet, Transaction, Job, JobLog, Agency
+from accounts.models import ClientProfile, Specializations, Profile, WorkerProfile, JobApplication, JobPhoto, Wallet, Transaction, Job, JobLog, Agency, JobDispute, DisputeEvidence, Notification
 from accounts.xendit_service import XenditService
 from .models import JobPosting
 # Use Job directly for type checking (JobPosting is just an alias)
@@ -15,6 +15,8 @@ from django.db import transaction as db_transaction
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 from typing import List, Optional
+import os
+from django.conf import settings
 
 router = Router()
 
@@ -4249,3 +4251,349 @@ def get_my_invite_jobs(request, invite_status: str | None = None, page: int = 1,
 
 #endregion
 
+
+# ============================================================
+# BACKJOB / DISPUTE ENDPOINTS
+# ============================================================
+#region Backjob Endpoints
+
+@router.post("/{job_id}/request-backjob", auth=dual_auth)
+def request_backjob(request, job_id: int, reason: str = Form(...), description: str = Form(...), images: List[UploadedFile] = File(default=None)):
+    """
+    Client requests a backjob (rework) on a completed job.
+    Creates a dispute with evidence images.
+    Admin must approve before it appears for worker/agency.
+    """
+    try:
+        print(f"🔄 Backjob request for job {job_id} from user {request.auth.email}")
+        
+        # Get the job
+        try:
+            job = Job.objects.select_related(
+                'clientID__profileID__accountFK',
+                'assignedWorkerID__profileID__accountFK',
+                'assignedAgencyFK__accountFK'
+            ).get(jobID=job_id)
+        except Job.DoesNotExist:
+            return Response({"error": "Job not found"}, status=404)
+        
+        # Verify job is completed
+        if job.status != "COMPLETED":
+            return Response(
+                {"error": "Backjob can only be requested for completed jobs"},
+                status=400
+            )
+        
+        # Verify requester is the client who owns this job
+        if job.clientID.profileID.accountFK != request.auth:
+            return Response(
+                {"error": "Only the client who posted this job can request a backjob"},
+                status=403
+            )
+        
+        # Check if a dispute/backjob already exists for this job
+        existing_dispute = JobDispute.objects.filter(jobID=job).first()
+        if existing_dispute:
+            return Response(
+                {"error": "A backjob request already exists for this job", "dispute_id": existing_dispute.disputeID},
+                status=400
+            )
+        
+        # Validate inputs
+        if len(reason) < 10:
+            return Response({"error": "Reason must be at least 10 characters"}, status=400)
+        if len(description) < 50:
+            return Response({"error": "Description must be at least 50 characters"}, status=400)
+        
+        with db_transaction.atomic():
+            # Create the dispute/backjob request
+            dispute = JobDispute.objects.create(
+                jobID=job,
+                disputedBy="CLIENT",
+                reason=reason,
+                description=description,
+                status="OPEN",  # Will be UNDER_REVIEW once admin looks at it
+                priority="MEDIUM",
+                jobAmount=job.budget,
+                disputedAmount=Decimal('0.00'),  # Client is not disputing payment, just requesting rework
+            )
+            
+            # Upload and store evidence images
+            uploaded_images = []
+            if images:
+                for idx, image in enumerate(images[:5]):  # Max 5 images
+                    if image.size > 5 * 1024 * 1024:  # 5MB limit
+                        continue
+                    
+                    # Validate file type
+                    allowed_types = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp']
+                    if image.content_type not in allowed_types:
+                        continue
+                    
+                    # Generate filename
+                    timestamp = timezone.now().strftime('%Y%m%d_%H%M%S')
+                    file_extension = os.path.splitext(image.name)[1] if image.name else '.jpg'
+                    filename = f"backjob_{dispute.disputeID}_{idx}_{timestamp}{file_extension}"
+                    storage_path = f"disputes/dispute_{dispute.disputeID}/{filename}"
+                    
+                    try:
+                        file_content = image.read()
+                        
+                        if settings.STORAGE:
+                            upload_response = settings.STORAGE.storage().from_('iayos_files').upload(
+                                storage_path,
+                                file_content,
+                                {'content-type': image.content_type}
+                            )
+                            
+                            image_url = settings.STORAGE.storage().from_('iayos_files').get_public_url(storage_path)
+                            
+                            # Create evidence record
+                            evidence = DisputeEvidence.objects.create(
+                                disputeID=dispute,
+                                imageURL=image_url,
+                                description=f"Evidence image {idx + 1}",
+                                uploadedBy=request.auth
+                            )
+                            uploaded_images.append(image_url)
+                    except Exception as upload_error:
+                        print(f"⚠️ Failed to upload image {idx}: {upload_error}")
+            
+            # Notify admins about new backjob request
+            # In a real system, you might have an admin notification channel
+            # For now, just log it
+            print(f"📢 New backjob request created: Dispute #{dispute.disputeID} for Job #{job.jobID}")
+            
+            # Create a log entry
+            JobLog.objects.create(
+                jobID=job,
+                action="BACKJOB_REQUESTED",
+                performedBy=request.auth,
+                notes=f"Client requested backjob. Reason: {reason}"
+            )
+        
+        return {
+            "success": True,
+            "message": "Backjob request submitted successfully. Our team will review it within 1-3 business days.",
+            "dispute_id": dispute.disputeID,
+            "status": dispute.status,
+            "evidence_count": len(uploaded_images)
+        }
+        
+    except Exception as e:
+        print(f"❌ Error requesting backjob: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": f"Failed to submit backjob request: {str(e)}"}, status=500)
+
+
+@router.get("/my-backjobs", auth=dual_auth)
+def get_my_backjobs(request, status: Optional[str] = None):
+    """
+    Get backjobs assigned to the current worker or agency.
+    Only shows approved backjobs (UNDER_REVIEW status means admin approved and worker needs to action).
+    """
+    try:
+        print(f"📋 Fetching backjobs for user {request.auth.email}")
+        
+        # Determine if user is worker or agency
+        profile = Profile.objects.filter(accountFK=request.auth).first()
+        agency = Agency.objects.filter(accountFK=request.auth).first()
+        
+        if not profile and not agency:
+            return Response({"error": "Profile not found"}, status=404)
+        
+        # Build query for disputes where the related job was assigned to this worker/agency
+        disputes_query = JobDispute.objects.select_related(
+            'jobID',
+            'jobID__clientID__profileID__accountFK',
+            'jobID__assignedWorkerID__profileID',
+            'jobID__assignedAgencyFK',
+            'jobID__categoryID'
+        ).prefetch_related('evidence')
+        
+        # Filter by jobs assigned to this user
+        if agency:
+            disputes_query = disputes_query.filter(jobID__assignedAgencyFK=agency)
+        elif profile and profile.profileType == "WORKER":
+            worker_profile = WorkerProfile.objects.filter(profileID=profile).first()
+            if worker_profile:
+                disputes_query = disputes_query.filter(jobID__assignedWorkerID=worker_profile)
+            else:
+                return {"backjobs": [], "total": 0}
+        else:
+            return {"backjobs": [], "total": 0}
+        
+        # Only show approved backjobs (UNDER_REVIEW means admin has reviewed and assigned to worker)
+        # or show all if status filter provided
+        if status:
+            disputes_query = disputes_query.filter(status=status)
+        else:
+            # By default show UNDER_REVIEW (approved for action) and RESOLVED
+            disputes_query = disputes_query.filter(status__in=["UNDER_REVIEW", "RESOLVED"])
+        
+        disputes = disputes_query.order_by('-openedDate')
+        
+        backjobs_data = []
+        for dispute in disputes:
+            job = dispute.jobID
+            client = job.clientID.profileID if job.clientID else None
+            
+            evidence_urls = [e.imageURL for e in dispute.evidence.all()]
+            
+            backjobs_data.append({
+                "dispute_id": dispute.disputeID,
+                "job_id": job.jobID,
+                "job_title": job.title,
+                "job_description": job.description,
+                "job_budget": float(job.budget),
+                "job_location": job.location,
+                "job_category": job.categoryID.name if job.categoryID else None,
+                "reason": dispute.reason,
+                "description": dispute.description,
+                "status": dispute.status,
+                "priority": dispute.priority,
+                "opened_date": dispute.openedDate.isoformat() if dispute.openedDate else None,
+                "resolution": dispute.resolution,
+                "resolved_date": dispute.resolvedDate.isoformat() if dispute.resolvedDate else None,
+                "evidence_images": evidence_urls,
+                "client": {
+                    "id": client.profileID if client else None,
+                    "name": f"{client.firstName} {client.lastName}" if client else "Unknown",
+                    "avatar": client.profileImg if client else None
+                } if client else None
+            })
+        
+        return {
+            "backjobs": backjobs_data,
+            "total": len(backjobs_data)
+        }
+        
+    except Exception as e:
+        print(f"❌ Error fetching backjobs: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": "Failed to fetch backjobs"}, status=500)
+
+
+@router.get("/{job_id}/backjob-status", auth=dual_auth)
+def get_backjob_status(request, job_id: int):
+    """
+    Get the backjob/dispute status for a specific job.
+    Useful for clients to check status of their backjob request.
+    """
+    try:
+        # Get the job
+        try:
+            job = Job.objects.get(jobID=job_id)
+        except Job.DoesNotExist:
+            return Response({"error": "Job not found"}, status=404)
+        
+        # Check if dispute exists
+        dispute = JobDispute.objects.filter(jobID=job).prefetch_related('evidence').first()
+        
+        if not dispute:
+            return {
+                "has_backjob": False,
+                "dispute": None
+            }
+        
+        evidence_urls = [e.imageURL for e in dispute.evidence.all()]
+        
+        return {
+            "has_backjob": True,
+            "dispute": {
+                "dispute_id": dispute.disputeID,
+                "reason": dispute.reason,
+                "description": dispute.description,
+                "status": dispute.status,
+                "priority": dispute.priority,
+                "opened_date": dispute.openedDate.isoformat() if dispute.openedDate else None,
+                "resolution": dispute.resolution,
+                "resolved_date": dispute.resolvedDate.isoformat() if dispute.resolvedDate else None,
+                "evidence_images": evidence_urls
+            }
+        }
+        
+    except Exception as e:
+        print(f"❌ Error fetching backjob status: {str(e)}")
+        return Response({"error": "Failed to fetch backjob status"}, status=500)
+
+
+@router.post("/{job_id}/complete-backjob", auth=dual_auth)
+def complete_backjob(request, job_id: int, notes: str = Form(default="")):
+    """
+    Worker/Agency marks a backjob as completed.
+    """
+    try:
+        print(f"✅ Completing backjob for job {job_id}")
+        
+        # Get the job
+        try:
+            job = Job.objects.select_related(
+                'clientID__profileID__accountFK',
+                'assignedWorkerID__profileID__accountFK',
+                'assignedAgencyFK__accountFK'
+            ).get(jobID=job_id)
+        except Job.DoesNotExist:
+            return Response({"error": "Job not found"}, status=404)
+        
+        # Get the dispute
+        dispute = JobDispute.objects.filter(jobID=job, status="UNDER_REVIEW").first()
+        if not dispute:
+            return Response({"error": "No active backjob found for this job"}, status=404)
+        
+        # Verify the user is the assigned worker or agency
+        is_assigned_worker = (
+            job.assignedWorkerID and 
+            job.assignedWorkerID.profileID.accountFK == request.auth
+        )
+        is_assigned_agency = (
+            job.assignedAgencyFK and 
+            job.assignedAgencyFK.accountFK == request.auth
+        )
+        
+        if not is_assigned_worker and not is_assigned_agency:
+            return Response(
+                {"error": "Only the assigned worker or agency can complete this backjob"},
+                status=403
+            )
+        
+        with db_transaction.atomic():
+            # Update dispute status
+            dispute.status = "RESOLVED"
+            dispute.resolution = notes or "Backjob completed by worker/agency"
+            dispute.resolvedDate = timezone.now()
+            dispute.save()
+            
+            # Create job log
+            JobLog.objects.create(
+                jobID=job,
+                action="BACKJOB_COMPLETED",
+                performedBy=request.auth,
+                notes=notes or "Backjob marked as completed"
+            )
+            
+            # Notify the client
+            Notification.objects.create(
+                accountFK=job.clientID.profileID.accountFK,
+                notificationType="BACKJOB_COMPLETED",
+                title="Backjob Completed",
+                message=f"The backjob for '{job.title}' has been completed. Please review the work.",
+                relatedJobID=job.jobID
+            )
+        
+        return {
+            "success": True,
+            "message": "Backjob marked as completed. The client has been notified.",
+            "dispute_id": dispute.disputeID,
+            "status": dispute.status
+        }
+        
+    except Exception as e:
+        print(f"❌ Error completing backjob: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": f"Failed to complete backjob: {str(e)}"}, status=500)
+
+#endregion

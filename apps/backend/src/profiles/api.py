@@ -946,6 +946,18 @@ def get_conversation_messages(request, conversation_id: int):
             conversation.unreadCountWorker = 0
         conversation.save(update_fields=['unreadCountClient' if is_client else 'unreadCountWorker'])
         
+        # Build base URL for media files from request
+        # This ensures URLs work from any client (web on localhost, mobile on IP)
+        scheme = request.scheme if hasattr(request, 'scheme') else 'http'
+        host = request.get_host() if hasattr(request, 'get_host') else 'localhost:8000'
+        base_url = f"{scheme}://{host}"
+        
+        def make_absolute_url(url):
+            """Convert relative URL to absolute if needed"""
+            if url and url.startswith('/'):
+                return f"{base_url}{url}"
+            return url
+        
         # Format messages
         formatted_messages = []
         for msg in messages:
@@ -968,7 +980,7 @@ def get_conversation_messages(request, conversation_id: int):
             for attachment in msg.attachments.all():
                 attachments.append({
                     "attachment_id": attachment.attachmentID,
-                    "file_url": attachment.fileURL,
+                    "file_url": make_absolute_url(attachment.fileURL),
                     "file_name": attachment.fileName,
                     "file_size": attachment.fileSize,
                     "file_type": attachment.fileType,
@@ -1445,6 +1457,8 @@ def upload_chat_image(request, conversation_id: int, image: UploadedFile = File(
     """
     Upload an image to a chat conversation.
     Creates a new IMAGE type message with the uploaded image URL.
+    
+    Supports both Supabase (cloud) and local storage (offline/defense mode).
 
     Args:
         conversation_id: ID of the conversation
@@ -1456,7 +1470,7 @@ def upload_chat_image(request, conversation_id: int, image: UploadedFile = File(
         uploaded_at: datetime
     """
     try:
-        from accounts.supabase_config import supabase
+        from django.conf import settings
         import os
 
         # Get sender's profile
@@ -1505,12 +1519,19 @@ def upload_chat_image(request, conversation_id: int, image: UploadedFile = File(
                 status=400
             )
 
+        # Check if storage is configured
+        if not settings.STORAGE:
+            return Response(
+                {"error": "File storage not configured"},
+                status=500
+            )
+
         # Generate unique filename
         timestamp = timezone.now().strftime('%Y%m%d_%H%M%S')
         file_extension = os.path.splitext(image.name)[1]
         filename = f"message_{timestamp}_{sender_profile.profileID}{file_extension}"
 
-        # Upload to Supabase
+        # Upload to storage (Supabase or local depending on settings)
         # Path: chat/conversation_{id}/images/{filename}
         storage_path = f"chat/conversation_{conversation_id}/images/{filename}"
 
@@ -1518,18 +1539,19 @@ def upload_chat_image(request, conversation_id: int, image: UploadedFile = File(
             # Read file content
             file_content = image.read()
 
-            # Upload to Supabase storage
-            upload_response = supabase.storage.from_('iayos_files').upload(
+            # Upload using unified STORAGE adapter
+            upload_response = settings.STORAGE.storage().from_('iayos_files').upload(
                 storage_path,
                 file_content,
-                {
-                    "content-type": image.content_type,
-                    "cache-control": "3600"
-                }
+                {"upsert": "true"}
             )
+            
+            # Check for upload error
+            if isinstance(upload_response, dict) and 'error' in upload_response:
+                raise Exception(f"Upload failed: {upload_response['error']}")
 
             # Get public URL
-            public_url = supabase.storage.from_('iayos_files').get_public_url(storage_path)
+            public_url = settings.STORAGE.storage().from_('iayos_files').get_public_url(storage_path)
 
             # Create IMAGE type message
             message = Message.objects.create(

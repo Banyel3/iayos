@@ -1084,6 +1084,13 @@ def get_agency_conversation_messages(request, conversation_id: int):
 		client_reviewed = JobReview.objects.filter(jobID=job, reviewerID=client_profile.accountFK).exists()
 		
 		messages_list = []
+		
+		# Build base URL for media files from request
+		# This ensures URLs work from any client (web on localhost, mobile on IP)
+		scheme = request.scheme if hasattr(request, 'scheme') else 'http'
+		host = request.get_host() if hasattr(request, 'get_host') else 'localhost:8000'
+		base_url = f"{scheme}://{host}"
+		
 		for msg in messages:
 			# Check if message is from agency (either via senderAgency or via agency_profile)
 			is_mine = (msg.senderAgency and msg.senderAgency == agency) or (msg.sender and msg.sender == agency_profile)
@@ -1096,11 +1103,23 @@ def get_agency_conversation_messages(request, conversation_id: int):
 			)
 			sender_avatar = msg.sender.profileImg if msg.sender else None
 			
+			# For IMAGE messages, get the image URL from attachment
+			message_text = msg.messageText
+			if msg.messageType == "IMAGE":
+				from profiles.models import MessageAttachment
+				attachment = MessageAttachment.objects.filter(messageID=msg).first()
+				if attachment:
+					file_url = attachment.fileURL
+					# Convert relative URL to absolute if needed
+					if file_url and file_url.startswith('/'):
+						file_url = f"{base_url}{file_url}"
+					message_text = file_url
+			
 			messages_list.append({
 				"message_id": msg.messageID,
 				"sender_name": sender_name,
 				"sender_avatar": sender_avatar,
-				"message_text": msg.messageText,
+				"message_text": message_text,
 				"message_type": msg.messageType,
 				"is_read": msg.isRead,
 				"created_at": msg.createdAt.isoformat(),
@@ -1248,6 +1267,188 @@ def send_agency_message(request, conversation_id: int, payload: schemas.AgencySe
 		
 	except Exception as e:
 		print(f"❌ Error sending message: {str(e)}")
+		import traceback
+		traceback.print_exc()
+		return Response({"error": "Internal server error"}, status=500)
+
+
+@router.post("/conversations/{conversation_id}/upload-image", auth=cookie_auth)
+def upload_agency_chat_image(request, conversation_id: int):
+	"""
+	Upload an image to an agency chat conversation.
+	Creates a new IMAGE type message with the uploaded image URL.
+	
+	Args:
+		conversation_id: ID of the conversation
+		image: Image file (JPEG, PNG, JPG, max 5MB) from request.FILES
+	
+	Returns:
+		success: bool
+		message_id: int
+		image_url: string
+		uploaded_at: datetime
+	"""
+	try:
+		from django.conf import settings
+		from django.utils import timezone
+		from ninja import File, UploadedFile
+		from profiles.models import Conversation, Message, MessageAttachment
+		from accounts.models import Profile, Agency
+		import os
+		
+		account = request.auth
+		
+		# Verify agency - get Agency directly from account
+		try:
+			agency = Agency.objects.get(accountFK=account)
+		except Agency.DoesNotExist:
+			return Response({"error": "Agency account not found"}, status=400)
+		
+		agency_profile = Profile.objects.filter(accountFK=account).first()
+		
+		# Get image from request.FILES
+		image = request.FILES.get('image')
+		if not image:
+			return Response({"error": "No image file provided"}, status=400)
+		
+		# Get the conversation
+		try:
+			conversation = Conversation.objects.select_related(
+				'client',
+				'agency',
+				'worker__accountFK',
+				'relatedJobPosting',
+				'relatedJobPosting__assignedAgencyFK'
+			).get(conversationID=conversation_id)
+		except Conversation.DoesNotExist:
+			return Response({"error": "Conversation not found"}, status=404)
+		
+		# Verify agency has access (same logic as send_message)
+		job = conversation.relatedJobPosting
+		has_access = (
+			(conversation.agency and conversation.agency == agency) or
+			(conversation.worker and agency_profile and conversation.worker == agency_profile) or 
+			(job and job.assignedAgencyFK and job.assignedAgencyFK == agency)
+		)
+		
+		if not has_access:
+			return Response(
+				{"error": "You are not authorized to access this conversation"},
+				status=403
+			)
+		
+		# Validate file size (5MB max)
+		if image.size > 5 * 1024 * 1024:
+			return Response({"error": "Image size must be less than 5MB"}, status=400)
+		
+		# Validate file type
+		allowed_types = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp']
+		if image.content_type not in allowed_types:
+			return Response(
+				{"error": "Invalid file type. Allowed: JPEG, PNG, JPG, WEBP"},
+				status=400
+			)
+		
+		# Check if storage is configured
+		if not settings.STORAGE:
+			return Response({"error": "File storage not configured"}, status=500)
+		
+		# Generate unique filename
+		timestamp = timezone.now().strftime('%Y%m%d_%H%M%S')
+		file_extension = os.path.splitext(image.name)[1] if image.name else '.jpg'
+		filename = f"agency_message_{timestamp}_{agency.agencyId}{file_extension}"
+		
+		# Storage path
+		storage_path = f"chat/conversation_{conversation_id}/images/{filename}"
+		
+		try:
+			# Read file content
+			file_content = image.read()
+			
+			# Upload using unified STORAGE adapter
+			upload_response = settings.STORAGE.storage().from_('iayos_files').upload(
+				storage_path,
+				file_content,
+				{"upsert": "true"}
+			)
+			
+			# Check for upload error
+			if isinstance(upload_response, dict) and 'error' in upload_response:
+				raise Exception(f"Upload failed: {upload_response['error']}")
+			
+			# Get public URL (relative for local storage)
+			public_url = settings.STORAGE.storage().from_('iayos_files').get_public_url(storage_path)
+			
+			# Create IMAGE type message (from agency)
+			message = Message.objects.create(
+				conversationID=conversation,
+				sender=None,  # Agency messages have no Profile sender
+				senderAgency=agency,
+				messageText="",  # Empty text for image messages
+				messageType="IMAGE"
+			)
+			
+			# Create message attachment record
+			MessageAttachment.objects.create(
+				messageID=message,
+				fileURL=public_url,
+				fileType="IMAGE"
+			)
+			
+			# Build full URL for response
+			scheme = request.scheme if hasattr(request, 'scheme') else 'http'
+			host = request.get_host() if hasattr(request, 'get_host') else 'localhost:8000'
+			base_url = f"{scheme}://{host}"
+			full_url = f"{base_url}{public_url}" if public_url.startswith('/') else public_url
+			
+			print(f"✅ Agency chat image uploaded: {full_url}")
+			
+			# Send WebSocket notification
+			try:
+				from channels.layers import get_channel_layer
+				from asgiref.sync import async_to_sync
+				
+				channel_layer = get_channel_layer()
+				if channel_layer:
+					async_to_sync(channel_layer.group_send)(
+						f"chat_{conversation.conversationID}",
+						{
+							"type": "chat_message",
+							"message": {
+								"conversation_id": conversation.conversationID,
+								"message_id": message.messageID,
+								"sender_name": agency.businessName,
+								"sender_avatar": None,
+								"message": "",
+								"type": "IMAGE",
+								"image_url": full_url,
+								"created_at": message.createdAt.isoformat(),
+								"is_mine": False
+							}
+						}
+					)
+			except Exception as ws_error:
+				print(f"⚠️ WebSocket notification failed: {ws_error}")
+			
+			return {
+				"success": True,
+				"message_id": message.messageID,
+				"image_url": full_url,
+				"uploaded_at": message.createdAt.isoformat(),
+				"conversation_id": conversation_id
+			}
+			
+		except Exception as upload_error:
+			print(f"❌ Agency image upload error: {str(upload_error)}")
+			import traceback
+			traceback.print_exc()
+			return Response(
+				{"error": f"Failed to upload image: {str(upload_error)}"},
+				status=500
+			)
+	
+	except Exception as e:
+		print(f"❌ Error in agency chat image upload: {str(e)}")
 		import traceback
 		traceback.print_exc()
 		return Response({"error": "Internal server error"}, status=500)
