@@ -16,6 +16,7 @@ import {
   useCompletedJobs,
 } from "@/lib/hooks/useHomeData";
 import { useBarangays } from "@/lib/hooks/useLocations";
+import { EstimatedTimeCard, type EstimatedCompletion } from "@/components/ui/estimated-time-card";
 
 // Extended User interface for requests page
 interface RequestsUser extends User {
@@ -74,6 +75,7 @@ interface JobRequest {
     url: string;
     file_name?: string;
   }>;
+  estimatedCompletion?: EstimatedCompletion | null;
 }
 
 const MyRequestsPage = () => {
@@ -2074,6 +2076,14 @@ const MyRequestsPage = () => {
                 )}
               </div>
 
+              {/* ML Estimated Completion Time */}
+              {selectedJob.estimatedCompletion && selectedJob.status !== 'COMPLETED' && (
+                <EstimatedTimeCard 
+                  prediction={selectedJob.estimatedCompletion}
+                  countdownMode={selectedJob.status === 'IN_PROGRESS'}
+                />
+              )}
+
               {/* Payment Information */}
               {(selectedJob.paymentStatus ||
                 selectedJob.downpaymentMethod ||
@@ -2476,13 +2486,62 @@ const MyRequestsPage = () => {
                               {application.estimated_duration && (
                                 <div>
                                   <span className="text-gray-600">
-                                    Duration:{" "}
+                                    Worker Estimate:{" "}
                                   </span>
                                   <span className="font-medium text-gray-900">
                                     {application.estimated_duration}
                                   </span>
                                 </div>
                               )}
+                            </div>
+                            {/* Platform vs Worker Estimate Comparison */}
+                            {selectedJob?.estimatedCompletion && (
+                              <div className="mt-3 pt-3 border-t border-gray-200">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <svg
+                                    className="w-4 h-4 text-blue-500"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth={2}
+                                      d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+                                    />
+                                  </svg>
+                                  <span className="text-xs font-medium text-gray-600">
+                                    Estimate Comparison
+                                  </span>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2 text-sm">
+                                  <div className="bg-blue-50 rounded-lg p-2 text-center">
+                                    <p className="text-xs text-blue-600 mb-0.5">Platform AI</p>
+                                    <p className="font-semibold text-blue-900">
+                                      {selectedJob.estimatedCompletion.formatted_duration}
+                                    </p>
+                                    <p className={`text-xs mt-0.5 ${
+                                      selectedJob.estimatedCompletion.confidence_level === 'high' 
+                                        ? 'text-green-600' 
+                                        : selectedJob.estimatedCompletion.confidence_level === 'medium' 
+                                          ? 'text-yellow-600' 
+                                          : 'text-red-500'
+                                    }`}>
+                                      {selectedJob.estimatedCompletion.confidence_level} confidence
+                                    </p>
+                                  </div>
+                                  {application.estimated_duration && (
+                                    <div className="bg-gray-100 rounded-lg p-2 text-center">
+                                      <p className="text-xs text-gray-600 mb-0.5">Worker</p>
+                                      <p className="font-semibold text-gray-900">
+                                        {application.estimated_duration}
+                                      </p>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
                             </div>
                           </div>
 

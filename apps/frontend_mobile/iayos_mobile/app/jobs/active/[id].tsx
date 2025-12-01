@@ -25,6 +25,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ENDPOINTS, apiRequest } from "@/lib/api/config";
 import * as ImagePicker from "expo-image-picker";
+import { EstimatedTimeCard, type EstimatedCompletion } from "@/components";
 
 interface ActiveJobDetail {
   id: string;
@@ -56,6 +57,7 @@ interface ActiveJobDetail {
     url: string;
     file_name: string;
   }>;
+  estimated_completion?: EstimatedCompletion | null;
 }
 
 export default function ActiveJobDetailScreen() {
@@ -400,6 +402,17 @@ export default function ActiveJobDetailScreen() {
             </Text>
           </View>
         </View>
+
+        {/* ML Estimated Completion Time - Countdown mode for active jobs */}
+        {job.estimated_completion && !job.client_marked_complete && (
+          <View style={styles.section}>
+            <EstimatedTimeCard 
+              prediction={job.estimated_completion}
+              countdownMode={job.status === 'IN_PROGRESS' && !!job.started_at}
+              jobStartTime={job.started_at || undefined}
+            />
+          </View>
+        )}
 
         {/* Client/Worker Info */}
         <View style={styles.section}>

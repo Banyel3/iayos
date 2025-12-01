@@ -67,13 +67,15 @@ class BatchPredictionResponse(Schema):
 
 class ModelStatusResponse(Schema):
     """Response schema for model status."""
-    model_loaded: bool
-    model_exists: bool
+    tensorflow_available: bool = False
+    model_loaded: bool = False
+    model_exists: bool = False
     trained_at: Optional[str] = None
     training_samples: Optional[int] = None
     test_rmse_hours: Optional[float] = None
     test_mae_hours: Optional[float] = None
     test_mape: Optional[float] = None
+    note: Optional[str] = None
 
 
 class TrainingStatusResponse(Schema):
@@ -225,20 +227,40 @@ def get_model_status(request: HttpRequest):
     
     Returns information about the currently loaded model.
     """
-    from ml.prediction_service import get_prediction_stats
+    from ml.prediction_service import get_prediction_stats, TENSORFLOW_AVAILABLE, ML_SERVICE_URL
     from ml.training import get_model_info
+    import httpx
     
     stats = get_prediction_stats()
     model_info = get_model_info()
     
+    # Check if ML microservice is available
+    ml_service_available = False
+    if not TENSORFLOW_AVAILABLE:
+        try:
+            with httpx.Client(timeout=2.0) as client:
+                response = client.get(f"{ML_SERVICE_URL}/api/ml/model-status")
+                ml_service_available = response.status_code == 200
+        except:
+            pass
+    
+    note = None
+    if not TENSORFLOW_AVAILABLE:
+        if ml_service_available:
+            note = "TensorFlow not installed locally. Using ML microservice for predictions."
+        else:
+            note = "TensorFlow not installed. ML microservice not available. Using fallback statistical estimates."
+    
     return ModelStatusResponse(
-        model_loaded=stats.get('model_loaded', False),
+        tensorflow_available=TENSORFLOW_AVAILABLE,
+        model_loaded=stats.get('model_loaded', False) or ml_service_available,
         model_exists=model_info.get('exists', False),
         trained_at=model_info.get('trained_at'),
         training_samples=model_info.get('training_samples'),
         test_rmse_hours=model_info.get('test_rmse_hours'),
         test_mae_hours=model_info.get('test_mae_hours'),
-        test_mape=model_info.get('test_mape')
+        test_mape=model_info.get('test_mape'),
+        note=note
     )
 
 
@@ -278,8 +300,16 @@ def reload_prediction_model(request: HttpRequest):
 # Note: Training endpoint is admin-only and should be behind authentication
 # For now, training is triggered via management command: python manage.py train_completion_model
 
+class TrainingRequest(Schema):
+    """Request schema for training."""
+    min_samples: int = 50
+    epochs: int = 100
+    batch_size: int = 8
+    force: bool = False  # Bypass minimum samples check
+
+
 @router.post("/train", response=TrainingStatusResponse)
-def trigger_training(request: HttpRequest, min_samples: int = 50):
+def trigger_training(request: HttpRequest, data: TrainingRequest):
     """
     Trigger model training (ADMIN ONLY).
     
@@ -288,7 +318,20 @@ def trigger_training(request: HttpRequest, min_samples: int = 50):
     
     Args:
         min_samples: Minimum completed jobs required (default 50)
+        epochs: Number of training epochs (default 100)
+        batch_size: Training batch size (default 8)
+        force: If True, bypass minimum samples check for testing
     """
+    # Check if TensorFlow is available
+    from ml.prediction_service import TENSORFLOW_AVAILABLE
+    
+    if not TENSORFLOW_AVAILABLE:
+        return TrainingStatusResponse(
+            success=False,
+            message="TensorFlow not available",
+            error="TensorFlow is required for training. Install with: pip install -r requirements-ml.txt"
+        )
+    
     # TODO: Add admin authentication check
     # if not request.user.is_staff:
     #     return TrainingStatusResponse(success=False, error="Admin access required")
@@ -297,7 +340,12 @@ def trigger_training(request: HttpRequest, min_samples: int = 50):
     
     try:
         pipeline = TrainingPipeline(verbose=False)
-        result = pipeline.train(min_samples=min_samples)
+        result = pipeline.train(
+            min_samples=data.min_samples,
+            epochs=data.epochs,
+            batch_size=data.batch_size,
+            force=data.force
+        )
         
         if result.get('success'):
             metrics = result.get('metrics', {})

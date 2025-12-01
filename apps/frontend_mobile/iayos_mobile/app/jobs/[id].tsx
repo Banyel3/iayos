@@ -28,6 +28,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ENDPOINTS, apiRequest } from "@/lib/api/config";
 import { SaveButton } from "@/components/SaveButton";
 import { JobDetailSkeleton } from "@/components/ui/SkeletonLoader";
+import { EstimatedTimeCard, type EstimatedCompletion } from "@/components";
 
 const { width } = Dimensions.get("window");
 
@@ -79,6 +80,7 @@ interface JobDetail {
     rating: number;
   };
   reviews?: JobReviews;
+  estimatedCompletion?: EstimatedCompletion | null;
 }
 
 interface JobApplication {
@@ -221,6 +223,7 @@ export default function JobDetailScreen() {
                 : undefined,
             }
           : undefined,
+        estimatedCompletion: jobData.estimated_completion || null,
       } as JobDetail;
     },
     enabled: isValidJobId, // Only fetch if we have a valid job ID
@@ -802,6 +805,16 @@ export default function JobDetailScreen() {
             </View>
           </View>
         </View>
+
+        {/* ML Estimated Completion Time */}
+        {job.estimatedCompletion && job.status !== 'COMPLETED' && (
+          <View style={styles.section}>
+            <EstimatedTimeCard 
+              prediction={job.estimatedCompletion}
+              workerEstimate={job.expectedDuration}
+            />
+          </View>
+        )}
 
         {/* Description */}
         <View style={styles.section}>

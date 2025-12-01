@@ -43,6 +43,7 @@ import MessageBubble from "../../components/MessageBubble";
 import MessageInput from "../../components/MessageInput";
 import { ImageMessage } from "../../components/ImageMessage";
 import { TypingIndicator } from "../../components/TypingIndicator";
+import { EstimatedTimeCard } from "../../components";
 import {
   Colors,
   Typography,
@@ -882,6 +883,16 @@ export default function ChatScreen() {
               <Text style={styles.jobBudget}>
                 ₱{conversation.job.budget.toLocaleString()}
               </Text>
+              {/* ML Estimated Completion Time - Compact mode */}
+              {conversation.job.estimatedCompletion && 
+               conversation.job.status !== 'COMPLETED' && (
+                <EstimatedTimeCard 
+                  prediction={conversation.job.estimatedCompletion}
+                  compact={true}
+                  countdownMode={conversation.job.status === 'IN_PROGRESS'}
+                  jobStartTime={conversation.job.clientConfirmedWorkStarted ? new Date().toISOString() : undefined}
+                />
+              )}
             </View>
           </TouchableOpacity>
 

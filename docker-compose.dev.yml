@@ -79,6 +79,36 @@ services:
     profiles:
       - mobile # This service won't start by default, use: docker-compose --profile mobile up
 
+  # ML Service - TensorFlow-based predictions (Debian for glibc compatibility)
+  ml:
+    build:
+      context: .
+      dockerfile: Dockerfile.ml
+      target: ml-development
+    container_name: iayos-ml-dev
+    env_file:
+      - .env.docker
+    ports:
+      - "8002:8002"
+    volumes:
+      # Mount source code for hot reload
+      - ./apps/backend/src:/app/src
+      # Persist trained models
+      - ml-models:/app/src/ml/saved_models
+    networks:
+      - iayos-network
+    depends_on:
+      - backend
+    command: >
+      sh -c "
+        cd /app/src &&
+        python manage.py runserver 0.0.0.0:8002
+      "
+
 networks:
   iayos-network:
     driver: bridge
+
+volumes:
+  ml-models:
+    driver: local

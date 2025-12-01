@@ -43,7 +43,8 @@ class TrainingPipeline:
               epochs: Optional[int] = None,
               batch_size: Optional[int] = None,
               validation_split: float = 0.15,
-              test_split: float = 0.15) -> Dict[str, Any]:
+              test_split: float = 0.15,
+              force: bool = False) -> Dict[str, Any]:
         """
         Run the full training pipeline.
         
@@ -53,6 +54,7 @@ class TrainingPipeline:
             batch_size: Override default batch size
             validation_split: Fraction of data for validation
             test_split: Fraction of data for testing
+            force: If True, bypass minimum samples check (for testing)
             
         Returns:
             Dictionary with training results and metrics
@@ -81,7 +83,7 @@ class TrainingPipeline:
         completed_jobs = Job.objects.filter(status='COMPLETED')
         job_count = completed_jobs.count()
         
-        if job_count < min_samples:
+        if job_count < min_samples and not force:
             error_msg = f"Insufficient data: {job_count} completed jobs, need at least {min_samples}"
             logger.error(error_msg)
             return {
@@ -90,6 +92,9 @@ class TrainingPipeline:
                 'jobs_available': job_count,
                 'jobs_required': min_samples
             }
+        
+        if force and job_count < min_samples:
+            logger.warning(f"Force training with only {job_count} samples (recommended: {min_samples}+)")
         
         logger.info(f"Found {job_count} completed jobs")
         
@@ -101,7 +106,8 @@ class TrainingPipeline:
         dataset = dataset_builder.build_dataset(
             min_completed_jobs=min_samples,
             test_ratio=test_split,
-            val_ratio=validation_split
+            val_ratio=validation_split,
+            force=force
         )
         
         if not dataset:

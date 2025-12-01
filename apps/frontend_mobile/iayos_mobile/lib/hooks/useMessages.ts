@@ -9,6 +9,7 @@ import {
 } from "@tanstack/react-query";
 import { ENDPOINTS, apiRequest } from "../api/config";
 import { useSendMessage } from "./useWebSocket";
+import type { EstimatedCompletion } from "@/components/EstimatedTimeCard";
 
 export type MessageAttachment = {
   attachment_id: number;
@@ -49,6 +50,8 @@ export type ConversationDetail = {
     agencyReviewed?: boolean | null;
     assignedWorkerId?: number;
     clientId?: number;
+    // ML-predicted estimated completion time
+    estimatedCompletion?: EstimatedCompletion | null;
   };
   other_participant: {
     name: string;

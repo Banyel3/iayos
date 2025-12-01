@@ -66,6 +66,7 @@ export default function JobApplicationsScreen() {
 
   const applications = applicationsData?.applications || [];
   const jobTitle = applicationsData?.job_title || "Job";
+  const platformEstimate = applicationsData?.estimated_completion || null;
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -191,6 +192,7 @@ export default function JobApplicationsScreen() {
             <ApplicantCard
               key={application.id}
               application={application}
+              platformEstimate={platformEstimate}
               onViewProfile={() => handleViewProfile(application.worker.id)}
               onAccept={() =>
                 handleAccept(application.id, application.worker.name)

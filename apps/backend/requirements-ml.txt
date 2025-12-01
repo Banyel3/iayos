@@ -1,0 +1,19 @@
+# Machine Learning Dependencies for Job Completion Time Prediction
+# 
+# IMPORTANT: TensorFlow requires glibc and is NOT compatible with Alpine Linux.
+# Use this file on Debian/Ubuntu-based systems or in a non-Alpine Docker container.
+#
+# Installation:
+#   pip install -r requirements-ml.txt
+#
+# Or for GPU support:
+#   pip install tensorflow[and-cuda]
+
+# Core ML libraries
+tensorflow>=2.15.0
+numpy>=1.24.0
+pandas>=2.0.0
+scikit-learn>=1.3.0
+
+# Optional: For GPU acceleration (uncomment if CUDA is available)
+# tensorflow[and-cuda]>=2.15.0

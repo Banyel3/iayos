@@ -1047,10 +1047,22 @@ def mobile_get_job_applications(request, job_id: int):
         
         print(f"✅ [MOBILE] Found {len(applications_data)} applications for job {job_id}")
         
+        # Get platform's ML prediction for the job
+        estimated_completion = None
+        try:
+            from ml.prediction import predict_for_job_instance
+            ml_prediction = predict_for_job_instance(job)
+            if ml_prediction:
+                estimated_completion = ml_prediction
+        except Exception as ml_error:
+            print(f"⚠️ [MOBILE] ML prediction failed for job applications: {ml_error}")
+        
         return {
             "success": True,
             "applications": applications_data,
-            "total": len(applications_data)
+            "total": len(applications_data),
+            "job_title": job.title,
+            "estimated_completion": estimated_completion
         }
         
     except Exception as e:

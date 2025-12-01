@@ -6,14 +6,33 @@ This module provides:
 2. Caching for performance
 3. Prediction logging for monitoring
 4. Fallback estimates when model unavailable
+
+NOTE: TensorFlow is optional. If not installed, the service will use
+fallback statistical estimates based on historical data.
 """
 
 import logging
 from datetime import datetime
 from typing import Dict, Any, Optional
 from decimal import Decimal
+import os
+import httpx
 
 logger = logging.getLogger(__name__)
+
+# ML Service URL (for when TensorFlow not available locally)
+ML_SERVICE_URL = os.environ.get('ML_SERVICE_URL', 'http://ml:8002')
+
+# Check if TensorFlow is available
+TENSORFLOW_AVAILABLE = False
+try:
+    import tensorflow as tf
+    TENSORFLOW_AVAILABLE = True
+    logger.info(f"TensorFlow {tf.__version__} available for ML predictions")
+except ImportError:
+    logger.warning(
+        "TensorFlow not installed locally. Will try ML microservice or use fallback estimates."
+    )
 
 # Cache the predictor instance
 _predictor_instance = None
@@ -25,9 +44,12 @@ def get_predictor():
     Get or create the predictor instance (singleton pattern).
     
     Returns:
-        CompletionTimePredictor instance or None if loading fails
+        CompletionTimePredictor instance or None if loading fails or TensorFlow unavailable
     """
     global _predictor_instance, _predictor_loaded
+    
+    if not TENSORFLOW_AVAILABLE:
+        return None
     
     if not _predictor_loaded:
         try:
@@ -62,7 +84,10 @@ def predict_completion_time(job_data: Dict[str, Any]) -> Dict[str, Any]:
     Predict completion time for a job.
     
     This is the main entry point for predictions.
-    Handles model unavailability gracefully with fallback estimates.
+    Priority:
+    1. Local TensorFlow model (if available)
+    2. ML microservice (if running)
+    3. Fallback statistical estimates
     
     Args:
         job_data: Dictionary with job attributes:
@@ -81,29 +106,83 @@ def predict_completion_time(job_data: Dict[str, Any]) -> Dict[str, Any]:
             'confidence_interval': (lower, upper),
             'confidence_level': float (0-1),
             'formatted_duration': str,
-            'source': 'model' or 'fallback'
+            'source': 'model' or 'microservice' or 'fallback'
         }
     """
+    # Try local predictor first
     predictor = get_predictor()
     
-    if predictor is None:
-        # Use fallback estimation
-        return _fallback_estimate(job_data)
+    if predictor is not None:
+        try:
+            job = _create_job_proxy(job_data)
+            prediction = predictor.predict(job)
+            prediction['source'] = 'model'
+            _log_prediction(job_data, prediction)
+            return prediction
+        except Exception as e:
+            logger.error(f"Local prediction error: {e}")
     
+    # Try ML microservice if local TensorFlow not available
+    if not TENSORFLOW_AVAILABLE:
+        try:
+            prediction = _call_ml_service(job_data)
+            if prediction and 'error' not in prediction:
+                prediction['source'] = 'microservice'
+                _log_prediction(job_data, prediction)
+                return prediction
+        except Exception as e:
+            logger.warning(f"ML microservice unavailable: {e}")
+    
+    # Fallback to statistical estimates
+    return _fallback_estimate(job_data)
+
+
+def _call_ml_service(job_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """
+    Call the ML microservice for prediction.
+    
+    Args:
+        job_data: Job attributes dictionary
+        
+    Returns:
+        Prediction dictionary or None if service unavailable
+    """
     try:
-        # Create a mock job object for prediction
-        job = _create_job_proxy(job_data)
-        prediction = predictor.predict(job)
-        prediction['source'] = 'model'
-        
-        # Log prediction for monitoring
-        _log_prediction(job_data, prediction)
-        
-        return prediction
-        
+        with httpx.Client(timeout=5.0) as client:
+            response = client.post(
+                f"{ML_SERVICE_URL}/api/ml/predict-completion-time",
+                json={
+                    'category_id': job_data.get('category_id'),
+                    'budget': float(job_data.get('budget', 0)),
+                    'urgency': job_data.get('urgency', 'MEDIUM'),
+                    'materials': job_data.get('materials', []),
+                    'job_type': job_data.get('job_type', 'LISTING'),
+                    'worker_id': job_data.get('worker_id'),
+                    'location': job_data.get('location'),
+                }
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                return {
+                    'predicted_hours': data.get('predicted_hours'),
+                    'confidence_interval': (
+                        data.get('confidence_interval_lower'),
+                        data.get('confidence_interval_upper')
+                    ),
+                    'confidence_level': data.get('confidence_level', 0.0),
+                    'formatted_duration': data.get('formatted_duration', 'Unknown'),
+                }
+            else:
+                logger.warning(f"ML service returned status {response.status_code}")
+                return None
+                
+    except httpx.ConnectError:
+        logger.debug("ML microservice not available (connection refused)")
+        return None
     except Exception as e:
-        logger.error(f"Prediction error: {e}")
-        return _fallback_estimate(job_data)
+        logger.warning(f"Error calling ML microservice: {e}")
+        return None
 
 
 def predict_for_job_instance(job) -> Dict[str, Any]:
@@ -116,36 +195,39 @@ def predict_for_job_instance(job) -> Dict[str, Any]:
     Returns:
         Prediction dictionary
     """
+    # Build job_data for microservice/fallback
+    job_data = {
+        'category_id': job.categoryID_id,
+        'budget': job.budget,
+        'urgency': job.urgency,
+        'materials': job.materialsNeeded,
+        'job_type': job.jobType,
+        'worker_id': job.assignedWorkerID_id,
+    }
+    
+    # Try local predictor first
     predictor = get_predictor()
     
-    if predictor is None:
-        # Create job_data from instance for fallback
-        job_data = {
-            'category_id': job.categoryID_id,
-            'budget': job.budget,
-            'urgency': job.urgency,
-            'materials': job.materialsNeeded,
-            'job_type': job.jobType,
-            'worker_id': job.assignedWorkerID_id,
-        }
-        return _fallback_estimate(job_data)
+    if predictor is not None:
+        try:
+            prediction = predictor.predict(job)
+            prediction['source'] = 'model'
+            return prediction
+        except Exception as e:
+            logger.error(f"Prediction error for job {job.jobID}: {e}")
     
-    try:
-        prediction = predictor.predict(job)
-        prediction['source'] = 'model'
-        return prediction
-        
-    except Exception as e:
-        logger.error(f"Prediction error for job {job.jobID}: {e}")
-        job_data = {
-            'category_id': job.categoryID_id,
-            'budget': job.budget,
-            'urgency': job.urgency,
-            'materials': job.materialsNeeded,
-            'job_type': job.jobType,
-            'worker_id': job.assignedWorkerID_id,
-        }
-        return _fallback_estimate(job_data)
+    # Try ML microservice
+    if not TENSORFLOW_AVAILABLE:
+        try:
+            prediction = _call_ml_service(job_data)
+            if prediction and 'error' not in prediction:
+                prediction['source'] = 'microservice'
+                return prediction
+        except Exception as e:
+            logger.warning(f"ML microservice unavailable: {e}")
+    
+    # Fallback to statistical estimates
+    return _fallback_estimate(job_data)
 
 
 def _create_job_proxy(job_data: Dict[str, Any]):

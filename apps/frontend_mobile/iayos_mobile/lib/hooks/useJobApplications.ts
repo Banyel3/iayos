@@ -23,6 +23,16 @@ interface Application {
   status: "PENDING" | "ACCEPTED" | "REJECTED";
   created_at: string;
   cover_letter?: string;
+  estimated_duration?: string;
+}
+
+interface EstimatedCompletion {
+  predicted_hours: number;
+  confidence_interval_lower: number;
+  confidence_interval_upper: number;
+  confidence_level: 'high' | 'medium' | 'low';
+  formatted_duration: string;
+  source: 'ml' | 'fallback';
 }
 
 interface JobApplicationsResponse {
@@ -30,6 +40,7 @@ interface JobApplicationsResponse {
   job_title: string;
   applications: Application[];
   total_count: number;
+  estimated_completion?: EstimatedCompletion | null;
 }
 
 /**

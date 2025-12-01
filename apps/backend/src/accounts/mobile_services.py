@@ -384,6 +384,25 @@ def get_mobile_job_detail(job_id: int, user: Accounts) -> Dict[str, Any]:
                     'worker_to_client': worker_to_client,
                 }
 
+        # Get ML prediction for estimated completion time
+        ml_prediction = None
+        try:
+            from ml.prediction_service import predict_for_job_instance
+            prediction = predict_for_job_instance(job)
+            if prediction and prediction.get('predicted_hours') is not None:
+                ml_prediction = {
+                    'predicted_hours': prediction.get('predicted_hours'),
+                    'confidence_interval_lower': prediction.get('confidence_interval', (None, None))[0],
+                    'confidence_interval_upper': prediction.get('confidence_interval', (None, None))[1],
+                    'confidence_level': prediction.get('confidence_level', 0.0),
+                    'formatted_duration': prediction.get('formatted_duration', 'Unknown'),
+                    'source': prediction.get('source', 'fallback'),
+                    'is_low_confidence': prediction.get('confidence_level', 0.0) < 0.5,
+                }
+                print(f"   ✓ ML Prediction: {ml_prediction['formatted_duration']} (confidence: {ml_prediction['confidence_level']:.0%})")
+        except Exception as e:
+            print(f"   ⚠️ ML prediction error: {str(e)}")
+
         job_data = {
             'id': job.jobID,
             'title': job.title,
@@ -411,6 +430,7 @@ def get_mobile_job_detail(job_id: int, user: Accounts) -> Dict[str, Any]:
             'remaining_payment_paid': job.remainingPaymentPaid,
             'downpayment_amount': float(job.budget * Decimal('0.5')),
             'remaining_amount': float(job.budget * Decimal('0.5')),
+            'estimated_completion': ml_prediction,
         }
 
         if reviews_payload:

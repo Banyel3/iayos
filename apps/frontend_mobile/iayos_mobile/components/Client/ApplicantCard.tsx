@@ -26,6 +26,15 @@ import { Colors, Typography, Spacing, BorderRadius, Shadows } from "@/constants/
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 
+interface EstimatedCompletion {
+  predicted_hours: number;
+  confidence_interval_lower: number;
+  confidence_interval_upper: number;
+  confidence_level: 'high' | 'medium' | 'low';
+  formatted_duration: string;
+  source: 'ml' | 'fallback';
+}
+
 interface ApplicantCardProps {
   application: {
     id: number;
@@ -41,7 +50,10 @@ interface ApplicantCardProps {
     status: "PENDING" | "ACCEPTED" | "REJECTED";
     created_at: string;
     cover_letter?: string;
+    estimated_duration?: string;
   };
+  /** Platform ML-predicted completion time for comparison */
+  platformEstimate?: EstimatedCompletion | null;
   onViewProfile: () => void;
   onAccept: () => void;
   onReject: () => void;
@@ -50,12 +62,13 @@ interface ApplicantCardProps {
 
 export default function ApplicantCard({
   application,
+  platformEstimate,
   onViewProfile,
   onAccept,
   onReject,
   style,
 }: ApplicantCardProps) {
-  const { worker, proposed_budget, status, created_at, cover_letter } = application;
+  const { worker, proposed_budget, status, created_at, cover_letter, estimated_duration } = application;
 
   const handleViewProfile = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -188,6 +201,42 @@ export default function ApplicantCard({
           {formatCurrency(proposed_budget)}
         </Text>
       </View>
+
+      {/* Estimate Comparison (Platform AI vs Worker) */}
+      {(platformEstimate || estimated_duration) && (
+        <View style={styles.estimateComparisonContainer}>
+          <View style={styles.estimateHeader}>
+            <Ionicons name="time-outline" size={16} color={Colors.textSecondary} />
+            <Text style={styles.estimateTitle}>Time Estimate</Text>
+          </View>
+          <View style={styles.estimateGrid}>
+            {platformEstimate && (
+              <View style={[styles.estimateBox, styles.platformEstimateBox]}>
+                <Text style={styles.estimateLabel}>Platform AI</Text>
+                <Text style={styles.platformEstimateValue}>
+                  {platformEstimate.formatted_duration}
+                </Text>
+                <Text style={[
+                  styles.confidenceText,
+                  platformEstimate.confidence_level === 'high' && { color: Colors.success },
+                  platformEstimate.confidence_level === 'medium' && { color: Colors.warning },
+                  platformEstimate.confidence_level === 'low' && { color: Colors.error },
+                ]}>
+                  {platformEstimate.confidence_level} confidence
+                </Text>
+              </View>
+            )}
+            {estimated_duration && (
+              <View style={[styles.estimateBox, styles.workerEstimateBox]}>
+                <Text style={styles.estimateLabel}>Worker</Text>
+                <Text style={styles.workerEstimateValue}>
+                  {estimated_duration}
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+      )}
 
       {/* Skills */}
       {worker.skills.length > 0 && (
@@ -341,6 +390,61 @@ const styles = StyleSheet.create({
     ...Typography.heading.h3,
     color: Colors.primary,
     fontWeight: "700",
+  },
+  estimateComparisonContainer: {
+    marginBottom: Spacing.md,
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+  },
+  estimateHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    marginBottom: Spacing.sm,
+  },
+  estimateTitle: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+    fontWeight: "600",
+  },
+  estimateGrid: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+  },
+  estimateBox: {
+    flex: 1,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    alignItems: "center",
+  },
+  platformEstimateBox: {
+    backgroundColor: `${Colors.primary}15`,
+  },
+  workerEstimateBox: {
+    backgroundColor: Colors.background,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  estimateLabel: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.xs,
+  },
+  platformEstimateValue: {
+    ...Typography.body.large,
+    fontWeight: "700",
+    color: Colors.primary,
+  },
+  workerEstimateValue: {
+    ...Typography.body.large,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+  },
+  confidenceText: {
+    ...Typography.body.small,
+    marginTop: Spacing.xs,
+    fontWeight: "500",
   },
   skillsContainer: {
     flexDirection: "row",

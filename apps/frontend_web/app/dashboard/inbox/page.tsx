@@ -27,6 +27,7 @@ import {
 } from "@/lib/hooks/useInboxQueries";
 import { useQueryClient } from "@tanstack/react-query";
 import { inboxKeys } from "@/lib/hooks/useInboxQueries";
+import { EstimatedTimeCard } from "@/components/ui/estimated-time-card";
 
 // Extended User interface for inbox page
 interface InboxUser extends User {
@@ -1213,6 +1214,18 @@ const InboxPage = () => {
                       </svg>
                     </button>
                   </div>
+
+                  {/* ML Estimated Completion Time - Compact inline */}
+                  {(selectedChat.job as any).estimatedCompletion && 
+                   selectedChat.job.status !== 'COMPLETED' && (
+                    <div className="mb-3 flex justify-center">
+                      <EstimatedTimeCard 
+                        prediction={(selectedChat.job as any).estimatedCompletion}
+                        compact={true}
+                        countdownMode={selectedChat.job.status === 'IN_PROGRESS'}
+                      />
+                    </div>
+                  )}
 
                   {/* Job Completion Banner - Two-Phase System */}
                   {selectedChat.job.status === "IN_PROGRESS" && (

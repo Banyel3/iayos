@@ -1135,6 +1135,24 @@ def get_conversation_messages(request, conversation_id: int):
                     "status": "ASSIGNED",
                 })
         
+        # Get ML prediction for estimated completion time
+        ml_prediction = None
+        try:
+            from ml.prediction_service import predict_for_job_instance
+            prediction = predict_for_job_instance(job)
+            if prediction and prediction.get('predicted_hours') is not None:
+                ml_prediction = {
+                    'predicted_hours': prediction.get('predicted_hours'),
+                    'confidence_interval_lower': prediction.get('confidence_interval', (None, None))[0],
+                    'confidence_interval_upper': prediction.get('confidence_interval', (None, None))[1],
+                    'confidence_level': prediction.get('confidence_level', 0.0),
+                    'formatted_duration': prediction.get('formatted_duration', 'Unknown'),
+                    'source': prediction.get('source', 'fallback'),
+                    'is_low_confidence': prediction.get('confidence_level', 0.0) < 0.5,
+                }
+        except Exception as e:
+            print(f"   ⚠️ ML prediction error: {str(e)}")
+
         return {
             "success": True,
             "conversation_id": conversation.conversationID,
@@ -1153,7 +1171,8 @@ def get_conversation_messages(request, conversation_id: int):
                 "agencyReviewed": agency_review_exists if is_agency_job_for_reviews else None,
                 "employeesPendingReview": employees_pending_review if is_agency_job_for_reviews else [],
                 "assignedWorkerId": worker_account.accountID if worker_account else None,
-                "clientId": client_account.accountID if client_account else None
+                "clientId": client_account.accountID if client_account else None,
+                "estimatedCompletion": ml_prediction,
             },
             "other_participant": other_participant_info,
             "assigned_employee": assigned_employee_info,  # Legacy single employee

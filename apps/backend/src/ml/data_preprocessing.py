@@ -275,7 +275,8 @@ class DatasetBuilder:
     def build_dataset(self, 
                       min_completed_jobs: int = 50,
                       test_ratio: float = 0.15,
-                      val_ratio: float = 0.15) -> Dict[str, np.ndarray]:
+                      val_ratio: float = 0.15,
+                      force: bool = False) -> Dict[str, np.ndarray]:
         """
         Build train/val/test datasets from completed jobs.
         
@@ -283,6 +284,7 @@ class DatasetBuilder:
             min_completed_jobs: Minimum number of jobs required
             test_ratio: Fraction of data for testing
             val_ratio: Fraction of data for validation
+            force: If True, bypass minimum samples check (for testing)
             
         Returns:
             Dictionary with 'X_train', 'y_train', 'X_val', 'y_val', 'X_test', 'y_test'
@@ -314,9 +316,16 @@ class DatasetBuilder:
             X_list.append(features)
             y_list.append(completion_hours)
         
-        if len(X_list) < min_completed_jobs:
+        if len(X_list) < min_completed_jobs and not force:
             logger.warning(f"Only {len(X_list)} valid completed jobs found, need at least {min_completed_jobs}")
             return {}
+        
+        if len(X_list) < 3:
+            logger.error(f"Need at least 3 samples for train/val/test split, found {len(X_list)}")
+            return {}
+        
+        if force and len(X_list) < min_completed_jobs:
+            logger.warning(f"Force building dataset with {len(X_list)} samples (recommended: {min_completed_jobs}+)")
         
         X = np.array(X_list)
         y = np.array(y_list)
