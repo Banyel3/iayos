@@ -1,8 +1,29 @@
 # Development Docker Compose with Hot Reload
 # Usage: docker-compose -f docker-compose.dev.yml up
-# Note: Using production Neon database, no local PostgreSQL needed
+# Toggle USE_LOCAL_DB in .env.docker to switch between local and Neon database
 
 services:
+  # Local PostgreSQL database (optional - enable via USE_LOCAL_DB=true)
+  postgres:
+    image: postgres:17-alpine
+    container_name: iayos-postgres-dev
+    environment:
+      POSTGRES_USER: iayos_user
+      POSTGRES_PASSWORD: iayos_local_pass
+      POSTGRES_DB: iayos_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./apps/backend/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - iayos-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U iayos_user -d iayos_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   backend:
     build:
       context: .
@@ -19,6 +40,9 @@ services:
       - ./apps/backend:/app/apps/backend
     networks:
       - iayos-network
+    depends_on:
+      postgres:
+        condition: service_healthy
     sysctls:
       - net.ipv6.conf.all.disable_ipv6=1
     command: >
@@ -111,4 +135,6 @@ networks:
 
 volumes:
   ml-models:
+    driver: local
+  postgres-data:
     driver: local

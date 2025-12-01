@@ -6,6 +6,7 @@
 export interface Review {
   review_id: number;
   job_id: number;
+  job_title?: string; // Optional - may be included in some API responses
   reviewer_id: number;
   reviewer_name: string;
   reviewer_profile_img: string | null;
@@ -44,6 +45,7 @@ export interface ReviewListResponse {
   page: number;
   limit: number;
   total_pages: number;
+  rating_distribution?: Record<number, number>; // e.g., { 5: 10, 4: 5, 3: 2, 2: 1, 1: 0 }
 }
 
 export interface MyReviewsResponse {

@@ -354,7 +354,7 @@ export default function AgencyJobsPage() {
       const data = await response.json();
       const normalized = (data.employees || [])
         .map(normalizeEmployee)
-        .filter((employee) => employee.employeeId !== -1);
+        .filter((employee: Employee) => employee.employeeId !== -1);
       setEmployees(normalized);
     } catch (err) {
       console.error("Error fetching employees:", err);

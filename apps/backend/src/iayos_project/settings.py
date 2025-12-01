@@ -173,13 +173,27 @@ WSGI_APPLICATION = 'iayos_project.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-DATABASES = {
-    'default': dj_database_url.parse(
-        os.getenv("DATABASE_URL"),
-        conn_max_age=0,
-        ssl_require=True,
-    )
-}
+# Toggle between local PostgreSQL and Neon cloud database
+USE_LOCAL_DB = os.getenv("USE_LOCAL_DB", "false").lower() == "true"
+
+if USE_LOCAL_DB:
+    # Local PostgreSQL - no SSL required
+    DATABASES = {
+        'default': dj_database_url.parse(
+            os.getenv("DATABASE_URL_LOCAL", "postgresql://iayos_user:iayos_local_pass@postgres:5432/iayos_db"),
+            conn_max_age=0,
+            ssl_require=False,
+        )
+    }
+else:
+    # Neon Cloud PostgreSQL - SSL required
+    DATABASES = {
+        'default': dj_database_url.parse(
+            os.getenv("DATABASE_URL"),
+            conn_max_age=0,
+            ssl_require=True,
+        )
+    }
 
 from datetime import timedelta
 
