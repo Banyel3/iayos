@@ -21,11 +21,24 @@ export default function MessageBubble({
 }: MessageBubbleProps) {
   const isMine = message.is_mine;
   const isImage = message.message_type === "IMAGE";
+  const isSystem = message.message_type === "SYSTEM";
 
   // Format timestamp
   const messageDate = new Date(message.created_at);
   const timeString = format(messageDate, "HH:mm");
   const relativeTime = formatDistanceToNow(messageDate, { addSuffix: true });
+
+  // System messages have a special centered layout
+  if (isSystem) {
+    return (
+      <View style={styles.systemContainer}>
+        <View style={styles.systemBubble}>
+          <Text style={styles.systemText}>{message.message_text}</Text>
+          <Text style={styles.systemTime}>{timeString}</Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, isMine && styles.containerMine]}>
@@ -150,5 +163,32 @@ const styles = StyleSheet.create({
   },
   readReceipt: {
     marginLeft: 2,
+  },
+  // System message styles
+  systemContainer: {
+    alignItems: "center",
+    marginVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+  },
+  systemBubble: {
+    backgroundColor: Colors.info + "20", // 20% opacity
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.lg,
+    maxWidth: "85%",
+    alignItems: "center",
+  },
+  systemText: {
+    ...Typography.body,
+    fontSize: 13,
+    color: Colors.info,
+    textAlign: "center",
+    fontWeight: "500",
+  },
+  systemTime: {
+    ...Typography.body.small,
+    fontSize: 10,
+    color: Colors.textSecondary,
+    marginTop: 4,
   },
 });

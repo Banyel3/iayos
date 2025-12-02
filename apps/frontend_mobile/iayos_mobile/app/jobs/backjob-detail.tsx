@@ -146,6 +146,29 @@ export default function BackjobDetailScreen() {
     );
   };
 
+  const handleContactClient = async () => {
+    try {
+      // Get or create conversation for this job, reopen if closed (for backjob)
+      const response = await apiRequest(ENDPOINTS.CONVERSATION_BY_JOB(parseInt(jobId), true));
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.conversation_id) {
+          // Navigate to the conversation
+          router.push(`/messages/${data.conversation_id}` as any);
+        } else {
+          Alert.alert("Error", "Could not find or create conversation");
+        }
+      } else {
+        const error = await response.json();
+        Alert.alert("Error", error.error || "Failed to open conversation");
+      }
+    } catch (error) {
+      console.error("Error opening conversation:", error);
+      Alert.alert("Error", "Failed to open conversation");
+    }
+  };
+
   const openImageViewer = (index: number) => {
     setSelectedImageIndex(index);
     setImageViewerVisible(true);
@@ -357,7 +380,7 @@ export default function BackjobDetailScreen() {
               )}
               <View style={styles.clientInfo}>
                 <Text style={styles.clientName}>{job.client.name}</Text>
-                <TouchableOpacity style={styles.contactButton}>
+                <TouchableOpacity style={styles.contactButton} onPress={handleContactClient}>
                   <Ionicons
                     name="chatbubble-outline"
                     size={14}

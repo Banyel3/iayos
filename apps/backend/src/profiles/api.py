@@ -843,6 +843,97 @@ def get_conversations(request, filter: str = "all"):
         )
 
 
+@router.get("/chat/conversation-by-job/{job_id}", auth=dual_auth)
+def get_conversation_by_job(request, job_id: int, reopen: bool = False):
+    """
+    Get the conversation for a specific job.
+    Returns the conversation ID if found, or creates one if the user is a participant.
+    
+    Query params:
+    - reopen: If True and conversation exists but is closed/completed, reopen it (for backjobs)
+    """
+    try:
+        from accounts.models import Job
+        
+        # Get user's profile
+        try:
+            user_profile = _get_user_profile(request)
+        except Profile.DoesNotExist:
+            return Response({"error": "Profile not found"}, status=400)
+        
+        # Get the job
+        try:
+            job = Job.objects.select_related(
+                'clientID__profileID',
+                'assignedWorkerID__profileID',
+                'assignedAgencyFK'
+            ).get(jobID=job_id)
+        except Job.DoesNotExist:
+            return Response({"error": "Job not found"}, status=404)
+        
+        # Check if user is a participant of this job
+        is_client = job.clientID and job.clientID.profileID == user_profile
+        is_worker = job.assignedWorkerID and job.assignedWorkerID.profileID == user_profile
+        is_agency_owner = job.assignedAgencyFK and job.assignedAgencyFK.accountFK == request.auth
+        
+        if not (is_client or is_worker or is_agency_owner):
+            return Response({"error": "You are not a participant of this job"}, status=403)
+        
+        # Try to find existing conversation
+        conversation = Conversation.objects.filter(relatedJobPosting=job).first()
+        
+        if conversation:
+            reopened = False
+            # If reopen is requested and conversation is not active, reopen it
+            if reopen and conversation.status != Conversation.ConversationStatus.ACTIVE:
+                old_status = conversation.status
+                conversation.status = Conversation.ConversationStatus.ACTIVE
+                conversation.save()
+                reopened = True
+                print(f"[get_conversation_by_job] Reopened conversation {conversation.conversationID} (was {old_status})")
+            
+            return {
+                "success": True,
+                "conversation_id": conversation.conversationID,
+                "exists": True,
+                "reopened": reopened
+            }
+        
+        # If no conversation exists and user is a valid participant, create one
+        client_profile = job.clientID.profileID if job.clientID else None
+        worker_profile = job.assignedWorkerID.profileID if job.assignedWorkerID else None
+        agency = job.assignedAgencyFK
+        
+        if not client_profile:
+            return Response({"error": "Job has no client"}, status=400)
+        
+        if not worker_profile and not agency:
+            return Response({"error": "Job has no assigned worker or agency"}, status=400)
+        
+        conversation = Conversation.objects.create(
+            client=client_profile,
+            worker=worker_profile,
+            agency=agency,
+            relatedJobPosting=job,
+            status=ConversationStatus.ACTIVE
+        )
+        
+        print(f"[get_conversation_by_job] Created new conversation {conversation.conversationID} for job {job_id}")
+        
+        return {
+            "success": True,
+            "conversation_id": conversation.conversationID,
+            "exists": False,
+            "created": True
+        }
+        
+    except Exception as e:
+        print(f"[get_conversation_by_job] Error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": str(e)}, status=500)
+
+
 @router.get("/chat/conversations/{conversation_id}", auth=dual_auth)
 def get_conversation_messages(request, conversation_id: int):
     """
@@ -961,8 +1052,14 @@ def get_conversation_messages(request, conversation_id: int):
         # Format messages
         formatted_messages = []
         for msg in messages:
-            # Handle messages from agency (sender is None, senderAgency is set)
-            if msg.sender is None:
+            # Handle system messages (both sender and senderAgency are None)
+            if msg.sender is None and msg.senderAgency is None:
+                # This is a system message
+                is_mine = False
+                sender_name = "System"
+                sender_avatar = None
+                print(f"   System message: {msg.messageText[:50]}...")
+            elif msg.sender is None:
                 # This is an agency message
                 is_mine = is_agency_owner  # Mine if I'm the agency owner
                 sender_name = conversation.agency.businessName if conversation.agency else "Agency"

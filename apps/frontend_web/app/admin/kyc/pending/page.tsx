@@ -84,7 +84,10 @@ export default function PendingKYCPage() {
     const [imgLoading, setImgLoading] = useState(true);
     const [imgError, setImgError] = useState(false);
 
-    console.log(`KYCDocumentImage ${label} for record ${recordId}:`, url);
+    // If URL is relative (starts with /), prepend backend URL
+    const fullUrl = url.startsWith('/') ? `http://localhost:8000${url}` : url;
+
+    console.log(`KYCDocumentImage ${label} for record ${recordId}:`, fullUrl);
 
     return (
       <div className="space-y-2">
@@ -117,11 +120,11 @@ export default function PendingKYCPage() {
           ) : (
             <>
               <img
-                src={url}
+                src={fullUrl}
                 alt={label}
                 crossOrigin="anonymous"
                 className="w-full h-full object-contain cursor-pointer hover:scale-105 transition-transform duration-200"
-                onClick={() => window.open(url, "_blank")}
+                onClick={() => window.open(fullUrl, "_blank")}
                 onLoad={() => setImgLoading(false)}
                 onError={() => {
                   setImgLoading(false);

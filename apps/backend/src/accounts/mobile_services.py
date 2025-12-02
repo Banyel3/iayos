@@ -1319,15 +1319,27 @@ def get_workers_list_mobile(user, latitude=None, longitude=None, page=1, limit=2
         print(f"  🔍 Checking user profile and permissions...")
         # Only allow clients to view workers
         try:
-            # Get profile_type from JWT if available, default to CLIENT (workers list is client-centric)
-            profile_type = getattr(user, 'profile_type', 'CLIENT')
+            # Get profile_type from JWT if available
+            # For workers list, we specifically need a CLIENT profile
+            profile_type = getattr(user, 'profile_type', None)
+            
+            # Always look for CLIENT profile for workers list endpoint
+            # (regardless of what's in JWT - this endpoint is client-only)
             user_profile = Profile.objects.filter(
                 accountFK=user,
-                profileType=profile_type
+                profileType='CLIENT'
             ).first()
             
             if not user_profile:
-                print(f"  ❌ User profile not found for accountID: {user.accountID}, type: {profile_type}")
+                # Fallback: check if user has ANY profile (for better error message)
+                any_profile = Profile.objects.filter(accountFK=user).first()
+                if any_profile:
+                    print(f"  ❌ User has profile but not CLIENT type: {any_profile.profileType}")
+                    return {
+                        'success': False,
+                        'error': 'Only clients can view worker listings'
+                    }
+                print(f"  ❌ User profile not found for accountID: {user.accountID}")
                 return {
                     'success': False,
                     'error': 'User profile not found'
@@ -1335,13 +1347,6 @@ def get_workers_list_mobile(user, latitude=None, longitude=None, page=1, limit=2
             
             print(f"  ✓ User profile found: {user_profile.firstName} {user_profile.lastName}")
             print(f"  ✓ Profile type: {user_profile.profileType}")
-            
-            if user_profile.profileType != 'CLIENT':
-                print(f"  ❌ Access denied: User is {user_profile.profileType}, not CLIENT")
-                return {
-                    'success': False,
-                    'error': 'Only clients can view worker listings'
-                }
         except Exception as e:
             print(f"  ❌ Error checking user profile: {e}")
             return {

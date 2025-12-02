@@ -501,6 +501,10 @@ def assign_role(data):
         # Get user and profile
         user = Accounts.objects.get(email__iexact=data.email)
         
+        # Try to get existing profile data from another profile type
+        # (e.g., if user is creating WORKER profile but already has CLIENT profile)
+        existing_profile = Profile.objects.filter(accountFK=user).first()
+        
         # Get or create profile for selected type
         # Note: During initial onboarding, user has no profile yet
         # For dual profiles, we need to create a NEW profile with the selected type
@@ -508,12 +512,13 @@ def assign_role(data):
             accountFK=user,
             profileType=data.selectedType,
             defaults={
-                'firstName': user.firstName or '',
-                'lastName': user.lastName or '',
-                'contactNum': user.phoneNumber or '',
+                'firstName': existing_profile.firstName if existing_profile else '',
+                'lastName': existing_profile.lastName if existing_profile else '',
+                'contactNum': existing_profile.contactNum if existing_profile else '',
+                'birthDate': existing_profile.birthDate if existing_profile else None,
                 'latitude': None,
                 'longitude': None,
-                'isLocationShared': False
+                'location_sharing_enabled': False
             }
         )
         

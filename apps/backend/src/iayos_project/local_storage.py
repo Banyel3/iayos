@@ -99,15 +99,17 @@ class LocalBucketInterface:
             path: File path in bucket
 
         Returns:
-            str: Relative URL path (served by Django)
-            Using relative URL so it works from any client (web on localhost, mobile on IP)
+            str: Relative URL path that works from any client
+            The frontend will resolve this relative to its API base URL
         """
         # Clean path
         path = path.lstrip('/')
         
-        # Return relative URL that works from any client
+        # Return relative URL - the frontend/admin panel will prepend the appropriate host
         # Format: /media/{bucket}/{path}
-        # The client will automatically prepend their own host
+        # This works because:
+        # - Admin panel requests go through Next.js proxy or direct to localhost:8000
+        # - Mobile app prepends its configured API URL
         public_url = f"{self.media_url}{self.bucket_name}/{path}"
         return public_url
 
