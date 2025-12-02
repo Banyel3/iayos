@@ -1,8 +1,8 @@
-import { useQuery } from '@tanstack/react-query';
-import { API_BASE_URL, apiRequest } from '@/lib/api/config';
+import { useQuery } from "@tanstack/react-query";
+import { API_BASE_URL, apiRequest } from "@/lib/api/config";
 
-export type JobStatus = 'active' | 'in_progress' | 'completed' | 'all';
-export type UserType = 'WORKER' | 'CLIENT';
+export type JobStatus = "active" | "in_progress" | "completed" | "all";
+export type UserType = "WORKER" | "CLIENT";
 
 export interface Job {
   id: number;
@@ -49,49 +49,50 @@ export interface MyJobsResponse {
 }
 
 export function useMyJobs(
-  status: JobStatus = 'all',
-  userType: UserType = 'WORKER',
+  status: JobStatus = "all",
+  userType: UserType = "WORKER",
   page: number = 1,
   limit: number = 20
 ) {
   return useQuery({
-    queryKey: ['my-jobs', status, userType, page, limit],
+    queryKey: ["my-jobs", status, userType, page, limit],
     queryFn: async () => {
       const params = new URLSearchParams();
 
-      if (status !== 'all') {
+      if (status !== "all") {
         // Map status to backend values
         const statusMap: Record<JobStatus, string> = {
-          active: 'ACTIVE',
-          in_progress: 'IN_PROGRESS',
-          completed: 'COMPLETED',
-          all: '',
+          active: "ACTIVE",
+          in_progress: "IN_PROGRESS",
+          completed: "COMPLETED",
+          all: "",
         };
         const backendStatus = statusMap[status];
         if (backendStatus) {
-          params.append('status', backendStatus);
+          params.append("status", backendStatus);
         }
       }
 
-      params.append('page', page.toString());
-      params.append('limit', limit.toString());
+      params.append("page", page.toString());
+      params.append("limit", limit.toString());
 
       // Different endpoints for workers vs clients
       const endpoint =
-        userType === 'WORKER'
-          ? `${API_BASE_URL.replace('/api', '')}/api/mobile/jobs/my-jobs?${params.toString()}`
-          : `${API_BASE_URL.replace('/api', '')}/api/mobile/jobs/my-requests?${params.toString()}`;
+        userType === "WORKER"
+          ? `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/my-jobs?${params.toString()}`
+          : `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/my-requests?${params.toString()}`;
 
       const response = await apiRequest(endpoint);
 
       if (!response.ok) {
-        throw new Error('Failed to fetch jobs');
+        throw new Error("Failed to fetch jobs");
       }
 
       const data = await response.json();
       return data as MyJobsResponse;
     },
     staleTime: 1000 * 60, // 1 minute
+    refetchInterval: 10000, // Poll every 10 seconds for real-time updates
     retry: 2,
   });
 }
@@ -99,14 +100,14 @@ export function useMyJobs(
 // Get application count for client jobs
 export function useApplicationCounts() {
   return useQuery({
-    queryKey: ['application-counts'],
+    queryKey: ["application-counts"],
     queryFn: async () => {
       const response = await apiRequest(
-        `${API_BASE_URL.replace('/api', '')}/api/mobile/jobs/application-counts`
+        `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/application-counts`
       );
 
       if (!response.ok) {
-        throw new Error('Failed to fetch application counts');
+        throw new Error("Failed to fetch application counts");
       }
 
       const data = await response.json();

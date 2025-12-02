@@ -46,6 +46,7 @@ interface MyJob {
   agency_name?: string;
   agency_logo?: string;
   application_status?: "PENDING" | "ACCEPTED" | "REJECTED" | "WITHDRAWN";
+  has_backjob?: boolean;
 }
 
 interface MyJobsResponse {
@@ -136,6 +137,7 @@ export default function JobsScreen() {
 
       return response;
     },
+    refetchInterval: 10000, // Poll every 10 seconds for real-time updates
   });
 
   const jobs = jobsData?.jobs || [];
@@ -525,6 +527,33 @@ export default function JobsScreen() {
             </View>
           </View>
         )}
+
+        {/* Request Backjob Button - Only for clients on completed jobs */}
+        {isClient &&
+          job.status === "COMPLETED" &&
+          (job.has_backjob ? (
+            // Backjob already requested - show disabled state
+            <View style={styles.backjobRequestedBadge}>
+              <Ionicons name="checkmark-circle" size={18} color="#059669" />
+              <Text style={styles.backjobRequestedText}>Backjob Requested</Text>
+            </View>
+          ) : (
+            // Allow requesting backjob
+            <TouchableOpacity
+              style={styles.backjobButton}
+              onPress={(e) => {
+                e.stopPropagation();
+                router.push({
+                  pathname: "/jobs/request-backjob",
+                  params: { jobId: job.job_id.toString() },
+                });
+              }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="refresh-outline" size={18} color="#B45309" />
+              <Text style={styles.backjobButtonText}>Request Backjob</Text>
+            </TouchableOpacity>
+          ))}
 
         {/* Location and Budget */}
         <View style={styles.jobFooter}>
@@ -1183,5 +1212,37 @@ const styles = StyleSheet.create({
   },
   deleteButtonDisabled: {
     opacity: 0.5,
+  },
+  backjobButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FEF3C7",
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginTop: Spacing.sm,
+    gap: 6,
+  },
+  backjobButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#B45309",
+  },
+  backjobRequestedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#D1FAE5",
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginTop: Spacing.sm,
+    gap: 6,
+  },
+  backjobRequestedText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#059669",
   },
 });

@@ -4364,11 +4364,12 @@ def request_backjob(request, job_id: int, reason: str = Form(...), description: 
             # For now, just log it
             print(f"📢 New backjob request created: Dispute #{dispute.disputeID} for Job #{job.jobID}")
             
-            # Create a log entry
+            # Create a log entry (newStatus max 15 chars)
             JobLog.objects.create(
                 jobID=job,
-                action="BACKJOB_REQUESTED",
-                performedBy=request.auth,
+                oldStatus=job.status,
+                newStatus="BACKJOB",
+                changedBy=request.auth,
                 notes=f"Client requested backjob. Reason: {reason}"
             )
         

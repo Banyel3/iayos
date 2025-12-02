@@ -55,6 +55,7 @@ export function useJobApplications(jobId: number) {
     },
     enabled: !!jobId && jobId > 0,
     staleTime: 1000 * 60, // 1 minute
+    refetchInterval: 10000, // Poll every 10 seconds for real-time updates
     gcTime: 1000 * 60 * 5, // 5 minutes (cacheTime)
   });
 }

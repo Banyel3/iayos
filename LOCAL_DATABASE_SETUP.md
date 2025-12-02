@@ -79,7 +79,9 @@ docker-compose -f docker-compose.dev.yml up
 
 ---
 
-## Sync Script Options
+## Sync Scripts
+
+### Sync FROM Neon to Local (Download)
 
 The sync script (`scripts/sync_db_from_neon.ps1`) copies data from Neon cloud to your local database.
 
@@ -92,6 +94,26 @@ The sync script (`scripts/sync_db_from_neon.ps1`) copies data from Neon cloud to
 
 # Data only (assumes tables exist)
 .\scripts\sync_db_from_neon.ps1 -DataOnly -Force
+```
+
+### Sync TO Neon from Local (Upload)
+
+⚠️ **WARNING**: This overwrites the production database!
+
+The reverse sync script (`scripts/sync_db_to_neon.ps1`) pushes your local database to Neon cloud.
+
+```powershell
+# Full sync with backup (RECOMMENDED)
+.\scripts\sync_db_to_neon.ps1 -BackupFirst
+
+# Full sync without backup (dangerous!)
+.\scripts\sync_db_to_neon.ps1 -Force
+
+# Schema only
+.\scripts\sync_db_to_neon.ps1 -SchemaOnly -BackupFirst
+
+# Data only (assumes schema matches)
+.\scripts\sync_db_to_neon.ps1 -DataOnly -BackupFirst
 ```
 
 ### What gets synced:

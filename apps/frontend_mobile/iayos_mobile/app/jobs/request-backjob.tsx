@@ -54,7 +54,7 @@ export default function RequestBackjobScreen() {
 
   const fetchJobDetails = async () => {
     try {
-      const response = await apiRequest(ENDPOINTS.JOB_DETAIL(parseInt(jobId)));
+      const response = await apiRequest(ENDPOINTS.JOB_DETAILS(parseInt(jobId)));
       if (response.ok) {
         const data = await response.json();
         setJob({

@@ -423,7 +423,12 @@ export default function BackJobsPage() {
                               Back Amount
                             </p>
                             <p className="font-bold text-gray-900">
-                              ₱{job.backjob_amount.toLocaleString()}
+                              ₱
+                              {(
+                                job.backjob_amount ??
+                                job.job_amount ??
+                                0
+                              ).toLocaleString()}
                             </p>
                           </div>
                         </div>
@@ -437,10 +442,14 @@ export default function BackJobsPage() {
                               Requested
                             </p>
                             <p className="font-semibold text-gray-900">
-                              {new Date(job.requested_date).toLocaleDateString(
-                                "en-US",
-                                { month: "short", day: "numeric" }
-                              )}
+                              {job.requested_date
+                                ? new Date(
+                                    job.requested_date
+                                  ).toLocaleDateString("en-US", {
+                                    month: "short",
+                                    day: "numeric",
+                                  })
+                                : "N/A"}
                             </p>
                           </div>
                         </div>
@@ -499,7 +508,7 @@ export default function BackJobsPage() {
                     </div>
 
                     <div className="flex flex-col gap-3">
-                      <Link href={`/admin/jobs/backjobs/${job.id}`}>
+                      <Link href={`/admin/jobs/backjobs/${job.dispute_id}`}>
                         <Button
                           size="sm"
                           className="w-full bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transition-all"

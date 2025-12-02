@@ -1889,7 +1889,7 @@ def get_my_jobs_mobile(user, status=None, page=1, limit=20):
     - WORKER: Jobs they applied to or are assigned to
     """
     try:
-        from .models import Profile, JobPosting, JobApplication
+        from .models import Profile, JobPosting, JobApplication, JobDispute
         from django.db.models import Q
 
         # Get user's profile
@@ -1961,9 +1961,13 @@ def get_my_jobs_mobile(user, status=None, page=1, limit=20):
                 'error': 'Invalid profile type'
             }
 
-        # Filter by status if provided
+        # Filter by status if provided (supports comma-separated values)
         if status:
-            jobs_qs = jobs_qs.filter(status=status.upper())
+            status_list = [s.strip().upper() for s in status.split(',')]
+            if len(status_list) == 1:
+                jobs_qs = jobs_qs.filter(status=status_list[0])
+            else:
+                jobs_qs = jobs_qs.filter(status__in=status_list)
 
         # Order by created date (newest first)
         jobs_qs = jobs_qs.order_by('-createdAt')
@@ -1980,6 +1984,9 @@ def get_my_jobs_mobile(user, status=None, page=1, limit=20):
             client_profile = job.clientID.profileID if job.clientID else None
 
             assigned_agency = getattr(job, 'assignedAgencyFK', None)
+            
+            # Check if job has a backjob/dispute request
+            has_backjob = JobDispute.objects.filter(jobID=job).exists()
 
             job_data = {
                 'job_id': job.jobID,
@@ -1993,6 +2000,7 @@ def get_my_jobs_mobile(user, status=None, page=1, limit=20):
                 'category_id': job.categoryID.specializationID if job.categoryID else None,
                 'category_name': job.categoryID.specializationName if job.categoryID else 'General',
                 'created_at': job.createdAt.isoformat() if job.createdAt else None,
+                'has_backjob': has_backjob,
                 'preferred_start_date': job.preferredStartDate.isoformat() if job.preferredStartDate else None,
                 'materials_needed': job.materialsNeeded or [],
                 'job_type': job.jobType,  # LISTING or INVITE
