@@ -1,73 +1,72 @@
 import { NextResponse } from "next/server";
-import { sendEmail } from "@/lib/email";
-import { sendEmailWithResend } from "@/lib/resend-email";
 import { z } from "zod";
-import { generateVerificationEmailHTML } from "@/components/auth/verification/verification_email";
 
 const verifySchema = z.object({
-  email: z.email(),
+  email: z.string().email(),
   verifyLink: z.string().url(),
   verifyLinkExpire: z.string(), // since Django sends ISO string
 });
+
+// Backend API URL - proxies email sending through the Django backend
+const BACKEND_API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
     console.log("📧 Email request body:", body);
 
     const parsed = verifySchema.parse(body);
-    const template = generateVerificationEmailHTML({
-      verificationLink: parsed.verifyLink,
-    });
 
-    console.log("📧 Sending email to:", parsed.email);
-    console.log("📧 Email template length:", template.length);
+    console.log("📧 Proxying email request to backend for:", parsed.email);
 
-    // Try Resend API first (more reliable)
-    try {
-      const emailResult = await sendEmailWithResend(
-        parsed.email,
-        "Email Verification",
-        template
-      );
-      console.log("📧 Email sent successfully via Resend API:", emailResult);
-
-      // If result didn't include an id, log and treat as error so we don't return a false success
-      if (!emailResult || !("id" in emailResult)) {
-        console.error("📧 Resend returned no id, raw result:", emailResult);
-        return NextResponse.json(
-          {
-            success: false,
-            error: "Resend returned unexpected response",
-            raw:
-              process.env.NODE_ENV === "development" ? emailResult : undefined,
-          },
-          { status: 502 }
-        );
+    // Proxy the request to the backend's send-verification-email endpoint
+    const backendResponse = await fetch(
+      `${BACKEND_API_URL}/api/mobile/auth/send-verification-email`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: parsed.email,
+          verifyLink: parsed.verifyLink,
+          verifyLinkExpire: parsed.verifyLinkExpire,
+        }),
       }
+    );
 
-      return NextResponse.json({
-        success: true,
-        messageId: (emailResult as any).id,
-        method: "resend-api",
-      });
-    } catch (resendError) {
-      console.error("📧 Resend API failed, trying SMTP:", resendError);
+    const backendData = await backendResponse.json();
+    console.log("📧 Backend response:", backendData);
 
-      // Fallback to SMTP
-      const smtpResult = await sendEmail(
-        parsed.email,
-        "Email Verification",
-        template
+    if (!backendResponse.ok) {
+      console.error("📧 Backend email sending failed:", backendData);
+      return NextResponse.json(
+        {
+          success: false,
+          error: backendData.error || "Failed to send verification email",
+          details: backendData.details,
+        },
+        { status: backendResponse.status }
       );
-      console.log("📧 Email sent successfully via SMTP:", smtpResult);
-      return NextResponse.json({
-        success: true,
-        messageId: smtpResult.messageId,
-        method: "smtp-fallback",
-      });
     }
+
+    console.log("📧 Email sent successfully via backend:", backendData);
+    return NextResponse.json({
+      success: true,
+      messageId: backendData.messageId,
+      method: "backend-proxy",
+    });
   } catch (error) {
-    console.error("📧 All email methods failed:", error);
+    console.error("📧 Email sending failed:", error);
+    
+    // Handle Zod validation errors
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: "Invalid request data", details: error.errors },
+        { status: 400 }
+      );
+    }
+    
     return NextResponse.json(
       { error: "Something went wrong", details: (error as Error).message },
       { status: 500 }

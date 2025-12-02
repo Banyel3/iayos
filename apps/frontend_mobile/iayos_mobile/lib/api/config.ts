@@ -3,7 +3,7 @@
 // Note: For iOS Simulator, use your machine's local IP (found in Expo output)
 // For Android Emulator, use 10.0.2.2
 // For physical device, use your machine's network IP
-const API_URL = __DEV__ ? "http://192.168.1.117:8000" : "https://api.iayos.com";
+const API_URL = __DEV__ ? "http://192.168.254.174:8000" : "https://api.iayos.com";
 
 const deriveDevWebUrl = () => {
   try {
@@ -27,7 +27,7 @@ export const EMAIL_VERIFICATION_ENDPOINT = `${API_URL}/api/mobile/auth/send-veri
 
 export const API_BASE_URL = `${API_URL}/api`;
 export const WS_BASE_URL = __DEV__
-  ? "ws://192.168.1.117:8001"
+  ? "ws://192.168.254.174:8001"
   : "wss://ws.iayos.com";
 
 // API Endpoints

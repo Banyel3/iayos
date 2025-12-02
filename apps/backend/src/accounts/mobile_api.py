@@ -521,7 +521,7 @@ def mobile_my_jobs(
     limit: int = 20
 ):
     """Return jobs relevant to the authenticated user (client or worker)."""
-    from .models import Profile, ClientProfile, WorkerProfile, JobPosting, JobApplication
+    from .models import Profile, ClientProfile, WorkerProfile, JobPosting, JobApplication, JobDispute
     from jobs.models import JobPosting
     from django.db.models import Q
 
@@ -649,6 +649,7 @@ def mobile_my_jobs(
                 'invite_status': job.inviteStatus,  # PENDING, ACCEPTED, REJECTED
                 'assigned_worker_id': job.assignedWorkerID.profileID.profileID if job.assignedWorkerID else None,
                 'assigned_agency_id': assigned_agency.agencyId if assigned_agency else None,
+                'has_backjob': JobDispute.objects.filter(jobID=job).exists(),  # Check if backjob/dispute exists
             }
             
             if job.clientID:
