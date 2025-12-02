@@ -58,6 +58,7 @@ export function useWorkerReviews(
     },
     enabled: !!workerId,
     staleTime: 5 * 60 * 1000, // 5 minutes
+    refetchInterval: 10000, // Poll every 10 seconds for real-time updates
   });
 }
 
@@ -104,6 +105,7 @@ export function useReviewStats(workerId: number) {
     },
     enabled: !!workerId,
     staleTime: 10 * 60 * 1000, // 10 minutes
+    refetchInterval: 10000, // Poll every 10 seconds for real-time updates
   });
 }
 

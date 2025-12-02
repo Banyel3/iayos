@@ -399,7 +399,9 @@ def get_mobile_job_detail(job_id: int, user: Accounts) -> Dict[str, Any]:
             print("   🔎 Fetching job reviews for completed job...")
             profile_cache: Dict[int, Dict[str, Any]] = {}
 
-            def build_account_snapshot(account: Accounts) -> Dict[str, Any]:
+            def build_account_snapshot(account: Accounts) -> Optional[Dict[str, Any]]:
+                if account is None:
+                    return None
                 cached = profile_cache.get(account.accountID)
                 if cached:
                     return cached
@@ -418,6 +420,11 @@ def get_mobile_job_detail(job_id: int, user: Accounts) -> Dict[str, Any]:
             worker_to_client = None
             reviews_qs = JobReview.objects.filter(jobID=job, status='ACTIVE').select_related('reviewerID', 'revieweeID')
             for review in reviews_qs:
+                # Skip reviews with missing reviewer or reviewee
+                if not review.reviewerID or not review.revieweeID:
+                    print(f"   ⚠️ Skipping review {review.reviewID} - missing reviewer or reviewee")
+                    continue
+                    
                 formatted_review = {
                     'rating': float(review.rating) if review.rating is not None else None,
                     'comment': review.comment,

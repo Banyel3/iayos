@@ -118,13 +118,16 @@ export default function ChatScreen() {
   ]);
 
   // Check if conversation is closed (both parties reviewed)
-  // BUT if there's an active backjob, conversation should stay open
-  const hasActiveBackjob = conversation?.backjob?.has_backjob === true;
+  // BUT if there's an APPROVED backjob (UNDER_REVIEW status), conversation should stay open
+  // OPEN status means waiting for admin approval - conversation should remain closed
+  const hasApprovedBackjob = 
+    conversation?.backjob?.has_backjob === true && 
+    conversation?.backjob?.status === "UNDER_REVIEW";
   const isConversationClosed =
     conversation?.job?.clientMarkedComplete &&
     conversation?.job?.clientReviewed &&
     conversation?.job?.workerReviewed &&
-    !hasActiveBackjob;  // Don't close if there's an active backjob
+    !hasApprovedBackjob;  // Don't close if there's an APPROVED backjob
 
   // Send message mutation
   const sendMutation = useSendMessageMutation();
@@ -843,10 +846,7 @@ export default function ChatScreen() {
             )}
         </View>
         <TouchableOpacity
-          onPress={() => {
-            // Navigate to job details
-            router.push(`/jobs/${conversation.job.id}`);
-          }}
+          onPress={() => router.push(`/jobs/${conversation.job.id}`)}
           style={styles.infoButton}
         >
           <Ionicons
@@ -1069,8 +1069,8 @@ export default function ChatScreen() {
             )}
 
           {/* Both Parties Reviewed - Job Fully Complete Banner */}
-          {/* Only show when truly closed (no active backjob) */}
-          {isConversationClosed && !hasActiveBackjob && (
+          {/* Only show when truly closed (no approved backjob) */}
+          {isConversationClosed && !hasApprovedBackjob && (
             <View style={styles.jobCompleteBanner}>
               <Ionicons
                 name="checkmark-circle"
@@ -1088,6 +1088,32 @@ export default function ChatScreen() {
               </View>
             </View>
           )}
+
+          {/* Request Backjob Banner - Only for clients on completed jobs without existing backjob */}
+          {conversation.my_role === "CLIENT" &&
+            conversation.job.status === "COMPLETED" &&
+            !conversation.backjob?.has_backjob && (
+              <TouchableOpacity
+                style={styles.requestBackjobBanner}
+                onPress={() => router.push(`/jobs/request-backjob?jobId=${conversation.job.id}`)}
+                activeOpacity={0.8}
+              >
+                <View style={styles.requestBackjobContent}>
+                  <View style={styles.requestBackjobIconContainer}>
+                    <Ionicons name="refresh-circle" size={24} color={Colors.white} />
+                  </View>
+                  <View style={styles.requestBackjobText}>
+                    <Text style={styles.requestBackjobTitle}>
+                      Not satisfied with the work?
+                    </Text>
+                    <Text style={styles.requestBackjobSubtitle}>
+                      Tap here to request a backjob (rework)
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color={Colors.primary} />
+                </View>
+              </TouchableOpacity>
+            )}
 
           {/* Review Section - Shows after client approves completion */}
           {conversation.job.clientMarkedComplete && !isConversationClosed && (
@@ -1570,6 +1596,10 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   infoButton: {
+    padding: 4,
+    marginLeft: 12,
+  },
+  menuButton: {
     padding: 4,
     marginLeft: 12,
   },
@@ -2106,5 +2136,41 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: "#E65100",
     fontWeight: "600",
+  },
+  // Request Backjob Banner Styles (for clients to request rework)
+  requestBackjobBanner: {
+    backgroundColor: Colors.primaryLight || "#E3F2FD",
+    marginHorizontal: Spacing.md,
+    marginTop: Spacing.sm,
+    borderRadius: BorderRadius.medium,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+  },
+  requestBackjobContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.md,
+    gap: Spacing.md,
+  },
+  requestBackjobIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  requestBackjobText: {
+    flex: 1,
+  },
+  requestBackjobTitle: {
+    ...Typography.body.medium,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+  },
+  requestBackjobSubtitle: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+    marginTop: 2,
   },
 });

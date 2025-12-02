@@ -907,24 +907,33 @@ def get_conversation_by_job(request, job_id: int, reopen: bool = False):
             reopened = False
             system_message_added = False
             
-            # If reopen is requested and conversation is not active, reopen it
-            if reopen and conversation.status != Conversation.ConversationStatus.ACTIVE:
+            # If reopen is requested and conversation is not active, check if we should reopen
+            # Only reopen if there's an APPROVED backjob (UNDER_REVIEW status)
+            # OPEN status means waiting for admin approval - don't reopen yet
+            should_reopen = (
+                reopen and 
+                conversation.status != Conversation.ConversationStatus.ACTIVE and
+                active_dispute and 
+                active_dispute.status == 'UNDER_REVIEW'  # Only if admin approved
+            )
+            
+            if should_reopen:
                 old_status = conversation.status
                 conversation.status = Conversation.ConversationStatus.ACTIVE
                 conversation.save()
                 reopened = True
-                print(f"[get_conversation_by_job] Reopened conversation {conversation.conversationID} (was {old_status})")
+                print(f"[get_conversation_by_job] Reopened conversation {conversation.conversationID} (was {old_status}) - backjob approved")
                 
-                # Add system message only on first reopen for backjob
-                # Check if there's already a "Backjob Initiated" or "Conversation reopened" message
+                # Add system message only on first reopen for APPROVED backjob
+                # Check if there's already a "Backjob" related message
                 existing_reopen_msg = Message.objects.filter(
                     conversationID=conversation,
                     messageType="SYSTEM",
                     messageText__icontains="backjob"
                 ).exists()
                 
-                if not existing_reopen_msg and active_dispute:
-                    # First time reopening for backjob - add system message
+                if not existing_reopen_msg:
+                    # First time reopening for approved backjob - add system message
                     Message.objects.create(
                         conversationID=conversation,
                         sender=None,

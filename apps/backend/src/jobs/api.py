@@ -4603,49 +4603,13 @@ def request_backjob(request, job_id: int, reason: str = Form(...), description: 
             JobLog.objects.create(
                 jobID=job,
                 oldStatus=job.status,
-                newStatus="BACKJOB",
+                newStatus="BACKJOB_REQ",
                 changedBy=request.auth,
                 notes=f"Client requested backjob. Reason: {reason}"
             )
             
-            # ============================================
-            # REOPEN CONVERSATION FOR BACKJOB DISCUSSION
-            # ============================================
-            from profiles.models import Conversation, Message
-            
-            # Find existing conversation for this job
-            conversation = Conversation.objects.filter(relatedJobPosting=job).first()
-            
-            if conversation:
-                # Reopen the existing conversation
-                old_status = conversation.status
-                conversation.status = Conversation.ConversationStatus.ACTIVE
-                conversation.save()
-                print(f"🔄 Reopened conversation {conversation.conversationID} (was {old_status})")
-            else:
-                # Create a new conversation if none exists
-                client_profile = job.clientID.profileID
-                worker_profile = job.assignedWorkerID.profileID if job.assignedWorkerID else None
-                agency = job.assignedAgencyFK
-                
-                conversation = Conversation.objects.create(
-                    client=client_profile,
-                    worker=worker_profile,
-                    agency=agency,
-                    relatedJobPosting=job,
-                    status=Conversation.ConversationStatus.ACTIVE
-                )
-                print(f"💬 Created new conversation {conversation.conversationID} for backjob")
-            
-            # Add a system message indicating backjob was initiated
-            Message.objects.create(
-                conversationID=conversation,
-                sender=None,  # System message has no sender
-                senderAgency=None,
-                messageText="🔄 Backjob Initiated - You can now discuss the backjob details here.",
-                messageType=Message.MessageType.SYSTEM
-            )
-            print(f"📝 Added system message to conversation {conversation.conversationID}")
+            # NOTE: Conversation reopening and system message are now sent
+            # only when admin APPROVES the backjob request (in adminpanel/api.py)
         
         return {
             "success": True,

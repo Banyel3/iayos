@@ -216,10 +216,10 @@ export function EstimatedTimeCard({
             countdownData.isOverdue ? (
               <Text style={styles.overdueText}>Overdue</Text>
             ) : (
-              `ETA: ${formatDuration(countdownData.remainingHours)}`
+              `ETC: ${formatDuration(countdownData.remainingHours)}`
             )
           ) : (
-            `Est. ${prediction.formatted_duration}`
+            `ETC: ${prediction.formatted_duration}`
           )}
         </Text>
         {prediction.is_low_confidence && (
