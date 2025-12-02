@@ -42,12 +42,14 @@ export default function MyBackjobsScreen() {
   const [backjobs, setBackjobs] = useState<BackjobItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "UNDER_REVIEW" | "RESOLVED">(
     "all"
   );
 
   const fetchBackjobs = async (showLoading = true) => {
     if (showLoading) setIsLoading(true);
+    setError(null);
 
     try {
       const url =
@@ -55,16 +57,29 @@ export default function MyBackjobsScreen() {
           ? ENDPOINTS.MY_BACKJOBS
           : `${ENDPOINTS.MY_BACKJOBS}?status=${filter}`;
 
+      console.log("📋 Fetching backjobs from:", url);
       const response = await apiRequest(url);
+      console.log("📋 Response status:", response.status);
 
       if (response.ok) {
-        const data = await response.json();
+        const data = (await response.json()) as {
+          backjobs: BackjobItem[];
+          total: number;
+        };
+        console.log("📋 Backjobs data:", data);
         setBackjobs(data.backjobs || []);
       } else {
-        console.error("Failed to fetch backjobs");
+        const errorText = await response.text();
+        console.error("Failed to fetch backjobs:", response.status, errorText);
+        if (response.status === 401) {
+          setError("Please log in to view your backjobs");
+        } else {
+          setError(`Failed to load backjobs (${response.status})`);
+        }
       }
     } catch (error) {
       console.error("Error fetching backjobs:", error);
+      setError("Network error - please check your connection");
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -253,22 +268,51 @@ export default function MyBackjobsScreen() {
     );
   };
 
-  const renderEmptyState = () => (
-    <View style={styles.emptyContainer}>
-      <View style={styles.emptyIconContainer}>
-        <Ionicons
-          name="checkmark-done-circle"
-          size={64}
-          color={Colors.success}
-        />
+  const renderEmptyState = () => {
+    if (error) {
+      return (
+        <View style={styles.emptyContainer}>
+          <View
+            style={[
+              styles.emptyIconContainer,
+              { backgroundColor: Colors.error + "20" },
+            ]}
+          >
+            <Ionicons name="alert-circle" size={64} color={Colors.error} />
+          </View>
+          <Text style={styles.emptyTitle}>Error</Text>
+          <Text style={styles.emptyText}>{error}</Text>
+          <TouchableOpacity
+            style={[
+              styles.filterTab,
+              styles.filterTabActive,
+              { marginTop: 16 },
+            ]}
+            onPress={() => fetchBackjobs()}
+          >
+            <Text style={styles.filterTextActive}>Try Again</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.emptyContainer}>
+        <View style={styles.emptyIconContainer}>
+          <Ionicons
+            name="checkmark-done-circle"
+            size={64}
+            color={Colors.success}
+          />
+        </View>
+        <Text style={styles.emptyTitle}>No Backjobs</Text>
+        <Text style={styles.emptyText}>
+          You don't have any backjob requests at the moment. Great job keeping
+          your clients happy!
+        </Text>
       </View>
-      <Text style={styles.emptyTitle}>No Backjobs</Text>
-      <Text style={styles.emptyText}>
-        You don't have any backjob requests at the moment. Great job keeping
-        your clients happy!
-      </Text>
-    </View>
-  );
+    );
+  };
 
   return (
     <View style={styles.container}>

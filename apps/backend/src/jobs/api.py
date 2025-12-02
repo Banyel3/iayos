@@ -4388,7 +4388,7 @@ def request_backjob(request, job_id: int, reason: str = Form(...), description: 
         return Response({"error": f"Failed to submit backjob request: {str(e)}"}, status=500)
 
 
-@router.get("/my-backjobs", auth=dual_auth)
+@router.get("/my-backjobs", auth=jwt_auth)
 def get_my_backjobs(request, status: Optional[str] = None):
     """
     Get backjobs assigned to the current worker or agency.

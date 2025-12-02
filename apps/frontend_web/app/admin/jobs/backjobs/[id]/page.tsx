@@ -19,6 +19,7 @@ import {
   Clock,
   AlertCircle,
   Loader2,
+  ImageIcon,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -55,6 +56,7 @@ interface JobDispute {
     submittedBy: string;
     submittedDate: string;
   }[];
+  evidenceImages: string[];
   messages: {
     id: string;
     sender: string;
@@ -109,36 +111,37 @@ export default function DisputeDetailPage() {
         const d = data.dispute;
         setDispute({
           id: d.id?.toString() || d.dispute_id?.toString() || disputeId,
-          jobId: d.job_id?.toString() || "",
-          jobTitle: d.job_title || "Unknown Job",
-          category: d.category || "General",
+          jobId: d.job?.id?.toString() || d.job_id?.toString() || "",
+          jobTitle: d.job?.title || d.job_title || "Unknown Job",
+          category: d.job?.category || d.category || "General",
           disputedBy:
             d.disputed_by?.toLowerCase() === "worker" ? "worker" : "client",
           client: {
-            id: d.client_id?.toString() || "",
-            name: d.client_name || "Unknown Client",
-            email: d.client_email || "",
-            phone: d.client_phone || "",
+            id: d.client?.id?.toString() || d.client_id?.toString() || "",
+            name: d.client?.name || d.client_name || "Unknown Client",
+            email: d.client?.email || d.client_email || "",
+            phone: d.client?.phone || d.client_phone || "",
           },
           worker: {
-            id: d.worker_id?.toString() || "",
-            name: d.worker_name || "Unknown Worker",
-            email: d.worker_email || "",
-            phone: d.worker_phone || "",
+            id: d.worker?.id?.toString() || d.worker_id?.toString() || "",
+            name: d.worker?.name || d.worker_name || "Unknown Worker",
+            email: d.worker?.email || d.worker_email || "",
+            phone: d.worker?.phone || d.worker_phone || "",
           },
           reason: d.reason || "Not specified",
           description: d.description || "",
           openedDate: d.created_at || d.opened_date || new Date().toISOString(),
           status: (d.status?.toLowerCase()?.replace(" ", "_") || "open") as any,
           priority: (d.priority?.toLowerCase() || "medium") as any,
-          jobAmount: d.job_amount || d.budget || 0,
+          jobAmount: d.job_amount || d.job?.budget || 0,
           disputedAmount: d.disputed_amount || d.job_amount || 0,
           resolution: d.resolution,
           resolvedDate: d.resolved_date || d.resolved_at,
           evidence: d.evidence || [],
+          evidenceImages: d.evidence_images || [],
           messages: d.messages || [],
           timeline: d.timeline || [],
-          assignedTo: d.assigned_to || "Support Team",
+          assignedTo: d.assigned_to || d.worker?.name || "Unassigned",
         });
       } else {
         setError(data.error || "Failed to load dispute details.");
@@ -250,10 +253,10 @@ export default function DisputeDetailPage() {
         <div className="max-w-7xl mx-auto">
           {/* Back Button */}
           <div className="mb-6">
-            <Link href="/admin/jobs/disputes">
+            <Link href="/admin/jobs/backjobs">
               <Button variant="outline">
                 <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Disputes
+                Back to Backjobs
               </Button>
             </Link>
           </div>
@@ -390,6 +393,47 @@ export default function DisputeDetailPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
+                  {/* Evidence Images */}
+                  {dispute.evidenceImages &&
+                    dispute.evidenceImages.length > 0 && (
+                      <div className="mb-4">
+                        <p className="text-sm font-medium text-gray-500 mb-2">
+                          <ImageIcon className="h-4 w-4 inline mr-1" />
+                          Photos ({dispute.evidenceImages.length})
+                        </p>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                          {dispute.evidenceImages.map((imageUrl, index) => (
+                            <a
+                              key={index}
+                              href={imageUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="relative aspect-square rounded-lg overflow-hidden border border-gray-200 hover:border-blue-400 hover:shadow-md transition-all bg-gray-100"
+                            >
+                              <img
+                                src={imageUrl}
+                                alt={`Evidence ${index + 1}`}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  target.style.display = "none";
+                                  target.parentElement!.innerHTML = `
+                                    <div class="w-full h-full flex flex-col items-center justify-center text-gray-400">
+                                      <svg class="w-8 h-8 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                                      </svg>
+                                      <span class="text-xs">Image unavailable</span>
+                                    </div>
+                                  `;
+                                }}
+                              />
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                  {/* Text Evidence */}
                   <div className="space-y-2">
                     {dispute.evidence.map((evidence, index) => (
                       <div
@@ -552,27 +596,100 @@ export default function DisputeDetailPage() {
               </Card>
 
               {/* Action Buttons */}
-              {dispute.status === "open" && (
+              {(dispute.status === "open" ||
+                dispute.status === "under_review") && (
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-sm">Actions</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-2">
-                    <Button className="w-full bg-green-600 text-white">
-                      <CheckCircle className="h-4 w-4 mr-2" />
-                      Mark as Resolved
-                    </Button>
-                    <Button className="w-full" variant="outline">
-                      <MessageSquare className="h-4 w-4 mr-2" />
-                      Send Message
-                    </Button>
-                    <Button
-                      className="w-full bg-red-600 text-white"
-                      variant="outline"
-                    >
-                      <XCircle className="h-4 w-4 mr-2" />
-                      Close Dispute
-                    </Button>
+                    {dispute.status === "open" && (
+                      <>
+                        <Button
+                          className="w-full bg-green-600 hover:bg-green-700 text-white"
+                          onClick={async () => {
+                            if (
+                              !confirm(
+                                "Approve this backjob request? The worker/agency will be notified."
+                              )
+                            )
+                              return;
+                            try {
+                              const res = await fetch(
+                                `http://localhost:8000/api/adminpanel/jobs/disputes/${disputeId}/approve-backjob`,
+                                {
+                                  method: "POST",
+                                  credentials: "include",
+                                  headers: {
+                                    "Content-Type": "application/json",
+                                  },
+                                  body: JSON.stringify({
+                                    priority: dispute.priority,
+                                  }),
+                                }
+                              );
+                              const data = await res.json();
+                              if (data.success) {
+                                alert(
+                                  "Backjob approved! Worker/agency has been notified."
+                                );
+                                fetchDisputeDetail();
+                              } else {
+                                alert(
+                                  data.error || "Failed to approve backjob"
+                                );
+                              }
+                            } catch (err) {
+                              alert("Error approving backjob");
+                            }
+                          }}
+                        >
+                          <CheckCircle className="h-4 w-4 mr-2" />
+                          Approve Backjob
+                        </Button>
+                        <Button
+                          className="w-full bg-red-600 hover:bg-red-700 text-white"
+                          onClick={async () => {
+                            const reason = prompt("Enter rejection reason:");
+                            if (!reason) return;
+                            try {
+                              const res = await fetch(
+                                `http://localhost:8000/api/adminpanel/jobs/disputes/${disputeId}/reject-backjob`,
+                                {
+                                  method: "POST",
+                                  credentials: "include",
+                                  headers: {
+                                    "Content-Type": "application/json",
+                                  },
+                                  body: JSON.stringify({ reason }),
+                                }
+                              );
+                              const data = await res.json();
+                              if (data.success) {
+                                alert(
+                                  "Backjob rejected. Client has been notified."
+                                );
+                                fetchDisputeDetail();
+                              } else {
+                                alert(data.error || "Failed to reject backjob");
+                              }
+                            } catch (err) {
+                              alert("Error rejecting backjob");
+                            }
+                          }}
+                        >
+                          <XCircle className="h-4 w-4 mr-2" />
+                          Reject Backjob
+                        </Button>
+                      </>
+                    )}
+                    {dispute.status === "under_review" && (
+                      <div className="text-center py-2">
+                        <p className="text-sm text-yellow-700 bg-yellow-50 p-3 rounded-lg">
+                          ⏳ Waiting for worker/agency to complete the backjob
+                        </p>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               )}

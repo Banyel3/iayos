@@ -110,6 +110,22 @@ export default function JobsScreen() {
     }
   };
 
+  // Fetch pending backjobs count for badge (workers/agencies only)
+  const { data: backjobsData } = useQuery<{ backjobs: any[]; total: number }>({
+    queryKey: ["backjobs", "count"],
+    queryFn: async () => {
+      const response = await fetchJson<{ backjobs: any[]; total: number }>(
+        `${ENDPOINTS.MY_BACKJOBS}?status=UNDER_REVIEW`,
+        { method: "GET" }
+      );
+      return response;
+    },
+    enabled: isWorker, // Only fetch for workers
+    refetchInterval: 30000, // Refresh every 30 seconds
+  });
+
+  const pendingBackjobsCount = backjobsData?.backjobs?.length || 0;
+
   // Fetch jobs for active tab
   const {
     data: jobsData,
@@ -587,6 +603,29 @@ export default function JobsScreen() {
             {isClient ? "My Jobs" : "My Jobs"}
           </Text>
           <View style={styles.headerActions}>
+            {/* Backjobs Button - Show for workers with badge count */}
+            {isWorker && (
+              <TouchableOpacity
+                style={styles.iconButton}
+                onPress={() => router.push("/jobs/my-backjobs" as any)}
+                activeOpacity={0.7}
+              >
+                <View>
+                  <Ionicons
+                    name="alert-circle-outline"
+                    size={22}
+                    color={Colors.warning}
+                  />
+                  {pendingBackjobsCount > 0 && (
+                    <View style={styles.backjobBadge}>
+                      <Text style={styles.backjobBadgeText}>
+                        {pendingBackjobsCount > 9 ? "9+" : pendingBackjobsCount}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
               style={styles.iconButton}
               onPress={() => router.push("/jobs/search" as any)}
@@ -1244,5 +1283,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: "#059669",
+  },
+  backjobBadge: {
+    position: "absolute",
+    top: -6,
+    right: -6,
+    backgroundColor: Colors.error,
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 4,
+  },
+  backjobBadgeText: {
+    color: Colors.white,
+    fontSize: 10,
+    fontWeight: "700",
   },
 });

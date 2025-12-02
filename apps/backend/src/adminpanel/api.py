@@ -593,8 +593,7 @@ def approve_backjob(request, dispute_id: int):
     Admin approves a backjob request.
     Changes status from OPEN to UNDER_REVIEW and notifies the worker/agency.
     """
-    from accounts.models import JobDispute, Notification, Agency
-    from jobs.models import JobLog
+    from accounts.models import JobDispute, Notification, Agency, JobLog
     
     try:
         body = request.data if hasattr(request, 'data') else {}
@@ -626,8 +625,9 @@ def approve_backjob(request, dispute_id: int):
         # Create job log
         JobLog.objects.create(
             jobID=job,
-            action="BACKJOB_APPROVED",
-            performedBy=request.auth,
+            oldStatus=job.status,
+            newStatus="BACKJOB_APPROVED",
+            changedBy=request.auth,
             notes=f"Admin approved backjob request. Priority: {priority}"
         )
         
@@ -691,8 +691,7 @@ def reject_backjob(request, dispute_id: int):
     Admin rejects a backjob request.
     Changes status from OPEN to CLOSED and notifies the client.
     """
-    from accounts.models import JobDispute, Notification
-    from jobs.models import JobLog
+    from accounts.models import JobDispute, Notification, JobLog
     
     try:
         body = request.data if hasattr(request, 'data') else {}
@@ -723,8 +722,9 @@ def reject_backjob(request, dispute_id: int):
         # Create job log
         JobLog.objects.create(
             jobID=job,
-            action="BACKJOB_REJECTED",
-            performedBy=request.auth,
+            oldStatus=job.status,
+            newStatus="BACKJOB_REJECTED",
+            changedBy=request.auth,
             notes=f"Admin rejected backjob request. Reason: {rejection_reason}"
         )
         

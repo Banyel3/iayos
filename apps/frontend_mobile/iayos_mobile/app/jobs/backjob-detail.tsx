@@ -76,7 +76,7 @@ export default function BackjobDetailScreen() {
 
       // Fetch job details
       const jobResponse = await apiRequest(
-        ENDPOINTS.JOB_DETAIL(parseInt(jobId))
+        ENDPOINTS.JOB_DETAILS(parseInt(jobId))
       );
       if (jobResponse.ok) {
         const jobData = await jobResponse.json();

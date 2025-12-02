@@ -253,7 +253,7 @@ export const ENDPOINTS = {
   // Backjobs / Disputes
   REQUEST_BACKJOB: (jobId: number) =>
     `${API_BASE_URL.replace("/api", "")}/api/jobs/${jobId}/request-backjob`,
-  MY_BACKJOBS: `${API_BASE_URL.replace("/api", "")}/api/jobs/my-backjobs`,
+  MY_BACKJOBS: `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/my-backjobs`,
   BACKJOB_STATUS: (jobId: number) =>
     `${API_BASE_URL.replace("/api", "")}/api/jobs/${jobId}/backjob-status`,
   COMPLETE_BACKJOB: (jobId: number) =>

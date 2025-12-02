@@ -13,6 +13,7 @@ This module handles all payment-related operations for the admin panel:
 from django.db.models import Sum, Count, Avg, Q, F, DecimalField, Value
 from django.db.models.functions import TruncDate, TruncWeek, TruncMonth, Coalesce
 from django.utils import timezone
+from django.conf import settings
 from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Optional, Dict, List, Any
@@ -1145,12 +1146,24 @@ def get_dispute_detail(dispute_id: int) -> Dict[str, Any]:
     try:
         dispute = JobDispute.objects.select_related(
             'jobID__clientID__profileID__accountFK',
-            'jobID__assignedWorkerID__profileID__accountFK'
-        ).get(disputeID=dispute_id)
+            'jobID__assignedWorkerID__profileID__accountFK',
+            'jobID__assignedAgencyFK__accountFK'
+        ).prefetch_related('evidence').get(disputeID=dispute_id)
         
         job = dispute.jobID
         client = job.clientID.profileID.accountFK
         worker = job.assignedWorkerID.profileID.accountFK if job.assignedWorkerID else None
+        agency = job.assignedAgencyFK if job.assignedAgencyFK else None
+        
+        # Get evidence images - construct full URL for local storage paths
+        base_url = getattr(settings, 'BASE_URL', 'http://localhost:8000')
+        evidence_images = []
+        for e in dispute.evidence.all():
+            url = e.imageURL
+            # If it's a relative path (starts with /media/), prepend the base URL
+            if url and url.startswith('/media/'):
+                url = f"{base_url}{url}"
+            evidence_images.append(url)
         
         # Get related transactions
         transactions = Transaction.objects.filter(
@@ -1192,6 +1205,12 @@ def get_dispute_detail(dispute_id: int) -> Dict[str, Any]:
                     'email': worker.email if worker else 'N/A',
                     'phone': job.assignedWorkerID.profileID.contactNum if job.assignedWorkerID else 'N/A'
                 } if worker else None,
+                'agency': {
+                    'id': agency.agencyID,
+                    'name': agency.agencyName,
+                    'email': agency.ownerFK.email if agency.ownerFK else 'N/A'
+                } if agency else None,
+                'evidence_images': evidence_images,
                 'transactions': [
                     {
                         'id': str(t['transactionID']),
