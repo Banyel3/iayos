@@ -1118,9 +1118,22 @@ export default function AgencyProfilePage() {
                     const data = await res.json();
 
                     if (res.ok && data.success) {
-                      toast.success(
-                        `Withdrawal of ₱${amount.toLocaleString()} submitted! ${data.message || "Funds will arrive in 1-3 business days."}`
-                      );
+                      // Handle test mode with invoice URL
+                      if (data.invoice_url && data.test_mode) {
+                        toast.success(
+                          `TEST MODE: Withdrawal invoice created for ₱${amount.toLocaleString()}`,
+                          {
+                            description: "Opening invoice in new tab...",
+                            duration: 5000,
+                          }
+                        );
+                        // Open invoice URL in new tab
+                        window.open(data.invoice_url, "_blank");
+                      } else {
+                        toast.success(
+                          `Withdrawal of ₱${amount.toLocaleString()} submitted! ${data.message || "Funds will arrive in 1-3 business days."}`
+                        );
+                      }
                       setShowWithdrawModal(false);
                       setWithdrawAmount("");
                       setSelectedPaymentMethodId(null);

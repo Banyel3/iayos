@@ -1882,8 +1882,11 @@ def agency_withdraw_funds(request):
 			
 			print(f"📄 Disbursement created: {disbursement_result.get('disbursement_id')}")
 			print(f"📊 Status: {disbursement_result.get('status')}")
+			if disbursement_result.get('invoice_url'):
+				print(f"🔗 Invoice URL: {disbursement_result.get('invoice_url')}")
 		
-		return {
+		# Build response with invoice URL for test mode
+		response_data = {
 			"success": True,
 			"transaction_id": transaction.transactionID,
 			"disbursement_id": disbursement_result.get('disbursement_id'),
@@ -1894,6 +1897,15 @@ def agency_withdraw_funds(request):
 			"recipient_name": payment_method.accountName,
 			"message": "Withdrawal request submitted successfully. Funds will be transferred to your GCash within 1-3 business days."
 		}
+		
+		# Include invoice URL for test mode (allows user to see/pay the test invoice)
+		if disbursement_result.get('invoice_url'):
+			response_data['invoice_url'] = disbursement_result.get('invoice_url')
+			response_data['test_mode'] = disbursement_result.get('test_mode', False)
+			if disbursement_result.get('test_mode'):
+				response_data['message'] = "TEST MODE: Withdrawal invoice created. In production, funds would be sent directly to your GCash."
+		
+		return response_data
 		
 	except Exception as e:
 		print(f"❌ [Agency] Error withdrawing funds: {str(e)}")

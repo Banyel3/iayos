@@ -1253,6 +1253,108 @@ def xendit_webhook(request):
         )
 
 
+@router.post("/wallet/disbursement-webhook", auth=None)  # No auth for webhooks
+def xendit_disbursement_webhook(request):
+    """
+    Handle Xendit disbursement/payout webhook callbacks
+    This endpoint is called by Xendit when a disbursement status changes
+    Used for withdrawal processing (both agency and worker withdrawals)
+    """
+    try:
+        from .models import Transaction, Wallet
+        from .xendit_service import XenditService
+        from django.utils import timezone
+        import json
+        
+        # Get webhook payload
+        payload = json.loads(request.body)
+        
+        print(f"📥 Xendit Disbursement Webhook received: {payload}")
+        
+        # Verify webhook (optional in TEST mode)
+        webhook_token = request.headers.get('x-callback-token', '')
+        if not XenditService.verify_webhook_signature(webhook_token):
+            print(f"❌ Invalid webhook signature for disbursement webhook")
+            return Response(
+                {"error": "Invalid webhook signature"},
+                status=401
+            )
+        
+        # Parse disbursement webhook data
+        # Xendit sends different formats for payouts vs invoices
+        disbursement_id = payload.get('id')
+        external_id = payload.get('external_id') or payload.get('reference_id')
+        status = payload.get('status', '').upper()
+        failure_code = payload.get('failure_code')
+        
+        print(f"📤 Disbursement ID: {disbursement_id}, Status: {status}, External ID: {external_id}")
+        
+        if not disbursement_id and not external_id:
+            print("❌ No disbursement ID or external ID in webhook payload")
+            return Response(
+                {"error": "Invalid webhook payload - missing ID"},
+                status=400
+            )
+        
+        # Find transaction by Xendit disbursement ID or external ID
+        transaction = None
+        try:
+            if disbursement_id:
+                transaction = Transaction.objects.filter(
+                    xenditInvoiceID=disbursement_id
+                ).first()
+            if not transaction and external_id:
+                transaction = Transaction.objects.filter(
+                    xenditExternalID=external_id
+                ).first()
+        except Exception as e:
+            print(f"❌ Error finding transaction: {str(e)}")
+        
+        if not transaction:
+            print(f"❌ Transaction not found for disbursement {disbursement_id} / {external_id}")
+            # Return 200 to prevent Xendit from retrying for unknown transactions
+            return {"success": True, "message": "Transaction not found, skipping"}
+        
+        print(f"✅ Found transaction {transaction.transactionID} for disbursement")
+        
+        # Update transaction based on status
+        if status in ['COMPLETED', 'SUCCEEDED', 'PAID']:
+            # Disbursement successful - money sent to recipient
+            transaction.status = Transaction.TransactionStatus.COMPLETED
+            transaction.completedAt = timezone.now()
+            transaction.save()
+            print(f"✅ Withdrawal completed for transaction {transaction.transactionID}")
+            
+        elif status in ['FAILED', 'VOIDED', 'CANCELLED', 'REVERSED']:
+            # Disbursement failed - refund the wallet balance
+            wallet = transaction.walletID
+            wallet.balance += transaction.amount  # Refund the deducted amount
+            wallet.save()
+            
+            transaction.status = Transaction.TransactionStatus.FAILED
+            transaction.description = f"{transaction.description} - {status}"
+            if failure_code:
+                transaction.description += f" ({failure_code})"
+            transaction.save()
+            
+            print(f"❌ Withdrawal {status} for transaction {transaction.transactionID}. Refunded ₱{transaction.amount} to wallet.")
+            
+        elif status == 'PENDING':
+            # Still processing, no action needed
+            print(f"⏳ Withdrawal still pending for transaction {transaction.transactionID}")
+        
+        return {"success": True, "message": "Disbursement webhook processed"}
+        
+    except Exception as e:
+        print(f"❌ Error processing disbursement webhook: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to process disbursement webhook"},
+            status=500
+        )
+
+
 @router.post("/wallet/simulate-payment/{transaction_id}", auth=cookie_auth)
 def simulate_payment_completion(request, transaction_id: int):
     """

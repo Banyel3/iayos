@@ -14,6 +14,9 @@ export interface Transaction {
   created_at: string;
   payment_method?: string;
   reference_id?: string;
+  balance_after?: number;
+  xendit_invoice_id?: string;
+  xendit_external_id?: string;
 }
 
 export interface TransactionsResponse {
