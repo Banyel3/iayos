@@ -111,7 +111,8 @@ export default function CreateJobScreen() {
     refetch: refetchWallet,
   } = useWallet();
 
-  const walletBalance = walletData?.balance || 0;
+  const walletBalance = walletData?.availableBalance ?? walletData?.balance ?? 0;
+  const reservedBalance = walletData?.reservedBalance ?? 0;
 
   // Fetch payment methods to check if user has GCash set up
   const { data: paymentMethodsData, isLoading: paymentMethodsLoading } =
@@ -212,6 +213,10 @@ export default function CreateJobScreen() {
       return response;
     },
     onSuccess: (data) => {
+      // Invalidate wallet queries to reflect reserved balance change
+      queryClient.invalidateQueries({ queryKey: ["wallet"] });
+      queryClient.invalidateQueries({ queryKey: ["walletBalance"] });
+      
       // Validate job_posting_id exists
       if (!data.job_posting_id || isNaN(Number(data.job_posting_id))) {
         console.error("Invalid job_posting_id in response:", data);
@@ -221,7 +226,7 @@ export default function CreateJobScreen() {
           [
             {
               text: "Go to Home",
-              onPress: () => router.push("/"),
+              onPress: () => router.replace("/"),
             },
           ]
         );
@@ -231,7 +236,8 @@ export default function CreateJobScreen() {
       // Check if payment is required (GCash payment)
       if (data.requires_payment && data.invoice_url) {
         // Navigate to GCash payment screen via WebView
-        router.push({
+        // Use replace so back button doesn't return to the form
+        router.replace({
           pathname: "/payments/gcash",
           params: {
             invoiceUrl: data.invoice_url,
@@ -253,11 +259,12 @@ export default function CreateJobScreen() {
           [
             {
               text: "View Job",
-              onPress: () => router.push(`/jobs/${data.job_posting_id}` as any),
+              // Use replace so back button goes to home, not the form
+              onPress: () => router.replace(`/jobs/${data.job_posting_id}` as any),
             },
             {
               text: "Back to Home",
-              onPress: () => router.push("/"),
+              onPress: () => router.replace("/"),
             },
           ]
         );
@@ -375,7 +382,7 @@ export default function CreateJobScreen() {
             ? "Hire Worker"
             : agencyId
               ? "Hire Agency"
-              : "Create Job Request",
+              : "Post a Job",
           headerShown: false,
         }}
       />
@@ -396,7 +403,7 @@ export default function CreateJobScreen() {
               ? "Hire Worker"
               : agencyId
                 ? "Hire Agency"
-                : "Create Job Request"}
+                : "Post a Job"}
           </Text>
           <View style={{ width: 40 }} />
         </View>
@@ -820,7 +827,7 @@ export default function CreateJobScreen() {
                     size={24} 
                     color={hasInsufficientBalance && budget ? Colors.warning : Colors.primary} 
                   />
-                  <Text style={styles.walletBalanceLabel}>Wallet Balance</Text>
+                  <Text style={styles.walletBalanceLabel}>Available Balance</Text>
                 </View>
                 <Text style={[
                   styles.walletBalanceAmount,
@@ -828,6 +835,14 @@ export default function CreateJobScreen() {
                 ]}>
                   ₱{walletBalance.toFixed(2)}
                 </Text>
+                {reservedBalance > 0 && (
+                  <View style={styles.reservedBalanceRow}>
+                    <Ionicons name="lock-closed" size={14} color={Colors.warning} />
+                    <Text style={styles.reservedBalanceText}>
+                      ₱{reservedBalance.toFixed(2)} reserved in escrow
+                    </Text>
+                  </View>
+                )}
                 {budget && parseFloat(budget) > 0 && (
                   <View style={styles.walletBalanceDetails}>
                     <Text style={styles.walletBalanceDetailText}>
@@ -891,9 +906,13 @@ export default function CreateJobScreen() {
               <View style={styles.infoTextContainer}>
                 <Text style={styles.infoTitle}>Payment Process</Text>
                 <Text style={styles.infoText}>
-                  • 50% downpayment will be held in escrow{"\n"}• Worker/Agency
-                  completes the job{"\n"}• You approve completion{"\n"}•
-                  Remaining 50% is released
+                  {workerId || agencyId ? (
+                    // INVITE job - immediate deduction
+                    `• 50% downpayment will be deducted immediately\n• Funds held in escrow until job completion\n• Worker/Agency completes the job\n• You approve completion\n• Remaining 50% is released`
+                  ) : (
+                    // LISTING job - reservation
+                    `• 50% downpayment will be reserved (not deducted)\n• Funds are held when a worker is accepted\n• Worker completes the job\n• You approve completion\n• Remaining 50% is released`
+                  )}
                 </Text>
               </View>
             </View>
@@ -914,7 +933,9 @@ export default function CreateJobScreen() {
               <ActivityIndicator color={Colors.white} />
             ) : (
               <>
-                <Text style={styles.submitButtonText}>Create Job Request</Text>
+                <Text style={styles.submitButtonText}>
+                  {workerId || agencyId ? "Send Job Request" : "Post Job"}
+                </Text>
                 <Ionicons name="arrow-forward" size={20} color={Colors.white} />
               </>
             )}
@@ -1380,6 +1401,18 @@ const styles = StyleSheet.create({
   },
   walletBalanceAmountWarning: {
     color: Colors.warning,
+  },
+  reservedBalanceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 8,
+    paddingHorizontal: 4,
+  },
+  reservedBalanceText: {
+    fontSize: 12,
+    color: Colors.warning,
+    fontWeight: "500",
   },
   walletBalanceDetails: {
     paddingTop: 8,

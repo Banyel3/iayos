@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -92,6 +92,15 @@ export default function JobsScreen() {
 
   const isWorker = user?.profile_data?.profileType === "WORKER";
   const isClient = user?.profile_data?.profileType === "CLIENT";
+
+  // Set default tab based on user type
+  useEffect(() => {
+    if (isWorker) {
+      setActiveTab("requests");
+    } else if (isClient) {
+      setActiveTab("open");
+    }
+  }, [isWorker, isClient]);
 
   // Map tabs to status filters
   const getStatusForTab = (tab: TabType): string => {
@@ -644,6 +653,17 @@ export default function JobsScreen() {
             >
               <Ionicons name="heart-outline" size={22} color={Colors.error} />
             </TouchableOpacity>
+            {/* Post Job Button - Always visible for clients */}
+            {isClient && (
+              <TouchableOpacity
+                style={styles.postJobButton}
+                onPress={() => router.push("/jobs/create" as any)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="add" size={18} color={Colors.white} />
+                <Text style={styles.postJobButtonText}>Post</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
@@ -790,7 +810,7 @@ export default function JobsScreen() {
               </Text>
               <TouchableOpacity
                 style={styles.createJobButton}
-                onPress={() => router.push("/jobs/categories" as any)}
+                onPress={() => router.push("/(tabs)/" as any)}
                 activeOpacity={0.8}
               >
                 <Ionicons name="search" size={20} color={Colors.white} />
@@ -947,18 +967,24 @@ export default function JobsScreen() {
                       ? "No jobs in progress"
                       : "No completed jobs yet"}
             </Text>
-            {(activeTab === "open" || activeTab === "pending") && isClient && (
+            {activeTab === "open" && isClient && (
               <TouchableOpacity
                 style={styles.createJobButton}
                 onPress={() => router.push("/jobs/create" as any)}
                 activeOpacity={0.8}
               >
                 <Ionicons name="add-circle" size={20} color={Colors.white} />
-                <Text style={styles.createJobButtonText}>
-                  {activeTab === "pending"
-                    ? "Create Job Request"
-                    : "Post a Job"}
-                </Text>
+                <Text style={styles.createJobButtonText}>Post a Job</Text>
+              </TouchableOpacity>
+            )}
+            {activeTab === "pending" && isClient && (
+              <TouchableOpacity
+                style={styles.createJobButton}
+                onPress={() => router.push("/(tabs)/" as any)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="search" size={20} color={Colors.white} />
+                <Text style={styles.createJobButtonText}>Browse Workers</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -1003,6 +1029,22 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
     borderWidth: 1,
     borderColor: Colors.border,
+  },
+  postJobButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    gap: 4,
+    height: 40,
+  },
+  postJobButtonText: {
+    color: Colors.white,
+    fontSize: Typography.fontSize.sm,
+    fontWeight: "600",
   },
   tabsContainer: {
     flexDirection: "row",

@@ -57,6 +57,10 @@ export default function ProfileScreen() {
   const typedWalletData = walletData as WalletData | undefined;
   const walletBalanceValue =
     typeof typedWalletData?.balance === "number" ? typedWalletData.balance : 0;
+  const availableBalanceValue =
+    typeof typedWalletData?.availableBalance === "number" ? typedWalletData.availableBalance : walletBalanceValue;
+  const reservedBalanceValue =
+    typeof typedWalletData?.reservedBalance === "number" ? typedWalletData.reservedBalance : 0;
 
   const handleLogout = () => {
     Alert.alert("Logout", "Are you sure you want to logout?", [
@@ -540,7 +544,7 @@ export default function ProfileScreen() {
                 />
               </View>
               <View style={styles.walletInfo}>
-                <Text style={styles.walletLabel}>Current Balance</Text>
+                <Text style={styles.walletLabel}>Available Balance</Text>
                 {walletLoading ? (
                   <ActivityIndicator size="small" color={Colors.primary} />
                 ) : walletError ? (
@@ -549,11 +553,22 @@ export default function ProfileScreen() {
                   </TouchableOpacity>
                 ) : (
                   <Text style={styles.walletBalance}>
-                    {formatCurrency(walletBalanceValue)}
+                    {formatCurrency(availableBalanceValue)}
                   </Text>
                 )}
               </View>
             </View>
+            
+            {/* Reserved Balance Indicator */}
+            {!walletLoading && !walletError && reservedBalanceValue > 0 && (
+              <View style={styles.reservedBalanceContainer}>
+                <Ionicons name="lock-closed" size={14} color={Colors.warning} />
+                <Text style={styles.reservedBalanceText}>
+                  {formatCurrency(reservedBalanceValue)} reserved in escrow
+                </Text>
+              </View>
+            )}
+            
             {isWorker ? (
               <TouchableOpacity
                 style={styles.withdrawButton}
@@ -988,6 +1003,21 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.base,
     fontWeight: Typography.fontWeight.semiBold,
     color: Colors.error,
+  },
+  reservedBalanceContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.warning + "15",
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.sm,
+    marginBottom: Spacing.md,
+    gap: 6,
+  },
+  reservedBalanceText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.warning,
+    fontWeight: Typography.fontWeight.medium,
   },
   addFundsButton: {
     flexDirection: "row",

@@ -7,8 +7,9 @@ const verifySchema = z.object({
   verifyLinkExpire: z.string(), // since Django sends ISO string
 });
 
-// Backend API URL - proxies email sending through the Django backend
-const BACKEND_API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+// Backend API URL - use SERVER_API_URL for server-side requests (Docker internal network)
+// NEXT_PUBLIC_API_URL is for client-side and uses localhost, which doesn't work in Docker containers
+const BACKEND_API_URL = process.env.SERVER_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export async function POST(req: Request) {
   try {

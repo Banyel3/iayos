@@ -97,7 +97,7 @@ def create_account_individ(data):
         profileImg=None  # NULL until user uploads a profile picture
     )
 
-    verifyLink = f"http://localhost:3000/auth/verify-email?verifyToken={verifyToken}&id={user.accountID}"
+    verifyLink = f"{settings.FRONTEND_URL}/auth/verify-email?verifyToken={verifyToken}&id={user.accountID}"
     return {
         "accountID": user.accountID,
         "verifyLink": verifyLink,
@@ -130,7 +130,7 @@ def create_account_agency(data):
         businessDesc=""  # Provide empty string for required field
     )
 
-    verifyLink = f"http://localhost:3000/auth/verify-email?verifyToken={verifyToken}&id={user.accountID}"
+    verifyLink = f"{settings.FRONTEND_URL}/auth/verify-email?verifyToken={verifyToken}&id={user.accountID}"
     
     result = {
         "accountID": user.accountID,
@@ -307,7 +307,7 @@ def forgot_password_request(data):
     user.save()
     
     # 4️⃣ Generate reset link
-    resetLink = f"http://localhost:3000/auth/forgot-password/verified?verifyToken={resetToken}&id={user.accountID}"
+    resetLink = f"{settings.FRONTEND_URL}/auth/forgot-password/verified?verifyToken={resetToken}&id={user.accountID}"
     
     return {
         "accountID": user.accountID,

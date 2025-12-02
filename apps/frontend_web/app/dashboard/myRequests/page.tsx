@@ -1289,6 +1289,15 @@ const MyRequestsPage = () => {
         <div className="lg:hidden bg-white px-4 py-4 border-b border-gray-100">
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-bold text-gray-900">iAyos</h1>
+            {isClient && (
+              <button
+                onClick={() => router.push("/dashboard/jobs/create/listing")}
+                className="bg-blue-500 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors flex items-center space-x-1"
+              >
+                <span>+</span>
+                <span>Post Job</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -1337,6 +1346,18 @@ const MyRequestsPage = () => {
               >
                 Requests
               </button>
+            )}
+            {/* Post Job button - desktop only, for clients */}
+            {isClient && (
+              <div className="hidden lg:block ml-auto">
+                <button
+                  onClick={() => router.push("/dashboard/jobs/create/listing")}
+                  className="bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors flex items-center space-x-1"
+                >
+                  <span>+</span>
+                  <span>Post a Job</span>
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -1832,9 +1853,15 @@ const MyRequestsPage = () => {
                     <h3 className="text-gray-900 font-medium mb-2">
                       No applications yet
                     </h3>
-                    <p className="text-gray-600 text-sm">
+                    <p className="text-gray-600 text-sm mb-4">
                       Worker applications to your jobs will appear here
                     </p>
+                    <button
+                      onClick={() => router.push("/dashboard/home")}
+                      className="bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors"
+                    >
+                      Browse Workers
+                    </button>
                   </div>
                 )}
               </div>

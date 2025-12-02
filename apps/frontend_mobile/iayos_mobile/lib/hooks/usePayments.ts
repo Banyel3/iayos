@@ -7,6 +7,8 @@ import { useWallet } from "./useWallet";
 export interface WalletBalance {
   success: boolean;
   balance: number;
+  reservedBalance: number;
+  availableBalance: number;
   currency: string;
   pending: number;
   this_month: number;

@@ -1242,19 +1242,119 @@ def mobile_accept_application(request, job_id: int, application_id: int):
         application.status = "ACCEPTED"
         application.save()
         
-        # Update job status to IN_PROGRESS and assign the worker
-        job.status = JobPosting.JobStatus.IN_PROGRESS
-        job.assignedWorkerID = application.workerID
-        
-        # If worker negotiated a different budget and it was accepted, update the job budget
-        if application.budgetOption == JobApplication.BudgetOption.NEGOTIATE:
-            print(f"💰 [MOBILE] Updating job budget from ₱{job.budget} to negotiated price ₱{application.proposedBudget}")
-            job.budget = application.proposedBudget
-        
-        job.save()
-        
-        print(f"✅ [MOBILE] Job {job_id} moved to IN_PROGRESS, assigned worker {application.workerID.profileID.profileID}")
-        print(f"💵 [MOBILE] Final job budget: ₱{job.budget}")
+        # Use database transaction for atomicity
+        from django.db import transaction as db_transaction
+        with db_transaction.atomic():
+            # Update job status to IN_PROGRESS and assign the worker
+            job.status = JobPosting.JobStatus.IN_PROGRESS
+            job.assignedWorkerID = application.workerID
+            
+            # If worker negotiated a different budget and it was accepted, update the job budget
+            original_budget = job.budget
+            if application.budgetOption == JobApplication.BudgetOption.NEGOTIATE:
+                print(f"💰 [MOBILE] Updating job budget from ₱{job.budget} to negotiated price ₱{application.proposedBudget}")
+                job.budget = application.proposedBudget
+                
+                # Recalculate escrow and fees based on new budget
+                from decimal import Decimal
+                job.escrowAmount = Decimal(str(job.budget)) * Decimal('0.5')
+                job.remainingPayment = Decimal(str(job.budget)) * Decimal('0.5')
+            
+            # Process payment: Convert reservation to actual deduction (for LISTING jobs)
+            # LISTING jobs have escrowPaid=False and funds are reserved
+            if not job.escrowPaid:
+                from decimal import Decimal
+                from .models import Wallet, Transaction, Notification
+                
+                # Get client's wallet
+                wallet = Wallet.objects.get(accountFK=request.auth)
+                
+                # Calculate the total to charge (50% escrow + 10% platform fee)
+                escrow_amount = job.escrowAmount
+                platform_fee = Decimal(str(job.budget)) * Decimal('0.10')
+                total_to_charge = escrow_amount + platform_fee
+                
+                # Calculate original reserved amount (based on original budget before negotiation)
+                original_escrow = Decimal(str(original_budget)) * Decimal('0.5')
+                original_fee = Decimal(str(original_budget)) * Decimal('0.10')
+                original_reserved = original_escrow + original_fee
+                
+                print(f"💳 [MOBILE] Processing payment for accepted application:")
+                print(f"   Original budget: ₱{original_budget}, reserved: ₱{original_reserved}")
+                print(f"   Final budget: ₱{job.budget}, to charge: ₱{total_to_charge}")
+                
+                # Release the original reservation
+                wallet.reservedBalance -= original_reserved
+                
+                # If negotiated price is different, check if we have enough balance
+                if total_to_charge > original_reserved:
+                    additional_needed = total_to_charge - original_reserved
+                    if wallet.balance - wallet.reservedBalance < additional_needed:
+                        # Restore the reservation and abort
+                        wallet.reservedBalance += original_reserved
+                        return Response(
+                            {
+                                "error": "Insufficient balance for negotiated price",
+                                "required": float(total_to_charge),
+                                "available": float(wallet.balance - wallet.reservedBalance),
+                                "message": f"The negotiated price requires ₱{total_to_charge} but you only have ₱{wallet.balance - wallet.reservedBalance} available."
+                            },
+                            status=400
+                        )
+                
+                # Deduct the actual amount from balance
+                wallet.balance -= total_to_charge
+                wallet.save()
+                
+                print(f"💸 [MOBILE] Deducted ₱{total_to_charge} from wallet. New balance: ₱{wallet.balance}")
+                
+                # Update job escrow status
+                from django.utils import timezone
+                job.escrowPaid = True
+                job.escrowPaidAt = timezone.now()
+                
+                # Update pending transactions to completed
+                pending_escrow = Transaction.objects.filter(
+                    relatedJobPosting=job,
+                    transactionType=Transaction.TransactionType.PAYMENT,
+                    status=Transaction.TransactionStatus.PENDING
+                ).first()
+                
+                if pending_escrow:
+                    pending_escrow.status = Transaction.TransactionStatus.COMPLETED
+                    pending_escrow.completedAt = timezone.now()
+                    pending_escrow.amount = escrow_amount  # Update if negotiated
+                    pending_escrow.balanceAfter = wallet.balance
+                    pending_escrow.save()
+                    print(f"✅ [MOBILE] Updated escrow transaction {pending_escrow.transactionID} to COMPLETED")
+                
+                pending_fee = Transaction.objects.filter(
+                    relatedJobPosting=job,
+                    transactionType=Transaction.TransactionType.FEE,
+                    status=Transaction.TransactionStatus.PENDING
+                ).first()
+                
+                if pending_fee:
+                    pending_fee.status = Transaction.TransactionStatus.COMPLETED
+                    pending_fee.completedAt = timezone.now()
+                    pending_fee.amount = platform_fee  # Update if negotiated
+                    pending_fee.balanceAfter = wallet.balance
+                    pending_fee.save()
+                    print(f"✅ [MOBILE] Updated fee transaction {pending_fee.transactionID} to COMPLETED")
+                
+                # Create escrow payment notification
+                Notification.objects.create(
+                    accountFK=request.auth,
+                    notificationType="ESCROW_PAID",
+                    title=f"Payment Processed",
+                    message=f"₱{total_to_charge} has been deducted from your wallet for '{job.title}' (₱{escrow_amount} escrow + ₱{platform_fee} platform fee).",
+                    relatedJobID=job.jobID
+                )
+            
+            job.save()
+            
+            print(f"✅ [MOBILE] Job {job_id} moved to IN_PROGRESS, assigned worker {application.workerID.profileID.profileID}")
+            print(f"💵 [MOBILE] Final job budget: ₱{job.budget}")
         
         # Create a conversation between client and worker
         from profiles.models import Conversation, Message
@@ -2125,7 +2225,7 @@ def mobile_available_jobs(request, page: int = 1, limit: int = 20):
 
 @mobile_router.get("/wallet/balance", auth=jwt_auth)
 def mobile_get_wallet_balance(request):
-    """Get current user's wallet balance - Mobile"""
+    """Get current user's wallet balance including reserved funds - Mobile"""
     try:
         from .models import Wallet, Transaction
         from django.db.models import Sum
@@ -2135,10 +2235,10 @@ def mobile_get_wallet_balance(request):
         # Get or create wallet for the user
         wallet, created = Wallet.objects.get_or_create(
             accountFK=request.auth,
-            defaults={'balance': 0.00}
+            defaults={'balance': Decimal('0.00'), 'reservedBalance': Decimal('0.00')}
         )
 
-        print(f"💵 [Mobile] Balance request for user {request.auth.email}: ₱{wallet.balance}")
+        print(f"💵 [Mobile] Balance request for user {request.auth.email}: ₱{wallet.balance} (₱{wallet.reservedBalance} reserved)")
 
         # Aggregate wallet stats for dashboard cards
         pending_total = (
@@ -2179,6 +2279,8 @@ def mobile_get_wallet_balance(request):
         return {
             "success": True,
             "balance": float(wallet.balance),
+            "reservedBalance": float(wallet.reservedBalance),
+            "availableBalance": float(wallet.availableBalance),
             "pending": float(pending_total),
             "this_month": float(this_month_total),
             "total_earned": float(total_earned),

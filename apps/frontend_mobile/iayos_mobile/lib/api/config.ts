@@ -3,18 +3,27 @@
 // Note: For iOS Simulator, use your machine's local IP (found in Expo output)
 // For Android Emulator, use 10.0.2.2
 // For physical device, use your machine's network IP
-const API_URL = __DEV__ ? "http://10.102.160.98:8000" : "https://api.iayos.com";
+
+// Network IPs - Primary is current network, fallback is previous network
+const PRIMARY_DEV_IP = "192.168.1.84"; // Current network (home/new)
+const FALLBACK_DEV_IP = "10.102.160.98"; // Fallback network (school/previous)
+
+// You can toggle this to switch networks quickly, or implement auto-detection
+const USE_FALLBACK = false;
+const DEV_IP = USE_FALLBACK ? FALLBACK_DEV_IP : PRIMARY_DEV_IP;
+
+const API_URL = __DEV__ ? `http://${DEV_IP}:8000` : "https://api.iayos.com";
 
 const deriveDevWebUrl = () => {
   try {
     const parsed = new URL(API_URL);
     const protocol = parsed.protocol || "http:";
     const hostname = parsed.hostname || "localhost";
-    const defaultPort =
-      parsed.port && parsed.port !== "8000" ? parsed.port : "3000";
+    // Use port 3400 for frontend (3000-3369 are in Windows excluded port range)
+    const defaultPort = "3400";
     return `${protocol}//${hostname}:${defaultPort}`;
   } catch {
-    return "http://localhost:3000";
+    return "http://localhost:3400";
   }
 };
 
@@ -27,7 +36,7 @@ export const EMAIL_VERIFICATION_ENDPOINT = `${API_URL}/api/mobile/auth/send-veri
 
 export const API_BASE_URL = `${API_URL}/api`;
 export const WS_BASE_URL = __DEV__
-  ? "ws://10.102.160.98:8001"
+  ? `ws://${DEV_IP}:8001`
   : "wss://ws.iayos.com";
 
 // API Endpoints

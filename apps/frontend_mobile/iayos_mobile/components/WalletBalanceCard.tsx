@@ -12,6 +12,8 @@ import { formatCurrency } from "../lib/hooks/usePayments";
 
 interface WalletBalanceCardProps {
   balance: number | null;
+  reservedBalance?: number | null;
+  availableBalance?: number | null;
   isLoading: boolean;
   onRefresh?: () => void;
   onDeposit?: () => void;
@@ -20,11 +22,17 @@ interface WalletBalanceCardProps {
 
 export default function WalletBalanceCard({
   balance,
+  reservedBalance = 0,
+  availableBalance,
   isLoading,
   onRefresh,
   onDeposit,
   showDepositButton = true,
 }: WalletBalanceCardProps) {
+  // Calculate available if not provided
+  const available = availableBalance ?? (balance ?? 0) - (reservedBalance ?? 0);
+  const hasReserved = (reservedBalance ?? 0) > 0;
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -32,12 +40,12 @@ export default function WalletBalanceCard({
           <Ionicons name="wallet" size={24} color={Colors.white} />
         </View>
         <View style={styles.headerContent}>
-          <Text style={styles.headerLabel}>Wallet Balance</Text>
+          <Text style={styles.headerLabel}>Available Balance</Text>
           {isLoading ? (
             <ActivityIndicator size="small" color={Colors.white} />
           ) : (
             <Text style={styles.balance}>
-              {balance !== null ? formatCurrency(balance) : "₱0.00"}
+              {formatCurrency(available)}
             </Text>
           )}
         </View>
@@ -47,6 +55,22 @@ export default function WalletBalanceCard({
           </TouchableOpacity>
         )}
       </View>
+
+      {/* Reserved Balance Indicator */}
+      {!isLoading && hasReserved && (
+        <View style={styles.reservedContainer}>
+          <View style={styles.reservedRow}>
+            <Ionicons name="lock-closed" size={14} color={Colors.warning} />
+            <Text style={styles.reservedLabel}>Reserved in Escrow:</Text>
+            <Text style={styles.reservedAmount}>
+              {formatCurrency(reservedBalance ?? 0)}
+            </Text>
+          </View>
+          <Text style={styles.reservedHint}>
+            Funds held for pending job postings
+          </Text>
+        </View>
+      )}
 
       {showDepositButton && onDeposit && (
         <TouchableOpacity
@@ -105,6 +129,33 @@ const styles = StyleSheet.create({
   },
   refreshButton: {
     padding: Spacing.sm,
+  },
+  reservedContainer: {
+    backgroundColor: Colors.warning + "15",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  reservedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  reservedLabel: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+  },
+  reservedAmount: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: "600",
+    color: Colors.warning,
+  },
+  reservedHint: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.textHint,
+    marginTop: 2,
+    marginLeft: 20,
   },
   depositButton: {
     flexDirection: "row",

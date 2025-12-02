@@ -550,10 +550,10 @@ def create_mobile_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[str, Any
                 'error': 'Budget must be greater than 0'
             }
 
-        # Calculate downpayment (50%) + platform commission (5%)
+        # Calculate downpayment (50%) + platform commission (10%) - matches web implementation
         escrow_amount = budget * Decimal('0.5')  # 50% escrow
-        commission_fee = budget * Decimal('0.05')  # 5% platform fee
-        downpayment_amount = escrow_amount + commission_fee  # Total: 52.5% (or 50% + 5%)
+        commission_fee = budget * Decimal('0.10')  # 10% platform fee (consistent with web)
+        downpayment_amount = escrow_amount + commission_fee  # Total: 60%
 
         # Get category
         category = None
@@ -590,38 +590,88 @@ def create_mobile_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[str, Any
         )
 
         # Handle payment based on method
-        payment_method = job_data.get('downpayment_method', 'WALLET')
+        payment_method = job_data.get('downpayment_method', 'WALLET').upper()
         payment_result = None
 
         if payment_method == 'WALLET':
-            # Process wallet payment
+            # Process wallet payment - RESERVE funds for LISTING jobs
             try:
-                # Deduct from wallet
-                from .services import deduct_from_wallet
-                deduct_result = deduct_from_wallet(user.accountID, float(downpayment_amount))
-
-                if deduct_result.get('success'):
-                    # Mark escrow as paid
-                    job.escrowPaid = True
-                    job.escrowPaidAt = timezone.now()
-                    job.status = 'ACTIVE'
-                    job.downpaymentMethod = 'WALLET'
-                    job.save()
-
-                    payment_result = {
-                        'payment_method': 'WALLET',
-                        'status': 'SUCCESS',
-                        'message': 'Payment successful via wallet',
-                    }
-                else:
-                    # Insufficient funds
+                from .models import Wallet, Transaction
+                from django.db import transaction as db_transaction
+                
+                # Get or create wallet
+                wallet, created = Wallet.objects.get_or_create(
+                    accountFK=user,
+                    defaults={'balance': Decimal('0.00'), 'reservedBalance': Decimal('0.00')}
+                )
+                
+                # Calculate platform fee (10% of total budget) - matches web implementation
+                platform_fee = budget * Decimal('0.10')
+                total_to_charge = escrow_amount + platform_fee
+                
+                print(f"📱 [Mobile Job] Creating LISTING job for user {user.email}")
+                print(f"   Budget: ₱{budget}, Escrow: ₱{escrow_amount}, Platform Fee: ₱{platform_fee}")
+                print(f"   Total to reserve: ₱{total_to_charge}")
+                print(f"   Wallet balance: ₱{wallet.balance}, Reserved: ₱{wallet.reservedBalance}, Available: ₱{wallet.availableBalance}")
+                
+                # Check available balance (balance - already reserved)
+                if wallet.availableBalance < total_to_charge:
                     job.delete()  # Rollback job creation
                     return {
                         'success': False,
-                        'error': deduct_result.get('error', 'Insufficient wallet balance')
+                        'error': 'Insufficient wallet balance',
+                        'required': float(total_to_charge),
+                        'available': float(wallet.availableBalance),
+                        'message': f'You need ₱{total_to_charge:.2f} but only have ₱{wallet.availableBalance:.2f} available.'
                     }
+                
+                with db_transaction.atomic():
+                    # RESERVE funds (don't deduct yet) - funds held until worker is accepted
+                    wallet.reservedBalance += total_to_charge
+                    wallet.save()
+                    
+                    print(f"   ✅ Reserved ₱{total_to_charge} - New reserved balance: ₱{wallet.reservedBalance}")
+                    
+                    # Update job status - NOT escrowPaid yet (will be marked when worker accepts)
+                    job.escrowPaid = False  # Will be True when worker is accepted
+                    job.status = 'ACTIVE'
+                    job.downpaymentMethod = 'WALLET'
+                    job.save()
+                    
+                    # Create PENDING transactions (will be COMPLETED when worker accepts)
+                    Transaction.objects.create(
+                        walletID=wallet,
+                        transactionType=Transaction.TransactionType.PAYMENT,
+                        amount=escrow_amount,
+                        balanceAfter=wallet.balance,
+                        status=Transaction.TransactionStatus.PENDING,
+                        description=f"Escrow payment (50%) for job: {job.title}",
+                        relatedJobPosting=job,
+                        referenceNumber=f"ESCROW-{job.jobID}-{timezone.now().strftime('%Y%m%d%H%M%S')}"
+                    )
+                    
+                    Transaction.objects.create(
+                        walletID=wallet,
+                        transactionType=Transaction.TransactionType.FEE,
+                        amount=platform_fee,
+                        balanceAfter=wallet.balance,
+                        status=Transaction.TransactionStatus.PENDING,
+                        description=f"Platform fee (10%) for job: {job.title}",
+                        relatedJobPosting=job,
+                        referenceNumber=f"FEE-{job.jobID}-{timezone.now().strftime('%Y%m%d%H%M%S')}"
+                    )
+                
+                payment_result = {
+                    'payment_method': 'WALLET',
+                    'status': 'RESERVED',
+                    'message': f'₱{total_to_charge:.2f} reserved in escrow. Funds will be held when a worker is accepted.',
+                    'reserved_amount': float(total_to_charge),
+                    'new_available_balance': float(wallet.availableBalance),
+                }
 
             except Exception as e:
+                import traceback
+                traceback.print_exc()
                 job.delete()  # Rollback
                 return {
                     'success': False,
@@ -632,7 +682,7 @@ def create_mobile_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[str, Any
             job.delete()  # Rollback
             return {
                 'success': False,
-                'error': 'Invalid payment method. Only WALLET is supported.'
+                'error': 'Invalid payment method. Only WALLET is supported for job postings.'
             }
 
         return {

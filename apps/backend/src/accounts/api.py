@@ -880,19 +880,22 @@ def upload_profile_image_endpoint(request, profile_image: UploadedFile = File(..
 
 @router.get("/wallet/balance", auth=cookie_auth)
 def get_wallet_balance(request):
-    """Get current user's wallet balance"""
+    """Get current user's wallet balance including reserved funds"""
     try:
         from .models import Wallet
+        from decimal import Decimal
         
         # Get or create wallet for the user
         wallet, created = Wallet.objects.get_or_create(
             accountFK=request.auth,
-            defaults={'balance': 0.00}
+            defaults={'balance': Decimal('0.00'), 'reservedBalance': Decimal('0.00')}
         )
         
         return {
             "success": True,
             "balance": float(wallet.balance),
+            "reservedBalance": float(wallet.reservedBalance),
+            "availableBalance": float(wallet.availableBalance),
             "created": created
         }
         
@@ -1128,7 +1131,9 @@ def get_wallet_transactions(request):
         return {
             "success": True,
             "transactions": transaction_list,
-            "current_balance": float(wallet.balance)
+            "current_balance": float(wallet.balance),
+            "reserved_balance": float(wallet.reservedBalance),
+            "available_balance": float(wallet.availableBalance)
         }
         
     except Exception as e:

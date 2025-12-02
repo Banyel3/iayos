@@ -10,6 +10,8 @@ import { ENDPOINTS, apiRequest } from "@/lib/api/config";
 export interface WalletData {
   success: boolean;
   balance: number;
+  reservedBalance: number;
+  availableBalance: number;
   pending: number;
   this_month: number;
   total_earned: number;
@@ -31,6 +33,7 @@ interface WithdrawPayload {
 
 /**
  * Fetch wallet balance and stats
+ * Polls every 10 seconds to keep reserved balance up-to-date
  */
 export function useWallet() {
   return useQuery<WalletData>({
@@ -40,8 +43,10 @@ export function useWallet() {
       if (!response.ok) throw new Error("Failed to fetch wallet");
       return response.json();
     },
-    staleTime: 1000 * 60, // 1 minute
+    staleTime: 1000 * 5, // 5 seconds - data considered fresh
     gcTime: 1000 * 60 * 5, // 5 minutes (cacheTime)
+    refetchInterval: 1000 * 10, // Poll every 10 seconds for reserved balance updates
+    refetchIntervalInBackground: false, // Don't poll when app is in background
   });
 }
 

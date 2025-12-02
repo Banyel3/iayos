@@ -1412,6 +1412,13 @@ class Wallet(models.Model):
         default=Decimal('0.00')
     )
     
+    # Reserved balance (funds reserved for pending jobs, not yet deducted)
+    reservedBalance = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0.00')
+    )
+    
     # Timestamps
     createdAt = models.DateTimeField(auto_now_add=True)
     updatedAt = models.DateTimeField(auto_now=True)
@@ -1421,8 +1428,13 @@ class Wallet(models.Model):
             models.Index(fields=['accountFK']),
         ]
     
+    @property
+    def availableBalance(self):
+        """Returns the balance available for new reservations (balance - reserved)"""
+        return self.balance - self.reservedBalance
+    
     def __str__(self):
-        return f"Wallet for {self.accountFK.email} - ₱{self.balance}"
+        return f"Wallet for {self.accountFK.email} - ₱{self.balance} (₱{self.reservedBalance} reserved)"
 
 
 class Transaction(models.Model):

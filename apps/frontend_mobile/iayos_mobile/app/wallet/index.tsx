@@ -157,10 +157,27 @@ export default function WalletScreen() {
           </Card>
         ) : (
           <Card style={styles.balanceCard}>
-            <Text style={styles.balanceLabel}>Current Balance</Text>
+            <Text style={styles.balanceLabel}>Available Balance</Text>
             <Text style={styles.balanceAmount}>
-              {formatCurrency(walletData?.balance || 0)}
+              {formatCurrency(walletData?.availableBalance ?? walletData?.balance ?? 0)}
             </Text>
+            
+            {/* Reserved Balance Indicator */}
+            {(walletData?.reservedBalance ?? 0) > 0 && (
+              <View style={styles.reservedSection}>
+                <View style={styles.reservedRow}>
+                  <Ionicons name="lock-closed" size={16} color={Colors.warning} />
+                  <Text style={styles.reservedLabel}>Reserved in Escrow:</Text>
+                  <Text style={styles.reservedAmount}>
+                    {formatCurrency(walletData?.reservedBalance ?? 0)}
+                  </Text>
+                </View>
+                <Text style={styles.reservedHint}>
+                  Funds held for pending job postings
+                </Text>
+              </View>
+            )}
+            
             <Text style={styles.lastUpdated}>
               Last updated: {formatLastUpdated(walletData?.last_updated)}
             </Text>
@@ -373,6 +390,32 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: Colors.primary,
     marginBottom: Spacing.xs,
+  },
+  reservedSection: {
+    backgroundColor: Colors.warning + "15",
+    borderRadius: BorderRadius.sm,
+    padding: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  reservedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  reservedLabel: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+  },
+  reservedAmount: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: "600",
+    color: Colors.warning,
+  },
+  reservedHint: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.textHint,
+    marginTop: 2,
+    marginLeft: 22,
   },
   lastUpdated: {
     ...Typography.body.small,
