@@ -4759,13 +4759,125 @@ def get_backjob_status(request, job_id: int):
         return Response({"error": "Failed to fetch backjob status"}, status=500)
 
 
-@router.post("/{job_id}/complete-backjob", auth=dual_auth)
-def complete_backjob(request, job_id: int, notes: str = Form(default="")):
+@router.post("/{job_id}/backjob/confirm-started", auth=dual_auth)
+def confirm_backjob_started(request, job_id: int):
     """
-    Worker/Agency marks a backjob as completed.
+    Client confirms that worker has arrived and started the backjob work.
+    This must be done before worker can mark backjob as complete.
     """
     try:
-        print(f"✅ Completing backjob for job {job_id}")
+        print(f"✅ Client confirming backjob work started for job {job_id}")
+        print(f"   Request auth: {request.auth}")
+        
+        # Get the job first
+        try:
+            job = Job.objects.select_related(
+                'clientID__profileID__accountFK',
+                'assignedWorkerID__profileID__accountFK',
+                'assignedAgencyFK__accountFK'
+            ).get(jobID=job_id)
+        except Job.DoesNotExist:
+            return Response({"error": "Job not found"}, status=404)
+        
+        # Verify the requesting user is the client for this job
+        if job.clientID.profileID.accountFK != request.auth:
+            print(f"   ❌ User {request.auth} is not the client for job {job_id}")
+            print(f"   Job client account: {job.clientID.profileID.accountFK}")
+            return Response({"error": "Only the client who posted this job can confirm backjob work started"}, status=403)
+        
+        print(f"   ✓ Verified user is the job client")
+        
+        # Get the active dispute (backjob)
+        dispute = JobDispute.objects.filter(jobID=job, status="UNDER_REVIEW").first()
+        if not dispute:
+            print(f"   ❌ No active backjob (UNDER_REVIEW dispute) found for job {job_id}")
+            return Response({"error": "No active backjob found for this job"}, status=404)
+        
+        print(f"   Found dispute {dispute.disputeID}, backjobStarted={dispute.backjobStarted}")
+        
+        # Check if already confirmed
+        if dispute.backjobStarted:
+            print(f"   ❌ Backjob already confirmed as started at {dispute.backjobStartedAt}")
+            return Response({"error": "Backjob work has already been confirmed as started"}, status=400)
+        
+        # Confirm backjob work has started
+        dispute.backjobStarted = True
+        dispute.backjobStartedAt = timezone.now()
+        dispute.save()
+        
+        print(f"✅ Client confirmed backjob work started for job {job_id}")
+        
+        # Create job log with distinct backjob status
+        JobLog.objects.create(
+            jobID=job,
+            oldStatus=job.status,
+            newStatus="BACKJOB_STARTED",
+            changedBy=request.auth,
+            notes="Client confirmed backjob work has started"
+        )
+        
+        # Add system message to conversation
+        from profiles.models import Conversation, Message
+        conversation = Conversation.objects.filter(relatedJobPosting=job).first()
+        if conversation:
+            Message.objects.create(
+                conversationID=conversation,
+                sender=None,
+                senderAgency=None,
+                messageText="✅ Client confirmed backjob work has started. Worker can now mark backjob as complete when finished.",
+                messageType="SYSTEM"
+            )
+        
+        # Notify the worker/agency
+        worker_account = None
+        if job.assignedWorkerID:
+            worker_account = job.assignedWorkerID.profileID.accountFK
+        elif job.assignedAgencyFK:
+            worker_account = job.assignedAgencyFK.accountFK
+        
+        if worker_account:
+            Notification.objects.create(
+                accountFK=worker_account,
+                notificationType="BACKJOB_WORK_STARTED",
+                title="Backjob Work Confirmed",
+                message=f"Client confirmed you have started the backjob work for '{job.title}'. You can mark it complete when finished.",
+                relatedJobID=job.jobID
+            )
+        
+        return {
+            "success": True,
+            "message": "Backjob work start confirmed. Worker can now mark as complete when finished.",
+            "job_id": job_id,
+            "dispute_id": dispute.disputeID,
+            "backjob_started": True,
+            "backjob_started_at": dispute.backjobStartedAt.isoformat()
+        }
+        
+    except Exception as e:
+        print(f"❌ Error confirming backjob started: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": f"Failed to confirm backjob started: {str(e)}"}, status=500)
+
+
+@router.post("/{job_id}/backjob/mark-complete", auth=dual_auth)
+def mark_backjob_complete(request, job_id: int):
+    """
+    Worker/Agency marks the backjob as complete.
+    Requires client to have confirmed work started first.
+    Notifies client to verify and confirm completion.
+    """
+    try:
+        print(f"✅ Worker marking backjob complete for job {job_id}")
+        
+        # Parse notes from JSON body
+        notes = ""
+        try:
+            import json
+            body = json.loads(request.body)
+            notes = body.get("notes", "")
+        except:
+            pass
         
         # Get the job
         try:
@@ -4777,7 +4889,7 @@ def complete_backjob(request, job_id: int, notes: str = Form(default="")):
         except Job.DoesNotExist:
             return Response({"error": "Job not found"}, status=404)
         
-        # Get the dispute
+        # Get the active dispute (backjob)
         dispute = JobDispute.objects.filter(jobID=job, status="UNDER_REVIEW").first()
         if not dispute:
             return Response({"error": "No active backjob found for this job"}, status=404)
@@ -4794,45 +4906,200 @@ def complete_backjob(request, job_id: int, notes: str = Form(default="")):
         
         if not is_assigned_worker and not is_assigned_agency:
             return Response(
-                {"error": "Only the assigned worker or agency can complete this backjob"},
+                {"error": "Only the assigned worker or agency can mark this backjob as complete"},
                 status=403
             )
         
-        with db_transaction.atomic():
-            # Update dispute status
-            dispute.status = "RESOLVED"
-            dispute.resolution = notes or "Backjob completed by worker/agency"
-            dispute.resolvedDate = timezone.now()
-            dispute.save()
-            
-            # Create job log
-            JobLog.objects.create(
-                jobID=job,
-                action="BACKJOB_COMPLETED",
-                performedBy=request.auth,
-                notes=notes or "Backjob marked as completed"
+        # Check if client confirmed work started
+        if not dispute.backjobStarted:
+            return Response(
+                {"error": "Client must confirm backjob work has started before you can mark it complete"},
+                status=400
             )
-            
-            # Notify the client
-            Notification.objects.create(
-                accountFK=job.clientID.profileID.accountFK,
-                notificationType="BACKJOB_COMPLETED",
-                title="Backjob Completed",
-                message=f"The backjob for '{job.title}' has been completed. Please review the work.",
-                relatedJobID=job.jobID
+        
+        # Check if already marked complete
+        if dispute.workerMarkedBackjobComplete:
+            return Response({"error": "Backjob has already been marked as complete"}, status=400)
+        
+        # Mark backjob as complete
+        dispute.workerMarkedBackjobComplete = True
+        dispute.workerMarkedBackjobCompleteAt = timezone.now()
+        dispute.save()
+        
+        print(f"✅ Worker marked backjob complete for job {job_id}")
+        
+        # Create job log with distinct backjob status
+        JobLog.objects.create(
+            jobID=job,
+            oldStatus="BACKJOB_STARTED",
+            newStatus="BACKJOB_WORKER_DONE",
+            changedBy=request.auth,
+            notes=notes or "Worker marked backjob as completed"
+        )
+        
+        # Add system message to conversation
+        from profiles.models import Conversation, Message
+        conversation = Conversation.objects.filter(relatedJobPosting=job).first()
+        if conversation:
+            Message.objects.create(
+                conversationID=conversation,
+                sender=None,
+                senderAgency=None,
+                messageText="🔧 Worker has marked the backjob as complete. Client, please verify and confirm completion.",
+                messageType="SYSTEM"
             )
+        
+        # Notify the client
+        Notification.objects.create(
+            accountFK=job.clientID.profileID.accountFK,
+            notificationType="BACKJOB_MARKED_COMPLETE",
+            title="Backjob Marked Complete",
+            message=f"The worker has marked the backjob for '{job.title}' as complete. Please verify and confirm.",
+            relatedJobID=job.jobID
+        )
         
         return {
             "success": True,
-            "message": "Backjob marked as completed. The client has been notified.",
+            "message": "Backjob marked as complete. Client has been notified to verify.",
+            "job_id": job_id,
             "dispute_id": dispute.disputeID,
-            "status": dispute.status
+            "worker_marked_complete": True,
+            "worker_marked_complete_at": dispute.workerMarkedBackjobCompleteAt.isoformat()
         }
         
     except Exception as e:
-        print(f"❌ Error completing backjob: {str(e)}")
+        print(f"❌ Error marking backjob complete: {str(e)}")
         import traceback
         traceback.print_exc()
-        return Response({"error": f"Failed to complete backjob: {str(e)}"}, status=500)
+        return Response({"error": f"Failed to mark backjob complete: {str(e)}"}, status=500)
+
+
+@router.post("/{job_id}/backjob/approve-completion", auth=dual_auth)
+def approve_backjob_completion(request, job_id: int):
+    """
+    Client confirms the backjob is complete and satisfactory.
+    This closes the conversation and marks the dispute as RESOLVED.
+    No payment or reviews for backjobs.
+    """
+    try:
+        print(f"✅ Client approving backjob completion for job {job_id}")
+        print(f"   Request auth: {request.auth}")
+        
+        # Get the job first
+        try:
+            job = Job.objects.select_related(
+                'clientID__profileID__accountFK',
+                'assignedWorkerID__profileID__accountFK',
+                'assignedAgencyFK__accountFK'
+            ).get(jobID=job_id)
+        except Job.DoesNotExist:
+            return Response({"error": "Job not found"}, status=404)
+        
+        # Verify the requesting user is the client for this job
+        if job.clientID.profileID.accountFK != request.auth:
+            print(f"   ❌ User {request.auth} is not the client for job {job_id}")
+            return Response({"error": "Only the client who posted this job can approve backjob completion"}, status=403)
+        
+        print(f"   ✓ Verified user is the job client")
+        
+        # Get the active dispute (backjob)
+        dispute = JobDispute.objects.filter(jobID=job, status="UNDER_REVIEW").first()
+        if not dispute:
+            return Response({"error": "No active backjob found for this job"}, status=404)
+        
+        # Check if worker marked it complete
+        if not dispute.workerMarkedBackjobComplete:
+            return Response(
+                {"error": "Worker must mark backjob as complete before client can approve"},
+                status=400
+            )
+        
+        # Check if already confirmed
+        if dispute.clientConfirmedBackjob:
+            return Response({"error": "Backjob has already been confirmed as complete"}, status=400)
+        
+        with db_transaction.atomic():
+            # Mark client confirmation
+            dispute.clientConfirmedBackjob = True
+            dispute.clientConfirmedBackjobAt = timezone.now()
+            
+            # Mark dispute as resolved
+            dispute.status = "RESOLVED"
+            dispute.resolution = "Backjob completed and confirmed by client"
+            dispute.resolvedDate = timezone.now()
+            dispute.save()
+            
+            # Close the conversation
+            from profiles.models import Conversation, Message
+            conversation = Conversation.objects.filter(relatedJobPosting=job).first()
+            if conversation:
+                conversation.status = Conversation.ConversationStatus.COMPLETED
+                conversation.save()
+                
+                # Add final system message
+                Message.objects.create(
+                    conversationID=conversation,
+                    sender=None,
+                    senderAgency=None,
+                    messageText="✅ Backjob completed and confirmed! This conversation is now closed. Thank you for using iAyos!",
+                    messageType="SYSTEM"
+                )
+            
+            # Create job log with distinct backjob status
+            JobLog.objects.create(
+                jobID=job,
+                oldStatus="BACKJOB_WORKER_DONE",
+                newStatus="BACKJOB_RESOLVED",
+                changedBy=request.auth,
+                notes="Client confirmed backjob completion - dispute resolved"
+            )
+            
+            # Notify the worker/agency
+            worker_account = None
+            if job.assignedWorkerID:
+                worker_account = job.assignedWorkerID.profileID.accountFK
+            elif job.assignedAgencyFK:
+                worker_account = job.assignedAgencyFK.accountFK
+            
+            if worker_account:
+                Notification.objects.create(
+                    accountFK=worker_account,
+                    notificationType="BACKJOB_CONFIRMED",
+                    title="Backjob Confirmed Complete",
+                    message=f"Client has confirmed the backjob for '{job.title}' is complete. Great job!",
+                    relatedJobID=job.jobID
+                )
+        
+        print(f"✅ Backjob completed and conversation closed for job {job_id}")
+        
+        return {
+            "success": True,
+            "message": "Backjob confirmed complete. The conversation has been closed.",
+            "job_id": job_id,
+            "dispute_id": dispute.disputeID,
+            "status": "RESOLVED",
+            "client_confirmed": True,
+            "client_confirmed_at": dispute.clientConfirmedBackjobAt.isoformat()
+        }
+        
+    except Exception as e:
+        print(f"❌ Error approving backjob completion: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": f"Failed to approve backjob completion: {str(e)}"}, status=500)
+
+
+@router.post("/{job_id}/complete-backjob", auth=dual_auth)
+def complete_backjob(request, job_id: int, notes: str = Form(default="")):
+    """
+    DEPRECATED: Use the new 3-phase backjob workflow instead:
+    1. POST /{job_id}/backjob/confirm-started (Client)
+    2. POST /{job_id}/backjob/mark-complete (Worker)
+    3. POST /{job_id}/backjob/approve-completion (Client)
+    
+    This endpoint is kept for backward compatibility but redirects to mark-complete.
+    """
+    print(f"⚠️ Deprecated complete-backjob endpoint called for job {job_id}. Use new 3-phase workflow.")
+    return mark_backjob_complete(request, job_id, notes)
 
 #endregion

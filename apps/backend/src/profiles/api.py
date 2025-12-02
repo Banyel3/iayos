@@ -901,7 +901,15 @@ def get_conversation_by_job(request, job_id: int, reopen: bool = False):
                 "status": active_dispute.status,
                 "reason": active_dispute.reason,
                 "priority": active_dispute.priority,
+                # Backjob workflow tracking fields
+                "backjob_started": active_dispute.backjobStarted,
+                "backjob_started_at": active_dispute.backjobStartedAt.isoformat() if active_dispute.backjobStartedAt else None,
+                "worker_marked_complete": active_dispute.workerMarkedBackjobComplete,
+                "worker_marked_complete_at": active_dispute.workerMarkedBackjobCompleteAt.isoformat() if active_dispute.workerMarkedBackjobCompleteAt else None,
+                "client_confirmed_complete": active_dispute.clientConfirmedBackjob,
+                "client_confirmed_complete_at": active_dispute.clientConfirmedBackjobAt.isoformat() if active_dispute.clientConfirmedBackjobAt else None,
             }
+            print(f"   🔄 Backjob info: {backjob_info}")
         
         if conversation:
             reopened = False
@@ -1332,7 +1340,15 @@ def get_conversation_messages(request, conversation_id: int):
                 "reason": active_dispute.reason,
                 "priority": active_dispute.priority,
                 "description": active_dispute.description,
+                # Backjob workflow tracking fields
+                "backjob_started": active_dispute.backjobStarted,
+                "backjob_started_at": active_dispute.backjobStartedAt.isoformat() if active_dispute.backjobStartedAt else None,
+                "worker_marked_complete": active_dispute.workerMarkedBackjobComplete,
+                "worker_marked_complete_at": active_dispute.workerMarkedBackjobCompleteAt.isoformat() if active_dispute.workerMarkedBackjobCompleteAt else None,
+                "client_confirmed_complete": active_dispute.clientConfirmedBackjob,
+                "client_confirmed_complete_at": active_dispute.clientConfirmedBackjobAt.isoformat() if active_dispute.clientConfirmedBackjobAt else None,
             }
+            print(f"   🔄 Backjob info: started={active_dispute.backjobStarted}, worker_done={active_dispute.workerMarkedBackjobComplete}, client_confirmed={active_dispute.clientConfirmedBackjob}")
 
         return {
             "success": True,

@@ -1141,9 +1141,11 @@ def get_dispute_detail(dispute_id: int) -> Dict[str, Any]:
         dispute_id: Dispute ID
         
     Returns:
-        Dictionary with complete dispute details
+        Dictionary with complete dispute details including job logs and backjob workflow
     """
     try:
+        from accounts.models import JobLog
+        
         dispute = JobDispute.objects.select_related(
             'jobID__clientID__profileID__accountFK',
             'jobID__assignedWorkerID__profileID__accountFK',
@@ -1172,6 +1174,30 @@ def get_dispute_detail(dispute_id: int) -> Dict[str, Any]:
             'transactionID', 'transactionType', 'amount', 
             'status', 'paymentMethod', 'createdAt'
         )
+        
+        # Get job logs (activity log) - especially backjob-related ones
+        job_logs = JobLog.objects.filter(jobID=job).select_related('changedBy').order_by('-createdAt')
+        activity_logs = []
+        for log in job_logs:
+            activity_logs.append({
+                'id': log.logID,
+                'old_status': log.oldStatus,
+                'new_status': log.newStatus,
+                'changed_by': log.changedBy.email if log.changedBy else 'System',
+                'notes': log.notes,
+                'created_at': log.createdAt.isoformat(),
+                'is_backjob_event': log.newStatus in ['BACKJOB_REQ', 'BACKJOB_APPROVED', 'BACKJOB_STARTED', 'BACKJOB_WORKER_DONE', 'BACKJOB_RESOLVED']
+            })
+        
+        # Get backjob workflow status
+        backjob_workflow = {
+            'backjob_started': dispute.backjobStarted,
+            'backjob_started_at': dispute.backjobStartedAt.isoformat() if dispute.backjobStartedAt else None,
+            'worker_marked_complete': dispute.workerMarkedBackjobComplete,
+            'worker_marked_complete_at': dispute.workerMarkedBackjobCompleteAt.isoformat() if dispute.workerMarkedBackjobCompleteAt else None,
+            'client_confirmed': dispute.clientConfirmedBackjob,
+            'client_confirmed_at': dispute.clientConfirmedBackjobAt.isoformat() if dispute.clientConfirmedBackjobAt else None,
+        }
         
         return {
             'success': True,
@@ -1221,7 +1247,9 @@ def get_dispute_detail(dispute_id: int) -> Dict[str, Any]:
                         'created_at': t['createdAt'].isoformat()
                     }
                     for t in transactions
-                ]
+                ],
+                'activity_logs': activity_logs,
+                'backjob_workflow': backjob_workflow
             }
         }
         

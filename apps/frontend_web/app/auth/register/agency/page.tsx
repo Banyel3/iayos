@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { Eye, EyeOff } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -35,6 +36,7 @@ const agencyFormSchema = z.object({
       /[^A-Za-z0-9]/,
       "Password must contain at least one special character"
     ),
+  confirmPassword: z.string().min(1, "Please confirm your password"),
   street_address: z
     .string()
     .min(5, "Street address must be at least 5 characters")
@@ -51,10 +53,15 @@ const agencyFormSchema = z.object({
     .string()
     .min(4, "Postal code must be at least 4 characters")
     .max(20, "Postal code must be less than 20 characters"),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords do not match",
+  path: ["confirmPassword"],
 });
 
 const AgencyRegister = () => {
   const router = useRouter();
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Agency form
   const agencyForm = useForm<z.infer<typeof agencyFormSchema>>({
@@ -63,6 +70,7 @@ const AgencyRegister = () => {
       businessName: "",
       email: "",
       password: "",
+      confirmPassword: "",
       street_address: "",
       city: "Zamboanga City",
       province: "Zamboanga del Sur",
@@ -652,12 +660,60 @@ const AgencyRegister = () => {
                                 <span className="text-red-500 ml-1">*</span>
                               </FormLabel>
                               <FormControl>
-                                <Input
-                                  type="password"
-                                  placeholder="Create a strong password"
-                                  className="h-12"
-                                  {...field}
-                                />
+                                <div className="relative">
+                                  <Input
+                                    type={showPassword ? "text" : "password"}
+                                    placeholder="Create a strong password"
+                                    className="h-12 pr-10"
+                                    {...field}
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors"
+                                  >
+                                    {showPassword ? (
+                                      <EyeOff className="h-5 w-5" />
+                                    ) : (
+                                      <Eye className="h-5 w-5" />
+                                    )}
+                                  </button>
+                                </div>
+                              </FormControl>
+                              <FormMessage className="font-inter text-xs text-red-500" />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={agencyForm.control}
+                          name="confirmPassword"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="font-inter text-sm font-medium text-gray-700">
+                                Confirm Password
+                                <span className="text-red-500 ml-1">*</span>
+                              </FormLabel>
+                              <FormControl>
+                                <div className="relative">
+                                  <Input
+                                    type={showConfirmPassword ? "text" : "password"}
+                                    placeholder="Confirm your password"
+                                    className="h-12 pr-10"
+                                    {...field}
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors"
+                                  >
+                                    {showConfirmPassword ? (
+                                      <EyeOff className="h-5 w-5" />
+                                    ) : (
+                                      <Eye className="h-5 w-5" />
+                                    )}
+                                  </button>
+                                </div>
                               </FormControl>
                               <FormMessage className="font-inter text-xs text-red-500" />
                             </FormItem>

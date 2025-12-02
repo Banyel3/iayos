@@ -110,12 +110,20 @@ CORS_ALLOW_ALL_ORIGINS = True  # Allow all origins in development (restrict in p
 #     "http://127.0.0.1:8000",
 # ]
 
+# Get the frontend URL from environment for CSRF trust
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3400')
+API_URL = os.getenv('EXPO_PUBLIC_API_URL', 'http://localhost:8000').strip('"')
+
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "http://localhost:3400",
+    "http://127.0.0.1:3400",
     "http://localhost:8000",
     "http://127.0.0.1:8000",
     "http://10.0.2.2:8000",  # Android emulator host access
+    FRONTEND_URL,  # Dynamic frontend URL from env
+    API_URL,  # Dynamic API URL from env
 ]
 
 # Allow credentials (cookies) to be sent

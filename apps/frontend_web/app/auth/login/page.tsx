@@ -2,6 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
+import { Eye, EyeOff } from "lucide-react";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -39,6 +40,7 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isRateLimited, setIsRateLimited] = useState(false);
   const [rateLimitTime, setRateLimitTime] = useState(0);
+  const [showPassword, setShowPassword] = useState(false);
   const {
     isAuthenticated,
     isLoading: authLoading,
@@ -410,18 +412,31 @@ const Login = () => {
                             Password<span className="text-red-500 ml-1">*</span>
                           </FormLabel>
                           <FormControl>
-                            <Input
-                              type="password"
-                              placeholder="Enter your password"
-                              autoComplete="current-password"
-                              disabled={isLoading}
-                              className={`h-11 ${
-                                form.formState.errors.password
-                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500/20"
-                                  : ""
-                              }`}
-                              {...field}
-                            />
+                            <div className="relative">
+                              <Input
+                                type={showPassword ? "text" : "password"}
+                                placeholder="Enter your password"
+                                autoComplete="current-password"
+                                disabled={isLoading}
+                                className={`h-11 pr-10 ${
+                                  form.formState.errors.password
+                                    ? "border-red-500 focus:border-red-500 focus:ring-red-500/20"
+                                    : ""
+                                }`}
+                                {...field}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors"
+                              >
+                                {showPassword ? (
+                                  <EyeOff className="h-5 w-5" />
+                                ) : (
+                                  <Eye className="h-5 w-5" />
+                                )}
+                              </button>
+                            </div>
                           </FormControl>
                           <FormMessage className="font-inter text-xs text-red-500" />
                         </FormItem>
@@ -637,18 +652,31 @@ const Login = () => {
                               <span className="text-red-500 ml-1">*</span>
                             </FormLabel>
                             <FormControl>
-                              <Input
-                                type="password"
-                                placeholder="Enter your password"
-                                autoComplete="current-password"
-                                disabled={isLoading}
-                                className={`h-12 ${
-                                  form.formState.errors.password
-                                    ? "border-red-500 focus:border-red-500 focus:ring-red-500/20"
-                                    : ""
-                                }`}
-                                {...field}
-                              />
+                              <div className="relative">
+                                <Input
+                                  type={showPassword ? "text" : "password"}
+                                  placeholder="Enter your password"
+                                  autoComplete="current-password"
+                                  disabled={isLoading}
+                                  className={`h-12 pr-10 ${
+                                    form.formState.errors.password
+                                      ? "border-red-500 focus:border-red-500 focus:ring-red-500/20"
+                                      : ""
+                                  }`}
+                                  {...field}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setShowPassword(!showPassword)}
+                                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors"
+                                >
+                                  {showPassword ? (
+                                    <EyeOff className="h-5 w-5" />
+                                  ) : (
+                                    <Eye className="h-5 w-5" />
+                                  )}
+                                </button>
+                              </div>
                             </FormControl>
                             <FormMessage className="font-inter text-xs text-red-500" />
                           </FormItem>

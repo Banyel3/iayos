@@ -20,8 +20,30 @@ import {
   AlertCircle,
   Loader2,
   ImageIcon,
+  History,
+  PlayCircle,
+  CheckCircle2,
 } from "lucide-react";
 import Link from "next/link";
+
+interface ActivityLog {
+  id: number;
+  old_status: string | null;
+  new_status: string;
+  changed_by: string;
+  notes: string | null;
+  created_at: string;
+  is_backjob_event: boolean;
+}
+
+interface BackjobWorkflow {
+  backjob_started: boolean;
+  backjob_started_at: string | null;
+  worker_marked_complete: boolean;
+  worker_marked_complete_at: string | null;
+  client_confirmed: boolean;
+  client_confirmed_at: string | null;
+}
 
 interface JobDispute {
   id: string;
@@ -70,6 +92,8 @@ interface JobDispute {
     timestamp: string;
   }[];
   assignedTo?: string;
+  activityLogs?: ActivityLog[];
+  backjobWorkflow?: BackjobWorkflow;
 }
 
 export default function DisputeDetailPage() {
@@ -142,6 +166,8 @@ export default function DisputeDetailPage() {
           messages: d.messages || [],
           timeline: d.timeline || [],
           assignedTo: d.assigned_to || d.worker?.name || "Unassigned",
+          activityLogs: d.activity_logs || [],
+          backjobWorkflow: d.backjob_workflow || null,
         });
       } else {
         setError(data.error || "Failed to load dispute details.");
@@ -538,6 +564,197 @@ export default function DisputeDetailPage() {
                         Dispute Resolved •{" "}
                         {new Date(dispute.resolvedDate!).toLocaleDateString()}
                       </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Backjob Workflow Progress */}
+              {dispute.status === "under_review" && dispute.backjobWorkflow && (
+                <Card className="border-orange-200">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-orange-900">
+                      <PlayCircle className="h-5 w-5 text-orange-600" />
+                      Backjob Workflow Progress
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {/* Step 1: Client confirms work started */}
+                      <div className={`flex items-start gap-3 p-3 rounded-lg border ${
+                        dispute.backjobWorkflow.backjob_started 
+                          ? "bg-green-50 border-green-200" 
+                          : "bg-gray-50 border-gray-200"
+                      }`}>
+                        <div className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center ${
+                          dispute.backjobWorkflow.backjob_started 
+                            ? "bg-green-500 text-white" 
+                            : "bg-gray-300 text-gray-600"
+                        }`}>
+                          {dispute.backjobWorkflow.backjob_started ? (
+                            <CheckCircle2 className="h-4 w-4" />
+                          ) : (
+                            <span className="text-xs font-bold">1</span>
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <p className={`text-sm font-medium ${
+                            dispute.backjobWorkflow.backjob_started ? "text-green-800" : "text-gray-600"
+                          }`}>
+                            Client Confirms Work Started
+                          </p>
+                          {dispute.backjobWorkflow.backjob_started_at && (
+                            <p className="text-xs text-green-600 mt-1">
+                              ✓ {new Date(dispute.backjobWorkflow.backjob_started_at).toLocaleString()}
+                            </p>
+                          )}
+                          {!dispute.backjobWorkflow.backjob_started && (
+                            <p className="text-xs text-gray-500 mt-1">Waiting for client...</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Step 2: Worker marks complete */}
+                      <div className={`flex items-start gap-3 p-3 rounded-lg border ${
+                        dispute.backjobWorkflow.worker_marked_complete 
+                          ? "bg-green-50 border-green-200" 
+                          : dispute.backjobWorkflow.backjob_started
+                            ? "bg-yellow-50 border-yellow-200"
+                            : "bg-gray-50 border-gray-200"
+                      }`}>
+                        <div className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center ${
+                          dispute.backjobWorkflow.worker_marked_complete 
+                            ? "bg-green-500 text-white" 
+                            : dispute.backjobWorkflow.backjob_started
+                              ? "bg-yellow-500 text-white"
+                              : "bg-gray-300 text-gray-600"
+                        }`}>
+                          {dispute.backjobWorkflow.worker_marked_complete ? (
+                            <CheckCircle2 className="h-4 w-4" />
+                          ) : (
+                            <span className="text-xs font-bold">2</span>
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <p className={`text-sm font-medium ${
+                            dispute.backjobWorkflow.worker_marked_complete 
+                              ? "text-green-800" 
+                              : dispute.backjobWorkflow.backjob_started
+                                ? "text-yellow-800"
+                                : "text-gray-600"
+                          }`}>
+                            Worker Marks Complete
+                          </p>
+                          {dispute.backjobWorkflow.worker_marked_complete_at && (
+                            <p className="text-xs text-green-600 mt-1">
+                              ✓ {new Date(dispute.backjobWorkflow.worker_marked_complete_at).toLocaleString()}
+                            </p>
+                          )}
+                          {dispute.backjobWorkflow.backjob_started && !dispute.backjobWorkflow.worker_marked_complete && (
+                            <p className="text-xs text-yellow-600 mt-1">⏳ In progress...</p>
+                          )}
+                          {!dispute.backjobWorkflow.backjob_started && (
+                            <p className="text-xs text-gray-500 mt-1">Pending step 1</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Step 3: Client confirms completion */}
+                      <div className={`flex items-start gap-3 p-3 rounded-lg border ${
+                        dispute.backjobWorkflow.client_confirmed 
+                          ? "bg-green-50 border-green-200" 
+                          : dispute.backjobWorkflow.worker_marked_complete
+                            ? "bg-yellow-50 border-yellow-200"
+                            : "bg-gray-50 border-gray-200"
+                      }`}>
+                        <div className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center ${
+                          dispute.backjobWorkflow.client_confirmed 
+                            ? "bg-green-500 text-white" 
+                            : dispute.backjobWorkflow.worker_marked_complete
+                              ? "bg-yellow-500 text-white"
+                              : "bg-gray-300 text-gray-600"
+                        }`}>
+                          {dispute.backjobWorkflow.client_confirmed ? (
+                            <CheckCircle2 className="h-4 w-4" />
+                          ) : (
+                            <span className="text-xs font-bold">3</span>
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <p className={`text-sm font-medium ${
+                            dispute.backjobWorkflow.client_confirmed 
+                              ? "text-green-800" 
+                              : dispute.backjobWorkflow.worker_marked_complete
+                                ? "text-yellow-800"
+                                : "text-gray-600"
+                          }`}>
+                            Client Confirms Completion
+                          </p>
+                          {dispute.backjobWorkflow.client_confirmed_at && (
+                            <p className="text-xs text-green-600 mt-1">
+                              ✓ {new Date(dispute.backjobWorkflow.client_confirmed_at).toLocaleString()}
+                            </p>
+                          )}
+                          {dispute.backjobWorkflow.worker_marked_complete && !dispute.backjobWorkflow.client_confirmed && (
+                            <p className="text-xs text-yellow-600 mt-1">⏳ Waiting for client approval...</p>
+                          )}
+                          {!dispute.backjobWorkflow.worker_marked_complete && (
+                            <p className="text-xs text-gray-500 mt-1">Pending step 2</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Activity Log */}
+              {dispute.activityLogs && dispute.activityLogs.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <History className="h-5 w-5 text-indigo-600" />
+                      Activity Log
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                      {dispute.activityLogs.map((log) => (
+                        <div
+                          key={log.id}
+                          className={`p-3 rounded-lg border ${
+                            log.is_backjob_event
+                              ? "bg-orange-50 border-orange-200"
+                              : "bg-gray-50 border-gray-200"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between mb-1">
+                            <div className="flex items-center gap-2">
+                              <span className={`text-xs px-2 py-0.5 rounded font-medium ${
+                                log.is_backjob_event
+                                  ? "bg-orange-200 text-orange-800"
+                                  : "bg-gray-200 text-gray-700"
+                              }`}>
+                                {log.new_status.replace(/_/g, " ")}
+                              </span>
+                              {log.old_status && log.old_status !== log.new_status && (
+                                <span className="text-xs text-gray-400">
+                                  from {log.old_status.replace(/_/g, " ")}
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-xs text-gray-400">
+                              {new Date(log.created_at).toLocaleString()}
+                            </span>
+                          </div>
+                          {log.notes && (
+                            <p className="text-sm text-gray-700 mt-1">{log.notes}</p>
+                          )}
+                          <p className="text-xs text-gray-500 mt-1">
+                            By: {log.changed_by}
+                          </p>
+                        </div>
+                      ))}
                     </div>
                   </CardContent>
                 </Card>

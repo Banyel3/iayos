@@ -38,6 +38,11 @@ import {
   useMarkComplete,
   useApproveCompletion,
 } from "../../lib/hooks/useJobActions";
+import {
+  useConfirmBackjobStarted,
+  useMarkBackjobComplete,
+  useApproveBackjobCompletion,
+} from "../../lib/hooks/useBackjobActions";
 import { useSubmitReview } from "../../lib/hooks/useReviews";
 import MessageBubble from "../../components/MessageBubble";
 import MessageInput from "../../components/MessageInput";
@@ -137,6 +142,11 @@ export default function ChatScreen() {
   const markCompleteMutation = useMarkComplete();
   const approveCompletionMutation = useApproveCompletion();
   const submitReviewMutation = useSubmitReview();
+
+  // Backjob action mutations
+  const confirmBackjobStartedMutation = useConfirmBackjobStarted();
+  const markBackjobCompleteMutation = useMarkBackjobComplete();
+  const approveBackjobCompletionMutation = useApproveBackjobCompletion();
 
   // WebSocket connection state
   const { isConnected } = useWebSocketConnection();
@@ -313,6 +323,90 @@ export default function ChatScreen() {
 
     setShowCashUploadModal(false);
     setSelectedImage(null);
+  };
+
+  // ============================================
+  // BACKJOB WORKFLOW HANDLERS
+  // ============================================
+
+  // Handle confirm backjob started (CLIENT only)
+  const handleConfirmBackjobStarted = () => {
+    if (!conversation) return;
+
+    const workerName =
+      conversation.assigned_employee?.name ||
+      conversation.other_participant?.name ||
+      "the worker";
+
+    Alert.alert(
+      "Confirm Backjob Started",
+      `Are you sure ${workerName} has arrived and started the backjob work?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Confirm",
+          onPress: () => {
+            confirmBackjobStartedMutation.mutate(conversation.job.id);
+          },
+        },
+      ]
+    );
+  };
+
+  // Handle mark backjob complete (WORKER only)
+  const handleMarkBackjobComplete = () => {
+    if (!conversation) return;
+
+    // Check if backjob work started was confirmed
+    if (!conversation.backjob?.backjob_started) {
+      Alert.alert(
+        "Cannot Mark Complete",
+        "Client must confirm that backjob work has started before you can mark it as complete.",
+        [{ text: "OK" }]
+      );
+      return;
+    }
+
+    Alert.prompt(
+      "Mark Backjob Complete",
+      "Add optional completion notes:",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Submit",
+          onPress: (notes?: string) => {
+            markBackjobCompleteMutation.mutate({
+              jobId: conversation.job.id,
+              notes: notes || undefined,
+            });
+          },
+        },
+      ],
+      "plain-text",
+      "",
+      "default"
+    );
+  };
+
+  // Handle approve backjob completion (CLIENT only)
+  const handleApproveBackjobCompletion = () => {
+    if (!conversation) return;
+
+    Alert.alert(
+      "Approve Backjob Completion",
+      "Are you satisfied with the backjob work? This will close the conversation and resolve the dispute.\n\nNote: Backjobs do not require payment (they are free remedial work).",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Approve & Close",
+          onPress: () => {
+            approveBackjobCompletionMutation.mutate({
+              jobId: conversation.job.id,
+            });
+          },
+        },
+      ]
+    );
   };
 
   // Handle submit review
@@ -1332,31 +1426,186 @@ export default function ChatScreen() {
 
         {/* Backjob Banner - shows when there's an active backjob */}
         {conversation.backjob?.has_backjob && (
-          <TouchableOpacity
-            style={styles.backjobBanner}
-            onPress={() => router.push(`/jobs/backjob-detail?jobId=${conversation.job.id}&disputeId=${conversation.backjob?.dispute_id}`)}
-            activeOpacity={0.8}
-          >
-            <View style={styles.backjobBannerContent}>
-              <View style={styles.backjobIconContainer}>
-                <Ionicons name="construct" size={20} color={Colors.white} />
-              </View>
-              <View style={styles.backjobBannerText}>
-                <Text style={styles.backjobBannerTitle}>
-                  🔄 Active Backjob Request
-                </Text>
-                <Text style={styles.backjobBannerSubtitle} numberOfLines={1}>
-                  {conversation.backjob.reason || "Backjob work required"}
-                </Text>
-                <View style={styles.backjobStatusBadge}>
-                  <Text style={styles.backjobStatusText}>
-                    Status: {conversation.backjob.status === "UNDER_REVIEW" ? "Action Required" : "Pending Review"}
-                  </Text>
+          <View style={styles.backjobSection}>
+            <TouchableOpacity
+              style={styles.backjobBanner}
+              onPress={() => router.push(`/jobs/backjob-detail?jobId=${conversation.job.id}&disputeId=${conversation.backjob?.dispute_id}`)}
+              activeOpacity={0.8}
+            >
+              <View style={styles.backjobBannerContent}>
+                <View style={styles.backjobIconContainer}>
+                  <Ionicons name="construct" size={20} color={Colors.white} />
                 </View>
+                <View style={styles.backjobBannerText}>
+                  <Text style={styles.backjobBannerTitle}>
+                    🔄 Active Backjob Request
+                  </Text>
+                  <Text style={styles.backjobBannerSubtitle} numberOfLines={1}>
+                    {conversation.backjob.reason || "Backjob work required"}
+                  </Text>
+                  <View style={styles.backjobStatusBadge}>
+                    <Text style={styles.backjobStatusText}>
+                      Status: {conversation.backjob.status === "UNDER_REVIEW" ? "Action Required" : "Pending Review"}
+                    </Text>
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={Colors.warning} />
               </View>
-              <Ionicons name="chevron-forward" size={20} color={Colors.warning} />
-            </View>
-          </TouchableOpacity>
+            </TouchableOpacity>
+
+            {/* Backjob Workflow Action Buttons - Only show when backjob is approved (UNDER_REVIEW) */}
+            {hasApprovedBackjob && (
+              <View style={styles.backjobActionButtonsContainer}>
+                {/* CLIENT: Confirm Backjob Started Button */}
+                {conversation.my_role === "CLIENT" &&
+                  !conversation.backjob?.backjob_started && (
+                    <TouchableOpacity
+                      style={[
+                        styles.actionButton,
+                        styles.confirmBackjobStartedButton,
+                      ]}
+                      onPress={handleConfirmBackjobStarted}
+                      disabled={confirmBackjobStartedMutation.isPending}
+                    >
+                      {confirmBackjobStartedMutation.isPending ? (
+                        <ActivityIndicator size="small" color={Colors.white} />
+                      ) : (
+                        <>
+                          <Ionicons
+                            name="checkmark-circle"
+                            size={20}
+                            color={Colors.white}
+                          />
+                          <Text style={styles.actionButtonText}>
+                            Confirm Backjob Work Started
+                          </Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  )}
+
+                {/* CLIENT: Waiting for Worker to Complete Backjob */}
+                {conversation.my_role === "CLIENT" &&
+                  conversation.backjob?.backjob_started &&
+                  !conversation.backjob?.worker_marked_complete && (
+                    <View style={[styles.actionButton, styles.waitingButton]}>
+                      <Ionicons
+                        name="time-outline"
+                        size={20}
+                        color={Colors.textSecondary}
+                      />
+                      <Text style={styles.waitingButtonText}>
+                        Waiting for worker to mark backjob complete...
+                      </Text>
+                    </View>
+                  )}
+
+                {/* WORKER: Waiting for Client Confirmation */}
+                {conversation.my_role === "WORKER" &&
+                  !conversation.backjob?.backjob_started && (
+                    <View style={[styles.actionButton, styles.waitingButton]}>
+                      <Ionicons
+                        name="time-outline"
+                        size={20}
+                        color={Colors.textSecondary}
+                      />
+                      <Text style={styles.waitingButtonText}>
+                        Waiting for client to confirm backjob started...
+                      </Text>
+                    </View>
+                  )}
+
+                {/* WORKER: Mark Backjob Complete Button */}
+                {conversation.my_role === "WORKER" &&
+                  conversation.backjob?.backjob_started &&
+                  !conversation.backjob?.worker_marked_complete && (
+                    <TouchableOpacity
+                      style={[styles.actionButton, styles.markBackjobCompleteButton]}
+                      onPress={handleMarkBackjobComplete}
+                      disabled={markBackjobCompleteMutation.isPending}
+                    >
+                      {markBackjobCompleteMutation.isPending ? (
+                        <ActivityIndicator size="small" color={Colors.white} />
+                      ) : (
+                        <>
+                          <Ionicons
+                            name="checkmark-done"
+                            size={20}
+                            color={Colors.white}
+                          />
+                          <Text style={styles.actionButtonText}>
+                            Mark Backjob Complete
+                          </Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  )}
+
+                {/* WORKER: Waiting for Client Approval */}
+                {conversation.my_role === "WORKER" &&
+                  conversation.backjob?.worker_marked_complete &&
+                  !conversation.backjob?.client_confirmed_complete && (
+                    <View style={[styles.actionButton, styles.waitingButton]}>
+                      <Ionicons
+                        name="time-outline"
+                        size={20}
+                        color={Colors.textSecondary}
+                      />
+                      <Text style={styles.waitingButtonText}>
+                        Waiting for client to approve backjob...
+                      </Text>
+                    </View>
+                  )}
+
+                {/* CLIENT: Approve Backjob Completion Button */}
+                {conversation.my_role === "CLIENT" &&
+                  conversation.backjob?.worker_marked_complete &&
+                  !conversation.backjob?.client_confirmed_complete && (
+                    <TouchableOpacity
+                      style={[
+                        styles.actionButton,
+                        styles.approveBackjobButton,
+                      ]}
+                      onPress={handleApproveBackjobCompletion}
+                      disabled={approveBackjobCompletionMutation.isPending}
+                    >
+                      {approveBackjobCompletionMutation.isPending ? (
+                        <ActivityIndicator size="small" color={Colors.white} />
+                      ) : (
+                        <>
+                          <Ionicons
+                            name="checkmark-circle"
+                            size={20}
+                            color={Colors.white}
+                          />
+                          <Text style={styles.actionButtonText}>
+                            Approve Backjob & Close
+                          </Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  )}
+
+                {/* Status Messages */}
+                {conversation.backjob?.backjob_started &&
+                  conversation.my_role === "WORKER" &&
+                  !conversation.backjob?.worker_marked_complete && (
+                    <Text style={styles.backjobStatusMessage}>
+                      ✓ Client confirmed backjob work started
+                    </Text>
+                  )}
+
+                {conversation.backjob?.worker_marked_complete &&
+                  !conversation.backjob?.client_confirmed_complete && (
+                    <Text style={styles.backjobStatusMessage}>
+                      {conversation.my_role === "CLIENT"
+                        ? "Worker marked backjob complete. Please review and approve."
+                        : "✓ Marked complete. Waiting for client approval."}
+                    </Text>
+                  )}
+              </View>
+            )}
+          </View>
         )}
 
         {/* Messages List */}
@@ -2172,5 +2421,32 @@ const styles = StyleSheet.create({
     ...Typography.body.small,
     color: Colors.textSecondary,
     marginTop: 2,
+  },
+  // Backjob Section & Action Buttons
+  backjobSection: {
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  backjobActionButtonsContainer: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    backgroundColor: "#FFF8E1",
+    gap: Spacing.sm,
+  },
+  confirmBackjobStartedButton: {
+    backgroundColor: "#F57C00",
+  },
+  markBackjobCompleteButton: {
+    backgroundColor: Colors.warning,
+  },
+  approveBackjobButton: {
+    backgroundColor: Colors.success,
+  },
+  backjobStatusMessage: {
+    ...Typography.body.small,
+    color: "#E65100",
+    textAlign: "center",
+    paddingVertical: Spacing.xs,
+    fontStyle: "italic",
   },
 });

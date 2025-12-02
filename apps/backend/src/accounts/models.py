@@ -1212,6 +1212,17 @@ class JobDispute(models.Model):
     resolvedDate = models.DateTimeField(blank=True, null=True)
     assignedTo = models.CharField(max_length=200, blank=True, null=True)
     
+    # Backjob Workflow Tracking (similar to Job workflow)
+    # Phase 1: Client confirms worker has started the backjob work
+    backjobStarted = models.BooleanField(default=False)
+    backjobStartedAt = models.DateTimeField(blank=True, null=True)
+    # Phase 2: Worker marks backjob as done
+    workerMarkedBackjobComplete = models.BooleanField(default=False)
+    workerMarkedBackjobCompleteAt = models.DateTimeField(blank=True, null=True)
+    # Phase 3: Client confirms backjob is complete
+    clientConfirmedBackjob = models.BooleanField(default=False)
+    clientConfirmedBackjobAt = models.DateTimeField(blank=True, null=True)
+    
     # Timestamps
     openedDate = models.DateTimeField(auto_now_add=True)
     updatedAt = models.DateTimeField(auto_now=True)

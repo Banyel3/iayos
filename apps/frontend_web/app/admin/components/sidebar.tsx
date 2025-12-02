@@ -308,12 +308,14 @@ export default function Sidebar({ className }: SidebarProps) {
   const router = useRouter();
   const { logout } = useAuth();
 
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
   // Fetch pending KYC count on mount and refresh every 30 seconds
   useEffect(() => {
     const fetchPendingCount = async () => {
       try {
         const response = await fetch(
-          "http://localhost:8000/api/adminpanel/kyc/all",
+          `${API_BASE}/api/adminpanel/kyc/all`,
           { credentials: "include" }
         );
 

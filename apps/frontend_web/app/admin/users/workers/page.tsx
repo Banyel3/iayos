@@ -89,6 +89,8 @@ export default function WorkersPage() {
   );
   const [bulkActionReason, setBulkActionReason] = useState("");
 
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
   const fetchWorkers = async () => {
     setLoading(true);
     try {
@@ -104,7 +106,7 @@ export default function WorkersPage() {
       if (sortBy !== "newest") params.append("sort", sortBy);
 
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/users/workers?${params}`,
+        `${API_BASE}/api/adminpanel/users/workers?${params}`,
         {
           credentials: "include",
         }
@@ -233,7 +235,7 @@ export default function WorkersPage() {
             ? { reason: bulkActionReason }
             : {};
 
-        const response = await fetch(`http://localhost:8000${endpoint}`, {
+        const response = await fetch(`${API_BASE}${endpoint}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",

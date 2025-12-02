@@ -269,6 +269,13 @@ export const ENDPOINTS = {
     `${API_BASE_URL.replace("/api", "")}/api/jobs/${jobId}/backjob-status`,
   COMPLETE_BACKJOB: (jobId: number) =>
     `${API_BASE_URL.replace("/api", "")}/api/jobs/${jobId}/complete-backjob`,
+  // Backjob 3-Phase Workflow (mirrors regular job workflow)
+  BACKJOB_CONFIRM_STARTED: (jobId: number) =>
+    `${API_BASE_URL.replace("/api", "")}/api/jobs/${jobId}/backjob/confirm-started`,
+  BACKJOB_MARK_COMPLETE: (jobId: number) =>
+    `${API_BASE_URL.replace("/api", "")}/api/jobs/${jobId}/backjob/mark-complete`,
+  BACKJOB_APPROVE_COMPLETION: (jobId: number) =>
+    `${API_BASE_URL.replace("/api", "")}/api/jobs/${jobId}/backjob/approve-completion`,
 };
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
