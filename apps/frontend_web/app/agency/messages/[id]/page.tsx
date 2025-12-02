@@ -13,6 +13,11 @@ import {
   useAgencySubmitReview,
 } from "@/lib/hooks/useAgencyConversations";
 import {
+  useConfirmBackjobStarted,
+  useMarkBackjobComplete,
+  useApproveBackjobCompletion,
+} from "@/lib/hooks/useAgencyBackjobActions";
+import {
   useMessageListener,
   useTypingIndicator,
   useWebSocketConnection,
@@ -37,6 +42,7 @@ import {
   Clock,
   Star,
   AlertCircle,
+  AlertTriangle,
 } from "lucide-react";
 import { format, isSameDay } from "date-fns";
 import type { AgencyMessage } from "@/lib/hooks/useAgencyConversations";
@@ -57,6 +63,12 @@ export default function AgencyChatScreen() {
   const [reviewRating, setReviewRating] = useState(0);
   const [reviewText, setReviewText] = useState("");
 
+  // Backjob action state
+  const [showBackjobConfirmModal, setShowBackjobConfirmModal] = useState(false);
+  const [showBackjobCompleteModal, setShowBackjobCompleteModal] = useState(false);
+  const [showBackjobApproveModal, setShowBackjobApproveModal] = useState(false);
+  const [backjobNotes, setBackjobNotes] = useState("");
+
   // Fetch conversation and messages using agency hooks
   const {
     data: conversation,
@@ -70,6 +82,11 @@ export default function AgencyChatScreen() {
   // Job action mutations
   const markCompleteMutation = useAgencyMarkComplete();
   const submitReviewMutation = useAgencySubmitReview();
+
+  // Backjob action mutations
+  const confirmBackjobStartedMutation = useConfirmBackjobStarted();
+  const markBackjobCompleteMutation = useMarkBackjobComplete();
+  const approveBackjobCompletionMutation = useApproveBackjobCompletion();
 
   // WebSocket connection state
   const { isConnected } = useWebSocketConnection();
@@ -192,6 +209,59 @@ export default function AgencyChatScreen() {
         },
         onError: (error) => {
           alert(error.message || "Failed to submit review");
+        },
+      }
+    );
+  };
+
+  // Handle confirm backjob started (CLIENT only - but agencies shouldn't see this)
+  const handleConfirmBackjobStarted = () => {
+    if (!conversation?.job.id) return;
+
+    confirmBackjobStartedMutation.mutate(conversation.job.id, {
+      onSuccess: () => {
+        setShowBackjobConfirmModal(false);
+        refetch();
+      },
+      onError: (error) => {
+        alert(error.message || "Failed to confirm backjob started");
+      },
+    });
+  };
+
+  // Handle mark backjob complete (AGENCY/WORKER only)
+  const handleMarkBackjobComplete = () => {
+    if (!conversation?.job.id) return;
+
+    markBackjobCompleteMutation.mutate(
+      { jobId: conversation.job.id, notes: backjobNotes },
+      {
+        onSuccess: () => {
+          setShowBackjobCompleteModal(false);
+          setBackjobNotes("");
+          refetch();
+        },
+        onError: (error) => {
+          alert(error.message || "Failed to mark backjob complete");
+        },
+      }
+    );
+  };
+
+  // Handle approve backjob completion (CLIENT only - but agencies shouldn't see this)
+  const handleApproveBackjobCompletion = () => {
+    if (!conversation?.job.id) return;
+
+    approveBackjobCompletionMutation.mutate(
+      { jobId: conversation.job.id, notes: backjobNotes },
+      {
+        onSuccess: () => {
+          setShowBackjobApproveModal(false);
+          setBackjobNotes("");
+          refetch();
+        },
+        onError: (error) => {
+          alert(error.message || "Failed to approve backjob completion");
         },
       }
     );
@@ -361,6 +431,116 @@ export default function AgencyChatScreen() {
               )
             )}
           </div>
+
+          {/* Backjob Workflow Section - Only show if there's an active backjob */}
+          {conversation.backjob?.has_backjob && (
+            <div className="mt-3">
+              {/* Backjob Banner */}
+              <div className="p-3 bg-amber-50 rounded-lg border-2 border-amber-300 mb-2">
+                <div className="flex items-center gap-2 mb-1">
+                  <AlertTriangle className="h-5 w-5 text-amber-600" />
+                  <span className="text-sm font-bold text-amber-800">
+                    🔄 Active Backjob Request
+                  </span>
+                </div>
+                <p className="text-xs text-amber-700 mb-1">
+                  {conversation.backjob.reason || "Backjob work required"}
+                </p>
+                <Badge
+                  variant="outline"
+                  className="text-xs bg-amber-100 text-amber-800 border-amber-300"
+                >
+                  Status:{" "}
+                  {conversation.backjob.status === "UNDER_REVIEW"
+                    ? "Action Required"
+                    : "Pending Review"}
+                </Badge>
+              </div>
+
+              {/* Backjob Workflow Actions - Only for UNDER_REVIEW status */}
+              {conversation.backjob.status === "UNDER_REVIEW" && (
+                <>
+                  {/* AGENCY/WORKER: Waiting for Client Confirmation */}
+                  {conversation.my_role === "AGENCY" &&
+                    !conversation.backjob.backjob_started && (
+                      <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-4 w-4 text-gray-500" />
+                          <span className="text-sm text-gray-700 font-medium">
+                            Waiting for client to confirm backjob started...
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">
+                          The client needs to confirm that your employee has
+                          arrived and started the backjob work
+                        </p>
+                      </div>
+                    )}
+
+                  {/* AGENCY/WORKER: Mark Backjob Complete Button */}
+                  {conversation.my_role === "AGENCY" &&
+                    conversation.backjob.backjob_started &&
+                    !conversation.backjob.worker_marked_complete && (
+                      <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <CheckCircle className="h-4 w-4 text-blue-600" />
+                            <span className="text-sm text-blue-800 font-medium">
+                              Client confirmed backjob started
+                            </span>
+                          </div>
+                          <Button
+                            size="sm"
+                            className="bg-green-600 hover:bg-green-700"
+                            onClick={() => setShowBackjobCompleteModal(true)}
+                          >
+                            <CheckCircle className="h-4 w-4 mr-1" />
+                            Mark Complete
+                          </Button>
+                        </div>
+                        <p className="text-xs text-blue-600 mt-1">
+                          Once the backjob work is finished, mark it as complete
+                        </p>
+                      </div>
+                    )}
+
+                  {/* AGENCY/WORKER: Waiting for Client Approval */}
+                  {conversation.my_role === "AGENCY" &&
+                    conversation.backjob.worker_marked_complete &&
+                    !conversation.backjob.client_confirmed && (
+                      <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-4 w-4 text-amber-600 animate-pulse" />
+                          <span className="text-sm text-amber-800 font-medium">
+                            ⏳ Waiting for client to approve backjob completion
+                          </span>
+                        </div>
+                        <p className="text-xs text-amber-600 mt-1">
+                          You've marked the backjob as complete. The client will
+                          review and approve the work.
+                        </p>
+                      </div>
+                    )}
+
+                  {/* Backjob Completed */}
+                  {conversation.backjob.client_confirmed && (
+                    <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                        <span className="text-sm text-green-800 font-medium">
+                          ✅ Backjob Completed Successfully!
+                        </span>
+                      </div>
+                      <p className="text-xs text-green-600 mt-1">
+                        The backjob work has been approved by the client. The
+                        dispute is now resolved.
+                      </p>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
 
           {/* Job Status & Actions Section */}
           <div className="mt-3">
@@ -751,6 +931,66 @@ export default function AgencyChatScreen() {
                     <>
                       <Star className="h-4 w-4 mr-2" />
                       Submit Review
+                    </>
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Mark Backjob Complete Modal */}
+      {showBackjobCompleteModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md">
+            <CardHeader className="pb-2">
+              <h3 className="text-lg font-semibold">
+                Mark Backjob as Complete
+              </h3>
+              <p className="text-sm text-gray-500">
+                Confirm that the backjob work has been completed
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Completion Notes (optional)
+                </label>
+                <textarea
+                  className="w-full border rounded-lg p-3 text-sm resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  rows={3}
+                  placeholder="Add any notes about the completed backjob work..."
+                  value={backjobNotes}
+                  onChange={(e) => setBackjobNotes(e.target.value)}
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => {
+                    setShowBackjobCompleteModal(false);
+                    setBackjobNotes("");
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1 bg-green-600 hover:bg-green-700"
+                  onClick={handleMarkBackjobComplete}
+                  disabled={markBackjobCompleteMutation.isPending}
+                >
+                  {markBackjobCompleteMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      Mark Complete
                     </>
                   )}
                 </Button>

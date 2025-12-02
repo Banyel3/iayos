@@ -217,22 +217,23 @@ def generateCookie(user, profile_type=None):
     })
     
     # Set cookies for Next.js web app compatibility
+    # Use SameSite=None for cross-origin localhost development (different ports)
     response.set_cookie(
         key="access",
         value=access_token,
         httponly=True,
-        secure=False,
-        samesite="Lax",
-        max_age=3600,  # 1 hour (matches token expiry)
+        secure=False,      # Must be False for http://localhost
+        samesite=None,     # Allow cross-origin between localhost:3000 and localhost:8000
+        max_age=3600,      # 1 hour (matches token expiry)
         domain=None,
     )
     response.set_cookie(
         key="refresh",
         value=refresh_token,
         httponly=True,
-        secure=False,
-        samesite="Lax",
-        max_age=604800,  # 7 days (matches token expiry)
+        secure=False,      # Must be False for http://localhost
+        samesite=None,     # Allow cross-origin between localhost:3000 and localhost:8000
+        max_age=604800,    # 7 days (matches token expiry)
         domain=None,
     )
     return response

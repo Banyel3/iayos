@@ -129,6 +129,111 @@ class XenditService:
             }
     
     @staticmethod
+    def create_withdrawal_receipt(amount: float, user_email: str, user_name: str, transaction_id: int, payment_method_name: str, payment_method_number: str):
+        """
+        Create a Xendit invoice as a withdrawal receipt/order summary
+        Similar to deposit flow - creates an invoice for display purposes only
+        Funds are already deducted, this just shows a pretty receipt
+        
+        Args:
+            amount: Withdrawal amount in PHP
+            user_email: User's email
+            user_name: User's name
+            transaction_id: Internal transaction ID
+            payment_method_name: GCash account holder name
+            payment_method_number: GCash account number
+            
+        Returns:
+            dict: Invoice details including receipt URL
+        """
+        try:
+            # Generate unique external ID
+            external_id = f"IAYOS-WD-{transaction_id}-{uuid.uuid4().hex[:8]}"
+            
+            # Create invoice as withdrawal receipt
+            receipt_data = {
+                "external_id": external_id,
+                "amount": float(amount),
+                "payer_email": user_email,
+                "description": f"✅ WITHDRAWAL TO GCASH\n\nAmount: ₱{amount:,.2f}\nRecipient: {payment_method_name}\nGCash Number: {payment_method_number}\n\nFunds have been deducted from your wallet. In TEST MODE, this shows a receipt summary. In production, funds would be sent to your GCash account within 1-3 business days.",
+                "invoice_duration": 86400,  # 24 hours
+                "currency": "PHP",
+                "payment_methods": ["GCASH"],
+                "should_send_email": False,
+                "success_redirect_url": f"{getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')}/wallet?withdrawal=success",
+                "failure_redirect_url": f"{getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')}/wallet?withdrawal=failed",
+                "customer": {
+                    "given_names": user_name,
+                    "email": user_email,
+                },
+                "items": [
+                    {
+                        "name": f"Wallet Withdrawal to {payment_method_number}",
+                        "quantity": 1,
+                        "price": float(amount),
+                        "category": "withdrawal_receipt"
+                    }
+                ]
+            }
+            
+            print(f"🔐 Xendit Withdrawal Receipt Request:")
+            print(f"   URL: {XenditService.BASE_URL}/v2/invoices")
+            print(f"   Amount: ₱{amount}")
+            print(f"   External ID: {external_id}")
+            print(f"   To: {payment_method_name} ({payment_method_number})")
+            
+            # Make API request to Xendit
+            response = requests.post(
+                f"{XenditService.BASE_URL}/v2/invoices",
+                json=receipt_data,
+                headers=XenditService._get_headers(),
+                timeout=30
+            )
+            
+            print(f"📡 Xendit Receipt Response: Status {response.status_code}")
+            
+            if response.status_code == 200:
+                invoice = response.json()
+                logger.info(f"✅ Xendit Withdrawal Receipt created: {invoice['id']} for transaction {transaction_id}")
+                
+                return {
+                    "success": True,
+                    "invoice_id": invoice['id'],
+                    "invoice_url": invoice['invoice_url'],
+                    "external_id": external_id,
+                    "expiry_date": invoice['expiry_date'],
+                    "amount": invoice['amount'],
+                    "status": invoice['status'],
+                    "test_mode": True
+                }
+            else:
+                error_data = response.json() if response.text else {}
+                error_message = error_data.get('message', f'HTTP {response.status_code}')
+                logger.error(f"❌ Xendit Receipt Error: {error_message}")
+                print(f"❌ Xendit Response: {response.status_code} - {response.text}")
+                return {
+                    "success": False,
+                    "error": error_message
+                }
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"❌ Xendit API request failed: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return {
+                "success": False,
+                "error": f"Connection error: {str(e)}"
+            }
+        except Exception as e:
+            logger.error(f"❌ Xendit Receipt creation failed: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
+    @staticmethod
     def create_disbursement(amount: float, recipient_name: str, account_number: str, transaction_id: int, notes: str = ""):
         """Create a GCash disbursement (payout) via Xendit APIs."""
         try:

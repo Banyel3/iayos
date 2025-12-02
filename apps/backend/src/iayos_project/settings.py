@@ -122,6 +122,8 @@ CSRF_TRUSTED_ORIGINS = [
     "http://localhost:8000",
     "http://127.0.0.1:8000",
     "http://10.0.2.2:8000",  # Android emulator host access
+    "http://192.168.1.84:3400",  # IP address for LAN access
+    "http://192.168.1.84:8000",  # Backend IP for LAN access
     FRONTEND_URL,  # Dynamic frontend URL from env
     API_URL,  # Dynamic API URL from env
 ]
@@ -258,11 +260,13 @@ MEDIA_ROOT = BASE_DIR / 'media'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
-# Add these to your settings.py
-SESSION_COOKIE_SECURE = False  # For development
-CSRF_COOKIE_SECURE = False     # For development
-SESSION_COOKIE_SAMESITE = 'Lax'
-CSRF_COOKIE_SAMESITE = 'Lax'
+# Cookie settings for cross-origin localhost development
+SESSION_COOKIE_SECURE = False  # For development (must be False for http://localhost)
+CSRF_COOKIE_SECURE = False     # For development (must be False for http://localhost)
+SESSION_COOKIE_SAMESITE = None  # Allow cross-origin cookies on localhost
+CSRF_COOKIE_SAMESITE = None     # Allow cross-origin cookies on localhost
+SESSION_COOKIE_DOMAIN = None    # Use default domain
+CSRF_COOKIE_HTTPONLY = False    # Allow JavaScript to read CSRF token
 
 
 RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")

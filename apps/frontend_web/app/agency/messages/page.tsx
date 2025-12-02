@@ -31,6 +31,7 @@ import {
   User,
   Users,
   RefreshCw,
+  AlertTriangle,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -230,6 +231,29 @@ export default function AgencyMessagesPage() {
               >
                 {truncatedMessage}
               </p>
+
+              {/* Backjob Banner - Show if has active backjob */}
+              {conversation.backjob?.has_backjob && (
+                <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-amber-600 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-amber-800 truncate">
+                      🔄 Active Backjob Request
+                    </p>
+                    <p className="text-xs text-amber-600 truncate">
+                      {conversation.backjob.reason || "Backjob work required"}
+                    </p>
+                    {conversation.backjob.status && (
+                      <p className="text-xs text-amber-700 font-medium mt-0.5">
+                        Status:{" "}
+                        {conversation.backjob.status === "UNDER_REVIEW"
+                          ? "Action Required"
+                          : "Pending Review"}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Bottom Row: Budget + Status */}
               <div className="flex items-center justify-between mt-3">

@@ -55,6 +55,23 @@ export type AssignedEmployee = {
   status: string;
 };
 
+// Backjob info returned from conversations API
+export type BackjobInfo = {
+  has_backjob: boolean;
+  dispute_id: number | null;
+  reason: string | null;
+  description: string | null;
+  status: string | null;
+  priority: string | null;
+  opened_date: string | null;
+  backjob_started: boolean;
+  backjob_started_at: string | null;
+  worker_marked_complete: boolean;
+  worker_marked_complete_at: string | null;
+  client_confirmed: boolean;
+  client_confirmed_at: string | null;
+};
+
 export type AgencyConversation = {
   id: number;
   job: AgencyConversationJob;
@@ -67,6 +84,8 @@ export type AgencyConversation = {
   is_archived: boolean;
   status: string;
   created_at: string;
+  backjob?: BackjobInfo; // Optional backjob info
+  my_role?: string; // Role in the conversation (CLIENT/WORKER/AGENCY)
 };
 
 export type AgencyConversationsResponse = {
@@ -96,6 +115,8 @@ export type AgencyConversationDetail = {
   messages: AgencyMessage[];
   total_messages: number;
   status: string;
+  backjob?: BackjobInfo; // Optional backjob info
+  my_role?: string; // Role in the conversation (CLIENT/WORKER/AGENCY)
 };
 
 /**

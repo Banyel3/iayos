@@ -43,6 +43,12 @@ interface BackjobDetail {
     resolution: string | null;
     resolved_date: string | null;
     evidence_images: string[];
+    backjob_started: boolean;
+    backjob_started_at: string | null;
+    worker_marked_complete: boolean;
+    worker_marked_complete_at: string | null;
+    client_confirmed: boolean;
+    client_confirmed_at: string | null;
   } | null;
 }
 
@@ -121,34 +127,38 @@ export default function AgencyBackjobDetailPage({
     }
   };
 
-  const handleCompleteBackjob = async () => {
+  const handleMarkBackjobComplete = async () => {
     if (!jobId) return;
     setIsCompleting(true);
 
     try {
-      const formData = new FormData();
-      formData.append("notes", completionNotes || "Backjob work completed");
-
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/jobs/${jobId}/complete-backjob`,
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/jobs/${jobId}/backjob/mark-complete`,
         {
           method: "POST",
           credentials: "include",
-          body: formData,
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            notes: completionNotes || "Backjob work completed"
+          }),
         }
       );
 
       if (response.ok) {
         setShowCompleteDialog(false);
+        setCompletionNotes("");
         // Refresh data
         await fetchBackjobDetails();
+        alert("Backjob marked as complete! Client will be notified to verify and approve.");
       } else {
         const error = await response.json();
-        alert(error.error || "Failed to complete backjob");
+        alert(error.error || "Failed to mark backjob complete");
       }
     } catch (error) {
-      console.error("Error completing backjob:", error);
-      alert("Failed to complete backjob");
+      console.error("Error marking backjob complete:", error);
+      alert("Failed to mark backjob complete");
     } finally {
       setIsCompleting(false);
     }
@@ -250,14 +260,40 @@ export default function AgencyBackjobDetailPage({
             </h1>
             <p className="text-gray-500">Dispute #{dispute.dispute_id}</p>
           </div>
+          {/* 3-Phase Backjob Workflow Buttons */}
           {dispute.status === "UNDER_REVIEW" && (
-            <Button
-              onClick={() => setShowCompleteDialog(true)}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              <CheckCircle className="w-4 h-4 mr-2" />
-              Mark as Completed
-            </Button>
+            <div className="flex flex-col gap-2">
+              {/* Phase 1: Waiting for client to confirm work started */}
+              {!dispute.backjob_started && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-center gap-2">
+                  <Clock className="w-5 h-5 text-amber-600" />
+                  <p className="text-sm text-amber-800">
+                    Waiting for client to confirm backjob work has started...
+                  </p>
+                </div>
+              )}
+              
+              {/* Phase 2: Agency can mark complete after client confirms started */}
+              {dispute.backjob_started && !dispute.worker_marked_complete && (
+                <Button
+                  onClick={() => setShowCompleteDialog(true)}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                  Mark Backjob Complete
+                </Button>
+              )}
+              
+              {/* Phase 3: Waiting for client approval */}
+              {dispute.worker_marked_complete && !dispute.client_confirmed && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center gap-2">
+                  <Clock className="w-5 h-5 text-blue-600" />
+                  <p className="text-sm text-blue-800">
+                    Waiting for client to verify and approve completion...
+                  </p>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -444,24 +480,53 @@ export default function AgencyBackjobDetailPage({
           {/* Timeline */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Timeline</CardTitle>
+              <CardTitle className="text-base">Backjob Workflow Timeline</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
+                {/* Step 1: Request Created */}
                 <div className="flex items-start gap-3">
                   <div className="w-3 h-3 bg-blue-500 rounded-full mt-1.5" />
                   <div>
-                    <p className="font-medium text-gray-900">Requested</p>
+                    <p className="font-medium text-gray-900">Backjob Requested</p>
                     <p className="text-sm text-gray-500">
                       {formatDate(dispute.opened_date)}
                     </p>
                   </div>
                 </div>
-                {dispute.resolved_date && (
+                
+                {/* Step 2: Client confirmed work started */}
+                {dispute.backjob_started && (
                   <div className="flex items-start gap-3">
                     <div className="w-3 h-3 bg-green-500 rounded-full mt-1.5" />
                     <div>
-                      <p className="font-medium text-gray-900">Completed</p>
+                      <p className="font-medium text-gray-900">Work Started (Client Confirmed)</p>
+                      <p className="text-sm text-gray-500">
+                        {formatDate(dispute.backjob_started_at)}
+                      </p>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Step 3: Agency marked complete */}
+                {dispute.worker_marked_complete && (
+                  <div className="flex items-start gap-3">
+                    <div className="w-3 h-3 bg-amber-500 rounded-full mt-1.5" />
+                    <div>
+                      <p className="font-medium text-gray-900">Marked Complete (Agency)</p>
+                      <p className="text-sm text-gray-500">
+                        {formatDate(dispute.worker_marked_complete_at)}
+                      </p>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Step 4: Client confirmed completion */}
+                {dispute.resolved_date && (
+                  <div className="flex items-start gap-3">
+                    <div className="w-3 h-3 bg-green-600 rounded-full mt-1.5" />
+                    <div>
+                      <p className="font-medium text-gray-900">Completed & Verified</p>
                       <p className="text-sm text-gray-500">
                         {formatDate(dispute.resolved_date)}
                       </p>
