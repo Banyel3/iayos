@@ -10,10 +10,15 @@ def upload_file(file, bucket: str, path: str, public: bool = True, custom_name: 
     file.seek(0)
     file_bytes = file.read()
 
+    # Check if storage is configured
+    if not settings.STORAGE:
+        print("❌ Storage not configured - check USE_LOCAL_DB and Supabase settings")
+        return None
+
     try:
         # Upload with upsert option to overwrite if file exists
-        # Note: storage() is a method, not a property
-        result = settings.SUPABASE.storage().from_(bucket).upload(
+        # Uses unified STORAGE adapter (local or Supabase based on USE_LOCAL_DB)
+        result = settings.STORAGE.storage().from_(bucket).upload(
             full_path, 
             file_bytes,
             {"upsert": "true"}
@@ -31,7 +36,7 @@ def upload_file(file, bucket: str, path: str, public: bool = True, custom_name: 
             
             # Success - get public URL
             if public:
-                public_url = settings.SUPABASE.storage().from_(bucket).get_public_url(full_path)
+                public_url = settings.STORAGE.storage().from_(bucket).get_public_url(full_path)
                 # Remove trailing '?' if present (Supabase SDK sometimes adds this)
                 if public_url and public_url.endswith('?'):
                     public_url = public_url.rstrip('?')

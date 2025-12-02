@@ -2791,10 +2791,12 @@ def client_approve_job_completion(
                 unique_id = str(uuid.uuid4())[:8]
                 file_path = f"users/{request.auth.accountID}/jobs/{job_id}/proof/cash_proof_{timestamp}_{unique_id}.{file_extension}"
                 
-                print(f"📤 Uploading cash proof to Supabase: {file_path}")
+                print(f"📤 Uploading cash proof to storage: {file_path}")
                 
-                # Upload to Supabase storage using settings.SUPABASE
-                response = settings.SUPABASE.storage().from_('user-uploads').upload(
+                # Upload using unified STORAGE adapter (local or Supabase based on USE_LOCAL_DB)
+                if not settings.STORAGE:
+                    raise Exception("Storage not configured")
+                response = settings.STORAGE.storage().from_('user-uploads').upload(
                     file_path,
                     file_content,
                     {
@@ -2804,7 +2806,7 @@ def client_approve_job_completion(
                 )
                 
                 # Get public URL
-                cash_proof_url = settings.SUPABASE.storage().from_('user-uploads').get_public_url(file_path)
+                cash_proof_url = settings.STORAGE.storage().from_('user-uploads').get_public_url(file_path)
                 print(f"✅ Cash proof uploaded successfully: {cash_proof_url}")
                 
             except Exception as e:
@@ -3240,24 +3242,25 @@ def upload_cash_payment_proof(request, job_id: int):
                 status=400
             )
         
-        # Upload to Supabase storage
+        # Upload using unified STORAGE adapter (local or Supabase based on USE_LOCAL_DB)
         try:
             from django.conf import settings
             import uuid
             
-            supabase = settings.SUPABASE
+            if not settings.STORAGE:
+                raise Exception("Storage not configured")
             file_extension = proof_image.name.split('.')[-1]
             file_name = f"cash_proofs/{job_id}_{uuid.uuid4().hex}.{file_extension}"
             
             # Upload file
-            result = supabase.storage().from_('job-images').upload(
+            result = settings.STORAGE.storage().from_('job-images').upload(
                 file_name,
                 proof_image.read(),
                 {'content-type': proof_image.content_type}
             )
             
             # Get public URL
-            proof_url = supabase.storage().from_('job-images').get_public_url(file_name)
+            proof_url = settings.STORAGE.storage().from_('job-images').get_public_url(file_name)
             
             # Save proof URL to job
             job.cashPaymentProofUrl = proof_url

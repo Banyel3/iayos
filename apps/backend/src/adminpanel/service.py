@@ -228,10 +228,15 @@ def review_kyc_items(request):
     # Create signed URLs only for files that exist
     urls = {}
     
+    # Check if storage is configured
+    if not settings.STORAGE:
+        print("Storage not configured - cannot create signed URLs")
+        return {"error": "Storage not configured"}
+    
     try:
         def _create_signed(bucket_name, path):
             try:
-                return settings.SUPABASE.storage().from_(bucket_name).create_signed_url(path, expires_in=60 * 60)
+                return settings.STORAGE.storage().from_(bucket_name).create_signed_url(path, expires_in=60 * 60)
             except Exception as e:
                 print(f"âŒ Error creating signed URL for {bucket_name}:{path}: {e}")
                 return None
@@ -290,7 +295,7 @@ def review_kyc_items(request):
                 print(f"ERROR: Unexpected response type from Supabase, falling back to public URL")
                 # fallback to public url if available
                 try:
-                    return settings.SUPABASE.storage().from_(bucket).get_public_url(path)
+                    return settings.STORAGE.storage().from_(bucket).get_public_url(path)
                 except Exception:
                     return ""
         # Use _resolve_link for each incoming field
