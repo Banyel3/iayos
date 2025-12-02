@@ -570,8 +570,15 @@ def mobile_my_jobs(
                 client_profile = ClientProfile.objects.get(profileID=profile)
                 print(f"      Client profile found: ID={client_profile.profileID.profileID}")
             except ClientProfile.DoesNotExist:
-                print(f"      ❌ Client profile not found!")
-                return Response({"error": "Client profile not found"}, status=400)
+                # Auto-create ClientProfile if it doesn't exist
+                print(f"      ⚠️ Client profile not found, creating one...")
+                client_profile = ClientProfile.objects.create(
+                    profileID=profile,
+                    description="",
+                    totalJobsPosted=0,
+                    clientRating=0
+                )
+                print(f"      ✅ Created client profile: ID={client_profile.profileID.profileID}")
             
             jobs_qs = JobPosting.objects.filter(
                 clientID=client_profile
@@ -2458,6 +2465,11 @@ def mobile_withdraw_funds(request, payload: WithdrawFundsSchema):
             transaction.xenditPaymentChannel = "GCASH"
             transaction.xenditPaymentMethod = "DISBURSEMENT"
             
+            # Store invoice URL if available (for test mode)
+            invoice_url = disbursement_result.get('invoice_url')
+            if invoice_url:
+                transaction.invoiceURL = invoice_url
+            
             # Mark as completed if disbursement is successful
             if disbursement_result['status'] == 'COMPLETED':
                 transaction.status = Transaction.TransactionStatus.COMPLETED
@@ -2467,8 +2479,11 @@ def mobile_withdraw_funds(request, payload: WithdrawFundsSchema):
             
             print(f"📄 Disbursement created: {disbursement_result['disbursement_id']}")
             print(f"📊 Status: {disbursement_result['status']}")
+            if invoice_url:
+                print(f"🔗 Invoice URL (test mode): {invoice_url}")
         
-        return {
+        # Build response
+        response_data = {
             "success": True,
             "transaction_id": transaction.transactionID,
             "disbursement_id": disbursement_result['disbursement_id'],
@@ -2476,8 +2491,20 @@ def mobile_withdraw_funds(request, payload: WithdrawFundsSchema):
             "new_balance": float(wallet.balance),
             "status": disbursement_result['status'],
             "recipient": payment_method.accountNumber,
+            "recipient_name": payment_method.accountName,
             "message": "Withdrawal request submitted successfully. Funds will be transferred to your GCash within 1-3 business days."
         }
+        
+        # Test mode: Include receipt URL so user can view Xendit receipt page
+        if disbursement_result.get('test_mode'):
+            response_data['test_mode'] = True
+            if disbursement_result.get('receipt_url'):
+                response_data['receipt_url'] = disbursement_result['receipt_url']
+                response_data['message'] = "TEST MODE: Withdrawal successful! Tap 'View Receipt' to see your transaction details on Xendit."
+            else:
+                response_data['message'] = "TEST MODE: Withdrawal successful! In production, funds would be sent to your GCash account."
+        
+        return response_data
         
     except Exception as e:
         print(f"❌ [Mobile] Error withdrawing funds: {str(e)}")

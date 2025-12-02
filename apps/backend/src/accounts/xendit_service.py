@@ -151,42 +151,51 @@ class XenditService:
             if not local_number:
                 return {"success": False, "error": "Invalid GCash number format. Use 09XXXXXXXXX"}
 
-            # TEST MODE: Use invoice API instead of disbursements (sandbox doesn't support real payouts)
+            # TEST MODE: Create a "receipt" invoice that shows withdrawal details
+            # We use Xendit's invoice as a visual receipt since sandbox doesn't support real disbursements
             if getattr(settings, 'XENDIT_TEST_MODE', False):
-                print(f"🧪 Xendit TEST MODE: Creating withdrawal invoice instead of real disbursement")
+                print(f"🧪 Xendit TEST MODE: Creating withdrawal receipt invoice")
+                print(f"   Amount: ₱{amount}")
+                print(f"   Recipient: {recipient_name} ({local_number})")
+                print(f"   External ID: {external_id}")
                 
-                # Create a test invoice to simulate withdrawal
-                invoice_data = {
+                # Create a receipt-style invoice 
+                receipt_data = {
                     "external_id": external_id,
                     "amount": float(amount),
-                    "payer_email": "test@iayos.com",
-                    "description": f"TEST MODE Withdrawal: ₱{amount} to {recipient_name} ({local_number})",
-                    "invoice_duration": 86400,  # 24 hours
+                    "payer_email": "withdrawal@iayos.app",
+                    "description": f"✅ WITHDRAWAL RECEIPT\n\nAmount: ₱{amount:,.2f}\nTo: {recipient_name}\nGCash: {local_number}\n\nThis is a TEST MODE receipt. In production, funds would be sent directly to your GCash account.",
+                    "invoice_duration": 86400,
                     "currency": "PHP",
                     "should_send_email": False,
                     "success_redirect_url": f"{getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')}/wallet?withdrawal=success",
-                    "failure_redirect_url": f"{getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')}/wallet?withdrawal=failed",
+                    "customer": {
+                        "given_names": recipient_name,
+                        "email": "withdrawal@iayos.app",
+                    },
+                    "items": [
+                        {
+                            "name": f"GCash Withdrawal to {local_number}",
+                            "quantity": 1,
+                            "price": float(amount),
+                            "category": "withdrawal_receipt"
+                        }
+                    ]
                 }
-                
-                print(f"🔐 Xendit TEST Invoice Request:")
-                print(f"   URL: {XenditService.BASE_URL}/v2/invoices")
-                print(f"   Amount: {amount} PHP")
-                print(f"   External ID: {external_id}")
-                print(f"   Recipient: {recipient_name} ({phone_number})")
                 
                 response = requests.post(
                     f"{XenditService.BASE_URL}/v2/invoices",
-                    json=invoice_data,
+                    json=receipt_data,
                     headers=XenditService._get_headers(),
                     timeout=30,
                 )
                 
-                print(f"📡 Xendit TEST Invoice Response: Status {response.status_code}")
+                print(f"📡 Xendit Receipt Response: Status {response.status_code}")
                 
                 if response.status_code == 200:
                     invoice = response.json()
                     logger.info(
-                        "✅ Xendit TEST Invoice created: %s for withdrawal transaction %s",
+                        "✅ Xendit TEST Receipt created: %s for withdrawal %s",
                         invoice.get("id"),
                         transaction_id,
                     )
@@ -195,17 +204,29 @@ class XenditService:
                         "disbursement_id": invoice.get("id"),
                         "external_id": invoice.get("external_id"),
                         "amount": invoice.get("amount"),
-                        "status": "PENDING",  # Invoices start as pending
-                        "invoice_url": invoice.get("invoice_url"),
+                        "status": "COMPLETED",  # Mark as completed for UI
                         "test_mode": True,
-                        "message": "Test mode: Invoice created. In production, this would be a real GCash disbursement."
+                        "receipt_url": invoice.get("invoice_url"),  # This shows the Xendit page
+                        "recipient_name": recipient_name,
+                        "recipient_number": local_number,
+                        "message": "Test mode: View your withdrawal receipt on Xendit."
                     }
                 else:
                     error_data = response.json() if response.text else {}
                     error_message = error_data.get("message", f"HTTP {response.status_code}")
-                    logger.error("❌ Xendit TEST Invoice Error: %s", error_message)
-                    print(f"❌ Xendit Response: {response.status_code} - {response.text}")
-                    return {"success": False, "error": error_message, "error_details": error_data}
+                    logger.error("❌ Xendit Receipt Error: %s", error_message)
+                    # Fall back to simulated response if invoice creation fails
+                    return {
+                        "success": True,
+                        "disbursement_id": f"TEST-{external_id}",
+                        "external_id": external_id,
+                        "amount": float(amount),
+                        "status": "COMPLETED",
+                        "test_mode": True,
+                        "recipient_name": recipient_name,
+                        "recipient_number": local_number,
+                        "message": "Test mode: Withdrawal simulated as completed."
+                    }
 
             # PRODUCTION MODE: Real disbursement logic
             test_number = getattr(settings, "XENDIT_TEST_ACCOUNT_NUMBER", None)

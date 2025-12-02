@@ -210,7 +210,7 @@ class ClientProfile(models.Model):
     description = models.CharField(max_length=350)
     totalJobsPosted = models.IntegerField()
     clientRating = models.IntegerField(default=0)
-    activeJobsCount = models.IntegerField
+    activeJobsCount = models.IntegerField(default=0)
 
 class Specializations(models.Model):
     specializationID = models.BigAutoField(primary_key=True)
@@ -1053,8 +1053,8 @@ class JobLog(models.Model):
     )
     
     # Status tracking
-    oldStatus = models.CharField(max_length=15, null=True, blank=True)
-    newStatus = models.CharField(max_length=15)
+    oldStatus = models.CharField(max_length=30, null=True, blank=True)
+    newStatus = models.CharField(max_length=30)
     
     # Who made the change
     changedBy = models.ForeignKey(
@@ -1286,6 +1286,16 @@ class JobReview(models.Model):
         blank=True
     )
     
+    # Profile-specific reviewee (to separate WORKER vs CLIENT reviews for same account)
+    revieweeProfileID = models.ForeignKey(
+        Profile,
+        on_delete=models.CASCADE,
+        related_name='reviews_received',
+        null=True,
+        blank=True,
+        help_text="The specific profile (WORKER or CLIENT) that received this review"
+    )
+    
     # For agency employee reviews
     revieweeEmployeeID = models.ForeignKey(
         'agency.AgencyEmployee',
@@ -1365,6 +1375,7 @@ class JobReview(models.Model):
             models.Index(fields=['jobID', '-createdAt']),
             models.Index(fields=['reviewerID', '-createdAt']),
             models.Index(fields=['revieweeID', '-createdAt']),
+            models.Index(fields=['revieweeProfileID', '-createdAt']),
             models.Index(fields=['revieweeEmployeeID', '-createdAt']),
             models.Index(fields=['revieweeAgencyID', '-createdAt']),
             models.Index(fields=['status', '-createdAt']),

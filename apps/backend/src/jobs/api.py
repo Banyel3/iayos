@@ -21,6 +21,27 @@ from django.conf import settings
 router = Router()
 
 
+def get_user_profile(request):
+    """
+    Get the user's profile, handling users with multiple profiles by using
+    the profile_type from JWT token.
+    
+    Returns:
+        Profile instance or None if not found
+    """
+    profile_type = getattr(request.auth, 'profile_type', None)
+    
+    if profile_type:
+        # User has profile_type in JWT (handles multiple profiles)
+        return Profile.objects.filter(
+            accountFK=request.auth,
+            profileType=profile_type
+        ).first()
+    else:
+        # Fallback for single profile users
+        return Profile.objects.filter(accountFK=request.auth).first()
+
+
 def broadcast_job_status_update(job_id, update_data):
     """
     Broadcast job status update via WebSocket
@@ -55,16 +76,15 @@ def create_job_posting(request, data: CreateJobPostingSchema):
         print(f"📝 Job posting creation request from {request.auth.email}")
         print(f"📋 Request data: {data.dict()}")
         
-        # Check user's profile type first
-        try:
-            profile = Profile.objects.get(accountFK=request.auth)
-            print(f"👤 User profile type: {profile.profileType}")
-        except Profile.DoesNotExist:
+        # Check user's profile type first (handle users with multiple profiles)
+        profile = get_user_profile(request)
+        if not profile:
             print("❌ No profile found")
             return Response(
                 {"error": "Profile not found. Please complete your profile first."},
                 status=400
             )
+        print(f"👤 User profile type: {profile.profileType}")
         
         # Get or create client profile using profileID (not accountFK)
         if profile.profileType != "CLIENT":
@@ -279,10 +299,10 @@ def create_job_posting(request, data: CreateJobPostingSchema):
             print(f"📋 Pending escrow transaction created: ID={escrow_transaction.transactionID}")
         
         # Get user profile for Xendit invoice
-        try:
-            profile = Profile.objects.get(accountFK=request.auth)
+        profile = get_user_profile(request)
+        if profile:
             user_name = f"{profile.firstName or ''} {profile.lastName or ''}".strip() or request.auth.email
-        except Profile.DoesNotExist:
+        else:
             user_name = request.auth.email
         
         # Create Xendit invoice for escrow payment
@@ -355,12 +375,30 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
         else:
             print(f"📢 Open job posting (no specific worker/agency)")
         
-        # Check user's profile type first
+        # Check user's profile type - use profile_type from JWT for users with multiple profiles
         try:
-            profile = Profile.objects.get(accountFK=request.auth)
+            profile_type = getattr(request.auth, 'profile_type', None)
+            
+            if profile_type:
+                # User has profile_type in JWT (handles multiple profiles)
+                profile = Profile.objects.filter(
+                    accountFK=request.auth,
+                    profileType=profile_type
+                ).first()
+            else:
+                # Fallback for single profile users
+                profile = Profile.objects.filter(accountFK=request.auth).first()
+            
+            if not profile:
+                print("❌ No profile found")
+                return Response(
+                    {"error": "Profile not found. Please complete your profile first."},
+                    status=400
+                )
+            
             print(f"👤 User profile type: {profile.profileType}")
-        except Profile.DoesNotExist:
-            print("❌ No profile found")
+        except Exception as e:
+            print(f"❌ Error getting profile: {str(e)}")
             return Response(
                 {"error": "Profile not found. Please complete your profile first."},
                 status=400
@@ -663,10 +701,10 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
                 print(f"📋 Pending escrow transaction created: ID={escrow_transaction.transactionID}")
             
             # Get user profile for Xendit invoice
-            try:
-                profile = Profile.objects.get(accountFK=request.auth)
+            profile = get_user_profile(request)
+            if profile:
                 user_name = f"{profile.firstName or ''} {profile.lastName or ''}".strip() or request.auth.email
-            except Profile.DoesNotExist:
+            else:
                 user_name = request.auth.email
             
             # Create Xendit invoice for escrow payment (including platform fee)
@@ -747,9 +785,8 @@ def get_my_job_postings(request):
         print(f"📋 Fetching job postings for {request.auth.email}")
         
         # Get user's profile
-        try:
-            profile = Profile.objects.get(accountFK=request.auth)
-        except Profile.DoesNotExist:
+        profile = get_user_profile(request)
+        if profile is None:
             return Response(
                 {"error": "Profile not found"},
                 status=400
@@ -845,10 +882,9 @@ def get_available_jobs(request):
         # Get worker's city from the Accounts model (not Profile)
         worker_city = request.auth.city if request.auth.city else None
         
-        # Verify worker profile exists
-        try:
-            profile = Profile.objects.get(accountFK=request.auth)
-        except Profile.DoesNotExist:
+        # Verify worker profile exists (handle users with multiple profiles)
+        profile = get_user_profile(request)
+        if not profile:
             return Response(
                 {"error": "Profile not found"},
                 status=400
@@ -949,9 +985,8 @@ def get_in_progress_jobs(request):
     """
     try:
         # Get user's profile
-        try:
-            profile = Profile.objects.get(accountFK=request.auth)
-        except Profile.DoesNotExist:
+        profile = get_user_profile(request)
+        if profile is None:
             return Response(
                 {"error": "Profile not found"},
                 status=400
@@ -1099,9 +1134,8 @@ def get_completed_jobs(request):
     """
     try:
         # Get user's profile
-        try:
-            profile = Profile.objects.get(accountFK=request.auth)
-        except Profile.DoesNotExist:
+        profile = get_user_profile(request)
+        if profile is None:
             return Response(
                 {"error": "Profile not found"},
                 status=400
@@ -1249,9 +1283,8 @@ def get_my_applications(request):
         print(f"📋 Fetching applications for {request.auth.email}")
         
         # Get user's profile
-        try:
-            profile = Profile.objects.get(accountFK=request.auth)
-        except Profile.DoesNotExist:
+        profile = get_user_profile(request)
+        if profile is None:
             return Response(
                 {"error": "Profile not found"},
                 status=400
@@ -1415,9 +1448,8 @@ def cancel_job_posting(request, job_id: int):
         print(f"🚫 Cancelling job {job_id} for {request.auth.email}")
         
         # Get user's profile
-        try:
-            profile = Profile.objects.get(accountFK=request.auth)
-        except Profile.DoesNotExist:
+        profile = get_user_profile(request)
+        if profile is None:
             return Response(
                 {"error": "Profile not found"},
                 status=400
@@ -1533,9 +1565,8 @@ def get_job_applications(request, job_id: int):
         print(f"📋 Fetching applications for job {job_id} by {request.auth.email}")
         
         # Get user's profile
-        try:
-            profile = Profile.objects.get(accountFK=request.auth)
-        except Profile.DoesNotExist:
+        profile = get_user_profile(request)
+        if profile is None:
             return Response(
                 {"error": "Profile not found"},
                 status=400
@@ -1646,9 +1677,8 @@ def apply_for_job(request, job_id: int, data: JobApplicationSchema):
             )
         
         # Get user's profile
-        try:
-            profile = Profile.objects.get(accountFK=request.auth)
-        except Profile.DoesNotExist:
+        profile = get_user_profile(request)
+        if profile is None:
             return Response(
                 {"error": "Profile not found"},
                 status=400
@@ -1770,9 +1800,8 @@ def accept_application(request, job_id: int, application_id: int):
         print(f"✅ Accepting application {application_id} for job {job_id} by {request.auth.email}")
         
         # Get user's profile
-        try:
-            profile = Profile.objects.get(accountFK=request.auth)
-        except Profile.DoesNotExist:
+        profile = get_user_profile(request)
+        if profile is None:
             return Response(
                 {"error": "Profile not found"},
                 status=400
@@ -1935,9 +1964,8 @@ def reject_application(request, job_id: int, application_id: int):
         print(f"❌ Rejecting application {application_id} for job {job_id} by {request.auth.email}")
         
         # Get user's profile
-        try:
-            profile = Profile.objects.get(accountFK=request.auth)
-        except Profile.DoesNotExist:
+        profile = get_user_profile(request)
+        if profile is None:
             return Response(
                 {"error": "Profile not found"},
                 status=400
@@ -2034,15 +2062,15 @@ def reject_job_invite_worker(request, job_id: int, reason: str | None = None):
     """
     try:
         # Verify user is a worker
+        profile = get_user_profile(request)
+        if profile is None or profile.profileType != "WORKER":
+            return Response(
+                {"error": "Only workers can reject job invitations"},
+                status=403
+            )
         try:
-            profile = Profile.objects.get(accountFK=request.auth)
-            if profile.profileType != "WORKER":
-                return Response(
-                    {"error": "Only workers can reject job invitations"},
-                    status=403
-                )
             worker_profile = WorkerProfile.objects.get(profileID=profile)
-        except (Profile.DoesNotExist, WorkerProfile.DoesNotExist):
+        except WorkerProfile.DoesNotExist:
             return Response(
                 {"error": "Worker profile not found"},
                 status=404
@@ -2167,15 +2195,15 @@ def accept_job_invite_worker(request, job_id: int):
     """
     try:
         # Verify user is a worker
+        profile = get_user_profile(request)
+        if profile is None or profile.profileType != "WORKER":
+            return Response(
+                {"error": "Only workers can accept job invitations"},
+                status=403
+            )
         try:
-            profile = Profile.objects.get(accountFK=request.auth)
-            if profile.profileType != "WORKER":
-                return Response(
-                    {"error": "Only workers can accept job invitations"},
-                    status=403
-                )
             worker_profile = WorkerProfile.objects.get(profileID=profile)
-        except (Profile.DoesNotExist, WorkerProfile.DoesNotExist):
+        except WorkerProfile.DoesNotExist:
             return Response(
                 {"error": "Worker profile not found"},
                 status=404
@@ -2298,14 +2326,17 @@ def upload_job_image(request, job_id: int, image: UploadedFile = File(...)):  # 
     try:
         from iayos_project.utils import upload_file
         
-        user = request.auth
-        
         # Validate job exists and user owns it
+        profile = get_user_profile(request)
+        if profile is None:
+            return Response(
+                {"error": "Profile not found"},
+                status=400
+            )
         try:
-            profile = Profile.objects.get(accountFK=user)
             client_profile = ClientProfile.objects.get(profileID=profile)
             job = JobPosting.objects.get(jobID=job_id, clientID=client_profile)
-        except (Profile.DoesNotExist, ClientProfile.DoesNotExist):
+        except ClientProfile.DoesNotExist:
             return Response(
                 {"error": "Client profile not found"},
                 status=404
@@ -3311,10 +3342,8 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
         print(f"⭐ Submitting review for job {job_id}")
         
         # Get user's profile (may not exist for agency owners)
-        try:
-            profile = Profile.objects.get(accountFK=request.auth)
-        except Profile.DoesNotExist:
-            profile = None  # Agency owners may not have a profile
+        profile = get_user_profile(request)
+        # profile can be None for agency owners
         
         # Get the job with agency employee info
         try:
@@ -3876,15 +3905,15 @@ def create_invite_job(
             )
         
         # Verify user is a client
+        profile = get_user_profile(request)
+        if profile is None or profile.profileType != "CLIENT":
+            return Response(
+                {"error": "Only clients can create INVITE jobs"},
+                status=403
+            )
         try:
-            profile = Profile.objects.get(accountFK=request.auth)
-            if profile.profileType != "CLIENT":
-                return Response(
-                    {"error": "Only clients can create INVITE jobs"},
-                    status=403
-                )
             client_profile = ClientProfile.objects.get(profileID=profile)
-        except (Profile.DoesNotExist, ClientProfile.DoesNotExist):
+        except ClientProfile.DoesNotExist:
             return Response(
                 {"error": "Client profile not found"},
                 status=400
@@ -4165,15 +4194,15 @@ def get_my_invite_jobs(request, invite_status: str | None = None, page: int = 1,
     """
     try:
         # Verify user is a client
+        profile = get_user_profile(request)
+        if profile is None or profile.profileType != "CLIENT":
+            return Response(
+                {"error": "Only clients can view INVITE jobs"},
+                status=403
+            )
         try:
-            profile = Profile.objects.get(accountFK=request.auth)
-            if profile.profileType != "CLIENT":
-                return Response(
-                    {"error": "Only clients can view INVITE jobs"},
-                    status=403
-                )
             client_profile = ClientProfile.objects.get(profileID=profile)
-        except (Profile.DoesNotExist, ClientProfile.DoesNotExist):
+        except ClientProfile.DoesNotExist:
             return Response(
                 {"error": "Client profile not found"},
                 status=400
@@ -4379,7 +4408,7 @@ def request_backjob(request, job_id: int, reason: str = Form(...), description: 
             # ============================================
             # REOPEN CONVERSATION FOR BACKJOB DISCUSSION
             # ============================================
-            from profiles.models import Conversation, Message, ConversationStatus, MessageType
+            from profiles.models import Conversation, Message
             
             # Find existing conversation for this job
             conversation = Conversation.objects.filter(relatedJobPosting=job).first()
@@ -4387,7 +4416,7 @@ def request_backjob(request, job_id: int, reason: str = Form(...), description: 
             if conversation:
                 # Reopen the existing conversation
                 old_status = conversation.status
-                conversation.status = ConversationStatus.ACTIVE
+                conversation.status = Conversation.ConversationStatus.ACTIVE
                 conversation.save()
                 print(f"🔄 Reopened conversation {conversation.conversationID} (was {old_status})")
             else:
@@ -4401,7 +4430,7 @@ def request_backjob(request, job_id: int, reason: str = Form(...), description: 
                     worker=worker_profile,
                     agency=agency,
                     relatedJobPosting=job,
-                    status=ConversationStatus.ACTIVE
+                    status=Conversation.ConversationStatus.ACTIVE
                 )
                 print(f"💬 Created new conversation {conversation.conversationID} for backjob")
             
@@ -4411,7 +4440,7 @@ def request_backjob(request, job_id: int, reason: str = Form(...), description: 
                 sender=None,  # System message has no sender
                 senderAgency=None,
                 messageText="🔄 Backjob Initiated - You can now discuss the backjob details here.",
-                messageType=MessageType.SYSTEM
+                messageType=Message.MessageType.SYSTEM
             )
             print(f"📝 Added system message to conversation {conversation.conversationID}")
         

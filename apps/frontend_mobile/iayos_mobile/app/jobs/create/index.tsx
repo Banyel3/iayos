@@ -35,15 +35,17 @@ import {
   BorderRadius,
   Shadows,
 } from "@/constants/theme";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { fetchJson, ENDPOINTS } from "@/lib/api/config";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { fetchJson, ENDPOINTS, apiRequest } from "@/lib/api/config";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useBarangays } from "@/lib/hooks/useLocations";
+import { useWallet } from "@/lib/hooks/useWallet";
 
 interface Category {
   id: number;
   name: string;
   icon: string;
+  minimum_rate: number;
 }
 
 interface WorkerMaterial {
@@ -88,6 +90,7 @@ export default function CreateJobScreen() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [categoryId, setCategoryId] = useState<number | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [budget, setBudget] = useState("");
   const [barangay, setBarangay] = useState("");
   const [barangayModalVisible, setBarangayModalVisible] = useState(false);
@@ -97,8 +100,39 @@ export default function CreateJobScreen() {
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedMaterials, setSelectedMaterials] = useState<number[]>([]);
+  const queryClient = useQueryClient();
   // Jobs only use Wallet payment - GCash is for deposits/withdrawals only
   // No payment method selection needed - always WALLET
+
+  // Fetch wallet balance
+  const {
+    data: walletData,
+    isLoading: walletLoading,
+    refetch: refetchWallet,
+  } = useWallet();
+
+  const walletBalance = walletData?.balance || 0;
+
+  // Fetch payment methods to check if user has GCash set up
+  const { data: paymentMethodsData, isLoading: paymentMethodsLoading } =
+    useQuery({
+      queryKey: ["payment-methods"],
+      queryFn: async () => {
+        const response = await apiRequest(ENDPOINTS.PAYMENT_METHODS);
+        if (!response.ok) throw new Error("Failed to fetch payment methods");
+        const data = await response.json();
+        return data;
+      },
+    });
+
+  const hasGCashMethod = paymentMethodsData?.payment_methods?.some(
+    (method: any) => method.type === "GCASH"
+  );
+
+  // Calculate required downpayment (50% of budget)
+  const requiredDownpayment = budget ? parseFloat(budget) * 0.5 : 0;
+  const hasInsufficientBalance = walletBalance < requiredDownpayment;
+  const shortfallAmount = requiredDownpayment - walletBalance;
 
   // Fetch worker's materials if workerId is provided
   const { data: workerMaterialsData, isLoading: materialsLoading } = useQuery({
@@ -253,12 +287,58 @@ export default function CreateJobScreen() {
       Alert.alert("Error", "Please enter a valid budget");
       return;
     }
+    // Validate against minimum rate
+    if (selectedCategory && selectedCategory.minimum_rate > 0) {
+      const budgetValue = parseFloat(budget);
+      if (budgetValue < selectedCategory.minimum_rate) {
+        Alert.alert(
+          "Budget Too Low",
+          `The minimum budget for ${selectedCategory.name} is ₱${selectedCategory.minimum_rate.toFixed(2)}. Please enter a higher amount.`
+        );
+        return;
+      }
+    }
     if (!barangay.trim()) {
       Alert.alert("Error", "Please enter a barangay");
       return;
     }
     if (!street.trim()) {
       Alert.alert("Error", "Please enter a street address");
+      return;
+    }
+
+    // Check if user has GCash payment method
+    if (!hasGCashMethod) {
+      Alert.alert(
+        "Payment Method Required",
+        "You need to add a GCash account to deposit funds for job payments. Would you like to add one now?",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Add GCash Account",
+            onPress: () => router.push("/profile/payment-methods" as any),
+          },
+        ]
+      );
+      return;
+    }
+
+    // Check wallet balance
+    if (hasInsufficientBalance) {
+      Alert.alert(
+        "Insufficient Wallet Balance",
+        `You need ₱${requiredDownpayment.toFixed(2)} for the 50% downpayment, but your wallet only has ₱${walletBalance.toFixed(2)}.\n\nYou're short by ₱${shortfallAmount.toFixed(2)}.\n\nWould you like to deposit funds now?`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Deposit Funds",
+            onPress: () => router.push({
+              pathname: "/payments/deposit",
+              params: { amount: Math.ceil(shortfallAmount).toString() }
+            } as any),
+          },
+        ]
+      );
       return;
     }
 
@@ -385,7 +465,14 @@ export default function CreateJobScreen() {
                           categoryId === category.id &&
                             styles.categoryChipActive,
                         ]}
-                        onPress={() => setCategoryId(category.id)}
+                        onPress={() => {
+                          setCategoryId(category.id);
+                          setSelectedCategory(category);
+                          // Auto-populate budget with minimum rate
+                          if (category.minimum_rate > 0) {
+                            setBudget(category.minimum_rate.toFixed(2));
+                          }
+                        }}
                       >
                         <Text
                           style={[
@@ -407,22 +494,35 @@ export default function CreateJobScreen() {
               <Text style={styles.label}>
                 Budget (₱) <Text style={styles.required}>*</Text>
               </Text>
-              <View style={styles.budgetInput}>
+              <View style={[
+                styles.budgetInput,
+                !categoryId && styles.inputDisabled
+              ]}>
                 <Text style={styles.currencySymbol}>₱</Text>
                 <TextInput
                   style={styles.budgetTextInput}
-                  placeholder="0.00"
+                  placeholder={categoryId ? "0.00" : "Select a category first"}
                   value={budget}
                   onChangeText={setBudget}
                   keyboardType="decimal-pad"
                   placeholderTextColor={Colors.textHint}
+                  editable={!!categoryId}
                 />
               </View>
-              <Text style={styles.helperText}>
-                50% downpayment (₱
-                {budget ? (parseFloat(budget) * 0.5).toFixed(2) : "0.00"}) will
-                be held in escrow
-              </Text>
+              {selectedCategory && selectedCategory.minimum_rate > 0 ? (
+                <Text style={styles.helperText}>
+                  Minimum budget: ₱{selectedCategory.minimum_rate.toFixed(2)} • 50% downpayment (₱
+                  {budget ? (parseFloat(budget) * 0.5).toFixed(2) : "0.00"}) will
+                  be held in escrow
+                </Text>
+              ) : (
+                <Text style={styles.helperText}>
+                  {categoryId 
+                    ? `50% downpayment (₱${budget ? (parseFloat(budget) * 0.5).toFixed(2) : "0.00"}) will be held in escrow`
+                    : "Please select a category to set minimum budget"
+                  }
+                </Text>
+              )}
             </View>
 
             {/* Barangay */}
@@ -708,16 +808,77 @@ export default function CreateJobScreen() {
             {/* Payment Method - Wallet Only */}
             <View style={styles.formGroup}>
               <Text style={styles.label}>Payment Method</Text>
-              <View style={styles.infoBox}>
-                <Ionicons name="wallet" size={24} color={Colors.primary} />
-                <View style={styles.infoTextContainer}>
-                  <Text style={styles.infoTitle}>Wallet Payment Only</Text>
-                  <Text style={styles.infoText}>
-                    All job payments use your Wallet balance. You can top up
-                    your wallet using GCash in the Wallet section.
-                  </Text>
+              
+              {/* Wallet Balance Card */}
+              <View style={[
+                styles.walletBalanceCard,
+                hasInsufficientBalance && budget && styles.walletBalanceCardWarning
+              ]}>
+                <View style={styles.walletBalanceHeader}>
+                  <Ionicons 
+                    name="wallet" 
+                    size={24} 
+                    color={hasInsufficientBalance && budget ? Colors.warning : Colors.primary} 
+                  />
+                  <Text style={styles.walletBalanceLabel}>Wallet Balance</Text>
                 </View>
+                <Text style={[
+                  styles.walletBalanceAmount,
+                  hasInsufficientBalance && budget && styles.walletBalanceAmountWarning
+                ]}>
+                  ₱{walletBalance.toFixed(2)}
+                </Text>
+                {budget && parseFloat(budget) > 0 && (
+                  <View style={styles.walletBalanceDetails}>
+                    <Text style={styles.walletBalanceDetailText}>
+                      Required downpayment (50%): ₱{requiredDownpayment.toFixed(2)}
+                    </Text>
+                    {hasInsufficientBalance && (
+                      <Text style={styles.walletBalanceShortfall}>
+                        Short by: ₱{shortfallAmount.toFixed(2)}
+                      </Text>
+                    )}
+                  </View>
+                )}
+                {hasInsufficientBalance && budget && (
+                  <TouchableOpacity
+                    style={styles.depositButton}
+                    onPress={() => router.push({
+                      pathname: "/payments/deposit",
+                      params: { amount: Math.ceil(shortfallAmount).toString() }
+                    } as any)}
+                  >
+                    <Ionicons name="add-circle" size={18} color={Colors.white} />
+                    <Text style={styles.depositButtonText}>Deposit Funds</Text>
+                  </TouchableOpacity>
+                )}
               </View>
+
+              {/* GCash Payment Method Check */}
+              {!paymentMethodsLoading && !hasGCashMethod && (
+                <View style={styles.warningBox}>
+                  <Ionicons name="warning" size={20} color={Colors.warning} />
+                  <View style={styles.warningTextContainer}>
+                    <Text style={styles.warningTitle}>GCash Account Required</Text>
+                    <Text style={styles.warningText}>
+                      Add a GCash account to deposit funds for job payments.
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.addPaymentButton}
+                      onPress={() => router.push("/profile/payment-methods" as any)}
+                    >
+                      <Text style={styles.addPaymentButtonText}>Add GCash Account</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+
+              {hasGCashMethod && (
+                <View style={styles.successBox}>
+                  <Ionicons name="checkmark-circle" size={20} color={Colors.success} />
+                  <Text style={styles.successText}>GCash account linked</Text>
+                </View>
+              )}
             </View>
 
             {/* Info Box */}
@@ -881,6 +1042,10 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     fontSize: 16,
     color: Colors.textPrimary,
+  },
+  inputDisabled: {
+    backgroundColor: Colors.backgroundSecondary,
+    opacity: 0.7,
   },
   urgencyRow: {
     flexDirection: "row",
@@ -1182,5 +1347,122 @@ const styles = StyleSheet.create({
     fontSize: 20,
     color: Colors.primary,
     fontWeight: "bold",
+  },
+  // Wallet Balance Card Styles
+  walletBalanceCard: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.md,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    marginBottom: 12,
+  },
+  walletBalanceCardWarning: {
+    borderColor: Colors.warning,
+    backgroundColor: Colors.warning + "10",
+  },
+  walletBalanceHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 8,
+  },
+  walletBalanceLabel: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    fontWeight: "500",
+  },
+  walletBalanceAmount: {
+    fontSize: 28,
+    fontWeight: "700",
+    color: Colors.primary,
+    marginBottom: 8,
+  },
+  walletBalanceAmountWarning: {
+    color: Colors.warning,
+  },
+  walletBalanceDetails: {
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  walletBalanceDetailText: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+  },
+  walletBalanceShortfall: {
+    fontSize: 13,
+    color: Colors.error,
+    fontWeight: "600",
+    marginTop: 4,
+  },
+  depositButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.md,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    gap: 6,
+    marginTop: 12,
+  },
+  depositButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: Colors.white,
+  },
+  // Warning Box Styles
+  warningBox: {
+    flexDirection: "row",
+    backgroundColor: Colors.warning + "15",
+    borderRadius: BorderRadius.md,
+    padding: 12,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: Colors.warning + "30",
+    marginBottom: 12,
+  },
+  warningTextContainer: {
+    flex: 1,
+  },
+  warningTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: Colors.warning,
+    marginBottom: 2,
+  },
+  warningText: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginBottom: 8,
+  },
+  addPaymentButton: {
+    backgroundColor: Colors.warning,
+    borderRadius: BorderRadius.sm,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    alignSelf: "flex-start",
+  },
+  addPaymentButtonText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: Colors.white,
+  },
+  // Success Box Styles
+  successBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.success + "15",
+    borderRadius: BorderRadius.md,
+    padding: 12,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: Colors.success + "30",
+  },
+  successText: {
+    fontSize: 13,
+    color: Colors.success,
+    fontWeight: "500",
   },
 });

@@ -882,8 +882,27 @@ def get_conversation_by_job(request, job_id: int, reopen: bool = False):
         # Try to find existing conversation
         conversation = Conversation.objects.filter(relatedJobPosting=job).first()
         
+        # Check if there's an active backjob/dispute for this job
+        from accounts.models import JobDispute
+        active_dispute = JobDispute.objects.filter(
+            jobID=job,
+            status__in=['OPEN', 'UNDER_REVIEW']
+        ).first()
+        
+        backjob_info = None
+        if active_dispute:
+            backjob_info = {
+                "has_backjob": True,
+                "dispute_id": active_dispute.disputeID,
+                "status": active_dispute.status,
+                "reason": active_dispute.reason,
+                "priority": active_dispute.priority,
+            }
+        
         if conversation:
             reopened = False
+            system_message_added = False
+            
             # If reopen is requested and conversation is not active, reopen it
             if reopen and conversation.status != Conversation.ConversationStatus.ACTIVE:
                 old_status = conversation.status
@@ -891,12 +910,34 @@ def get_conversation_by_job(request, job_id: int, reopen: bool = False):
                 conversation.save()
                 reopened = True
                 print(f"[get_conversation_by_job] Reopened conversation {conversation.conversationID} (was {old_status})")
+                
+                # Add system message only on first reopen for backjob
+                # Check if there's already a "Backjob Initiated" or "Conversation reopened" message
+                existing_reopen_msg = Message.objects.filter(
+                    conversationID=conversation,
+                    messageType="SYSTEM",
+                    messageText__icontains="backjob"
+                ).exists()
+                
+                if not existing_reopen_msg and active_dispute:
+                    # First time reopening for backjob - add system message
+                    Message.objects.create(
+                        conversationID=conversation,
+                        sender=None,
+                        senderAgency=None,
+                        messageText="💬 Conversation reopened for backjob discussion. Please coordinate the backjob work here.",
+                        messageType="SYSTEM"
+                    )
+                    system_message_added = True
+                    print(f"[get_conversation_by_job] Added backjob system message to conversation {conversation.conversationID}")
             
             return {
                 "success": True,
                 "conversation_id": conversation.conversationID,
                 "exists": True,
-                "reopened": reopened
+                "reopened": reopened,
+                "system_message_added": system_message_added,
+                "backjob": backjob_info
             }
         
         # If no conversation exists and user is a valid participant, create one
@@ -1262,6 +1303,24 @@ def get_conversation_messages(request, conversation_id: int):
         except Exception as e:
             print(f"   ⚠️ ML prediction error: {str(e)}")
 
+        # Check for active backjob/dispute
+        from accounts.models import JobDispute
+        active_dispute = JobDispute.objects.filter(
+            jobID=job,
+            status__in=['OPEN', 'UNDER_REVIEW']
+        ).first()
+        
+        backjob_info = None
+        if active_dispute:
+            backjob_info = {
+                "has_backjob": True,
+                "dispute_id": active_dispute.disputeID,
+                "status": active_dispute.status,
+                "reason": active_dispute.reason,
+                "priority": active_dispute.priority,
+                "description": active_dispute.description,
+            }
+
         return {
             "success": True,
             "conversation_id": conversation.conversationID,
@@ -1292,7 +1351,8 @@ def get_conversation_messages(request, conversation_id: int):
             "is_agency_job": is_agency_conversation,
             "my_role": my_role,
             "messages": formatted_messages,
-            "total_messages": len(formatted_messages)
+            "total_messages": len(formatted_messages),
+            "backjob": backjob_info
         }
         
     except Exception as e:

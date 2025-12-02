@@ -58,6 +58,16 @@ def submit_review(reviewer: Accounts, payload: SubmitReviewRequest) -> ReviewRes
     if not (is_client or is_worker):
         raise ValueError("You are not part of this job")
 
+    # Determine the reviewee's profile based on reviewer type
+    # CLIENT reviewing WORKER -> reviewee profile is the worker's profile
+    # WORKER reviewing CLIENT -> reviewee profile is the client's profile
+    if is_client and job.assignedWorkerID:
+        reviewee_profile = job.assignedWorkerID.profileID
+    elif is_worker and job.clientID:
+        reviewee_profile = job.clientID.profileID
+    else:
+        reviewee_profile = None
+
     # Check for existing review
     existing_review = JobReview.objects.filter(
         jobID=job,
@@ -71,11 +81,12 @@ def submit_review(reviewer: Accounts, payload: SubmitReviewRequest) -> ReviewRes
     if payload.rating < 1.0 or payload.rating > 5.0:
         raise ValueError("Rating must be between 1 and 5")
 
-    # Create review
+    # Create review with profile-specific reviewee
     review = JobReview.objects.create(
         jobID=job,
         reviewerID=reviewer,
         revieweeID=reviewee,
+        revieweeProfileID=reviewee_profile,  # Profile-specific for proper separation
         reviewerType=payload.reviewer_type,
         rating=Decimal(str(payload.rating)),
         comment=payload.comment,
@@ -90,18 +101,39 @@ def submit_review(reviewer: Accounts, payload: SubmitReviewRequest) -> ReviewRes
 # ===========================================================================
 
 def get_reviews_for_worker(worker_account_id: int, page: int = 1, limit: int = 20, sort: str = "latest"):
-    """Get all reviews for a specific worker"""
+    """Get all reviews for a specific worker's WORKER profile"""
 
     try:
         worker_account = Accounts.objects.get(accountID=worker_account_id)
     except Accounts.DoesNotExist:
         raise ValueError("Worker not found")
 
-    # Get reviews where worker is reviewee
-    reviews_query = JobReview.objects.filter(
-        revieweeID=worker_account,
-        status="ACTIVE"
-    )
+    # Get the WORKER profile for this account
+    worker_profile = Profile.objects.filter(
+        accountFK=worker_account,
+        profileType='WORKER'
+    ).first()
+
+    # Get reviews where worker PROFILE is reviewee
+    if worker_profile:
+        reviews_query = JobReview.objects.filter(
+            revieweeProfileID=worker_profile,
+            status="ACTIVE"
+        )
+        # Fallback for old reviews without profileID
+        if not reviews_query.exists():
+            reviews_query = JobReview.objects.filter(
+                revieweeID=worker_account,
+                reviewerType='CLIENT',
+                status="ACTIVE"
+            )
+    else:
+        # Fallback: filter by reviewer type
+        reviews_query = JobReview.objects.filter(
+            revieweeID=worker_account,
+            reviewerType='CLIENT',
+            status="ACTIVE"
+        )
 
     # Apply sorting
     if sort == "highest":
@@ -131,18 +163,38 @@ def get_reviews_for_worker(worker_account_id: int, page: int = 1, limit: int = 2
 
 
 def get_review_stats(worker_account_id: int):
-    """Get review statistics for a worker"""
+    """Get review statistics for a worker's WORKER profile"""
 
     try:
         worker_account = Accounts.objects.get(accountID=worker_account_id)
     except Accounts.DoesNotExist:
         raise ValueError("Worker not found")
 
-    # Get all active reviews
-    reviews = JobReview.objects.filter(
-        revieweeID=worker_account,
-        status="ACTIVE"
-    )
+    # Get the WORKER profile for this account
+    worker_profile = Profile.objects.filter(
+        accountFK=worker_account,
+        profileType='WORKER'
+    ).first()
+
+    # Get all active reviews for the WORKER profile
+    if worker_profile:
+        reviews = JobReview.objects.filter(
+            revieweeProfileID=worker_profile,
+            status="ACTIVE"
+        )
+        # Fallback for old reviews
+        if not reviews.exists():
+            reviews = JobReview.objects.filter(
+                revieweeID=worker_account,
+                reviewerType='CLIENT',
+                status="ACTIVE"
+            )
+    else:
+        reviews = JobReview.objects.filter(
+            revieweeID=worker_account,
+            reviewerType='CLIENT',
+            status="ACTIVE"
+        )
 
     # Calculate average rating
     avg_rating = reviews.aggregate(Avg('rating'))['rating__avg'] or 0.0

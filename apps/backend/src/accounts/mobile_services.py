@@ -283,14 +283,22 @@ def get_mobile_job_detail(job_id: int, user: Accounts) -> Dict[str, Any]:
         client_profile = job.clientID.profileID
         client_account = job.clientID.profileID.accountFK
         
-        # Calculate client average rating from reviews where they were reviewed
+        # Calculate client average rating from reviews for their CLIENT profile
         from .models import JobReview
         from django.db.models import Avg
+        
+        # First try profile-based filtering
         client_reviews = JobReview.objects.filter(
-            revieweeID=client_account,
-            reviewerType='WORKER',  # Reviews from workers about this client
+            revieweeProfileID=client_profile,
             status='ACTIVE'
         )
+        # Fallback for old reviews
+        if not client_reviews.exists():
+            client_reviews = JobReview.objects.filter(
+                revieweeID=client_account,
+                reviewerType='WORKER',  # Reviews from workers about this client
+                status='ACTIVE'
+            )
         client_avg_rating = client_reviews.aggregate(Avg('rating'))['rating__avg']
         client_rating = float(client_avg_rating) if client_avg_rating else 0.0
         
@@ -360,12 +368,18 @@ def get_mobile_job_detail(job_id: int, user: Accounts) -> Dict[str, Any]:
                 worker_profile = job.assignedWorkerID.profileID
                 worker_account = worker_profile.accountFK
                 
-                # Calculate worker average rating from reviews where they were reviewed
+                # Calculate worker average rating for their WORKER profile
                 worker_reviews = JobReview.objects.filter(
-                    revieweeID=worker_account,
-                    reviewerType='CLIENT',  # Reviews from clients about this worker
+                    revieweeProfileID=worker_profile,
                     status='ACTIVE'
                 )
+                # Fallback for old reviews
+                if not worker_reviews.exists():
+                    worker_reviews = JobReview.objects.filter(
+                        revieweeID=worker_account,
+                        reviewerType='CLIENT',  # Reviews from clients about this worker
+                        status='ACTIVE'
+                    )
                 worker_avg_rating = worker_reviews.aggregate(Avg('rating'))['rating__avg']
                 worker_rating = float(worker_avg_rating) if worker_avg_rating else 0.0
                 
@@ -1048,6 +1062,7 @@ def get_job_categories_mobile() -> Dict[str, Any]:
             {
                 'id': cat.specializationID,
                 'name': cat.specializationName,
+                'minimum_rate': float(cat.minimumRate),
             }
             for cat in categories
         ]
@@ -1417,11 +1432,18 @@ def get_workers_list_mobile(user, latitude=None, longitude=None, page=1, limit=2
             # Calculate average rating from reviews
             from .models import JobReview
             from django.db.models import Avg
+            # Get reviews for WORKER profile specifically (not account-wide)
             reviews = JobReview.objects.filter(
-                revieweeID=account,
-                reviewerType='CLIENT',
+                revieweeProfileID=profile,  # Use profile, not account
                 status='ACTIVE'
             )
+            # Fallback for old reviews
+            if not reviews.exists():
+                reviews = JobReview.objects.filter(
+                    revieweeID=account,
+                    reviewerType='CLIENT',
+                    status='ACTIVE'
+                )
             avg_rating = reviews.aggregate(Avg('rating'))['rating__avg']
             average_rating = float(avg_rating) if avg_rating else 0.0
             review_count = reviews.count()
@@ -1603,12 +1625,18 @@ def get_worker_detail_mobile_v2(user, worker_id):
 
         print(f"   ✅ Found worker: {profile.firstName} {profile.lastName}")
 
-        # Get reviews and rating
+        # Get reviews and rating for the WORKER profile specifically
         reviews_qs = JobReview.objects.filter(
-            revieweeID=account,
-            reviewerType='CLIENT',
+            revieweeProfileID=profile,  # Use profile, not account
             status='ACTIVE'
         )
+        # Fallback for old reviews without profileID
+        if not reviews_qs.exists():
+            reviews_qs = JobReview.objects.filter(
+                revieweeID=account,
+                reviewerType='CLIENT',
+                status='ACTIVE'
+            )
         avg_rating = reviews_qs.aggregate(Avg('rating'))['rating__avg'] or 0.0
         review_count = reviews_qs.count()
 
@@ -2208,6 +2236,7 @@ def submit_review_mobile(user: Accounts, job_id: int, rating: int, comment: str,
             if not job.workerID:
                 return {'success': False, 'error': 'No worker assigned to this job'}
             reviewee = job.workerID.profileID.accountFK
+            reviewee_profile = job.workerID.profileID  # Worker's profile
         elif review_type == 'WORKER_TO_CLIENT':
             # Worker reviewing client
             reviewer_type = 'WORKER'
@@ -2216,6 +2245,7 @@ def submit_review_mobile(user: Accounts, job_id: int, rating: int, comment: str,
             if not job.clientID:
                 return {'success': False, 'error': 'No client for this job'}
             reviewee = job.clientID.profileID.accountFK
+            reviewee_profile = job.clientID.profileID  # Client's profile
         else:
             return {'success': False, 'error': 'Invalid review type'}
 
@@ -2237,6 +2267,7 @@ def submit_review_mobile(user: Accounts, job_id: int, rating: int, comment: str,
             jobID=job,
             reviewerID=user,
             revieweeID=reviewee,
+            revieweeProfileID=reviewee_profile,  # Profile-specific for proper separation
             reviewerType=reviewer_type,
             rating=Decimal(str(rating)),
             comment=comment.strip(),
@@ -2277,7 +2308,7 @@ def submit_review_mobile(user: Accounts, job_id: int, rating: int, comment: str,
 
 def get_worker_reviews_mobile(worker_id: int, page: int = 1, limit: int = 20) -> Dict[str, Any]:
     """
-    Get all reviews for a specific worker
+    Get all reviews for a specific worker's WORKER profile
 
     Args:
         worker_id: Account ID of the worker
@@ -2285,7 +2316,7 @@ def get_worker_reviews_mobile(worker_id: int, page: int = 1, limit: int = 20) ->
         limit: Reviews per page
 
     Returns:
-        Paginated list of reviews
+        Paginated list of reviews for the worker profile only
     """
     try:
         # Get worker account
@@ -2294,14 +2325,35 @@ def get_worker_reviews_mobile(worker_id: int, page: int = 1, limit: int = 20) ->
         except Accounts.DoesNotExist:
             return {'success': False, 'error': 'Worker not found'}
 
-        # Get reviews where worker is reviewee
+        # Get the WORKER profile for this account
+        worker_profile = Profile.objects.filter(
+            accountFK=worker_account,
+            profileType='WORKER'
+        ).first()
+        
+        if not worker_profile:
+            return {'success': False, 'error': 'Worker profile not found'}
+
+        # Get reviews where worker PROFILE is reviewee (not account)
+        # This ensures we only get reviews for their worker role, not client role
         reviews_qs = JobReview.objects.filter(
-            revieweeID=worker_account,
+            revieweeProfileID=worker_profile,
             status='ACTIVE'
         ).select_related(
             'reviewerID',
             'jobID'
         ).order_by('-createdAt')
+        
+        # Fallback: If no reviews with profileID, check old reviews by account + reviewer type
+        if not reviews_qs.exists():
+            reviews_qs = JobReview.objects.filter(
+                revieweeID=worker_account,
+                reviewerType='CLIENT',  # Only client reviews about workers
+                status='ACTIVE'
+            ).select_related(
+                'reviewerID',
+                'jobID'
+            ).order_by('-createdAt')
 
         total_count = reviews_qs.count()
 
@@ -2509,13 +2561,13 @@ def get_my_reviews_mobile(user: Accounts, review_type: str = 'given', page: int 
 
 def get_review_stats_mobile(worker_id: int) -> Dict[str, Any]:
     """
-    Get review statistics for a worker
+    Get review statistics for a worker's WORKER profile
 
     Args:
         worker_id: Account ID of the worker
 
     Returns:
-        Review statistics including average rating, total reviews, breakdown
+        Review statistics for the worker profile only (not client profile)
     """
     try:
         # Get worker account
@@ -2524,11 +2576,32 @@ def get_review_stats_mobile(worker_id: int) -> Dict[str, Any]:
         except Accounts.DoesNotExist:
             return {'success': False, 'error': 'Worker not found'}
 
-        # Get all active reviews
-        reviews = JobReview.objects.filter(
-            revieweeID=worker_account,
-            status='ACTIVE'
-        )
+        # Get the WORKER profile for this account
+        worker_profile = Profile.objects.filter(
+            accountFK=worker_account,
+            profileType='WORKER'
+        ).first()
+
+        # Get all active reviews for the WORKER profile
+        if worker_profile:
+            reviews = JobReview.objects.filter(
+                revieweeProfileID=worker_profile,
+                status='ACTIVE'
+            )
+            # Fallback for old reviews without profileID
+            if not reviews.exists():
+                reviews = JobReview.objects.filter(
+                    revieweeID=worker_account,
+                    reviewerType='CLIENT',  # Only client reviews about workers
+                    status='ACTIVE'
+                )
+        else:
+            # Fallback: filter by reviewer type
+            reviews = JobReview.objects.filter(
+                revieweeID=worker_account,
+                reviewerType='CLIENT',
+                status='ACTIVE'
+            )
 
         # Calculate average rating
         avg_rating = reviews.aggregate(Avg('rating'))['rating__avg'] or 0.0
@@ -2842,12 +2915,21 @@ def get_client_detail_mobile(user, client_id):
         
         print(f"   ✅ Found client: {profile.firstName} {profile.lastName}")
         
-        # Get reviews about this client (from workers who completed jobs)
+        # Get reviews about this client's CLIENT profile (from workers who completed jobs)
+        # First try with profileID, then fallback to account + reviewer type
         reviews_qs = JobReview.objects.filter(
-            revieweeID=account,
-            reviewerType='WORKER',  # Workers reviewing the client
+            revieweeProfileID=profile,
             status='ACTIVE'
         )
+        
+        # Fallback for old reviews without profileID
+        if not reviews_qs.exists():
+            reviews_qs = JobReview.objects.filter(
+                revieweeID=account,
+                reviewerType='WORKER',  # Workers reviewing the client
+                status='ACTIVE'
+            )
+        
         avg_rating = reviews_qs.aggregate(Avg('rating'))['rating__avg'] or 0.0
         review_count = reviews_qs.count()
         
@@ -2901,7 +2983,7 @@ def get_client_detail_mobile(user, client_id):
 
 def get_client_reviews_mobile(client_id: int, page: int = 1, limit: int = 10) -> Dict[str, Any]:
     """
-    Get all reviews for a specific client (reviews from workers about the client).
+    Get all reviews for a specific client's CLIENT profile (reviews from workers).
     
     Args:
         client_id: Account ID of the client
@@ -2909,7 +2991,7 @@ def get_client_reviews_mobile(client_id: int, page: int = 1, limit: int = 10) ->
         limit: Reviews per page
         
     Returns:
-        Paginated list of reviews with reviewer info
+        Paginated list of reviews for the client profile only
     """
     try:
         # Get client account
@@ -2918,15 +3000,42 @@ def get_client_reviews_mobile(client_id: int, page: int = 1, limit: int = 10) ->
         except Accounts.DoesNotExist:
             return {'success': False, 'error': 'Client not found'}
         
-        # Get reviews where client is reviewee (from workers)
-        reviews_qs = JobReview.objects.filter(
-            revieweeID=client_account,
-            reviewerType='WORKER',  # Reviews from workers about the client
-            status='ACTIVE'
-        ).select_related(
-            'reviewerID',
-            'jobID'
-        ).order_by('-createdAt')
+        # Get the CLIENT profile for this account
+        client_profile = Profile.objects.filter(
+            accountFK=client_account,
+            profileType='CLIENT'
+        ).first()
+        
+        # Get reviews where client PROFILE is reviewee (from workers)
+        if client_profile:
+            reviews_qs = JobReview.objects.filter(
+                revieweeProfileID=client_profile,
+                status='ACTIVE'
+            ).select_related(
+                'reviewerID',
+                'jobID'
+            ).order_by('-createdAt')
+            
+            # Fallback for old reviews without profileID
+            if not reviews_qs.exists():
+                reviews_qs = JobReview.objects.filter(
+                    revieweeID=client_account,
+                    reviewerType='WORKER',  # Reviews from workers about the client
+                    status='ACTIVE'
+                ).select_related(
+                    'reviewerID',
+                    'jobID'
+                ).order_by('-createdAt')
+        else:
+            # Fallback: filter by reviewer type
+            reviews_qs = JobReview.objects.filter(
+                revieweeID=client_account,
+                reviewerType='WORKER',
+                status='ACTIVE'
+            ).select_related(
+                'reviewerID',
+                'jobID'
+            ).order_by('-createdAt')
         
         total_count = reviews_qs.count()
         

@@ -25,6 +25,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import { WebView } from "react-native-webview";
 import { useRouter } from "expo-router";
 import {
   Colors,
@@ -59,6 +60,8 @@ interface WithdrawResponse {
   transaction_id: number;
   new_balance: number;
   message?: string;
+  receipt_url?: string;
+  test_mode?: boolean;
 }
 
 export default function WithdrawScreen() {
@@ -67,6 +70,8 @@ export default function WithdrawScreen() {
   const [selectedMethodId, setSelectedMethodId] = useState<number | null>(null);
   const [notes, setNotes] = useState("");
   const [showSuccess, setShowSuccess] = useState(false);
+  const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
+  const [webViewLoading, setWebViewLoading] = useState(true);
 
   // Fetch wallet balance
   const { data: walletData, isLoading: walletLoading } = useWallet();
@@ -191,16 +196,20 @@ export default function WithdrawScreen() {
                 notes: notes || undefined,
               });
 
-              // Show success modal
-              setShowSuccess(true);
               Haptics.notificationAsync(
                 Haptics.NotificationFeedbackType.Success
               );
 
-              // Navigate after 2 seconds
-              setTimeout(() => {
-                router.back();
-              }, 2000);
+              // If there's a receipt URL, show it in WebView first
+              if (result.receipt_url) {
+                setReceiptUrl(result.receipt_url);
+              } else {
+                // No receipt URL, show success modal directly
+                setShowSuccess(true);
+                setTimeout(() => {
+                  router.back();
+                }, 2000);
+              }
             } catch (error: any) {
               Alert.alert(
                 "Withdrawal Failed",
@@ -224,7 +233,68 @@ export default function WithdrawScreen() {
     );
   }
 
+  // Show Xendit receipt in WebView
+  if (receiptUrl) {
+    const withdrawResult = withdrawMutation.data as WithdrawResponse;
+    
+    return (
+      <SafeAreaView style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => {
+              setReceiptUrl(null);
+              setShowSuccess(true);
+            }}
+          >
+            <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Withdrawal Receipt</Text>
+          <View style={{ width: 40 }} />
+        </View>
+
+        {/* WebView Loading Indicator */}
+        {webViewLoading && (
+          <View style={styles.webViewLoadingContainer}>
+            <ActivityIndicator size="large" color={Colors.primary} />
+            <Text style={styles.loadingText}>Loading receipt...</Text>
+          </View>
+        )}
+
+        {/* Xendit Receipt WebView */}
+        <WebView
+          source={{ uri: receiptUrl }}
+          style={[styles.webView, webViewLoading && { opacity: 0 }]}
+          onLoadStart={() => setWebViewLoading(true)}
+          onLoadEnd={() => setWebViewLoading(false)}
+          javaScriptEnabled={true}
+          domStorageEnabled={true}
+        />
+
+        {/* Done Button Footer */}
+        <View style={styles.webViewFooter}>
+          <View style={styles.successBadge}>
+            <Ionicons name="checkmark-circle" size={20} color={Colors.success} />
+            <Text style={styles.successBadgeText}>
+              ₱{amountNum.toFixed(2)} withdrawal processed
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.doneButton}
+            onPress={() => router.back()}
+          >
+            <Text style={styles.doneButtonText}>Done</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   if (showSuccess) {
+    const withdrawResult = withdrawMutation.data as WithdrawResponse;
+    const isTestMode = withdrawResult?.test_mode;
+    
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.successContainer}>
@@ -235,23 +305,72 @@ export default function WithdrawScreen() {
               color={Colors.success}
             />
           </View>
-          <Text style={styles.successTitle}>Withdrawal Successful!</Text>
-          <Text style={styles.successMessage}>
-            ₱{amountNum.toFixed(2)} will be transferred to your GCash account
-            within 1-3 business days.
+          <Text style={styles.successTitle}>
+            {isTestMode ? "Withdrawal Simulated!" : "Withdrawal Successful!"}
           </Text>
-          <View style={styles.successDetails}>
-            <Text style={styles.successDetails}>
-              Transaction ID:{" "}
-              {(withdrawMutation.data as WithdrawResponse)?.transaction_id}
-            </Text>
-            <Text style={styles.successDetails}>
-              New Balance: ₱
-              {(
-                withdrawMutation.data as WithdrawResponse
-              )?.new_balance?.toFixed(2)}
-            </Text>
+          
+          {/* Receipt Card */}
+          <View style={styles.receiptCard}>
+            <View style={styles.receiptHeader}>
+              <Ionicons name="receipt-outline" size={24} color={Colors.primary} />
+              <Text style={styles.receiptTitle}>Transaction Receipt</Text>
+            </View>
+            
+            <View style={styles.receiptDivider} />
+            
+            <View style={styles.receiptRow}>
+              <Text style={styles.receiptLabel}>Amount</Text>
+              <Text style={styles.receiptValue}>₱{amountNum.toFixed(2)}</Text>
+            </View>
+            
+            <View style={styles.receiptRow}>
+              <Text style={styles.receiptLabel}>To</Text>
+              <Text style={styles.receiptValue}>{selectedMethod?.account_name || "GCash"}</Text>
+            </View>
+            
+            <View style={styles.receiptRow}>
+              <Text style={styles.receiptLabel}>Account</Text>
+              <Text style={styles.receiptValue}>{selectedMethod?.account_number}</Text>
+            </View>
+            
+            <View style={styles.receiptRow}>
+              <Text style={styles.receiptLabel}>Status</Text>
+              <View style={styles.statusBadge}>
+                <Ionicons name="checkmark-circle" size={14} color={Colors.success} />
+                <Text style={styles.statusText}>
+                  {isTestMode ? "Simulated" : "Completed"}
+                </Text>
+              </View>
+            </View>
+            
+            <View style={styles.receiptDivider} />
+            
+            <View style={styles.receiptRow}>
+              <Text style={styles.receiptLabel}>Transaction ID</Text>
+              <Text style={styles.receiptValueSmall}>#{withdrawResult?.transaction_id}</Text>
+            </View>
+            
+            <View style={styles.receiptRow}>
+              <Text style={styles.receiptLabel}>New Balance</Text>
+              <Text style={styles.receiptValue}>₱{withdrawResult?.new_balance?.toFixed(2)}</Text>
+            </View>
           </View>
+          
+          {isTestMode && (
+            <View style={styles.testModeBanner}>
+              <Ionicons name="flask-outline" size={16} color={Colors.warning} />
+              <Text style={styles.testModeText}>
+                Test Mode: In production, funds would be sent to your GCash account within 1-3 business days.
+              </Text>
+            </View>
+          )}
+          
+          <TouchableOpacity
+            style={styles.doneButton}
+            onPress={() => router.back()}
+          >
+            <Text style={styles.doneButtonText}>Done</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
@@ -791,34 +910,142 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    padding: Spacing.xl * 2,
+    padding: Spacing.xl,
   },
   successIcon: {
-    marginBottom: Spacing.xl,
+    marginBottom: Spacing.lg,
   },
   successTitle: {
     fontSize: Typography.fontSize["2xl"],
     fontWeight: Typography.fontWeight.bold,
     color: Colors.textPrimary,
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.lg,
     textAlign: "center",
   },
-  successMessage: {
-    fontSize: Typography.fontSize.base,
-    color: Colors.textSecondary,
-    textAlign: "center",
-    lineHeight: 24,
-    marginBottom: Spacing.xl,
-  },
-  successDetails: {
-    backgroundColor: Colors.background,
+  receiptCard: {
+    backgroundColor: Colors.white,
     borderRadius: BorderRadius.lg,
     padding: Spacing.lg,
     width: "100%",
-    gap: Spacing.sm,
+    marginBottom: Spacing.lg,
+    ...Shadows.medium,
   },
-  successDetailText: {
+  receiptHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  receiptTitle: {
+    fontSize: Typography.fontSize.lg,
+    fontWeight: Typography.fontWeight.semiBold,
+    color: Colors.textPrimary,
+  },
+  receiptDivider: {
+    height: 1,
+    backgroundColor: Colors.border,
+    marginVertical: Spacing.md,
+  },
+  receiptRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: Spacing.sm,
+  },
+  receiptLabel: {
     fontSize: Typography.fontSize.sm,
     color: Colors.textSecondary,
+  },
+  receiptValue: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.semiBold,
+    color: Colors.textPrimary,
+  },
+  receiptValueSmall: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+  },
+  statusBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    backgroundColor: "#E8F5E9",
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.full,
+  },
+  statusText: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.medium,
+    color: Colors.success,
+  },
+  testModeBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: "#FFF3E0",
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    gap: Spacing.sm,
+    marginBottom: Spacing.lg,
+    width: "100%",
+  },
+  testModeText: {
+    flex: 1,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.warning,
+    lineHeight: 20,
+  },
+  webView: {
+    flex: 1,
+  },
+  webViewLoadingContainer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: Colors.background,
+    zIndex: 10,
+  },
+  webViewFooter: {
+    backgroundColor: Colors.white,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    padding: Spacing.lg,
+    gap: Spacing.md,
+    ...Shadows.medium,
+  },
+  successBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+    backgroundColor: "#E8F5E9",
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.full,
+  },
+  successBadgeText: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.semiBold,
+    color: Colors.success,
+  },
+  doneButton: {
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.lg,
+    paddingVertical: Spacing.lg,
+    paddingHorizontal: Spacing.xl,
+    justifyContent: "center",
+    alignItems: "center",
+    width: "100%",
+    ...Shadows.small,
+  },
+  doneButtonText: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.white,
   },
 });

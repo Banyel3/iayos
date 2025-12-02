@@ -76,6 +76,15 @@ const AgencyRegister = () => {
   const [rateLimitTime, setRateLimitTime] = useState(0);
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
   const [registeredEmail, setRegisteredEmail] = useState("");
+  // State for resend verification email functionality
+  const [verificationData, setVerificationData] = useState<{
+    email: string;
+    verifyLink: string;
+    verifyLinkExpire: string;
+  } | null>(null);
+  const [isResendingEmail, setIsResendingEmail] = useState(false);
+  const [resendSuccess, setResendSuccess] = useState(false);
+  const [emailSendError, setEmailSendError] = useState("");
 
   // Function to check actual rate limit status from backend
   const checkRateLimitStatus = async () => {
@@ -178,6 +187,47 @@ const AgencyRegister = () => {
     return () => clearInterval(timer);
   }, [isRateLimited]);
 
+  // Handler to resend verification email
+  const handleResendEmail = async () => {
+    if (!verificationData) {
+      setEmailSendError("Verification data not available. Please register again.");
+      return;
+    }
+
+    setIsResendingEmail(true);
+    setEmailSendError("");
+    setResendSuccess(false);
+
+    try {
+      const response = await fetch("/api/auth/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: verificationData.email,
+          verifyLink: verificationData.verifyLink,
+          verifyLinkExpire: verificationData.verifyLinkExpire,
+        }),
+      });
+
+      if (response.ok) {
+        setResendSuccess(true);
+        setEmailSendError("");
+      } else {
+        const data = await response.json().catch(() => ({}));
+        setEmailSendError(
+          data.error?.[0]?.message ||
+            data?.message ||
+            "Failed to resend verification email. Please try again."
+        );
+      }
+    } catch (error) {
+      console.error("Error resending verification email:", error);
+      setEmailSendError("Network error. Please check your connection and try again.");
+    } finally {
+      setIsResendingEmail(false);
+    }
+  };
+
   // Agency form submission handler
   const onAgencySubmit = async (values: z.infer<typeof agencyFormSchema>) => {
     // Ensure all fields have valid string values
@@ -253,12 +303,6 @@ const AgencyRegister = () => {
         setIsRateLimited(false);
         setRateLimitTime(0);
 
-        // Set success state to show success message
-        setRegistrationSuccess(true);
-        setRegisteredEmail(values.email);
-        // Clear any existing errors
-        setAgencyError("");
-
         // Only call the send endpoint if the backend returned the expected
         // verification fields. Otherwise surface an error and avoid POSTing
         // undefined values which trigger zod validation errors in the API.
@@ -273,22 +317,46 @@ const AgencyRegister = () => {
           return; // Don't proceed with verification email sending
         }
 
-        const verify = await fetch("/api/auth/send", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            email: data.email,
-            verifyLink: data.verifyLink,
-            verifyLinkExpire: data.verifyLinkExpire,
-          }),
-        });
-        if (!verify.ok) {
-          const verifyData = await verify.json().catch(() => ({}));
-          setAgencyError(
-            verifyData.error?.[0]?.message ||
-              verifyData?.message ||
-              "Failed to send verification email"
-          );
+        // Store verification data for potential resend
+        const verifyData = {
+          email: data.email,
+          verifyLink: data.verifyLink,
+          verifyLinkExpire: data.verifyLinkExpire,
+        };
+        setVerificationData(verifyData);
+        setRegisteredEmail(values.email);
+
+        // Send verification email
+        try {
+          const verify = await fetch("/api/auth/send", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(verifyData),
+          });
+
+          if (verify.ok) {
+            // Email sent successfully - show success state
+            setRegistrationSuccess(true);
+            setAgencyError("");
+            setEmailSendError("");
+          } else {
+            const verifyResponseData = await verify.json().catch(() => ({}));
+            const errorMessage =
+              verifyResponseData.error?.[0]?.message ||
+              verifyResponseData?.message ||
+              "Failed to send verification email";
+            
+            // Registration succeeded but email failed - still show success but with warning
+            setRegistrationSuccess(true);
+            setAgencyError("");
+            setEmailSendError(errorMessage);
+          }
+        } catch (emailError) {
+          console.error("Error sending verification email:", emailError);
+          // Registration succeeded but email failed - still show success but with warning
+          setRegistrationSuccess(true);
+          setAgencyError("");
+          setEmailSendError("Failed to send verification email. Please use the resend button below.");
         }
       }
     } catch (err) {
@@ -432,14 +500,76 @@ const AgencyRegister = () => {
                     Agency Registration Successful!
                   </h3>
                   <p className="text-green-700 mb-4">
-                    We've sent a verification email to{" "}
-                    <strong>{registeredEmail}</strong>
+                    {emailSendError ? (
+                      <>Your account has been created for <strong>{registeredEmail}</strong></>
+                    ) : (
+                      <>We've sent a verification email to <strong>{registeredEmail}</strong></>
+                    )}
                   </p>
+                  
+                  {/* Email status messages */}
+                  {emailSendError && (
+                    <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg mb-4">
+                      <p className="text-yellow-700 text-sm mb-2">
+                        ⚠️ {emailSendError}
+                      </p>
+                      <p className="text-yellow-600 text-xs">
+                        Click the button below to resend the verification email.
+                      </p>
+                    </div>
+                  )}
+
+                  {resendSuccess && (
+                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg mb-4">
+                      <p className="text-blue-700 text-sm">
+                        ✓ Verification email sent successfully! Please check your inbox.
+                      </p>
+                    </div>
+                  )}
+
                   <p className="text-green-600 text-sm mb-6">
                     Please check your email and click the verification link to
                     activate your agency account.
                   </p>
+                  
                   <div className="space-y-3">
+                    {/* Resend Verification Email Button */}
+                    {verificationData && (
+                      <button
+                        onClick={handleResendEmail}
+                        disabled={isResendingEmail}
+                        className="block w-full px-4 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isResendingEmail ? (
+                          <span className="flex items-center justify-center">
+                            <svg
+                              className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+                              xmlns="http://www.w3.org/2000/svg"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                            >
+                              <circle
+                                className="opacity-25"
+                                cx="12"
+                                cy="12"
+                                r="10"
+                                stroke="currentColor"
+                                strokeWidth="4"
+                              ></circle>
+                              <path
+                                className="opacity-75"
+                                fill="currentColor"
+                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                              ></path>
+                            </svg>
+                            Sending...
+                          </span>
+                        ) : (
+                          "Resend Verification Email"
+                        )}
+                      </button>
+                    )}
+                    
                     <Link
                       href="/auth/login"
                       className="block w-full px-4 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors"
@@ -450,6 +580,9 @@ const AgencyRegister = () => {
                       onClick={() => {
                         setRegistrationSuccess(false);
                         setRegisteredEmail("");
+                        setVerificationData(null);
+                        setEmailSendError("");
+                        setResendSuccess(false);
                         agencyForm.reset();
                       }}
                       className="block w-full px-4 py-3 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors"

@@ -118,10 +118,13 @@ export default function ChatScreen() {
   ]);
 
   // Check if conversation is closed (both parties reviewed)
+  // BUT if there's an active backjob, conversation should stay open
+  const hasActiveBackjob = conversation?.backjob?.has_backjob === true;
   const isConversationClosed =
     conversation?.job?.clientMarkedComplete &&
     conversation?.job?.clientReviewed &&
-    conversation?.job?.workerReviewed;
+    conversation?.job?.workerReviewed &&
+    !hasActiveBackjob;  // Don't close if there's an active backjob
 
   // Send message mutation
   const sendMutation = useSendMessageMutation();
@@ -1066,7 +1069,8 @@ export default function ChatScreen() {
             )}
 
           {/* Both Parties Reviewed - Job Fully Complete Banner */}
-          {isConversationClosed && (
+          {/* Only show when truly closed (no active backjob) */}
+          {isConversationClosed && !hasActiveBackjob && (
             <View style={styles.jobCompleteBanner}>
               <Ionicons
                 name="checkmark-circle"
@@ -1299,6 +1303,35 @@ export default function ChatScreen() {
 
         {/* Upload Progress */}
         {renderUploadProgress()}
+
+        {/* Backjob Banner - shows when there's an active backjob */}
+        {conversation.backjob?.has_backjob && (
+          <TouchableOpacity
+            style={styles.backjobBanner}
+            onPress={() => router.push(`/jobs/backjob-detail?jobId=${conversation.job.id}&disputeId=${conversation.backjob?.dispute_id}`)}
+            activeOpacity={0.8}
+          >
+            <View style={styles.backjobBannerContent}>
+              <View style={styles.backjobIconContainer}>
+                <Ionicons name="construct" size={20} color={Colors.white} />
+              </View>
+              <View style={styles.backjobBannerText}>
+                <Text style={styles.backjobBannerTitle}>
+                  🔄 Active Backjob Request
+                </Text>
+                <Text style={styles.backjobBannerSubtitle} numberOfLines={1}>
+                  {conversation.backjob.reason || "Backjob work required"}
+                </Text>
+                <View style={styles.backjobStatusBadge}>
+                  <Text style={styles.backjobStatusText}>
+                    Status: {conversation.backjob.status === "UNDER_REVIEW" ? "Action Required" : "Pending Review"}
+                  </Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={Colors.warning} />
+            </View>
+          </TouchableOpacity>
+        )}
 
         {/* Messages List */}
         <FlatList
@@ -2025,5 +2058,53 @@ const styles = StyleSheet.create({
     ...Typography.body.small,
     color: Colors.success,
     fontWeight: "500",
+  },
+  // Backjob Banner Styles
+  backjobBanner: {
+    backgroundColor: "#FFF3E0",
+    borderBottomWidth: 1,
+    borderBottomColor: "#FFE0B2",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+  },
+  backjobBannerContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+  },
+  backjobIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.warning,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  backjobBannerText: {
+    flex: 1,
+  },
+  backjobBannerTitle: {
+    ...Typography.body.medium,
+    fontWeight: "700",
+    color: "#E65100",
+    marginBottom: 2,
+  },
+  backjobBannerSubtitle: {
+    ...Typography.body.small,
+    color: "#F57C00",
+    marginBottom: 4,
+  },
+  backjobStatusBadge: {
+    backgroundColor: "#FFE0B2",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    alignSelf: "flex-start",
+  },
+  backjobStatusText: {
+    ...Typography.body.small,
+    fontSize: 11,
+    color: "#E65100",
+    fontWeight: "600",
   },
 });
