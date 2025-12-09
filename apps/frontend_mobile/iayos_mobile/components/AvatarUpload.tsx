@@ -12,7 +12,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useImagePicker } from "@/lib/hooks/useImagePicker";
 import { useImageUpload } from "@/lib/hooks/useImageUpload";
-import { ENDPOINTS } from "@/lib/api/config";
+import { ENDPOINTS, getAbsoluteMediaUrl } from "@/lib/api/config";
 import { Colors, Typography, Spacing } from "@/constants/theme";
 
 interface AvatarUploadProps {
@@ -38,7 +38,7 @@ export const AvatarUpload: React.FC<AvatarUploadProps> = ({
   const { pickFromGallery, takePhoto } = useImagePicker();
   const { upload, isUploading, progress } = useImageUpload();
 
-  const displayUri = localUri || currentAvatarUrl;
+  const displayUri = localUri || getAbsoluteMediaUrl(currentAvatarUrl);
   const hasAvatar = !!displayUri;
 
   const handleUpload = (uri: string) => {
@@ -48,15 +48,15 @@ export const AvatarUpload: React.FC<AvatarUploadProps> = ({
       {
         uri,
         endpoint: ENDPOINTS.UPLOAD_AVATAR,
-        fieldName: "avatar",
+        fieldName: "profile_image",
         compress: true,
       },
       {
         onSuccess: (result) => {
-          if (result.success && result.data?.avatarUrl) {
+          if (result.success && result.data?.image_url) {
             setLocalUri(null); // Clear local preview
             if (onUploadSuccess) {
-              onUploadSuccess(result.data.avatarUrl);
+              onUploadSuccess(result.data.image_url);
             }
           } else {
             setLocalUri(null);

@@ -744,7 +744,7 @@ def get_worker_availability_endpoint(request):
 
 #region LOCATION TRACKING APIs
 
-@router.post("/location/update", auth=cookie_auth, response=LocationResponseSchema)
+@router.post("/location/update", auth=dual_auth, response=LocationResponseSchema)
 def update_location(request, payload: UpdateLocationSchema):
     """
     Update user's current GPS location
@@ -773,7 +773,7 @@ def update_location(request, payload: UpdateLocationSchema):
         )
 
 
-@router.get("/location/me", auth=cookie_auth, response=LocationResponseSchema)
+@router.get("/location/me", auth=dual_auth, response=LocationResponseSchema)
 def get_my_location(request):
     """
     Get current user's location
@@ -796,7 +796,7 @@ def get_my_location(request):
         )
 
 
-@router.post("/location/toggle-sharing", auth=cookie_auth, response=LocationResponseSchema)
+@router.post("/location/toggle-sharing", auth=dual_auth, response=LocationResponseSchema)
 def toggle_location_sharing_endpoint(request, payload: ToggleLocationSharingSchema):
     """
     Enable or disable location sharing

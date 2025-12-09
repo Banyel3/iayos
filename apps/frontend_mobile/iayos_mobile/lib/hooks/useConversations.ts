@@ -2,7 +2,7 @@
 // Handles fetching, searching, and filtering conversations
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ENDPOINTS, apiRequest } from "../api/config";
+import { ENDPOINTS, apiRequest, getAbsoluteMediaUrl } from "../api/config";
 
 export type Conversation = {
   id: number;
@@ -59,7 +59,20 @@ export function useConversations(
         );
       }
 
-      return response.json();
+      const data = await response.json();
+      // Transform avatar URLs to absolute URLs for local storage compatibility
+      return {
+        ...data,
+        conversations: data.conversations.map((conv: Conversation) => ({
+          ...conv,
+          other_participant: {
+            ...conv.other_participant,
+            avatar: getAbsoluteMediaUrl(
+              conv.other_participant.avatar
+            ) as string,
+          },
+        })),
+      };
     },
     staleTime: 30000, // 30 seconds - refresh frequently for real-time feel
     refetchOnWindowFocus: true,

@@ -59,13 +59,19 @@ def get_mobile_job_list(
     min_budget: Optional[float] = None,
     max_budget: Optional[float] = None,
     location: Optional[str] = None,
+    max_distance: Optional[float] = None,  # NEW: Distance filter in km
+    sort_by: Optional[str] = None,  # NEW: Manual sort option
     page: int = 1,
     limit: int = 20,
 ) -> Dict[str, Any]:
     """
     Get paginated job listings optimized for mobile
     Returns minimal fields for list view performance
-    Automatically sorts by distance if user has location set
+    
+    NEW PARAMETERS:
+    - max_distance: Filter jobs within X kilometers (requires user location)
+    - sort_by: Manual sorting - 'distance_asc', 'distance_desc', 'budget_asc', 
+               'budget_desc', 'created_desc', 'urgency_desc'
     """
     from math import radians, sin, cos, sqrt, atan2
     
@@ -185,7 +191,14 @@ def get_mobile_job_list(
             distance = None
             if user_lat and user_lon and job_lat and job_lon:
                 distance = calculate_distance(user_lat, user_lon, job_lat, job_lon)
-                print(f"   Job {job.jobID}: distance = {distance:.2f} km" if distance else f"   Job {job.jobID}: no distance")
+                
+            # NEW: Apply distance filter if specified
+            if max_distance is not None:
+                if distance is None or distance > max_distance:
+                    continue  # Skip this job if outside radius or no location
+            
+            # NEW: Map urgency to numeric values for sorting
+            urgency_value = {'LOW': 1, 'MEDIUM': 2, 'HIGH': 3}.get(job.urgency, 0)
 
             job_data = {
                 'id': job.jobID,
@@ -203,18 +216,46 @@ def get_mobile_job_list(
                 'client_avatar': client_profile.profileImg if client_profile and client_profile.profileImg else None,
                 'is_applied': has_applied,
                 'expected_duration': job.expectedDuration,
-                '_distance_sort': distance if distance is not None else 999999,  # Large number for jobs without distance
+                # Sorting helpers
+                '_distance_sort': distance if distance is not None else 999999,
+                '_urgency_sort': urgency_value,
+                '_created_sort': job.createdAt.timestamp(),
             }
             jobs_with_distance.append(job_data)
         
-        # Sort by distance if user has location, otherwise by creation date
-        if user_lat and user_lon:
+        # NEW: Apply manual sorting if specified, otherwise auto-sort by distance
+        if sort_by == 'distance_asc':
             jobs_with_distance.sort(key=lambda x: x['_distance_sort'])
-            print(f"📍 [SORT] Sorted {len(jobs_with_distance)} jobs by distance")
+            print(f"📍 [SORT] Sorted by distance (nearest first)")
+        elif sort_by == 'distance_desc':
+            jobs_with_distance.sort(key=lambda x: x['_distance_sort'], reverse=True)
+            print(f"📍 [SORT] Sorted by distance (farthest first)")
+        elif sort_by == 'budget_asc':
+            jobs_with_distance.sort(key=lambda x: x['budget'])
+            print(f"💰 [SORT] Sorted by budget (lowest first)")
+        elif sort_by == 'budget_desc':
+            jobs_with_distance.sort(key=lambda x: x['budget'], reverse=True)
+            print(f"💰 [SORT] Sorted by budget (highest first)")
+        elif sort_by == 'created_desc':
+            jobs_with_distance.sort(key=lambda x: x['_created_sort'], reverse=True)
+            print(f"🕒 [SORT] Sorted by date (newest first)")
+        elif sort_by == 'urgency_desc':
+            jobs_with_distance.sort(key=lambda x: x['_urgency_sort'], reverse=True)
+            print(f"🔴 [SORT] Sorted by urgency (highest first)")
+        elif user_lat and user_lon:
+            # Default: auto-sort by distance if user has location
+            jobs_with_distance.sort(key=lambda x: x['_distance_sort'])
+            print(f"📍 [SORT] Auto-sorted by distance (default)")
+        else:
+            # Fallback: sort by creation date
+            jobs_with_distance.sort(key=lambda x: x['_created_sort'], reverse=True)
+            print(f"🕒 [SORT] Sorted by date (no location)")
         
-        # Remove the sorting helper field
+        # Remove the sorting helper fields
         for job in jobs_with_distance:
             del job['_distance_sort']
+            del job['_urgency_sort']
+            del job['_created_sort']
         
         # Apply pagination after sorting
         total_count = len(jobs_with_distance)

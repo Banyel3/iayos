@@ -36,7 +36,7 @@ import {
   Shadows,
 } from "@/constants/theme";
 import { useQuery } from "@tanstack/react-query";
-import { fetchJson, ENDPOINTS } from "@/lib/api/config";
+import { fetchJson, ENDPOINTS, getAbsoluteMediaUrl } from "@/lib/api/config";
 import { useWorkerReviews } from "@/lib/hooks/useReviews";
 
 interface Skill {
@@ -283,7 +283,11 @@ export default function WorkerDetailScreen() {
         success: boolean;
         worker: WorkerDetail;
       }>(ENDPOINTS.WORKER_DETAIL(Number(id)));
-      return response.worker;
+      // Transform profile picture URL for local storage compatibility
+      return {
+        ...response.worker,
+        profilePicture: getAbsoluteMediaUrl(response.worker.profilePicture),
+      };
     },
     enabled: !!id,
   });

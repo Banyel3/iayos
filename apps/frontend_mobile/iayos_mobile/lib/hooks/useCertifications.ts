@@ -2,7 +2,7 @@
 // React Query hooks for managing worker certifications
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ENDPOINTS, apiRequest } from "@/lib/api/config";
+import { ENDPOINTS, apiRequest, getAbsoluteMediaUrl } from "@/lib/api/config";
 
 // ===== TYPES =====
 
@@ -72,7 +72,7 @@ export const useCertifications = () => {
         issuingOrganization: cert.issuing_organization,
         issueDate: cert.issue_date,
         expiryDate: cert.expiry_date,
-        certificateUrl: cert.certificate_url,
+        certificateUrl: getAbsoluteMediaUrl(cert.certificate_url),
         isVerified: cert.is_verified,
         isExpired: cert.is_expired,
         specializationId: cert.specializationId,
@@ -158,7 +158,9 @@ export const useCreateCertification = () => {
           issuingOrganization: result.certification.issuing_organization,
           issueDate: result.certification.issue_date,
           expiryDate: result.certification.expiry_date,
-          certificateUrl: result.certification.certificate_url,
+          certificateUrl: getAbsoluteMediaUrl(
+            result.certification.certificate_url
+          ),
           isVerified: result.certification.is_verified,
           isExpired: result.certification.is_expired,
           createdAt: result.certification.createdAt,

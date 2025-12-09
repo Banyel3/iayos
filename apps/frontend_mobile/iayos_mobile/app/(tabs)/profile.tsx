@@ -33,6 +33,7 @@ import {
   useCreateWorkerProfile,
   useSwitchProfile,
 } from "@/lib/hooks/useDualProfile";
+import { getAbsoluteMediaUrl } from "@/lib/api/config";
 
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
@@ -239,7 +240,11 @@ export default function ProfileScreen() {
             <View style={styles.avatarContainer}>
               {user?.profile_data?.profileImg ? (
                 <Image
-                  source={{ uri: user.profile_data.profileImg }}
+                  source={{
+                    uri: getAbsoluteMediaUrl(
+                      user.profile_data.profileImg
+                    ) as string,
+                  }}
                   style={styles.avatarImage}
                 />
               ) : (

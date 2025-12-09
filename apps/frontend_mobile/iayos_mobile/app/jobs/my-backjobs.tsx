@@ -13,7 +13,7 @@ import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { Colors, Typography, BorderRadius, Spacing } from "@/constants/theme";
-import { ENDPOINTS, apiRequest } from "@/lib/api/config";
+import { ENDPOINTS, apiRequest, getAbsoluteMediaUrl } from "@/lib/api/config";
 
 interface BackjobItem {
   dispute_id: number;
@@ -67,7 +67,17 @@ export default function MyBackjobsScreen() {
           total: number;
         };
         console.log("📋 Backjobs data:", data);
-        setBackjobs(data.backjobs || []);
+        // Transform avatar URLs to absolute URLs for local storage compatibility
+        const transformedBackjobs = (data.backjobs || []).map((item) => ({
+          ...item,
+          client: item.client
+            ? {
+                ...item.client,
+                avatar: getAbsoluteMediaUrl(item.client.avatar),
+              }
+            : null,
+        }));
+        setBackjobs(transformedBackjobs);
       } else {
         const errorText = await response.text();
         console.error("Failed to fetch backjobs:", response.status, errorText);

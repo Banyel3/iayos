@@ -14,7 +14,7 @@ import {
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors, BorderRadius } from "@/constants/theme";
-import { ENDPOINTS, apiRequest } from "@/lib/api/config";
+import { ENDPOINTS, apiRequest, getAbsoluteMediaUrl } from "@/lib/api/config";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -70,7 +70,7 @@ export default function BackjobDetailScreen() {
         ENDPOINTS.BACKJOB_STATUS(parseInt(jobId))
       );
       if (backjobResponse.ok) {
-        const data = await backjobResponse.json();
+        const data = (await backjobResponse.json()) as BackjobDetail;
         setBackjob(data);
       }
 
@@ -79,7 +79,7 @@ export default function BackjobDetailScreen() {
         ENDPOINTS.JOB_DETAILS(parseInt(jobId))
       );
       if (jobResponse.ok) {
-        const jobData = await jobResponse.json();
+        const jobData = (await jobResponse.json()) as any;
         setJob({
           id: jobData.id || jobData.jobID,
           title: jobData.title,
@@ -87,7 +87,12 @@ export default function BackjobDetailScreen() {
           budget: jobData.budget,
           location: jobData.location,
           category: jobData.category?.name || jobData.category || "Unknown",
-          client: jobData.client || null,
+          client: jobData.client
+            ? {
+                ...jobData.client,
+                avatar: getAbsoluteMediaUrl(jobData.client.avatar),
+              }
+            : null,
         });
       }
     } catch (error) {
@@ -149,8 +154,10 @@ export default function BackjobDetailScreen() {
   const handleContactClient = async () => {
     try {
       // Get or create conversation for this job, reopen if closed (for backjob)
-      const response = await apiRequest(ENDPOINTS.CONVERSATION_BY_JOB(parseInt(jobId), true));
-      
+      const response = await apiRequest(
+        ENDPOINTS.CONVERSATION_BY_JOB(parseInt(jobId), true)
+      );
+
       if (response.ok) {
         const data = await response.json();
         if (data.conversation_id) {
@@ -380,7 +387,10 @@ export default function BackjobDetailScreen() {
               )}
               <View style={styles.clientInfo}>
                 <Text style={styles.clientName}>{job.client.name}</Text>
-                <TouchableOpacity style={styles.contactButton} onPress={handleContactClient}>
+                <TouchableOpacity
+                  style={styles.contactButton}
+                  onPress={handleContactClient}
+                >
                   <Ionicons
                     name="chatbubble-outline"
                     size={14}

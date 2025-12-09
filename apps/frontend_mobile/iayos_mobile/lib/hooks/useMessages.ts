@@ -7,7 +7,7 @@ import {
   useQueryClient,
   useInfiniteQuery,
 } from "@tanstack/react-query";
-import { ENDPOINTS, apiRequest } from "../api/config";
+import { ENDPOINTS, apiRequest, getAbsoluteMediaUrl } from "../api/config";
 import { useSendMessage } from "./useWebSocket";
 import type { EstimatedCompletion } from "@/components/EstimatedTimeCard";
 
@@ -101,7 +101,30 @@ export function useMessages(conversationId: number) {
       }
 
       const data = await response.json();
-      return data;
+      // Transform avatar URLs to absolute URLs for local storage compatibility
+      return {
+        ...data,
+        other_participant: data.other_participant
+          ? {
+              ...data.other_participant,
+              avatar: getAbsoluteMediaUrl(data.other_participant.avatar),
+            }
+          : null,
+        assigned_employee: data.assigned_employee
+          ? {
+              ...data.assigned_employee,
+              avatar: getAbsoluteMediaUrl(data.assigned_employee.avatar),
+            }
+          : null,
+        assigned_employees: data.assigned_employees?.map((emp: any) => ({
+          ...emp,
+          avatar: getAbsoluteMediaUrl(emp.avatar),
+        })),
+        messages: data.messages.map((msg: Message) => ({
+          ...msg,
+          sender_avatar: getAbsoluteMediaUrl(msg.sender_avatar),
+        })),
+      };
     },
     enabled: !!conversationId,
     staleTime: 5000, // 5 seconds - consider data fresh for 5s

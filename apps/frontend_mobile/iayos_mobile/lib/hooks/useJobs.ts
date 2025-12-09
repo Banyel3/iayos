@@ -63,6 +63,8 @@ export interface JobFilters {
   maxBudget?: number;
   location?: string;
   urgency?: "LOW" | "MEDIUM" | "HIGH";
+  maxDistance?: number; // NEW: Distance filter in km
+  sortBy?: string; // NEW: Sort option (distance_asc, distance_desc, budget_asc, budget_desc, created_desc, urgency_desc)
   page?: number;
   limit?: number;
 }

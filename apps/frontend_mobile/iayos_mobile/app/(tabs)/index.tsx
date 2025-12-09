@@ -11,7 +11,7 @@
  * - Infinite scroll pagination
  */
 
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -24,6 +24,7 @@ import {
   Modal,
   ScrollView,
 } from "react-native";
+import Slider from "@react-native-community/slider";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
 import {
@@ -45,12 +46,14 @@ import JobCard from "@/components/JobCard";
 import WorkerCard from "@/components/WorkerCard";
 import AgencyCard from "@/components/AgencyCard";
 import InlineLoader from "@/components/ui/InlineLoader";
+import LocationButton from "@/components/LocationButton";
 
 // Hooks
 import { useInfiniteJobs, Job } from "@/lib/hooks/useJobs";
 import { useInfiniteWorkers, Worker } from "@/lib/hooks/useWorkers";
 import { useInfiniteAgencies, Agency } from "@/lib/hooks/useAgencies";
 import { useCategories } from "@/lib/hooks/useCategories";
+import { useMyLocation } from "@/lib/hooks/useLocation";
 
 export default function BrowseJobsScreen() {
   const { user } = useAuth();
@@ -63,12 +66,23 @@ export default function BrowseJobsScreen() {
   );
   const [viewTab, setViewTab] = useState<"workers" | "agencies">("workers");
   const [showFilterModal, setShowFilterModal] = useState(false);
+  const [maxDistance, setMaxDistance] = useState<number | undefined>(undefined);
+  const [sortBy, setSortBy] = useState<string>("distance_asc");
 
   const isWorker = user?.profile_data?.profileType === "WORKER";
+  const { data: myLocation } = useMyLocation();
+  const hasLocation = Boolean(myLocation?.latitude && myLocation?.longitude);
 
   // Fetch categories (needed for both)
   const { data: categoriesData, isLoading: categoriesLoading } =
     useCategories();
+
+  // Refetch workers when filters change
+  useEffect(() => {
+    if (!isWorker && viewTab === "workers" && workersQuery.data) {
+      workersQuery.refetch();
+    }
+  }, [maxDistance, sortBy, selectedCategory]);
   const categories = categoriesData?.categories || [];
 
   // WORKER: Only fetch jobs
@@ -85,6 +99,10 @@ export default function BrowseJobsScreen() {
   const workersQuery = useInfiniteWorkers(
     {
       category: selectedCategory,
+      maxDistance,
+      latitude: myLocation?.latitude,
+      longitude: myLocation?.longitude,
+      sortBy,
     },
     {
       enabled: !isWorker && viewTab === "workers", // Only fetch workers if client and workers tab
@@ -557,6 +575,125 @@ export default function BrowseJobsScreen() {
             </View>
 
             <ScrollView style={styles.modalContent}>
+              {/* Distance Filter (clients on Workers tab) */}
+              {!isWorker && viewTab === "workers" && hasLocation && (
+                <View style={styles.filterSection}>
+                  <View style={styles.filterLabelRow}>
+                    <Text style={styles.filterLabel}>Distance Radius</Text>
+                    <Text style={styles.filterValue}>
+                      {maxDistance ? `${maxDistance} km` : "Any distance"}
+                    </Text>
+                  </View>
+                  <Slider
+                    style={styles.slider}
+                    minimumValue={0}
+                    maximumValue={50}
+                    step={5}
+                    value={maxDistance || 0}
+                    onValueChange={setMaxDistance}
+                    minimumTrackTintColor={Colors.primary}
+                    maximumTrackTintColor={Colors.border}
+                    thumbTintColor={Colors.primary}
+                  />
+                  <View style={styles.sliderLabels}>
+                    <Text style={styles.sliderLabel}>Any</Text>
+                    <Text style={styles.sliderLabel}>10km</Text>
+                    <Text style={styles.sliderLabel}>25km</Text>
+                    <Text style={styles.sliderLabel}>50km</Text>
+                  </View>
+                  {maxDistance === 0 && (
+                    <TouchableOpacity
+                      style={styles.resetDistanceButton}
+                      onPress={() => setMaxDistance(undefined)}
+                    >
+                      <Text style={styles.resetDistanceText}>
+                        Show all distances
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
+
+              {/* No Location Banner */}
+              {!isWorker && viewTab === "workers" && !hasLocation && (
+                <View style={styles.noLocationBanner}>
+                  <Ionicons
+                    name="location-outline"
+                    size={20}
+                    color={Colors.warning}
+                  />
+                  <Text style={styles.noLocationText}>
+                    Enable location to filter by distance
+                  </Text>
+                  <LocationButton
+                    size="small"
+                    variant="secondary"
+                    onLocationUpdated={() => workersQuery.refetch()}
+                  />
+                </View>
+              )}
+
+              {/* Sort By (clients on Workers tab) */}
+              {!isWorker && viewTab === "workers" && (
+                <View style={styles.filterSection}>
+                  <Text style={styles.filterLabel}>Sort By</Text>
+                  <View style={styles.sortOptions}>
+                    <TouchableOpacity
+                      style={[
+                        styles.sortOption,
+                        sortBy === "distance_asc" && styles.sortOptionSelected,
+                      ]}
+                      onPress={() => setSortBy("distance_asc")}
+                    >
+                      <Ionicons
+                        name="location"
+                        size={18}
+                        color={
+                          sortBy === "distance_asc"
+                            ? Colors.white
+                            : Colors.textSecondary
+                        }
+                      />
+                      <Text
+                        style={[
+                          styles.sortOptionText,
+                          sortBy === "distance_asc" &&
+                            styles.sortOptionTextSelected,
+                        ]}
+                      >
+                        Nearest First
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.sortOption,
+                        sortBy === "distance_desc" && styles.sortOptionSelected,
+                      ]}
+                      onPress={() => setSortBy("distance_desc")}
+                    >
+                      <Ionicons
+                        name="location-outline"
+                        size={18}
+                        color={
+                          sortBy === "distance_desc"
+                            ? Colors.white
+                            : Colors.textSecondary
+                        }
+                      />
+                      <Text
+                        style={[
+                          styles.sortOptionText,
+                          sortBy === "distance_desc" &&
+                            styles.sortOptionTextSelected,
+                        ]}
+                      >
+                        Farthest First
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+
               {/* Category Filter */}
               <View style={styles.filterSection}>
                 <Text style={styles.filterLabel}>Category</Text>
@@ -584,6 +721,8 @@ export default function BrowseJobsScreen() {
                 style={styles.clearButton}
                 onPress={() => {
                   setSelectedCategory(undefined);
+                  setMaxDistance(undefined);
+                  setSortBy("distance_asc");
                 }}
               >
                 <Text style={styles.clearButtonText}>Clear All</Text>
@@ -880,10 +1019,86 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     marginBottom: 12,
   },
+  filterLabelRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  filterValue: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: Colors.textSecondary,
+  },
   filterChipsContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
+  },
+  slider: {
+    width: "100%",
+    height: 40,
+  },
+  sliderLabels: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 8,
+  },
+  sliderLabel: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    fontWeight: "600",
+  },
+  resetDistanceButton: {
+    marginTop: 8,
+  },
+  resetDistanceText: {
+    color: Colors.primary,
+    fontWeight: "600",
+  },
+  noLocationBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 12,
+    borderRadius: BorderRadius.lg,
+    backgroundColor: `${Colors.warning}10`,
+    borderWidth: 1,
+    borderColor: `${Colors.warning}40`,
+    marginBottom: 16,
+  },
+  noLocationText: {
+    flex: 1,
+    color: Colors.textPrimary,
+    fontWeight: "600",
+  },
+  sortOptions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  sortOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.white,
+  },
+  sortOptionSelected: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  sortOptionText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: Colors.textSecondary,
+  },
+  sortOptionTextSelected: {
+    color: Colors.white,
   },
   modalFooter: {
     flexDirection: "row",

@@ -6,7 +6,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ENDPOINTS, apiRequest } from "@/lib/api/config";
+import { ENDPOINTS, apiRequest, getAbsoluteMediaUrl } from "@/lib/api/config";
 import {
   Review,
   ReviewListResponse,
@@ -54,7 +54,17 @@ export function useWorkerReviews(
         throw new Error(errorData.error || "Failed to fetch reviews");
       }
 
-      return response.json();
+      const data = await response.json();
+      // Transform reviewer profile image URLs for local storage compatibility
+      return {
+        ...data,
+        reviews: data.reviews.map((review: Review) => ({
+          ...review,
+          reviewer_profile_img: getAbsoluteMediaUrl(
+            review.reviewer_profile_img
+          ),
+        })),
+      };
     },
     enabled: !!workerId,
     staleTime: 5 * 60 * 1000, // 5 minutes
@@ -79,7 +89,17 @@ export function useClientReviews(clientId: number, page = 1, limit = 20) {
         throw new Error(errorData.error || "Failed to fetch client reviews");
       }
 
-      return response.json();
+      const data = await response.json();
+      // Transform reviewer profile image URLs for local storage compatibility
+      return {
+        ...data,
+        reviews: data.reviews.map((review: Review) => ({
+          ...review,
+          reviewer_profile_img: getAbsoluteMediaUrl(
+            review.reviewer_profile_img
+          ),
+        })),
+      };
     },
     enabled: !!clientId,
     staleTime: 5 * 60 * 1000, // 5 minutes

@@ -28,14 +28,7 @@ import {
   BorderRadius,
   Shadows,
 } from "@/constants/theme";
-import { ENDPOINTS, apiRequest } from "@/lib/api/config";
-import { PortfolioUpload } from "@/components/PortfolioUpload";
-import { PortfolioGrid } from "@/components/PortfolioGrid";
-import { ImageViewer } from "@/components/ImageViewer";
-import {
-  usePortfolioManagement,
-  type PortfolioImage,
-} from "@/lib/hooks/usePortfolioManagement";
+import { ENDPOINTS, apiRequest, getAbsoluteMediaUrl } from "@/lib/api/config";
 import * as ImagePicker from "expo-image-picker";
 
 // ===== TYPES =====
@@ -85,25 +78,6 @@ export default function EditProfileScreen() {
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [avatarChanged, setAvatarChanged] = useState(false);
 
-  // Portfolio state
-  const [viewerVisible, setViewerVisible] = useState(false);
-  const [viewerIndex, setViewerIndex] = useState(0);
-  const [editingCaption, setEditingCaption] = useState<{
-    id: number;
-    caption: string;
-  } | null>(null);
-
-  // Portfolio management
-  const {
-    images: portfolioImages,
-    isLoading: portfolioLoading,
-    updateCaption,
-    reorderImages,
-    deleteImage,
-    canAddMore,
-    remainingSlots,
-  } = usePortfolioManagement();
-
   // Fetch current profile
   const { data: profile, isLoading } = useQuery<WorkerProfile>({
     queryKey: ["worker-profile"],
@@ -124,7 +98,7 @@ export default function EditProfileScreen() {
       setLastName(user.profile_data.lastName || "");
       setEmail(user.email || "");
       setPhoneNumber(user.profile_data.contactNum || "");
-      setAvatarUri(user.profile_data.profileImg || null);
+      setAvatarUri(getAbsoluteMediaUrl(user.profile_data.profileImg) || null);
     }
 
     // Load worker-specific data from profile query
@@ -668,128 +642,6 @@ export default function EditProfileScreen() {
             </Pressable>
           </View>
 
-          {/* Portfolio Section */}
-          <View style={styles.portfolioSection}>
-            <View style={styles.portfolioHeader}>
-              <Text style={styles.sectionTitle}>Portfolio</Text>
-              <Text style={styles.portfolioCount}>
-                {portfolioImages.length} / 10
-              </Text>
-            </View>
-            <Text style={styles.portfolioHint}>
-              Showcase your work with up to 10 images
-            </Text>
-
-            {/* Upload Component */}
-            {canAddMore && (
-              <View style={styles.uploadContainer}>
-                <PortfolioUpload
-                  maxImages={10}
-                  disabled={!canAddMore}
-                  onUploadComplete={() => {
-                    queryClient.invalidateQueries({
-                      queryKey: ["worker-profile"],
-                    });
-                  }}
-                />
-                {remainingSlots > 0 && (
-                  <Text style={styles.uploadHint}>
-                    {remainingSlots} {remainingSlots === 1 ? "slot" : "slots"}{" "}
-                    remaining
-                  </Text>
-                )}
-              </View>
-            )}
-
-            {/* Portfolio Grid */}
-            {portfolioImages.length > 0 && (
-              <View style={styles.portfolioGrid}>
-                <PortfolioGrid
-                  images={portfolioImages}
-                  onImageTap={(image, index) => {
-                    setViewerIndex(index);
-                    setViewerVisible(true);
-                  }}
-                  onEdit={(image) => {
-                    setEditingCaption({
-                      id: image.id,
-                      caption: image.caption || "",
-                    });
-                  }}
-                  onDelete={(image) => {
-                    deleteImage.mutate(image.id);
-                  }}
-                  onReorder={(newOrder) => {
-                    reorderImages.mutate(newOrder);
-                  }}
-                  editable={true}
-                />
-              </View>
-            )}
-          </View>
-
-          {/* Edit Caption Modal */}
-          {editingCaption && (
-            <View style={styles.modalOverlay}>
-              <View style={styles.modalContent}>
-                <Text style={styles.modalTitle}>Edit Caption</Text>
-                <TextInput
-                  style={styles.captionInput}
-                  value={editingCaption.caption}
-                  onChangeText={(text) =>
-                    setEditingCaption({ ...editingCaption, caption: text })
-                  }
-                  placeholder="Enter caption (optional)"
-                  placeholderTextColor={Colors.textSecondary}
-                  multiline
-                  maxLength={200}
-                />
-                <Text style={styles.captionCharCount}>
-                  {editingCaption.caption.length}/200
-                </Text>
-                <View style={styles.modalButtons}>
-                  <Pressable
-                    style={[styles.modalButton, styles.modalButtonCancel]}
-                    onPress={() => setEditingCaption(null)}
-                  >
-                    <Text style={styles.modalButtonTextCancel}>Cancel</Text>
-                  </Pressable>
-                  <Pressable
-                    style={[styles.modalButton, styles.modalButtonSave]}
-                    onPress={() => {
-                      if (editingCaption) {
-                        updateCaption.mutate({
-                          id: editingCaption.id,
-                          caption: editingCaption.caption,
-                        });
-                        setEditingCaption(null);
-                      }
-                    }}
-                  >
-                    <Text style={styles.modalButtonTextSave}>Save</Text>
-                  </Pressable>
-                </View>
-              </View>
-            </View>
-          )}
-
-          {/* Image Viewer */}
-          <ImageViewer
-            visible={viewerVisible}
-            images={portfolioImages}
-            initialIndex={viewerIndex}
-            onClose={() => setViewerVisible(false)}
-            onEdit={(image: PortfolioImage) => {
-              setViewerVisible(false);
-              setEditingCaption({ id: image.id, caption: image.caption || "" });
-            }}
-            onDelete={(image: PortfolioImage) => {
-              setViewerVisible(false);
-              deleteImage.mutate(image.id);
-            }}
-            showActions={true}
-          />
-
           {/* Preview Changes */}
           {hasChanges && (
             <View style={styles.previewContainer}>
@@ -1090,48 +942,10 @@ const styles = StyleSheet.create({
     ...Typography.body.medium,
     color: Colors.textPrimary,
   },
-
-  // Portfolio Section
-  portfolioSection: {
-    marginTop: Spacing.xl,
-    marginHorizontal: Spacing.md,
-    padding: Spacing.md,
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.large,
-    ...Shadows.small,
-  },
-  portfolioHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
   sectionTitle: {
     ...Typography.heading.h4,
     color: Colors.textPrimary,
     fontWeight: "bold",
-  },
-  portfolioCount: {
-    ...Typography.body.small,
-    color: Colors.textSecondary,
-    fontWeight: "600",
-  },
-  portfolioHint: {
-    ...Typography.body.small,
-    color: Colors.textSecondary,
-    marginTop: Spacing.xs,
-    marginBottom: Spacing.md,
-  },
-  uploadContainer: {
-    marginBottom: Spacing.md,
-  },
-  uploadHint: {
-    ...Typography.body.small,
-    color: Colors.textSecondary,
-    textAlign: "center",
-    marginTop: Spacing.xs,
-  },
-  portfolioGrid: {
-    marginTop: Spacing.md,
   },
 
   // Management Section (Certifications)

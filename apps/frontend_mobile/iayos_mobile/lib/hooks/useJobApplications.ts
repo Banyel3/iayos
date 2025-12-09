@@ -5,7 +5,12 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { API_BASE_URL, apiRequest, fetchJson } from "@/lib/api/config";
+import {
+  API_BASE_URL,
+  apiRequest,
+  fetchJson,
+  getAbsoluteMediaUrl,
+} from "@/lib/api/config";
 
 interface Worker {
   id: number;
@@ -51,7 +56,18 @@ export function useJobApplications(jobId: number) {
     queryKey: ["job-applications", jobId],
     queryFn: async () => {
       const url = `${API_BASE_URL}/jobs/${jobId}/applications`;
-      return fetchJson<JobApplicationsResponse>(url);
+      const data = await fetchJson<JobApplicationsResponse>(url);
+      // Transform avatar URLs to absolute URLs for local storage compatibility
+      return {
+        ...data,
+        applications: data.applications.map((app) => ({
+          ...app,
+          worker: {
+            ...app.worker,
+            avatar: getAbsoluteMediaUrl(app.worker.avatar),
+          },
+        })),
+      };
     },
     enabled: !!jobId && jobId > 0,
     staleTime: 1000 * 60, // 1 minute

@@ -464,18 +464,26 @@ def mobile_job_list(
     min_budget: float = None,
     max_budget: float = None,
     location: str = None,
+    max_distance: float = None,  # NEW: Distance filter
+    sort_by: str = None,  # NEW: Sort option
     page: int = 1,
     limit: int = 20
 ):
     """
     Get paginated job listings optimized for mobile
     Returns minimal fields for list view performance
+    
+    NEW PARAMETERS:
+    - max_distance: Filter jobs within X km radius (requires user location)
+    - sort_by: 'distance_asc', 'distance_desc', 'budget_asc', 'budget_desc', 
+               'created_desc', 'urgency_desc'
     """
     from .mobile_services import get_mobile_job_list
 
     print(f"📱 [MOBILE JOB LIST] Request received")
     print(f"   User: {request.auth.email}")
     print(f"   Filters: category={category}, budget={min_budget}-{max_budget}, location={location}")
+    print(f"   Distance: max_distance={max_distance} km, sort_by={sort_by}")
     print(f"   Pagination: page={page}, limit={limit}")
     
     try:
@@ -485,6 +493,8 @@ def mobile_job_list(
             min_budget=min_budget,
             max_budget=max_budget,
             location=location,
+            max_distance=max_distance,  # NEW
+            sort_by=sort_by,  # NEW
             page=page,
             limit=limit
         )

@@ -56,6 +56,34 @@ export const WS_BASE_URL = __DEV__
   ? `ws://${DEV_IP}:8001`
   : "wss://ws.iayos.com";
 
+/**
+ * Convert relative media URLs to absolute URLs for React Native Image component.
+ * Local storage returns relative paths like /media/... which need the host prepended.
+ * Supabase returns full URLs (https://...) which are passed through unchanged.
+ */
+export const getAbsoluteMediaUrl = (
+  url: string | null | undefined
+): string | null => {
+  if (!url) return null;
+
+  // Already absolute URL (Supabase or other external)
+  if (url.startsWith("http://") || url.startsWith("https://")) {
+    return url;
+  }
+
+  // Relative URL from local storage - prepend API host
+  if (url.startsWith("/media/") || url.startsWith("media/")) {
+    return `${API_URL}${url.startsWith("/") ? "" : "/"}${url}`;
+  }
+
+  // Other relative paths
+  if (url.startsWith("/")) {
+    return `${API_URL}${url}`;
+  }
+
+  return url;
+};
+
 // API Endpoints
 export const ENDPOINTS = {
   // Authentication - Use mobile endpoints with Bearer token auth
@@ -103,6 +131,8 @@ export const ENDPOINTS = {
     minBudget?: number;
     maxBudget?: number;
     location?: string;
+    maxDistance?: number; // NEW: Distance filter in km
+    sortBy?: string; // NEW: Sort option
     page?: number;
     limit?: number;
   }) => {
@@ -114,6 +144,9 @@ export const ENDPOINTS = {
     if (filters.maxBudget)
       params.append("max_budget", filters.maxBudget.toString());
     if (filters.location) params.append("location", filters.location);
+    if (filters.maxDistance)
+      params.append("max_distance", filters.maxDistance.toString());
+    if (filters.sortBy) params.append("sort_by", filters.sortBy);
     params.append("page", filters.page?.toString() || "1");
     params.append("limit", filters.limit?.toString() || "20");
     return `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/list?${params.toString()}`;

@@ -33,7 +33,7 @@ import {
   Shadows,
 } from "@/constants/theme";
 import { useQuery } from "@tanstack/react-query";
-import { apiRequest, ENDPOINTS } from "@/lib/api/config";
+import { apiRequest, ENDPOINTS, getAbsoluteMediaUrl } from "@/lib/api/config";
 import { useClientReviews } from "@/lib/hooks/useReviews";
 
 interface ClientDetail {
@@ -141,7 +141,12 @@ export default function ClientDetailScreen() {
         throw new Error("Failed to fetch client details");
       }
       const data = (await response.json()) as { client: ClientDetail };
-      return data.client;
+      // Transform profile picture URL for local storage compatibility
+      return {
+        ...data.client,
+        profilePicture:
+          getAbsoluteMediaUrl(data.client.profilePicture) || undefined,
+      };
     },
     enabled: !!id,
     staleTime: 5 * 60 * 1000, // 5 minutes
