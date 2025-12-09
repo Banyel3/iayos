@@ -312,6 +312,8 @@ export const apiRequest = async (
     ...rest
   } = options as any;
 
+  const requestBody = (rest as any)?.body;
+
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
 
@@ -333,9 +335,26 @@ export const apiRequest = async (
   const token = await AsyncStorage.getItem("access_token");
 
   const defaultHeaders: Record<string, string> = {
-    "Content-Type": "application/json",
     ...(userHeaders as Record<string, string> | undefined),
   };
+
+  const hasContentTypeHeader = Object.keys(defaultHeaders).some(
+    (key) => key.toLowerCase() === "content-type"
+  );
+
+  const isFormDataBody =
+    typeof FormData !== "undefined" && requestBody instanceof FormData;
+
+  if (isFormDataBody) {
+    // Let fetch/React Native set correct multipart boundaries
+    Object.keys(defaultHeaders).forEach((key) => {
+      if (key.toLowerCase() === "content-type") {
+        delete defaultHeaders[key];
+      }
+    });
+  } else if (!hasContentTypeHeader) {
+    defaultHeaders["Content-Type"] = "application/json";
+  }
 
   if (token) {
     defaultHeaders["Authorization"] = `Bearer ${token}`;

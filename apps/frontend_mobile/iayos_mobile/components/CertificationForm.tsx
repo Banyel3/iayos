@@ -17,8 +17,10 @@ import {
   Image,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { Picker } from "@react-native-picker/picker";
 import * as ImagePicker from "expo-image-picker";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { useQuery } from "@tanstack/react-query";
 import {
   Colors,
   Typography,
@@ -33,6 +35,22 @@ import {
   type CreateCertificationRequest,
   type UpdateCertificationRequest,
 } from "@/lib/hooks/useCertifications";
+import { apiRequest, ENDPOINTS } from "@/lib/api/config";
+
+// ===== TYPES =====
+
+interface Skill {
+  id: number; // workerSpecialization ID
+  specializationId: number; // Specializations ID
+  name: string;
+  experienceYears: number;
+  certificationCount: number;
+}
+
+interface WorkerProfile {
+  skills: Skill[];
+  // ... other fields not needed
+}
 
 // ===== PROPS =====
 
@@ -46,7 +64,7 @@ interface CertificationFormProps {
 
 interface FormErrors {
   name?: string;
-  issuingOrganization?: string;
+  organization?: string; // Fixed: backend expects 'organization' not 'issuingOrganization'
   issueDate?: string;
   expiryDate?: string;
 }
@@ -66,10 +84,9 @@ function validateForm(
   }
 
   if (!organization || organization.trim().length < 3) {
-    errors.issuingOrganization = "Organization must be at least 3 characters";
+    errors.organization = "Organization must be at least 3 characters";
   } else if (organization.trim().length > 100) {
-    errors.issuingOrganization =
-      "Organization must be less than 100 characters";
+    errors.organization = "Organization must be less than 100 characters";
   }
 
   if (issueDate > new Date()) {
@@ -94,10 +111,21 @@ export default function CertificationForm({
   const createCertification = useCreateCertification();
   const updateCertification = useUpdateCertification();
 
+  // Fetch worker's skills for skill selector
+  const { data: profile } = useQuery<WorkerProfile>({
+    queryKey: ["worker-profile"],
+    queryFn: async () => {
+      const response = await apiRequest(ENDPOINTS.WORKER_PROFILE);
+      if (!response.ok) throw new Error("Failed to fetch profile");
+      return response.json();
+    },
+  });
+
   // Form State
   const [name, setName] = useState("");
   const [organization, setOrganization] = useState("");
   const [issueDate, setIssueDate] = useState(new Date());
+  const [selectedSkillId, setSelectedSkillId] = useState<number | null>(null);
   const [expiryDate, setExpiryDate] = useState<Date | null>(null);
   const [hasExpiry, setHasExpiry] = useState(false);
   const [certificateImage, setCertificateImage] =
@@ -114,6 +142,7 @@ export default function CertificationForm({
       setName(certification.name);
       setOrganization(certification.issuingOrganization);
       setIssueDate(new Date(certification.issueDate));
+      setSelectedSkillId(certification.specializationId || null);
       if (certification.expiryDate) {
         setExpiryDate(new Date(certification.expiryDate));
         setHasExpiry(true);
@@ -131,6 +160,7 @@ export default function CertificationForm({
     setExpiryDate(null);
     setHasExpiry(false);
     setCertificateImage(null);
+    setSelectedSkillId(null);
     setErrors({});
   };
 
@@ -171,12 +201,13 @@ export default function CertificationForm({
       // Edit mode - Update
       const data: UpdateCertificationRequest = {
         name: name.trim(),
-        issuingOrganization: organization.trim(),
+        organization: organization.trim(), // Fixed: backend expects 'organization'
         issueDate: issueDate.toISOString().split("T")[0],
         expiryDate:
           hasExpiry && expiryDate
             ? expiryDate.toISOString().split("T")[0]
             : undefined,
+        specializationId: selectedSkillId || undefined,
         certificateFile: certificateImage
           ? {
               uri: certificateImage.uri,
@@ -210,12 +241,13 @@ export default function CertificationForm({
 
       const data: CreateCertificationRequest = {
         name: name.trim(),
-        issuingOrganization: organization.trim(),
+        organization: organization.trim(), // Fixed: backend expects 'organization'
         issueDate: issueDate.toISOString().split("T")[0],
         expiryDate:
           hasExpiry && expiryDate
             ? expiryDate.toISOString().split("T")[0]
             : undefined,
+        specializationId: selectedSkillId || undefined,
         certificateFile: {
           uri: certificateImage.uri,
           name: certificateImage.fileName || "certificate.jpg",
@@ -318,25 +350,49 @@ export default function CertificationForm({
                 Issuing Organization <Text style={styles.required}>*</Text>
               </Text>
               <TextInput
-                style={[
-                  styles.input,
-                  errors.issuingOrganization && styles.inputError,
-                ]}
+                style={[styles.input, errors.organization && styles.inputError]}
                 value={organization}
                 onChangeText={(text) => {
                   setOrganization(text);
-                  if (errors.issuingOrganization)
-                    setErrors({ ...errors, issuingOrganization: undefined });
+                  if (errors.organization)
+                    setErrors({ ...errors, organization: undefined });
                 }}
                 placeholder="e.g., National Electrical Association"
                 placeholderTextColor={Colors.textSecondary}
                 editable={!isLoading}
               />
-              {errors.issuingOrganization && (
-                <Text style={styles.errorText}>
-                  {errors.issuingOrganization}
-                </Text>
+              {errors.organization && (
+                <Text style={styles.errorText}>{errors.organization}</Text>
               )}
+            </View>
+
+            {/* Skill Link (Optional) */}
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Link to Skill (Optional)</Text>
+              <View style={styles.pickerContainer}>
+                <Picker
+                  selectedValue={selectedSkillId}
+                  onValueChange={(itemValue) => setSelectedSkillId(itemValue)}
+                  style={styles.picker}
+                  enabled={!isLoading}
+                >
+                  <Picker.Item
+                    label="No skill link (General Certification)"
+                    value={null}
+                  />
+                  {(profile?.skills || []).map((skill) => (
+                    <Picker.Item
+                      key={skill.id}
+                      label={skill.name}
+                      value={skill.id}
+                    />
+                  ))}
+                </Picker>
+              </View>
+              <Text style={styles.hint}>
+                Link this certification to one of your skills to display it in
+                your skill sections
+              </Text>
             </View>
 
             {/* Issue Date */}
@@ -762,5 +818,16 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginTop: Spacing.xs,
     fontStyle: "italic",
+  },
+  pickerContainer: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.medium,
+    backgroundColor: Colors.surface,
+    overflow: "hidden",
+  },
+  picker: {
+    height: 50,
+    color: Colors.textPrimary,
   },
 });

@@ -816,7 +816,7 @@ export default function EditProfileScreen() {
                 </View>
               )}
 
-              {phoneNumber.trim() !== (profile?.user.phoneNumber || "") && (
+              {phoneNumber.trim() !== (profile?.user?.phoneNumber || "") && (
                 <View style={styles.previewItem}>
                   <Text style={styles.previewLabel}>Phone:</Text>
                   <Text style={styles.previewValue}>

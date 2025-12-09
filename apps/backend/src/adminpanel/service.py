@@ -3103,6 +3103,533 @@ def delete_job(job_id: str):
         }
 
 
+# ==================== CERTIFICATION VERIFICATION SERVICE ====================
+
+def get_pending_certifications(page=1, page_size=20, skill_filter=None, worker_search=None, expiring_soon=False):
+    """
+    Get list of pending (unverified) worker certifications.
+    
+    Args:
+        page: Page number (1-indexed)
+        page_size: Number of records per page
+        skill_filter: Filter by skill/specialization name
+        worker_search: Search by worker name or email
+        expiring_soon: Filter certifications expiring in 30 days
+    
+    Returns:
+        Dict with 'certifications' list and 'total_count'
+    """
+    from accounts.models import WorkerCertification, WorkerProfile, workerSpecialization
+    from django.db.models import Q
+    
+    # Base query: unverified certifications
+    queryset = WorkerCertification.objects.filter(is_verified=False).select_related(
+        'workerID__profileID__accountFK',
+        'specializationID__specializationID'
+    ).order_by('-createdAt')
+    
+    # Apply skill filter
+    if skill_filter:
+        queryset = queryset.filter(specializationID__specializationID__specializationName__icontains=skill_filter)
+    
+    # Apply worker search (name or email)
+    if worker_search:
+        queryset = queryset.filter(
+            Q(workerID__profileID__firstName__icontains=worker_search) |
+            Q(workerID__profileID__lastName__icontains=worker_search) |
+            Q(workerID__profileID__accountFK__email__icontains=worker_search)
+        )
+    
+    # Apply expiring soon filter (30 days)
+    if expiring_soon:
+        from datetime import datetime, timedelta
+        thirty_days_from_now = datetime.now().date() + timedelta(days=30)
+        queryset = queryset.filter(
+            expiry_date__lte=thirty_days_from_now,
+            expiry_date__gte=datetime.now().date()
+        )
+    
+    total_count = queryset.count()
+    
+    # Pagination
+    start = (page - 1) * page_size
+    end = start + page_size
+    certs = queryset[start:end]
+    
+    # Format response
+    cert_list = []
+    for cert in certs:
+        from datetime import datetime
+        
+        # Calculate days until expiry
+        days_until_expiry = None
+        is_expired = False
+        if cert.expiry_date:
+            delta = (cert.expiry_date - datetime.now().date()).days
+            days_until_expiry = delta
+            is_expired = delta < 0
+        
+        cert_list.append({
+            'certificationID': cert.certificationID,
+            'name': cert.name,
+            'issuing_organization': cert.issuing_organization,
+            'issue_date': cert.issue_date.isoformat() if cert.issue_date else None,
+            'expiry_date': cert.expiry_date.isoformat() if cert.expiry_date else None,
+            'certificate_url': cert.certificate_url,
+            'is_expired': is_expired,
+            'days_until_expiry': days_until_expiry,
+            'uploaded_at': cert.createdAt.isoformat() if hasattr(cert, 'createdAt') and cert.createdAt else None,
+            'worker_name': f"{cert.workerID.profileID.firstName} {cert.workerID.profileID.lastName}",
+            'worker_email': cert.workerID.profileID.accountFK.email,
+            'worker_id': cert.workerID.pk,
+            'skill_name': cert.specializationID.specializationID.specializationName if cert.specializationID else None,
+        })
+    
+    return {
+        'certifications': cert_list,
+        'total_count': total_count,
+        'page': page,
+        'page_size': page_size,
+        'total_pages': (total_count + page_size - 1) // page_size
+    }
+
+
+def get_certification_detail(cert_id):
+    """
+    Get full details of a specific certification with worker context.
+    
+    Args:
+        cert_id: Certification ID
+    
+    Returns:
+        Dict with certification details, worker profile, and verification history
+    """
+    from accounts.models import WorkerCertification
+    from adminpanel.models import CertificationLog
+    from datetime import datetime
+    
+    try:
+        cert = WorkerCertification.objects.select_related(
+            'workerID__profileID__accountFK',
+            'specializationID__specializationID',
+            'verified_by'
+        ).get(certificationID=cert_id)
+    except WorkerCertification.DoesNotExist:
+        raise ValueError(f"Certification with ID {cert_id} not found")
+    
+    # Calculate expiry status
+    days_until_expiry = None
+    is_expired = False
+    if cert.expiry_date:
+        delta = (cert.expiry_date - datetime.now().date()).days
+        days_until_expiry = delta
+        is_expired = delta < 0
+    
+    # Get verification history
+    history = CertificationLog.objects.filter(
+        certificationID=cert_id
+    ).select_related('reviewedBy').order_by('-reviewedAt')
+    
+    history_list = [
+        {
+            'certLogID': log.certLogID,
+            'action': log.action,
+            'reviewedBy': log.reviewedBy.email if log.reviewedBy else None,
+            'reviewedAt': log.reviewedAt.isoformat(),
+            'reason': log.reason,
+        }
+        for log in history
+    ]
+    
+    return {
+        'certification': {
+            'certificationID': cert.certificationID,
+            'name': cert.name,
+            'issuing_organization': cert.issuing_organization,
+            'issue_date': cert.issue_date.isoformat() if cert.issue_date else None,
+            'expiry_date': cert.expiry_date.isoformat() if cert.expiry_date else None,
+            'certificate_url': cert.certificate_url,
+            'is_verified': cert.is_verified,
+            'verified_at': cert.verified_at.isoformat() if cert.verified_at else None,
+            'verified_by': cert.verified_by.email if cert.verified_by else None,
+            'is_expired': is_expired,
+            'days_until_expiry': days_until_expiry,
+            'skill_name': cert.specializationID.specializationID.specializationName if cert.specializationID else None,
+        },
+        'worker_profile': {
+            'worker_id': cert.workerID.pk,
+            'account_id': cert.workerID.profileID.accountFK.accountID,
+            'first_name': cert.workerID.profileID.firstName,
+            'last_name': cert.workerID.profileID.lastName,
+            'email': cert.workerID.profileID.accountFK.email,
+            'contact_num': cert.workerID.profileID.contactNum,
+            'profile_img': cert.workerID.profileID.profileImg,
+        },
+        'verification_history': history_list
+    }
+
+
+def approve_certification(request, cert_id, notes=""):
+    """
+    Approve a worker certification (admin action).
+    
+    Args:
+        request: HTTP request with authenticated admin in request.auth
+        cert_id: Certification ID to approve
+        notes: Optional approval notes
+    
+    Returns:
+        Success dict with certification details
+    """
+    from accounts.models import WorkerCertification, Notification
+    from adminpanel.models import CertificationLog
+    from adminpanel.audit_service import log_action
+    
+    try:
+        cert = WorkerCertification.objects.select_related(
+            'workerID__profileID__accountFK'
+        ).get(certificationID=cert_id)
+    except WorkerCertification.DoesNotExist:
+        raise ValueError(f"Certification with ID {cert_id} not found")
+    
+    # Check if already approved
+    if cert.is_verified:
+        return {
+            "success": True,
+            "message": "Certification already approved",
+            "certificationID": cert_id,
+            "is_verified": True,
+        }
+    
+    # Get admin reviewer
+    reviewer = None
+    if hasattr(request, 'auth') and request.auth:
+        reviewer = request.auth
+        print(f"👤 Approved by admin: {reviewer.email} (ID: {reviewer.accountID})")
+    else:
+        print(f"⚠️ Warning: No authenticated user found in request.auth")
+    
+    # Update certification status
+    cert.is_verified = True
+    cert.verified_at = timezone.now()
+    cert.verified_by = reviewer
+    cert.save()
+    
+    worker_account = cert.workerID.profileID.accountFK
+    
+    # Create audit log
+    cert_log = CertificationLog.objects.create(
+        certificationID=cert.certificationID,
+        workerID=cert.workerID,
+        action="APPROVED",
+        reviewedBy=reviewer,
+        reviewedAt=cert.verified_at,
+        reason=notes if notes else "Certification documents verified and approved",
+        workerEmail=worker_account.email,
+        workerAccountID=worker_account.accountID,
+        certificationName=cert.name,
+    )
+    
+    # Create notification for worker
+    Notification.objects.create(
+        accountFK=worker_account,
+        notificationType=Notification.NotificationType.CERTIFICATION_APPROVED,
+        title="Certification Approved! ✅",
+        message=f"Your certification '{cert.name}' has been verified and approved.",
+        relatedKYCLogID=cert_log.certLogID,
+    )
+    
+    # Log audit trail
+    if reviewer:
+        log_action(
+            admin=reviewer,
+            action="certification_approval",
+            entity_type="certification",
+            entity_id=str(cert_id),
+            details={"worker_email": worker_account.email, "cert_name": cert.name},
+            before_value={"is_verified": False},
+            after_value={"is_verified": True},
+            request=request
+        )
+    
+    print(f"✅ Certification approved successfully!")
+    print(f"   - Certification ID: {cert_id}")
+    print(f"   - Worker: {worker_account.email}")
+    print(f"   - Certification: {cert.name}")
+    print(f"   - Audit log created")
+    print(f"   - Notification sent to worker")
+    
+    return {
+        "success": True,
+        "message": "Certification approved successfully",
+        "certificationID": cert_id,
+        "worker_email": worker_account.email,
+        "certification_name": cert.name,
+        "is_verified": True,
+        "verified_at": cert.verified_at.isoformat(),
+    }
+
+
+def reject_certification(request, cert_id, reason):
+    """
+    Reject a worker certification (admin action).
+    
+    Args:
+        request: HTTP request with authenticated admin in request.auth
+        cert_id: Certification ID to reject
+        reason: Rejection reason (required, min 10 chars)
+    
+    Returns:
+        Success dict with rejection details
+    """
+    from accounts.models import WorkerCertification, Notification
+    from adminpanel.models import CertificationLog
+    from adminpanel.audit_service import log_action
+    
+    if not reason or len(reason) < 10:
+        raise ValueError("Rejection reason is required (minimum 10 characters)")
+    
+    try:
+        cert = WorkerCertification.objects.select_related(
+            'workerID__profileID__accountFK'
+        ).get(certificationID=cert_id)
+    except WorkerCertification.DoesNotExist:
+        raise ValueError(f"Certification with ID {cert_id} not found")
+    
+    # Get admin reviewer
+    reviewer = None
+    if hasattr(request, 'auth') and request.auth:
+        reviewer = request.auth
+        print(f"👤 Rejected by admin: {reviewer.email} (ID: {reviewer.accountID})")
+    else:
+        print(f"⚠️ Warning: No authenticated user found in request.auth")
+    
+    # Keep is_verified=False (don't change certification)
+    worker_account = cert.workerID.profileID.accountFK
+    
+    # Create audit log
+    cert_log = CertificationLog.objects.create(
+        certificationID=cert.certificationID,
+        workerID=cert.workerID,
+        action="REJECTED",
+        reviewedBy=reviewer,
+        reviewedAt=timezone.now(),
+        reason=reason,
+        workerEmail=worker_account.email,
+        workerAccountID=worker_account.accountID,
+        certificationName=cert.name,
+    )
+    
+    # Create notification for worker
+    Notification.objects.create(
+        accountFK=worker_account,
+        notificationType=Notification.NotificationType.CERTIFICATION_REJECTED,
+        title="Certification Requires Update ⚠️",
+        message=f"Your certification '{cert.name}' needs revision. Reason: {reason}",
+        relatedKYCLogID=cert_log.certLogID,
+    )
+    
+    # Log audit trail
+    if reviewer:
+        log_action(
+            admin=reviewer,
+            action="certification_rejection",
+            entity_type="certification",
+            entity_id=str(cert_id),
+            details={"worker_email": worker_account.email, "cert_name": cert.name, "reason": reason},
+            before_value={},
+            after_value={"rejected": True},
+            request=request
+        )
+    
+    print(f"❌ Certification rejected!")
+    print(f"   - Certification ID: {cert_id}")
+    print(f"   - Worker: {worker_account.email}")
+    print(f"   - Certification: {cert.name}")
+    print(f"   - Reason: {reason}")
+    print(f"   - Audit log created")
+    print(f"   - Notification sent to worker")
+    
+    return {
+        "success": True,
+        "message": "Certification rejected",
+        "certificationID": cert_id,
+        "worker_email": worker_account.email,
+        "certification_name": cert.name,
+        "reason": reason,
+    }
+
+
+def get_verification_history(cert_id):
+    """
+    Get verification audit trail for a specific certification.
+    
+    Args:
+        cert_id: Certification ID
+    
+    Returns:
+        List of verification log entries
+    """
+    from adminpanel.models import CertificationLog
+    
+    logs = CertificationLog.objects.filter(
+        certificationID=cert_id
+    ).select_related('reviewedBy', 'workerID__profileID').order_by('-reviewedAt')
+    
+    return [
+        {
+            'certLogID': log.certLogID,
+            'action': log.action,
+            'reviewedBy': log.reviewedBy.email if log.reviewedBy else 'System',
+            'reviewedAt': log.reviewedAt.isoformat(),
+            'reason': log.reason,
+            'workerEmail': log.workerEmail,
+            'certificationName': log.certificationName,
+        }
+        for log in logs
+    ]
+
+
+def get_all_verification_history(
+    page=1,
+    page_size=20,
+    search=None,
+    action=None,
+    date_from=None,
+    date_to=None,
+):
+    """Return paginated certification verification history with optional filters."""
+    from adminpanel.models import CertificationLog
+    from django.db.models import Q
+    from django.utils.dateparse import parse_datetime, parse_date
+    from datetime import datetime, time
+    from math import ceil
+
+    # Sanitize pagination inputs
+    try:
+        page = int(page)
+    except (TypeError, ValueError):
+        page = 1
+    page = max(1, page)
+
+    try:
+        page_size = int(page_size)
+    except (TypeError, ValueError):
+        page_size = 20
+    page_size = max(1, min(page_size, 100))
+
+    queryset = CertificationLog.objects.select_related(
+        'reviewedBy',
+        'workerID__profileID',
+    ).order_by('-reviewedAt')
+
+    # Apply action filter (APPROVED / REJECTED)
+    if action and action.upper() in {"APPROVED", "REJECTED"}:
+        queryset = queryset.filter(action=action.upper())
+
+    # Apply search filter
+    if search:
+        search_term = search.strip()
+        if search_term:
+            queryset = queryset.filter(
+                Q(certificationName__icontains=search_term)
+                | Q(workerID__profileID__firstName__icontains=search_term)
+                | Q(workerID__profileID__lastName__icontains=search_term)
+                | Q(workerEmail__icontains=search_term)
+                | Q(reviewedBy__email__icontains=search_term)
+            )
+
+    # Apply date filters
+    def _parse_boundary(value, is_start=True):
+        if not value:
+            return None
+        dt = parse_datetime(value)
+        if dt:
+            return dt
+        date_only = parse_date(value)
+        if date_only:
+            return datetime.combine(date_only, time.min if is_start else time.max)
+        return None
+
+    start_dt = _parse_boundary(date_from, is_start=True)
+    end_dt = _parse_boundary(date_to, is_start=False)
+
+    if start_dt:
+        queryset = queryset.filter(reviewedAt__gte=start_dt)
+    if end_dt:
+        queryset = queryset.filter(reviewedAt__lte=end_dt)
+
+    total_records = queryset.count()
+    total_pages = ceil(total_records / page_size) if total_records else 0
+    page = min(page, total_pages) if total_pages else 1
+    offset = (page - 1) * page_size
+    logs = queryset[offset:offset + page_size]
+
+    history = []
+    for log in logs:
+        worker_profile = getattr(log.workerID, 'profileID', None)
+        worker_first = getattr(worker_profile, 'firstName', '') if worker_profile else ''
+        worker_last = getattr(worker_profile, 'lastName', '') if worker_profile else ''
+        worker_name = " ".join(part for part in [worker_first, worker_last] if part).strip() or log.workerEmail
+
+        history.append({
+            'certLogID': log.certLogID,
+            'certification_id': log.certificationID,
+            'certification_name': log.certificationName,
+            'worker_name': worker_name,
+            'worker_email': log.workerEmail,
+            'action': log.action,
+            'reviewed_by_name': log.reviewedBy.email if log.reviewedBy else 'System',
+            'reviewed_at': log.reviewedAt.isoformat(),
+            'reason': log.reason,
+        })
+
+    return {
+        'history': history,
+        'pagination': {
+            'page': page,
+            'page_size': page_size,
+            'total_records': total_records,
+            'total_pages': total_pages,
+        }
+    }
+
+
+def get_verification_stats():
+    """
+    Get certification verification statistics for dashboard.
+    
+    Returns:
+        Dict with pending, approved today, and expiring soon counts
+    """
+    from accounts.models import WorkerCertification
+    from datetime import datetime, timedelta
+    
+    # Count pending certifications
+    pending_count = WorkerCertification.objects.filter(is_verified=False).count()
+    
+    # Count approved today
+    today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    approved_today = WorkerCertification.objects.filter(
+        is_verified=True,
+        verified_at__gte=today_start
+    ).count()
+    
+    # Count expiring soon (within 30 days, verified only)
+    thirty_days = datetime.now().date() + timedelta(days=30)
+    expiring_soon = WorkerCertification.objects.filter(
+        is_verified=True,
+        expiry_date__lte=thirty_days,
+        expiry_date__gte=datetime.now().date()
+    ).count()
+    
+    return {
+        'pending_count': pending_count,
+        'approved_today': approved_today,
+        'expiring_soon_count': expiring_soon,
+    }
+
+
 def get_job_invoice(job_id: int):
     """
     Get invoice data for a completed job.

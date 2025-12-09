@@ -165,6 +165,26 @@ const navigation: NavItem[] = [
     ],
   },
   {
+    name: "Certifications",
+    href: "#", // Not a clickable link - just a collapsible section header
+    icon: FileCheck,
+    count: null,
+    children: [
+      {
+        name: "Pending",
+        href: "/admin/certifications/pending",
+        icon: Clock,
+        description: "Awaiting verification",
+      },
+      {
+        name: "History",
+        href: "/admin/certifications/history",
+        icon: FileText,
+        description: "Verification audit trail",
+      },
+    ],
+  },
+  {
     name: "Reviews",
     href: "/admin/reviews",
     icon: Star,
@@ -303,6 +323,7 @@ export default function Sidebar({ className }: SidebarProps) {
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [pendingKYCCount, setPendingKYCCount] = useState<number>(0);
+  const [pendingCertsCount, setPendingCertsCount] = useState<number>(0);
   const [showSearchModal, setShowSearchModal] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
@@ -314,10 +335,9 @@ export default function Sidebar({ className }: SidebarProps) {
   useEffect(() => {
     const fetchPendingCount = async () => {
       try {
-        const response = await fetch(
-          `${API_BASE}/api/adminpanel/kyc/all`,
-          { credentials: "include" }
-        );
+        const response = await fetch(`${API_BASE}/api/adminpanel/kyc/all`, {
+          credentials: "include",
+        });
 
         if (response.ok) {
           const data = await response.json();
@@ -339,10 +359,30 @@ export default function Sidebar({ className }: SidebarProps) {
       }
     };
 
-    fetchPendingCount();
+    const fetchPendingCertsCount = async () => {
+      try {
+        const response = await fetch(
+          `${API_BASE}/api/adminpanel/certifications/stats`,
+          { credentials: "include" }
+        );
 
-    // Refresh count every 30 seconds
-    const interval = setInterval(fetchPendingCount, 30000);
+        if (response.ok) {
+          const data = await response.json();
+          setPendingCertsCount(data.pending_count || 0);
+        }
+      } catch (error) {
+        console.error("Error fetching pending certs count:", error);
+      }
+    };
+
+    fetchPendingCount();
+    fetchPendingCertsCount();
+
+    // Refresh counts every 30 seconds
+    const interval = setInterval(() => {
+      fetchPendingCount();
+      fetchPendingCertsCount();
+    }, 30000);
 
     return () => clearInterval(interval);
   }, []);
@@ -360,12 +400,18 @@ export default function Sidebar({ className }: SidebarProps) {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // Update navigation with dynamic KYC count
+  // Update navigation with dynamic KYC and Certifications counts
   const navigationWithCount: NavItem[] = navigation.map((item) => {
     if (item.name === "KYC Management") {
       return {
         ...item,
         count: pendingKYCCount > 0 ? pendingKYCCount : null,
+      };
+    }
+    if (item.name === "Certifications") {
+      return {
+        ...item,
+        count: pendingCertsCount > 0 ? pendingCertsCount : null,
       };
     }
     return item;

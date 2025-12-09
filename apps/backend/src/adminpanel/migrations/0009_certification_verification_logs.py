@@ -9,8 +9,8 @@ import django.db.models.deletion
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('accounts', '0061_workercertification_specializationid'),
-        ('adminpanel', '0003_kyclogs_kyctype'),
+        ('accounts', '0061_worker_skills_certifications_reviews'),
+        ('adminpanel', '0008_alter_auditlog_action'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 

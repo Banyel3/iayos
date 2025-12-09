@@ -23,9 +23,10 @@ export interface Certification {
 
 export interface CreateCertificationRequest {
   name: string;
-  issuingOrganization: string;
+  organization: string; // Fixed: backend expects 'organization' not 'issuingOrganization'
   issueDate: string; // ISO date string
   expiryDate?: string; // ISO date string (optional)
+  specializationId?: number; // Link to skill (optional)
   certificateFile?: {
     uri: string;
     name: string;
@@ -35,9 +36,10 @@ export interface CreateCertificationRequest {
 
 export interface UpdateCertificationRequest {
   name?: string;
-  issuingOrganization?: string;
+  organization?: string; // Fixed: backend expects 'organization' not 'issuingOrganization'
   issueDate?: string;
   expiryDate?: string;
+  specializationId?: number; // Link to skill (optional)
   certificateFile?: {
     uri: string;
     name: string;
@@ -116,11 +118,15 @@ export const useCreateCertification = () => {
 
       // Add text fields
       formData.append("name", data.name);
-      formData.append("issuingOrganization", data.issuingOrganization);
-      formData.append("issueDate", data.issueDate);
+      formData.append("organization", data.organization); // Fixed: backend expects 'organization'
+      formData.append("issue_date", data.issueDate);
 
       if (data.expiryDate) {
-        formData.append("expiryDate", data.expiryDate);
+        formData.append("expiry_date", data.expiryDate);
+      }
+
+      if (data.specializationId) {
+        formData.append("specialization_id", data.specializationId.toString());
       }
 
       // Add certificate file if provided
@@ -189,10 +195,11 @@ export const useUpdateCertification = () => {
 
       // Add fields that are being updated (backend expects snake_case field names)
       if (data.name) formData.append("name", data.name);
-      if (data.issuingOrganization)
-        formData.append("organization", data.issuingOrganization);
+      if (data.organization) formData.append("organization", data.organization); // Fixed: backend expects 'organization'
       if (data.issueDate) formData.append("issue_date", data.issueDate);
       if (data.expiryDate) formData.append("expiry_date", data.expiryDate);
+      if (data.specializationId)
+        formData.append("specialization_id", data.specializationId.toString());
 
       // Add certificate file if provided
       if (data.certificateFile) {

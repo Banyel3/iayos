@@ -41,7 +41,6 @@ from .settings_service import (
     get_admins, get_admin_detail, create_admin, update_admin, delete_admin,
     update_admin_last_login, get_all_permissions, check_admin_permission
 )
-
 router = Router(tags=["adminpanel"])
 
 
@@ -2139,6 +2138,236 @@ def get_support_statistics_endpoint(request, range: str = "last_30_days"):
 
 
 
+
+
+# ==================== CERTIFICATION VERIFICATION ENDPOINTS ====================
+
+@router.get("/certifications/pending", auth=cookie_auth)
+def get_pending_certifications_endpoint(
+    request,
+    page: int = 1,
+    page_size: int = 20,
+    skill: Optional[str] = None,
+    worker: Optional[str] = None,
+    expiring_soon: bool = False
+):
+    """
+    Get list of pending (unverified) worker certifications.
+    
+    Query Parameters:
+        - page: Page number (default 1)
+        - page_size: Items per page (default 20)
+        - skill: Filter by skill/specialization name
+        - worker: Search by worker name or email
+        - expiring_soon: Filter certifications expiring in 30 days
+    
+    Returns:
+        Paginated list of pending certifications
+    """
+    from .service import get_pending_certifications
+    from .schemas import PendingCertificationsResponseSchema
+    
+    try:
+        result = get_pending_certifications(
+            page=page,
+            page_size=page_size,
+            skill_filter=skill,
+            worker_search=worker,
+            expiring_soon=expiring_soon
+        )
+        return {"success": True, "data": result}
+    except Exception as e:
+        print(f"❌ Error fetching pending certifications: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"success": False, "error": str(e)}, status=500)
+
+
+@router.get("/certifications/stats", auth=cookie_auth)
+def get_certification_stats_endpoint(request):
+    """
+    Get certification verification statistics for dashboard.
+    """
+    from .service import get_verification_stats
+    from .schemas import VerificationStatsSchema
+
+    try:
+        stats = get_verification_stats()
+        return VerificationStatsSchema(**stats)
+    except Exception as e:
+        print(f"❌ Error fetching certification stats: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": str(e)}, status=500)
+
+
+@router.get("/certifications/history", auth=cookie_auth)
+def get_all_certification_history_endpoint(
+    request,
+    page: int = 1,
+    page_size: int = 20,
+    search: Optional[str] = None,
+    action: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+):
+    """List certification verification history with filters and pagination."""
+    from .service import get_all_verification_history
+    from .schemas import CertificationHistoryResponseSchema
+
+    page = max(1, page)
+    page_size = max(1, min(page_size, 100))
+    action_filter = action.upper() if action else None
+    if action_filter not in {"APPROVED", "REJECTED"}:
+        action_filter = None
+
+    try:
+        result = get_all_verification_history(
+            page=page,
+            page_size=page_size,
+            search=search,
+            action=action_filter,
+            date_from=date_from,
+            date_to=date_to,
+        )
+        return {"success": True, "data": result}
+    except Exception as e:
+        print(f"❌ Error fetching certification history list: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"success": False, "error": str(e)}, status=500)
+
+
+@router.get("/certifications/{cert_id}", auth=cookie_auth)
+def get_certification_detail_endpoint(request, cert_id: int):
+    """
+    Get full details of a specific certification with worker context.
+    
+    Path Parameters:
+        - cert_id: Certification ID
+    
+    Returns:
+        Complete certification details with worker profile and verification history
+    """
+    from .service import get_certification_detail
+    from .schemas import CertificationDetailSchema
+    
+    try:
+        result = get_certification_detail(cert_id)
+        return {"success": True, "data": result}
+    except ValueError as e:
+        print(f"❌ Certification not found: {str(e)}")
+        return Response({"success": False, "error": str(e)}, status=404)
+    except Exception as e:
+        print(f"❌ Error fetching certification detail: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"success": False, "error": str(e)}, status=500)
+
+
+@router.post("/certifications/{cert_id}/approve", auth=cookie_auth)
+def approve_certification_endpoint(request, cert_id: int, notes: Optional[str] = None):
+    """
+    Approve a worker certification (admin action).
+    
+    Path Parameters:
+        - cert_id: Certification ID to approve
+    
+    Request Body:
+        - notes: Optional approval notes (string)
+    
+    Returns:
+        Success message with certification details
+    """
+    from .service import approve_certification
+    from .schemas import CertificationActionResponseSchema
+    import json
+    
+    try:
+        # Parse request body for notes
+        body_notes = None
+        if request.body:
+            try:
+                body = json.loads(request.body.decode('utf-8'))
+                body_notes = body.get('notes')
+            except:
+                pass
+        
+        # Use body notes if provided, otherwise use query param
+        final_notes = body_notes or notes or ""
+        
+        result = approve_certification(request, cert_id, final_notes)
+        return result
+    except ValueError as e:
+        print(f"❌ Validation error approving certification: {str(e)}")
+        return Response({"success": False, "error": str(e)}, status=400)
+    except Exception as e:
+        print(f"❌ Error approving certification: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"success": False, "error": str(e)}, status=500)
+
+
+@router.post("/certifications/{cert_id}/reject", auth=cookie_auth)
+def reject_certification_endpoint(request, cert_id: int):
+    """
+    Reject a worker certification (admin action).
+    
+    Path Parameters:
+        - cert_id: Certification ID to reject
+    
+    Request Body:
+        - reason: Rejection reason (required, minimum 10 characters)
+    
+    Returns:
+        Success message with rejection details
+    """
+    from .service import reject_certification
+    from .schemas import CertificationActionResponseSchema
+    import json
+    
+    try:
+        # Parse request body
+        body = json.loads(request.body.decode('utf-8'))
+        reason = body.get('reason')
+        
+        if not reason:
+            return Response({"success": False, "error": "Rejection reason is required"}, status=400)
+        
+        result = reject_certification(request, cert_id, reason)
+        return result
+    except ValueError as e:
+        print(f"❌ Validation error rejecting certification: {str(e)}")
+        return Response({"success": False, "error": str(e)}, status=400)
+    except Exception as e:
+        print(f"❌ Error rejecting certification: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"success": False, "error": str(e)}, status=500)
+
+
+@router.get("/certifications/{cert_id}/history", auth=cookie_auth)
+def get_certification_history_endpoint(request, cert_id: int):
+    """
+    Get verification audit trail for a specific certification.
+    
+    Path Parameters:
+        - cert_id: Certification ID
+    
+    Returns:
+        List of verification log entries
+    """
+    from .service import get_verification_history
+    from .schemas import VerificationHistoryListSchema
+    
+    try:
+        history = get_verification_history(cert_id)
+        return {"success": True, "data": {"history": history}}
+    except Exception as e:
+        print(f"❌ Error fetching certification history: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"success": False, "error": str(e)}, status=500)
 
 
 

@@ -7,6 +7,7 @@ import {
   Edit,
   Trash2,
 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/generic_button";
 import type { CertificationData } from "@/lib/api/worker-profile";
 
@@ -48,14 +49,15 @@ export function CertificationCard({
     <div className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between mb-3">
         <div className="flex-1">
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex flex-wrap items-center gap-2 mb-1">
             <h3 className="font-semibold text-gray-900">
               {certification.name}
             </h3>
             {certification.is_verified && (
-              <span title="Verified">
-                <CheckCircle className="h-5 w-5 text-green-600" />
-              </span>
+              <Badge className="bg-green-50 text-green-700 border border-green-200 gap-1">
+                <CheckCircle className="h-3.5 w-3.5" />
+                Approved
+              </Badge>
             )}
           </div>
           <p className="text-sm text-gray-600">

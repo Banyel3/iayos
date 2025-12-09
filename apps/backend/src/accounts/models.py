@@ -601,6 +601,10 @@ class Notification(models.Model):
         BACKJOB_REJECTED = "BACKJOB_REJECTED", "Backjob Rejected"
         BACKJOB_COMPLETED = "BACKJOB_COMPLETED", "Backjob Completed"
 
+        # Certification Notifications
+        CERTIFICATION_APPROVED = "CERTIFICATION_APPROVED", "Certification Approved"
+        CERTIFICATION_REJECTED = "CERTIFICATION_REJECTED", "Certification Rejected"
+
         # System Notifications
         SYSTEM = "SYSTEM", "System"
     

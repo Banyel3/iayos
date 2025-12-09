@@ -1,0 +1,366 @@
+###
+### iAyos Admin Panel - Certification Verification Testing
+### This file contains comprehensive test cases for the certification verification feature
+###
+### Prerequisites:
+### 1. Backend running on http://localhost:8000
+### 2. Admin account created with credentials
+### 3. At least one worker with unverified certifications in database
+###
+### Usage:
+### 1. Update the email/password in the login request
+### 2. Run login to get session cookie
+### 3. Run subsequent requests (cookie will be attached automatically)
+###
+
+@baseUrl = http://localhost:8000
+@adminEmail = admin@iayos.com
+@adminPassword = admin123
+
+### ==================== AUTHENTICATION ====================
+
+### 1. Admin Login
+# @name login
+POST {{baseUrl}}/api/accounts/login
+Content-Type: application/json
+
+{
+  "email": "{{adminEmail}}",
+  "password": "{{adminPassword}}"
+}
+
+### Store the session cookie from login response
+# The cookie will be automatically attached to subsequent requests in this file
+
+
+### ==================== CERTIFICATION STATISTICS ====================
+
+### 2. Get Certification Verification Stats
+# Returns: pending_count, approved_today, expiring_soon_count
+GET {{baseUrl}}/api/adminpanel/certifications/stats
+
+
+### ==================== PENDING CERTIFICATIONS LIST ====================
+
+### 3. Get All Pending Certifications (Page 1)
+# Returns paginated list of unverified certifications
+GET {{baseUrl}}/api/adminpanel/certifications/pending?page=1&page_size=20
+
+
+### 4. Get Pending Certifications - Page 2
+# Test pagination
+GET {{baseUrl}}/api/adminpanel/certifications/pending?page=2&page_size=10
+
+
+### 5. Filter by Skill/Specialization
+# Test skill filter (e.g., "Plumbing", "Electrical", "Carpentry")
+GET {{baseUrl}}/api/adminpanel/certifications/pending?skill=Plumbing
+
+
+### 6. Search by Worker Name or Email
+# Test worker search filter
+GET {{baseUrl}}/api/adminpanel/certifications/pending?worker=juan
+
+
+### 7. Filter Expiring Soon (within 30 days)
+# Test expiring soon filter
+GET {{baseUrl}}/api/adminpanel/certifications/pending?expiring_soon=true
+
+
+### 8. Combined Filters
+# Test multiple filters together
+GET {{baseUrl}}/api/adminpanel/certifications/pending?skill=Electrical&expiring_soon=true&page=1&page_size=5
+
+
+### ==================== CERTIFICATION DETAIL ====================
+
+### 9. Get Certification Detail (Valid ID)
+# Replace 1 with actual certification ID from pending list
+GET {{baseUrl}}/api/adminpanel/certifications/1
+
+
+### 10. Get Certification Detail (Invalid ID)
+# Test error handling for non-existent certification
+GET {{baseUrl}}/api/adminpanel/certifications/999999
+
+
+### ==================== APPROVE CERTIFICATION ====================
+
+### 11. Approve Certification (with notes)
+# Replace 1 with actual certification ID
+POST {{baseUrl}}/api/adminpanel/certifications/1/approve
+Content-Type: application/json
+
+{
+  "notes": "Certification documents verified and approved. All details match worker profile."
+}
+
+
+### 12. Approve Certification (without notes)
+# Replace 2 with actual certification ID
+POST {{baseUrl}}/api/adminpanel/certifications/2/approve
+Content-Type: application/json
+
+{
+  "notes": ""
+}
+
+
+### 13. Approve Already Approved Certification
+# Test idempotency - should return success without error
+# Replace 1 with previously approved certification ID
+POST {{baseUrl}}/api/adminpanel/certifications/1/approve
+Content-Type: application/json
+
+{
+  "notes": "Testing re-approval"
+}
+
+
+### 14. Approve Non-Existent Certification
+# Test error handling
+POST {{baseUrl}}/api/adminpanel/certifications/999999/approve
+Content-Type: application/json
+
+{
+  "notes": "This should fail"
+}
+
+
+### ==================== REJECT CERTIFICATION ====================
+
+### 15. Reject Certification (with valid reason)
+# Replace 3 with actual certification ID
+# Reason must be at least 10 characters
+POST {{baseUrl}}/api/adminpanel/certifications/3/reject
+Content-Type: application/json
+
+{
+  "reason": "The certification image is blurry and the expiry date cannot be verified. Please re-upload a clear photo."
+}
+
+
+### 16. Reject Certification (reason too short - should fail)
+# Test validation - reason must be minimum 10 characters
+POST {{baseUrl}}/api/adminpanel/certifications/4/reject
+Content-Type: application/json
+
+{
+  "reason": "Too short"
+}
+
+
+### 17. Reject Certification (missing reason - should fail)
+# Test validation - reason is required
+POST {{baseUrl}}/api/adminpanel/certifications/5/reject
+Content-Type: application/json
+
+{
+}
+
+
+### 18. Reject Non-Existent Certification
+# Test error handling
+POST {{baseUrl}}/api/adminpanel/certifications/999999/reject
+Content-Type: application/json
+
+{
+  "reason": "This should fail because certification does not exist"
+}
+
+
+### ==================== VERIFICATION HISTORY ====================
+
+### 19. Get Verification History (Approved Certification)
+# Replace 1 with certification ID that has history (approved/rejected)
+GET {{baseUrl}}/api/adminpanel/certifications/1/history
+
+
+### 20. Get Verification History (Rejected Certification)
+# Replace 3 with rejected certification ID
+GET {{baseUrl}}/api/adminpanel/certifications/3/history
+
+
+### 21. Get Verification History (No History)
+# Replace with new unverified certification ID (should return empty list)
+GET {{baseUrl}}/api/adminpanel/certifications/10/history
+
+
+### 22. Get Verification History (Invalid ID)
+# Test error handling
+GET {{baseUrl}}/api/adminpanel/certifications/999999/history
+
+
+### ==================== WORKFLOW TESTING ====================
+
+### 23. Complete Workflow Test - Approve
+# Step 1: Get pending list
+GET {{baseUrl}}/api/adminpanel/certifications/pending?page=1&page_size=5
+
+# Step 2: Get detail of first certification (replace ID)
+# GET {{baseUrl}}/api/adminpanel/certifications/{ID}
+
+# Step 3: Approve with notes
+# POST {{baseUrl}}/api/adminpanel/certifications/{ID}/approve
+# { "notes": "Verified and approved" }
+
+# Step 4: Check history to confirm audit log
+# GET {{baseUrl}}/api/adminpanel/certifications/{ID}/history
+
+# Step 5: Verify stats updated
+# GET {{baseUrl}}/api/adminpanel/certifications/stats
+
+
+### 24. Complete Workflow Test - Reject
+# Step 1: Get pending list
+GET {{baseUrl}}/api/adminpanel/certifications/pending?page=1&page_size=5
+
+# Step 2: Get detail of certification (replace ID)
+# GET {{baseUrl}}/api/adminpanel/certifications/{ID}
+
+# Step 3: Reject with reason
+# POST {{baseUrl}}/api/adminpanel/certifications/{ID}/reject
+# { "reason": "Certificate image is unclear, please re-upload high quality image" }
+
+# Step 4: Check history to confirm audit log
+# GET {{baseUrl}}/api/adminpanel/certifications/{ID}/history
+
+# Step 5: Verify it still appears in pending list (rejected but not verified)
+# GET {{baseUrl}}/api/adminpanel/certifications/pending
+
+
+### ==================== EDGE CASES & ERROR SCENARIOS ====================
+
+### 25. Empty Filters (should return all pending)
+GET {{baseUrl}}/api/adminpanel/certifications/pending?skill=&worker=
+
+
+### 26. Invalid Page Number (should default to 1 or handle gracefully)
+GET {{baseUrl}}/api/adminpanel/certifications/pending?page=0&page_size=20
+
+
+### 27. Invalid Page Size (should handle gracefully)
+GET {{baseUrl}}/api/adminpanel/certifications/pending?page=1&page_size=0
+
+
+### 28. Large Page Size (test performance)
+GET {{baseUrl}}/api/adminpanel/certifications/pending?page=1&page_size=100
+
+
+### 29. Non-Existent Skill Filter (should return empty results)
+GET {{baseUrl}}/api/adminpanel/certifications/pending?skill=NonExistentSkill123
+
+
+### 30. Non-Existent Worker Search (should return empty results)
+GET {{baseUrl}}/api/adminpanel/certifications/pending?worker=NonExistentWorker999
+
+
+### ==================== AUTHORIZATION TESTING ====================
+
+### 31. Access Without Login (should fail with 401)
+# This requires running in a new session or clearing cookies
+# GET {{baseUrl}}/api/adminpanel/certifications/pending
+# Expected: 401 Unauthorized
+
+
+### 32. Access With Non-Admin Account (should fail with 403)
+# Login with worker/client account first, then:
+# GET {{baseUrl}}/api/adminpanel/certifications/pending
+# Expected: 403 Forbidden (if permission checking is implemented)
+
+
+### ==================== NOTIFICATION TESTING ====================
+
+### 33. After Approval - Check Worker Notifications
+# After approving a certification, check the worker's notifications endpoint
+# to verify they received "Certification Approved" notification
+# GET {{baseUrl}}/api/accounts/notifications
+
+
+### 34. After Rejection - Check Worker Notifications
+# After rejecting a certification, check the worker's notifications endpoint
+# to verify they received "Certification Requires Update" notification
+# GET {{baseUrl}}/api/accounts/notifications
+
+
+### ==================== AUDIT LOG TESTING ====================
+
+### 35. Check Admin Audit Logs
+# Verify certification approval/rejection actions are logged in audit trail
+# GET {{baseUrl}}/api/adminpanel/audit/logs?entity_type=certification
+
+
+### ==================== NOTES ====================
+# 
+# Expected Response Structures:
+#
+# GET /certifications/pending:
+# {
+#   "success": true,
+#   "data": {
+#     "certifications": [...],
+#     "total_count": 10,
+#     "page": 1,
+#     "page_size": 20,
+#     "total_pages": 1
+#   }
+# }
+#
+# GET /certifications/{id}:
+# {
+#   "success": true,
+#   "data": {
+#     "certification": {...},
+#     "worker_profile": {...},
+#     "verification_history": [...]
+#   }
+# }
+#
+# POST /certifications/{id}/approve:
+# {
+#   "success": true,
+#   "message": "Certification approved successfully",
+#   "certificationID": 1,
+#   "worker_email": "worker@example.com",
+#   "certification_name": "TESDA Plumbing NC II",
+#   "is_verified": true,
+#   "verified_at": "2025-01-09T10:30:00Z"
+# }
+#
+# POST /certifications/{id}/reject:
+# {
+#   "success": true,
+#   "message": "Certification rejected",
+#   "certificationID": 3,
+#   "worker_email": "worker@example.com",
+#   "certification_name": "Electrical License",
+#   "reason": "Image unclear..."
+# }
+#
+# GET /certifications/stats:
+# {
+#   "success": true,
+#   "data": {
+#     "pending_count": 15,
+#     "approved_today": 3,
+#     "expiring_soon_count": 2
+#   }
+# }
+#
+# GET /certifications/{id}/history:
+# {
+#   "success": true,
+#   "data": {
+#     "history": [
+#       {
+#         "certLogID": 1,
+#         "action": "APPROVED",
+#         "reviewedBy": "admin@iayos.com",
+#         "reviewedAt": "2025-01-09T10:30:00Z",
+#         "reason": "Verified and approved"
+#       }
+#     ]
+#   }
+# }
+#
+###

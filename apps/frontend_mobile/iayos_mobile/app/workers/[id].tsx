@@ -23,6 +23,7 @@ import {
   Image,
   SafeAreaView,
   ActivityIndicator,
+  Modal,
 } from "react-native";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
@@ -270,6 +271,9 @@ export default function WorkerDetailScreen() {
   const [isReviewsExpanded, setIsReviewsExpanded] = useState(true);
   const [reviewsPage, setReviewsPage] = useState(1);
   const [expandedSkills, setExpandedSkills] = useState<Set<number>>(new Set());
+
+  // Lightbox state for certificate images
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
 
   // Fetch worker details
   const { data, isLoading, error } = useQuery({
@@ -789,9 +793,10 @@ export default function WorkerDetailScreen() {
 
               {data.skills.map((skill: Skill) => {
                 const isExpanded = expandedSkills.has(skill.id);
-                const skillCerts = data.certifications?.filter(
-                  (cert) => cert.specializationId === skill.id
-                ) || [];
+                const skillCerts =
+                  data.certifications?.filter(
+                    (cert) => cert.specializationId === skill.id
+                  ) || [];
 
                 return (
                   <View key={skill.id} style={styles.skillSection}>
@@ -858,23 +863,117 @@ export default function WorkerDetailScreen() {
                     {isExpanded && (
                       <View style={styles.skillCertifications}>
                         {skillCerts.length > 0 ? (
-                          skillCerts.map((cert) => (
-                            <View key={cert.id} style={styles.certificationItem}>
-                              <Ionicons
-                                name={cert.isVerified ? "checkmark-circle" : "document-text"}
-                                size={20}
-                                color={cert.isVerified ? Colors.success : Colors.textSecondary}
-                              />
-                              <View style={{ flex: 1, marginLeft: 12 }}>
-                                <Text style={styles.certificationName}>{cert.name}</Text>
-                                {cert.issuingOrganization && (
-                                  <Text style={styles.certificationOrg}>
-                                    {cert.issuingOrganization}
-                                  </Text>
-                                )}
+                          skillCerts.map((cert) => {
+                            // Calculate days until expiry for warning badge
+                            const daysUntilExpiry = cert.expiryDate
+                              ? Math.ceil(
+                                  (new Date(cert.expiryDate).getTime() -
+                                    new Date().getTime()) /
+                                    (1000 * 60 * 60 * 24)
+                                )
+                              : null;
+                            const isExpiringSoon =
+                              daysUntilExpiry !== null &&
+                              daysUntilExpiry > 0 &&
+                              daysUntilExpiry <= 30;
+
+                            return (
+                              <View
+                                key={cert.id}
+                                style={styles.certificationItem}
+                              >
+                                <View style={styles.certificationRow}>
+                                  {/* Certificate Image Thumbnail on Left */}
+                                  {cert.certificateUrl ? (
+                                    <TouchableOpacity
+                                      style={styles.certThumbnailLeft}
+                                      onPress={() =>
+                                        setLightboxImage(cert.certificateUrl!)
+                                      }
+                                      activeOpacity={0.7}
+                                    >
+                                      <Image
+                                        source={{ uri: cert.certificateUrl }}
+                                        style={styles.certThumbnailLeftImage}
+                                        resizeMode="cover"
+                                      />
+                                      <View
+                                        style={styles.certThumbnailLeftOverlay}
+                                      >
+                                        <Ionicons
+                                          name="expand-outline"
+                                          size={16}
+                                          color={Colors.white}
+                                        />
+                                      </View>
+                                    </TouchableOpacity>
+                                  ) : (
+                                    <View
+                                      style={
+                                        styles.certThumbnailLeftPlaceholder
+                                      }
+                                    >
+                                      <Ionicons
+                                        name="document-text"
+                                        size={24}
+                                        color={Colors.textSecondary}
+                                      />
+                                    </View>
+                                  )}
+
+                                  {/* Header: Name on left, Verified badge on right */}
+                                  <View style={styles.certificationHeader}>
+                                    <View style={{ flex: 1 }}>
+                                      <Text style={styles.certificationName}>
+                                        {cert.name}
+                                      </Text>
+                                      {cert.issuingOrganization && (
+                                        <Text style={styles.certificationOrg}>
+                                          {cert.issuingOrganization}
+                                        </Text>
+                                      )}
+                                      {/* Expiring Soon Warning */}
+                                      {isExpiringSoon && (
+                                        <View style={styles.expiringWarning}>
+                                          <Ionicons
+                                            name="warning"
+                                            size={12}
+                                            color={Colors.warning}
+                                          />
+                                          <Text
+                                            style={styles.expiringWarningText}
+                                          >
+                                            Expires in {daysUntilExpiry} day
+                                            {daysUntilExpiry !== 1 ? "s" : ""}
+                                          </Text>
+                                        </View>
+                                      )}
+                                    </View>
+
+                                    {/* Verified Badge on Right */}
+                                    {cert.isVerified && (
+                                      <View
+                                        style={styles.certVerificationBadge}
+                                      >
+                                        <Ionicons
+                                          name="checkmark-circle"
+                                          size={14}
+                                          color={Colors.success}
+                                        />
+                                        <Text
+                                          style={
+                                            styles.certVerificationBadgeText
+                                          }
+                                        >
+                                          Verified
+                                        </Text>
+                                      </View>
+                                    )}
+                                  </View>
+                                </View>
                               </View>
-                            </View>
-                          ))
+                            );
+                          })
                         ) : (
                           <View style={styles.noCertifications}>
                             <Ionicons
@@ -894,6 +993,118 @@ export default function WorkerDetailScreen() {
               })}
             </View>
           )}
+
+          {/* Unlinked Certifications (not associated with any skill) */}
+          {data.certifications &&
+            data.certifications.some((cert) => !cert.specializationId) && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>General Certifications</Text>
+                <Text style={styles.sectionDescription}>
+                  Certifications not linked to a specific skill
+                </Text>
+
+                <View style={styles.skillCertifications}>
+                  {data.certifications
+                    .filter((cert) => !cert.specializationId)
+                    .map((cert) => {
+                      // Calculate days until expiry for warning badge
+                      const daysUntilExpiry = cert.expiryDate
+                        ? Math.ceil(
+                            (new Date(cert.expiryDate).getTime() -
+                              new Date().getTime()) /
+                              (1000 * 60 * 60 * 24)
+                          )
+                        : null;
+                      const isExpiringSoon =
+                        daysUntilExpiry !== null &&
+                        daysUntilExpiry > 0 &&
+                        daysUntilExpiry <= 30;
+
+                      return (
+                        <View key={cert.id} style={styles.certificationItem}>
+                          <View style={styles.certificationRow}>
+                            {/* Certificate Image Thumbnail on Left */}
+                            {cert.certificateUrl ? (
+                              <TouchableOpacity
+                                style={styles.certThumbnailLeft}
+                                onPress={() =>
+                                  setLightboxImage(cert.certificateUrl!)
+                                }
+                                activeOpacity={0.7}
+                              >
+                                <Image
+                                  source={{ uri: cert.certificateUrl }}
+                                  style={styles.certThumbnailLeftImage}
+                                  resizeMode="cover"
+                                />
+                                <View style={styles.certThumbnailLeftOverlay}>
+                                  <Ionicons
+                                    name="expand-outline"
+                                    size={16}
+                                    color={Colors.white}
+                                  />
+                                </View>
+                              </TouchableOpacity>
+                            ) : (
+                              <View style={styles.certThumbnailLeftPlaceholder}>
+                                <Ionicons
+                                  name="document-text"
+                                  size={24}
+                                  color={Colors.textSecondary}
+                                />
+                              </View>
+                            )}
+
+                            {/* Header: Name on left, Verified badge on right */}
+                            <View style={styles.certificationHeader}>
+                              <View style={{ flex: 1 }}>
+                                <Text style={styles.certificationName}>
+                                  {cert.name}
+                                </Text>
+                                {cert.issuingOrganization && (
+                                  <Text style={styles.certificationOrg}>
+                                    {cert.issuingOrganization}
+                                  </Text>
+                                )}
+                                {/* Expiring Soon Warning */}
+                                {isExpiringSoon && (
+                                  <View style={styles.expiringWarning}>
+                                    <Ionicons
+                                      name="warning"
+                                      size={12}
+                                      color={Colors.warning}
+                                    />
+                                    <Text style={styles.expiringWarningText}>
+                                      Expires in {daysUntilExpiry} day
+                                      {daysUntilExpiry !== 1 ? "s" : ""}
+                                    </Text>
+                                  </View>
+                                )}
+                              </View>
+
+                              {/* Verified Badge on Right */}
+                              {cert.isVerified && (
+                                <View style={styles.certVerificationBadge}>
+                                  <Ionicons
+                                    name="checkmark-circle"
+                                    size={14}
+                                    color={Colors.success}
+                                  />
+                                  <Text
+                                    style={styles.certVerificationBadgeText}
+                                  >
+                                    Verified
+                                  </Text>
+                                </View>
+                              )}
+                            </View>
+                          </View>
+                        </View>
+                      );
+                    })}
+                </View>
+              </View>
+            )}
 
           {/* Materials/Products */}
           <View style={styles.section}>
@@ -1750,13 +1961,50 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   certificationItem: {
-    flexDirection: "row",
-    alignItems: "flex-start",
     padding: 12,
     backgroundColor: Colors.white,
     borderRadius: BorderRadius.sm,
     marginBottom: 8,
     ...Shadows.xs,
+  },
+  certificationRow: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  certThumbnailLeft: {
+    position: "relative",
+    width: 60,
+    height: 60,
+    borderRadius: BorderRadius.sm,
+    overflow: "hidden",
+  },
+  certThumbnailLeftImage: {
+    width: "100%",
+    height: "100%",
+  },
+  certThumbnailLeftOverlay: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.3)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  certThumbnailLeftPlaceholder: {
+    width: 60,
+    height: 60,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: Colors.backgroundSecondary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  certificationHeader: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
   },
   certificationName: {
     fontSize: 15,
@@ -1767,6 +2015,59 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.textSecondary,
     marginTop: 2,
+  },
+  certVerificationBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.successLight || "#d1fae5",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.sm,
+    gap: 4,
+  },
+  certVerificationBadgeText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: Colors.success,
+  },
+  expiringWarning: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 4,
+    gap: 4,
+  },
+  expiringWarningText: {
+    fontSize: 11,
+    fontWeight: "500",
+    color: Colors.warning,
+  },
+  lightboxOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.95)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  lightboxBackdrop: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  lightboxImage: {
+    width: "90%",
+    height: "70%",
+  },
+  lightboxCloseButton: {
+    position: "absolute",
+    top: 40,
+    right: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   noCertifications: {
     alignItems: "center",
