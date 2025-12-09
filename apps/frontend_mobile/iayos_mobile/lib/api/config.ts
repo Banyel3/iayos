@@ -5,8 +5,8 @@
 // For physical device, use your machine's network IP
 
 // Network IPs - Primary is current network, fallback is previous network
-const PRIMARY_DEV_IP = "192.168.1.84"; // Current network (home/new)
-const FALLBACK_DEV_IP = "10.102.160.98"; // Fallback network (school/previous)
+const PRIMARY_DEV_IP = "10.102.160.98"; // Current network (school/primary)
+const FALLBACK_DEV_IP = "192.168.1.84"; // Fallback network (home/previous)
 
 // You can toggle this to switch networks quickly, or implement auto-detection
 const USE_FALLBACK = false;

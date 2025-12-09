@@ -67,6 +67,8 @@ def _get_worker_profile(
     not_worker_error: str = "Only workers can access this resource",
 ) -> Union[WorkerProfile, Response]:
     """Resolve the worker profile for the authenticated account."""
+    print(f"[WORKER_PROFILE] Getting worker profile for account: {account.email}")
+    
     profile = (
         Profile.objects
         .filter(accountFK=account)
@@ -75,17 +77,30 @@ def _get_worker_profile(
     )
 
     if not profile:
+        print(f"[WORKER_PROFILE] ❌ No profile found for account: {account.email}")
         return Response(
             {"error": "User profile not found"},
             status=404,
         )
 
+    print(f"[WORKER_PROFILE] ✅ Profile found: ID={profile.profileID}, Type={profile.profileType}")
+
+    # Try different case variations for the relation
     worker_profile = getattr(profile, "workerprofile", None)
     if worker_profile is None:
-        return Response(
-            {"error": not_worker_error},
-            status=403,
-        )
+        print(f"[WORKER_PROFILE] ⚠️ workerprofile relation not found via getattr, trying direct query")
+        # Try with capital W (WorkerProfile model name)
+        try:
+            worker_profile = WorkerProfile.objects.get(profileID=profile)
+            print(f"[WORKER_PROFILE] ✅ WorkerProfile found via direct query")
+        except WorkerProfile.DoesNotExist:
+            print(f"[WORKER_PROFILE] ❌ No WorkerProfile exists for this profile")
+            return Response(
+                {"error": not_worker_error},
+                status=403,
+            )
+    else:
+        print(f"[WORKER_PROFILE] ✅ WorkerProfile found via getattr")
 
     return worker_profile
 
