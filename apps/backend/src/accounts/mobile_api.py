@@ -30,6 +30,21 @@ from .profile_metrics_service import get_profile_metrics
 # Create mobile router
 mobile_router = Router(tags=["Mobile API"])
 
+# Lightweight structured logging helper for mobile endpoints
+def _log_mobile(event: str, **details):
+    try:
+        context = " | ".join(
+            [
+                f"{key}={value}"
+                for key, value in details.items()
+                if value is not None and value != ""
+            ]
+        )
+        print(f"[MOBILE] {event}: {context}")
+    except Exception:
+        # Avoid breaking handlers due to logging errors
+        print(f"[MOBILE] {event}: <logging failed>")
+
 #region MOBILE AUTH ENDPOINTS
 
 @mobile_router.post("/auth/register")
@@ -1962,18 +1977,46 @@ def mobile_upload_profile_image(request):
     try:
         user = request.auth
 
+        _log_mobile(
+            "profile_image_upload:start",
+            user=user.email if user else None,
+            path=getattr(request, "path", None),
+            method=getattr(request, "method", None),
+            files=list(request.FILES.keys()),
+        )
+
         if 'profile_image' not in request.FILES:
+            _log_mobile(
+                "profile_image_upload:missing_file",
+                user=user.email if user else None,
+            )
             return Response(
                 {"error": "No image file provided"},
                 status=400
             )
 
         image_file = request.FILES['profile_image']
+        _log_mobile(
+            "profile_image_upload:file_received",
+            filename=getattr(image_file, "name", None),
+            content_type=getattr(image_file, "content_type", None),
+            size=getattr(image_file, "size", getattr(image_file, "_size", None)),
+        )
         result = upload_profile_image_mobile(user, image_file)
 
         if result['success']:
+            _log_mobile(
+                "profile_image_upload:success",
+                user=user.email if user else None,
+                url=result['data'].get('profile_image_url') if isinstance(result.get('data'), dict) else None,
+            )
             return result['data']
         else:
+            _log_mobile(
+                "profile_image_upload:failed",
+                user=user.email if user else None,
+                error=result.get('error'),
+            )
             return Response(
                 {"error": result.get('error', 'Failed to upload image')},
                 status=400
@@ -1982,6 +2025,11 @@ def mobile_upload_profile_image(request):
         print(f"[ERROR] Mobile upload profile image error: {str(e)}")
         import traceback
         traceback.print_exc()
+        _log_mobile(
+            "profile_image_upload:exception",
+            user=request.auth.email if hasattr(request, 'auth') and request.auth else None,
+            error=str(e),
+        )
         return Response(
             {"error": "Failed to upload profile image"},
             status=500

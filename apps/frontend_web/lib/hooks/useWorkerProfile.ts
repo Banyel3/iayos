@@ -123,6 +123,7 @@ export function useUpdateCertification() {
         organization?: string;
         issue_date?: string;
         expiry_date?: string;
+        certificate_file?: File;
       };
     }) => updateCertification(certificationId, data),
     onSuccess: (data) => {

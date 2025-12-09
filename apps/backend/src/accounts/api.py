@@ -1737,6 +1737,27 @@ def update_certification_endpoint(
             return worker_profile_result
         worker_profile = worker_profile_result
         
+        # Fallback: If multipart PUT parsing misses the file, check request.FILES directly
+        if not certificate_file and hasattr(request, "FILES"):
+            certificate_file = request.FILES.get("certificate_file")
+
+        # Log payload state for troubleshooting missing uploads
+        try:
+            print(
+                "📄 [CERT UPDATE]",
+                {
+                    "id": certification_id,
+                    "has_file": bool(certificate_file),
+                    "file_name": getattr(certificate_file, "name", None),
+                    "file_size": getattr(certificate_file, "size", getattr(certificate_file, "_size", None)),
+                    "issue_date": issue_date,
+                    "expiry_date": expiry_date,
+                    "specialization_id": specialization_id,
+                },
+            )
+        except Exception:
+            print("📄 [CERT UPDATE] logging failed")
+
         # Call service function
         certification = update_certification(
             worker_profile=worker_profile,

@@ -186,17 +186,24 @@ export async function updateCertification(
     organization?: string;
     issue_date?: string;
     expiry_date?: string;
+    certificate_file?: File;
   }
 ): Promise<CertificationResponse> {
+  const formData = new FormData();
+
+  if (data.name) formData.append("name", data.name);
+  if (data.organization) formData.append("organization", data.organization);
+  if (data.issue_date) formData.append("issue_date", data.issue_date);
+  if (data.expiry_date) formData.append("expiry_date", data.expiry_date);
+  if (data.certificate_file)
+    formData.append("certificate_file", data.certificate_file);
+
   const response = await fetch(
     `${API_BASE_URL}/accounts/worker/certifications/${certificationId}`,
     {
       method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-      },
       credentials: "include",
-      body: JSON.stringify(data),
+      body: formData,
     }
   );
 
