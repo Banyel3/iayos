@@ -98,6 +98,81 @@ class SystemRoles(models.Model):
     updatedAt = models.DateTimeField(auto_now=True)
 
 
+class CertificationLog(models.Model):
+    """
+    Audit trail for certification verification actions.
+    Tracks all approve/reject actions by admins on worker certifications.
+    """
+    class ReviewAction(models.TextChoices):
+        APPROVED = "APPROVED", "Approved"
+        REJECTED = "REJECTED", "Rejected"
+
+    certLogID = models.BigAutoField(primary_key=True)
+    
+    # The certification that was reviewed
+    certificationID = models.BigIntegerField(
+        help_text="ID of the WorkerCertification that was reviewed"
+    )
+    
+    # The worker who owns this certification
+    workerID = models.ForeignKey(
+        'accounts.WorkerProfile',
+        on_delete=models.CASCADE,
+        related_name='certification_logs',
+        help_text="Worker profile this certification belongs to"
+    )
+    
+    # Review details
+    action = models.CharField(
+        max_length=20,
+        choices=ReviewAction.choices,
+        help_text="APPROVED or REJECTED"
+    )
+    reviewedBy = models.ForeignKey(
+        Accounts,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='certification_reviews_performed',
+        help_text="Admin who performed the verification"
+    )
+    reviewedAt = models.DateTimeField(
+        help_text="Timestamp of verification action"
+    )
+    reason = models.TextField(
+        blank=True,
+        default="",
+        help_text="Notes for approval or reason for rejection"
+    )
+    
+    # Worker info (for easier querying without joins)
+    workerEmail = models.EmailField(
+        help_text="Email of the worker at time of verification"
+    )
+    workerAccountID = models.BigIntegerField(
+        help_text="Account ID of the worker"
+    )
+    
+    # Certification snapshot (for historical reference)
+    certificationName = models.CharField(
+        max_length=255,
+        help_text="Name of the certification at time of verification"
+    )
+
+    class Meta:
+        db_table = 'certification_logs'
+        ordering = ['-reviewedAt']
+        indexes = [
+            models.Index(fields=['certificationID', 'reviewedAt']),
+            models.Index(fields=['workerID', 'reviewedAt']),
+            models.Index(fields=['action']),
+        ]
+
+    def __str__(self):
+        admin_email = self.reviewedBy.email if self.reviewedBy else 'System'
+        return f"Cert Log {self.certLogID} - {self.certificationName} {self.action} by {admin_email}"
+
+
 # =============================================================================
 # SUPPORT TICKET SYSTEM
 # =============================================================================

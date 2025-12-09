@@ -1623,6 +1623,7 @@ def add_certification_endpoint(
     organization: str = Form(None),
     issue_date: str = Form(None),
     expiry_date: str = Form(None),
+    specialization_id: int = Form(None),  # NEW: Link to skill
     certificate_file: UploadedFile = File(None)
 ):
     """
@@ -1633,6 +1634,7 @@ def add_certification_endpoint(
     - organization: Issuing organization
     - issue_date: Issue date (YYYY-MM-DD)
     - expiry_date: Expiry date (YYYY-MM-DD)
+    - specialization_id: Worker skill ID to link this certification to
     - certificate_file: Certificate document/image
     """
     try:
@@ -1652,6 +1654,7 @@ def add_certification_endpoint(
             organization=organization,
             issue_date=issue_date,
             expiry_date=expiry_date,
+            specialization_id=specialization_id,
             certificate_file=certificate_file
         )
         
@@ -1716,6 +1719,7 @@ def update_certification_endpoint(
     organization: str = Form(None),  # type: ignore
     issue_date: str = Form(None),  # type: ignore
     expiry_date: str = Form(None),  # type: ignore
+    specialization_id: int = Form(None),  # type: ignore  # NEW: Update linked skill
     certificate_file: Any = File(None)  # type: ignore
 ):
     """
@@ -1741,6 +1745,7 @@ def update_certification_endpoint(
             organization=organization,
             issue_date=issue_date,
             expiry_date=expiry_date,
+            specialization_id=specialization_id,
             certificate_file=certificate_file
         )
         

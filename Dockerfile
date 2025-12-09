@@ -309,6 +309,10 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     && pip install --no-cache-dir -r requirements.txt \
     && apk del .build-deps
 
+# CRITICAL FIX: Patch Django Ninja UUID converter conflict with Django 5.x
+COPY apps/backend/patch_ninja.sh ./
+RUN chmod +x patch_ninja.sh && ./patch_ninja.sh && rm patch_ninja.sh
+
 # Copy backend source (mounted in dev)
 COPY --chown=appuser:appgroup apps/backend .
 

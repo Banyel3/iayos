@@ -15,6 +15,7 @@ def add_certification(
     organization: Optional[str] = None,
     issue_date: Optional[str] = None,
     expiry_date: Optional[str] = None,
+    specialization_id: Optional[int] = None,  # NEW: Link to skill
     certificate_file = None
 ) -> Dict:
     """
@@ -26,6 +27,7 @@ def add_certification(
         organization: Issuing organization
         issue_date: Date issued (YYYY-MM-DD format)
         expiry_date: Expiration date (YYYY-MM-DD format)
+        specialization_id: workerSpecialization ID to link this cert to (optional)
         certificate_file: Uploaded file (optional)
     
     Returns:
@@ -37,6 +39,18 @@ def add_certification(
     # Validate required fields
     if not name or len(name.strip()) == 0:
         raise ValueError("Certificate name is required")
+    
+    # Validate and get specialization if provided
+    worker_specialization = None
+    if specialization_id:
+        from .models import workerSpecialization
+        try:
+            worker_specialization = workerSpecialization.objects.get(
+                id=specialization_id,
+                workerID=worker_profile
+            )
+        except workerSpecialization.DoesNotExist:
+            raise ValueError(f"Skill with ID {specialization_id} not found for this worker")
     
     # Parse dates
     parsed_issue_date = None
@@ -75,6 +89,7 @@ def add_certification(
     # Create certification
     certification = WorkerCertification.objects.create(
         workerID=worker_profile,
+        specializationID=worker_specialization,  # NEW: Link to skill
         name=name.strip(),
         issuing_organization=organization.strip() if organization else "",
         issue_date=parsed_issue_date,
@@ -148,6 +163,7 @@ def update_certification(
     organization: Optional[str] = None,
     issue_date: Optional[str] = None,
     expiry_date: Optional[str] = None,
+    specialization_id: Optional[int] = None,  # NEW: Update linked skill
     certificate_file = None
 ) -> Dict:
     """
@@ -160,6 +176,7 @@ def update_certification(
         organization: Optional new organization
         issue_date: Optional new issue date (YYYY-MM-DD)
         expiry_date: Optional new expiry date (YYYY-MM-DD)
+        specialization_id: Optional worker skill ID to link
         certificate_file: Optional new certificate file
     
     Returns:
@@ -177,6 +194,22 @@ def update_certification(
         )
     except WorkerCertification.DoesNotExist:
         raise ObjectDoesNotExist("Certification not found or you don't have permission to edit it")
+    
+    # Update specialization link if provided
+    if specialization_id is not None:
+        if specialization_id == 0 or specialization_id == -1:
+            # Allow unlinking
+            certification.specializationID = None
+        else:
+            from .models import workerSpecialization
+            try:
+                worker_specialization = workerSpecialization.objects.get(
+                    id=specialization_id,
+                    workerID=worker_profile
+                )
+                certification.specializationID = worker_specialization
+            except workerSpecialization.DoesNotExist:
+                raise ValueError(f"Skill with ID {specialization_id} not found for this worker")
     
     # Update fields if provided
     if name is not None:
@@ -331,6 +364,14 @@ def _format_certification(certification: WorkerCertification) -> Dict:
         today = timezone.now().date()
         days_until_expiry = (certification.expiry_date - today).days
     
+    # Get skill name if linked
+    specialization_id = None
+    skill_name = None
+    if certification.specializationID:
+        specialization_id = certification.specializationID.pk
+        if certification.specializationID.specializationID:
+            skill_name = certification.specializationID.specializationID.specializationName
+    
     return {
         'certificationID': certification.certificationID,
         'name': certification.name,
@@ -343,7 +384,9 @@ def _format_certification(certification: WorkerCertification) -> Dict:
         'days_until_expiry': days_until_expiry,
         'verified_at': certification.verified_at.isoformat() if certification.verified_at else None,
         'createdAt': certification.createdAt.isoformat(),
-        'updatedAt': certification.updatedAt.isoformat()
+        'updatedAt': certification.updatedAt.isoformat(),
+        'specializationId': specialization_id,  # NEW: Linked skill ID
+        'skillName': skill_name  # NEW: Skill name for display
     }
 
 

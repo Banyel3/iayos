@@ -446,13 +446,37 @@ def fetch_currentUser(accountID, profile_type=None):
                 "birthDate": profile.birthDate.isoformat() if profile.birthDate else None,
             }
             
-            # If worker, add worker profile ID
+            # If worker, add worker profile ID and skills
             if profile.profileType == "WORKER":
                 try:
-                    from .models import WorkerProfile
+                    from .models import WorkerProfile, workerSpecialization, WorkerCertification
                     worker_profile = WorkerProfile.objects.get(profileID=profile)
                     profile_data["workerProfileId"] = worker_profile.id  # WorkerProfile primary key
                     print(f"   🔧 Added worker profile ID: {worker_profile.id}")
+                    
+                    # Get skills with certification counts
+                    specializations_query = workerSpecialization.objects.filter(
+                        workerID=worker_profile
+                    ).select_related('specializationID')
+                    
+                    skills_list = []
+                    for ws in specializations_query:
+                        cert_count = WorkerCertification.objects.filter(
+                            workerID=worker_profile,
+                            specializationID=ws
+                        ).count()
+                        
+                        skills_list.append({
+                            'id': ws.id,  # workerSpecialization ID
+                            'specializationId': ws.specializationID.specializationID,
+                            'name': ws.specializationID.specializationName,
+                            'experienceYears': ws.experienceYears,
+                            'certificationCount': cert_count
+                        })
+                    
+                    profile_data["skills"] = skills_list
+                    print(f"   🔧 Added {len(skills_list)} skills to profile data")
+                    
                 except WorkerProfile.DoesNotExist:
                     print(f"   ⚠️  Worker profile not found for profile {profile.profileID}")
                     

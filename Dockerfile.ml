@@ -32,6 +32,10 @@ RUN pip install --upgrade pip setuptools wheel \
     && pip install -r requirements.txt \
     && pip install -r requirements-ml.txt
 
+# CRITICAL FIX: Patch Django Ninja UUID converter conflict with Django 5.x
+COPY apps/backend/patch_ninja.sh ./
+RUN chmod +x patch_ninja.sh && ./patch_ninja.sh && rm patch_ninja.sh
+
 # Copy backend source (for Django models and ML module)
 COPY apps/backend/src ./src
 

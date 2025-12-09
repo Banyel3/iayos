@@ -15,6 +15,8 @@ export interface Certification {
   certificateUrl: string | null; // Supabase URL
   isVerified: boolean;
   isExpired: boolean; // Computed on backend
+  specializationId: number | null; // Linked skill ID
+  skillName: string | null; // Linked skill name
   createdAt: string;
   updatedAt: string;
 }
@@ -71,6 +73,8 @@ export const useCertifications = () => {
         certificateUrl: cert.certificate_url,
         isVerified: cert.is_verified,
         isExpired: cert.is_expired,
+        specializationId: cert.specializationId,
+        skillName: cert.skillName,
         createdAt: cert.createdAt,
         updatedAt: cert.updatedAt,
       }));

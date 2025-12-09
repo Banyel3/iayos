@@ -58,9 +58,13 @@ export default function ProfileScreen() {
   const walletBalanceValue =
     typeof typedWalletData?.balance === "number" ? typedWalletData.balance : 0;
   const availableBalanceValue =
-    typeof typedWalletData?.availableBalance === "number" ? typedWalletData.availableBalance : walletBalanceValue;
+    typeof typedWalletData?.availableBalance === "number"
+      ? typedWalletData.availableBalance
+      : walletBalanceValue;
   const reservedBalanceValue =
-    typeof typedWalletData?.reservedBalance === "number" ? typedWalletData.reservedBalance : 0;
+    typeof typedWalletData?.reservedBalance === "number"
+      ? typedWalletData.reservedBalance
+      : 0;
 
   const handleLogout = () => {
     Alert.alert("Logout", "Are you sure you want to logout?", [
@@ -558,7 +562,7 @@ export default function ProfileScreen() {
                 )}
               </View>
             </View>
-            
+
             {/* Reserved Balance Indicator */}
             {!walletLoading && !walletError && reservedBalanceValue > 0 && (
               <View style={styles.reservedBalanceContainer}>
@@ -568,7 +572,7 @@ export default function ProfileScreen() {
                 </Text>
               </View>
             )}
-            
+
             {isWorker ? (
               <TouchableOpacity
                 style={styles.withdrawButton}
@@ -713,9 +717,19 @@ export default function ProfileScreen() {
               onPress={() => {}}
             />
             <MenuItem
-              icon="shield-outline"
-              label="Privacy & Security"
-              onPress={() => {}}
+              icon="shield-checkmark-outline"
+              label="Privacy Policy"
+              onPress={() => router.push("/legal/privacy" as any)}
+            />
+            <MenuItem
+              icon="document-text-outline"
+              label="Terms of Service"
+              onPress={() => router.push("/legal/terms" as any)}
+            />
+            <MenuItem
+              icon="people-outline"
+              label="Community Guidelines"
+              onPress={() => router.push("/legal/community-guidelines" as any)}
             />
             <MenuItem
               icon="help-circle-outline"
@@ -724,8 +738,8 @@ export default function ProfileScreen() {
             />
             <MenuItem
               icon="information-circle-outline"
-              label="About"
-              onPress={() => {}}
+              label="About iAyos"
+              onPress={() => router.push("/legal/about" as any)}
             />
           </View>
         </View>

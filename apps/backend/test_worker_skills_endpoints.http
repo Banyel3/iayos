@@ -1,0 +1,365 @@
+### Worker Skills Refactoring - API Testing
+### Test file for new skills and certification endpoints
+### Use REST Client extension in VS Code
+
+# Variables
+@baseUrl = http://localhost:8000
+@token = {{login.response.body.token}}
+@workerId = 37
+@certificationId = 5
+@specializationId = 1
+
+###############################################################################
+# SETUP: Login to get JWT token
+###############################################################################
+
+### 1. Login as Worker
+# @name login
+POST {{baseUrl}}/api/mobile/auth/login
+Content-Type: application/json
+
+{
+  "email": "worker@test.com",
+  "password": "testpass123"
+}
+
+###############################################################################
+# NEW ENDPOINT: Get Available Skills
+###############################################################################
+
+### 2. Get all available skills/specializations
+GET {{baseUrl}}/api/mobile/skills/available
+Authorization: Bearer {{token}}
+
+# Expected Response:
+# {
+#   "success": true,
+#   "data": [
+#     {
+#       "id": 1,
+#       "name": "Plumbing",
+#       "description": "...",
+#       "minimumRate": 500.00,
+#       "rateType": "hourly",
+#       "skillLevel": "intermediate"
+#     }
+#   ],
+#   "count": 18
+# }
+
+###############################################################################
+# MODIFIED ENDPOINT: Worker Profile with Enhanced Skills
+###############################################################################
+
+### 3. Get worker profile (should show skills with certificationCount)
+GET {{baseUrl}}/api/mobile/auth/profile
+Authorization: Bearer {{token}}
+
+# Expected Response (partial):
+# {
+#   "skills": [
+#     {
+#       "id": 45,  // workerSpecialization PK
+#       "specializationId": 1,  // Specializations PK
+#       "name": "Plumbing",
+#       "experienceYears": 5,
+#       "certificationCount": 2
+#     }
+#   ]
+# }
+
+###############################################################################
+# MODIFIED ENDPOINT: Workers List with Enhanced Skills
+###############################################################################
+
+### 4. Get workers list (should show skills with certificationCount)
+GET {{baseUrl}}/api/mobile/workers/list?page=1&per_page=10
+Authorization: Bearer {{token}}
+
+# Expected Response (partial):
+# {
+#   "workers": [
+#     {
+#       "id": 1,
+#       "skills": [
+#         {
+#           "id": 45,
+#           "specializationId": 1,
+#           "name": "Plumbing",
+#           "experienceYears": 5,
+#           "certificationCount": 2
+#         }
+#       ]
+#     }
+#   ]
+# }
+
+###############################################################################
+# MODIFIED ENDPOINT: Create Certification with Skill Link
+###############################################################################
+
+### 5. Create certification WITHOUT skill link (backward compatible)
+POST {{baseUrl}}/api/accounts/certifications
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="name"
+
+TESDA NC II Plumbing
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="organization"
+
+TESDA
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="issue_date"
+
+2023-01-15
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="expiry_date"
+
+2028-01-15
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+# Expected Response:
+# {
+#   "success": true,
+#   "message": "Certification added successfully",
+#   "certification": {
+#     "id": 123,
+#     "name": "TESDA NC II Plumbing",
+#     "specializationId": null,  // No skill linked
+#     "skillName": null
+#   }
+# }
+
+### 6. Create certification WITH skill link (NEW FEATURE)
+POST {{baseUrl}}/api/accounts/certifications
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="name"
+
+Advanced Plumbing Certificate
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="organization"
+
+Philippine Institute of Civil Engineers
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="issue_date"
+
+2024-06-01
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="expiry_date"
+
+2029-06-01
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="specialization_id"
+
+{{specializationId}}
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+# Expected Response:
+# {
+#   "success": true,
+#   "message": "Certification added successfully",
+#   "certification": {
+#     "id": 124,
+#     "name": "Advanced Plumbing Certificate",
+#     "specializationId": 45,  // Linked to workerSpecialization
+#     "skillName": "Plumbing"
+#   }
+# }
+
+### 7. Create certification with INVALID skill link (should fail)
+POST {{baseUrl}}/api/accounts/certifications
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="name"
+
+Invalid Skill Test
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="organization"
+
+Test Org
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="specialization_id"
+
+99999
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+# Expected Response:
+# {
+#   "success": false,
+#   "error": "Skill not found or doesn't belong to this worker"
+# }
+
+###############################################################################
+# MODIFIED ENDPOINT: List Certifications with Skill Info
+###############################################################################
+
+### 8. List worker's certifications (should show skillName if linked)
+GET {{baseUrl}}/api/accounts/certifications
+Authorization: Bearer {{token}}
+
+# Expected Response:
+# {
+#   "success": true,
+#   "certifications": [
+#     {
+#       "id": 123,
+#       "name": "TESDA NC II Plumbing",
+#       "organization": "TESDA",
+#       "issueDate": "2023-01-15",
+#       "expiryDate": "2028-01-15",
+#       "specializationId": null,
+#       "skillName": null
+#     },
+#     {
+#       "id": 124,
+#       "name": "Advanced Plumbing Certificate",
+#       "organization": "PICE",
+#       "issueDate": "2024-06-01",
+#       "expiryDate": "2029-06-01",
+#       "specializationId": 45,
+#       "skillName": "Plumbing"
+#     }
+#   ]
+# }
+
+###############################################################################
+# MODIFIED ENDPOINT: Update Certification Skill Link
+###############################################################################
+
+### 9. Update certification - Add skill link
+PUT {{baseUrl}}/api/accounts/certifications/{{certificationId}}
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="specialization_id"
+
+{{specializationId}}
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+# Expected Response:
+# {
+#   "success": true,
+#   "message": "Certification updated successfully",
+#   "certification": {
+#     "id": 123,
+#     "name": "TESDA NC II Plumbing",
+#     "specializationId": 45,
+#     "skillName": "Plumbing"
+#   }
+# }
+
+### 10. Update certification - Remove skill link (unlink)
+PUT {{baseUrl}}/api/accounts/certifications/{{certificationId}}
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="specialization_id"
+
+-1
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+# Expected Response:
+# {
+#   "success": true,
+#   "message": "Certification updated successfully",
+#   "certification": {
+#     "id": 123,
+#     "name": "TESDA NC II Plumbing",
+#     "specializationId": null,
+#     "skillName": null
+#   }
+# }
+
+### 11. Update certification - Change skill link to different skill
+PUT {{baseUrl}}/api/accounts/certifications/{{certificationId}}
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="name"
+
+Updated Certificate Name
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="specialization_id"
+
+{{specializationId}}
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+# Expected Response:
+# {
+#   "success": true,
+#   "message": "Certification updated successfully",
+#   "certification": {
+#     "id": 123,
+#     "name": "Updated Certificate Name",
+#     "specializationId": 46,
+#     "skillName": "Electrical Work"
+#   }
+# }
+
+###############################################################################
+# VERIFICATION: Check Profile Updates
+###############################################################################
+
+### 12. Verify profile shows updated certificationCount per skill
+GET {{baseUrl}}/api/mobile/auth/profile
+Authorization: Bearer {{token}}
+
+# Expected: certificationCount should increment for skills with linked certs
+
+###############################################################################
+# TEST SCENARIOS
+###############################################################################
+
+### Test Scenario 1: Complete Workflow
+# 1. Login → Get token
+# 2. Get available skills → Pick one (note its ID)
+# 3. Get profile → Check current skills and cert counts
+# 4. Create certification with skill link
+# 5. Get profile again → Verify certificationCount increased
+# 6. Update certification → Unlink skill
+# 7. Get profile again → Verify certificationCount decreased
+
+### Test Scenario 2: Validation
+# 1. Try to link cert to skill worker doesn't have → Should fail
+# 2. Try to link cert with non-existent specializationId → Should fail
+# 3. Unlink with -1 → Should succeed
+# 4. Unlink with 0 → Should succeed
+
+### Test Scenario 3: Backward Compatibility
+# 1. Create cert without specialization_id → Should work (null)
+# 2. Update cert without specialization_id → Should not change link
+# 3. List certs → Should show mix of linked/unlinked
+
+###############################################################################
+# NOTES FOR TESTING
+###############################################################################
+
+# 1. Replace @token with actual JWT token from login response
+# 2. Replace @workerId with your worker account ID
+# 3. Replace @certificationId with certification ID from create response
+# 4. Replace @specializationId with workerSpecialization ID from profile
+
+# To use in REST Client:
+# - Install "REST Client" extension in VS Code
+# - Click "Send Request" above each ### separator
+# - View response in separate panel
+
+# To test with curl (example):
+# curl -X GET "http://localhost:8000/api/mobile/skills/available" \
+#   -H "Authorization: Bearer YOUR_TOKEN"
+
+# To test with Postman:
+# - Import this file or manually create requests
+# - Set Authorization → Bearer Token → {{token}}
+# - For multipart/form-data, use Body → form-data tab

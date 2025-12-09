@@ -65,6 +65,29 @@ export interface Specialization {
   specializationName: string;
 }
 
+export interface Skill {
+  id: number; // workerSpecialization ID
+  specializationId: number; // Specializations ID
+  name: string;
+  experienceYears: number;
+  certificationCount: number;
+}
+
+export interface Certification {
+  id: number;
+  name: string;
+  issuingOrganization: string;
+  issueDate: string;
+  expiryDate: string | null;
+  certificateUrl: string | null;
+  isVerified: boolean;
+  isExpired: boolean;
+  specializationId: number | null; // Linked skill ID
+  skillName: string | null; // Linked skill name
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface JobApplication {
   id: number;
   status: "PENDING" | "ACCEPTED" | "REJECTED";

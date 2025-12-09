@@ -1480,11 +1480,27 @@ def get_workers_list_mobile(user, latitude=None, longitude=None, page=1, limit=2
 
             worker_name = f"{profile.firstName or ''} {profile.lastName or ''}".strip()
             
-            # Get specializations using the correct model and relation
-            from .models import workerSpecialization
+            # Get specializations using the correct model and relation with certification count
+            from .models import workerSpecialization, WorkerCertification
             specializations_query = workerSpecialization.objects.filter(
                 workerID=worker
             ).select_related('specializationID')
+            
+            # Build skills list with certification counts
+            skills_list = []
+            for ws in specializations_query:
+                cert_count = WorkerCertification.objects.filter(
+                    workerID=worker,
+                    specializationID=ws
+                ).count()
+                
+                skills_list.append({
+                    'id': ws.pk,  # workerSpecialization primary key
+                    'specializationId': ws.specializationID.specializationID,
+                    'name': ws.specializationID.specializationName,
+                    'experienceYears': ws.experienceYears,
+                    'certificationCount': cert_count
+                })
             
             # Calculate average rating from reviews
             from .models import JobReview
@@ -1513,7 +1529,7 @@ def get_workers_list_mobile(user, latitude=None, longitude=None, page=1, limit=2
             ).count()
             
             worker_data = {
-                'worker_id': worker.id,  # Django auto-generated primary key
+                'worker_id': worker.pk,  # Django auto-generated primary key
                 'profile_id': profile.profileID,
                 'account_id': account.accountID,
                 'name': worker_name,
@@ -1524,10 +1540,7 @@ def get_workers_list_mobile(user, latitude=None, longitude=None, page=1, limit=2
                 'average_rating': round(average_rating, 2),
                 'review_count': review_count,
                 'completed_jobs': completed_jobs,
-                'specializations': [
-                    {'id': ws.specializationID.specializationID, 'name': ws.specializationID.specializationName}
-                    for ws in specializations_query
-                ],
+                'skills': skills_list,  # Changed from 'specializations' to 'skills'
                 'total_earning': float(worker.totalEarningGross) if worker.totalEarningGross else 0.0,
             }
 
@@ -1598,11 +1611,27 @@ def get_worker_detail_mobile(user, worker_id):
         avg_rating = reviews_qs.aggregate(Avg('rating'))['rating__avg']
         review_count = reviews_qs.count()
 
-        # Get specializations
-        from .models import workerSpecialization
+        # Get specializations with certification count
+        from .models import workerSpecialization, WorkerCertification
         specializations_query = workerSpecialization.objects.filter(
             workerID=worker
         ).select_related('specializationID')
+
+        # Build skills array with certification counts
+        skills_list = []
+        for ws in specializations_query:
+            cert_count = WorkerCertification.objects.filter(
+                workerID=worker,
+                specializationID=ws
+            ).count()
+            
+            skills_list.append({
+                'id': ws.id,  # workerSpecialization ID (junction table)
+                'specializationId': ws.specializationID.specializationID,
+                'name': ws.specializationID.specializationName,
+                'experienceYears': ws.experienceYears,
+                'certificationCount': cert_count
+            })
 
         # Build detailed worker data
         worker_data = {
@@ -1616,10 +1645,7 @@ def get_worker_detail_mobile(user, worker_id):
             'description': worker.description or '',
             'hourly_rate': float(worker.hourly_rate) if worker.hourly_rate else 0.0,
             'availability_status': worker.availability_status,
-            'specializations': [
-                {'id': ws.specializationID.specializationID, 'name': ws.specializationID.specializationName}
-                for ws in specializations_query
-            ],
+            'skills': skills_list,  # Changed from 'specializations' to 'skills' for mobile consistency
             'total_earning': float(worker.totalEarningGross) if worker.totalEarningGross else 0.0,
             'rating': round(avg_rating, 2) if avg_rating else 0.0,
             'review_count': review_count,
@@ -1740,14 +1766,26 @@ def get_worker_detail_mobile_v2(user, worker_id):
             ).select_related('specializationID')
         ]
 
-        # Get skills from bio/description (simplified)
-        # TODO: Add proper skills table if needed
-        skills = []
-        if worker.description:
-            # Extract skills from description
-            common_skills = ['Plumbing', 'Electrical', 'Carpentry', 'Painting', 
-                           'Welding', 'Masonry', 'Tiling', 'Roofing']
-            skills = [skill for skill in common_skills if skill.lower() in worker.description.lower()]
+        # Get skills with certification counts (structured data)
+        from .models import WorkerCertification
+        specializations_query = workerSpecialization.objects.filter(
+            workerID=worker
+        ).select_related('specializationID')
+        
+        skills_list = []
+        for ws in specializations_query:
+            cert_count = WorkerCertification.objects.filter(
+                workerID=worker,
+                specializationID=ws
+            ).count()
+            
+            skills_list.append({
+                'id': ws.id,  # workerSpecialization ID
+                'specializationId': ws.specializationID.specializationID,
+                'name': ws.specializationID.specializationName,
+                'experienceYears': ws.experienceYears,
+                'certificationCount': cert_count
+            })
 
         # Calculate distance if user has location
         distance = None
@@ -1795,7 +1833,8 @@ def get_worker_detail_mobile_v2(user, worker_id):
             'issueDate': cert.issue_date.isoformat() if cert.issue_date else None,
             'expiryDate': cert.expiry_date.isoformat() if cert.expiry_date else None,
             'certificateUrl': cert.certificate_url or None,
-            'isVerified': cert.is_verified
+            'isVerified': cert.is_verified,
+            'specializationId': cert.specializationID.id if cert.specializationID else None  # Link to workerSpecialization
         } for cert in certifications_qs]
 
         # Get materials/products
@@ -1837,7 +1876,7 @@ def get_worker_detail_mobile_v2(user, worker_id):
             'province': account.province or None,
             'distance': round(distance, 1) if distance else None,
             'specializations': specializations,
-            'skills': skills,
+            'skills': skills_list,  # Changed from skills to skills_list
             'verified': account.KYCVerified or False,
             'joinedDate': account.createdAt.isoformat() if account.createdAt else timezone.now().isoformat(),
             'certifications': certifications,

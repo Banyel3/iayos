@@ -19,6 +19,12 @@ import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import { Colors, Typography, BorderRadius, Spacing } from "@/constants/theme";
 import { ENDPOINTS, apiRequest } from "@/lib/api/config";
 import { useAuth } from "@/context/AuthContext";
+import {
+  BACKJOB_CONTRACT_POINTS,
+  BACKJOB_TERMS_VERSION,
+  BACKJOB_AGREEMENT_HEADER,
+  BACKJOB_AGREEMENT_ACKNOWLEDGMENT,
+} from "@/constants/backjobContract";
 
 interface Evidence {
   uri: string;
@@ -45,6 +51,10 @@ export default function RequestBackjobScreen() {
   const [evidence, setEvidence] = useState<Evidence[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Terms acceptance state
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [showContract, setShowContract] = useState(false);
 
   useEffect(() => {
     if (jobId) {
@@ -175,6 +185,22 @@ export default function RequestBackjobScreen() {
       return false;
     }
 
+    if (evidence.length === 0) {
+      Alert.alert(
+        "Evidence Required",
+        "Please add at least one photo showing the issue before submitting your request."
+      );
+      return false;
+    }
+
+    if (!termsAccepted) {
+      Alert.alert(
+        "Terms Required",
+        "Please accept the backjob agreement terms before submitting your request."
+      );
+      return false;
+    }
+
     return true;
   };
 
@@ -195,6 +221,7 @@ export default function RequestBackjobScreen() {
               const formData = new FormData();
               formData.append("reason", reason);
               formData.append("description", description);
+              formData.append("terms_accepted", "true");
 
               // Add evidence images
               evidence.forEach((item, index) => {
@@ -360,9 +387,9 @@ export default function RequestBackjobScreen() {
 
         {/* Evidence Photos */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Photo Evidence</Text>
+          <Text style={styles.sectionTitle}>Photo Evidence *</Text>
           <Text style={styles.sectionHint}>
-            Add photos showing the issue (optional, max 5 images)
+            Add at least 1 photo showing the issue (required, max 5 images)
           </Text>
 
           <View style={styles.evidenceGrid}>
@@ -401,6 +428,67 @@ export default function RequestBackjobScreen() {
           </View>
         </View>
 
+        {/* Backjob Agreement Section */}
+        <View style={styles.contractSection}>
+          <TouchableOpacity
+            style={styles.contractHeader}
+            onPress={() => setShowContract(!showContract)}
+            activeOpacity={0.7}
+          >
+            <Ionicons
+              name="document-text-outline"
+              size={24}
+              color={Colors.warning}
+            />
+            <Text style={styles.contractTitle}>{BACKJOB_AGREEMENT_HEADER}</Text>
+            <Ionicons
+              name={showContract ? "chevron-up" : "chevron-down"}
+              size={20}
+              color={Colors.textSecondary}
+            />
+          </TouchableOpacity>
+
+          {showContract && (
+            <View style={styles.contractContent}>
+              <Text style={styles.contractAcknowledgment}>
+                {BACKJOB_AGREEMENT_ACKNOWLEDGMENT}
+              </Text>
+              {BACKJOB_CONTRACT_POINTS.map((point, index) => (
+                <View key={index} style={styles.contractPoint}>
+                  <Text style={styles.contractBullet}>•</Text>
+                  <Text style={styles.contractPointText}>{point}</Text>
+                </View>
+              ))}
+              <TouchableOpacity
+                onPress={() => router.push("/legal/terms")}
+                style={styles.viewFullTermsButton}
+              >
+                <Text style={styles.viewFullTermsLink}>
+                  View Full Terms of Service →
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Terms Acceptance Checkbox */}
+          <TouchableOpacity
+            style={styles.checkboxRow}
+            onPress={() => setTermsAccepted(!termsAccepted)}
+            activeOpacity={0.7}
+          >
+            <View
+              style={[styles.checkbox, termsAccepted && styles.checkboxChecked]}
+            >
+              {termsAccepted && (
+                <Ionicons name="checkmark" size={16} color={Colors.textLight} />
+              )}
+            </View>
+            <Text style={styles.checkboxLabel}>
+              I accept the backjob agreement terms
+            </Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Info Box */}
         <View style={styles.infoBox}>
           <Ionicons name="information-circle" size={24} color={Colors.info} />
@@ -419,10 +507,10 @@ export default function RequestBackjobScreen() {
         <TouchableOpacity
           style={[
             styles.submitButton,
-            isSubmitting && styles.submitButtonDisabled,
+            (isSubmitting || !termsAccepted) && styles.submitButtonDisabled,
           ]}
           onPress={submitBackjobRequest}
-          disabled={isSubmitting}
+          disabled={isSubmitting || !termsAccepted}
         >
           {isSubmitting ? (
             <ActivityIndicator color="#FFF" />
@@ -627,6 +715,93 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.textSecondary,
     lineHeight: 20,
+  },
+  contractSection: {
+    margin: 16,
+    marginBottom: 20,
+    backgroundColor: `${Colors.warning}10`,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: `${Colors.warning}40`,
+    overflow: "hidden",
+  },
+  contractHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    gap: 12,
+  },
+  contractTitle: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+  },
+  contractContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    borderTopWidth: 1,
+    borderTopColor: `${Colors.warning}20`,
+  },
+  contractAcknowledgment: {
+    fontSize: 14,
+    color: Colors.textPrimary,
+    marginBottom: 12,
+    fontWeight: "500",
+  },
+  contractPoint: {
+    flexDirection: "row",
+    marginBottom: 8,
+    paddingLeft: 4,
+  },
+  contractBullet: {
+    fontSize: 14,
+    color: Colors.textPrimary,
+    marginRight: 8,
+    fontWeight: "600",
+  },
+  contractPointText: {
+    flex: 1,
+    fontSize: 13,
+    color: Colors.textSecondary,
+    lineHeight: 20,
+  },
+  viewFullTermsButton: {
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  viewFullTermsLink: {
+    fontSize: 13,
+    color: Colors.primary,
+    fontWeight: "600",
+  },
+  checkboxRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    gap: 12,
+    backgroundColor: Colors.background,
+    borderTopWidth: 1,
+    borderTopColor: `${Colors.warning}20`,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderWidth: 2,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.sm,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  checkboxChecked: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  checkboxLabel: {
+    flex: 1,
+    fontSize: 14,
+    color: Colors.textPrimary,
+    fontWeight: "500",
   },
   submitButton: {
     flexDirection: "row",

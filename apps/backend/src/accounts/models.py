@@ -251,6 +251,16 @@ class WorkerCertification(models.Model):
         related_name='certifications'
     )
     
+    # Link to specific skill (optional - certifications can be general)
+    specializationID = models.ForeignKey(
+        'workerSpecialization',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='certifications',
+        help_text="The specific skill this certification is for (e.g., Plumbing, Electrical)"
+    )
+    
     name = models.CharField(
         max_length=255,
         help_text="Certificate name (e.g., 'TESDA Plumbing NC II')"
@@ -1223,6 +1233,11 @@ class JobDispute(models.Model):
     clientConfirmedBackjob = models.BooleanField(default=False)
     clientConfirmedBackjobAt = models.DateTimeField(blank=True, null=True)
     
+    # Terms Acceptance Tracking (for legal compliance)
+    termsAccepted = models.BooleanField(default=False)
+    termsVersion = models.CharField(max_length=20, blank=True, null=True)
+    termsAcceptedAt = models.DateTimeField(blank=True, null=True)
+    
     # Timestamps
     openedDate = models.DateTimeField(auto_now_add=True)
     updatedAt = models.DateTimeField(auto_now=True)
@@ -1398,6 +1413,38 @@ class JobReview(models.Model):
     
     def __str__(self):
         return f"Review by {self.reviewerID.email} for job #{self.jobID.jobID} - {self.rating}★"
+
+
+class ReviewSkillTag(models.Model):
+    """
+    Junction table linking reviews to specific skills demonstrated in the job.
+    Allows clients to rate workers on specific skills (e.g., 5★ for Plumbing, 4★ for Punctuality)
+    """
+    tagID = models.BigAutoField(primary_key=True)
+    reviewID = models.ForeignKey(
+        JobReview,
+        on_delete=models.CASCADE,
+        related_name='skill_tags'
+    )
+    workerSpecializationID = models.ForeignKey(
+        'workerSpecialization',
+        on_delete=models.CASCADE,
+        related_name='review_tags',
+        help_text="The specific skill being tagged (from worker's skill list)"
+    )
+    
+    createdAt = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'review_skill_tags'
+        unique_together = [['reviewID', 'workerSpecializationID']]  # One tag per skill per review
+        indexes = [
+            models.Index(fields=['reviewID']),
+            models.Index(fields=['workerSpecializationID']),
+        ]
+    
+    def __str__(self):
+        return f"Review #{self.reviewID.reviewID} tagged with skill #{self.workerSpecializationID.id}"
 
 
 # Backward compatibility - keep old names as aliases

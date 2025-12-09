@@ -39,6 +39,14 @@ import { ProfileSkeleton } from "@/components/ui/SkeletonLoader";
 
 // ===== TYPES =====
 
+interface Skill {
+  id: number; // workerSpecialization ID
+  specializationId: number; // Specializations ID
+  name: string;
+  experienceYears: number;
+  certificationCount: number;
+}
+
 interface WorkerProfile {
   id: number;
   user: {
@@ -50,7 +58,7 @@ interface WorkerProfile {
   };
   bio: string | null;
   hourlyRate: number | null;
-  skills: string[];
+  skills: Skill[];
   categories: Array<{ id: number; name: string }>;
   serviceAreas: string[];
   stats: {
@@ -162,7 +170,9 @@ export default function ProfileScreen() {
       if (!response.ok) {
         throw new Error("Failed to fetch profile");
       }
-      return response.json();
+      const data = await response.json();
+      // Extract profile_data from auth response
+      return data.profile_data || data;
     },
     enabled: isWorker, // Only fetch if user is a worker
     staleTime: 5 * 60 * 1000, // 5 minutes
@@ -460,23 +470,139 @@ export default function ProfileScreen() {
         </View>
       )}
 
-      {/* Skills Section */}
+      {/* Skills Section with Nested Certifications */}
       {profile.skills.length > 0 ? (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Skills</Text>
-          <View style={styles.skillsContainer}>
-            {profile.skills.map((skill, index) => (
-              <View key={index} style={styles.skillChip}>
-                <Text style={styles.skillText}>{skill}</Text>
-              </View>
-            ))}
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Skills & Certifications</Text>
+            <Pressable onPress={() => router.push("/profile/edit" as any)}>
+              <Text style={styles.editText}>Edit</Text>
+            </Pressable>
           </View>
+          <Text style={styles.sectionDescription}>
+            Tap a skill to view certifications
+          </Text>
+
+          {profile.skills.map((skill) => {
+            const isExpanded = expandedSkills.has(skill.id);
+            const skillCertifications = certifications.filter(
+              (cert) => cert.specializationId === skill.id
+            );
+
+            return (
+              <View key={skill.id} style={styles.skillSection}>
+                {/* Skill Header - Clickable */}
+                <Pressable
+                  style={styles.skillHeader}
+                  onPress={() => {
+                    const newExpanded = new Set(expandedSkills);
+                    if (isExpanded) {
+                      newExpanded.delete(skill.id);
+                    } else {
+                      newExpanded.add(skill.id);
+                    }
+                    setExpandedSkills(newExpanded);
+                  }}
+                >
+                  <View style={styles.skillHeaderLeft}>
+                    <Ionicons
+                      name="construct"
+                      size={20}
+                      color={Colors.primary}
+                    />
+                    <View style={styles.skillHeaderText}>
+                      <Text style={styles.skillName}>{skill.name}</Text>
+                      <Text style={styles.skillMeta}>
+                        {skill.experienceYears}{" "}
+                        {skill.experienceYears === 1 ? "year" : "years"}{" "}
+                        experience
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.skillHeaderRight}>
+                    <View style={styles.certBadge}>
+                      <Ionicons
+                        name="ribbon"
+                        size={14}
+                        color={
+                          skill.certificationCount > 0
+                            ? Colors.success
+                            : Colors.textSecondary
+                        }
+                      />
+                      <Text
+                        style={[
+                          styles.certBadgeText,
+                          skill.certificationCount > 0 &&
+                            styles.certBadgeTextActive,
+                        ]}
+                      >
+                        {skill.certificationCount}
+                      </Text>
+                    </View>
+                    <Ionicons
+                      name={isExpanded ? "chevron-up" : "chevron-down"}
+                      size={20}
+                      color={Colors.textSecondary}
+                    />
+                  </View>
+                </Pressable>
+
+                {/* Expanded: Show Certifications */}
+                {isExpanded && (
+                  <View style={styles.skillCertifications}>
+                    {skillCertifications.length > 0 ? (
+                      skillCertifications.map((cert) => (
+                        <View key={cert.id} style={styles.certificationItem}>
+                          <CertificationCard
+                            certification={cert}
+                            compact={true}
+                            showActions={false}
+                            onPress={() =>
+                              router.push("/profile/certifications" as any)
+                            }
+                          />
+                        </View>
+                      ))
+                    ) : (
+                      <View style={styles.noCertifications}>
+                        <Ionicons
+                          name="ribbon-outline"
+                          size={32}
+                          color={Colors.textSecondary}
+                        />
+                        <Text style={styles.noCertificationsText}>
+                          No certifications added for {skill.name}
+                        </Text>
+                        <Pressable
+                          style={styles.addCertButton}
+                          onPress={() =>
+                            router.push("/profile/certifications" as any)
+                          }
+                        >
+                          <Ionicons
+                            name="add-circle"
+                            size={18}
+                            color={Colors.primary}
+                          />
+                          <Text style={styles.addCertButtonText}>
+                            Add Certification
+                          </Text>
+                        </Pressable>
+                      </View>
+                    )}
+                  </View>
+                )}
+              </View>
+            );
+          })}
         </View>
       ) : (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Skills</Text>
+          <Text style={styles.sectionTitle}>Skills & Certifications</Text>
           <Text style={styles.emptyText}>
-            Add skills to showcase your expertise
+            Add skills to showcase your expertise and link certifications
           </Text>
           <Pressable
             style={styles.addButton}
@@ -524,68 +650,6 @@ export default function ProfileScreen() {
           </View>
         </View>
       )}
-
-      {/* Certifications Section */}
-      <View style={styles.section}>
-        <View style={styles.portfolioHeader}>
-          <Text style={styles.sectionTitle}>Certifications</Text>
-          {certifications.length > 0 && (
-            <Pressable
-              onPress={() => router.push("/profile/certifications" as any)}
-            >
-              <Text style={styles.viewAllText}>
-                View All ({certifications.length})
-              </Text>
-            </Pressable>
-          )}
-        </View>
-        {certifications.length > 0 ? (
-          <>
-            {certifications.slice(0, 3).map((cert) => (
-              <View key={cert.id} style={styles.certificationItem}>
-                <CertificationCard
-                  certification={cert}
-                  compact={true}
-                  showActions={false}
-                  onPress={() => router.push("/profile/certifications" as any)}
-                />
-              </View>
-            ))}
-            {certifications.length > 3 && (
-              <Pressable
-                style={styles.viewAllButton}
-                onPress={() => router.push("/profile/certifications" as any)}
-              >
-                <Text style={styles.viewAllButtonText}>
-                  View All {certifications.length} Certifications
-                </Text>
-                <Ionicons
-                  name="chevron-forward"
-                  size={20}
-                  color={Colors.primary}
-                />
-              </Pressable>
-            )}
-          </>
-        ) : (
-          <>
-            <Text style={styles.emptyText}>
-              Add professional certifications to build credibility
-            </Text>
-            <Pressable
-              style={styles.addButton}
-              onPress={() => router.push("/profile/certifications" as any)}
-            >
-              <Ionicons
-                name="add-circle-outline"
-                size={20}
-                color={Colors.primary}
-              />
-              <Text style={styles.addButtonText}>Add Certifications</Text>
-            </Pressable>
-          </>
-        )}
-      </View>
 
       {/* Materials/Products Section */}
       <View style={styles.section}>
@@ -1029,5 +1093,96 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginBottom: Spacing.md,
     lineHeight: 22,
+  },
+  editText: {
+    ...Typography.body.small,
+    color: Colors.primary,
+    fontWeight: "600",
+  },
+
+  // Skills with Nested Certifications
+  skillSection: {
+    marginBottom: Spacing.md,
+    backgroundColor: Colors.backgroundSecondary,
+    borderRadius: BorderRadius.medium,
+    overflow: "hidden",
+  },
+  skillHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: Spacing.md,
+    backgroundColor: Colors.surface,
+  },
+  skillHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    flex: 1,
+  },
+  skillHeaderText: {
+    flex: 1,
+  },
+  skillName: {
+    ...Typography.body.large,
+    color: Colors.textPrimary,
+    fontWeight: "600",
+    marginBottom: 2,
+  },
+  skillMeta: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+  },
+  skillHeaderRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  certBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    backgroundColor: Colors.backgroundSecondary,
+    borderRadius: BorderRadius.small,
+  },
+  certBadgeText: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+    fontWeight: "600",
+  },
+  certBadgeTextActive: {
+    color: Colors.success,
+  },
+  skillCertifications: {
+    padding: Spacing.md,
+    paddingTop: Spacing.sm,
+    gap: Spacing.sm,
+  },
+  noCertifications: {
+    alignItems: "center",
+    paddingVertical: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  noCertificationsText: {
+    ...Typography.body.medium,
+    color: Colors.textSecondary,
+    textAlign: "center",
+  },
+  addCertButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    backgroundColor: Colors.primaryLight,
+    borderRadius: BorderRadius.medium,
+    marginTop: Spacing.xs,
+  },
+  addCertButtonText: {
+    ...Typography.body.medium,
+    color: Colors.primary,
+    fontWeight: "600",
   },
 });

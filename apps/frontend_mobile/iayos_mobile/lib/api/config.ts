@@ -4,14 +4,31 @@
 // For Android Emulator, use 10.0.2.2
 // For physical device, use your machine's network IP
 
-// Network IPs - Primary is current network, fallback is previous network
-const PRIMARY_DEV_IP = "10.102.160.98"; // Current network (school/primary)
-const FALLBACK_DEV_IP = "192.168.1.84"; // Fallback network (home/previous)
+// AUTOMATIC IP DETECTION: Environment variable takes precedence, then falls back to Expo auto-detect
+// Run `.\scripts\update-mobile-ip.ps1` to auto-detect and update IP
+const getDevIP = () => {
+  // Priority 1: Environment variable (set by update-ip script)
+  if (process.env.EXPO_PUBLIC_DEV_IP) {
+    return process.env.EXPO_PUBLIC_DEV_IP;
+  }
 
-// You can toggle this to switch networks quickly, or implement auto-detection
-const USE_FALLBACK = false;
-const DEV_IP = USE_FALLBACK ? FALLBACK_DEV_IP : PRIMARY_DEV_IP;
+  // Priority 2: Try to use Expo's detected IP from Constants
+  // This works when running via Expo Go and detects your machine's IP automatically
+  try {
+    const Constants = require("expo-constants").default;
+    const expoIP = Constants.expoConfig?.hostUri?.split(":")[0];
+    if (expoIP && expoIP !== "localhost" && expoIP !== "127.0.0.1") {
+      return expoIP;
+    }
+  } catch (e) {
+    // Expo Constants not available
+  }
 
+  // Priority 3: Fallback to localhost (will fail on physical devices)
+  return "localhost";
+};
+
+const DEV_IP = getDevIP();
 const API_URL = __DEV__ ? `http://${DEV_IP}:8000` : "https://api.iayos.com";
 
 const deriveDevWebUrl = () => {
@@ -108,7 +125,7 @@ export const ENDPOINTS = {
   SAVED_JOBS: `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/saved`,
 
   // Phase 4: Worker Profile & Application Management
-  WORKER_PROFILE: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile`,
+  WORKER_PROFILE: `${API_BASE_URL.replace("/api", "")}/api/mobile/auth/profile`,
   UPDATE_WORKER_PROFILE: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile`,
   UPDATE_PROFILE: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/update`, // Client profile update
   APPLICATION_DETAIL: (id: number) =>
@@ -206,7 +223,7 @@ export const ENDPOINTS = {
   // Phase 5: Real-Time Chat & Messaging (4 endpoints)
   CONVERSATIONS: `${API_BASE_URL.replace("/api", "")}/api/profiles/chat/conversations`,
   CONVERSATION_BY_JOB: (jobId: number, reopen: boolean = false) =>
-    `${API_BASE_URL.replace("/api", "")}/api/profiles/chat/conversation-by-job/${jobId}${reopen ? '?reopen=true' : ''}`,  
+    `${API_BASE_URL.replace("/api", "")}/api/profiles/chat/conversation-by-job/${jobId}${reopen ? "?reopen=true" : ""}`,
   CONVERSATION_MESSAGES: (id: number) =>
     `${API_BASE_URL.replace("/api", "")}/api/profiles/chat/conversations/${id}`,
   SEND_MESSAGE: `${API_BASE_URL.replace("/api", "")}/api/profiles/chat/messages`,

@@ -38,6 +38,14 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchJson, ENDPOINTS } from "@/lib/api/config";
 import { useWorkerReviews } from "@/lib/hooks/useReviews";
 
+interface Skill {
+  id: number; // workerSpecialization ID
+  specializationId: number; // Specializations ID
+  name: string;
+  experienceYears: number;
+  certificationCount: number;
+}
+
 interface WorkerCertification {
   id: number;
   name: string;
@@ -46,6 +54,8 @@ interface WorkerCertification {
   expiryDate?: string;
   certificateUrl?: string;
   isVerified: boolean;
+  specializationId?: number | null; // Link to skill
+  skillName?: string | null;
 }
 
 interface WorkerMaterial {
@@ -83,7 +93,7 @@ interface WorkerDetail {
   province?: string;
   distance?: number;
   specializations: string[];
-  skills: string[];
+  skills: Skill[]; // Changed from string[] to Skill[]
   verified: boolean;
   joinedDate: string;
   certifications?: WorkerCertification[];
@@ -259,6 +269,7 @@ export default function WorkerDetailScreen() {
   // State for collapsible sections
   const [isReviewsExpanded, setIsReviewsExpanded] = useState(true);
   const [reviewsPage, setReviewsPage] = useState(1);
+  const [expandedSkills, setExpandedSkills] = useState<Set<number>>(new Set());
 
   // Fetch worker details
   const { data, isLoading, error } = useQuery({
@@ -760,21 +771,6 @@ export default function WorkerDetailScreen() {
             </View>
           )}
 
-          {/* Specializations */}
-          {data.specializations && data.specializations.length > 0 && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Specializations</Text>
-              <View style={styles.tagsContainer}>
-                {data.specializations.map((spec: string, index: number) => (
-                  <View key={index} style={styles.tag}>
-                    <Ionicons name="hammer" size={14} color={Colors.primary} />
-                    <Text style={styles.tagText}>{spec}</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-          )}
-
           {/* Bio */}
           {data.bio && (
             <View style={styles.section}>
@@ -783,83 +779,121 @@ export default function WorkerDetailScreen() {
             </View>
           )}
 
-          {/* Skills */}
+          {/* Skills with Nested Certifications */}
           {data.skills && data.skills.length > 0 && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Skills</Text>
-              <View style={styles.skillsContainer}>
-                {data.skills.map((skill: string, index: number) => (
-                  <View key={index} style={styles.skillChip}>
-                    <Text style={styles.skillText}>{skill}</Text>
+              <Text style={styles.sectionTitle}>Skills & Certifications</Text>
+              <Text style={styles.sectionDescription}>
+                Tap a skill to view certifications
+              </Text>
+
+              {data.skills.map((skill: Skill) => {
+                const isExpanded = expandedSkills.has(skill.id);
+                const skillCerts = data.certifications?.filter(
+                  (cert) => cert.specializationId === skill.id
+                ) || [];
+
+                return (
+                  <View key={skill.id} style={styles.skillSection}>
+                    {/* Skill Header - Clickable */}
+                    <TouchableOpacity
+                      style={styles.skillHeader}
+                      onPress={() => {
+                        const newExpanded = new Set(expandedSkills);
+                        if (isExpanded) {
+                          newExpanded.delete(skill.id);
+                        } else {
+                          newExpanded.add(skill.id);
+                        }
+                        setExpandedSkills(newExpanded);
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.skillHeaderLeft}>
+                        <Ionicons
+                          name="construct"
+                          size={20}
+                          color={Colors.primary}
+                        />
+                        <View style={styles.skillHeaderText}>
+                          <Text style={styles.skillName}>{skill.name}</Text>
+                          <Text style={styles.skillMeta}>
+                            {skill.experienceYears}{" "}
+                            {skill.experienceYears === 1 ? "year" : "years"}{" "}
+                            experience
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View style={styles.skillHeaderRight}>
+                        <View style={styles.certBadge}>
+                          <Ionicons
+                            name="ribbon"
+                            size={14}
+                            color={
+                              skill.certificationCount > 0
+                                ? Colors.success
+                                : Colors.textSecondary
+                            }
+                          />
+                          <Text
+                            style={[
+                              styles.certBadgeText,
+                              skill.certificationCount > 0 &&
+                                styles.certBadgeTextActive,
+                            ]}
+                          >
+                            {skill.certificationCount}
+                          </Text>
+                        </View>
+                        <Ionicons
+                          name={isExpanded ? "chevron-up" : "chevron-down"}
+                          size={20}
+                          color={Colors.textSecondary}
+                        />
+                      </View>
+                    </TouchableOpacity>
+
+                    {/* Expanded: Show Certifications */}
+                    {isExpanded && (
+                      <View style={styles.skillCertifications}>
+                        {skillCerts.length > 0 ? (
+                          skillCerts.map((cert) => (
+                            <View key={cert.id} style={styles.certificationItem}>
+                              <Ionicons
+                                name={cert.isVerified ? "checkmark-circle" : "document-text"}
+                                size={20}
+                                color={cert.isVerified ? Colors.success : Colors.textSecondary}
+                              />
+                              <View style={{ flex: 1, marginLeft: 12 }}>
+                                <Text style={styles.certificationName}>{cert.name}</Text>
+                                {cert.issuingOrganization && (
+                                  <Text style={styles.certificationOrg}>
+                                    {cert.issuingOrganization}
+                                  </Text>
+                                )}
+                              </View>
+                            </View>
+                          ))
+                        ) : (
+                          <View style={styles.noCertifications}>
+                            <Ionicons
+                              name="ribbon-outline"
+                              size={32}
+                              color={Colors.textSecondary}
+                            />
+                            <Text style={styles.noCertificationsText}>
+                              No certifications added for {skill.name}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                    )}
                   </View>
-                ))}
-              </View>
+                );
+              })}
             </View>
           )}
-
-          {/* Certifications */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Certifications & Licenses</Text>
-            {data.certifications && data.certifications.length > 0 ? (
-              data.certifications.map((cert) => (
-                <View key={cert.id} style={styles.certCard}>
-                  <View style={styles.certHeader}>
-                    {cert.certificateUrl ? (
-                      <Image
-                        source={{ uri: cert.certificateUrl }}
-                        style={styles.certImage}
-                        resizeMode="cover"
-                      />
-                    ) : (
-                      <View style={styles.certIconContainer}>
-                        <Ionicons
-                          name="ribbon"
-                          size={20}
-                          color={
-                            cert.isVerified ? Colors.success : Colors.primary
-                          }
-                        />
-                      </View>
-                    )}
-                    <View style={styles.certInfo}>
-                      <Text style={styles.certName}>{cert.name}</Text>
-                      {cert.issuingOrganization && (
-                        <Text style={styles.certOrg}>
-                          {cert.issuingOrganization}
-                        </Text>
-                      )}
-                      {cert.issueDate && (
-                        <Text style={styles.certDate}>
-                          Issued:{" "}
-                          {new Date(cert.issueDate).toLocaleDateString()}
-                        </Text>
-                      )}
-                    </View>
-                    {cert.isVerified && (
-                      <View style={styles.certVerifiedBadge}>
-                        <Ionicons
-                          name="checkmark-circle"
-                          size={18}
-                          color={Colors.success}
-                        />
-                      </View>
-                    )}
-                  </View>
-                </View>
-              ))
-            ) : (
-              <View style={styles.emptyState}>
-                <Ionicons
-                  name="ribbon-outline"
-                  size={48}
-                  color={Colors.textHint}
-                />
-                <Text style={styles.emptyStateText}>
-                  {"This worker doesn't have any certifications yet"}
-                </Text>
-              </View>
-            )}
-          </View>
 
           {/* Materials/Products */}
           <View style={styles.section}>
@@ -1645,5 +1679,103 @@ const styles = StyleSheet.create({
   skeletonCircle: {
     backgroundColor: Colors.backgroundSecondary,
     borderRadius: 9999,
+  },
+  // NEW: Skills accordion styles
+  sectionDescription: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    marginTop: 4,
+    marginBottom: 12,
+  },
+  skillSection: {
+    marginBottom: 12,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.md,
+    overflow: "hidden",
+    ...Shadows.sm,
+  },
+  skillHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 16,
+  },
+  skillHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  skillHeaderText: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  skillName: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+  },
+  skillMeta: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  skillHeaderRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  certBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.backgroundSecondary,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.sm,
+    gap: 4,
+  },
+  certBadgeText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: Colors.textSecondary,
+  },
+  certBadgeTextActive: {
+    color: Colors.success,
+  },
+  skillCertifications: {
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    paddingTop: 12,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    backgroundColor: Colors.background,
+  },
+  certificationItem: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    padding: 12,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.sm,
+    marginBottom: 8,
+    ...Shadows.xs,
+  },
+  certificationName: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+  },
+  certificationOrg: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  noCertifications: {
+    alignItems: "center",
+    padding: 24,
+  },
+  noCertificationsText: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    marginTop: 8,
+    textAlign: "center",
   },
 });

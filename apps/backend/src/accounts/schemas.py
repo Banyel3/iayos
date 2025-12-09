@@ -223,6 +223,8 @@ class CertificationSchema(Schema):
     verified_at: Optional[str]
     createdAt: str
     updatedAt: str
+    specializationId: Optional[int] = None  # NEW: Linked skill ID
+    skillName: Optional[str] = None  # NEW: Skill name for display
 
 class AddCertificationRequest(Schema):
     """Schema for adding certification (form data)"""
@@ -230,6 +232,7 @@ class AddCertificationRequest(Schema):
     organization: Optional[str] = None
     issue_date: Optional[str] = None
     expiry_date: Optional[str] = None
+    specializationId: Optional[int] = None  # NEW: Link to specific skill (workerSpecialization ID)
 
 class UpdateCertificationRequest(Schema):
     """Schema for updating certification"""
@@ -237,6 +240,7 @@ class UpdateCertificationRequest(Schema):
     organization: Optional[str] = None
     issue_date: Optional[str] = None
     expiry_date: Optional[str] = None
+    specializationId: Optional[int] = None  # NEW: Update linked skill
 
 class CertificationResponse(Schema):
     """Response schema for certification operations"""

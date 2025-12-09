@@ -748,6 +748,42 @@ def mobile_job_categories(request):
         )
 
 
+@mobile_router.get("/skills/available", auth=jwt_auth)
+def mobile_available_skills(request):
+    """
+    Get all available skills (specializations) for skill picker
+    Returns: List of skills with id, name, description, minimumRate
+    """
+    from .models import Specializations
+
+    try:
+        skills = Specializations.objects.all().order_by('specializationName')
+        
+        skills_data = [
+            {
+                'id': skill.specializationID,
+                'name': skill.specializationName,
+                'description': skill.description or '',
+                'minimumRate': float(skill.minimumRate) if skill.minimumRate else 0.0,
+                'rateType': skill.rateType,
+                'skillLevel': skill.skillLevel,
+            }
+            for skill in skills
+        ]
+        
+        return {
+            'success': True,
+            'data': skills_data,
+            'count': len(skills_data)
+        }
+    except Exception as e:
+        print(f"[ERROR] Mobile available skills error: {str(e)}")
+        return Response(
+            {"error": "Failed to fetch available skills"},
+            status=500
+        )
+
+
 @mobile_router.get("/locations/cities", auth=jwt_auth)
 def get_cities(request):
     """

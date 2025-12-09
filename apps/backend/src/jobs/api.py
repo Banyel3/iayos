@@ -4493,14 +4493,22 @@ def get_my_invite_jobs(request, invite_status: str | None = None, page: int = 1,
 #region Backjob Endpoints
 
 @router.post("/{job_id}/request-backjob", auth=dual_auth)
-def request_backjob(request, job_id: int, reason: str = Form(...), description: str = Form(...), images: List[UploadedFile] = File(default=None)):
+def request_backjob(request, job_id: int, reason: str = Form(...), description: str = Form(...), terms_accepted: bool = Form(...), images: List[UploadedFile] = File(default=None)):
     """
     Client requests a backjob (rework) on a completed job.
     Creates a dispute with evidence images.
     Admin must approve before it appears for worker/agency.
+    Requires explicit terms acceptance for legal compliance.
     """
     try:
         print(f"🔄 Backjob request for job {job_id} from user {request.auth.email}")
+        
+        # Validate terms acceptance (CRITICAL for legal compliance)
+        if not terms_accepted:
+            return Response(
+                {"error": "You must accept the backjob agreement terms before submitting a request"},
+                status=400
+            )
         
         # Get the job
         try:
@@ -4551,6 +4559,10 @@ def request_backjob(request, job_id: int, reason: str = Form(...), description: 
                 priority="MEDIUM",
                 jobAmount=job.budget,
                 disputedAmount=Decimal('0.00'),  # Client is not disputing payment, just requesting rework
+                # Terms acceptance tracking
+                termsAccepted=terms_accepted,
+                termsVersion="v1.0",
+                termsAcceptedAt=timezone.now()
             )
             
             # Upload and store evidence images
