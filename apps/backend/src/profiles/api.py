@@ -882,7 +882,7 @@ def get_conversations(request, filter: str = "all"):
                         team_members.append({
                             'profile_id': p.profile.profileID,
                             'name': f"{p.profile.firstName} {p.profile.lastName}",
-                            'avatar': p.profile.profilePicture.url if p.profile.profilePicture else None,
+                            'avatar': p.profile.profileImg.url if p.profile.profileImg else None,  # profileImg, not profilePicture
                             'role': p.participant_type,
                             'skill': p.skill_slot.specializationID.specializationName if p.skill_slot else None
                         })
@@ -1603,10 +1603,20 @@ def send_message(request, data: SendMessageSchema):
             )
         
         # Verify sender is a participant
+        # For regular conversations, check client/worker fields
         is_client = conversation.client == sender_profile
         is_worker = conversation.worker == sender_profile
         
-        if not (is_client or is_worker):
+        # For team conversations, also check ConversationParticipant table
+        is_team_participant = False
+        if conversation.conversation_type == 'TEAM_GROUP':
+            from profiles.models import ConversationParticipant
+            is_team_participant = ConversationParticipant.objects.filter(
+                conversation=conversation,
+                profile=sender_profile
+            ).exists()
+        
+        if not (is_client or is_worker or is_team_participant):
             return Response(
                 {"error": "You are not a participant in this conversation"},
                 status=403

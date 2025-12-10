@@ -10,7 +10,7 @@ from django.utils import timezone
 
 from accounts.models import (
     Job, JobSkillSlot, JobWorkerAssignment, JobApplication,
-    Specializations, Profile, WorkerProfile, Notification, Transaction, Wallet
+    Specializations, Profile, WorkerProfile, ClientProfile, Notification, Transaction, Wallet
 )
 from profiles.models import Conversation, ConversationParticipant
 
@@ -121,6 +121,12 @@ def create_team_job(
     # Get client's profile
     client_profile_obj = client_profile if isinstance(client_profile, Profile) else Profile.objects.get(profileID=client_profile)
     
+    # Get or verify ClientProfile exists
+    try:
+        client_profile_record = ClientProfile.objects.get(profileID=client_profile_obj)
+    except ClientProfile.DoesNotExist:
+        return {'success': False, 'error': 'Client profile not found. Only clients can create team jobs.'}
+    
     # Check wallet balance for escrow (50% of total)
     escrow_amount = Decimal(str(total_budget)) * Decimal('0.5')
     platform_fee = escrow_amount * Decimal('0.05')  # 5% of downpayment
@@ -141,12 +147,12 @@ def create_team_job(
     
     # Create the job
     job = Job.objects.create(
-        clientID=client_profile_obj.workerprofile if hasattr(client_profile_obj, 'workerprofile') else None,
+        clientID=client_profile_record,
         title=title,
         description=description,
         location=location,
         budget=Decimal(str(total_budget)),
-        urgencyLevel=urgency,
+        urgency=urgency,
         preferredStartDate=datetime.strptime(preferred_start_date, '%Y-%m-%d').date() if preferred_start_date else None,
         materialsNeeded=materials_needed or [],
         jobType='LISTING',  # Team jobs are listings
@@ -155,10 +161,6 @@ def create_team_job(
         budget_allocation_type=allocation_type,
         team_job_start_threshold=Decimal(str(team_start_threshold))
     )
-    
-    # Also set clientID via the profile FK (Job model uses ForeignKey to WorkerProfile, but we need profile)
-    # Actually, let me check the Job model again
-    job.clientID = client_profile_obj.workerprofile if hasattr(client_profile_obj, 'workerprofile') else None
     
     # Create skill slots
     created_slots = []
@@ -178,18 +180,18 @@ def create_team_job(
     if payment_method == 'WALLET':
         # Deduct from wallet
         wallet.balance -= total_needed
-        wallet.reserved_balance += escrow_amount  # Hold escrow
+        wallet.reservedBalance += escrow_amount  # Hold escrow
         wallet.save()
         
         # Create transaction record
         Transaction.objects.create(
             walletID=wallet,
-            jobID=job,
+            relatedJobPosting=job,
             transactionType='ESCROW',
             amount=escrow_amount,
-            platformFee=platform_fee,
+            balanceAfter=wallet.balance,
             status='COMPLETED',
-            description=f'Team job escrow (50%) for: {title}'
+            description=f'Team job escrow (50%) for: {title} (Platform fee: ₱{platform_fee})'
         )
     
     # Create team group conversation
@@ -257,10 +259,10 @@ def get_team_job_detail(job_id: int, requesting_user=None) -> dict:
         
         assignments.append({
             'assignment_id': assignment.assignmentID,
-            'worker_id': worker.workerID,
+            'worker_id': worker.id,  # Use .id (primary key), not .workerID
             'worker_name': f"{profile.firstName} {profile.lastName}",
-            'worker_avatar': profile.profilePicture.url if profile.profilePicture else None,
-            'worker_rating': float(worker.rating) if worker.rating else None,
+            'worker_avatar': profile.profileImg.url if profile.profileImg else None,  # profileImg, not profilePicture
+            'worker_rating': float(worker.workerRating) if worker.workerRating else None,  # workerRating, not rating
             'skill_slot_id': assignment.skillSlotID_id,
             'specialization_name': assignment.skillSlotID.specializationID.specializationName,
             'slot_position': assignment.slot_position,
@@ -469,6 +471,67 @@ def accept_team_application(
         'slot_position': assignment.slot_position,
         'can_start_job': can_start,
         'message': f'Worker assigned to {skill_slot.specializationID.specializationName} position #{assignment.slot_position}'
+    }
+
+
+@transaction.atomic
+def reject_team_application(
+    job_id: int,
+    application_id: int,
+    client_user,
+    reason: Optional[str] = None
+) -> dict:
+    """
+    Client rejects a worker's application to a team job skill slot.
+    """
+    try:
+        application = JobApplication.objects.select_related(
+            'jobID', 'workerID__profileID', 'applied_skill_slot__specializationID'
+        ).get(applicationID=application_id, jobID_id=job_id)
+    except JobApplication.DoesNotExist:
+        return {'success': False, 'error': 'Application not found'}
+    
+    job = application.jobID
+    
+    # Verify client owns the job
+    if job.clientID and job.clientID.profileID.accountFK != client_user:
+        return {'success': False, 'error': 'Not authorized to reject applications for this job'}
+    
+    if not job.is_team_job:
+        return {'success': False, 'error': 'This is not a team job'}
+    
+    if application.status != 'PENDING':
+        return {'success': False, 'error': f'Application is not pending (status: {application.status})'}
+    
+    skill_slot = application.applied_skill_slot
+    slot_name = skill_slot.specializationID.specializationName if skill_slot else 'Unknown'
+    
+    # Update application status
+    application.status = 'REJECTED'
+    application.save()
+    
+    # Notify worker
+    worker_name = f"{application.workerID.profileID.firstName}"
+    rejection_message = f"Your application for {slot_name} position in '{job.title}' was not accepted."
+    if reason:
+        rejection_message += f" Reason: {reason}"
+    
+    Notification.objects.create(
+        accountFK=application.workerID.profileID.accountFK,
+        notificationType="TEAM_APPLICATION_REJECTED",
+        title="Application Not Accepted",
+        message=rejection_message,
+        relatedJobID=job.jobID
+    )
+    
+    print(f"❌ Rejected team application #{application_id} for job #{job_id}")
+    
+    return {
+        'success': True,
+        'application_id': application_id,
+        'worker_name': f"{application.workerID.profileID.firstName} {application.workerID.profileID.lastName}",
+        'skill_slot': slot_name,
+        'message': f'Application rejected for {slot_name} position'
     }
 
 

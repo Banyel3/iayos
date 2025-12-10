@@ -857,7 +857,7 @@ class Job(models.Model):
         """Count of workers currently assigned to this team job."""
         if not self.is_team_job:
             return 1 if self.assignedWorkerID else 0
-        return self.team_assignments.filter(
+        return self.worker_assignments.filter(
             assignment_status='ACTIVE'
         ).count()
     

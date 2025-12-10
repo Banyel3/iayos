@@ -103,8 +103,8 @@ class InboxConsumer(AsyncWebsocketConsumer):
             # Determine sender info (works for both Profile and Agency senders)
             sender_name = message.get_sender_name()
             sender_avatar = None
-            if message.sender and hasattr(message.sender, 'profilePicture') and message.sender.profilePicture:
-                sender_avatar = message.sender.profilePicture.url
+            if message.sender and hasattr(message.sender, 'profileImg') and message.sender.profileImg:
+                sender_avatar = message.sender.profileImg.url
 
             # Broadcast to conversation group
             room_group_name = f'chat_{conversation_id}'

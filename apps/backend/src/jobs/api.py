@@ -5161,7 +5161,7 @@ from jobs.schemas import (
 )
 from jobs.team_job_services import (
     create_team_job, get_team_job_detail, apply_to_skill_slot,
-    accept_team_application, start_team_job, worker_complete_team_assignment
+    accept_team_application, reject_team_application, start_team_job, worker_complete_team_assignment
 )
 
 
@@ -5312,6 +5312,37 @@ def accept_team_application_endpoint(request, job_id: int, application_id: int):
         return Response({"error": str(e)}, status=500)
 
 
+@router.post("/team/{job_id}/applications/{application_id}/reject", auth=dual_auth)
+def reject_team_application_endpoint(request, job_id: int, application_id: int, payload: dict = None):
+    """
+    Client rejects a worker's application to a team job skill slot.
+    
+    The application status is set to REJECTED and the worker is notified.
+    Optional rejection reason can be provided.
+    """
+    try:
+        reason = payload.get('reason') if payload else None
+        print(f"❌ Client rejecting application #{application_id} for team job #{job_id}")
+        
+        result = reject_team_application(
+            job_id=job_id,
+            application_id=application_id,
+            client_user=request.auth,
+            reason=reason
+        )
+        
+        if not result.get('success'):
+            return Response(result, status=400)
+        
+        return result
+        
+    except Exception as e:
+        print(f"❌ Error rejecting team application: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": str(e)}, status=500)
+
+
 @router.post("/team/{job_id}/start", auth=dual_auth)
 def start_team_job_endpoint(request, job_id: int, payload: TeamJobStartSchema = None):
     """
@@ -5401,10 +5432,10 @@ def get_team_job_applications_endpoint(request, job_id: int, skill_slot_id: int 
             
             result.append({
                 'application_id': app.applicationID,
-                'worker_id': worker.workerID if worker else None,
+                'worker_id': worker.id if worker else None,
                 'worker_name': f"{profile.firstName} {profile.lastName}" if profile else "Unknown",
-                'worker_avatar': profile.profilePicture.url if profile and profile.profilePicture else None,
-                'worker_rating': float(worker.rating) if worker and worker.rating else None,
+                'worker_avatar': profile.profileImg.url if profile and profile.profileImg else None,
+                'worker_rating': float(worker.workerRating) if worker and worker.workerRating else None,
                 'skill_slot_id': slot.skillSlotID if slot else None,
                 'specialization_name': slot.specializationID.specializationName if slot else None,
                 'proposal_message': app.proposalMessage,
