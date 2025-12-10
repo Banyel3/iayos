@@ -1721,7 +1721,7 @@ def update_certification_endpoint(
     expiry_date: str = Form(None),  # type: ignore
     specialization_id: int = Form(None),  # type: ignore  # NEW: Update linked skill
     certificate_file: Any = File(None),  # type: ignore
-    _method: str = Form(None),
+    method_override: str = Form(None),
 ):
     """
     Update certification fields including optional certificate image.
@@ -1839,7 +1839,7 @@ def update_certification_endpoint_post(
     expiry_date: str = Form(None),  # type: ignore
     specialization_id: int = Form(None),  # type: ignore
     certificate_file: Any = File(None),  # type: ignore
-    _method: str = Form(None),
+    method_override: str = Form(None),
 ):
     """POST alias to support mobile FormData uploads with method override."""
     # Reuse the PUT handler logic
@@ -1852,7 +1852,7 @@ def update_certification_endpoint_post(
         expiry_date=expiry_date,
         specialization_id=specialization_id,
         certificate_file=certificate_file,
-        _method=_method,
+        method_override=method_override,
     )
 
 

@@ -213,7 +213,7 @@ export const useUpdateCertification = () => {
       }
 
       // Method override to avoid RN PUT+FormData drop issues
-      formData.append("_method", "PUT");
+      formData.append("method_override", "PUT");
 
       const response = await apiRequest(ENDPOINTS.CERTIFICATION_DETAIL(id), {
         method: "POST",
