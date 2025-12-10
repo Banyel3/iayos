@@ -1,10 +1,11 @@
 /**
  * Review Submission Screen
- * Phase 8: Reviews & Ratings System
+ * Phase 8: Reviews & Ratings System - Multi-Criteria Reviews
  *
  * Allows users to submit a review for a completed job
  * Features:
- * - 5-star rating selector
+ * - 4 separate rating categories (Quality, Communication, Punctuality, Professionalism)
+ * - 5-star rating selector for each category
  * - Text review input with character limit
  * - Validation before submission
  * - Success/error handling
@@ -35,19 +36,77 @@ import { SubmitReviewRequest } from "@/lib/types/review";
 const MIN_COMMENT_LENGTH = 10;
 const MAX_COMMENT_LENGTH = 500;
 
+// Rating category descriptions
+const RATING_CATEGORIES = [
+  {
+    key: "quality" as const,
+    label: "Quality of Work",
+    description: "How well was the job completed?",
+    icon: "🏆",
+  },
+  {
+    key: "communication" as const,
+    label: "Communication",
+    description: "How responsive and clear were they?",
+    icon: "💬",
+  },
+  {
+    key: "punctuality" as const,
+    label: "Punctuality",
+    description: "Were they on time and met deadlines?",
+    icon: "⏰",
+  },
+  {
+    key: "professionalism" as const,
+    label: "Professionalism",
+    description: "How professional was their conduct?",
+    icon: "👔",
+  },
+];
+
+interface Ratings {
+  quality: number;
+  communication: number;
+  punctuality: number;
+  professionalism: number;
+}
+
 export default function SubmitReviewScreen() {
   const { jobId, revieweeId, revieweeName, reviewerType } =
     useLocalSearchParams();
 
-  const [rating, setRating] = useState(0);
+  const [ratings, setRatings] = useState<Ratings>({
+    quality: 0,
+    communication: 0,
+    punctuality: 0,
+    professionalism: 0,
+  });
   const [comment, setComment] = useState("");
 
   const submitReviewMutation = useSubmitReview();
 
+  // Calculate overall rating
+  const overallRating =
+    (ratings.quality +
+      ratings.communication +
+      ratings.punctuality +
+      ratings.professionalism) /
+    4;
+
+  // Check if all ratings are filled
+  const allRatingsFilled = Object.values(ratings).every((r) => r > 0);
+
+  const handleRatingChange = (category: keyof Ratings, value: number) => {
+    setRatings((prev) => ({ ...prev, [category]: value }));
+  };
+
   const handleSubmit = () => {
-    // Validation
-    if (rating === 0) {
-      Alert.alert("Rating Required", "Please select a star rating");
+    // Validation - check all categories
+    if (!allRatingsFilled) {
+      Alert.alert(
+        "Ratings Required",
+        "Please rate all categories before submitting"
+      );
       return;
     }
 
@@ -70,7 +129,10 @@ export default function SubmitReviewScreen() {
     const reviewData: SubmitReviewRequest = {
       job_id: Number(jobId),
       reviewee_id: Number(revieweeId),
-      rating: rating,
+      rating_quality: ratings.quality,
+      rating_communication: ratings.communication,
+      rating_punctuality: ratings.punctuality,
+      rating_professionalism: ratings.professionalism,
       comment: comment.trim(),
       reviewer_type: reviewerType as "CLIENT" | "WORKER",
     };
@@ -111,22 +173,58 @@ export default function SubmitReviewScreen() {
           </Card.Content>
         </Card>
 
-        {/* Rating Section */}
+        {/* Multi-Criteria Rating Section */}
         <Card style={styles.card}>
           <Card.Content>
             <Text style={styles.sectionTitle}>Rate your experience</Text>
-            <View style={styles.ratingContainer}>
-              <StarRating
-                rating={rating}
-                onChange={setRating}
-                size={40}
-                interactive={true}
-              />
-            </View>
-            {rating > 0 && (
-              <Text style={styles.ratingText}>
-                {getRatingLabel(rating)} ({rating.toFixed(1)} stars)
-              </Text>
+            <Text style={styles.sectionSubtitle}>
+              Please rate each category from 1 to 5 stars
+            </Text>
+
+            {RATING_CATEGORIES.map((category, index) => (
+              <View key={category.key} style={styles.ratingRow}>
+                <View style={styles.ratingLabelContainer}>
+                  <Text style={styles.ratingIcon}>{category.icon}</Text>
+                  <View style={styles.ratingTextContainer}>
+                    <Text style={styles.ratingLabel}>{category.label}</Text>
+                    <Text style={styles.ratingDescription}>
+                      {category.description}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.starContainer}>
+                  <StarRating
+                    rating={ratings[category.key]}
+                    onChange={(value) =>
+                      handleRatingChange(category.key, value)
+                    }
+                    size={28}
+                    interactive={true}
+                  />
+                </View>
+                {index < RATING_CATEGORIES.length - 1 && (
+                  <Divider style={styles.ratingDivider} />
+                )}
+              </View>
+            ))}
+
+            {/* Overall Rating Summary */}
+            {allRatingsFilled && (
+              <View style={styles.overallRatingContainer}>
+                <Divider style={styles.overallDivider} />
+                <View style={styles.overallRatingRow}>
+                  <Text style={styles.overallRatingLabel}>Overall Rating</Text>
+                  <View style={styles.overallRatingValue}>
+                    <Text style={styles.overallRatingText}>
+                      {overallRating.toFixed(1)}
+                    </Text>
+                    <Text style={styles.overallRatingStar}>⭐</Text>
+                  </View>
+                </View>
+                <Text style={styles.overallRatingDescription}>
+                  {getRatingLabel(overallRating)}
+                </Text>
+              </View>
             )}
           </Card.Content>
         </Card>
@@ -179,8 +277,11 @@ export default function SubmitReviewScreen() {
           <Button
             mode="contained"
             onPress={handleSubmit}
-            disabled={submitReviewMutation.isPending}
-            style={styles.submitButton}
+            disabled={submitReviewMutation.isPending || !allRatingsFilled}
+            style={[
+              styles.submitButton,
+              !allRatingsFilled && styles.submitButtonDisabled,
+            ]}
             contentStyle={styles.submitButtonContent}
           >
             {submitReviewMutation.isPending ? (
@@ -189,6 +290,12 @@ export default function SubmitReviewScreen() {
               "Submit Review"
             )}
           </Button>
+
+          {!allRatingsFilled && (
+            <Text style={styles.incompleteText}>
+              Please rate all categories to submit
+            </Text>
+          )}
 
           <Button
             mode="outlined"
@@ -238,18 +345,82 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: "600",
+    marginBottom: 4,
+  },
+  sectionSubtitle: {
+    fontSize: 14,
+    color: "#666",
     marginBottom: 16,
   },
-  ratingContainer: {
-    alignItems: "center",
-    marginVertical: 16,
+  ratingRow: {
+    marginBottom: 8,
   },
-  ratingText: {
+  ratingLabelContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  ratingIcon: {
+    fontSize: 24,
+    marginRight: 12,
+  },
+  ratingTextContainer: {
+    flex: 1,
+  },
+  ratingLabel: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#333",
+  },
+  ratingDescription: {
+    fontSize: 13,
+    color: "#666",
+    marginTop: 2,
+  },
+  starContainer: {
+    alignItems: "flex-start",
+    marginLeft: 36,
+    marginBottom: 8,
+  },
+  ratingDivider: {
+    marginVertical: 12,
+  },
+  overallRatingContainer: {
+    marginTop: 8,
+  },
+  overallDivider: {
+    marginBottom: 16,
+    backgroundColor: "#E0E0E0",
+    height: 2,
+  },
+  overallRatingRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  overallRatingLabel: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#333",
+  },
+  overallRatingValue: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  overallRatingText: {
+    fontSize: 28,
+    fontWeight: "bold",
+    color: "#FFB800",
+    marginRight: 4,
+  },
+  overallRatingStar: {
+    fontSize: 24,
+  },
+  overallRatingDescription: {
     fontSize: 16,
     fontWeight: "600",
     color: "#FFB800",
-    textAlign: "center",
-    marginTop: 8,
+    marginTop: 4,
   },
   textInput: {
     minHeight: 150,
@@ -286,8 +457,17 @@ const styles = StyleSheet.create({
   submitButton: {
     marginBottom: 12,
   },
+  submitButtonDisabled: {
+    opacity: 0.6,
+  },
   submitButtonContent: {
     paddingVertical: 8,
+  },
+  incompleteText: {
+    fontSize: 13,
+    color: "#F44336",
+    textAlign: "center",
+    marginBottom: 12,
   },
   cancelButton: {
     borderColor: "#999",

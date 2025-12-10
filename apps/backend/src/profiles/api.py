@@ -753,11 +753,14 @@ def get_conversations(request, filter: str = "all"):
     """
     Get all job-based conversations for the current user's profile.
     Returns list of conversations tied to jobs where user is either client or worker.
+    Includes both 1:1 conversations and team group conversations.
     
     Query params:
     - filter: 'all', 'unread', or 'archived' (default: 'all')
     """
     try:
+        from profiles.models import ConversationParticipant
+        
         # Get user's profile based on profile_type from JWT
         profile_type = getattr(request.auth, 'profile_type', None)
         if profile_type:
@@ -780,38 +783,76 @@ def get_conversations(request, filter: str = "all"):
         print(f"📋 Profile Type: {user_profile.profileType}")
         print(f"🎫 JWT Profile Type: {profile_type}")
         
-        # Get all conversations where user is either client or worker
-        conversations_query = Conversation.objects.filter(
-            Q(client=user_profile) | Q(worker=user_profile)
-        ).select_related(
+        # Get 1:1 conversations where user is client or worker
+        one_on_one_query = Conversation.objects.filter(
+            Q(client=user_profile) | Q(worker=user_profile),
+            conversation_type='ONE_ON_ONE'
+        )
+        
+        # Get team group conversations where user is a participant
+        team_conv_ids = ConversationParticipant.objects.filter(
+            profile=user_profile
+        ).values_list('conversation_id', flat=True)
+        
+        team_query = Conversation.objects.filter(
+            conversationID__in=team_conv_ids,
+            conversation_type='TEAM_GROUP'
+        )
+        
+        # Combine both queries
+        conversations_query = (one_on_one_query | team_query).select_related(
             'client__accountFK',
             'worker__accountFK',
             'relatedJobPosting',
             'lastMessageSender'
-        )
+        ).distinct()
         
         print(f"💬 Total conversations found: {conversations_query.count()}")
         
         # Apply filters based on the filter parameter
         if filter == "archived":
-            # Show only archived conversations for this user
+            # For 1:1: use archivedByClient/archivedByWorker
+            # For team: check ConversationParticipant.is_archived
+            archived_team_ids = ConversationParticipant.objects.filter(
+                profile=user_profile,
+                is_archived=True
+            ).values_list('conversation_id', flat=True)
+            
             conversations_query = conversations_query.filter(
-                (Q(client=user_profile) & Q(archivedByClient=True)) |
-                (Q(worker=user_profile) & Q(archivedByWorker=True))
+                (Q(conversation_type='ONE_ON_ONE') & (
+                    (Q(client=user_profile) & Q(archivedByClient=True)) |
+                    (Q(worker=user_profile) & Q(archivedByWorker=True))
+                )) |
+                (Q(conversation_type='TEAM_GROUP') & Q(conversationID__in=archived_team_ids))
             )
         else:
             # For 'all' and 'unread', exclude archived conversations
-            # Only show conversations where user is participant AND not archived by them
+            archived_team_ids = ConversationParticipant.objects.filter(
+                profile=user_profile,
+                is_archived=True
+            ).values_list('conversation_id', flat=True)
+            
             conversations_query = conversations_query.filter(
-                (Q(client=user_profile) & Q(archivedByClient=False)) |
-                (Q(worker=user_profile) & Q(archivedByWorker=False))
+                (Q(conversation_type='ONE_ON_ONE') & (
+                    (Q(client=user_profile) & Q(archivedByClient=False)) |
+                    (Q(worker=user_profile) & Q(archivedByWorker=False))
+                )) |
+                (Q(conversation_type='TEAM_GROUP') & ~Q(conversationID__in=archived_team_ids))
             )
             
             # Additional filter for unread only
             if filter == "unread":
+                unread_team_ids = ConversationParticipant.objects.filter(
+                    profile=user_profile,
+                    unread_count__gt=0
+                ).values_list('conversation_id', flat=True)
+                
                 conversations_query = conversations_query.filter(
-                    (Q(client=user_profile) & Q(unreadCountClient__gt=0)) |
-                    (Q(worker=user_profile) & Q(unreadCountWorker__gt=0))
+                    (Q(conversation_type='ONE_ON_ONE') & (
+                        (Q(client=user_profile) & Q(unreadCountClient__gt=0)) |
+                        (Q(worker=user_profile) & Q(unreadCountWorker__gt=0))
+                    )) |
+                    (Q(conversation_type='TEAM_GROUP') & Q(conversationID__in=unread_team_ids))
                 )
         
         conversations = conversations_query.order_by('-updatedAt')
@@ -820,6 +861,60 @@ def get_conversations(request, filter: str = "all"):
         
         result = []
         for conv in conversations:
+            # Handle team group conversations differently
+            if conv.conversation_type == 'TEAM_GROUP':
+                job = conv.relatedJobPosting
+                
+                # Get participant info for this user
+                participant = ConversationParticipant.objects.filter(
+                    conversation=conv,
+                    profile=user_profile
+                ).first()
+                
+                # Get all participants for team info
+                all_participants = ConversationParticipant.objects.filter(
+                    conversation=conv
+                ).select_related('profile', 'skill_slot__specializationID')
+                
+                team_members = []
+                for p in all_participants:
+                    if p.profile != user_profile:  # Exclude self
+                        team_members.append({
+                            'profile_id': p.profile.profileID,
+                            'name': f"{p.profile.firstName} {p.profile.lastName}",
+                            'avatar': p.profile.profilePicture.url if p.profile.profilePicture else None,
+                            'role': p.participant_type,
+                            'skill': p.skill_slot.specializationID.specializationName if p.skill_slot else None
+                        })
+                
+                unread_count = participant.unread_count if participant else 0
+                is_archived = participant.is_archived if participant else False
+                
+                result.append({
+                    "id": conv.conversationID,
+                    "conversation_type": "TEAM_GROUP",
+                    "job": {
+                        "id": job.jobID,
+                        "title": job.title,
+                        "status": job.status,
+                        "budget": float(job.budget),
+                        "location": job.location,
+                        "is_team_job": job.is_team_job,
+                        "total_workers": job.total_workers_assigned if job.is_team_job else 1
+                    },
+                    "team_members": team_members,
+                    "my_role": participant.participant_type if participant else "WORKER",
+                    "my_skill": participant.skill_slot.specializationID.specializationName if participant and participant.skill_slot else None,
+                    "last_message": conv.lastMessageText,
+                    "last_message_time": conv.lastMessageTime.isoformat() if conv.lastMessageTime else None,
+                    "unread_count": unread_count,
+                    "is_archived": is_archived,
+                    "status": conv.status,
+                    "created_at": conv.createdAt.isoformat()
+                })
+                continue
+            
+            # Handle 1:1 conversations (existing logic)
             # Determine the other participant (if user is client, show worker/agency; if worker, show client)
             is_client = conv.client == user_profile
             
@@ -888,6 +983,7 @@ def get_conversations(request, filter: str = "all"):
             
             result.append({
                 "id": conv.conversationID,
+                "conversation_type": "ONE_ON_ONE",
                 "job": {
                     "id": job.jobID,
                     "title": job.title,
@@ -898,7 +994,8 @@ def get_conversations(request, filter: str = "all"):
                     "clientMarkedComplete": job.clientMarkedComplete,
                     "workerReviewed": worker_reviewed,
                     "clientReviewed": client_reviewed,
-                    "remainingPaymentPaid": job.remainingPaymentPaid
+                    "remainingPaymentPaid": job.remainingPaymentPaid,
+                    "is_team_job": job.is_team_job
                 },
                 "other_participant": get_participant_info(profile=other_participant, agency=other_agency, job_title=job.title, job=job),
                 "my_role": "CLIENT" if is_client else "WORKER",

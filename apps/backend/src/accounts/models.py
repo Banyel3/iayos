@@ -815,6 +815,68 @@ class Job(models.Model):
         help_text="LISTING = open job post, INVITE = direct hire"
     )
     
+    # ============================================================
+    # TEAM MODE FIELDS - Multi-Skill/Multi-Worker Support
+    # ============================================================
+    is_team_job = models.BooleanField(
+        default=False,
+        help_text="True if this job requires multiple workers/skills (team mode)"
+    )
+    
+    class BudgetAllocationType(models.TextChoices):
+        EQUAL_PER_SKILL = "EQUAL_PER_SKILL", "Equal budget per skill slot"
+        EQUAL_PER_WORKER = "EQUAL_PER_WORKER", "Equal budget per worker (default)"
+        MANUAL_ALLOCATION = "MANUAL_ALLOCATION", "Client manually allocates"
+        SKILL_WEIGHTED = "SKILL_WEIGHTED", "Weighted by skill complexity"
+    
+    budget_allocation_type = models.CharField(
+        max_length=20,
+        choices=BudgetAllocationType.choices,
+        default="EQUAL_PER_WORKER",
+        help_text="How the total budget is distributed among skill slots/workers"
+    )
+    
+    team_job_start_threshold = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=100.00,
+        help_text="Percentage of team positions that must be filled before job can start (0-100)"
+    )
+    
+    @property
+    def total_workers_needed(self):
+        """Calculate total workers needed across all skill slots for team jobs."""
+        if not self.is_team_job:
+            return 1
+        return self.skill_slots.aggregate(
+            total=models.Sum('workers_needed')
+        )['total'] or 0
+    
+    @property
+    def total_workers_assigned(self):
+        """Count of workers currently assigned to this team job."""
+        if not self.is_team_job:
+            return 1 if self.assignedWorkerID else 0
+        return self.team_assignments.filter(
+            assignment_status='ACTIVE'
+        ).count()
+    
+    @property
+    def team_fill_percentage(self):
+        """Percentage of team positions filled."""
+        needed = self.total_workers_needed
+        if needed == 0:
+            return 0
+        return round((self.total_workers_assigned / needed) * 100, 2)
+    
+    @property
+    def can_start_team_job(self):
+        """Check if team job has enough workers to start."""
+        if not self.is_team_job:
+            return self.assignedWorkerID is not None
+        return self.team_fill_percentage >= float(self.team_job_start_threshold)
+    # ============================================================
+    
     # Job Status
     class JobStatus(models.TextChoices):
         ACTIVE = "ACTIVE", "Active"
@@ -1113,6 +1175,16 @@ class JobApplication(models.Model):
         related_name='job_applications'
     )
     
+    # Team Mode: Skill Slot Reference (for team jobs)
+    applied_skill_slot = models.ForeignKey(
+        'JobSkillSlot',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='applications',
+        help_text="Which skill slot this worker is applying for (team jobs only)"
+    )
+    
     # Proposal Details
     proposalMessage = models.TextField()
     proposedBudget = models.DecimalField(max_digits=10, decimal_places=2)
@@ -1153,12 +1225,21 @@ class JobApplication(models.Model):
             models.Index(fields=['jobID', '-createdAt']),
             models.Index(fields=['workerID', '-createdAt']),
             models.Index(fields=['status', '-createdAt']),
+            models.Index(fields=['applied_skill_slot', 'status']),  # Team job applications
         ]
         # Prevent duplicate applications
+        # For team jobs: worker can apply to different skill slots of same job
+        # For non-team jobs: applied_skill_slot is NULL, so traditional constraint applies
         constraints = [
             models.UniqueConstraint(
+                fields=['jobID', 'workerID', 'applied_skill_slot'],
+                name='unique_job_skill_slot_application'
+            ),
+            # Also prevent duplicate NULL skill slot applications (non-team jobs)
+            models.UniqueConstraint(
                 fields=['jobID', 'workerID'],
-                name='unique_job_application'
+                condition=models.Q(applied_skill_slot__isnull=True),
+                name='unique_non_team_job_application'
             )
         ]
     
@@ -1360,7 +1441,29 @@ class JobReview(models.Model):
     rating = models.DecimalField(
         max_digits=3, 
         decimal_places=2, 
-        validators=[MinValueValidator(1.0), MaxValueValidator(5.0)]
+        validators=[MinValueValidator(1.0), MaxValueValidator(5.0)],
+        help_text="Overall rating (auto-calculated as average of criteria)"
+    )
+    # Multi-criteria rating fields (1-5 stars each)
+    rating_quality = models.DecimalField(
+        max_digits=3, decimal_places=2, 
+        validators=[MinValueValidator(1.0), MaxValueValidator(5.0)],
+        null=True, blank=True, help_text="Quality of work rating"
+    )
+    rating_communication = models.DecimalField(
+        max_digits=3, decimal_places=2, 
+        validators=[MinValueValidator(1.0), MaxValueValidator(5.0)],
+        null=True, blank=True, help_text="Communication rating"
+    )
+    rating_punctuality = models.DecimalField(
+        max_digits=3, decimal_places=2, 
+        validators=[MinValueValidator(1.0), MaxValueValidator(5.0)],
+        null=True, blank=True, help_text="Punctuality rating"
+    )
+    rating_professionalism = models.DecimalField(
+        max_digits=3, decimal_places=2, 
+        validators=[MinValueValidator(1.0), MaxValueValidator(5.0)],
+        null=True, blank=True, help_text="Professionalism rating"
     )
     
     # Review Content
@@ -1678,3 +1781,219 @@ class UserPaymentMethod(models.Model):
     
     def __str__(self):
         return f"{self.methodType} - {self.accountName} ({self.accountNumber[-4:]})"
+
+
+# ===========================================================================
+# TEAM MODE MULTI-SKILL MULTI-WORKER MODELS
+# ===========================================================================
+
+class JobSkillSlot(models.Model):
+    """
+    Represents a skill requirement slot for a team job.
+    Each slot specifies a specialization needed, number of workers, and budget allocation.
+    Example: Job needs 2 Plumbers (₱3000) + 3 Electricians (₱4500)
+    """
+    skillSlotID = models.BigAutoField(primary_key=True)
+    
+    jobID = models.ForeignKey(
+        Job,
+        on_delete=models.CASCADE,
+        related_name='skill_slots'
+    )
+    
+    specializationID = models.ForeignKey(
+        Specializations,
+        on_delete=models.CASCADE,
+        related_name='job_skill_slots',
+        help_text="The specialization/skill required"
+    )
+    
+    # Number of workers needed for this skill
+    workers_needed = models.PositiveIntegerField(
+        default=1,
+        help_text="Number of workers needed for this skill (1-10)"
+    )
+    
+    # Budget allocated to this skill slot
+    budget_allocated = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0,
+        help_text="Budget allocated to this skill slot"
+    )
+    
+    # Skill level requirement
+    class SkillLevel(models.TextChoices):
+        ENTRY = "ENTRY", "Entry Level"
+        INTERMEDIATE = "INTERMEDIATE", "Intermediate"
+        EXPERT = "EXPERT", "Expert"
+    
+    skill_level_required = models.CharField(
+        max_length=15,
+        choices=SkillLevel.choices,
+        default="ENTRY",
+        help_text="Minimum skill level required"
+    )
+    
+    # Slot fill status
+    class SlotStatus(models.TextChoices):
+        OPEN = "OPEN", "Open - Accepting Applications"
+        PARTIALLY_FILLED = "PARTIALLY_FILLED", "Partially Filled"
+        FILLED = "FILLED", "Fully Filled"
+        CLOSED = "CLOSED", "Closed"
+    
+    status = models.CharField(
+        max_length=20,
+        choices=SlotStatus.choices,
+        default="OPEN"
+    )
+    
+    # Optional notes for this skill slot
+    notes = models.TextField(
+        null=True,
+        blank=True,
+        help_text="Additional requirements or notes for this skill slot"
+    )
+    
+    # Timestamps
+    createdAt = models.DateTimeField(auto_now_add=True)
+    updatedAt = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'job_skill_slots'
+        ordering = ['jobID', 'specializationID']
+        indexes = [
+            models.Index(fields=['jobID', 'status']),
+            models.Index(fields=['specializationID', 'status']),
+        ]
+    
+    @property
+    def budget_per_worker(self):
+        """Calculate budget per worker for this slot"""
+        if self.workers_needed > 0:
+            return self.budget_allocated / self.workers_needed
+        return Decimal('0.00')
+    
+    @property
+    def assigned_count(self):
+        """Count of currently assigned workers in this slot"""
+        return self.worker_assignments.filter(
+            assignment_status__in=['ACTIVE', 'COMPLETED']
+        ).count()
+    
+    @property
+    def openings_remaining(self):
+        """Number of openings still available"""
+        return max(0, self.workers_needed - self.assigned_count)
+    
+    def update_status(self):
+        """Update slot status based on assignments"""
+        assigned = self.assigned_count
+        if assigned == 0:
+            self.status = self.SlotStatus.OPEN
+        elif assigned < self.workers_needed:
+            self.status = self.SlotStatus.PARTIALLY_FILLED
+        else:
+            self.status = self.SlotStatus.FILLED
+        self.save(update_fields=['status', 'updatedAt'])
+    
+    def __str__(self):
+        return f"{self.specializationID.specializationName} x{self.workers_needed} for Job #{self.jobID_id}"
+
+
+class JobWorkerAssignment(models.Model):
+    """
+    Tracks individual worker assignments to skill slots in team jobs.
+    Each worker occupies one position in a skill slot.
+    """
+    assignmentID = models.BigAutoField(primary_key=True)
+    
+    jobID = models.ForeignKey(
+        Job,
+        on_delete=models.CASCADE,
+        related_name='worker_assignments'
+    )
+    
+    skillSlotID = models.ForeignKey(
+        JobSkillSlot,
+        on_delete=models.CASCADE,
+        related_name='worker_assignments'
+    )
+    
+    workerID = models.ForeignKey(
+        WorkerProfile,
+        on_delete=models.CASCADE,
+        related_name='team_job_assignments'
+    )
+    
+    # Position within the slot (1st plumber, 2nd plumber, etc.)
+    slot_position = models.PositiveIntegerField(
+        default=1,
+        help_text="Position number within this skill slot"
+    )
+    
+    # Assignment status
+    class AssignmentStatus(models.TextChoices):
+        ACTIVE = "ACTIVE", "Actively Assigned"
+        COMPLETED = "COMPLETED", "Work Completed"
+        REMOVED = "REMOVED", "Removed from Job"
+        WITHDRAWN = "WITHDRAWN", "Worker Withdrew"
+    
+    assignment_status = models.CharField(
+        max_length=15,
+        choices=AssignmentStatus.choices,
+        default="ACTIVE"
+    )
+    
+    # Worker completion tracking (for individual worker completion in team jobs)
+    worker_marked_complete = models.BooleanField(default=False)
+    worker_marked_complete_at = models.DateTimeField(null=True, blank=True)
+    completion_notes = models.TextField(null=True, blank=True)
+    
+    # Individual worker rating (after job completion)
+    individual_rating = models.DecimalField(
+        max_digits=3,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Client's rating for this specific worker's contribution"
+    )
+    
+    # Timestamps
+    assignedAt = models.DateTimeField(auto_now_add=True)
+    updatedAt = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'job_worker_assignments'
+        ordering = ['jobID', 'skillSlotID', 'slot_position']
+        indexes = [
+            models.Index(fields=['jobID', 'assignment_status']),
+            models.Index(fields=['workerID', 'assignment_status']),
+            models.Index(fields=['skillSlotID', 'slot_position']),
+        ]
+        constraints = [
+            # Prevent same worker assigned twice to same job
+            models.UniqueConstraint(
+                fields=['jobID', 'workerID'],
+                name='unique_worker_per_job'
+            ),
+            # Prevent duplicate positions in same slot
+            models.UniqueConstraint(
+                fields=['skillSlotID', 'slot_position'],
+                name='unique_slot_position'
+            ),
+        ]
+    
+    def save(self, *args, **kwargs):
+        """Auto-assign slot position if not set"""
+        if not self.slot_position:
+            max_position = JobWorkerAssignment.objects.filter(
+                skillSlotID=self.skillSlotID
+            ).aggregate(models.Max('slot_position'))['slot_position__max'] or 0
+            self.slot_position = max_position + 1
+        super().save(*args, **kwargs)
+        # Update slot status after saving
+        self.skillSlotID.update_status()
+    
+    def __str__(self):
+        return f"{self.workerID.profileID.firstName} - Position {self.slot_position} in {self.skillSlotID}"

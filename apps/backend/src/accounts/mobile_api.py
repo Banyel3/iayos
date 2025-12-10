@@ -2770,7 +2770,7 @@ def mobile_submit_review(request, job_id: int, payload: SubmitReviewMobileSchema
     """
     Submit a review after job completion
     Supports both client-to-worker and worker-to-client reviews
-    Includes category ratings (quality, communication, professionalism, etc.)
+    Includes category ratings (quality, communication, punctuality, professionalism)
     """
     from .mobile_services import submit_review_mobile
 
@@ -2779,7 +2779,10 @@ def mobile_submit_review(request, job_id: int, payload: SubmitReviewMobileSchema
         result = submit_review_mobile(
             user=user,
             job_id=job_id,
-            rating=payload.rating,
+            rating_quality=payload.rating_quality,
+            rating_communication=payload.rating_communication,
+            rating_punctuality=payload.rating_punctuality,
+            rating_professionalism=payload.rating_professionalism,
             comment=payload.comment,
             review_type=payload.review_type
         )

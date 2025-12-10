@@ -74,8 +74,11 @@ export default function ChatScreen() {
   const [showCashUploadModal, setShowCashUploadModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
-  // Review state
-  const [rating, setRating] = useState(0);
+  // Review state - Multi-criteria ratings
+  const [ratingQuality, setRatingQuality] = useState(0);
+  const [ratingCommunication, setRatingCommunication] = useState(0);
+  const [ratingPunctuality, setRatingPunctuality] = useState(0);
+  const [ratingProfessionalism, setRatingProfessionalism] = useState(0);
   const [reviewComment, setReviewComment] = useState("");
   // For agency jobs: track if we're reviewing employee or agency
   const [reviewStep, setReviewStep] = useState<"EMPLOYEE" | "AGENCY">(
@@ -125,14 +128,14 @@ export default function ChatScreen() {
   // Check if conversation is closed (both parties reviewed)
   // BUT if there's an APPROVED backjob (UNDER_REVIEW status), conversation should stay open
   // OPEN status means waiting for admin approval - conversation should remain closed
-  const hasApprovedBackjob = 
-    conversation?.backjob?.has_backjob === true && 
+  const hasApprovedBackjob =
+    conversation?.backjob?.has_backjob === true &&
     conversation?.backjob?.status === "UNDER_REVIEW";
   const isConversationClosed =
     conversation?.job?.clientMarkedComplete &&
     conversation?.job?.clientReviewed &&
     conversation?.job?.workerReviewed &&
-    !hasApprovedBackjob;  // Don't close if there's an APPROVED backjob
+    !hasApprovedBackjob; // Don't close if there's an APPROVED backjob
 
   // Send message mutation
   const sendMutation = useSendMessageMutation();
@@ -413,8 +416,18 @@ export default function ChatScreen() {
   const handleSubmitReview = () => {
     if (!conversation) return;
 
-    if (rating === 0) {
-      Alert.alert("Rating Required", "Please select a star rating");
+    // Check all ratings are filled
+    const allRatingsFilled =
+      ratingQuality > 0 &&
+      ratingCommunication > 0 &&
+      ratingPunctuality > 0 &&
+      ratingProfessionalism > 0;
+
+    if (!allRatingsFilled) {
+      Alert.alert(
+        "Ratings Required",
+        "Please rate all categories before submitting"
+      );
       return;
     }
 
@@ -452,11 +465,22 @@ export default function ChatScreen() {
           return;
         }
 
+        // Calculate overall rating for display
+        const overallRating =
+          (ratingQuality +
+            ratingCommunication +
+            ratingPunctuality +
+            ratingProfessionalism) /
+          4;
+
         submitReviewMutation.mutate(
           {
             job_id: conversation.job.id,
             reviewee_id: currentEmployeeId,
-            rating,
+            rating_quality: ratingQuality,
+            rating_communication: ratingCommunication,
+            rating_punctuality: ratingPunctuality,
+            rating_professionalism: ratingProfessionalism,
             comment: reviewComment,
             reviewer_type: "CLIENT",
             review_target: "EMPLOYEE",
@@ -464,7 +488,10 @@ export default function ChatScreen() {
           },
           {
             onSuccess: (data: any) => {
-              setRating(0);
+              setRatingQuality(0);
+              setRatingCommunication(0);
+              setRatingPunctuality(0);
+              setRatingProfessionalism(0);
               setReviewComment("");
 
               // Check if there are more employees to review
@@ -478,7 +505,7 @@ export default function ChatScreen() {
                 );
                 Alert.alert(
                   "Employee Rated!",
-                  `You gave ${currentEmployeeName} a ${rating}-star rating. Now please rate ${nextEmployee?.name || "the next employee"}.`
+                  `You gave ${currentEmployeeName} a ${overallRating.toFixed(1)}-star rating. Now please rate ${nextEmployee?.name || "the next employee"}.`
                 );
                 // Refetch to get updated pending list
                 refetch();
@@ -502,7 +529,10 @@ export default function ChatScreen() {
 
               // Check if employee was already reviewed
               if (errorMessage.toLowerCase().includes("already reviewed")) {
-                setRating(0);
+                setRatingQuality(0);
+                setRatingCommunication(0);
+                setRatingPunctuality(0);
+                setRatingProfessionalism(0);
                 setReviewComment("");
                 refetch(); // Refresh to get updated pending list
                 Alert.alert(
@@ -521,14 +551,20 @@ export default function ChatScreen() {
           {
             job_id: conversation.job.id,
             reviewee_id: 0, // Backend uses job's agency
-            rating,
+            rating_quality: ratingQuality,
+            rating_communication: ratingCommunication,
+            rating_punctuality: ratingPunctuality,
+            rating_professionalism: ratingProfessionalism,
             comment: reviewComment,
             reviewer_type: "CLIENT",
             review_target: "AGENCY",
           },
           {
             onSuccess: () => {
-              setRating(0);
+              setRatingQuality(0);
+              setRatingCommunication(0);
+              setRatingPunctuality(0);
+              setRatingProfessionalism(0);
               setReviewComment("");
               refetch();
               Alert.alert("Thank You!", "Your reviews have been submitted.");
@@ -555,13 +591,19 @@ export default function ChatScreen() {
         {
           job_id: conversation.job.id,
           reviewee_id: revieweeId,
-          rating,
+          rating_quality: ratingQuality,
+          rating_communication: ratingCommunication,
+          rating_punctuality: ratingPunctuality,
+          rating_professionalism: ratingProfessionalism,
           comment: reviewComment,
           reviewer_type: conversation.my_role as "CLIENT" | "WORKER",
         },
         {
           onSuccess: () => {
-            setRating(0);
+            setRatingQuality(0);
+            setRatingCommunication(0);
+            setRatingPunctuality(0);
+            setRatingProfessionalism(0);
             setReviewComment("");
             // Refresh conversation to update review status
             refetch();
@@ -1189,12 +1231,20 @@ export default function ChatScreen() {
             !conversation.backjob?.has_backjob && (
               <TouchableOpacity
                 style={styles.requestBackjobBanner}
-                onPress={() => router.push(`/jobs/request-backjob?jobId=${conversation.job.id}`)}
+                onPress={() =>
+                  router.push(
+                    `/jobs/request-backjob?jobId=${conversation.job.id}`
+                  )
+                }
                 activeOpacity={0.8}
               >
                 <View style={styles.requestBackjobContent}>
                   <View style={styles.requestBackjobIconContainer}>
-                    <Ionicons name="refresh-circle" size={24} color={Colors.white} />
+                    <Ionicons
+                      name="refresh-circle"
+                      size={24}
+                      color={Colors.white}
+                    />
                   </View>
                   <View style={styles.requestBackjobText}>
                     <Text style={styles.requestBackjobTitle}>
@@ -1204,7 +1254,11 @@ export default function ChatScreen() {
                       Tap here to request a backjob (rework)
                     </Text>
                   </View>
-                  <Ionicons name="chevron-forward" size={20} color={Colors.primary} />
+                  <Ionicons
+                    name="chevron-forward"
+                    size={20}
+                    color={Colors.primary}
+                  />
                 </View>
               </TouchableOpacity>
             )}
@@ -1346,21 +1400,135 @@ export default function ChatScreen() {
                       </>
                     )}
 
-                    {/* Star Rating */}
-                    <View style={styles.starsContainer}>
-                      {[1, 2, 3, 4, 5].map((star) => (
-                        <TouchableOpacity
-                          key={star}
-                          onPress={() => setRating(star)}
-                          style={styles.starButton}
-                        >
-                          <Ionicons
-                            name={star <= rating ? "star" : "star-outline"}
-                            size={36}
-                            color={star <= rating ? "#FFB800" : Colors.border}
-                          />
-                        </TouchableOpacity>
-                      ))}
+                    {/* Multi-Criteria Star Ratings */}
+                    <View style={styles.multiCriteriaContainer}>
+                      {/* Quality Rating */}
+                      <View style={styles.criteriaRow}>
+                        <View style={styles.criteriaLabelRow}>
+                          <Text style={styles.criteriaIcon}>🏆</Text>
+                          <Text style={styles.criteriaLabel}>Quality</Text>
+                        </View>
+                        <View style={styles.criteriaStarsRow}>
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <TouchableOpacity
+                              key={star}
+                              onPress={() => setRatingQuality(star)}
+                              style={styles.starButtonSmall}
+                            >
+                              <Ionicons
+                                name={
+                                  star <= ratingQuality
+                                    ? "star"
+                                    : "star-outline"
+                                }
+                                size={24}
+                                color={
+                                  star <= ratingQuality
+                                    ? "#FFB800"
+                                    : Colors.border
+                                }
+                              />
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      </View>
+
+                      {/* Communication Rating */}
+                      <View style={styles.criteriaRow}>
+                        <View style={styles.criteriaLabelRow}>
+                          <Text style={styles.criteriaIcon}>💬</Text>
+                          <Text style={styles.criteriaLabel}>
+                            Communication
+                          </Text>
+                        </View>
+                        <View style={styles.criteriaStarsRow}>
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <TouchableOpacity
+                              key={star}
+                              onPress={() => setRatingCommunication(star)}
+                              style={styles.starButtonSmall}
+                            >
+                              <Ionicons
+                                name={
+                                  star <= ratingCommunication
+                                    ? "star"
+                                    : "star-outline"
+                                }
+                                size={24}
+                                color={
+                                  star <= ratingCommunication
+                                    ? "#FFB800"
+                                    : Colors.border
+                                }
+                              />
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      </View>
+
+                      {/* Punctuality Rating */}
+                      <View style={styles.criteriaRow}>
+                        <View style={styles.criteriaLabelRow}>
+                          <Text style={styles.criteriaIcon}>⏰</Text>
+                          <Text style={styles.criteriaLabel}>Punctuality</Text>
+                        </View>
+                        <View style={styles.criteriaStarsRow}>
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <TouchableOpacity
+                              key={star}
+                              onPress={() => setRatingPunctuality(star)}
+                              style={styles.starButtonSmall}
+                            >
+                              <Ionicons
+                                name={
+                                  star <= ratingPunctuality
+                                    ? "star"
+                                    : "star-outline"
+                                }
+                                size={24}
+                                color={
+                                  star <= ratingPunctuality
+                                    ? "#FFB800"
+                                    : Colors.border
+                                }
+                              />
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      </View>
+
+                      {/* Professionalism Rating */}
+                      <View style={styles.criteriaRow}>
+                        <View style={styles.criteriaLabelRow}>
+                          <Text style={styles.criteriaIcon}>👔</Text>
+                          <Text style={styles.criteriaLabel}>
+                            Professionalism
+                          </Text>
+                        </View>
+                        <View style={styles.criteriaStarsRow}>
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <TouchableOpacity
+                              key={star}
+                              onPress={() => setRatingProfessionalism(star)}
+                              style={styles.starButtonSmall}
+                            >
+                              <Ionicons
+                                name={
+                                  star <= ratingProfessionalism
+                                    ? "star"
+                                    : "star-outline"
+                                }
+                                size={24}
+                                color={
+                                  star <= ratingProfessionalism
+                                    ? "#FFB800"
+                                    : Colors.border
+                                }
+                              />
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      </View>
                     </View>
 
                     {/* Review Comment Input */}
@@ -1382,7 +1550,10 @@ export default function ChatScreen() {
                     <TouchableOpacity
                       style={[
                         styles.submitReviewButton,
-                        (rating === 0 ||
+                        (ratingQuality === 0 ||
+                          ratingCommunication === 0 ||
+                          ratingPunctuality === 0 ||
+                          ratingProfessionalism === 0 ||
                           !reviewComment.trim() ||
                           submitReviewMutation.isPending) &&
                           styles.submitReviewButtonDisabled,
@@ -1392,7 +1563,10 @@ export default function ChatScreen() {
                         handleSubmitReview();
                       }}
                       disabled={
-                        rating === 0 ||
+                        ratingQuality === 0 ||
+                        ratingCommunication === 0 ||
+                        ratingPunctuality === 0 ||
+                        ratingProfessionalism === 0 ||
                         !reviewComment.trim() ||
                         submitReviewMutation.isPending
                       }
@@ -1429,7 +1603,11 @@ export default function ChatScreen() {
           <View style={styles.backjobSection}>
             <TouchableOpacity
               style={styles.backjobBanner}
-              onPress={() => router.push(`/jobs/backjob-detail?jobId=${conversation.job.id}&disputeId=${conversation.backjob?.dispute_id}`)}
+              onPress={() =>
+                router.push(
+                  `/jobs/backjob-detail?jobId=${conversation.job.id}&disputeId=${conversation.backjob?.dispute_id}`
+                )
+              }
               activeOpacity={0.8}
             >
               <View style={styles.backjobBannerContent}>
@@ -1445,11 +1623,18 @@ export default function ChatScreen() {
                   </Text>
                   <View style={styles.backjobStatusBadge}>
                     <Text style={styles.backjobStatusText}>
-                      Status: {conversation.backjob.status === "UNDER_REVIEW" ? "Action Required" : "Pending Review"}
+                      Status:{" "}
+                      {conversation.backjob.status === "UNDER_REVIEW"
+                        ? "Action Required"
+                        : "Pending Review"}
                     </Text>
                   </View>
                 </View>
-                <Ionicons name="chevron-forward" size={20} color={Colors.warning} />
+                <Ionicons
+                  name="chevron-forward"
+                  size={20}
+                  color={Colors.warning}
+                />
               </View>
             </TouchableOpacity>
 
@@ -1520,7 +1705,10 @@ export default function ChatScreen() {
                   conversation.backjob?.backjob_started &&
                   !conversation.backjob?.worker_marked_complete && (
                     <TouchableOpacity
-                      style={[styles.actionButton, styles.markBackjobCompleteButton]}
+                      style={[
+                        styles.actionButton,
+                        styles.markBackjobCompleteButton,
+                      ]}
                       onPress={handleMarkBackjobComplete}
                       disabled={markBackjobCompleteMutation.isPending}
                     >
@@ -1562,10 +1750,7 @@ export default function ChatScreen() {
                   conversation.backjob?.worker_marked_complete &&
                   !conversation.backjob?.client_confirmed_complete && (
                     <TouchableOpacity
-                      style={[
-                        styles.actionButton,
-                        styles.approveBackjobButton,
-                      ]}
+                      style={[styles.actionButton, styles.approveBackjobButton]}
                       onPress={handleApproveBackjobCompletion}
                       disabled={approveBackjobCompletionMutation.isPending}
                     >
@@ -2293,6 +2478,37 @@ const styles = StyleSheet.create({
   },
   starButton: {
     padding: Spacing.xs,
+  },
+  starButtonSmall: {
+    padding: 2,
+  },
+  // Multi-criteria rating styles
+  multiCriteriaContainer: {
+    marginBottom: Spacing.md,
+  },
+  criteriaRow: {
+    marginBottom: Spacing.sm,
+    paddingBottom: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  criteriaLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: Spacing.xs,
+  },
+  criteriaIcon: {
+    fontSize: 18,
+    marginRight: Spacing.sm,
+  },
+  criteriaLabel: {
+    ...Typography.body.medium,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+  },
+  criteriaStarsRow: {
+    flexDirection: "row",
+    marginLeft: 28,
   },
   reviewInput: {
     ...Typography.body.medium,

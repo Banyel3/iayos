@@ -163,7 +163,11 @@ export function useSubmitReview() {
       const response = await apiRequest(ENDPOINTS.SUBMIT_REVIEW(data.job_id), {
         method: "POST",
         body: JSON.stringify({
-          rating: data.rating,
+          // Multi-criteria ratings
+          rating_quality: data.rating_quality,
+          rating_communication: data.rating_communication,
+          rating_punctuality: data.rating_punctuality,
+          rating_professionalism: data.rating_professionalism,
           message: data.comment,
           review_target: data.review_target, // "EMPLOYEE" or "AGENCY" for agency jobs
           employee_id: data.employee_id, // For multi-employee agency jobs

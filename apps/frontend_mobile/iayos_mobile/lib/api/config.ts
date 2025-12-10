@@ -157,6 +157,22 @@ export const ENDPOINTS = {
     `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/${id}/save`,
   SAVED_JOBS: `${API_BASE_URL.replace("/api", "")}/api/mobile/jobs/saved`,
 
+  // Team Jobs (Multi-Skill Multi-Worker)
+  CREATE_TEAM_JOB: `${API_BASE_URL}/jobs/team/create`,
+  TEAM_JOB_DETAIL: (id: number) => `${API_BASE_URL}/jobs/${id}/team`,
+  TEAM_APPLY_SKILL_SLOT: (jobId: number) =>
+    `${API_BASE_URL}/jobs/${jobId}/team/apply`,
+  TEAM_APPROVE_COMPLETION: (jobId: number) =>
+    `${API_BASE_URL}/jobs/${jobId}/team/approve-completion`,
+  TEAM_WORKER_COMPLETE: (jobId: number, assignmentId: number) =>
+    `${API_BASE_URL}/jobs/${jobId}/team/worker-complete/${assignmentId}`,
+  TEAM_ASSIGN_WORKER: (jobId: number) =>
+    `${API_BASE_URL}/jobs/${jobId}/team/assign`,
+  TEAM_REMOVE_WORKER: (jobId: number, workerId: number) =>
+    `${API_BASE_URL}/jobs/${jobId}/team/workers/${workerId}`,
+  TEAM_START_AVAILABLE: (jobId: number) =>
+    `${API_BASE_URL}/jobs/${jobId}/team/start-available`,
+
   // Phase 4: Worker Profile & Application Management
   WORKER_PROFILE: `${API_BASE_URL.replace("/api", "")}/api/mobile/auth/profile`,
   UPDATE_WORKER_PROFILE: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile`,

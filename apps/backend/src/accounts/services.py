@@ -86,7 +86,10 @@ def create_account_individ(data):
     user.verifyTokenExpiry = timezone.now() + timedelta(hours=24)  # valid for 24h
     user.save()
 
-    # 4️⃣ Create Profile
+    # 4️⃣ Create Profile with profileType (defaults to CLIENT if not specified)
+    profile_type = getattr(data, 'profileType', None) or 'CLIENT'
+    print(f"📝 Creating profile with type: {profile_type}")
+    
     profile = Profile.objects.create(
         accountFK=user,
         firstName=data.firstName,
@@ -94,6 +97,7 @@ def create_account_individ(data):
         lastName=data.lastName,
         contactNum=data.contactNum,
         birthDate=birth_date,
+        profileType=profile_type,
         profileImg=None  # NULL until user uploads a profile picture
     )
 

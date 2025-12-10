@@ -1,0 +1,14 @@
+{
+  "firstName": "Test",
+  "lastName": "Client",
+  "middleName": "",
+  "contactNum": "09171234567",
+  "birthDate": "1990-01-15",
+  "email": "test_20251210215108@test.com",
+  "password": "TestPass123!",
+  "street_address": "123 Test St",
+  "city": "Zamboanga City",
+  "province": "Zamboanga del Sur",
+  "postal_code": "7000",
+  "country": "Philippines"
+}

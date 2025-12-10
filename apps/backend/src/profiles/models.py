@@ -135,6 +135,21 @@ class Conversation(models.Model):
         default="ACTIVE"
     )
     
+    # ============================================================
+    # TEAM MODE: Conversation Type & Group Support
+    # ============================================================
+    class ConversationType(models.TextChoices):
+        ONE_ON_ONE = "ONE_ON_ONE", "1:1 (Client + Worker/Agency)"
+        TEAM_GROUP = "TEAM_GROUP", "Team Group Chat (Client + Multiple Workers)"
+    
+    conversation_type = models.CharField(
+        max_length=15,
+        choices=ConversationType.choices,
+        default="ONE_ON_ONE",
+        help_text="ONE_ON_ONE for regular jobs, TEAM_GROUP for team mode jobs"
+    )
+    # ============================================================
+    
     # Timestamps
     createdAt = models.DateTimeField(auto_now_add=True)
     updatedAt = models.DateTimeField(auto_now=True)
@@ -183,7 +198,17 @@ class Conversation(models.Model):
             return self.unreadCountClient
         elif self.worker_id == profile_id:
             return self.unreadCountWorker
+        # For team group chats, check participant record
+        if self.conversation_type == 'TEAM_GROUP':
+            participant = self.participants.filter(profile_id=profile_id).first()
+            if participant:
+                return participant.unread_count
         return 0
+    
+    @property
+    def is_team_conversation(self):
+        """Check if this is a team group conversation"""
+        return self.conversation_type == 'TEAM_GROUP'
     
     @classmethod
     def create_for_job(cls, job_posting, client_profile, worker_profile):
@@ -196,10 +221,149 @@ class Conversation(models.Model):
             defaults={
                 'client': client_profile,
                 'worker': worker_profile,
-                'status': cls.ConversationStatus.ACTIVE
+                'status': cls.ConversationStatus.ACTIVE,
+                'conversation_type': cls.ConversationType.ONE_ON_ONE
             }
         )
         return conversation, created
+    
+    @classmethod
+    def create_team_conversation(cls, job_posting, client_profile):
+        """
+        Create a team group conversation for a team job.
+        Workers are added as participants when assigned.
+        """
+        conversation, created = cls.objects.get_or_create(
+            relatedJobPosting=job_posting,
+            defaults={
+                'client': client_profile,
+                'worker': None,  # Team jobs don't use the single worker field
+                'status': cls.ConversationStatus.ACTIVE,
+                'conversation_type': cls.ConversationType.TEAM_GROUP
+            }
+        )
+        
+        if created:
+            # Add client as first participant
+            ConversationParticipant.objects.create(
+                conversation=conversation,
+                profile=client_profile,
+                participant_type='CLIENT'
+            )
+        
+        return conversation, created
+    
+    def add_team_worker(self, worker_profile, skill_slot=None):
+        """Add a worker to a team group conversation when they are assigned."""
+        if self.conversation_type != 'TEAM_GROUP':
+            raise ValueError("Cannot add team workers to non-team conversation")
+        
+        participant, created = ConversationParticipant.objects.get_or_create(
+            conversation=self,
+            profile=worker_profile,
+            defaults={
+                'participant_type': 'WORKER',
+                'skill_slot': skill_slot
+            }
+        )
+        return participant, created
+    
+    def remove_team_worker(self, worker_profile):
+        """Remove a worker from team group conversation (when unassigned/withdrawn)."""
+        if self.conversation_type != 'TEAM_GROUP':
+            return False
+        
+        deleted, _ = ConversationParticipant.objects.filter(
+            conversation=self,
+            profile=worker_profile
+        ).delete()
+        return deleted > 0
+    
+    def get_all_participants(self):
+        """Get all participants for team conversations."""
+        if self.conversation_type == 'TEAM_GROUP':
+            return self.participants.select_related('profile', 'skill_slot__specializationID')
+        # For 1:1, return client and worker/agency
+        result = [{'profile': self.client, 'type': 'CLIENT'}]
+        if self.worker:
+            result.append({'profile': self.worker, 'type': 'WORKER'})
+        return result
+
+
+class ConversationParticipant(models.Model):
+    """
+    Participants in a team group conversation.
+    For ONE_ON_ONE conversations, we use Conversation.client and Conversation.worker directly.
+    For TEAM_GROUP conversations, we use this junction table to track multiple workers.
+    """
+    participantID = models.BigAutoField(primary_key=True)
+    
+    conversation = models.ForeignKey(
+        Conversation,
+        on_delete=models.CASCADE,
+        related_name='participants'
+    )
+    
+    profile = models.ForeignKey(
+        Profile,
+        on_delete=models.CASCADE,
+        related_name='team_conversation_participations'
+    )
+    
+    class ParticipantType(models.TextChoices):
+        CLIENT = "CLIENT", "Client (Job Owner)"
+        WORKER = "WORKER", "Worker (Team Member)"
+    
+    participant_type = models.CharField(
+        max_length=10,
+        choices=ParticipantType.choices,
+        default="WORKER"
+    )
+    
+    # Link to skill slot (which skill this worker is fulfilling)
+    from accounts.models import JobSkillSlot
+    skill_slot = models.ForeignKey(
+        JobSkillSlot,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='conversation_participants',
+        help_text="Which skill slot this worker is fulfilling in the team"
+    )
+    
+    # Individual unread count for this participant
+    unread_count = models.IntegerField(default=0)
+    
+    # Individual archive flag
+    is_archived = models.BooleanField(default=False)
+    
+    # Timestamps
+    joined_at = models.DateTimeField(auto_now_add=True)
+    last_read_at = models.DateTimeField(null=True, blank=True)
+    
+    class Meta:
+        db_table = 'conversation_participants'
+        ordering = ['joined_at']
+        indexes = [
+            models.Index(fields=['conversation', 'profile']),
+            models.Index(fields=['profile', '-joined_at']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['conversation', 'profile'],
+                name='unique_conversation_participant'
+            )
+        ]
+    
+    def __str__(self):
+        return f"{self.profile.firstName} in {self.conversation}"
+    
+    def mark_as_read(self):
+        """Mark all messages as read for this participant."""
+        from django.utils import timezone
+        self.unread_count = 0
+        self.last_read_at = timezone.now()
+        self.save(update_fields=['unread_count', 'last_read_at'])
 
 
 class Message(models.Model):

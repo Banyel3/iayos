@@ -86,6 +86,14 @@ def create_job_posting(request, data: CreateJobPostingSchema):
             )
         print(f"👤 User profile type: {profile.profileType}")
         
+        # Handle case where profileType is None (user hasn't selected a role)
+        if profile.profileType is None:
+            print("❌ Profile type is None - user needs to select a role")
+            return Response(
+                {"error": "Please select your account type (Client or Worker) before creating job postings.", "error_code": "PROFILE_TYPE_REQUIRED"},
+                status=400
+            )
+        
         # Get or create client profile using profileID (not accountFK)
         if profile.profileType != "CLIENT":
             return Response(
@@ -3646,13 +3654,19 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                     )
                 
                 # Create employee review
+                # Calculate overall rating as average of criteria
+                overall_rating = Decimal(str((data.rating_quality + data.rating_communication + data.rating_punctuality + data.rating_professionalism) / 4))
                 review = JobReview.objects.create(
                     jobID=job,
                     reviewerID=request.auth,
                     revieweeID=None,  # No Accounts for employee
                     revieweeEmployeeID=employee,
                     reviewerType="CLIENT",
-                    rating=data.rating,
+                    rating=overall_rating,
+                    rating_quality=Decimal(str(data.rating_quality)),
+                    rating_communication=Decimal(str(data.rating_communication)),
+                    rating_punctuality=Decimal(str(data.rating_punctuality)),
+                    rating_professionalism=Decimal(str(data.rating_professionalism)),
                     comment=data.message or "",
                     status="ACTIVE"
                 )
@@ -3751,13 +3765,19 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                     )
                 
                 # Create agency review
+                # Calculate overall rating as average of criteria
+                overall_rating = Decimal(str((data.rating_quality + data.rating_communication + data.rating_punctuality + data.rating_professionalism) / 4))
                 review = JobReview.objects.create(
                     jobID=job,
                     reviewerID=request.auth,
                     revieweeID=None,
                     revieweeAgencyID=agency,
                     reviewerType="CLIENT",
-                    rating=data.rating,
+                    rating=overall_rating,
+                    rating_quality=Decimal(str(data.rating_quality)),
+                    rating_communication=Decimal(str(data.rating_communication)),
+                    rating_punctuality=Decimal(str(data.rating_punctuality)),
+                    rating_professionalism=Decimal(str(data.rating_professionalism)),
                     comment=data.message or "",
                     status="ACTIVE"
                 )
@@ -3839,12 +3859,18 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                 )
             
             # Create the review
+            # Calculate overall rating as average of criteria
+            overall_rating = Decimal(str((data.rating_quality + data.rating_communication + data.rating_punctuality + data.rating_professionalism) / 4))
             review = JobReview.objects.create(
                 jobID=job,
                 reviewerID=request.auth,
                 revieweeID=reviewee_profile.accountFK,
                 reviewerType=reviewer_type,
-                rating=data.rating,
+                rating=overall_rating,
+                rating_quality=Decimal(str(data.rating_quality)),
+                rating_communication=Decimal(str(data.rating_communication)),
+                rating_punctuality=Decimal(str(data.rating_punctuality)),
+                rating_professionalism=Decimal(str(data.rating_professionalism)),
                 comment=data.message or "",
                 status="ACTIVE"
             )
@@ -3888,19 +3914,25 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                 )
             
             # Create the review
+            # Calculate overall rating as average of criteria
+            overall_rating = Decimal(str((data.rating_quality + data.rating_communication + data.rating_punctuality + data.rating_professionalism) / 4))
             review = JobReview.objects.create(
                 jobID=job,
                 reviewerID=request.auth,
                 revieweeID=reviewee_profile.accountFK,
                 reviewerType=reviewer_type,
-                rating=data.rating,
+                rating=overall_rating,
+                rating_quality=Decimal(str(data.rating_quality)),
+                rating_communication=Decimal(str(data.rating_communication)),
+                rating_punctuality=Decimal(str(data.rating_punctuality)),
+                rating_professionalism=Decimal(str(data.rating_professionalism)),
                 comment=data.message or "",
                 status="ACTIVE"
             )
             
             print(f"✅ Review submitted successfully for job {job_id}")
             print(f"   Reviewer: {reviewer_profile.firstName} ({reviewer_type})")
-            print(f"   Rating: {data.rating} stars")
+            print(f"   Rating: {overall_rating} stars (Q:{data.rating_quality} C:{data.rating_communication} P:{data.rating_punctuality} PR:{data.rating_professionalism})")
             
             # Check if both parties have now submitted reviews
             total_reviews = JobReview.objects.filter(jobID=job).count()
@@ -5113,5 +5145,320 @@ def complete_backjob(request, job_id: int, notes: str = Form(default="")):
     """
     print(f"⚠️ Deprecated complete-backjob endpoint called for job {job_id}. Use new 3-phase workflow.")
     return mark_backjob_complete(request, job_id, notes)
+
+#endregion
+
+
+# ===========================================================================
+# TEAM JOB ENDPOINTS - Multi-Skill Multi-Worker Support
+# ===========================================================================
+#region Team Jobs
+
+from jobs.schemas import (
+    CreateTeamJobSchema, TeamJobResponseSchema, TeamJobDetailSchema,
+    TeamJobApplicationSchema, AssignWorkerToSlotSchema, UpdateSkillSlotSchema,
+    TeamWorkerCompletionSchema, TeamJobStartSchema
+)
+from jobs.team_job_services import (
+    create_team_job, get_team_job_detail, apply_to_skill_slot,
+    accept_team_application, start_team_job, worker_complete_team_assignment
+)
+
+
+@router.post("/team/create", auth=dual_auth)
+def create_team_job_endpoint(request, payload: CreateTeamJobSchema):
+    """
+    Create a new team job with multiple skill slot requirements.
+    
+    Team jobs require:
+    - At least one skill slot
+    - At least 2 workers total across all slots
+    - Budget and allocation type
+    
+    Escrow (50% of total budget) is held on creation.
+    """
+    try:
+        print(f"📋 Creating team job: {payload.title}")
+        print(f"   Skill slots: {len(payload.skill_slots)}")
+        
+        # Get client profile
+        from accounts.models import Profile
+        profile = Profile.objects.filter(accountFK=request.auth).first()
+        if not profile:
+            return Response({"error": "Profile not found"}, status=404)
+        
+        # Convert skill slots to dict format
+        skill_slots_data = [
+            {
+                'specialization_id': slot.specialization_id,
+                'workers_needed': slot.workers_needed,
+                'budget_allocated': slot.budget_allocated,
+                'skill_level_required': slot.skill_level_required or 'ENTRY',
+                'notes': slot.notes
+            }
+            for slot in payload.skill_slots
+        ]
+        
+        result = create_team_job(
+            client_profile=profile,
+            title=payload.title,
+            description=payload.description,
+            location=payload.location,
+            total_budget=Decimal(str(payload.total_budget)),
+            skill_slots_data=skill_slots_data,
+            allocation_type=payload.budget_allocation_type or 'EQUAL_PER_WORKER',
+            team_start_threshold=payload.team_start_threshold or 100.0,
+            urgency=payload.urgency or 'MEDIUM',
+            preferred_start_date=payload.preferred_start_date,
+            materials_needed=payload.materials_needed,
+            payment_method=payload.payment_method or 'WALLET'
+        )
+        
+        if not result.get('success'):
+            return Response(result, status=400)
+        
+        print(f"✅ Team job created: #{result['job_id']}")
+        return result
+        
+    except Exception as e:
+        print(f"❌ Error creating team job: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": f"Failed to create team job: {str(e)}"}, status=500)
+
+
+@router.get("/team/{job_id}", auth=dual_auth)
+def get_team_job_detail_endpoint(request, job_id: int):
+    """
+    Get full details of a team job including all skill slots and worker assignments.
+    """
+    try:
+        result = get_team_job_detail(job_id, request.auth)
+        
+        if 'error' in result:
+            return Response({"error": result['error']}, status=404)
+        
+        return result
+        
+    except Exception as e:
+        print(f"❌ Error getting team job detail: {str(e)}")
+        return Response({"error": str(e)}, status=500)
+
+
+@router.post("/team/{job_id}/apply", auth=dual_auth)
+def apply_to_team_job_endpoint(request, job_id: int, payload: TeamJobApplicationSchema):
+    """
+    Apply to a specific skill slot in a team job.
+    
+    Workers must specify which skill slot they're applying for.
+    """
+    try:
+        print(f"📝 Worker applying to team job #{job_id}, slot #{payload.skill_slot_id}")
+        
+        # Get worker profile
+        from accounts.models import WorkerProfile
+        worker = WorkerProfile.objects.filter(profileID__accountFK=request.auth).first()
+        if not worker:
+            return Response({"error": "Worker profile not found"}, status=404)
+        
+        result = apply_to_skill_slot(
+            worker_profile=worker,
+            job_id=job_id,
+            skill_slot_id=payload.skill_slot_id,
+            proposal_message=payload.proposal_message,
+            proposed_budget=Decimal(str(payload.proposed_budget)),
+            budget_option=payload.budget_option,
+            estimated_duration=payload.estimated_duration
+        )
+        
+        if not result.get('success'):
+            return Response(result, status=400)
+        
+        print(f"✅ Application submitted: #{result['application_id']}")
+        return result
+        
+    except Exception as e:
+        print(f"❌ Error applying to team job: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": str(e)}, status=500)
+
+
+@router.post("/team/{job_id}/applications/{application_id}/accept", auth=dual_auth)
+def accept_team_application_endpoint(request, job_id: int, application_id: int):
+    """
+    Client accepts a worker's application to a team job skill slot.
+    
+    Creates assignment and adds worker to team group conversation.
+    """
+    try:
+        print(f"✅ Accepting team application #{application_id} for job #{job_id}")
+        
+        result = accept_team_application(
+            job_id=job_id,
+            application_id=application_id,
+            client_user=request.auth
+        )
+        
+        if not result.get('success'):
+            return Response(result, status=400)
+        
+        return result
+        
+    except Exception as e:
+        print(f"❌ Error accepting team application: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": str(e)}, status=500)
+
+
+@router.post("/team/{job_id}/start", auth=dual_auth)
+def start_team_job_endpoint(request, job_id: int, payload: TeamJobStartSchema = None):
+    """
+    Start a team job.
+    
+    By default, requires team_start_threshold to be met.
+    Set force_start=true to start with partial team (Option C).
+    """
+    try:
+        force_start = payload.force_start if payload else False
+        print(f"🚀 Starting team job #{job_id}, force={force_start}")
+        
+        result = start_team_job(
+            job_id=job_id,
+            client_user=request.auth,
+            force_start=force_start
+        )
+        
+        if not result.get('success'):
+            return Response(result, status=400)
+        
+        return result
+        
+    except Exception as e:
+        print(f"❌ Error starting team job: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": str(e)}, status=500)
+
+
+@router.post("/team/assignments/{assignment_id}/complete", auth=dual_auth)
+def worker_complete_assignment_endpoint(request, assignment_id: int, payload: TeamWorkerCompletionSchema = None):
+    """
+    Worker marks their individual assignment as complete in a team job.
+    
+    Each team member completes their own assignment independently.
+    Client is notified when all team members have completed.
+    """
+    try:
+        notes = payload.completion_notes if payload else None
+        print(f"✅ Worker completing assignment #{assignment_id}")
+        
+        result = worker_complete_team_assignment(
+            assignment_id=assignment_id,
+            worker_user=request.auth,
+            notes=notes
+        )
+        
+        if not result.get('success'):
+            return Response(result, status=400)
+        
+        return result
+        
+    except Exception as e:
+        print(f"❌ Error completing assignment: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": str(e)}, status=500)
+
+
+@router.get("/team/{job_id}/applications", auth=dual_auth)
+def get_team_job_applications_endpoint(request, job_id: int, skill_slot_id: int = None):
+    """
+    Get applications for a team job, optionally filtered by skill slot.
+    """
+    try:
+        job = Job.objects.get(jobID=job_id)
+        
+        # Verify authorization
+        if job.clientID and job.clientID.profileID.accountFK != request.auth:
+            return Response({"error": "Not authorized"}, status=403)
+        
+        applications = JobApplication.objects.filter(
+            jobID=job
+        ).select_related(
+            'workerID__profileID', 'applied_skill_slot__specializationID'
+        )
+        
+        if skill_slot_id:
+            applications = applications.filter(applied_skill_slot_id=skill_slot_id)
+        
+        result = []
+        for app in applications:
+            slot = app.applied_skill_slot
+            worker = app.workerID
+            profile = worker.profileID if worker else None
+            
+            result.append({
+                'application_id': app.applicationID,
+                'worker_id': worker.workerID if worker else None,
+                'worker_name': f"{profile.firstName} {profile.lastName}" if profile else "Unknown",
+                'worker_avatar': profile.profilePicture.url if profile and profile.profilePicture else None,
+                'worker_rating': float(worker.rating) if worker and worker.rating else None,
+                'skill_slot_id': slot.skillSlotID if slot else None,
+                'specialization_name': slot.specializationID.specializationName if slot else None,
+                'proposal_message': app.proposalMessage,
+                'proposed_budget': float(app.proposedBudget),
+                'budget_option': app.budgetOption,
+                'status': app.status,
+                'created_at': app.createdAt.isoformat()
+            })
+        
+        return {'applications': result, 'count': len(result)}
+        
+    except Job.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+    except Exception as e:
+        print(f"❌ Error getting team applications: {str(e)}")
+        return Response({"error": str(e)}, status=500)
+
+
+@router.post("/{job_id}/team/approve-completion", auth=dual_auth)
+def approve_team_job_completion(request, job_id: int, payment_method: str = 'WALLET'):
+    """
+    Client approves team job completion after all workers have marked complete.
+    This closes the job and team conversation.
+    """
+    from jobs.team_job_services import client_approve_team_job
+    
+    result = client_approve_team_job(
+        job_id=job_id,
+        client_user=request.auth,
+        payment_method=payment_method
+    )
+    
+    if not result.get('success'):
+        return Response({"error": result.get('error', 'Failed to approve team job')}, status=400)
+    
+    return result
+
+
+@router.post("/{job_id}/team/worker-complete/{assignment_id}", auth=dual_auth)
+def worker_mark_team_complete(request, job_id: int, assignment_id: int, notes: str = None):
+    """
+    Worker marks their individual assignment as complete in a team job.
+    """
+    from jobs.team_job_services import worker_complete_team_assignment
+    
+    result = worker_complete_team_assignment(
+        assignment_id=assignment_id,
+        worker_user=request.auth,
+        notes=notes
+    )
+    
+    if not result.get('success'):
+        return Response({"error": result.get('error', 'Failed to mark complete')}, status=400)
+    
+    return result
 
 #endregion

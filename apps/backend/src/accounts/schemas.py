@@ -10,6 +10,7 @@ class createAccountSchema(Schema):
     lastName: str
     contactNum: str  # Changed from int to str to match Profile model CharField
     birthDate: str
+    profileType: Optional[Literal["CLIENT", "WORKER"]] = "CLIENT"  # Default to CLIENT if not specified
     #accounts table
     email: EmailStr
     password: str
@@ -171,7 +172,11 @@ class MyJobsFilterSchema(Schema):
 
 class SubmitReviewMobileSchema(Schema):
     """Schema for submitting review after job completion"""
-    rating: int  # 1-5 stars
+    # Multi-criteria ratings (1-5 stars each)
+    rating_quality: int  # Quality of work
+    rating_communication: int  # Communication
+    rating_punctuality: int  # Punctuality/timeliness
+    rating_professionalism: int  # Professionalism
     comment: str
     review_type: str  # 'CLIENT_TO_WORKER' | 'WORKER_TO_CLIENT'
 

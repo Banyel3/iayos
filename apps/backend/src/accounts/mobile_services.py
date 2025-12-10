@@ -2350,8 +2350,8 @@ def get_available_jobs_mobile(user, page=1, limit=20):
 # REVIEW & RATING SERVICES (Phase 8)
 # ===========================================================================
 
-def submit_review_mobile(user: Accounts, job_id: int, rating: int, comment: str, review_type: str) -> Dict[str, Any]:
-    # Submit a review for a completed job.
+def submit_review_mobile(user: Accounts, job_id: int, rating_quality: int, rating_communication: int, rating_punctuality: int, rating_professionalism: int, comment: str, review_type: str) -> Dict[str, Any]:
+    # Submit a review for a completed job with multi-criteria ratings.
     # Validates job completion, reviewer eligibility, and creates review record.
     
     try:
@@ -2370,14 +2370,14 @@ def submit_review_mobile(user: Accounts, job_id: int, rating: int, comment: str,
             reviewer_type = 'CLIENT'
             if not job.clientID or job.clientID.profileID.accountFK.accountID != user.accountID:
                 return {'success': False, 'error': 'You are not the client for this job'}
-            if not job.workerID:
+            if not job.assignedWorkerID:
                 return {'success': False, 'error': 'No worker assigned to this job'}
-            reviewee = job.workerID.profileID.accountFK
-            reviewee_profile = job.workerID.profileID  # Worker's profile
+            reviewee = job.assignedWorkerID.profileID.accountFK
+            reviewee_profile = job.assignedWorkerID.profileID  # Worker's profile
         elif review_type == 'WORKER_TO_CLIENT':
             # Worker reviewing client
             reviewer_type = 'WORKER'
-            if not job.workerID or job.workerID.profileID.accountFK.accountID != user.accountID:
+            if not job.assignedWorkerID or job.assignedWorkerID.profileID.accountFK.accountID != user.accountID:
                 return {'success': False, 'error': 'You are not the worker for this job'}
             if not job.clientID:
                 return {'success': False, 'error': 'No client for this job'}
@@ -2395,18 +2395,31 @@ def submit_review_mobile(user: Accounts, job_id: int, rating: int, comment: str,
         if existing_review:
             return {'success': False, 'error': 'You have already reviewed this job'}
 
-        # Validate rating
-        if rating < 1 or rating > 5:
-            return {'success': False, 'error': 'Rating must be between 1 and 5'}
+        # Validate all criteria ratings are between 1-5
+        for rating_name, rating_value in [
+            ('Quality', rating_quality),
+            ('Communication', rating_communication),
+            ('Punctuality', rating_punctuality),
+            ('Professionalism', rating_professionalism)
+        ]:
+            if rating_value < 1 or rating_value > 5:
+                return {'success': False, 'error': f'{rating_name} rating must be between 1 and 5'}
 
-        # Create review
+        # Calculate overall rating as average of criteria
+        overall_rating = Decimal(str((rating_quality + rating_communication + rating_punctuality + rating_professionalism) / 4))
+
+        # Create review with multi-criteria ratings
         review = JobReview.objects.create(
             jobID=job,
             reviewerID=user,
             revieweeID=reviewee,
             revieweeProfileID=reviewee_profile,  # Profile-specific for proper separation
             reviewerType=reviewer_type,
-            rating=Decimal(str(rating)),
+            rating=overall_rating,
+            rating_quality=Decimal(str(rating_quality)),
+            rating_communication=Decimal(str(rating_communication)),
+            rating_punctuality=Decimal(str(rating_punctuality)),
+            rating_professionalism=Decimal(str(rating_professionalism)),
             comment=comment.strip(),
             status='ACTIVE'
         )
