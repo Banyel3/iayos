@@ -1,0 +1,61 @@
+@baseUrl = http://localhost:8000
+@workerEmail = worker@example.com
+@workerPassword = password123
+@token = 
+@certId = 1
+
+### Mobile Login (Bearer token)
+POST {{baseUrl}}/api/mobile/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{workerEmail}}",
+  "password": "{{workerPassword}}"
+}
+
+# Manually copy the token from the response above into @token
+
+### List Certifications (expects Bearer auth)
+GET {{baseUrl}}/api/accounts/worker/certifications
+Authorization: Bearer {{token}}
+
+### Update Certification with file (POST + _method=PUT)
+# Replace ./sample-cert.jpg with an actual file path on disk
+POST {{baseUrl}}/api/accounts/worker/certifications/{{certId}}
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=boundary
+
+--boundary
+Content-Disposition: form-data; name="_method"
+
+PUT
+--boundary
+Content-Disposition: form-data; name="name"
+
+Updated Certification Name
+--boundary
+Content-Disposition: form-data; name="organization"
+
+Updated Organization
+--boundary
+Content-Disposition: form-data; name="issue_date"
+
+2024-01-01
+--boundary
+Content-Disposition: form-data; name="expiry_date"
+
+2026-01-01
+--boundary
+Content-Disposition: form-data; name="specialization_id"
+
+0
+--boundary
+Content-Disposition: form-data; name="certificate_file"; filename="sample-cert.jpg"
+Content-Type: image/jpeg
+
+< ./sample-cert.jpg
+--boundary--
+
+### Verify Updated Certification
+GET {{baseUrl}}/api/accounts/worker/certifications/{{certId}}
+Authorization: Bearer {{token}}

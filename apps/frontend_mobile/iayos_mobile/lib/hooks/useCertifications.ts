@@ -197,10 +197,10 @@ export const useUpdateCertification = () => {
 
       // Add fields that are being updated (backend expects snake_case field names)
       if (data.name) formData.append("name", data.name);
-      if (data.organization) formData.append("organization", data.organization); // Fixed: backend expects 'organization'
+      if (data.organization) formData.append("organization", data.organization); // backend expects 'organization'
       if (data.issueDate) formData.append("issue_date", data.issueDate);
       if (data.expiryDate) formData.append("expiry_date", data.expiryDate);
-      if (data.specializationId)
+      if (data.specializationId !== undefined)
         formData.append("specialization_id", data.specializationId.toString());
 
       // Add certificate file if provided
@@ -212,14 +212,23 @@ export const useUpdateCertification = () => {
         } as any);
       }
 
+      // Method override to avoid RN PUT+FormData drop issues
+      formData.append("_method", "PUT");
+
       const response = await apiRequest(ENDPOINTS.CERTIFICATION_DETAIL(id), {
-        method: "PUT",
+        method: "POST",
         body: formData,
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Failed to update certification");
+        let message = "Failed to update certification";
+        try {
+          const error = await response.json();
+          message = error.error || error.message || message;
+        } catch {
+          // ignore parse error
+        }
+        throw new Error(message);
       }
 
       return response.json();

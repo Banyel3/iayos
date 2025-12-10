@@ -1720,7 +1720,8 @@ def update_certification_endpoint(
     issue_date: str = Form(None),  # type: ignore
     expiry_date: str = Form(None),  # type: ignore
     specialization_id: int = Form(None),  # type: ignore  # NEW: Update linked skill
-    certificate_file: Any = File(None)  # type: ignore
+    certificate_file: Any = File(None),  # type: ignore
+    _method: str = Form(None),
 ):
     """
     Update certification fields including optional certificate image.
@@ -1826,6 +1827,33 @@ def delete_certification_endpoint(request, certification_id: int):
             {"error": "Failed to delete certification"},
             status=500
         )
+
+
+@router.post("/worker/certifications/{certification_id}", auth=dual_auth, response=CertificationResponse)
+def update_certification_endpoint_post(
+    request,
+    certification_id: int,
+    name: str = Form(None),  # type: ignore
+    organization: str = Form(None),  # type: ignore
+    issue_date: str = Form(None),  # type: ignore
+    expiry_date: str = Form(None),  # type: ignore
+    specialization_id: int = Form(None),  # type: ignore
+    certificate_file: Any = File(None),  # type: ignore
+    _method: str = Form(None),
+):
+    """POST alias to support mobile FormData uploads with method override."""
+    # Reuse the PUT handler logic
+    return update_certification_endpoint(
+        request=request,
+        certification_id=certification_id,
+        name=name,
+        organization=organization,
+        issue_date=issue_date,
+        expiry_date=expiry_date,
+        specialization_id=specialization_id,
+        certificate_file=certificate_file,
+        _method=_method,
+    )
 
 
 # ===========================
