@@ -2319,7 +2319,7 @@ def mobile_available_jobs(request, page: int = 1, limit: int = 20):
 
 @mobile_router.get("/wallet/balance", auth=jwt_auth)
 def mobile_get_wallet_balance(request):
-    """Get current user's wallet balance including reserved funds - Mobile"""
+    """Get current user's wallet balance including reserved funds and pending earnings - Mobile"""
     try:
         from .models import Wallet, Transaction
         from django.db.models import Sum
@@ -2329,10 +2329,10 @@ def mobile_get_wallet_balance(request):
         # Get or create wallet for the user
         wallet, created = Wallet.objects.get_or_create(
             accountFK=request.auth,
-            defaults={'balance': Decimal('0.00'), 'reservedBalance': Decimal('0.00')}
+            defaults={'balance': Decimal('0.00'), 'reservedBalance': Decimal('0.00'), 'pendingEarnings': Decimal('0.00')}
         )
 
-        print(f"💵 [Mobile] Balance request for user {request.auth.email}: ₱{wallet.balance} (₱{wallet.reservedBalance} reserved)")
+        print(f"💵 [Mobile] Balance request for user {request.auth.email}: ₱{wallet.balance} (₱{wallet.reservedBalance} reserved, ₱{wallet.pendingEarnings} pending)")
 
         # Aggregate wallet stats for dashboard cards
         pending_total = (
@@ -2370,11 +2370,20 @@ def mobile_get_wallet_balance(request):
         else:
             last_updated_source = wallet.updatedAt
 
+        # Get pending earnings details (Due Balance)
+        from jobs.payment_buffer_service import get_pending_earnings_for_account
+        pending_earnings_list = get_pending_earnings_for_account(request.auth)
+        
         return {
             "success": True,
             "balance": float(wallet.balance),
             "reservedBalance": float(wallet.reservedBalance),
             "availableBalance": float(wallet.availableBalance),
+            # NEW: Pending earnings (7-day buffer)
+            "pendingEarnings": float(wallet.pendingEarnings),
+            "totalBalance": float(wallet.totalBalance),  # balance + pendingEarnings
+            "pendingEarningsCount": len(pending_earnings_list),
+            # Aggregates
             "pending": float(pending_total),
             "this_month": float(this_month_total),
             "total_earned": float(total_earned),
@@ -2389,6 +2398,58 @@ def mobile_get_wallet_balance(request):
         traceback.print_exc()
         return Response(
             {"error": "Failed to fetch wallet balance"},
+            status=500
+        )
+
+
+@mobile_router.get("/wallet/pending-earnings", auth=jwt_auth)
+def mobile_get_pending_earnings(request):
+    """
+    Get detailed list of pending earnings (Due Balance) for the current user.
+    Shows all completed jobs where payment is held in the 7-day buffer period.
+    
+    Returns:
+        - List of pending payments with job details and release dates
+        - Total pending amount
+        - Buffer period info from PlatformSettings
+    """
+    try:
+        from .models import Wallet
+        from decimal import Decimal
+        from jobs.payment_buffer_service import (
+            get_pending_earnings_for_account, 
+            get_payment_buffer_days
+        )
+        
+        # Get wallet for pending balance
+        try:
+            wallet = Wallet.objects.get(accountFK=request.auth)
+            pending_total = float(wallet.pendingEarnings)
+        except Wallet.DoesNotExist:
+            pending_total = 0.0
+        
+        # Get detailed list of pending earnings
+        pending_list = get_pending_earnings_for_account(request.auth)
+        
+        buffer_days = get_payment_buffer_days()
+        
+        print(f"📋 [Mobile] Pending earnings for {request.auth.email}: {len(pending_list)} payments, ₱{pending_total} total")
+        
+        return {
+            "success": True,
+            "pending_earnings": pending_list,
+            "total_pending": pending_total,
+            "count": len(pending_list),
+            "buffer_days": buffer_days,
+            "info_message": f"Payments are held for {buffer_days} days after job completion before being released to your wallet."
+        }
+        
+    except Exception as e:
+        print(f"❌ [Mobile] Error fetching pending earnings: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to fetch pending earnings"},
             status=500
         )
 

@@ -728,8 +728,10 @@ def reject_backjob(request, dispute_id: int):
     """
     Admin rejects a backjob request.
     Changes status from OPEN to CLOSED and notifies the client.
+    Also resumes the payment buffer countdown and sets cooldown for new requests.
     """
     from accounts.models import JobDispute, Notification, JobLog
+    from jobs.payment_buffer_service import resume_payment_after_backjob_rejection
     
     try:
         body = request.data if hasattr(request, 'data') else {}
@@ -749,13 +751,24 @@ def reject_backjob(request, dispute_id: int):
         # Store before state for audit
         before_state = {"status": dispute.status}
         
-        # Update dispute
+        # Update dispute with rejection info and cooldown timestamp
         dispute.status = 'CLOSED'
         dispute.resolution = f"Rejected: {rejection_reason}"
         dispute.resolvedDate = timezone.now()
+        dispute.adminRejectedAt = timezone.now()  # For cooldown tracking
+        dispute.adminRejectionReason = rejection_reason
         dispute.save()
         
         job = dispute.jobID
+        
+        # ============================================================
+        # RESUME PAYMENT BUFFER: Continue countdown after rejection
+        # If release date has passed, payment will be released immediately
+        # ============================================================
+        payment_result = resume_payment_after_backjob_rejection(job)
+        payment_released = payment_result.get('success', False) and payment_result.get('amount')
+        print(f"▶️ Payment buffer resumed for job #{job.jobID}. Released: {payment_released}")
+        # ============================================================
         
         # Create job log
         JobLog.objects.create(
@@ -763,7 +776,7 @@ def reject_backjob(request, dispute_id: int):
             oldStatus=job.status,
             newStatus="BACKJOB_REJECTED",
             changedBy=request.auth,
-            notes=f"Admin rejected backjob request. Reason: {rejection_reason}"
+            notes=f"Admin rejected backjob request. Reason: {rejection_reason}. Payment buffer resumed."
         )
         
         # Log audit trail
@@ -772,19 +785,31 @@ def reject_backjob(request, dispute_id: int):
             action="backjob_reject",
             entity_type="job",
             entity_id=str(dispute_id),
-            details={"job_id": job.jobID, "job_title": job.title, "reason": rejection_reason},
+            details={"job_id": job.jobID, "job_title": job.title, "reason": rejection_reason, "payment_released": payment_released},
             before_value=before_state,
             after_value={"status": "CLOSED", "reason": rejection_reason},
             request=request
         )
         
-        # Notify the client
+        # Notify the client (with cooldown info)
         if job.clientID:
+            cooldown_message = " You may submit a new backjob request after 24 hours." if not payment_released else ""
             Notification.objects.create(
                 accountFK=job.clientID.profileID.accountFK,
                 notificationType="BACKJOB_REJECTED",
                 title="Backjob Request Rejected",
-                message=f"Your backjob request for '{job.title}' was not approved. Reason: {rejection_reason}",
+                message=f"Your backjob request for '{job.title}' was not approved. Reason: {rejection_reason}{cooldown_message}",
+                relatedJobID=job.jobID
+            )
+        
+        # Notify worker that payment is resuming (if not already released)
+        if not payment_released and (job.assignedWorkerID or job.assignedAgencyFK):
+            recipient_account = job.assignedWorkerID.profileID.accountFK if job.assignedWorkerID else job.assignedAgencyFK.accountFK
+            Notification.objects.create(
+                accountFK=recipient_account,
+                notificationType="PAYMENT_RESUMED",
+                title="Payment Buffer Resumed",
+                message=f"The backjob request for '{job.title}' was rejected. Your payment buffer has resumed and will be released as scheduled.",
                 relatedJobID=job.jobID
             )
         
@@ -804,9 +829,11 @@ def reject_backjob(request, dispute_id: int):
         
         return {
             "success": True,
-            "message": "Backjob request rejected",
+            "message": "Backjob request rejected. Payment buffer resumed.",
             "dispute_id": dispute.disputeID,
-            "status": dispute.status
+            "status": dispute.status,
+            "payment_released": payment_released,
+            "cooldown_hours": 24
         }
         
     except JobDispute.DoesNotExist:

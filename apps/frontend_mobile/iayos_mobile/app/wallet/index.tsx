@@ -3,6 +3,7 @@
  *
  * Features:
  * - Balance card with current balance and last updated timestamp
+ * - Pending Earnings (Due Balance) section for workers (7-day buffer)
  * - Quick stats row (Pending, This Month, Total)
  * - Transaction history with tab filtering
  * - Pull-to-refresh
@@ -32,7 +33,7 @@ import {
 } from "@/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { useWallet } from "@/lib/hooks/useWallet";
+import { useWallet, PendingEarningItem } from "@/lib/hooks/useWallet";
 import { useTransactions } from "@/lib/hooks/useTransactions";
 import TransactionCard from "@/components/TransactionCard";
 import EmptyState from "@/components/ui/EmptyState";
@@ -159,14 +160,20 @@ export default function WalletScreen() {
           <Card style={styles.balanceCard}>
             <Text style={styles.balanceLabel}>Available Balance</Text>
             <Text style={styles.balanceAmount}>
-              {formatCurrency(walletData?.availableBalance ?? walletData?.balance ?? 0)}
+              {formatCurrency(
+                walletData?.availableBalance ?? walletData?.balance ?? 0
+              )}
             </Text>
-            
+
             {/* Reserved Balance Indicator */}
             {(walletData?.reservedBalance ?? 0) > 0 && (
               <View style={styles.reservedSection}>
                 <View style={styles.reservedRow}>
-                  <Ionicons name="lock-closed" size={16} color={Colors.warning} />
+                  <Ionicons
+                    name="lock-closed"
+                    size={16}
+                    color={Colors.warning}
+                  />
                   <Text style={styles.reservedLabel}>Reserved in Escrow:</Text>
                   <Text style={styles.reservedAmount}>
                     {formatCurrency(walletData?.reservedBalance ?? 0)}
@@ -177,7 +184,7 @@ export default function WalletScreen() {
                 </Text>
               </View>
             )}
-            
+
             <Text style={styles.lastUpdated}>
               Last updated: {formatLastUpdated(walletData?.last_updated)}
             </Text>
@@ -213,6 +220,117 @@ export default function WalletScreen() {
             </View>
           </Card>
         )}
+
+        {/* Pending Earnings (Due Balance) Section - for workers */}
+        {!walletLoading &&
+          !walletError &&
+          (walletData?.pendingEarnings ?? 0) > 0 && (
+            <Card style={styles.pendingEarningsCard}>
+              <View style={styles.pendingEarningsHeader}>
+                <View style={styles.pendingEarningsIconContainer}>
+                  <Ionicons
+                    name="hourglass-outline"
+                    size={24}
+                    color={Colors.warning}
+                  />
+                </View>
+                <View style={styles.pendingEarningsTitleContainer}>
+                  <Text style={styles.pendingEarningsTitle}>Due Balance</Text>
+                  <Text style={styles.pendingEarningsSubtitle}>
+                    Released after 7-day hold period
+                  </Text>
+                </View>
+              </View>
+
+              <Text style={styles.pendingEarningsAmount}>
+                {formatCurrency(walletData?.pendingEarnings ?? 0)}
+              </Text>
+
+              {/* Individual pending jobs */}
+              {walletData?.pendingEarningsList &&
+                walletData.pendingEarningsList.length > 0 && (
+                  <View style={styles.pendingJobsList}>
+                    {walletData.pendingEarningsList
+                      .slice(0, 3)
+                      .map((item: PendingEarningItem) => (
+                        <View
+                          key={item.transaction_id}
+                          style={styles.pendingJobItem}
+                        >
+                          <View style={styles.pendingJobInfo}>
+                            <Text
+                              style={styles.pendingJobTitle}
+                              numberOfLines={1}
+                            >
+                              {item.job_title}
+                            </Text>
+                            <View style={styles.pendingJobStatus}>
+                              {item.has_active_backjob ? (
+                                <View style={styles.backjobBadge}>
+                                  <Ionicons
+                                    name="alert-circle"
+                                    size={12}
+                                    color={Colors.error}
+                                  />
+                                  <Text style={styles.backjobBadgeText}>
+                                    Backjob Pending
+                                  </Text>
+                                </View>
+                              ) : (
+                                <Text style={styles.pendingJobDays}>
+                                  <Ionicons
+                                    name="time-outline"
+                                    size={12}
+                                    color={Colors.info}
+                                  />{" "}
+                                  {item.days_until_release > 0
+                                    ? `Releases in ${item.days_until_release} day${item.days_until_release !== 1 ? "s" : ""}`
+                                    : "Releasing soon"}
+                                </Text>
+                              )}
+                            </View>
+                          </View>
+                          <Text style={styles.pendingJobAmount}>
+                            {formatCurrency(item.amount)}
+                          </Text>
+                        </View>
+                      ))}
+
+                    {walletData.pendingEarningsList.length > 3 && (
+                      <TouchableOpacity
+                        style={styles.viewAllPending}
+                        onPress={() =>
+                          router.push("/wallet/pending-earnings" as any)
+                        }
+                      >
+                        <Text style={styles.viewAllPendingText}>
+                          View all {walletData.pendingEarningsList.length}{" "}
+                          pending payments
+                        </Text>
+                        <Ionicons
+                          name="chevron-forward"
+                          size={16}
+                          color={Colors.primary}
+                        />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
+
+              <View style={styles.pendingInfoBox}>
+                <Ionicons
+                  name="information-circle-outline"
+                  size={16}
+                  color={Colors.info}
+                />
+                <Text style={styles.pendingInfoText}>
+                  Payments are held for 7 days after job completion, giving
+                  clients time to report issues. After this period, funds are
+                  automatically released to your wallet.
+                </Text>
+              </View>
+            </Card>
+          )}
 
         {/* Quick Stats */}
         {!walletLoading && !walletError && (
@@ -515,5 +633,117 @@ const styles = StyleSheet.create({
     ...Typography.body.medium,
     color: Colors.primary,
     fontWeight: "600",
+  },
+  // Pending Earnings (Due Balance) styles
+  pendingEarningsCard: {
+    padding: Spacing.lg,
+    marginBottom: Spacing.md,
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.warning,
+  },
+  pendingEarningsHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+  pendingEarningsIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.warning + "20",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: Spacing.sm,
+  },
+  pendingEarningsTitleContainer: {
+    flex: 1,
+  },
+  pendingEarningsTitle: {
+    ...Typography.heading.h4,
+    color: Colors.textPrimary,
+  },
+  pendingEarningsSubtitle: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+  },
+  pendingEarningsAmount: {
+    fontSize: 28,
+    fontWeight: "700",
+    color: Colors.warning,
+    marginBottom: Spacing.md,
+  },
+  pendingJobsList: {
+    marginBottom: Spacing.md,
+  },
+  pendingJobItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  pendingJobInfo: {
+    flex: 1,
+    marginRight: Spacing.sm,
+  },
+  pendingJobTitle: {
+    ...Typography.body.medium,
+    color: Colors.textPrimary,
+    fontWeight: "500",
+    marginBottom: 2,
+  },
+  pendingJobStatus: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  pendingJobDays: {
+    ...Typography.body.small,
+    color: Colors.info,
+  },
+  backjobBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.error + "15",
+    paddingHorizontal: Spacing.xs,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.xs,
+    gap: 4,
+  },
+  backjobBadgeText: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.error,
+    fontWeight: "600",
+  },
+  pendingJobAmount: {
+    ...Typography.body.medium,
+    fontWeight: "600",
+    color: Colors.warning,
+  },
+  viewAllPending: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing.sm,
+    marginTop: Spacing.xs,
+  },
+  viewAllPendingText: {
+    ...Typography.body.small,
+    color: Colors.primary,
+    fontWeight: "600",
+    marginRight: 4,
+  },
+  pendingInfoBox: {
+    flexDirection: "row",
+    backgroundColor: Colors.info + "10",
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    gap: Spacing.xs,
+  },
+  pendingInfoText: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+    flex: 1,
+    lineHeight: 18,
   },
 });

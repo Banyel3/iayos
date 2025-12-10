@@ -3140,12 +3140,15 @@ def client_approve_job_completion(
             }
         
         # Generate payment based on selected method
+        # NOTE: Payment now goes to pendingEarnings (7-day buffer) instead of immediate wallet credit
         try:
             from accounts.models import Wallet
+            from jobs.payment_buffer_service import add_pending_earnings, get_payment_buffer_days
             
             remaining_amount = job.remainingPayment
+            buffer_days = get_payment_buffer_days()
             
-            # Handle WALLET payment (instant deduction)
+            # Handle WALLET payment (instant deduction from client, but pending for worker)
             if payment_method == 'WALLET':
                 print(f"💳 Wallet payment selected - checking balance")
                 
@@ -3182,7 +3185,10 @@ def client_approve_job_completion(
                     relatedJobPosting=job
                 )
                 
-                # Transfer FULL BUDGET to worker's/agency's wallet (they receive 100% of agreed budget)
+                # ============================================================
+                # PAYMENT BUFFER: Add to pendingEarnings instead of immediate credit
+                # Worker receives payment after 7-day buffer (configurable)
+                # ============================================================
                 recipient_account = None
                 recipient_type = None
                 
@@ -3195,59 +3201,26 @@ def client_approve_job_completion(
                     recipient_account = job.assignedAgencyFK.accountFK
                     recipient_type = "agency"
                 
+                pending_result = None
                 if recipient_account:
-                    recipient_wallet, _ = Wallet.objects.get_or_create(
-                        accountFK=recipient_account,
-                        defaults={'balance': Decimal('0.00')}
-                    )
-                    
-                    # Recipient receives the FULL budget amount (client pays budget + platform fee)
+                    # Add to pending earnings (Due Balance) - NOT immediate wallet credit
                     recipient_payment = job.budget
-                    recipient_wallet.balance += recipient_payment
-                    recipient_wallet.save()
-                    
-                    print(f"💰 Credited ₱{recipient_payment} (full budget) to {recipient_type} wallet. New balance: ₱{recipient_wallet.balance}")
-                    
-                    # Create earnings transaction record
-                    Transaction.objects.create(
-                        walletID=recipient_wallet,
-                        transactionType="EARNINGS",
+                    pending_result = add_pending_earnings(
+                        job=job,
+                        recipient_account=recipient_account,
                         amount=recipient_payment,
-                        balanceAfter=recipient_wallet.balance,
-                        status="COMPLETED",
-                        description=f"Payment received for job: {job.title}" + (f" (Agency: {job.assignedAgencyFK.businessName})" if recipient_type == "agency" else ""),
-                        referenceNumber=f"JOB-{job.jobID}-EARNINGS-{timezone.now().strftime('%Y%m%d%H%M%S')}",
-                        relatedJobPosting=job
+                        recipient_type=recipient_type
                     )
+                    
+                    print(f"⏳ Added ₱{recipient_payment} to {recipient_type} pendingEarnings. Release date: {pending_result['release_date_str']}")
                 
-                # Mark payment as completed
+                # Mark payment as completed (client has paid, worker payment is pending)
                 job.remainingPaymentPaid = True
                 job.remainingPaymentPaidAt = timezone.now()
                 job.status = "COMPLETED"
                 job.save()
 
-                print(f"✅ Job {job_id} marked as COMPLETED via WALLET payment")
-
-                # Create payment notification for the worker/agency
-                if recipient_account:
-                    if recipient_type == "agency":
-                        Notification.objects.create(
-                            accountFK=recipient_account,
-                            notificationType="PAYMENT_RELEASED",
-                            title=f"Payment Received! 💰",
-                            message=f"Your agency received ₱{job.budget} for '{job.title}'. The full amount has been added to your agency wallet!",
-                            relatedJobID=job.jobID
-                        )
-                        print(f"📬 Payment notification sent to agency {recipient_account.email}")
-                    else:
-                        Notification.objects.create(
-                            accountFK=recipient_account,
-                            notificationType="PAYMENT_RELEASED",
-                            title=f"Payment Received! 💰",
-                            message=f"You received ₱{job.budget} for '{job.title}'. The full amount has been added to your wallet!",
-                            relatedJobID=job.jobID
-                        )
-                        print(f"📬 Payment notification sent to worker {recipient_account.email}")
+                print(f"✅ Job {job_id} marked as COMPLETED via WALLET payment (worker payment pending {buffer_days} days)")
 
                 # Create payment confirmation for the client
                 Notification.objects.create(
@@ -3261,7 +3234,7 @@ def client_approve_job_completion(
 
                 return {
                     "success": True,
-                    "message": "Payment successful! Job completed. Please leave a review for the worker.",
+                    "message": f"Payment successful! Job completed. Worker payment is pending for {buffer_days} days. Please leave a review.",
                     "job_id": job_id,
                     "worker_marked_complete": job.workerMarkedComplete,
                     "client_marked_complete": job.clientMarkedComplete,
@@ -3273,7 +3246,12 @@ def client_approve_job_completion(
                     "worker_id": job.assignedWorkerID.profileID.accountFK.accountID if job.assignedWorkerID else None,
                     "agency_id": job.assignedAgencyFK.agencyId if job.assignedAgencyFK else None,
                     "recipient_type": recipient_type,
-                    "new_wallet_balance": float(wallet.balance)
+                    "new_wallet_balance": float(wallet.balance),
+                    # Payment buffer info
+                    "payment_buffer_days": buffer_days,
+                    "worker_payment_pending": True,
+                    "worker_payment_release_date": pending_result['release_date'].isoformat() if pending_result else None,
+                    "worker_payment_release_date_formatted": pending_result['release_date_str'] if pending_result else None
                 }
             
             # Handle CASH payment (manual with proof upload)
@@ -3282,8 +3260,11 @@ def client_approve_job_completion(
                 
                 # For CASH: Worker/Agency receives physical cash from client (remaining 50%)
                 # The downpayment (50%) was already held in escrow during job creation
-                # We now transfer the downpayment to recipient's wallet AND log the cash payment
-                # Recipient receives full budget: 50% in wallet (from escrow) + 50% physical cash = 100%
+                # Downpayment goes to pendingEarnings (7-day buffer), cash portion is logged
+                # Recipient receives full budget: 50% pending (from escrow) + 50% physical cash = 100%
+                
+                from jobs.payment_buffer_service import add_pending_earnings, get_payment_buffer_days
+                buffer_days = get_payment_buffer_days()
                 
                 cash_recipient_account = None
                 cash_recipient_type = None
@@ -3297,66 +3278,38 @@ def client_approve_job_completion(
                     cash_recipient_account = job.assignedAgencyFK.accountFK
                     cash_recipient_type = "agency"
                 
+                cash_pending_result = None
                 if cash_recipient_account:
                     recipient_wallet, _ = Wallet.objects.get_or_create(
                         accountFK=cash_recipient_account,
-                        defaults={'balance': Decimal('0.00')}
+                        defaults={'balance': Decimal('0.00'), 'pendingEarnings': Decimal('0.00')}
                     )
                     
-                    # Transfer downpayment (50%) from escrow to recipient's wallet
+                    # Downpayment (50% escrow) goes to pendingEarnings with buffer
                     downpayment = job.budget * Decimal('0.5')
-                    recipient_wallet.balance += downpayment
-                    recipient_wallet.save()
-                    
-                    print(f"💰 Transferred ₱{downpayment} (50% downpayment escrow) to {cash_recipient_type} wallet. New balance: ₱{recipient_wallet.balance}")
-                    print(f"💵 {cash_recipient_type.capitalize()} received ₱{remaining_amount} (50% remaining) in physical cash from client")
-                    print(f"✅ {cash_recipient_type.capitalize()} received full budget: ₱{downpayment} (wallet from escrow) + ₱{remaining_amount} (physical cash) = ₱{job.budget}")
-                    
-                    # Create earnings transaction record for the downpayment transfer (from escrow to wallet)
-                    Transaction.objects.create(
-                        walletID=recipient_wallet,
-                        transactionType="EARNINGS",
+                    cash_pending_result = add_pending_earnings(
+                        job=job,
+                        recipient_account=cash_recipient_account,
                         amount=downpayment,
-                        balanceAfter=recipient_wallet.balance,
-                        status="COMPLETED",
-                        description=f"Downpayment escrow released for job: {job.title}" + (f" (Agency: {job.assignedAgencyFK.businessName})" if cash_recipient_type == "agency" else ""),
-                        referenceNumber=f"JOB-{job.jobID}-EARNINGS-ESCROW-{timezone.now().strftime('%Y%m%d%H%M%S')}",
-                        relatedJobPosting=job
+                        recipient_type=cash_recipient_type
                     )
-                    print(f"📝 Downpayment escrow transaction recorded: ₱{downpayment} transferred to wallet")
+                    
+                    print(f"⏳ Added ₱{downpayment} (50% escrow) to {cash_recipient_type} pendingEarnings. Release: {cash_pending_result['release_date_str']}")
+                    print(f"💵 {cash_recipient_type.capitalize()} received ₱{remaining_amount} (50% remaining) in physical cash from client")
+                    print(f"✅ {cash_recipient_type.capitalize()} total: ₱{downpayment} (pending) + ₱{remaining_amount} (cash) = ₱{job.budget}")
                     
                     # Create CASH payment log (does NOT affect wallet balance - for audit trail only)
                     Transaction.objects.create(
                         walletID=recipient_wallet,
-                        transactionType="EARNINGS",
+                        transactionType="EARNING",
                         amount=remaining_amount,
-                        balanceAfter=recipient_wallet.balance,  # Balance stays same - this is just a log
+                        balanceAfter=recipient_wallet.balance,  # Balance unchanged - this is just a log
                         status="COMPLETED",
                         description=f"Cash payment received for job: {job.title} (physical cash - not wallet deposit)" + (f" (Agency: {job.assignedAgencyFK.businessName})" if cash_recipient_type == "agency" else ""),
                         referenceNumber=f"JOB-{job.jobID}-CASH-PAYMENT-{timezone.now().strftime('%Y%m%d%H%M%S')}",
                         relatedJobPosting=job
                     )
-                    print(f"📝 Cash payment transaction logged: ₱{remaining_amount} received in physical cash (audit trail only)")
-                    
-                    # Create payment notification for the worker/agency
-                    if cash_recipient_type == "agency":
-                        Notification.objects.create(
-                            accountFK=cash_recipient_account,
-                            notificationType="PAYMENT_RELEASED",
-                            title=f"Payment Received! 💰",
-                            message=f"Your agency received ₱{job.budget} for '{job.title}': ₱{downpayment} added to agency wallet + ₱{remaining_amount} cash payment confirmed.",
-                            relatedJobID=job.jobID
-                        )
-                        print(f"📬 Payment notification sent to agency {cash_recipient_account.email}")
-                    else:
-                        Notification.objects.create(
-                            accountFK=cash_recipient_account,
-                            notificationType="PAYMENT_RELEASED",
-                            title=f"Payment Received! 💰",
-                            message=f"You received ₱{job.budget} for '{job.title}': ₱{downpayment} added to wallet + ₱{remaining_amount} cash payment confirmed.",
-                            relatedJobID=job.jobID
-                        )
-                        print(f"📬 Payment notification sent to worker {cash_recipient_account.email}")
+                    print(f"📝 Cash payment transaction logged: ₱{remaining_amount} received in physical cash")
                 
                 # Mark job as completed
                 job.remainingPaymentPaid = True
@@ -3364,7 +3317,7 @@ def client_approve_job_completion(
                 job.status = "COMPLETED"
                 job.save()
                 
-                print(f"✅ Job {job_id} marked as COMPLETED via CASH payment")
+                print(f"✅ Job {job_id} marked as COMPLETED via CASH payment (escrow pending {buffer_days} days)")
                 
                 # Create payment confirmation for the client
                 Notification.objects.create(
@@ -3378,7 +3331,7 @@ def client_approve_job_completion(
                 
                 return {
                     "success": True,
-                    "message": "Job completion approved! Cash payment proof uploaded successfully. You can now leave a review.",
+                    "message": f"Job completion approved! Cash payment confirmed. Escrow payment pending for {buffer_days} days. Please leave a review.",
                     "job_id": job_id,
                     "worker_marked_complete": job.workerMarkedComplete,
                     "client_marked_complete": job.clientMarkedComplete,
@@ -3390,7 +3343,12 @@ def client_approve_job_completion(
                     "prompt_review": True,
                     "worker_id": job.assignedWorkerID.profileID.accountFK.accountID if job.assignedWorkerID else None,
                     "agency_id": job.assignedAgencyFK.agencyId if job.assignedAgencyFK else None,
-                    "recipient_type": cash_recipient_type if cash_recipient_account else None
+                    "recipient_type": cash_recipient_type if cash_recipient_account else None,
+                    # Payment buffer info
+                    "payment_buffer_days": buffer_days,
+                    "worker_payment_pending": True,
+                    "worker_payment_release_date": cash_pending_result['release_date'].isoformat() if cash_pending_result else None,
+                    "worker_payment_release_date_formatted": cash_pending_result['release_date_str'] if cash_pending_result else None
                 }
             
             # If not WALLET or CASH, return error
@@ -4531,6 +4489,9 @@ def request_backjob(request, job_id: int, reason: str = Form(...), description: 
     Creates a dispute with evidence images.
     Admin must approve before it appears for worker/agency.
     Requires explicit terms acceptance for legal compliance.
+    
+    NEW: Backjob can only be requested during the 7-day payment buffer period
+    (before payment is released to worker). Also enforces cooldown after rejection.
     """
     try:
         print(f"🔄 Backjob request for job {job_id} from user {request.auth.email}")
@@ -4558,6 +4519,20 @@ def request_backjob(request, job_id: int, reason: str = Form(...), description: 
                 {"error": "Backjob can only be requested for completed jobs"},
                 status=400
             )
+        
+        # ============================================================
+        # PAYMENT BUFFER VALIDATION: Can only request backjob during buffer period
+        # ============================================================
+        from jobs.payment_buffer_service import can_request_backjob, hold_payment_for_backjob
+        
+        backjob_check = can_request_backjob(job)
+        if not backjob_check['can_request']:
+            return Response({
+                "error": backjob_check['reason'],
+                "remaining_hours": backjob_check.get('remaining_hours'),
+                "cooldown_ends_at": backjob_check.get('cooldown_ends_at')
+            }, status=400)
+        # ============================================================
         
         # Verify requester is the client who owns this job
         if job.clientID.profileID.accountFK != request.auth:
@@ -4643,13 +4618,20 @@ def request_backjob(request, job_id: int, reason: str = Form(...), description: 
             # For now, just log it
             print(f"📢 New backjob request created: Dispute #{dispute.disputeID} for Job #{job.jobID}")
             
+            # ============================================================
+            # HOLD PAYMENT: Put payment on hold due to backjob request
+            # ============================================================
+            hold_payment_for_backjob(job)
+            print(f"⏸️ Payment for job #{job.jobID} now on BACKJOB_PENDING hold")
+            # ============================================================
+            
             # Create a log entry (newStatus max 15 chars)
             JobLog.objects.create(
                 jobID=job,
                 oldStatus=job.status,
                 newStatus="BACKJOB_REQ",
                 changedBy=request.auth,
-                notes=f"Client requested backjob. Reason: {reason}"
+                notes=f"Client requested backjob. Reason: {reason}. Payment on hold."
             )
             
             # NOTE: Conversation reopening and system message are now sent
@@ -4657,10 +4639,11 @@ def request_backjob(request, job_id: int, reason: str = Form(...), description: 
         
         return {
             "success": True,
-            "message": "Backjob request submitted successfully. Our team will review it within 1-3 business days.",
+            "message": "Backjob request submitted successfully. Our team will review it within 1-3 business days. Worker payment has been put on hold.",
             "dispute_id": dispute.disputeID,
             "status": dispute.status,
-            "evidence_count": len(uploaded_images)
+            "evidence_count": len(uploaded_images),
+            "payment_on_hold": True
         }
         
     except Exception as e:

@@ -298,7 +298,9 @@ RUN apk add --no-cache --virtual .build-deps \
         rust \
     && apk add --no-cache \
         postgresql-client \
-        libpq
+        libpq \
+        dcron \
+        su-exec
 
 WORKDIR /app/apps/backend
 
@@ -319,8 +321,14 @@ COPY --chown=appuser:appgroup apps/backend .
 # Give appuser ownership of working directory
 RUN chown -R appuser:appgroup /app
 
-# Switch to non-root user
-USER appuser
+# Setup cron job for payment buffer release (runs every hour)
+# Note: cron runs as root, but executes Django command which accesses app files
+RUN echo "0 * * * * cd /app/apps/backend/src && /usr/local/bin/python manage.py release_pending_payments >> /var/log/cron.log 2>&1" > /etc/crontabs/root \
+    && touch /var/log/cron.log \
+    && chmod 0644 /var/log/cron.log
+
+# Note: We don't switch to non-root user here because cron needs root
+# The docker-compose command uses su-exec to run Django as appuser
 
 EXPOSE 8000
 

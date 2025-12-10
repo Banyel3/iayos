@@ -236,6 +236,7 @@ export const ENDPOINTS = {
 
   // Wallet - Use mobile endpoints with Bearer token auth
   WALLET_BALANCE: `${API_BASE_URL.replace("/api", "")}/api/mobile/wallet/balance`,
+  WALLET_PENDING_EARNINGS: `${API_BASE_URL.replace("/api", "")}/api/mobile/wallet/pending-earnings`,
   TRANSACTIONS: `${API_BASE_URL.replace("/api", "")}/api/mobile/wallet/transactions`,
   DEPOSIT: `${API_BASE_URL.replace("/api", "")}/api/mobile/wallet/deposit`,
 

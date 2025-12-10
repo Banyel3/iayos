@@ -979,6 +979,41 @@ class Job(models.Model):
     workerMarkedCompleteAt = models.DateTimeField(null=True, blank=True)
     clientMarkedCompleteAt = models.DateTimeField(null=True, blank=True)
     
+    # ============================================================
+    # PAYMENT BUFFER SYSTEM - 7-Day Holding Period
+    # Worker receives "Due Balance" which releases after buffer period
+    # Client can request backjob during this window
+    # ============================================================
+    class PaymentHeldReason(models.TextChoices):
+        BUFFER_PERIOD = "BUFFER_PERIOD", "Within buffer period (7 days)"
+        BACKJOB_PENDING = "BACKJOB_PENDING", "Backjob request pending"
+        ADMIN_HOLD = "ADMIN_HOLD", "Admin manually holding payment"
+        RELEASED = "RELEASED", "Payment released to worker"
+    
+    paymentReleaseDate = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Date when payment will be released to worker (completedAt + buffer days)"
+    )
+    paymentReleasedToWorker = models.BooleanField(
+        default=False,
+        help_text="Whether the payment has been released to worker's wallet"
+    )
+    paymentReleasedAt = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Timestamp when payment was released to worker"
+    )
+    paymentHeldReason = models.CharField(
+        max_length=20,
+        choices=PaymentHeldReason.choices,
+        default="BUFFER_PERIOD",
+        null=True,
+        blank=True,
+        help_text="Reason why payment is being held"
+    )
+    # ============================================================
+    
     # Timestamps
     createdAt = models.DateTimeField(auto_now_add=True)
     updatedAt = models.DateTimeField(auto_now=True)
@@ -1323,6 +1358,18 @@ class JobDispute(models.Model):
     termsVersion = models.CharField(max_length=20, blank=True, null=True)
     termsAcceptedAt = models.DateTimeField(blank=True, null=True)
     
+    # Admin rejection tracking (for backjob cooldown)
+    adminRejectedAt = models.DateTimeField(
+        blank=True, 
+        null=True,
+        help_text="When admin rejected this backjob request (used for cooldown)"
+    )
+    adminRejectionReason = models.TextField(
+        blank=True, 
+        null=True,
+        help_text="Reason for admin rejection"
+    )
+    
     # Timestamps
     openedDate = models.DateTimeField(auto_now_add=True)
     updatedAt = models.DateTimeField(auto_now=True)
@@ -1584,6 +1631,15 @@ class Wallet(models.Model):
         default=Decimal('0.00')
     )
     
+    # Pending Earnings (Due Balance) - funds from completed jobs awaiting release
+    # This is the "7-day buffer" where payment is held before transferring to balance
+    pendingEarnings = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text="Earnings from completed jobs pending release (7-day buffer)"
+    )
+    
     # Timestamps
     createdAt = models.DateTimeField(auto_now_add=True)
     updatedAt = models.DateTimeField(auto_now=True)
@@ -1598,8 +1654,14 @@ class Wallet(models.Model):
         """Returns the balance available for new reservations (balance - reserved)"""
         return self.balance - self.reservedBalance
     
+    @property
+    def totalBalance(self):
+        """Returns total balance including pending earnings (balance + pendingEarnings)"""
+        return self.balance + self.pendingEarnings
+    
     def __str__(self):
-        return f"Wallet for {self.accountFK.email} - ₱{self.balance} (₱{self.reservedBalance} reserved)"
+        pending_str = f" + ₱{self.pendingEarnings} pending" if self.pendingEarnings > 0 else ""
+        return f"Wallet for {self.accountFK.email} - ₱{self.balance}{pending_str} (₱{self.reservedBalance} reserved)"
 
 
 class Transaction(models.Model):
@@ -1620,10 +1682,11 @@ class Transaction(models.Model):
         PAYMENT = "PAYMENT", "Payment"
         REFUND = "REFUND", "Refund"
         EARNING = "EARNING", "Earning"
+        PENDING_EARNING = "PENDING_EARNING", "Pending Earning (7-day buffer)"
         FEE = "FEE", "Platform Fee"
     
     transactionType = models.CharField(
-        max_length=15,
+        max_length=20,
         choices=TransactionType.choices
     )
     
