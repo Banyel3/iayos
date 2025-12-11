@@ -147,6 +147,10 @@ class CreateJobMobileSchema(Schema):
     preferred_start_date: Optional[str] = None  # ISO format datetime string
     materials_needed: Optional[list] = None  # List of strings
     downpayment_method: str  # 'WALLET' | 'GCASH'
+    # Universal fields for ML accuracy
+    job_scope: Optional[str] = "MINOR_REPAIR"  # 'MINOR_REPAIR' | 'MODERATE_PROJECT' | 'MAJOR_RENOVATION'
+    skill_level_required: Optional[str] = "INTERMEDIATE"  # 'ENTRY' | 'INTERMEDIATE' | 'EXPERT'
+    work_environment: Optional[str] = "INDOOR"  # 'INDOOR' | 'OUTDOOR' | 'BOTH'
 
 class ApplyJobMobileSchema(Schema):
     """Mobile-optimized schema for job application"""
@@ -332,3 +336,7 @@ class CreateInviteJobMobileSchema(Schema):
     worker_id: Optional[int] = None  # Either worker_id OR agency_id (not both)
     agency_id: Optional[int] = None
     downpayment_method: str  # 'WALLET' | 'GCASH'
+    # Universal fields for ML accuracy
+    job_scope: Optional[str] = "MINOR_REPAIR"  # 'MINOR_REPAIR' | 'MODERATE_PROJECT' | 'MAJOR_RENOVATION'
+    skill_level_required: Optional[str] = "INTERMEDIATE"  # 'ENTRY' | 'INTERMEDIATE' | 'EXPERT'
+    work_environment: Optional[str] = "INDOOR"  # 'INDOOR' | 'OUTDOOR' | 'BOTH'

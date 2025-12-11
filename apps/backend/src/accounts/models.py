@@ -797,6 +797,46 @@ class Job(models.Model):
         default="MEDIUM"
     )
     
+    # ============================================================
+    # UNIVERSAL JOB FIELDS - For ML Price Prediction Accuracy
+    # ============================================================
+    class JobScope(models.TextChoices):
+        MINOR_REPAIR = "MINOR_REPAIR", "Minor Repair (quick fix)"
+        MODERATE_PROJECT = "MODERATE_PROJECT", "Moderate Project (few hours to a day)"
+        MAJOR_RENOVATION = "MAJOR_RENOVATION", "Major Renovation (multi-day project)"
+    
+    job_scope = models.CharField(
+        max_length=20,
+        choices=JobScope.choices,
+        default="MINOR_REPAIR",
+        help_text="Scope/complexity of the job"
+    )
+    
+    class SkillLevelRequired(models.TextChoices):
+        ENTRY = "ENTRY", "Entry Level (basic skills)"
+        INTERMEDIATE = "INTERMEDIATE", "Intermediate (experienced)"
+        EXPERT = "EXPERT", "Expert (specialized/licensed)"
+    
+    skill_level_required = models.CharField(
+        max_length=15,
+        choices=SkillLevelRequired.choices,
+        default="INTERMEDIATE",
+        help_text="Skill level required for this job"
+    )
+    
+    class WorkEnvironment(models.TextChoices):
+        INDOOR = "INDOOR", "Indoor"
+        OUTDOOR = "OUTDOOR", "Outdoor"
+        BOTH = "BOTH", "Both Indoor & Outdoor"
+    
+    work_environment = models.CharField(
+        max_length=10,
+        choices=WorkEnvironment.choices,
+        default="INDOOR",
+        help_text="Where the work will be performed"
+    )
+    # ============================================================
+    
     # Preferred Start Date
     preferredStartDate = models.DateField(null=True, blank=True)
     

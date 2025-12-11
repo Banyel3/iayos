@@ -72,6 +72,10 @@ interface CreateJobRequest {
   payment_method: "WALLET"; // Jobs only use Wallet payment (GCash is for deposits/withdrawals only)
   worker_id?: number;
   agency_id?: number;
+  // Universal job fields for ML accuracy
+  skill_level_required?: "ENTRY" | "INTERMEDIATE" | "EXPERT";
+  job_scope?: "MINOR_REPAIR" | "MODERATE_PROJECT" | "MAJOR_RENOVATION";
+  work_environment?: "INDOOR" | "OUTDOOR" | "BOTH";
 }
 
 export default function CreateJobScreen() {
@@ -105,6 +109,16 @@ export default function CreateJobScreen() {
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedMaterials, setSelectedMaterials] = useState<number[]>([]);
+  // New universal job fields for ML accuracy
+  const [skillLevel, setSkillLevel] = useState<
+    "ENTRY" | "INTERMEDIATE" | "EXPERT"
+  >("INTERMEDIATE");
+  const [jobScope, setJobScope] = useState<
+    "MINOR_REPAIR" | "MODERATE_PROJECT" | "MAJOR_RENOVATION"
+  >("MINOR_REPAIR");
+  const [workEnvironment, setWorkEnvironment] = useState<
+    "INDOOR" | "OUTDOOR" | "BOTH"
+  >("INDOOR");
   const queryClient = useQueryClient();
   // Jobs only use Wallet payment - GCash is for deposits/withdrawals only
   // No payment method selection needed - always WALLET
@@ -185,6 +199,9 @@ export default function CreateJobScreen() {
           description,
           category_id: categoryId,
           urgency,
+          skill_level: skillLevel,
+          job_scope: jobScope,
+          work_environment: workEnvironment,
         });
       }, 800);
     } else {
@@ -203,6 +220,9 @@ export default function CreateJobScreen() {
     description,
     categoryId,
     urgency,
+    skillLevel,
+    jobScope,
+    workEnvironment,
     predictPrice,
     resetPricePrediction,
   ]);
@@ -424,6 +444,10 @@ export default function CreateJobScreen() {
         ? startDate.toISOString().split("T")[0]
         : undefined,
       payment_method: "WALLET", // Jobs only use Wallet payment
+      // Universal job fields for ML accuracy
+      skill_level_required: skillLevel,
+      job_scope: jobScope,
+      work_environment: workEnvironment,
     };
 
     // Add worker or agency ID if provided
@@ -775,6 +799,123 @@ export default function CreateJobScreen() {
                       ]}
                     >
                       {level}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Skill Level Required */}
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Skill Level Required</Text>
+              <View style={styles.urgencyRow}>
+                {(
+                  [
+                    { value: "ENTRY", label: "🌱 Entry", desc: "Basic skills" },
+                    {
+                      value: "INTERMEDIATE",
+                      label: "⭐ Intermediate",
+                      desc: "Experienced",
+                    },
+                    {
+                      value: "EXPERT",
+                      label: "👑 Expert",
+                      desc: "Licensed/Specialized",
+                    },
+                  ] as const
+                ).map((level) => (
+                  <TouchableOpacity
+                    key={level.value}
+                    style={[
+                      styles.urgencyButton,
+                      skillLevel === level.value && styles.skillLevelActive,
+                    ]}
+                    onPress={() => setSkillLevel(level.value)}
+                  >
+                    <Text
+                      style={[
+                        styles.urgencyText,
+                        skillLevel === level.value && styles.urgencyTextActive,
+                      ]}
+                    >
+                      {level.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Job Scope */}
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Job Scope</Text>
+              <View style={styles.urgencyRow}>
+                {(
+                  [
+                    {
+                      value: "MINOR_REPAIR",
+                      label: "🔧 Minor",
+                      desc: "Quick fix",
+                    },
+                    {
+                      value: "MODERATE_PROJECT",
+                      label: "🛠️ Moderate",
+                      desc: "Few hours",
+                    },
+                    {
+                      value: "MAJOR_RENOVATION",
+                      label: "🏗️ Major",
+                      desc: "Multi-day",
+                    },
+                  ] as const
+                ).map((scope) => (
+                  <TouchableOpacity
+                    key={scope.value}
+                    style={[
+                      styles.urgencyButton,
+                      jobScope === scope.value && styles.jobScopeActive,
+                    ]}
+                    onPress={() => setJobScope(scope.value)}
+                  >
+                    <Text
+                      style={[
+                        styles.urgencyText,
+                        jobScope === scope.value && styles.urgencyTextActive,
+                      ]}
+                    >
+                      {scope.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Work Environment */}
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Work Environment</Text>
+              <View style={styles.urgencyRow}>
+                {(
+                  [
+                    { value: "INDOOR", label: "🏠 Indoor" },
+                    { value: "OUTDOOR", label: "🌳 Outdoor" },
+                    { value: "BOTH", label: "🔄 Both" },
+                  ] as const
+                ).map((env) => (
+                  <TouchableOpacity
+                    key={env.value}
+                    style={[
+                      styles.urgencyButton,
+                      workEnvironment === env.value && styles.workEnvActive,
+                    ]}
+                    onPress={() => setWorkEnvironment(env.value)}
+                  >
+                    <Text
+                      style={[
+                        styles.urgencyText,
+                        workEnvironment === env.value &&
+                          styles.urgencyTextActive,
+                      ]}
+                    >
+                      {env.label}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -1209,6 +1350,18 @@ const styles = StyleSheet.create({
   },
   urgencyTextActive: {
     color: Colors.white,
+  },
+  // Skill Level active style
+  skillLevelActive: {
+    backgroundColor: Colors.info || "#3B82F6",
+  },
+  // Job Scope active style
+  jobScopeActive: {
+    backgroundColor: Colors.warning || "#F59E0B",
+  },
+  // Work Environment active style
+  workEnvActive: {
+    backgroundColor: Colors.success || "#10B981",
   },
   dateButton: {
     flexDirection: "row",
