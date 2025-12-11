@@ -305,10 +305,8 @@ export default function WorkerDetailScreen() {
   );
 
   // Fetch ML-based profile score
-  const { data: profileScore, isLoading: isLoadingScore } = useWorkerProfileScore(
-    data?.id,
-    !!data
-  );
+  const { data: profileScore, isLoading: isLoadingScore } =
+    useWorkerProfileScore(data?.id, !!data);
 
   // Show skeleton while loading
   if (isLoading) {
@@ -472,20 +470,51 @@ export default function WorkerDetailScreen() {
           {/* ML Profile Score Card */}
           {profileScore && profileScore.profile_score !== null && (
             <View style={styles.section}>
-              <View style={[styles.mlScoreCard, { borderLeftColor: getScoreColor(profileScore.profile_score) }]}>
+              <View
+                style={[
+                  styles.mlScoreCard,
+                  {
+                    borderLeftColor: getScoreColor(profileScore.profile_score),
+                  },
+                ]}
+              >
                 <View style={styles.mlScoreHeader}>
                   <View style={styles.mlScoreLeft}>
                     <Text style={styles.mlScoreLabel}>🤖 AI Profile Score</Text>
                     <View style={styles.mlScoreRow}>
-                      <Text style={[styles.mlScoreValue, { color: getScoreColor(profileScore.profile_score) }]}>
+                      <Text
+                        style={[
+                          styles.mlScoreValue,
+                          { color: getScoreColor(profileScore.profile_score) },
+                        ]}
+                      >
                         {profileScore.profile_score.toFixed(0)}
                       </Text>
                       <Text style={styles.mlScoreMax}>/100</Text>
                     </View>
                   </View>
-                  <View style={[styles.mlCategoryBadge, { backgroundColor: getCategoryInfo(profileScore.rating_category).color + '20' }]}>
-                    <Text style={styles.mlCategoryEmoji}>{getCategoryInfo(profileScore.rating_category).emoji}</Text>
-                    <Text style={[styles.mlCategoryText, { color: getCategoryInfo(profileScore.rating_category).color }]}>
+                  <View
+                    style={[
+                      styles.mlCategoryBadge,
+                      {
+                        backgroundColor:
+                          getCategoryInfo(profileScore.rating_category).color +
+                          "20",
+                      },
+                    ]}
+                  >
+                    <Text style={styles.mlCategoryEmoji}>
+                      {getCategoryInfo(profileScore.rating_category).emoji}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.mlCategoryText,
+                        {
+                          color: getCategoryInfo(profileScore.rating_category)
+                            .color,
+                        },
+                      ]}
+                    >
                       {profileScore.rating_category}
                     </Text>
                   </View>
