@@ -343,6 +343,13 @@ export const ENDPOINTS = {
     `${API_BASE_URL.replace("/api", "")}/api/jobs/${jobId}/backjob/mark-complete`,
   BACKJOB_APPROVE_COMPLETION: (jobId: number) =>
     `${API_BASE_URL.replace("/api", "")}/api/jobs/${jobId}/backjob/approve-completion`,
+
+  // ML/AI Prediction Endpoints
+  // Price prediction for job creation - returns min/suggested/max price range
+  PREDICT_PRICE: `${API_BASE_URL.replace("/api", "")}/api/ml/predict-price`,
+  // Worker profile score for improvement suggestions (worker's own profile only)
+  WORKER_PROFILE_SCORE: (workerId: number) =>
+    `${API_BASE_URL.replace("/api", "")}/api/ml/worker-rating-for-profile/${workerId}`,
 };
 
 import AsyncStorage from "@react-native-async-storage/async-storage";

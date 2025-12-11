@@ -35,7 +35,9 @@ import {
 } from "@/lib/hooks/usePortfolioManagement";
 import { useCertifications } from "@/lib/hooks/useCertifications";
 import { useMaterials } from "@/lib/hooks/useMaterials";
+import { useWorkerProfileScore } from "@/lib/hooks/useWorkerProfileScore";
 import { ProfileSkeleton } from "@/components/ui/SkeletonLoader";
+import ProfileImprovementCard from "@/components/ProfileImprovementCard";
 
 // ===== TYPES =====
 
@@ -186,6 +188,15 @@ export default function ProfileScreen() {
 
   // Fetch materials (only for workers)
   const { data: materials = [] } = useMaterials();
+
+  // Fetch AI-powered profile improvement score
+  // This provides personalized suggestions for profile improvement
+  const {
+    data: profileScoreData,
+    isLoading: isLoadingProfileScore,
+    error: profileScoreError,
+    refetch: refetchProfileScore,
+  } = useWorkerProfileScore(profile?.id, isWorker && !!profile);
 
   // Prevent rendering if not a worker
   if (!isWorker) {
@@ -371,6 +382,18 @@ export default function ProfileScreen() {
           </View>
         </View>
       </View>
+
+      {/* AI Profile Improvement Score */}
+      {/* Shows personalized suggestions to help worker improve their profile */}
+      <ProfileImprovementCard
+        profileScore={profileScoreData?.profile_score}
+        ratingCategory={profileScoreData?.rating_category}
+        improvementSuggestions={profileScoreData?.improvement_suggestions}
+        source={profileScoreData?.source}
+        isLoading={isLoadingProfileScore}
+        error={profileScoreError?.message}
+        onRefresh={() => refetchProfileScore()}
+      />
 
       {/* Location Tracking */}
       <View style={styles.section}>

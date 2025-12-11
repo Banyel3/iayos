@@ -8,10 +8,11 @@
  * - Urgency level selection
  * - Preferred start date picker
  * - Wallet payment only (GCash is for deposits/withdrawals)
+ * - AI-powered price suggestion based on job details
  * - Validation and error handling
  */
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -40,6 +41,8 @@ import { fetchJson, ENDPOINTS, apiRequest } from "@/lib/api/config";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useBarangays } from "@/lib/hooks/useLocations";
 import { useWallet } from "@/lib/hooks/useWallet";
+import { usePricePrediction } from "@/lib/hooks/usePricePrediction";
+import PriceSuggestionCard from "@/components/PriceSuggestionCard";
 
 interface Category {
   id: number;
@@ -90,7 +93,9 @@ export default function CreateJobScreen() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [categoryId, setCategoryId] = useState<number | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<Category | null>(
+    null
+  );
   const [budget, setBudget] = useState("");
   const [barangay, setBarangay] = useState("");
   const [barangayModalVisible, setBarangayModalVisible] = useState(false);
@@ -111,7 +116,8 @@ export default function CreateJobScreen() {
     refetch: refetchWallet,
   } = useWallet();
 
-  const walletBalance = walletData?.availableBalance ?? walletData?.balance ?? 0;
+  const walletBalance =
+    walletData?.availableBalance ?? walletData?.balance ?? 0;
   const reservedBalance = walletData?.reservedBalance ?? 0;
 
   // Fetch payment methods to check if user has GCash set up
@@ -150,6 +156,61 @@ export default function CreateJobScreen() {
   });
 
   const workerMaterials = workerMaterialsData || [];
+
+  // AI Price Prediction Hook
+  const {
+    mutate: predictPrice,
+    data: pricePrediction,
+    isPending: isPredictingPrice,
+    error: pricePredictionError,
+    reset: resetPricePrediction,
+  } = usePricePrediction();
+
+  // Debounce timer ref for price prediction
+  const predictionTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  // Trigger price prediction when job details change (debounced)
+  useEffect(() => {
+    // Clear existing timeout
+    if (predictionTimeoutRef.current) {
+      clearTimeout(predictionTimeoutRef.current);
+    }
+
+    // Only predict if we have enough data
+    if (title.length >= 5 && description.length >= 10 && categoryId) {
+      // Debounce prediction by 800ms to avoid too many API calls
+      predictionTimeoutRef.current = setTimeout(() => {
+        predictPrice({
+          title,
+          description,
+          category_id: categoryId,
+          urgency,
+        });
+      }, 800);
+    } else {
+      // Reset prediction if insufficient data
+      resetPricePrediction();
+    }
+
+    // Cleanup timeout on unmount or dependency change
+    return () => {
+      if (predictionTimeoutRef.current) {
+        clearTimeout(predictionTimeoutRef.current);
+      }
+    };
+  }, [
+    title,
+    description,
+    categoryId,
+    urgency,
+    predictPrice,
+    resetPricePrediction,
+  ]);
+
+  // Handler to apply the AI suggested price
+  const handleApplySuggestedPrice = useCallback((price: number) => {
+    setBudget(price.toFixed(2));
+  }, []);
 
   // Fetch categories
   const { data: categoriesData, isLoading: categoriesLoading } = useQuery({
@@ -216,7 +277,7 @@ export default function CreateJobScreen() {
       // Invalidate wallet queries to reflect reserved balance change
       queryClient.invalidateQueries({ queryKey: ["wallet"] });
       queryClient.invalidateQueries({ queryKey: ["walletBalance"] });
-      
+
       // Validate job_posting_id exists
       if (!data.job_posting_id || isNaN(Number(data.job_posting_id))) {
         console.error("Invalid job_posting_id in response:", data);
@@ -260,7 +321,8 @@ export default function CreateJobScreen() {
             {
               text: "View Job",
               // Use replace so back button goes to home, not the form
-              onPress: () => router.replace(`/jobs/${data.job_posting_id}` as any),
+              onPress: () =>
+                router.replace(`/jobs/${data.job_posting_id}` as any),
             },
             {
               text: "Back to Home",
@@ -339,10 +401,11 @@ export default function CreateJobScreen() {
           { text: "Cancel", style: "cancel" },
           {
             text: "Deposit Funds",
-            onPress: () => router.push({
-              pathname: "/payments/deposit",
-              params: { amount: Math.ceil(shortfallAmount).toString() }
-            } as any),
+            onPress: () =>
+              router.push({
+                pathname: "/payments/deposit",
+                params: { amount: Math.ceil(shortfallAmount).toString() },
+              } as any),
           },
         ]
       );
@@ -399,11 +462,7 @@ export default function CreateJobScreen() {
             <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>
-            {workerId
-              ? "Hire Worker"
-              : agencyId
-                ? "Hire Agency"
-                : "Post a Job"}
+            {workerId ? "Hire Worker" : agencyId ? "Hire Agency" : "Post a Job"}
           </Text>
           <View style={{ width: 40 }} />
         </View>
@@ -501,10 +560,12 @@ export default function CreateJobScreen() {
               <Text style={styles.label}>
                 Budget (₱) <Text style={styles.required}>*</Text>
               </Text>
-              <View style={[
-                styles.budgetInput,
-                !categoryId && styles.inputDisabled
-              ]}>
+              <View
+                style={[
+                  styles.budgetInput,
+                  !categoryId && styles.inputDisabled,
+                ]}
+              >
                 <Text style={styles.currencySymbol}>₱</Text>
                 <TextInput
                   style={styles.budgetTextInput}
@@ -518,18 +579,33 @@ export default function CreateJobScreen() {
               </View>
               {selectedCategory && selectedCategory.minimum_rate > 0 ? (
                 <Text style={styles.helperText}>
-                  Minimum budget: ₱{selectedCategory.minimum_rate.toFixed(2)} • 50% downpayment (₱
-                  {budget ? (parseFloat(budget) * 0.5).toFixed(2) : "0.00"}) will
-                  be held in escrow
+                  Minimum budget: ₱{selectedCategory.minimum_rate.toFixed(2)} •
+                  50% downpayment (₱
+                  {budget ? (parseFloat(budget) * 0.5).toFixed(2) : "0.00"})
+                  will be held in escrow
                 </Text>
               ) : (
                 <Text style={styles.helperText}>
-                  {categoryId 
+                  {categoryId
                     ? `50% downpayment (₱${budget ? (parseFloat(budget) * 0.5).toFixed(2) : "0.00"}) will be held in escrow`
-                    : "Please select a category to set minimum budget"
-                  }
+                    : "Please select a category to set minimum budget"}
                 </Text>
               )}
+
+              {/* AI Price Suggestion Card */}
+              {categoryId &&
+                (title.length >= 5 || description.length >= 10) && (
+                  <PriceSuggestionCard
+                    minPrice={pricePrediction?.min_price}
+                    suggestedPrice={pricePrediction?.suggested_price}
+                    maxPrice={pricePrediction?.max_price}
+                    confidence={pricePrediction?.confidence}
+                    source={pricePrediction?.source}
+                    isLoading={isPredictingPrice}
+                    error={pricePredictionError?.message}
+                    onApplySuggested={handleApplySuggestedPrice}
+                  />
+                )}
             </View>
 
             {/* Barangay */}
@@ -815,29 +891,47 @@ export default function CreateJobScreen() {
             {/* Payment Method - Wallet Only */}
             <View style={styles.formGroup}>
               <Text style={styles.label}>Payment Method</Text>
-              
+
               {/* Wallet Balance Card */}
-              <View style={[
-                styles.walletBalanceCard,
-                hasInsufficientBalance && budget && styles.walletBalanceCardWarning
-              ]}>
+              <View
+                style={[
+                  styles.walletBalanceCard,
+                  hasInsufficientBalance &&
+                    budget &&
+                    styles.walletBalanceCardWarning,
+                ]}
+              >
                 <View style={styles.walletBalanceHeader}>
-                  <Ionicons 
-                    name="wallet" 
-                    size={24} 
-                    color={hasInsufficientBalance && budget ? Colors.warning : Colors.primary} 
+                  <Ionicons
+                    name="wallet"
+                    size={24}
+                    color={
+                      hasInsufficientBalance && budget
+                        ? Colors.warning
+                        : Colors.primary
+                    }
                   />
-                  <Text style={styles.walletBalanceLabel}>Available Balance</Text>
+                  <Text style={styles.walletBalanceLabel}>
+                    Available Balance
+                  </Text>
                 </View>
-                <Text style={[
-                  styles.walletBalanceAmount,
-                  hasInsufficientBalance && budget && styles.walletBalanceAmountWarning
-                ]}>
+                <Text
+                  style={[
+                    styles.walletBalanceAmount,
+                    hasInsufficientBalance &&
+                      budget &&
+                      styles.walletBalanceAmountWarning,
+                  ]}
+                >
                   ₱{walletBalance.toFixed(2)}
                 </Text>
                 {reservedBalance > 0 && (
                   <View style={styles.reservedBalanceRow}>
-                    <Ionicons name="lock-closed" size={14} color={Colors.warning} />
+                    <Ionicons
+                      name="lock-closed"
+                      size={14}
+                      color={Colors.warning}
+                    />
                     <Text style={styles.reservedBalanceText}>
                       ₱{reservedBalance.toFixed(2)} reserved in escrow
                     </Text>
@@ -846,7 +940,8 @@ export default function CreateJobScreen() {
                 {budget && parseFloat(budget) > 0 && (
                   <View style={styles.walletBalanceDetails}>
                     <Text style={styles.walletBalanceDetailText}>
-                      Required downpayment (50%): ₱{requiredDownpayment.toFixed(2)}
+                      Required downpayment (50%): ₱
+                      {requiredDownpayment.toFixed(2)}
                     </Text>
                     {hasInsufficientBalance && (
                       <Text style={styles.walletBalanceShortfall}>
@@ -858,12 +953,20 @@ export default function CreateJobScreen() {
                 {hasInsufficientBalance && budget && (
                   <TouchableOpacity
                     style={styles.depositButton}
-                    onPress={() => router.push({
-                      pathname: "/payments/deposit",
-                      params: { amount: Math.ceil(shortfallAmount).toString() }
-                    } as any)}
+                    onPress={() =>
+                      router.push({
+                        pathname: "/payments/deposit",
+                        params: {
+                          amount: Math.ceil(shortfallAmount).toString(),
+                        },
+                      } as any)
+                    }
                   >
-                    <Ionicons name="add-circle" size={18} color={Colors.white} />
+                    <Ionicons
+                      name="add-circle"
+                      size={18}
+                      color={Colors.white}
+                    />
                     <Text style={styles.depositButtonText}>Deposit Funds</Text>
                   </TouchableOpacity>
                 )}
@@ -874,15 +977,21 @@ export default function CreateJobScreen() {
                 <View style={styles.warningBox}>
                   <Ionicons name="warning" size={20} color={Colors.warning} />
                   <View style={styles.warningTextContainer}>
-                    <Text style={styles.warningTitle}>GCash Account Required</Text>
+                    <Text style={styles.warningTitle}>
+                      GCash Account Required
+                    </Text>
                     <Text style={styles.warningText}>
                       Add a GCash account to deposit funds for job payments.
                     </Text>
                     <TouchableOpacity
                       style={styles.addPaymentButton}
-                      onPress={() => router.push("/profile/payment-methods" as any)}
+                      onPress={() =>
+                        router.push("/profile/payment-methods" as any)
+                      }
                     >
-                      <Text style={styles.addPaymentButtonText}>Add GCash Account</Text>
+                      <Text style={styles.addPaymentButtonText}>
+                        Add GCash Account
+                      </Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -890,7 +999,11 @@ export default function CreateJobScreen() {
 
               {hasGCashMethod && (
                 <View style={styles.successBox}>
-                  <Ionicons name="checkmark-circle" size={20} color={Colors.success} />
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={20}
+                    color={Colors.success}
+                  />
                   <Text style={styles.successText}>GCash account linked</Text>
                 </View>
               )}
@@ -906,13 +1019,11 @@ export default function CreateJobScreen() {
               <View style={styles.infoTextContainer}>
                 <Text style={styles.infoTitle}>Payment Process</Text>
                 <Text style={styles.infoText}>
-                  {workerId || agencyId ? (
-                    // INVITE job - immediate deduction
-                    `• 50% downpayment will be deducted immediately\n• Funds held in escrow until job completion\n• Worker/Agency completes the job\n• You approve completion\n• Remaining 50% is released`
-                  ) : (
-                    // LISTING job - reservation
-                    `• 50% downpayment will be reserved (not deducted)\n• Funds are held when a worker is accepted\n• Worker completes the job\n• You approve completion\n• Remaining 50% is released`
-                  )}
+                  {workerId || agencyId
+                    ? // INVITE job - immediate deduction
+                      `• 50% downpayment will be deducted immediately\n• Funds held in escrow until job completion\n• Worker/Agency completes the job\n• You approve completion\n• Remaining 50% is released`
+                    : // LISTING job - reservation
+                      `• 50% downpayment will be reserved (not deducted)\n• Funds are held when a worker is accepted\n• Worker completes the job\n• You approve completion\n• Remaining 50% is released`}
                 </Text>
               </View>
             </View>
