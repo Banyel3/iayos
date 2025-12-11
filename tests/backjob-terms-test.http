@@ -1,0 +1,325 @@
+### Backjob Terms Acceptance API Tests
+### This file tests the new terms acceptance feature for backjob requests
+### Created: December 9, 2025
+
+@baseUrl = http://localhost:8000
+@jobId = 1
+@authToken = your_jwt_token_here
+
+### Variables (Update these with real values from your test environment)
+# After login, replace @authToken with actual JWT token from response
+# Replace @jobId with a completed job ID from your database
+
+###############################################################################
+# TEST 1: Login to get auth token
+###############################################################################
+
+POST {{baseUrl}}/api/accounts/login
+Content-Type: application/json
+
+{
+  "email": "client@test.com",
+  "password": "testpassword123"
+}
+
+### Extract token from response and update @authToken variable above
+
+###############################################################################
+# TEST 2: Request backjob WITHOUT terms acceptance (should fail with 400)
+###############################################################################
+
+POST {{baseUrl}}/api/jobs/{{jobId}}/request-backjob
+Authorization: Bearer {{authToken}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="reason"
+
+The plumbing work is leaking again after 2 days
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="description"
+
+The kitchen sink faucet that was fixed is now leaking worse than before. Water is dripping continuously even when the tap is fully closed. The issue seems to be with the valve installation.
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="terms_accepted"
+
+false
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### Expected Response:
+# HTTP 400 Bad Request
+# {
+#   "error": "You must accept the backjob agreement terms before submitting a request"
+# }
+
+###############################################################################
+# TEST 3: Request backjob WITH terms acceptance (should succeed with 200)
+###############################################################################
+
+POST {{baseUrl}}/api/jobs/{{jobId}}/request-backjob
+Authorization: Bearer {{authToken}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="reason"
+
+The plumbing work is leaking again after 2 days
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="description"
+
+The kitchen sink faucet that was fixed is now leaking worse than before. Water is dripping continuously even when the tap is fully closed. The issue seems to be with the valve installation.
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="terms_accepted"
+
+true
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### Expected Response:
+# HTTP 200 OK
+# {
+#   "success": true,
+#   "message": "Backjob request submitted successfully. Our team will review it within 1-3 business days.",
+#   "dispute_id": 1,
+#   "status": "OPEN",
+#   "evidence_count": 0
+# }
+
+###############################################################################
+# TEST 4: Request backjob WITH terms and evidence images
+###############################################################################
+
+POST {{baseUrl}}/api/jobs/{{jobId}}/request-backjob
+Authorization: Bearer {{authToken}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="reason"
+
+Poor paint quality - already peeling after 1 week
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="description"
+
+The wall paint that was applied last week is already peeling off in multiple areas. The edges near the ceiling are showing cracks and the color is uneven. This appears to be due to poor surface preparation or low-quality paint.
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="terms_accepted"
+
+true
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="images"; filename="evidence1.jpg"
+Content-Type: image/jpeg
+
+< ./test-images/evidence1.jpg
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="images"; filename="evidence2.jpg"
+Content-Type: image/jpeg
+
+< ./test-images/evidence2.jpg
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### Expected Response:
+# HTTP 200 OK
+# {
+#   "success": true,
+#   "message": "Backjob request submitted successfully...",
+#   "dispute_id": 2,
+#   "status": "OPEN",
+#   "evidence_count": 2
+# }
+
+###############################################################################
+# TEST 5: Verify dispute record in database (Admin Panel)
+###############################################################################
+
+GET {{baseUrl}}/api/adminpanel/jobs/disputes?page=1&status=OPEN
+Authorization: Bearer {{authToken}}
+
+### Expected Response:
+# HTTP 200 OK
+# {
+#   "disputes": [
+#     {
+#       "dispute_id": 1,
+#       "job": {...},
+#       "reason": "The plumbing work is leaking again...",
+#       "description": "The kitchen sink faucet...",
+#       "status": "OPEN",
+#       "priority": "MEDIUM",
+#       "terms_accepted": true,  <-- NEW FIELD
+#       "terms_version": "v1.0",  <-- NEW FIELD
+#       "terms_accepted_at": "2025-12-09T10:30:00Z",  <-- NEW FIELD
+#       "evidence_images": [...],
+#       "opened_date": "2025-12-09T10:30:00Z"
+#     }
+#   ]
+# }
+
+###############################################################################
+# TEST 6: Attempt backjob on non-completed job (should fail with 400)
+###############################################################################
+
+POST {{baseUrl}}/api/jobs/999/request-backjob
+Authorization: Bearer {{authToken}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="reason"
+
+Test reason for active job
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="description"
+
+This should fail because job 999 is not in COMPLETED status yet.
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="terms_accepted"
+
+true
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### Expected Response:
+# HTTP 400 Bad Request
+# {
+#   "error": "Backjob can only be requested for completed jobs"
+# }
+
+###############################################################################
+# TEST 7: Attempt duplicate backjob request (should fail with 400)
+###############################################################################
+
+POST {{baseUrl}}/api/jobs/{{jobId}}/request-backjob
+Authorization: Bearer {{authToken}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="reason"
+
+Duplicate backjob request attempt
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="description"
+
+This should fail because a backjob already exists for this job ID.
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="terms_accepted"
+
+true
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### Expected Response:
+# HTTP 400 Bad Request
+# {
+#   "error": "A backjob request already exists for this job",
+#   "dispute_id": 1
+# }
+
+###############################################################################
+# TEST 8: Validate reason length (should fail with 400)
+###############################################################################
+
+POST {{baseUrl}}/api/jobs/{{jobId}}/request-backjob
+Authorization: Bearer {{authToken}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="reason"
+
+Short
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="description"
+
+This has a valid description but the reason is too short (less than 10 characters).
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="terms_accepted"
+
+true
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### Expected Response:
+# HTTP 400 Bad Request
+# {
+#   "error": "Reason must be at least 10 characters"
+# }
+
+###############################################################################
+# TEST 9: Validate description length (should fail with 400)
+###############################################################################
+
+POST {{baseUrl}}/api/jobs/{{jobId}}/request-backjob
+Authorization: Bearer {{authToken}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="reason"
+
+Valid reason with 10+ characters here
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="description"
+
+Too short description
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="terms_accepted"
+
+true
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### Expected Response:
+# HTTP 400 Bad Request
+# {
+#   "error": "Description must be at least 50 characters"
+# }
+
+###############################################################################
+# TEST 10: Check admin can see terms acceptance status
+###############################################################################
+
+GET {{baseUrl}}/api/adminpanel/jobs/disputes/1
+Authorization: Bearer {{authToken}}
+
+### Expected Response to include:
+# {
+#   "dispute_id": 1,
+#   "terms_accepted": true,
+#   "terms_version": "v1.0",
+#   "terms_accepted_at": "2025-12-09T10:30:00Z",
+#   ...
+# }
+
+###############################################################################
+# VALIDATION CHECKLIST
+###############################################################################
+
+# ✅ TEST 1: Login successful
+# ❌ TEST 2: Terms not accepted → 400 error
+# ✅ TEST 3: Terms accepted → 200 success
+# ✅ TEST 4: With evidence images → 200 success
+# ✅ TEST 5: Database shows terms fields
+# ❌ TEST 6: Non-completed job → 400 error
+# ❌ TEST 7: Duplicate request → 400 error
+# ❌ TEST 8: Short reason → 400 error
+# ❌ TEST 9: Short description → 400 error
+# ✅ TEST 10: Admin sees terms acceptance
+
+###############################################################################
+# NOTES FOR TESTING
+###############################################################################
+
+# 1. Start Docker containers: docker-compose -f docker-compose.dev.yml up
+# 2. Apply migration: docker exec -it iayos-backend-dev python src/manage.py migrate
+# 3. Create test data:
+#    - Client account (client@test.com)
+#    - Completed job (status = COMPLETED)
+# 4. Update @authToken and @jobId variables above
+# 5. Run tests sequentially using REST Client extension in VS Code
+# 6. Verify responses match expected results
+# 7. Check database: docker exec -it iayos-db-dev psql -U postgres -d iayos -c "SELECT disputeID, termsAccepted, termsVersion, termsAcceptedAt FROM job_disputes;"
+
+###############################################################################
+# DATABASE VERIFICATION QUERIES
+###############################################################################
+
+# Check dispute terms fields:
+# SELECT disputeID, jobID_id, reason, status, termsAccepted, termsVersion, termsAcceptedAt FROM job_disputes;
+
+# Check evidence count:
+# SELECT d.disputeID, COUNT(e.evidenceID) as evidence_count FROM job_disputes d LEFT JOIN dispute_evidence e ON d.disputeID = e.disputeID_id GROUP BY d.disputeID;
+
+# Check job logs:
+# SELECT * FROM job_logs WHERE jobID_id = {{jobId}} ORDER BY created DESC LIMIT 5;

@@ -1,0 +1,749 @@
+/**
+ * Wallet Dashboard Screen
+ *
+ * Features:
+ * - Balance card with current balance and last updated timestamp
+ * - Pending Earnings (Due Balance) section for workers (7-day buffer)
+ * - Quick stats row (Pending, This Month, Total)
+ * - Transaction history with tab filtering
+ * - Pull-to-refresh
+ * - Infinite scroll pagination
+ * - Add funds and withdraw buttons
+ */
+
+import React, { useState } from "react";
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  StyleSheet,
+  SafeAreaView,
+  ActivityIndicator,
+  RefreshControl,
+  FlatList,
+} from "react-native";
+import { useRouter } from "expo-router";
+import {
+  Colors,
+  Typography,
+  Spacing,
+  BorderRadius,
+  Shadows,
+} from "@/constants/theme";
+import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
+import { useWallet, PendingEarningItem } from "@/lib/hooks/useWallet";
+import { useTransactions } from "@/lib/hooks/useTransactions";
+import TransactionCard from "@/components/TransactionCard";
+import EmptyState from "@/components/ui/EmptyState";
+import SkeletonCard from "@/components/ui/SkeletonCard";
+import Card from "@/components/ui/Card";
+import Button from "@/components/ui/Button";
+
+type TransactionFilter = "all" | "deposit" | "payment" | "withdrawal";
+
+export default function WalletScreen() {
+  const router = useRouter();
+  const [refreshing, setRefreshing] = useState(false);
+  const [activeFilter, setActiveFilter] = useState<TransactionFilter>("all");
+
+  // Fetch wallet data
+  const {
+    data: walletData,
+    isLoading: walletLoading,
+    error: walletError,
+    refetch: refetchWallet,
+  } = useWallet();
+
+  // Fetch transactions with filter
+  const {
+    data: transactionsData,
+    isLoading: transactionsLoading,
+    error: transactionsError,
+    refetch: refetchTransactions,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useTransactions(activeFilter);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([refetchWallet(), refetchTransactions()]);
+    setRefreshing(false);
+  };
+
+  const handleFilterChange = (filter: TransactionFilter) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setActiveFilter(filter);
+  };
+
+  const handleAddFunds = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    router.push("/payments/deposit" as any);
+  };
+
+  const handleWithdraw = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    router.push("/wallet/withdraw" as any);
+  };
+
+  const handleLoadMore = () => {
+    if (hasNextPage && !isFetchingNextPage) {
+      fetchNextPage();
+    }
+  };
+
+  // Flatten paginated transactions
+  const allTransactions =
+    transactionsData?.pages.flatMap((page) => page.results || []) || [];
+
+  // Format currency
+  const formatCurrency = (amount: number): string => {
+    return `₱${amount.toLocaleString("en-PH", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+  };
+
+  // Format last updated
+  const formatLastUpdated = (dateString: string | undefined): string => {
+    if (!dateString) return "Never";
+
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+
+    if (diffMins < 1) return "Just now";
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    return date.toLocaleString();
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.back()}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Wallet</Text>
+        <View style={{ width: 40 }} />
+      </View>
+
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+        }
+        contentContainerStyle={styles.scrollContent}
+      >
+        {/* Balance Card */}
+        {walletLoading ? (
+          <SkeletonCard />
+        ) : walletError ? (
+          <Card style={styles.errorCard}>
+            <Ionicons
+              name="alert-circle-outline"
+              size={32}
+              color={Colors.error}
+            />
+            <Text style={styles.errorText}>Failed to load wallet</Text>
+          </Card>
+        ) : (
+          <Card style={styles.balanceCard}>
+            <Text style={styles.balanceLabel}>Available Balance</Text>
+            <Text style={styles.balanceAmount}>
+              {formatCurrency(
+                walletData?.availableBalance ?? walletData?.balance ?? 0
+              )}
+            </Text>
+
+            {/* Reserved Balance Indicator */}
+            {(walletData?.reservedBalance ?? 0) > 0 && (
+              <View style={styles.reservedSection}>
+                <View style={styles.reservedRow}>
+                  <Ionicons
+                    name="lock-closed"
+                    size={16}
+                    color={Colors.warning}
+                  />
+                  <Text style={styles.reservedLabel}>Reserved in Escrow:</Text>
+                  <Text style={styles.reservedAmount}>
+                    {formatCurrency(walletData?.reservedBalance ?? 0)}
+                  </Text>
+                </View>
+                <Text style={styles.reservedHint}>
+                  Funds held for pending job postings
+                </Text>
+              </View>
+            )}
+
+            <Text style={styles.lastUpdated}>
+              Last updated: {formatLastUpdated(walletData?.last_updated)}
+            </Text>
+
+            {/* Action Buttons */}
+            <View style={styles.actionButtons}>
+              <Button
+                variant="primary"
+                onPress={handleAddFunds}
+                style={styles.actionButton}
+              >
+                <Ionicons
+                  name="add-circle-outline"
+                  size={18}
+                  color={Colors.white}
+                  style={{ marginRight: 4 }}
+                />
+                Add Funds
+              </Button>
+              <Button
+                variant="outline"
+                onPress={handleWithdraw}
+                style={styles.actionButton}
+              >
+                <Ionicons
+                  name="arrow-up-circle-outline"
+                  size={18}
+                  color={Colors.primary}
+                  style={{ marginRight: 4 }}
+                />
+                Withdraw
+              </Button>
+            </View>
+          </Card>
+        )}
+
+        {/* Pending Earnings (Due Balance) Section - for workers */}
+        {!walletLoading &&
+          !walletError &&
+          (walletData?.pendingEarnings ?? 0) > 0 && (
+            <Card style={styles.pendingEarningsCard}>
+              <View style={styles.pendingEarningsHeader}>
+                <View style={styles.pendingEarningsIconContainer}>
+                  <Ionicons
+                    name="hourglass-outline"
+                    size={24}
+                    color={Colors.warning}
+                  />
+                </View>
+                <View style={styles.pendingEarningsTitleContainer}>
+                  <Text style={styles.pendingEarningsTitle}>Due Balance</Text>
+                  <Text style={styles.pendingEarningsSubtitle}>
+                    Released after 7-day hold period
+                  </Text>
+                </View>
+              </View>
+
+              <Text style={styles.pendingEarningsAmount}>
+                {formatCurrency(walletData?.pendingEarnings ?? 0)}
+              </Text>
+
+              {/* Individual pending jobs */}
+              {walletData?.pendingEarningsList &&
+                walletData.pendingEarningsList.length > 0 && (
+                  <View style={styles.pendingJobsList}>
+                    {walletData.pendingEarningsList
+                      .slice(0, 3)
+                      .map((item: PendingEarningItem) => (
+                        <View
+                          key={item.transaction_id}
+                          style={styles.pendingJobItem}
+                        >
+                          <View style={styles.pendingJobInfo}>
+                            <Text
+                              style={styles.pendingJobTitle}
+                              numberOfLines={1}
+                            >
+                              {item.job_title}
+                            </Text>
+                            <View style={styles.pendingJobStatus}>
+                              {item.has_active_backjob ? (
+                                <View style={styles.backjobBadge}>
+                                  <Ionicons
+                                    name="alert-circle"
+                                    size={12}
+                                    color={Colors.error}
+                                  />
+                                  <Text style={styles.backjobBadgeText}>
+                                    Backjob Pending
+                                  </Text>
+                                </View>
+                              ) : (
+                                <Text style={styles.pendingJobDays}>
+                                  <Ionicons
+                                    name="time-outline"
+                                    size={12}
+                                    color={Colors.info}
+                                  />{" "}
+                                  {item.days_until_release > 0
+                                    ? `Releases in ${item.days_until_release} day${item.days_until_release !== 1 ? "s" : ""}`
+                                    : "Releasing soon"}
+                                </Text>
+                              )}
+                            </View>
+                          </View>
+                          <Text style={styles.pendingJobAmount}>
+                            {formatCurrency(item.amount)}
+                          </Text>
+                        </View>
+                      ))}
+
+                    {walletData.pendingEarningsList.length > 3 && (
+                      <TouchableOpacity
+                        style={styles.viewAllPending}
+                        onPress={() =>
+                          router.push("/wallet/pending-earnings" as any)
+                        }
+                      >
+                        <Text style={styles.viewAllPendingText}>
+                          View all {walletData.pendingEarningsList.length}{" "}
+                          pending payments
+                        </Text>
+                        <Ionicons
+                          name="chevron-forward"
+                          size={16}
+                          color={Colors.primary}
+                        />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
+
+              <View style={styles.pendingInfoBox}>
+                <Ionicons
+                  name="information-circle-outline"
+                  size={16}
+                  color={Colors.info}
+                />
+                <Text style={styles.pendingInfoText}>
+                  Payments are held for 7 days after job completion, giving
+                  clients time to report issues. After this period, funds are
+                  automatically released to your wallet.
+                </Text>
+              </View>
+            </Card>
+          )}
+
+        {/* Quick Stats */}
+        {!walletLoading && !walletError && (
+          <View style={styles.statsRow}>
+            <Card style={styles.statCard}>
+              <Ionicons
+                name="time-outline"
+                size={20}
+                color={Colors.warning}
+                style={styles.statIcon}
+              />
+              <Text style={styles.statLabel}>Pending</Text>
+              <Text style={[styles.statValue, { color: Colors.warning }]}>
+                {formatCurrency(walletData?.pending || 0)}
+              </Text>
+            </Card>
+
+            <Card style={styles.statCard}>
+              <Ionicons
+                name="calendar-outline"
+                size={20}
+                color={Colors.info}
+                style={styles.statIcon}
+              />
+              <Text style={styles.statLabel}>This Month</Text>
+              <Text style={[styles.statValue, { color: Colors.info }]}>
+                {formatCurrency(walletData?.this_month || 0)}
+              </Text>
+            </Card>
+
+            <Card style={styles.statCard}>
+              <Ionicons
+                name="trending-up-outline"
+                size={20}
+                color={Colors.success}
+                style={styles.statIcon}
+              />
+              <Text style={styles.statLabel}>Total</Text>
+              <Text style={[styles.statValue, { color: Colors.success }]}>
+                {formatCurrency(walletData?.total_earned || 0)}
+              </Text>
+            </Card>
+          </View>
+        )}
+
+        {/* Transaction History Header */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Transaction History</Text>
+        </View>
+
+        {/* Filter Tabs */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterTabs}
+        >
+          {(
+            ["all", "deposit", "payment", "withdrawal"] as TransactionFilter[]
+          ).map((filter) => (
+            <TouchableOpacity
+              key={filter}
+              style={[
+                styles.filterTab,
+                activeFilter === filter && styles.filterTabActive,
+              ]}
+              onPress={() => handleFilterChange(filter)}
+              activeOpacity={0.7}
+            >
+              <Text
+                style={[
+                  styles.filterTabText,
+                  activeFilter === filter && styles.filterTabTextActive,
+                ]}
+              >
+                {filter.charAt(0).toUpperCase() + filter.slice(1)}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        {/* Transaction List */}
+        {transactionsLoading ? (
+          <View style={styles.loadingContainer}>
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
+          </View>
+        ) : transactionsError ? (
+          <EmptyState
+            icon="alert-circle-outline"
+            title="Failed to load transactions"
+            message="Please try again later"
+          />
+        ) : allTransactions.length === 0 ? (
+          <EmptyState
+            icon="receipt-outline"
+            title={
+              activeFilter === "all"
+                ? "No transactions yet"
+                : `No ${activeFilter} transactions`
+            }
+            message="Your transaction history will appear here"
+          />
+        ) : (
+          <View style={styles.transactionList}>
+            {allTransactions.map((transaction, index) => (
+              <TransactionCard
+                key={`${transaction.id}-${index}`}
+                transaction={transaction}
+                onPress={() => {
+                  // Navigate to transaction details
+                  // router.push(`/wallet/transaction/${transaction.id}` as any);
+                }}
+              />
+            ))}
+
+            {/* Load More */}
+            {hasNextPage && (
+              <TouchableOpacity
+                style={styles.loadMoreButton}
+                onPress={handleLoadMore}
+                disabled={isFetchingNextPage}
+              >
+                {isFetchingNextPage ? (
+                  <ActivityIndicator size="small" color={Colors.primary} />
+                ) : (
+                  <Text style={styles.loadMoreText}>Load More</Text>
+                )}
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    backgroundColor: Colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  backButton: {
+    padding: Spacing.xs,
+  },
+  headerTitle: {
+    ...Typography.heading.h3,
+    color: Colors.textPrimary,
+  },
+  scrollContent: {
+    padding: Spacing.md,
+  },
+  balanceCard: {
+    alignItems: "center",
+    padding: Spacing.xl,
+    marginBottom: Spacing.md,
+  },
+  balanceLabel: {
+    ...Typography.body.medium,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.xs,
+  },
+  balanceAmount: {
+    fontSize: 36,
+    fontWeight: "700",
+    color: Colors.primary,
+    marginBottom: Spacing.xs,
+  },
+  reservedSection: {
+    backgroundColor: Colors.warning + "15",
+    borderRadius: BorderRadius.sm,
+    padding: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  reservedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  reservedLabel: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+  },
+  reservedAmount: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: "600",
+    color: Colors.warning,
+  },
+  reservedHint: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.textHint,
+    marginTop: 2,
+    marginLeft: 22,
+  },
+  lastUpdated: {
+    ...Typography.body.small,
+    color: Colors.textHint,
+    marginBottom: Spacing.lg,
+  },
+  actionButtons: {
+    flexDirection: "row",
+    width: "100%",
+    gap: Spacing.md,
+  },
+  actionButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  statsRow: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    marginBottom: Spacing.lg,
+  },
+  statCard: {
+    flex: 1,
+    alignItems: "center",
+    padding: Spacing.md,
+  },
+  statIcon: {
+    marginBottom: Spacing.xs,
+  },
+  statLabel: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.xs,
+  },
+  statValue: {
+    ...Typography.body.medium,
+    fontWeight: "700",
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: Spacing.md,
+  },
+  sectionTitle: {
+    ...Typography.heading.h4,
+    color: Colors.textPrimary,
+  },
+  filterTabs: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  filterTab: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  filterTabActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  filterTabText: {
+    ...Typography.body.medium,
+    color: Colors.textSecondary,
+    fontWeight: "600",
+  },
+  filterTabTextActive: {
+    color: Colors.white,
+  },
+  transactionList: {
+    gap: Spacing.sm,
+  },
+  loadingContainer: {
+    gap: Spacing.md,
+  },
+  errorCard: {
+    alignItems: "center",
+    padding: Spacing.xl,
+    marginBottom: Spacing.md,
+  },
+  errorText: {
+    ...Typography.body.medium,
+    color: Colors.error,
+    marginTop: Spacing.sm,
+  },
+  loadMoreButton: {
+    alignItems: "center",
+    paddingVertical: Spacing.md,
+    marginTop: Spacing.sm,
+  },
+  loadMoreText: {
+    ...Typography.body.medium,
+    color: Colors.primary,
+    fontWeight: "600",
+  },
+  // Pending Earnings (Due Balance) styles
+  pendingEarningsCard: {
+    padding: Spacing.lg,
+    marginBottom: Spacing.md,
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.warning,
+  },
+  pendingEarningsHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+  pendingEarningsIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.warning + "20",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: Spacing.sm,
+  },
+  pendingEarningsTitleContainer: {
+    flex: 1,
+  },
+  pendingEarningsTitle: {
+    ...Typography.heading.h4,
+    color: Colors.textPrimary,
+  },
+  pendingEarningsSubtitle: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+  },
+  pendingEarningsAmount: {
+    fontSize: 28,
+    fontWeight: "700",
+    color: Colors.warning,
+    marginBottom: Spacing.md,
+  },
+  pendingJobsList: {
+    marginBottom: Spacing.md,
+  },
+  pendingJobItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  pendingJobInfo: {
+    flex: 1,
+    marginRight: Spacing.sm,
+  },
+  pendingJobTitle: {
+    ...Typography.body.medium,
+    color: Colors.textPrimary,
+    fontWeight: "500",
+    marginBottom: 2,
+  },
+  pendingJobStatus: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  pendingJobDays: {
+    ...Typography.body.small,
+    color: Colors.info,
+  },
+  backjobBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.error + "15",
+    paddingHorizontal: Spacing.xs,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.xs,
+    gap: 4,
+  },
+  backjobBadgeText: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.error,
+    fontWeight: "600",
+  },
+  pendingJobAmount: {
+    ...Typography.body.medium,
+    fontWeight: "600",
+    color: Colors.warning,
+  },
+  viewAllPending: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing.sm,
+    marginTop: Spacing.xs,
+  },
+  viewAllPendingText: {
+    ...Typography.body.small,
+    color: Colors.primary,
+    fontWeight: "600",
+    marginRight: 4,
+  },
+  pendingInfoBox: {
+    flexDirection: "row",
+    backgroundColor: Colors.info + "10",
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    gap: Spacing.xs,
+  },
+  pendingInfoText: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+    flex: 1,
+    lineHeight: 18,
+  },
+});

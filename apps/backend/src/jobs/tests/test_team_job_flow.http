@@ -1,0 +1,477 @@
+# ===========================================================================
+# TEAM JOB COMPLETE FLOW TEST
+# Tests the entire team job lifecycle from creation to completion
+# ===========================================================================
+
+@baseUrl = http://localhost:8000/api
+@clientEmail = client@test.com
+@clientPassword = test123456
+@worker1Email = worker1@test.com
+@worker2Email = worker2@test.com
+@worker3Email = worker3@test.com
+@workerPassword = test123456
+
+# ===========================================================================
+# STEP 0: Authentication - Get tokens for all users
+# ===========================================================================
+
+### 0.1 Client Login
+# @name clientLogin
+POST {{baseUrl}}/mobile/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{clientEmail}}",
+  "password": "{{clientPassword}}"
+}
+
+### Save client token
+@clientToken = {{clientLogin.response.body.access_token}}
+
+### 0.2 Worker 1 Login
+# @name worker1Login
+POST {{baseUrl}}/mobile/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{worker1Email}}",
+  "password": "{{workerPassword}}"
+}
+
+### Save worker1 token
+@worker1Token = {{worker1Login.response.body.access_token}}
+
+### 0.3 Worker 2 Login
+# @name worker2Login
+POST {{baseUrl}}/mobile/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{worker2Email}}",
+  "password": "{{workerPassword}}"
+}
+
+### Save worker2 token
+@worker2Token = {{worker2Login.response.body.access_token}}
+
+### 0.4 Worker 3 Login
+# @name worker3Login
+POST {{baseUrl}}/mobile/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{worker3Email}}",
+  "password": "{{workerPassword}}"
+}
+
+### Save worker3 token
+@worker3Token = {{worker3Login.response.body.access_token}}
+
+# ===========================================================================
+# STEP 1: Create Team Job (Client)
+# ===========================================================================
+
+### 1.1 Get available categories first
+GET {{baseUrl}}/mobile/jobs/categories
+Authorization: Bearer {{clientToken}}
+
+### 1.2 Create Team Job with multiple skill slots
+# @name createTeamJob
+POST {{baseUrl}}/jobs/team/create
+Content-Type: application/json
+Authorization: Bearer {{clientToken}}
+
+{
+  "title": "Home Renovation - Kitchen & Bathroom",
+  "description": "Complete renovation of kitchen and bathroom. Need skilled workers for plumbing and electrical work. Kitchen sink replacement, new faucets, electrical outlet installation, and lighting fixtures.",
+  "location": "123 Main Street, Tetuan, Zamboanga City",
+  "budget": 15000,
+  "budget_allocation_type": "EQUAL_PER_WORKER",
+  "urgency_level": "MEDIUM",
+  "preferred_start_date": "2025-12-15",
+  "skill_slots": [
+    {
+      "specialization_id": 1,
+      "workers_needed": 2,
+      "skill_level_required": "INTERMEDIATE",
+      "notes": "Need experience with kitchen sink installation"
+    },
+    {
+      "specialization_id": 2,
+      "workers_needed": 1,
+      "skill_level_required": "EXPERT",
+      "notes": "Must have electrical license for outlet installation"
+    }
+  ]
+}
+
+### Save job ID
+@teamJobId = {{createTeamJob.response.body.job_id}}
+
+### 1.3 Verify Team Job was created
+GET {{baseUrl}}/jobs/{{teamJobId}}/team
+Authorization: Bearer {{clientToken}}
+
+# ===========================================================================
+# STEP 2: Workers Apply to Skill Slots
+# ===========================================================================
+
+### 2.1 Worker 1 views team job details
+GET {{baseUrl}}/jobs/{{teamJobId}}/team
+Authorization: Bearer {{worker1Token}}
+
+### 2.2 Worker 1 applies to Plumbing slot (slot 1)
+# @name worker1Apply
+POST {{baseUrl}}/jobs/{{teamJobId}}/team/apply
+Content-Type: application/json
+Authorization: Bearer {{worker1Token}}
+
+{
+  "skill_slot_id": 1,
+  "proposal_message": "I have 5 years of experience in plumbing and kitchen installations. I can complete the sink replacement professionally.",
+  "proposed_budget": 5000
+}
+
+### 2.3 Worker 2 applies to Plumbing slot (slot 1)
+# @name worker2Apply
+POST {{baseUrl}}/jobs/{{teamJobId}}/team/apply
+Content-Type: application/json
+Authorization: Bearer {{worker2Token}}
+
+{
+  "skill_slot_id": 1,
+  "proposal_message": "Licensed plumber with 3 years experience. Specialized in kitchen and bathroom fixtures.",
+  "proposed_budget": 5000
+}
+
+### 2.4 Worker 3 applies to Electrical slot (slot 2)
+# @name worker3Apply
+POST {{baseUrl}}/jobs/{{teamJobId}}/team/apply
+Content-Type: application/json
+Authorization: Bearer {{worker3Token}}
+
+{
+  "skill_slot_id": 2,
+  "proposal_message": "Certified electrician with 8 years experience. I hold a valid electrical license and specialize in residential work.",
+  "proposed_budget": 5000
+}
+
+# ===========================================================================
+# STEP 3: Client Reviews Applications
+# ===========================================================================
+
+### 3.1 Client views all applications for team job
+GET {{baseUrl}}/jobs/{{teamJobId}}/team/applications
+Authorization: Bearer {{clientToken}}
+
+### 3.2 Client views applications for plumbing slot only
+GET {{baseUrl}}/jobs/{{teamJobId}}/team/applications?skill_slot_id=1
+Authorization: Bearer {{clientToken}}
+
+### 3.3 Client views applications for electrical slot only
+GET {{baseUrl}}/jobs/{{teamJobId}}/team/applications?skill_slot_id=2
+Authorization: Bearer {{clientToken}}
+
+# ===========================================================================
+# STEP 4: Client Assigns Workers to Slots
+# ===========================================================================
+
+### 4.1 Get application IDs (need to check response from step 3.1)
+# Assuming application IDs from the responses
+
+### 4.2 Client assigns Worker 1 to Plumbing slot
+POST {{baseUrl}}/jobs/{{teamJobId}}/team/assign
+Content-Type: application/json
+Authorization: Bearer {{clientToken}}
+
+{
+  "worker_id": 1,
+  "skill_slot_id": 1
+}
+
+### 4.3 Client assigns Worker 2 to Plumbing slot (second plumber)
+POST {{baseUrl}}/jobs/{{teamJobId}}/team/assign
+Content-Type: application/json
+Authorization: Bearer {{clientToken}}
+
+{
+  "worker_id": 2,
+  "skill_slot_id": 1
+}
+
+### 4.4 Client assigns Worker 3 to Electrical slot
+POST {{baseUrl}}/jobs/{{teamJobId}}/team/assign
+Content-Type: application/json
+Authorization: Bearer {{clientToken}}
+
+{
+  "worker_id": 3,
+  "skill_slot_id": 2
+}
+
+### 4.5 Verify all workers assigned - check team job detail
+GET {{baseUrl}}/jobs/{{teamJobId}}/team
+Authorization: Bearer {{clientToken}}
+
+# ===========================================================================
+# STEP 5: Check Team Conversation Created
+# ===========================================================================
+
+### 5.1 Client checks conversations (should see team conversation)
+GET {{baseUrl}}/profiles/conversations
+Authorization: Bearer {{clientToken}}
+
+### 5.2 Worker 1 checks conversations (should see team conversation)
+GET {{baseUrl}}/profiles/conversations
+Authorization: Bearer {{worker1Token}}
+
+### 5.3 Worker 2 checks conversations (should see team conversation)
+GET {{baseUrl}}/profiles/conversations
+Authorization: Bearer {{worker2Token}}
+
+### 5.4 Worker 3 checks conversations (should see team conversation)
+GET {{baseUrl}}/profiles/conversations
+Authorization: Bearer {{worker3Token}}
+
+# ===========================================================================
+# STEP 6: Send Messages in Team Conversation
+# ===========================================================================
+
+### 6.1 Get conversation ID (from step 5.1)
+# @conversationId = [GET FROM STEP 5.1 RESPONSE]
+
+### 6.2 Client sends welcome message
+# POST {{baseUrl}}/profiles/conversations/{{conversationId}}/messages
+# Content-Type: application/json
+# Authorization: Bearer {{clientToken}}
+# 
+# {
+#   "content": "Welcome team! I'm excited to work with all of you on this renovation project."
+# }
+
+### 6.3 Worker 1 responds
+# POST {{baseUrl}}/profiles/conversations/{{conversationId}}/messages
+# Content-Type: application/json
+# Authorization: Bearer {{worker1Token}}
+# 
+# {
+#   "content": "Thank you! I'll handle the kitchen sink. When would you like us to start?"
+# }
+
+# ===========================================================================
+# STEP 7: Workers Mark Individual Completion
+# ===========================================================================
+
+### 7.1 Get worker assignments
+GET {{baseUrl}}/jobs/{{teamJobId}}/team
+Authorization: Bearer {{clientToken}}
+
+### 7.2 Worker 1 marks their assignment complete
+# @assignment1Id = [GET FROM RESPONSE]
+POST {{baseUrl}}/jobs/{{teamJobId}}/team/worker-complete/1
+Content-Type: application/json
+Authorization: Bearer {{worker1Token}}
+
+{
+  "notes": "Kitchen sink installation completed. All fixtures tested and working properly."
+}
+
+### 7.3 Worker 2 marks their assignment complete
+POST {{baseUrl}}/jobs/{{teamJobId}}/team/worker-complete/2
+Content-Type: application/json
+Authorization: Bearer {{worker2Token}}
+
+{
+  "notes": "Bathroom plumbing work completed. All pipes checked for leaks."
+}
+
+### 7.4 Worker 3 marks their assignment complete
+POST {{baseUrl}}/jobs/{{teamJobId}}/team/worker-complete/3
+Content-Type: application/json
+Authorization: Bearer {{worker3Token}}
+
+{
+  "notes": "All electrical outlets installed and tested. Lighting fixtures working correctly."
+}
+
+### 7.5 Check all workers marked complete
+GET {{baseUrl}}/jobs/{{teamJobId}}/team
+Authorization: Bearer {{clientToken}}
+
+# ===========================================================================
+# STEP 8: Client Approves Team Job Completion
+# ===========================================================================
+
+### 8.1 Client tries to approve before all complete (should fail if any incomplete)
+POST {{baseUrl}}/jobs/{{teamJobId}}/team/approve-completion
+Content-Type: application/json
+Authorization: Bearer {{clientToken}}
+
+{
+  "payment_method": "WALLET"
+}
+
+### 8.2 Check job status after approval
+GET {{baseUrl}}/jobs/{{teamJobId}}/team
+Authorization: Bearer {{clientToken}}
+
+### 8.3 Verify conversation is closed
+GET {{baseUrl}}/profiles/conversations
+Authorization: Bearer {{clientToken}}
+
+# ===========================================================================
+# STEP 9: Multiple Reviews
+# ===========================================================================
+
+### 9.1 Client reviews Worker 1
+POST {{baseUrl}}/jobs/{{teamJobId}}/reviews
+Content-Type: application/json
+Authorization: Bearer {{clientToken}}
+
+{
+  "reviewed_worker_id": 1,
+  "overall_rating": 5,
+  "criteria_ratings": {
+    "quality": 5,
+    "timeliness": 4,
+    "communication": 5,
+    "professionalism": 5
+  },
+  "comment": "Excellent plumbing work! Very professional and cleaned up after the job."
+}
+
+### 9.2 Client reviews Worker 2
+POST {{baseUrl}}/jobs/{{teamJobId}}/reviews
+Content-Type: application/json
+Authorization: Bearer {{clientToken}}
+
+{
+  "reviewed_worker_id": 2,
+  "overall_rating": 4,
+  "criteria_ratings": {
+    "quality": 4,
+    "timeliness": 4,
+    "communication": 4,
+    "professionalism": 5
+  },
+  "comment": "Good work on the bathroom plumbing. Completed on time."
+}
+
+### 9.3 Client reviews Worker 3
+POST {{baseUrl}}/jobs/{{teamJobId}}/reviews
+Content-Type: application/json
+Authorization: Bearer {{clientToken}}
+
+{
+  "reviewed_worker_id": 3,
+  "overall_rating": 5,
+  "criteria_ratings": {
+    "quality": 5,
+    "timeliness": 5,
+    "communication": 5,
+    "professionalism": 5
+  },
+  "comment": "Outstanding electrical work! Very knowledgeable and safety-conscious."
+}
+
+### 9.4 Worker 1 reviews Client
+POST {{baseUrl}}/jobs/{{teamJobId}}/reviews
+Content-Type: application/json
+Authorization: Bearer {{worker1Token}}
+
+{
+  "overall_rating": 5,
+  "criteria_ratings": {
+    "quality": 5,
+    "timeliness": 5,
+    "communication": 5,
+    "professionalism": 5
+  },
+  "comment": "Great client! Clear communication and paid promptly."
+}
+
+### 9.5 Worker 2 reviews Client
+POST {{baseUrl}}/jobs/{{teamJobId}}/reviews
+Content-Type: application/json
+Authorization: Bearer {{worker2Token}}
+
+{
+  "overall_rating": 5,
+  "criteria_ratings": {
+    "quality": 5,
+    "timeliness": 4,
+    "communication": 5,
+    "professionalism": 5
+  },
+  "comment": "Professional client. Would work with again."
+}
+
+### 9.6 Worker 3 reviews Client
+POST {{baseUrl}}/jobs/{{teamJobId}}/reviews
+Content-Type: application/json
+Authorization: Bearer {{worker3Token}}
+
+{
+  "overall_rating": 5,
+  "criteria_ratings": {
+    "quality": 5,
+    "timeliness": 5,
+    "communication": 5,
+    "professionalism": 5
+  },
+  "comment": "Excellent client. Very organized project."
+}
+
+# ===========================================================================
+# STEP 10: Verify Final State
+# ===========================================================================
+
+### 10.1 Check final job status
+GET {{baseUrl}}/jobs/{{teamJobId}}/team
+Authorization: Bearer {{clientToken}}
+
+### 10.2 Check all reviews for the job
+GET {{baseUrl}}/jobs/{{teamJobId}}/reviews
+Authorization: Bearer {{clientToken}}
+
+### 10.3 Check Worker 1's updated rating
+GET {{baseUrl}}/mobile/workers/detail/1
+Authorization: Bearer {{clientToken}}
+
+### 10.4 Verify conversation is COMPLETED status
+GET {{baseUrl}}/profiles/conversations
+Authorization: Bearer {{clientToken}}
+
+# ===========================================================================
+# EDGE CASES & ERROR HANDLING
+# ===========================================================================
+
+### E1: Try to apply to same slot twice (should fail)
+POST {{baseUrl}}/jobs/{{teamJobId}}/team/apply
+Content-Type: application/json
+Authorization: Bearer {{worker1Token}}
+
+{
+  "skill_slot_id": 1,
+  "proposal_message": "Trying to apply again",
+  "proposed_budget": 5000
+}
+
+### E2: Try to assign more workers than needed (should fail)
+POST {{baseUrl}}/jobs/{{teamJobId}}/team/assign
+Content-Type: application/json
+Authorization: Bearer {{clientToken}}
+
+{
+  "worker_id": 4,
+  "skill_slot_id": 1
+}
+
+### E3: Non-client tries to approve (should fail)
+POST {{baseUrl}}/jobs/{{teamJobId}}/team/approve-completion
+Content-Type: application/json
+Authorization: Bearer {{worker1Token}}
+
+{
+  "payment_method": "WALLET"
+}

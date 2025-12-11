@@ -1,41 +1,253 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+/## Flutter / Dart / Mobile focused .gitignore
+# This file is tailored to a Flutter mobile project. It intentionally removes
+# non-mobile entries (Node, Next.js, Python/Django, OS-level files, etc.) to
+# keep the repo clean for mobile development.
 
-# dependencies
+# Flutter/Dart build and tooling
+.dart_tool/
+/.dart_tool/
+build/
+/**/build/
+/.claude
+/.playwright-mcp
+# Pub
+pubspec.lock
+.pub-cache/
+.pub/
+
+/docs
+
+# Generated plugin registrant
+**/generated_plugin_registrant.*
+
+# Flutter plugins
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# iOS
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+ios/Flutter/engine/
+ios/Pods/
+ios/Podfile.lock
+ios/Runner.xcworkspace/
+ios/Runner.xcodeproj/project.xcworkspace/
+ios/.symlinks/
+DerivedData/
+*.xcworkspace
+*.xcuserdata
+*.xcuserstate
+
+# Android
+android/.gradle
+android/local.properties
+android/.idea
+android/app/build/
+android/build/
+**/captures/
+**/outputs/
+
+# Keystore / signing files
+*.jks
+*.keystore
+
+# IDEs / editors
+.idea/
+.vscode/
+*.iml
+
+# OS files (optional, usually fine for mobile-only)
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Secrets and env
+.env
+.env.*
+
+# Optional: ignore generated Dart analysis cache
+.dart_tool/package_config.json
+
+# Keep this file minimal and focused on mobile development.
+# If you also maintain frontend/backend in this repo and want to ignore
+# their artifacts, add separate .gitignore files in those directories.
+
+# Ignore frontend workspace node_modules (frontend_web)
+/apps/frontend_web/node_modules/
+
 /node_modules
 /.pnp
 .pnp.*
-.yarn/*
+.yarn/
 !.yarn/patches
 !.yarn/plugins
 !.yarn/releases
 !.yarn/versions
 
-# testing
-/coverage
-
-# next.js
+# Next.js build / outputs
 /.next/
+/apps/frontend_web/.next/
 /out/
 
-# production
+# Turbo / workspace
+.turbo
+
+# Build artifacts
 /build
 
-# misc
-.DS_Store
-*.pem
+# Misc
+.vercel
+package-lock.json
 
-# debug
+########################
+# Python / Backend (Django)
+########################
+# Byte-compiled / Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtualenvs
+/apps/backend/venv/
+.venv/
+
+# Django stuff
+*.sqlite3
+/media/
+*.log
+/staticfiles/
+
+# Pip / requirements
+env/
+
+########################
+# General / IDE / OS
+########################
+# Env files
+.env*
+.env
+.env.local
+.env.docker.example
+
+# Logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+*.log
 
-# env files (can opt-in for committing if needed)
-.env*
+# OS files
+.DS_Store
+Thumbs.db
 
-# vercel
-.vercel
+# IDEs
+.idea/
+.vscode/
+*.iml
 
-# typescript
-*.tsbuildinfo
-next-env.d.ts
+# Prisma generated
+/lib/generated/prisma
+
+# Optional: Dart analysis cache
+.dart_tool/package_config.json
+
+# Keep any additional per-project ignores in that project's directory if
+# you want to be more specific. This file is intentionally broad for
+# monorepo convenience.
+
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+gradle-wrapper.jar
+/.gradle
+/captures/
+/gradlew
+/gradlew.bat
+/local.properties
+GeneratedPluginRegistrant.java
+.cxx/
+
+# Remember to never publicly share your keystore.
+# See https://flutter.dev/to/reference-keystore
+key.properties
+**/*.keystore
+**/*.jks
+
+/apps/frontend_web/.next/*
+/apps/frontend_web/.next/server
+acli.exe
+
+/.claude
+
+CLAUDE.md
+AGENTS.md
+
+########################
+# Archive folder (preserved utility scripts)
+########################
+/archive/
+
+########################
+# Test artifacts & logs
+########################
+*_output.txt
+*_results.txt
+*_errors.txt
+test_*.txt
+debug.log
+django_server.log
+django.log
+flutter_debug.log
+
+########################
+# One-time fix scripts
+########################
+fix-*.sh
+fix_*.js
+quick-fixes.sh
+*.iml

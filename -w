@@ -1,0 +1,4899 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <title>Page not found at /api/</title>
+  <meta name="robots" content="NONE,NOARCHIVE">
+  <style>
+    html * { padding:0; margin:0; }
+    body * { padding:10px 20px; }
+    body * * { padding:0; }
+    body { font-family: sans-serif; background:#eee; color:#000; }
+    body > :where(header, main, footer) { border-bottom:1px solid #ddd; }
+    h1 { font-weight:normal; margin-bottom:.4em; }
+    h1 small { font-size:60%; color:#666; font-weight:normal; }
+    table { border:none; border-collapse: collapse; width:100%; }
+    td, th { vertical-align:top; padding:2px 3px; }
+    th { width:12em; text-align:right; color:#666; padding-right:.5em; }
+    #info { background:#f6f6f6; }
+    #info ol { margin: 0.5em 4em; }
+    #info ol li { font-family: monospace; }
+    #summary { background: #ffc; }
+    #explanation { background:#eee; border-bottom: 0px none; }
+    pre.exception_value { font-family: sans-serif; color: #575757; font-size: 1.5em; margin: 10px 0 10px 0; }
+  </style>
+</head>
+<body>
+  <header id="summary">
+    <h1>Page not found <small>(404)</small></h1>
+    <pre class="exception_value">docs_url = /api/docs</pre>
+    <table class="meta">
+      <tr>
+        <th scope="row">Request Method:</th>
+        <td>GET</td>
+      </tr>
+      <tr>
+        <th scope="row">Request URL:</th>
+        <td>http://localhost:8000/api/</td>
+      </tr>
+      
+      <tr>
+        <th scope="row">Raised by:</th>
+        <td>functools.partial</td>
+      </tr>
+      
+    </table>
+  </header>
+
+  <main id="info">
+    
+      <p>
+      Using the URLconf defined in <code>iayos_project.urls</code>,
+      Django tried these URL patterns, in this order:
+      </p>
+      <ol>
+        
+          <li>
+            
+              <code>
+                admin/
+                
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                openapi.json
+                [name='openapi-json']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                docs
+                [name='openapi-view']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/auth/google/login
+                [name='google_login']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/auth/google/callback
+                [name='google_callback']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/register
+                [name='register']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/register/agency
+                [name='register_agency']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/login
+                [name='login']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/assign-role
+                [name='assignRole']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/logout
+                [name='logout']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/refresh
+                [name='refresh']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/me
+                [name='get_user_profile']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/profile/metrics
+                [name='get_profile_metrics_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/verify
+                [name='verify']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/forgot-password/send-verify
+                [name='forgot_password_send_verify']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/forgot-password/verify
+                [name='forgot_password_verify']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/upload/kyc
+                [name='upload_kyc']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/kyc/history
+                [name='get_kyc_application_history']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/kyc-status
+                [name='get_kyc_status_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/notifications
+                [name='get_notifications']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/notifications/&lt;notification_id&gt;/mark-read
+                [name='mark_notification_read']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/notifications/mark-all-read
+                [name='mark_all_notifications_read']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/notifications/unread-count
+                [name='get_unread_count']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/register-push-token
+                [name='register_push_token']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/notification-settings
+                [name='get_notification_settings']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/notification-settings
+                [name='update_notification_settings']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/notifications/&lt;notification_id&gt;/delete
+                [name='delete_notification']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/specializations
+                [name='get_specializations_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/users/workers
+                [name='get_all_workers_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/users/workers/&lt;user_id&gt;
+                [name='get_worker_by_id_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/workers/availability
+                [name='update_worker_availability_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/workers/availability
+                [name='get_worker_availability_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/location/update
+                [name='update_location']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/location/me
+                [name='get_my_location']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/location/toggle-sharing
+                [name='toggle_location_sharing_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/location/nearby-workers
+                [name='get_nearby_workers']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/upload/profile-image
+                [name='upload_profile_image_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/wallet/balance
+                [name='get_wallet_balance']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/wallet/deposit
+                [name='deposit_funds']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/wallet/withdraw
+                [name='withdraw_funds']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/wallet/transactions
+                [name='get_wallet_transactions']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/wallet/webhook
+                [name='xendit_webhook']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/wallet/disbursement-webhook
+                [name='xendit_disbursement_webhook']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/wallet/simulate-payment/&lt;transaction_id&gt;
+                [name='simulate_payment_completion']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/wallet/payment-status/&lt;transaction_id&gt;
+                [name='check_payment_status']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/worker/profile
+                [name='update_worker_profile_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/worker/profile-completion
+                [name='get_profile_completion_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/worker/certifications
+                [name='add_certification_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/worker/certifications
+                [name='list_certifications_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/worker/certifications/&lt;certification_id&gt;
+                [name='update_certification_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/worker/certifications/&lt;certification_id&gt;
+                [name='delete_certification_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/worker/certifications/&lt;certification_id&gt;
+                [name='update_certification_endpoint_post']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/worker/materials
+                [name='add_material_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/worker/materials
+                [name='list_materials_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/worker/materials/&lt;material_id&gt;
+                [name='update_material_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/worker/materials/&lt;material_id&gt;
+                [name='delete_material_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/worker/portfolio
+                [name='upload_portfolio_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/worker/portfolio
+                [name='list_portfolio_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/worker/portfolio/&lt;portfolio_id&gt;/caption
+                [name='update_portfolio_caption_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/worker/portfolio/reorder
+                [name='reorder_portfolio_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/worker/portfolio/&lt;portfolio_id&gt;
+                [name='delete_portfolio_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/reviews/submit
+                [name='submit_review_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/reviews/worker/&lt;worker_id&gt;
+                [name='get_worker_reviews']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/reviews/stats/&lt;worker_id&gt;
+                [name='get_worker_review_stats']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/reviews/my-reviews
+                [name='get_my_reviews_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/reviews/&lt;review_id&gt;
+                [name='edit_review_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                accounts/reviews/&lt;review_id&gt;/report
+                [name='report_review_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/auth/register
+                [name='mobile_register']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/auth/login
+                [name='mobile_login']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/auth/logout
+                [name='mobile_logout']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/auth/send-verification-email
+                [name='mobile_send_verification_email']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/auth/profile
+                [name='mobile_get_profile']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/profile/metrics
+                [name='mobile_profile_metrics']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/auth/assign-role
+                [name='mobile_assign_role']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/auth/refresh
+                [name='mobile_refresh_token']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/auth/forgot-password
+                [name='mobile_forgot_password']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/auth/reset-password
+                [name='mobile_reset_password']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/auth/verify
+                [name='mobile_verify_email']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/jobs/list
+                [name='mobile_job_list']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/jobs/my-jobs
+                [name='mobile_my_jobs']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/jobs/categories
+                [name='mobile_job_categories']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/skills/available
+                [name='mobile_available_skills']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/locations/cities
+                [name='get_cities']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/locations/cities/&lt;city_id&gt;/barangays
+                [name='get_barangays']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/jobs/my-backjobs
+                [name='get_my_backjobs_mobile']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/jobs/&lt;job_id&gt;
+                [name='mobile_job_detail']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/jobs/&lt;job_id&gt;
+                [name='mobile_delete_job']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/jobs/create
+                [name='mobile_create_job']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/jobs/test-invite
+                [name='mobile_test_invite_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/jobs/test-invite-post
+                [name='mobile_test_invite_post_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/jobs/invite
+                [name='mobile_create_invite_job']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/jobs/&lt;job_id&gt;/applications
+                [name='mobile_get_job_applications']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/jobs/&lt;job_id&gt;/applications/&lt;application_id&gt;/accept
+                [name='mobile_accept_application']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/jobs/&lt;job_id&gt;/applications/&lt;application_id&gt;/reject
+                [name='mobile_reject_application']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/jobs/&lt;job_id&gt;/apply
+                [name='mobile_apply_for_job']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/jobs/applications/my
+                [name='mobile_get_my_applications']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/jobs/search
+                [name='mobile_job_search']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/dashboard/stats
+                [name='mobile_dashboard_stats']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/dashboard/recent-jobs
+                [name='mobile_dashboard_recent_jobs']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/dashboard/available-workers
+                [name='mobile_dashboard_available_workers']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/profile/me
+                [name='mobile_get_current_profile']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/profile/update
+                [name='mobile_update_profile']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/profile/upload-image
+                [name='mobile_upload_profile_image']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/workers/list
+                [name='mobile_workers_list']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/agencies/list
+                [name='mobile_agencies_list']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/agencies/detail/&lt;agency_id&gt;
+                [name='mobile_agency_detail']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/clients/&lt;client_id&gt;
+                [name='mobile_client_detail']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/workers/&lt;worker_id&gt;
+                [name='mobile_worker_detail']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/workers/detail/&lt;worker_id&gt;
+                [name='mobile_worker_detail_v2']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/jobs/available
+                [name='mobile_available_jobs']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/wallet/balance
+                [name='mobile_get_wallet_balance']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/wallet/pending-earnings
+                [name='mobile_get_pending_earnings']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/wallet/deposit
+                [name='mobile_deposit_funds']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/wallet/withdraw
+                [name='mobile_withdraw_funds']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/wallet/transactions
+                [name='mobile_get_transactions']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/reviews/submit
+                [name='mobile_submit_review']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/reviews/worker/&lt;worker_id&gt;
+                [name='mobile_get_worker_reviews']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/reviews/client/&lt;client_id&gt;
+                [name='mobile_get_client_reviews']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/reviews/job/&lt;job_id&gt;
+                [name='mobile_get_job_reviews']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/reviews/my-reviews
+                [name='mobile_get_my_reviews']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/reviews/stats/&lt;worker_id&gt;
+                [name='mobile_get_review_stats']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/reviews/&lt;review_id&gt;
+                [name='mobile_edit_review']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/reviews/&lt;review_id&gt;/report
+                [name='mobile_report_review']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/reviews/pending
+                [name='mobile_get_pending_reviews']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/profile/switch-profile
+                [name='switch_profile']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/profile/dual-status
+                [name='get_dual_profile_status']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/profile/create-client
+                [name='create_client_profile']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/profile/create-worker
+                [name='create_worker_profile']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/payment-methods
+                [name='get_payment_methods']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/payment-methods
+                [name='add_payment_method']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/payment-methods/&lt;method_id&gt;
+                [name='delete_payment_method']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                mobile/payment-methods/&lt;method_id&gt;/set-primary
+                [name='set_primary_payment_method']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/dashboard/stats
+                [name='get_dashboard_stats']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/kyc/all
+                [name='get_all_kyc']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/kyc/review
+                [name='review_kyc']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/kyc/approve
+                [name='approve_kyc_verification']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/kyc/approve-agency
+                [name='approve_agency_kyc_verification']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/kyc/reject
+                [name='reject_kyc_verification']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/kyc/reject-agency
+                [name='reject_agency_kyc_verification']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/kyc/create-agency
+                [name='create_agency_kyc_from_paths']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/agency-kyc
+                [name='get_agency_kyc_submissions']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/agency-kyc/&lt;agency_kyc_id&gt;/review
+                [name='review_agency_kyc_submission']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/kyc/logs
+                [name='get_kyc_logs']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/users/clients
+                [name='get_clients']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/users/clients/&lt;account_id&gt;
+                [name='get_client_by_id']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/users/workers
+                [name='get_workers']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/users/workers/&lt;account_id&gt;
+                [name='get_worker_by_id']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/users/agencies
+                [name='get_agencies']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/users/agencies/&lt;account_id&gt;
+                [name='get_agency_by_id']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/users/agencies/&lt;account_id&gt;/employees
+                [name='get_agency_employees_admin']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/jobs/dashboard-stats
+                [name='get_jobs_dashboard_statistics']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/jobs/listings
+                [name='get_job_listings']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/jobs/listings/&lt;job_id&gt;
+                [name='get_job_detail_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/jobs/listings/&lt;job_id&gt;
+                [name='delete_job_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/jobs/applications
+                [name='get_job_applications']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/jobs/&lt;job_id&gt;/invoice
+                [name='get_job_invoice_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/jobs/categories
+                [name='get_job_categories']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/jobs/disputes/stats
+                [name='get_disputes_stats']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/jobs/disputes
+                [name='get_disputes']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/jobs/disputes/&lt;dispute_id&gt;/approve-backjob
+                [name='approve_backjob']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/jobs/disputes/&lt;dispute_id&gt;/reject-backjob
+                [name='reject_backjob']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/reviews/stats
+                [name='get_reviews_stats']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/reviews/all
+                [name='get_all_reviews']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/reviews/by-job
+                [name='get_reviews_by_job']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/reviews/flagged
+                [name='get_flagged_reviews']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/users/&lt;account_id&gt;/suspend
+                [name='suspend_user_account']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/users/&lt;account_id&gt;/ban
+                [name='ban_user_account']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/users/&lt;account_id&gt;/activate
+                [name='activate_user_account']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/users/&lt;account_id&gt;/delete
+                [name='delete_user_account']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/users/&lt;account_id&gt;/status
+                [name='get_user_account_status']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/transactions/all
+                [name='get_all_transactions']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/transactions/statistics
+                [name='get_transactions_statistics']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/transactions/&lt;transaction_id&gt;/detail
+                [name='get_transaction_details']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/transactions/&lt;transaction_id&gt;/release-escrow
+                [name='release_escrow_payment']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/transactions/&lt;transaction_id&gt;/refund
+                [name='refund_transaction']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/transactions/escrow
+                [name='get_escrow_payments_list']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/transactions/escrow/statistics
+                [name='get_escrow_stats']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/transactions/escrow/bulk-release
+                [name='bulk_release_escrow_payments']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/transactions/worker-earnings
+                [name='get_worker_earnings_list']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/transactions/worker-earnings/statistics
+                [name='get_worker_earnings_stats']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/transactions/payout
+                [name='process_worker_payout']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/transactions/disputes
+                [name='get_disputes']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/transactions/disputes/statistics
+                [name='get_disputes_stats']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/transactions/disputes/&lt;dispute_id&gt;
+                [name='get_dispute_details']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/transactions/disputes/&lt;dispute_id&gt;/resolve
+                [name='resolve_job_dispute']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/transactions/revenue-trends
+                [name='get_revenue_trends_data']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/transactions/payment-methods-breakdown
+                [name='get_payment_methods_data']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/transactions/top-performers
+                [name='get_top_performers_data']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/settings/audit-logs
+                [name='get_audit_logs_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/settings/audit-logs/&lt;log_id&gt;
+                [name='get_audit_log_detail_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/settings/audit-logs/export
+                [name='export_audit_logs_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/settings/audit-logs/statistics
+                [name='get_audit_statistics_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/settings/audit-logs/admin/&lt;admin_id&gt;/activity
+                [name='get_admin_activity_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/settings/platform
+                [name='get_platform_settings_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/settings/platform
+                [name='update_platform_settings_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/settings/admins
+                [name='get_admins_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/settings/admins
+                [name='create_admin_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/settings/admins/&lt;admin_id&gt;
+                [name='get_admin_detail_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/settings/admins/&lt;admin_id&gt;
+                [name='update_admin_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/settings/admins/&lt;admin_id&gt;
+                [name='delete_admin_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/settings/admins/&lt;admin_id&gt;/permissions
+                [name='update_admin_permissions_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/settings/permissions
+                [name='get_permissions_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/analytics/overview
+                [name='get_analytics_overview']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/support/tickets
+                [name='get_support_tickets']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/support/tickets
+                [name='create_support_ticket']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/support/tickets/stats
+                [name='get_tickets_stats']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/support/tickets/&lt;ticket_id&gt;
+                [name='get_ticket_by_id']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/support/tickets/&lt;ticket_id&gt;/reply
+                [name='reply_to_support_ticket']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/support/tickets/&lt;ticket_id&gt;/status
+                [name='update_support_ticket_status']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/support/tickets/&lt;ticket_id&gt;/assign
+                [name='assign_support_ticket']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/support/canned-responses
+                [name='get_all_canned_responses']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/support/canned-responses
+                [name='create_new_canned_response']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/support/canned-responses/&lt;response_id&gt;
+                [name='update_existing_canned_response']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/support/canned-responses/&lt;response_id&gt;
+                [name='delete_existing_canned_response']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/support/canned-responses/&lt;response_id&gt;/use
+                [name='use_canned_response']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/support/faqs
+                [name='get_all_faqs']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/support/faqs
+                [name='create_new_faq']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/support/faqs/&lt;faq_id&gt;
+                [name='update_existing_faq']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/support/faqs/&lt;faq_id&gt;
+                [name='delete_existing_faq']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/support/faqs/&lt;faq_id&gt;/view
+                [name='record_faq_view']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/support/reports
+                [name='get_user_reports']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/support/reports/stats
+                [name='get_reports_stats']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/support/reports/&lt;report_id&gt;
+                [name='get_report_by_id']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/support/reports/&lt;report_id&gt;/review
+                [name='review_user_report']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/support/reports/&lt;report_id&gt;/review
+                [name='review_user_report_action']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/analytics/users
+                [name='get_user_analytics_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/analytics/jobs
+                [name='get_job_analytics_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/analytics/financial
+                [name='get_financial_analytics_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/analytics/geographic
+                [name='get_geographic_analytics_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/analytics/engagement
+                [name='get_engagement_analytics_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/support/statistics
+                [name='get_support_statistics_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/certifications/pending
+                [name='get_pending_certifications_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/certifications/stats
+                [name='get_certification_stats_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/certifications/history
+                [name='get_all_certification_history_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/certifications/&lt;cert_id&gt;
+                [name='get_certification_detail_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/certifications/&lt;cert_id&gt;/approve
+                [name='approve_certification_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/certifications/&lt;cert_id&gt;/reject
+                [name='reject_certification_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                adminpanel/certifications/&lt;cert_id&gt;/history
+                [name='get_certification_history_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                profiles/profile/products/
+                [name='list_products']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                profiles/profile/products/&lt;product_id&gt;
+                [name='delete_product']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                profiles/profile/products/add
+                [name='add_product']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                profiles/upload/profile-image
+                [name='upload_profile_image_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                profiles/wallet/balance
+                [name='get_wallet_balance']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                profiles/wallet/deposit
+                [name='deposit_funds']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                profiles/wallet/withdraw
+                [name='withdraw_funds']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                profiles/wallet/transactions
+                [name='get_wallet_transactions']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                profiles/wallet/webhook
+                [name='xendit_webhook']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                profiles/wallet/simulate-payment/&lt;transaction_id&gt;
+                [name='simulate_payment_completion']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                profiles/wallet/payment-status/&lt;transaction_id&gt;
+                [name='check_payment_status']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                profiles/chat/conversations
+                [name='get_conversations']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                profiles/chat/conversation-by-job/&lt;job_id&gt;
+                [name='get_conversation_by_job']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                profiles/chat/conversations/&lt;conversation_id&gt;
+                [name='get_conversation_messages']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                profiles/chat/messages
+                [name='send_message']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                profiles/chat/messages/mark-read
+                [name='mark_messages_as_read']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                profiles/chat/unread-count
+                [name='get_unread_count']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                profiles/chat/conversations/&lt;conversation_id&gt;/toggle-archive
+                [name='toggle_conversation_archive']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                profiles/chat/&lt;conversation_id&gt;/upload-image
+                [name='upload_chat_image']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                agency/upload
+                [name='upload_agency_kyc']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                agency/status
+                [name='agency_kyc_status']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                agency/employees
+                [name='get_employees']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                agency/employees
+                [name='add_employee']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                agency/employees/&lt;employee_id&gt;
+                [name='remove_employee']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                agency/profile
+                [name='get_profile']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                agency/profile
+                [name='update_profile_put']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                agency/profile/update
+                [name='update_profile']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                agency/jobs
+                [name='get_agency_jobs']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                agency/jobs/&lt;job_id&gt;
+                [name='get_agency_job_detail']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                agency/jobs/&lt;job_id&gt;/accept
+                [name='accept_job_invite']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                agency/jobs/&lt;job_id&gt;/reject
+                [name='reject_job_invite']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                agency/employees/&lt;employee_id&gt;/rating
+                [name='update_employee_rating']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                agency/employees/&lt;employee_id&gt;/set-eotm
+                [name='set_employee_of_month']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                agency/employees/&lt;employee_id&gt;/performance
+                [name='get_employee_performance']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                agency/employees/leaderboard
+                [name='get_employee_leaderboard']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                agency/jobs/&lt;job_id&gt;/assign-employee
+                [name='assign_job_to_employee_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                agency/jobs/&lt;job_id&gt;/unassign-employee
+                [name='unassign_job_from_employee_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                agency/employees/&lt;employee_id&gt;/workload
+                [name='get_employee_workload_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                agency/jobs/&lt;job_id&gt;/assign-employees
+                [name='assign_employees_to_job_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                agency/jobs/&lt;job_id&gt;/employees/&lt;employee_id&gt;
+                [name='remove_employee_from_job_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                agency/jobs/&lt;job_id&gt;/employees
+                [name='get_job_employees_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                agency/jobs/&lt;job_id&gt;/primary-contact/&lt;employee_id&gt;
+                [name='set_primary_contact_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                agency/conversations
+                [name='get_agency_conversations']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                agency/conversations/&lt;conversation_id&gt;/messages
+                [name='get_agency_conversation_messages']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                agency/conversations/&lt;conversation_id&gt;/send
+                [name='send_agency_message']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                agency/conversations/&lt;conversation_id&gt;/upload-image
+                [name='upload_agency_chat_image']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                agency/conversations/&lt;conversation_id&gt;/toggle-archive
+                [name='toggle_agency_archive']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                agency/payment-methods
+                [name='get_agency_payment_methods']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                agency/payment-methods
+                [name='add_agency_payment_method']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                agency/payment-methods/&lt;method_id&gt;
+                [name='delete_agency_payment_method']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                agency/payment-methods/&lt;method_id&gt;/set-primary
+                [name='set_primary_agency_payment_method']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                agency/wallet/withdraw
+                [name='agency_withdraw_funds']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                agency/reviews
+                [name='get_agency_reviews_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                client/agencies/browse
+                [name='browse_agencies']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                client/agencies/search
+                [name='search_agencies']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                client/agencies/&lt;agency_id&gt;
+                [name='get_agency_profile']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                client/agencies/&lt;agency_id&gt;/reviews
+                [name='get_agency_reviews']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                jobs/create
+                [name='create_job_posting']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                jobs/create-mobile
+                [name='create_job_posting_mobile']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                jobs/my-jobs
+                [name='get_my_job_postings']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                jobs/available
+                [name='get_available_jobs']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                jobs/in-progress
+                [name='get_in_progress_jobs']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                jobs/completed
+                [name='get_completed_jobs']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                jobs/my-applications
+                [name='get_my_applications']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                jobs/&lt;job_id&gt;
+                [name='get_job_posting']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                jobs/&lt;job_id&gt;/cancel
+                [name='cancel_job_posting']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                jobs/&lt;job_id&gt;/applications
+                [name='get_job_applications']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                jobs/&lt;job_id&gt;/apply
+                [name='apply_for_job']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                jobs/&lt;job_id&gt;/applications/&lt;application_id&gt;/accept
+                [name='accept_application']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                jobs/&lt;job_id&gt;/applications/&lt;application_id&gt;/reject
+                [name='reject_application']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                jobs/&lt;job_id&gt;/reject-invite
+                [name='reject_job_invite_worker']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                jobs/&lt;job_id&gt;/accept-invite
+                [name='accept_job_invite_worker']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                jobs/&lt;job_id&gt;/upload-image
+                [name='upload_job_image']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                jobs/&lt;job_id&gt;/confirm-work-started
+                [name='client_confirm_work_started']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                jobs/&lt;job_id&gt;/mark-complete
+                [name='worker_mark_job_complete']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                jobs/&lt;job_id&gt;/approve-completion
+                [name='client_approve_job_completion']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                jobs/&lt;job_id&gt;/upload-cash-proof
+                [name='upload_cash_payment_proof']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                jobs/&lt;job_id&gt;/review
+                [name='submit_job_review']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                jobs/&lt;job_id&gt;/has-reviewed
+                [name='check_user_review_status']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                jobs/&lt;job_id&gt;/confirm-final-payment
+                [name='confirm_final_payment']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                jobs/create-invite
+                [name='create_invite_job']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                jobs/my-invite-jobs
+                [name='get_my_invite_jobs']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                jobs/&lt;job_id&gt;/request-backjob
+                [name='request_backjob']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                jobs/my-backjobs
+                [name='get_my_backjobs']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                jobs/&lt;job_id&gt;/backjob-status
+                [name='get_backjob_status']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                jobs/&lt;job_id&gt;/backjob/confirm-started
+                [name='confirm_backjob_started']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                jobs/&lt;job_id&gt;/backjob/mark-complete
+                [name='mark_backjob_complete']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                jobs/&lt;job_id&gt;/backjob/approve-completion
+                [name='approve_backjob_completion']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                jobs/&lt;job_id&gt;/complete-backjob
+                [name='complete_backjob']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                jobs/team/create
+                [name='create_team_job_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                jobs/team/&lt;job_id&gt;
+                [name='get_team_job_detail_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                jobs/team/&lt;job_id&gt;/apply
+                [name='apply_to_team_job_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                jobs/team/&lt;job_id&gt;/applications/&lt;application_id&gt;/accept
+                [name='accept_team_application_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                jobs/team/&lt;job_id&gt;/applications/&lt;application_id&gt;/reject
+                [name='reject_team_application_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                jobs/team/&lt;job_id&gt;/start
+                [name='start_team_job_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                jobs/team/assignments/&lt;assignment_id&gt;/complete
+                [name='worker_complete_assignment_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                jobs/team/&lt;job_id&gt;/applications
+                [name='get_team_job_applications_endpoint']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                jobs/&lt;job_id&gt;/team/approve-completion
+                [name='approve_team_job_completion']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                jobs/&lt;job_id&gt;/team/worker-complete/&lt;assignment_id&gt;
+                [name='worker_mark_team_complete']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                ml/predict-completion-time
+                [name='predict_completion_time']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                ml/predict-for-job/&lt;job_id&gt;
+                [name='predict_for_existing_job']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                ml/batch-predict
+                [name='batch_predict_completion_times']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                ml/model-status
+                [name='get_model_status']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                ml/dataset-stats
+                [name='get_dataset_statistics']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                ml/reload-model
+                [name='reload_prediction_model']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                ml/train
+                [name='trigger_training']
+              </code>
+            
+          </li>
+        
+          <li>
+            
+              <code>
+                api/
+                
+              </code>
+            
+              <code>
+                
+                [name='api-root']
+              </code>
+            
+          </li>
+        
+      </ol>
+      <p>
+        
+          The current path, <code>api/</code>,
+        
+        matched the last one.
+      </p>
+    
+  </main>
+
+  <footer id="explanation">
+    <p>
+      You’re seeing this error because you have <code>DEBUG = True</code> in
+      your Django settings file. Change that to <code>False</code>, and Django
+      will display a standard 404 page.
+    </p>
+  </footer>
+</body>
+</html>

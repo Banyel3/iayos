@@ -1,0 +1,9 @@
+{
+  "name": "backend",
+  "scripts": {
+    "build": "echo 'Django backend build completed'",
+    "dev": ".\\venv\\Scripts\\python.exe src/manage.py runserver localhost:8000",
+    "migrate": ".\\venv\\Scripts\\python.exe src/manage.py migrate",
+    "createsuperuser": ".\\venv\\Scripts\\python.exe src/manage.py createsuperuser"
+  }
+}

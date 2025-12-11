@@ -1,0 +1,227 @@
+from django.db import models
+from django.core.exceptions import ValidationError
+from django.conf import settings
+from decimal import Decimal
+
+# Lightweight agency-specific KYC models mirroring accounts.kyc & kycFiles
+
+
+class AgencyKYC(models.Model):
+	"""
+	KYC records for agency accounts.
+	"""
+	agencyKycID = models.BigAutoField(primary_key=True)
+	# accountFK references Accounts model from accounts app
+	accountFK = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+
+	class AgencyKycStatus(models.TextChoices):
+		PENDING = "PENDING", "pending"
+		APPROVED = "APPROVED", "approved"
+		REJECTED = "REJECTED", "rejected"
+
+	class RejectionCategory(models.TextChoices):
+		INVALID_DOCUMENT = "INVALID_DOCUMENT", "Invalid Document"
+		EXPIRED_DOCUMENT = "EXPIRED_DOCUMENT", "Expired Document"
+		UNCLEAR_IMAGE = "UNCLEAR_IMAGE", "Unclear/Blurry Image"
+		MISMATCH_INFO = "MISMATCH_INFO", "Information Mismatch"
+		INCOMPLETE = "INCOMPLETE", "Incomplete Submission"
+		OTHER = "OTHER", "Other"
+
+	status = models.CharField(max_length=10, choices=AgencyKycStatus.choices, default="PENDING", blank=True)
+	reviewedAt = models.DateTimeField(null=True, blank=True)
+	reviewedBy = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True, blank=True, related_name="reviewed_agency_kyc")
+	notes = models.CharField(max_length=511, blank=True, default="")
+	
+	# KYC Enhancement fields (Module 6)
+	rejectionCategory = models.CharField(
+		max_length=30, 
+		choices=RejectionCategory.choices, 
+		null=True, 
+		blank=True,
+		help_text="Category of rejection reason"
+	)
+	rejectionReason = models.TextField(
+		blank=True, 
+		default="",
+		help_text="Detailed rejection reason for the user"
+	)
+	resubmissionCount = models.IntegerField(
+		default=0,
+		help_text="Number of times the user has resubmitted KYC documents"
+	)
+	maxResubmissions = models.IntegerField(
+		default=3,
+		help_text="Maximum allowed resubmission attempts"
+	)
+	
+	createdAt = models.DateTimeField(auto_now_add=True)
+	updatedAt = models.DateTimeField(auto_now=True)
+	
+	def can_resubmit(self):
+		"""Check if user can still resubmit KYC documents."""
+		return self.status == 'REJECTED' and self.resubmissionCount < self.maxResubmissions
+	
+	def get_remaining_attempts(self):
+		"""Get number of remaining resubmission attempts."""
+		return max(0, self.maxResubmissions - self.resubmissionCount)
+
+
+class AgencyKycFile(models.Model):
+	"""Files uploaded for agency KYC submissions."""
+	fileID = models.BigAutoField(primary_key=True)
+	agencyKyc = models.ForeignKey(AgencyKYC, on_delete=models.CASCADE)
+
+	class FileType(models.TextChoices):
+		BUSINESS_PERMIT = "BUSINESS_PERMIT", "business_permit"
+		REP_ID_FRONT = "REP_ID_FRONT", "rep_id_front"
+		REP_ID_BACK = "REP_ID_BACK", "rep_id_back"
+		ADDRESS_PROOF = "ADDRESS_PROOF", "address_proof"
+		AUTH_LETTER = "AUTH_LETTER", "authorization_letter"
+
+	fileType = models.CharField(max_length=30, choices=FileType.choices, null=True, blank=True)
+	fileURL = models.CharField(max_length=1000)
+	fileName = models.CharField(max_length=255, null=True, blank=True)
+	fileSize = models.IntegerField(null=True, blank=True)
+	uploadedAt = models.DateTimeField(auto_now_add=True)
+
+	def clean(self):
+		# Basic validation: ensure fileName exists for images
+		if not self.fileURL:
+			raise ValidationError({"fileURL": "fileURL is required"})
+
+	def save(self, *args, **kwargs):
+		self.full_clean()
+		super().save(*args, **kwargs)
+
+
+class AgencyEmployee(models.Model):
+	"""
+	Employees managed by an agency account.
+	"""
+	employeeID = models.BigAutoField(primary_key=True)
+	# Link to the agency account (must be an agency type account)
+	agency = models.ForeignKey(
+		settings.AUTH_USER_MODEL,
+		on_delete=models.CASCADE,
+		related_name="agency_employees"
+	)
+	
+	# Employee details
+	name = models.CharField(max_length=255)
+	email = models.EmailField(max_length=255)
+	role = models.CharField(max_length=100, blank=True, default="")
+	avatar = models.CharField(max_length=1000, blank=True, null=True)  # URL to avatar image
+	rating = models.DecimalField(max_digits=3, decimal_places=2, null=True, blank=True)  # 0.00 to 5.00
+	
+	# Performance tracking fields (Agency Phase 2)
+	employeeOfTheMonth = models.BooleanField(
+		default=False,
+		help_text="Whether this employee is currently Employee of the Month"
+	)
+	employeeOfTheMonthDate = models.DateTimeField(
+		null=True,
+		blank=True,
+		help_text="Date when employee was selected as EOTM"
+	)
+	employeeOfTheMonthReason = models.TextField(
+		blank=True,
+		default="",
+		help_text="Reason for selecting as Employee of the Month"
+	)
+	lastRatingUpdate = models.DateTimeField(
+		null=True,
+		blank=True,
+		help_text="Last time the rating was manually updated by agency owner"
+	)
+	totalJobsCompleted = models.IntegerField(
+		default=0,
+		help_text="Total number of jobs completed by this employee"
+	)
+	totalEarnings = models.DecimalField(
+		max_digits=10,
+		decimal_places=2,
+		default=Decimal('0.00'),
+		help_text="Total earnings generated by this employee"
+	)
+	isActive = models.BooleanField(
+		default=True,
+		help_text="Whether the employee is currently active"
+	)
+	
+	# Timestamps
+	createdAt = models.DateTimeField(auto_now_add=True)
+	updatedAt = models.DateTimeField(auto_now=True)
+	
+	class Meta:
+		db_table = "agency_employees"
+		ordering = ["-rating", "name"]
+		indexes = [
+			models.Index(fields=['agency', 'isActive']),
+			models.Index(fields=['agency', 'employeeOfTheMonth']),
+			models.Index(fields=['-rating']),
+			models.Index(fields=['-totalJobsCompleted']),
+		]
+	
+	def __str__(self):
+		return f"{self.name} ({self.email}) - {self.agency.email}"
+
+	@property
+	def employeeId(self):
+		"""Alias with lowercase d for backward compatibility."""
+		return self.employeeID
+	
+	def calculate_average_rating(self):
+		"""
+		Calculate average rating from all job reviews for this employee.
+		This method will be used when we implement job assignment tracking.
+		"""
+		# TODO: Implement when job-employee assignment model is created
+		# from jobs.models import JobAssignment
+		# assignments = JobAssignment.objects.filter(employee=self)
+		# if assignments.exists():
+		#     avg = assignments.aggregate(Avg('review__rating'))['review__rating__avg']
+		#     return round(avg, 2) if avg else None
+		return self.rating
+	
+	def get_job_history(self, limit=10):
+		"""
+		Get recent jobs completed by this employee.
+		Returns a list of job dictionaries with basic info.
+		"""
+		# TODO: Implement when job-employee assignment model is created
+		# from jobs.models import JobAssignment
+		# assignments = JobAssignment.objects.filter(
+		#     employee=self,
+		#     status='COMPLETED'
+		# ).order_by('-completedAt')[:limit]
+		# return [{
+		#     'job_id': a.job.id,
+		#     'title': a.job.title,
+		#     'completed_at': a.completedAt,
+		#     'rating': a.review.rating if hasattr(a, 'review') else None
+		# } for a in assignments]
+		return []
+	
+	def get_performance_stats(self):
+		"""
+		Get comprehensive performance statistics for this employee.
+		"""
+		return {
+			'total_jobs': self.totalJobsCompleted,
+			'total_earnings': float(self.totalEarnings),
+			'average_rating': float(self.rating) if self.rating else 0.0,
+			'is_employee_of_month': self.employeeOfTheMonth,
+			'eotm_date': self.employeeOfTheMonthDate,
+			'is_active': self.isActive,
+			'jobs_history': self.get_job_history()
+		}
+	
+	def update_totals(self, job_payment=None):
+		"""
+		Update total jobs completed and earnings.
+		Call this after a job is completed by this employee.
+		"""
+		self.totalJobsCompleted += 1
+		if job_payment:
+			self.totalEarnings += job_payment
+		self.save(update_fields=['totalJobsCompleted', 'totalEarnings', 'updatedAt'])

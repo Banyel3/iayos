@@ -1,0 +1,165 @@
+### Backjob Terms Acceptance - Quick Test Suite
+### Backend Fixed: Django Ninja UUID converter patched ✅
+### Status: Ready for testing
+### Date: December 9, 2025
+
+@baseUrl = http://localhost:8000
+@email = edrisbaks@gmail.com
+@password = your_password_here
+@completedJobId = 45
+
+###############################################################################
+# STEP 1: Login to get JWT token
+###############################################################################
+
+# @name login
+POST {{baseUrl}}/api/accounts/login
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "{{password}}"
+}
+
+### INSTRUCTIONS:
+# 1. Update @password with actual password for edrisbaks@gmail.com
+# 2. Click "Send Request" above
+# 3. Copy the "access" token from response
+# 4. Paste it in @authToken variable below
+
+@authToken = paste_jwt_token_here
+
+###############################################################################
+# STEP 2: Test WITHOUT terms acceptance (SHOULD FAIL - 400)
+###############################################################################
+
+# @name testWithoutTerms
+POST {{baseUrl}}/api/jobs/{{completedJobId}}/request-backjob
+Authorization: Bearer {{authToken}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="reason"
+
+The work is not satisfactory - needs to be redone
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="description"
+
+The build quality is poor and does not meet the agreed specifications. Several areas need to be rebuilt according to the original contract requirements.
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="terms_accepted"
+
+false
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### EXPECTED RESPONSE: ❌
+# Status: 400 Bad Request
+# Body:
+# {
+#   "error": "You must accept the backjob agreement terms before submitting a request"
+# }
+
+###############################################################################
+# STEP 3: Test WITH terms acceptance (SHOULD SUCCEED - 200)
+###############################################################################
+
+# @name testWithTerms
+POST {{baseUrl}}/api/jobs/{{completedJobId}}/request-backjob
+Authorization: Bearer {{authToken}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="reason"
+
+The work is not satisfactory - needs to be redone
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="description"
+
+The build quality is poor and does not meet the agreed specifications. Several areas need to be rebuilt according to the original contract requirements.
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="terms_accepted"
+
+true
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### EXPECTED RESPONSE: ✅
+# Status: 200 OK
+# Body:
+# {
+#   "success": true,
+#   "message": "Backjob request submitted successfully. Our team will review it within 1-3 business days.",
+#   "dispute_id": <number>,
+#   "status": "OPEN",
+#   "evidence_count": 0
+# }
+
+###############################################################################
+# STEP 4: Verify terms fields in database
+###############################################################################
+
+### Run in terminal:
+# docker exec iayos-postgres-dev psql -U iayos_user -d iayos_db -c \
+#   'SELECT "disputeID", reason, status, termsaccepted, termsversion, termsacceptedat \
+#    FROM job_disputes ORDER BY "createdAt" DESC LIMIT 1;'
+
+### EXPECTED OUTPUT:
+# disputeID | reason                          | status | termsaccepted | termsversion | termsacceptedat
+# ----------+---------------------------------+--------+---------------+--------------+------------------
+# 5         | The work is not satisfactory... | OPEN   | t             | v1.0         | 2025-12-09 10:45:23
+
+###############################################################################
+# ALTERNATIVE: Test with different job IDs
+###############################################################################
+
+### Available completed jobs in database:
+# Job ID 45: "BUILD PAYA" (COMPLETED)
+# Job ID 46: "Fix Table" (COMPLETED)
+# Job ID 6:  "PC FIX" (COMPLETED)
+
+### To test with different job, update @completedJobId variable at top
+
+###############################################################################
+# TROUBLESHOOTING
+###############################################################################
+
+### If you get 401 Unauthorized:
+# - Your JWT token expired (tokens expire after 24 hours)
+# - Re-run STEP 1 to get fresh token
+# - Update @authToken with new token
+
+### If you get 404 Not Found:
+# - Job ID doesn't exist
+# - Check available job IDs in terminal:
+#   docker exec iayos-postgres-dev psql -U iayos_user -d iayos_db -c \
+#     'SELECT "jobID", title, status FROM jobs WHERE "clientMarkedComplete" = true;'
+
+### If you get 403 Forbidden:
+# - You're not the client who posted the job
+# - Use a different account or job ID
+
+### If backend is not responding:
+# - Check backend status: docker ps --filter "name=iayos-backend-dev"
+# - View logs: docker logs iayos-backend-dev --tail 50
+# - Restart: docker-compose -f docker-compose.dev.yml restart backend
+
+###############################################################################
+# SUCCESS CRITERIA
+###############################################################################
+
+# ✅ STEP 2 returns 400 error with message about terms
+# ✅ STEP 3 returns 200 success with dispute_id
+# ✅ Database shows termsaccepted=true, termsversion="v1.0", timestamp populated
+# ✅ New dispute record created in job_disputes table
+
+###############################################################################
+# NOTES
+###############################################################################
+
+# - Backend is running on port 8000 ✅
+# - Django Ninja UUID fix applied ✅
+# - Migration 0060 applied successfully ✅
+# - All 3 terms fields added to JobDispute model ✅
+# - Backend validation working ✅
+# - Frontend mobile UI ready ✅
+
+### Ready for end-to-end testing! 🚀

@@ -1,0 +1,129 @@
+### Payment Buffer API Test Suite
+### Testing the 7-day payment buffer system via HTTP API calls
+
+@host = http://localhost:8000
+
+### ===== AUTH: Login as a worker to get token =====
+# @name login_worker
+POST {{host}}/api/mobile/login
+Content-Type: application/json
+
+{
+    "email": "edrisbaks@gmail.com",
+    "password": "Test@12345"
+}
+
+### ===== GET: Wallet Balance (includes pending earnings) =====
+# @name wallet_balance
+GET {{host}}/api/mobile/wallet/balance
+Authorization: Bearer {{login_worker.response.body.access_token}}
+
+### ===== GET: Pending Earnings List =====
+# @name pending_earnings
+GET {{host}}/api/mobile/wallet/pending-earnings
+Authorization: Bearer {{login_worker.response.body.access_token}}
+
+### ===== CREATE: A new test job for payment buffer testing =====
+### First login as client
+# @name login_client
+POST {{host}}/api/mobile/login
+Content-Type: application/json
+
+{
+    "email": "edris.bakaun@one.uz.edu.ph",
+    "password": "Test@12345"
+}
+
+### ===== Create a new job as client =====
+# @name create_job
+POST {{host}}/api/jobs/create-mobile
+Content-Type: application/json
+Authorization: Bearer {{login_client.response.body.access_token}}
+
+{
+    "title": "API Test Payment Buffer Job",
+    "description": "Testing the payment buffer system via API calls. This job will be used to verify the 7-day escrow buffer implementation.",
+    "category_id": 1,
+    "budget": 3000,
+    "location": "Test Location, Zamboanga City",
+    "expected_duration": "1 day",
+    "urgency_level": "MEDIUM",
+    "preferred_start_date": "2025-12-15",
+    "materials_needed": ["test materials"]
+}
+
+### ===== Get job details =====
+# @name job_detail
+GET {{host}}/api/mobile/jobs/74/detail
+Authorization: Bearer {{login_worker.response.body.access_token}}
+
+### ===== Worker marks job complete =====
+# @name worker_complete
+POST {{host}}/api/jobs/74/worker-complete
+Content-Type: application/json
+Authorization: Bearer {{login_worker.response.body.access_token}}
+
+{
+    "completion_notes": "Job completed successfully - testing payment buffer"
+}
+
+### ===== Client approves completion (triggers payment buffer) =====
+# @name client_approve
+POST {{host}}/api/jobs/74/approve-completion
+Content-Type: application/json
+Authorization: Bearer {{login_client.response.body.access_token}}
+
+{
+    "notes": "Approved - testing payment buffer system"
+}
+
+### ===== Check wallet after completion (should show pending) =====
+# @name wallet_after_completion
+GET {{host}}/api/mobile/wallet/balance
+Authorization: Bearer {{login_worker.response.body.access_token}}
+
+### ===== Get pending earnings details =====
+# @name pending_earnings_after
+GET {{host}}/api/mobile/wallet/pending-earnings
+Authorization: Bearer {{login_worker.response.body.access_token}}
+
+### ===== Client requests backjob (during buffer period) =====
+# @name request_backjob
+POST {{host}}/api/jobs/74/request-backjob
+Content-Type: application/json
+Authorization: Bearer {{login_client.response.body.access_token}}
+
+{
+    "reason": "Testing backjob during buffer period",
+    "description": "The work quality needs improvement. This is a test of the backjob request system during the 7-day payment buffer period."
+}
+
+### ===== Check can_request_backjob status =====
+# @name check_backjob
+GET {{host}}/api/jobs/74/can-request-backjob
+Authorization: Bearer {{login_client.response.body.access_token}}
+
+### ===== Admin login for backjob management =====
+# @name admin_login
+POST {{host}}/api/accounts/login
+Content-Type: application/json
+
+{
+    "email": "admin@iayos.com",
+    "password": "Admin@12345"
+}
+
+### ===== Admin rejects backjob =====
+# @name reject_backjob
+POST {{host}}/api/adminpanel/jobs/disputes/6/reject
+Content-Type: application/json
+Cookie: {{admin_login.response.headers.Set-Cookie}}
+
+{
+    "rejection_reason": "The work appears to be completed satisfactorily based on the evidence provided."
+}
+
+### ===== Check backjob status after rejection =====
+# @name backjob_status_after
+GET {{host}}/api/jobs/74/can-request-backjob
+Authorization: Bearer {{login_client.response.body.access_token}}
