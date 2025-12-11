@@ -52,10 +52,14 @@ numpy>=1.24.0
 pandas>=2.0.0  # Required for ML dataset statistics endpoint
 # scikit-learn>=1.3.0  # Optional - preprocessing utilities
 
+# KYC Document Verification - OCR and Image Processing
+pytesseract>=0.3.10  # Python wrapper for Tesseract OCR
+Pillow>=10.0.0  # Image processing for quality checks
+scipy>=1.11.0  # Image processing (blur detection via Laplacian)
+
 # Security updates for Alpine packages
 # Force pip upgrade to fix CVE-2025-8869  
 pip>=25.3
 
 # Security monitoring
 # django-security==0.12.0  # Commented out - not needed for Django 5.x
-

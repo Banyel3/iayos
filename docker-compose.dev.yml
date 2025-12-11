@@ -106,6 +106,21 @@ services:
     profiles:
       - mobile # This service won't start by default, use: docker-compose --profile mobile up
 
+  # CompreFace - Face Detection/Recognition Service for KYC Verification
+  # Docs: https://github.com/exadel-inc/CompreFace
+  # Using mobilenet model (smaller, 1GB) - good for CPU-only environments
+  # NOTE: CompreFace requires its own database setup. Enable when needed.
+  compreface:
+    image: exadel/compreface:1.2.0-mobilenet
+    container_name: iayos-compreface-dev
+    ports:
+      - "8100:8000"  # CompreFace default is 8000, but we map to 8100 to avoid conflict
+    networks:
+      - iayos-network
+    profiles:
+      - compreface  # Optional profile - use: docker-compose --profile compreface up
+    restart: unless-stopped
+
   # ML Service - TensorFlow-based predictions (Debian for glibc compatibility)
   ml:
     build:
