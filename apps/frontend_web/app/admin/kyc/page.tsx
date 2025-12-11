@@ -63,7 +63,7 @@ function combineKYCData(data: any): KYCRecord[] {
       userEmail: user?.email || "",
       userType: user?.profileType === "WORKER" ? "worker" : "client",
       submissionDate: kyc.createdAt,
-      status: kyc.kycStatus.toLowerCase().replace("_", "_") as any,
+      status: kyc.kycStatus.toLowerCase() as any,
       documentsSubmitted: files.map((f: any) => ({
         name: f.fileName,
         type: f.idType,
