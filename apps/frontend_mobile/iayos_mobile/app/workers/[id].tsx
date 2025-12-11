@@ -29,6 +29,11 @@ import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
 import { Ionicons } from "@expo/vector-icons";
 import {
+  useWorkerProfileScore,
+  getScoreColor,
+  getCategoryInfo,
+} from "@/lib/hooks/useWorkerProfileScore";
+import {
   Colors,
   Typography,
   Spacing,
@@ -299,6 +304,12 @@ export default function WorkerDetailScreen() {
     5
   );
 
+  // Fetch ML-based profile score
+  const { data: profileScore, isLoading: isLoadingScore } = useWorkerProfileScore(
+    data?.id,
+    !!data
+  );
+
   // Show skeleton while loading
   if (isLoading) {
     return <WorkerDetailSkeleton />;
@@ -457,6 +468,34 @@ export default function WorkerDetailScreen() {
               <Text style={styles.statLabel}>Per Hour</Text>
             </View>
           </View>
+
+          {/* ML Profile Score Card */}
+          {profileScore && profileScore.profile_score !== null && (
+            <View style={styles.section}>
+              <View style={[styles.mlScoreCard, { borderLeftColor: getScoreColor(profileScore.profile_score) }]}>
+                <View style={styles.mlScoreHeader}>
+                  <View style={styles.mlScoreLeft}>
+                    <Text style={styles.mlScoreLabel}>🤖 AI Profile Score</Text>
+                    <View style={styles.mlScoreRow}>
+                      <Text style={[styles.mlScoreValue, { color: getScoreColor(profileScore.profile_score) }]}>
+                        {profileScore.profile_score.toFixed(0)}
+                      </Text>
+                      <Text style={styles.mlScoreMax}>/100</Text>
+                    </View>
+                  </View>
+                  <View style={[styles.mlCategoryBadge, { backgroundColor: getCategoryInfo(profileScore.rating_category).color + '20' }]}>
+                    <Text style={styles.mlCategoryEmoji}>{getCategoryInfo(profileScore.rating_category).emoji}</Text>
+                    <Text style={[styles.mlCategoryText, { color: getCategoryInfo(profileScore.rating_category).color }]}>
+                      {profileScore.rating_category}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={styles.mlScoreSubtext}>
+                  Based on profile completeness, certifications, and job history
+                </Text>
+              </View>
+            </View>
+          )}
 
           {/* Completion Rate Card */}
           <View style={styles.section}>
@@ -2082,5 +2121,60 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginTop: 8,
     textAlign: "center",
+  },
+  // ML Profile Score Styles
+  mlScoreCard: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    borderLeftWidth: 4,
+    ...Shadows.sm,
+  },
+  mlScoreHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.xs,
+  },
+  mlScoreLeft: {
+    flex: 1,
+  },
+  mlScoreLabel: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginBottom: 2,
+  },
+  mlScoreRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+  },
+  mlScoreValue: {
+    fontSize: 32,
+    fontWeight: "700",
+  },
+  mlScoreMax: {
+    fontSize: 16,
+    color: Colors.textSecondary,
+    marginLeft: 2,
+  },
+  mlCategoryBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    borderRadius: 20,
+    gap: 4,
+  },
+  mlCategoryEmoji: {
+    fontSize: 16,
+  },
+  mlCategoryText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  mlScoreSubtext: {
+    fontSize: 11,
+    color: Colors.textHint,
+    marginTop: Spacing.xs,
   },
 });

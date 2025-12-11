@@ -114,11 +114,11 @@ services:
     image: exadel/compreface:1.2.0-mobilenet
     container_name: iayos-compreface-dev
     ports:
-      - "8100:8000"  # CompreFace default is 8000, but we map to 8100 to avoid conflict
+      - "8100:8000" # CompreFace default is 8000, but we map to 8100 to avoid conflict
     networks:
       - iayos-network
     profiles:
-      - compreface  # Optional profile - use: docker-compose --profile compreface up
+      - compreface # Optional profile - use: docker-compose --profile compreface up
     restart: unless-stopped
 
   # ML Service - TensorFlow-based predictions (Debian for glibc compatibility)
