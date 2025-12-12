@@ -48,6 +48,11 @@ interface MyJob {
   agency_logo?: string;
   application_status?: "PENDING" | "ACCEPTED" | "REJECTED" | "WITHDRAWN";
   has_backjob?: boolean;
+  // Team Job Fields
+  is_team_job?: boolean;
+  total_workers_needed?: number;
+  total_workers_assigned?: number;
+  team_fill_percentage?: number;
 }
 
 interface MyJobsResponse {
@@ -596,6 +601,30 @@ export default function JobsScreen() {
           </View>
           <Text style={styles.budgetText}>₱{job.budget.toLocaleString()}</Text>
         </View>
+
+        {/* Team Job Badge */}
+        {job.is_team_job && (
+          <View style={styles.teamJobRow}>
+            <View style={styles.teamJobBadge}>
+              <Ionicons name="people-circle" size={14} color={Colors.white} />
+              <Text style={styles.teamJobBadgeText}>Team Job</Text>
+            </View>
+            <View style={styles.teamJobProgress}>
+              <View style={styles.teamJobProgressBar}>
+                <View
+                  style={[
+                    styles.teamJobProgressFill,
+                    { width: `${job.team_fill_percentage || 0}%` },
+                  ]}
+                />
+              </View>
+              <Text style={styles.teamJobProgressText}>
+                {job.total_workers_assigned || 0}/
+                {job.total_workers_needed || 0} workers
+              </Text>
+            </View>
+          </View>
+        )}
       </TouchableOpacity>
     );
   };
@@ -1560,5 +1589,55 @@ const styles = StyleSheet.create({
   jobTypeFeatureText: {
     fontSize: Typography.fontSize.xs,
     color: Colors.textSecondary,
+  },
+  // Team Job Styles
+  teamJobRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
+    paddingTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  teamJobBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.primary,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.full,
+    gap: 4,
+  },
+  teamJobBadgeText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: Colors.white,
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
+  teamJobProgress: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  teamJobProgressBar: {
+    flex: 1,
+    height: 6,
+    backgroundColor: "#E5E7EB",
+    borderRadius: 3,
+    overflow: "hidden",
+  },
+  teamJobProgressFill: {
+    height: "100%",
+    backgroundColor: Colors.success,
+    borderRadius: 3,
+  },
+  teamJobProgressText: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: Colors.textSecondary,
+    minWidth: 55,
   },
 });

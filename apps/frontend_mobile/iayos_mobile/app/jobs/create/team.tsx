@@ -253,7 +253,9 @@ export default function CreateTeamJobScreen() {
   } = usePricePrediction();
 
   // Debounce timer ref for price prediction
-  const predictionTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const predictionTimeoutRef = React.useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
 
   // Get the highest skill level from all slots for prediction
   const highestSkillLevel = useMemo(() => {
@@ -667,195 +669,202 @@ export default function CreateTeamJobScreen() {
               </View>
             </View>
 
-          {/* Skill Requirements Section */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionTitle}>👥 Team Requirements</Text>
-              <TouchableOpacity
-                style={styles.addSkillButton}
-                onPress={() => setAddSkillModalVisible(true)}
-              >
-                <Ionicons name="add-circle" size={24} color={Colors.primary} />
-                <Text style={styles.addSkillButtonText}>Add Skill</Text>
-              </TouchableOpacity>
+            {/* Skill Requirements Section */}
+            <View style={styles.section}>
+              <View style={styles.sectionHeaderRow}>
+                <Text style={styles.sectionTitle}>👥 Team Requirements</Text>
+                <TouchableOpacity
+                  style={styles.addSkillButton}
+                  onPress={() => setAddSkillModalVisible(true)}
+                >
+                  <Ionicons
+                    name="add-circle"
+                    size={24}
+                    color={Colors.primary}
+                  />
+                  <Text style={styles.addSkillButtonText}>Add Skill</Text>
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.hintText}>
+                Add skills your team needs. You can add the same skill multiple
+                times for different worker groups (e.g., 2 plumbers for
+                bathroom, 1 plumber for kitchen).
+              </Text>
+
+              {skillSlots.length === 0 ? (
+                <View style={styles.emptySkillsCard}>
+                  <Ionicons
+                    name="people-outline"
+                    size={48}
+                    color={Colors.textSecondary}
+                  />
+                  <Text style={styles.emptySkillsText}>
+                    No skills added yet. Add the skills you need for your team
+                    job.
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.skillSlotsList}>
+                  {skillSlots.map(renderSkillSlot)}
+
+                  <View style={styles.totalWorkersCard}>
+                    <Ionicons name="people" size={20} color={Colors.primary} />
+                    <Text style={styles.totalWorkersText}>
+                      Total Workers Needed: {totalWorkersNeeded}
+                    </Text>
+                  </View>
+                </View>
+              )}
             </View>
 
-            <Text style={styles.hintText}>
-              Add skills your team needs. You can add the same skill multiple
-              times for different worker groups (e.g., 2 plumbers for bathroom,
-              1 plumber for kitchen).
-            </Text>
+            {/* Budget Section */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>💰 Budget</Text>
 
-            {skillSlots.length === 0 ? (
-              <View style={styles.emptySkillsCard}>
-                <Ionicons
-                  name="people-outline"
-                  size={48}
-                  color={Colors.textSecondary}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Total Budget (₱) *</Text>
+                <TextInput
+                  style={styles.input}
+                  value={totalBudget}
+                  onChangeText={setTotalBudget}
+                  placeholder="1000"
+                  keyboardType="numeric"
                 />
-                <Text style={styles.emptySkillsText}>
-                  No skills added yet. Add the skills you need for your team
+                <Text style={styles.hint}>
+                  This is the total amount workers will receive for the entire
                   job.
                 </Text>
               </View>
-            ) : (
-              <View style={styles.skillSlotsList}>
-                {skillSlots.map(renderSkillSlot)}
 
-                <View style={styles.totalWorkersCard}>
-                  <Ionicons name="people" size={20} color={Colors.primary} />
-                  <Text style={styles.totalWorkersText}>
-                    Total Workers Needed: {totalWorkersNeeded}
-                  </Text>
-                </View>
-              </View>
-            )}
-          </View>
+              {/* AI Price Suggestion Card */}
+              {skillSlots.length > 0 &&
+                (title.length >= 5 || description.length >= 10) && (
+                  <PriceSuggestionCard
+                    minPrice={
+                      pricePrediction?.min_price
+                        ? pricePrediction.min_price *
+                          Math.max(1, totalWorkersNeeded)
+                        : undefined
+                    }
+                    suggestedPrice={
+                      pricePrediction?.suggested_price
+                        ? pricePrediction.suggested_price *
+                          Math.max(1, totalWorkersNeeded)
+                        : undefined
+                    }
+                    maxPrice={
+                      pricePrediction?.max_price
+                        ? pricePrediction.max_price *
+                          Math.max(1, totalWorkersNeeded)
+                        : undefined
+                    }
+                    confidence={pricePrediction?.confidence}
+                    source={pricePrediction?.source}
+                    isLoading={isPredictingPrice}
+                    error={pricePredictionError?.message}
+                    onApplySuggested={handleApplySuggestedPrice}
+                  />
+                )}
 
-          {/* Budget Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>💰 Budget</Text>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Total Budget (₱) *</Text>
-              <TextInput
-                style={styles.input}
-                value={totalBudget}
-                onChangeText={setTotalBudget}
-                placeholder="1000"
-                keyboardType="numeric"
-              />
-              <Text style={styles.hint}>
-                This is the total amount workers will receive for the entire
-                job.
-              </Text>
-            </View>
-
-            {/* AI Price Suggestion Card */}
-            {skillSlots.length > 0 &&
-              (title.length >= 5 || description.length >= 10) && (
-                <PriceSuggestionCard
-                  minPrice={
-                    pricePrediction?.min_price
-                      ? pricePrediction.min_price * Math.max(1, totalWorkersNeeded)
-                      : undefined
-                  }
-                  suggestedPrice={
-                    pricePrediction?.suggested_price
-                      ? pricePrediction.suggested_price * Math.max(1, totalWorkersNeeded)
-                      : undefined
-                  }
-                  maxPrice={
-                    pricePrediction?.max_price
-                      ? pricePrediction.max_price * Math.max(1, totalWorkersNeeded)
-                      : undefined
-                  }
-                  confidence={pricePrediction?.confidence}
-                  source={pricePrediction?.source}
-                  isLoading={isPredictingPrice}
-                  error={pricePredictionError?.message}
-                  onApplySuggested={handleApplySuggestedPrice}
-                />
-              )}
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Budget Allocation Method</Text>
-              <View style={styles.allocationOptions}>
-                {ALLOCATION_METHODS.map((method) => (
-                  <TouchableOpacity
-                    key={method.value}
-                    style={[
-                      styles.allocationOption,
-                      allocationMethod === method.value &&
-                        styles.allocationOptionSelected,
-                    ]}
-                    onPress={() => setAllocationMethod(method.value)}
-                  >
-                    <View style={styles.allocationOptionContent}>
-                      <Text
-                        style={[
-                          styles.allocationOptionLabel,
-                          allocationMethod === method.value &&
-                            styles.allocationOptionLabelSelected,
-                        ]}
-                      >
-                        {method.label}
-                      </Text>
-                      <Text style={styles.allocationOptionDesc}>
-                        {method.description}
-                      </Text>
-                    </View>
-                    {allocationMethod === method.value && (
-                      <Ionicons
-                        name="checkmark-circle"
-                        size={20}
-                        color={Colors.primary}
-                      />
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            {/* Payment Summary */}
-            {budgetNum > 0 && (
-              <View style={styles.paymentSummary}>
-                <Text style={styles.summaryTitle}>Payment Summary</Text>
-                <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>
-                    Total Budget (Workers Receive)
-                  </Text>
-                  <Text style={styles.summaryValue}>
-                    ₱{budgetNum.toFixed(2)}
-                  </Text>
-                </View>
-                <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>
-                    50% Escrow (Downpayment)
-                  </Text>
-                  <Text style={styles.summaryValue}>
-                    ₱{escrowAmount.toFixed(2)}
-                  </Text>
-                </View>
-                <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>
-                    Platform Fee (5% of escrow)
-                  </Text>
-                  <Text style={styles.summaryValue}>
-                    ₱{platformFee.toFixed(2)}
-                  </Text>
-                </View>
-                <View style={[styles.summaryRow, styles.summaryRowTotal]}>
-                  <Text style={styles.summaryLabelTotal}>Due Now</Text>
-                  <Text style={styles.summaryValueTotal}>
-                    ₱{totalDue.toFixed(2)}
-                  </Text>
-                </View>
-                <View style={styles.walletBalanceRow}>
-                  {walletError ? (
-                    <Text style={styles.walletErrorText}>
-                      ⚠️ Failed to load wallet balance. Please try again.
-                    </Text>
-                  ) : walletLoading ? (
-                    <Text style={styles.walletLabel}>
-                      Loading wallet balance...
-                    </Text>
-                  ) : (
-                    <>
-                      <Text style={styles.walletLabel}>
-                        Wallet Balance: ₱{walletBalance.toFixed(2)}
-                      </Text>
-                      {!hasEnoughBalance && (
-                        <Text style={styles.insufficientText}>
-                          (Need ₱{(totalDue - walletBalance).toFixed(2)} more)
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Budget Allocation Method</Text>
+                <View style={styles.allocationOptions}>
+                  {ALLOCATION_METHODS.map((method) => (
+                    <TouchableOpacity
+                      key={method.value}
+                      style={[
+                        styles.allocationOption,
+                        allocationMethod === method.value &&
+                          styles.allocationOptionSelected,
+                      ]}
+                      onPress={() => setAllocationMethod(method.value)}
+                    >
+                      <View style={styles.allocationOptionContent}>
+                        <Text
+                          style={[
+                            styles.allocationOptionLabel,
+                            allocationMethod === method.value &&
+                              styles.allocationOptionLabelSelected,
+                          ]}
+                        >
+                          {method.label}
                         </Text>
+                        <Text style={styles.allocationOptionDesc}>
+                          {method.description}
+                        </Text>
+                      </View>
+                      {allocationMethod === method.value && (
+                        <Ionicons
+                          name="checkmark-circle"
+                          size={20}
+                          color={Colors.primary}
+                        />
                       )}
-                    </>
-                  )}
+                    </TouchableOpacity>
+                  ))}
                 </View>
               </View>
-            )}
-          </View>
+
+              {/* Payment Summary */}
+              {budgetNum > 0 && (
+                <View style={styles.paymentSummary}>
+                  <Text style={styles.summaryTitle}>Payment Summary</Text>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>
+                      Total Budget (Workers Receive)
+                    </Text>
+                    <Text style={styles.summaryValue}>
+                      ₱{budgetNum.toFixed(2)}
+                    </Text>
+                  </View>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>
+                      50% Escrow (Downpayment)
+                    </Text>
+                    <Text style={styles.summaryValue}>
+                      ₱{escrowAmount.toFixed(2)}
+                    </Text>
+                  </View>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>
+                      Platform Fee (5% of escrow)
+                    </Text>
+                    <Text style={styles.summaryValue}>
+                      ₱{platformFee.toFixed(2)}
+                    </Text>
+                  </View>
+                  <View style={[styles.summaryRow, styles.summaryRowTotal]}>
+                    <Text style={styles.summaryLabelTotal}>Due Now</Text>
+                    <Text style={styles.summaryValueTotal}>
+                      ₱{totalDue.toFixed(2)}
+                    </Text>
+                  </View>
+                  <View style={styles.walletBalanceRow}>
+                    {walletError ? (
+                      <Text style={styles.walletErrorText}>
+                        ⚠️ Failed to load wallet balance. Please try again.
+                      </Text>
+                    ) : walletLoading ? (
+                      <Text style={styles.walletLabel}>
+                        Loading wallet balance...
+                      </Text>
+                    ) : (
+                      <>
+                        <Text style={styles.walletLabel}>
+                          Wallet Balance: ₱{walletBalance.toFixed(2)}
+                        </Text>
+                        {!hasEnoughBalance && (
+                          <Text style={styles.insufficientText}>
+                            (Need ₱{(totalDue - walletBalance).toFixed(2)} more)
+                          </Text>
+                        )}
+                      </>
+                    )}
+                  </View>
+                </View>
+              )}
+            </View>
 
             {/* Team Start Threshold */}
             <View style={styles.section}>
@@ -968,7 +977,9 @@ export default function CreateTeamJobScreen() {
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Preferred Start Date (Optional)</Text>
+                <Text style={styles.label}>
+                  Preferred Start Date (Optional)
+                </Text>
                 <TouchableOpacity
                   style={styles.dateButton}
                   onPress={() => setShowDatePicker(true)}
@@ -979,9 +990,7 @@ export default function CreateTeamJobScreen() {
                     color={Colors.textSecondary}
                   />
                   <Text
-                    style={
-                      startDate ? styles.dateText : styles.datePlaceholder
-                    }
+                    style={startDate ? styles.dateText : styles.datePlaceholder}
                   >
                     {startDate ? startDate.toLocaleDateString() : "Select date"}
                   </Text>
@@ -991,7 +1000,9 @@ export default function CreateTeamJobScreen() {
 
             {/* Job Scope & Work Environment (for ML accuracy) */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>📊 Job Details (for better pricing)</Text>
+              <Text style={styles.sectionTitle}>
+                📊 Job Details (for better pricing)
+              </Text>
 
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Job Scope</Text>
@@ -1041,7 +1052,8 @@ export default function CreateTeamJobScreen() {
                       <Text
                         style={[
                           styles.urgencyText,
-                          workEnvironment === opt.value && styles.activeButtonText,
+                          workEnvironment === opt.value &&
+                            styles.activeButtonText,
                         ]}
                       >
                         {opt.label}

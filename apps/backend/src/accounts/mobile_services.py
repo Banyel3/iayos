@@ -3,7 +3,8 @@
 
 from .models import (
     Accounts, Profile, WorkerProfile, ClientProfile,
-    JobPosting, JobApplication, Specializations, JobPhoto, JobReview, Job, Agency
+    JobPosting, JobApplication, Specializations, JobPhoto, JobReview, Job, Agency,
+    JobSkillSlot, JobWorkerAssignment
 )
 from django.db.models import Q, Count, Avg, Prefetch
 from django.utils import timezone
@@ -200,6 +201,20 @@ def get_mobile_job_list(
             # NEW: Map urgency to numeric values for sorting
             urgency_value = {'LOW': 1, 'MEDIUM': 2, 'HIGH': 3}.get(job.urgency, 0)
 
+            # Calculate team job stats if applicable
+            team_workers_needed = 0
+            team_workers_assigned = 0
+            team_fill_percentage = 0
+            if job.is_team_job:
+                skill_slots = JobSkillSlot.objects.filter(jobID=job)
+                for slot in skill_slots:
+                    team_workers_needed += slot.workers_needed
+                    team_workers_assigned += slot.worker_assignments.filter(
+                        assignment_status__in=['ACTIVE', 'COMPLETED']
+                    ).count()
+                if team_workers_needed > 0:
+                    team_fill_percentage = round((team_workers_assigned / team_workers_needed) * 100, 1)
+
             job_data = {
                 'id': job.jobID,
                 'title': job.title,
@@ -217,6 +232,10 @@ def get_mobile_job_list(
                 'is_applied': has_applied,
                 'expected_duration': job.expectedDuration,
                 'is_team_job': job.is_team_job,  # Team job indicator
+                # Team job stats (for list view)
+                'total_workers_needed': team_workers_needed if job.is_team_job else None,
+                'total_workers_assigned': team_workers_assigned if job.is_team_job else None,
+                'team_fill_percentage': team_fill_percentage if job.is_team_job else None,
                 # Sorting helpers
                 '_distance_sort': distance if distance is not None else 999999,
                 '_urgency_sort': urgency_value,
@@ -540,6 +559,38 @@ def get_mobile_job_detail(job_id: int, user: Accounts) -> Dict[str, Any]:
             'skill_level_required': job.skill_level_required,
             'work_environment': job.work_environment,
         }
+
+        # Add team job data if this is a team job
+        if job.is_team_job:
+            print(f"   🔧 Fetching team job data...")
+            from jobs.team_job_services import get_team_job_detail
+            team_detail = get_team_job_detail(job.jobID, user)
+            
+            if 'error' not in team_detail:
+                job_data.update({
+                    'skill_slots': team_detail.get('skill_slots', []),
+                    'worker_assignments': team_detail.get('worker_assignments', []),
+                    'team_fill_percentage': team_detail.get('team_fill_percentage', 0),
+                    'total_workers_needed': team_detail.get('total_workers_needed', 0),
+                    'total_workers_assigned': team_detail.get('total_workers_assigned', 0),
+                    'budget_allocation_type': team_detail.get('budget_allocation_type'),
+                    'team_start_threshold': team_detail.get('team_start_threshold', 100),
+                    'can_start': team_detail.get('can_start', False),
+                })
+                print(f"   ✅ Team job data: {len(job_data.get('skill_slots', []))} slots, {job_data.get('total_workers_assigned', 0)}/{job_data.get('total_workers_needed', 0)} workers")
+            else:
+                print(f"   ⚠️ Team job detail fetch error: {team_detail.get('error')}")
+                # Still provide empty arrays so UI can handle gracefully
+                job_data.update({
+                    'skill_slots': [],
+                    'worker_assignments': [],
+                    'team_fill_percentage': 0,
+                    'total_workers_needed': 0,
+                    'total_workers_assigned': 0,
+                    'budget_allocation_type': None,
+                    'team_start_threshold': 100,
+                    'can_start': False,
+                })
 
         if reviews_payload:
             job_data['reviews'] = reviews_payload

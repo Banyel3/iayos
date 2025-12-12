@@ -74,7 +74,7 @@ export function useConversations(
         );
       }
 
-      const data = await response.json() as ConversationsResponse;
+      const data = (await response.json()) as ConversationsResponse;
       // Transform avatar URLs to absolute URLs for local storage compatibility
       return {
         ...data,
@@ -92,12 +92,14 @@ export function useConversations(
           // Handle 1:1 conversations
           return {
             ...conv,
-            other_participant: conv.other_participant ? {
-              ...conv.other_participant,
-              avatar: getAbsoluteMediaUrl(
-                conv.other_participant.avatar
-              ) as string | null,
-            } : undefined,
+            other_participant: conv.other_participant
+              ? {
+                  ...conv.other_participant,
+                  avatar: getAbsoluteMediaUrl(conv.other_participant.avatar) as
+                    | string
+                    | null,
+                }
+              : undefined,
           };
         }),
       };
@@ -118,15 +120,15 @@ export function useConversationSearch(searchQuery: string) {
     conversationsData?.conversations.filter((conv) => {
       const query = searchQuery.toLowerCase();
       const jobTitle = conv.job.title.toLowerCase();
-      
+
       // For team conversations, search in team member names
       if (conv.conversation_type === "TEAM_GROUP") {
-        const teamMemberMatch = conv.team_members?.some(
-          (member) => member.name.toLowerCase().includes(query)
+        const teamMemberMatch = conv.team_members?.some((member) =>
+          member.name.toLowerCase().includes(query)
         );
         return teamMemberMatch || jobTitle.includes(query);
       }
-      
+
       // For 1:1 conversations
       const participantName = conv.other_participant?.name?.toLowerCase() || "";
       return participantName.includes(query) || jobTitle.includes(query);
@@ -188,11 +190,13 @@ export function useArchiveConversation() {
       );
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: "Unknown error" })) as { error?: string };
+        const errorData = (await response
+          .json()
+          .catch(() => ({ error: "Unknown error" }))) as { error?: string };
         throw new Error(errorData.error || "Failed to toggle archive status");
       }
 
-      const data = await response.json() as { message: string };
+      const data = (await response.json()) as { message: string };
       console.log(`[useArchiveConversation] Success: ${data.message}`, data);
 
       return data;

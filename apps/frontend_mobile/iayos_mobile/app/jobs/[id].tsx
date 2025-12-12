@@ -241,6 +241,14 @@ export default function JobDetailScreen() {
       const result = (await response.json()) as any;
       const jobData = result.data || result; // Handle both wrapped and unwrapped responses
 
+      // Debug: Log team job data from API
+      console.log("[JobDetail] Raw API response:", {
+        is_team_job: jobData.is_team_job,
+        skill_slots_count: jobData.skill_slots?.length || 0,
+        total_workers_needed: jobData.total_workers_needed,
+        total_workers_assigned: jobData.total_workers_assigned,
+      });
+
       const mapReview = (reviewData: any): JobReviewSummary => ({
         rating:
           typeof reviewData?.rating === "number"
@@ -675,6 +683,15 @@ export default function JobDetailScreen() {
   // ============================================================================
   const isTeamJob = job?.is_team_job === true;
 
+  // Debug: Log team job state in render
+  console.log("[JobDetail] Team Job State:", {
+    isTeamJob,
+    job_is_team_job: job?.is_team_job,
+    skill_slots_count: job?.skill_slots?.length || 0,
+    total_workers_needed: job?.total_workers_needed,
+    total_workers_assigned: job?.total_workers_assigned,
+  });
+
   // Team job apply mutation
   const applyToSkillSlot = useApplyToSkillSlot();
 
@@ -1052,6 +1069,21 @@ export default function JobDetailScreen() {
                 : job.category}
             </Text>
           </View>
+
+          {/* Team Job Header Badge - Prominent indicator at top */}
+          {isTeamJob && (
+            <View style={styles.teamJobHeaderBadge}>
+              <Ionicons name="people-circle" size={20} color={Colors.white} />
+              <Text style={styles.teamJobHeaderBadgeText}>Team Job</Text>
+              <View style={styles.teamJobHeaderDivider} />
+              <Text style={styles.teamJobHeaderCount}>
+                {job.total_workers_assigned || 0}/{job.total_workers_needed || 0} workers filled
+              </Text>
+              {(job.team_fill_percentage || 0) >= 100 && (
+                <Ionicons name="checkmark-circle" size={16} color={Colors.white} style={{ marginLeft: 4 }} />
+              )}
+            </View>
+          )}
         </View>
 
         {/* Budget & Location */}
@@ -1278,6 +1310,34 @@ export default function JobDetailScreen() {
               </Text>
             </View>
 
+            {/* Conversation Lock Notice - Chat only available when all workers selected */}
+            {(job.team_fill_percentage || 0) < 100 && (
+              <View style={styles.conversationLockBanner}>
+                <Ionicons name="chatbubbles-outline" size={20} color={Colors.warning} />
+                <View style={styles.conversationLockContent}>
+                  <Text style={styles.conversationLockTitle}>Group Chat Locked</Text>
+                  <Text style={styles.conversationLockText}>
+                    {isClient
+                      ? `Select ${(job.total_workers_needed || 0) - (job.total_workers_assigned || 0)} more worker(s) to start the team conversation`
+                      : "Team chat will be available once all positions are filled"}
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {/* Conversation Ready Notice */}
+            {(job.team_fill_percentage || 0) >= 100 && job.status === "ACTIVE" && (
+              <View style={styles.conversationReadyBanner}>
+                <Ionicons name="chatbubbles" size={20} color={Colors.success} />
+                <View style={styles.conversationLockContent}>
+                  <Text style={styles.conversationReadyTitle}>Team Ready!</Text>
+                  <Text style={styles.conversationReadyText}>
+                    All workers selected. Group conversation is now available.
+                  </Text>
+                </View>
+              </View>
+            )}
+
             <Text style={styles.sectionTitle}>Skill Slots</Text>
 
             {/* Skill Slot Cards */}
@@ -1340,37 +1400,63 @@ export default function JobDetailScreen() {
                     </View>
                   </View>
 
-                  {/* Assigned Workers List */}
-                  {assignedWorkers.length > 0 && (
-                    <View style={styles.assignedWorkersList}>
-                      <Text style={styles.assignedWorkersLabel}>Assigned:</Text>
-                      {assignedWorkers.map((worker) => (
+                  {/* Position Slots with Numbers */}
+                  <View style={styles.positionsContainer}>
+                    <Text style={styles.positionsLabel}>Positions:</Text>
+                    {Array.from({ length: slot.workers_needed }).map((_, posIndex) => {
+                      const assignedWorker = assignedWorkers[posIndex];
+                      const isFilled = !!assignedWorker;
+                      
+                      return (
                         <View
-                          key={worker.assignment_id}
-                          style={styles.assignedWorkerItem}
+                          key={posIndex}
+                          style={[
+                            styles.positionRow,
+                            isFilled ? styles.positionFilled : styles.positionOpen,
+                          ]}
                         >
-                          <Image
-                            source={{
-                              uri:
-                                worker.worker_avatar ||
-                                "https://via.placeholder.com/30",
-                            }}
-                            style={styles.assignedWorkerAvatar}
-                          />
-                          <Text style={styles.assignedWorkerName}>
-                            {worker.worker_name}
-                          </Text>
-                          {worker.worker_marked_complete && (
-                            <Ionicons
-                              name="checkmark-circle"
-                              size={16}
-                              color={Colors.success}
-                            />
+                          <View style={styles.positionNumber}>
+                            <Text style={styles.positionNumberText}>{posIndex + 1}</Text>
+                          </View>
+                          {isFilled ? (
+                            <>
+                              <Image
+                                source={{
+                                  uri:
+                                    assignedWorker.worker_avatar ||
+                                    "https://via.placeholder.com/30",
+                                }}
+                                style={styles.positionAvatar}
+                              />
+                              <Text style={styles.positionWorkerName}>
+                                {assignedWorker.worker_name}
+                              </Text>
+                              <Ionicons
+                                name="checkmark-circle"
+                                size={18}
+                                color={Colors.success}
+                              />
+                              {assignedWorker.worker_marked_complete && (
+                                <View style={styles.completedTag}>
+                                  <Text style={styles.completedTagText}>Done</Text>
+                                </View>
+                              )}
+                            </>
+                          ) : (
+                            <>
+                              <View style={styles.positionEmptyAvatar}>
+                                <Ionicons name="person-outline" size={16} color={Colors.textSecondary} />
+                              </View>
+                              <Text style={styles.positionOpenText}>Open Position</Text>
+                              <View style={styles.openTag}>
+                                <Text style={styles.openTagText}>Hiring</Text>
+                              </View>
+                            </>
                           )}
                         </View>
-                      ))}
-                    </View>
-                  )}
+                      );
+                    })}
+                  </View>
 
                   {/* Apply Button for Workers (if slot is open) */}
                   {isWorker &&
@@ -3292,6 +3378,32 @@ const styles = StyleSheet.create({
   // ============================================================================
   // Team Job Styles
   // ============================================================================
+  teamJobHeaderBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#7C3AED",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.lg,
+    marginTop: Spacing.md,
+    gap: Spacing.sm,
+  },
+  teamJobHeaderBadgeText: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: "700",
+    color: Colors.white,
+  },
+  teamJobHeaderDivider: {
+    width: 1,
+    height: 16,
+    backgroundColor: "rgba(255,255,255,0.3)",
+  },
+  teamJobHeaderCount: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: "600",
+    color: Colors.white,
+    opacity: 0.95,
+  },
   teamJobBadge: {
     flexDirection: "row",
     alignItems: "center",
@@ -3382,6 +3494,147 @@ const styles = StyleSheet.create({
   skillSlotInfoText: {
     fontSize: Typography.fontSize.sm,
     color: Colors.textSecondary,
+  },
+  // Conversation Lock/Ready Banners
+  conversationLockBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: Colors.warningLight,
+    borderWidth: 1,
+    borderColor: Colors.warning,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    marginBottom: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  conversationReadyBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: Colors.successLight,
+    borderWidth: 1,
+    borderColor: Colors.success,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    marginBottom: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  conversationLockContent: {
+    flex: 1,
+  },
+  conversationLockTitle: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: "700",
+    color: Colors.warning,
+    marginBottom: 2,
+  },
+  conversationLockText: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.textSecondary,
+    lineHeight: 18,
+  },
+  conversationReadyTitle: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: "700",
+    color: Colors.success,
+    marginBottom: 2,
+  },
+  conversationReadyText: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.textSecondary,
+    lineHeight: 18,
+  },
+  // Position Slots Styles
+  positionsContainer: {
+    marginTop: Spacing.sm,
+    paddingTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  positionsLabel: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: "600",
+    color: Colors.textSecondary,
+    marginBottom: Spacing.sm,
+  },
+  positionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.xs,
+    gap: Spacing.sm,
+  },
+  positionFilled: {
+    backgroundColor: Colors.successLight,
+  },
+  positionOpen: {
+    backgroundColor: Colors.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderStyle: "dashed",
+  },
+  positionNumber: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: Colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  positionNumberText: {
+    fontSize: Typography.fontSize.xs,
+    fontWeight: "700",
+    color: Colors.white,
+  },
+  positionAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: Colors.success,
+  },
+  positionEmptyAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: Colors.border,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  positionWorkerName: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+    flex: 1,
+  },
+  positionOpenText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+    fontStyle: "italic",
+    flex: 1,
+  },
+  completedTag: {
+    backgroundColor: Colors.success,
+    paddingHorizontal: Spacing.xs,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.sm,
+  },
+  completedTagText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: Colors.white,
+  },
+  openTag: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.sm,
+  },
+  openTagText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: Colors.white,
   },
   assignedWorkersList: {
     marginTop: Spacing.sm,

@@ -52,7 +52,7 @@ export default function ConversationCard({
 
   // Check if this is a team conversation
   const isTeamConversation = conversation.conversation_type === "TEAM_GROUP";
-  
+
   // Get display name and avatar based on conversation type
   const getDisplayInfo = () => {
     if (isTeamConversation) {
@@ -60,7 +60,7 @@ export default function ConversationCard({
       const memberCount = conversation.team_members?.length || 0;
       const firstMember = conversation.team_members?.[0];
       return {
-        name: `Team Chat (${memberCount} ${memberCount === 1 ? 'worker' : 'workers'})`,
+        name: `Team Chat (${memberCount} ${memberCount === 1 ? "worker" : "workers"})`,
         avatar: firstMember?.avatar || null,
         showTeamBadge: true,
       };
@@ -84,10 +84,7 @@ export default function ConversationCard({
       {/* Avatar */}
       <View style={styles.avatarContainer}>
         {displayInfo.avatar ? (
-          <Image
-            source={{ uri: displayInfo.avatar }}
-            style={styles.avatar}
-          />
+          <Image source={{ uri: displayInfo.avatar }} style={styles.avatar} />
         ) : (
           <View style={[styles.avatar, styles.avatarPlaceholder]}>
             <Ionicons

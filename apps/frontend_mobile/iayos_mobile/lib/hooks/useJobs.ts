@@ -16,6 +16,35 @@ import {
 import type { InfiniteData } from "@tanstack/query-core";
 import { ENDPOINTS, apiRequest, fetchJson } from "@/lib/api/config";
 
+export interface SkillSlot {
+  skill_slot_id: number;
+  specialization_id: number;
+  specialization_name: string;
+  workers_needed: number;
+  workers_assigned: number;
+  openings_remaining: number;
+  budget_allocated: number;
+  budget_per_worker: number;
+  skill_level_required: "ENTRY" | "INTERMEDIATE" | "EXPERT";
+  status: "OPEN" | "PARTIALLY_FILLED" | "FILLED" | "CLOSED";
+  notes?: string;
+}
+
+export interface WorkerAssignment {
+  assignment_id: number;
+  worker_id: number;
+  worker_name: string;
+  worker_avatar?: string;
+  worker_rating?: number;
+  skill_slot_id: number;
+  specialization_name: string;
+  slot_position: number;
+  assignment_status: "ACTIVE" | "COMPLETED" | "REMOVED" | "WITHDRAWN";
+  assigned_at: string;
+  worker_marked_complete: boolean;
+  individual_rating?: number;
+}
+
 export interface Job {
   id: number;
   title: string;
@@ -46,6 +75,20 @@ export interface Job {
   }>;
   applicationCount?: number;
   isSaved?: boolean;
+  // Team job fields
+  is_team_job?: boolean;
+  total_workers_needed?: number;
+  total_workers_assigned?: number;
+  team_fill_percentage?: number;
+  skill_slots?: SkillSlot[];
+  worker_assignments?: WorkerAssignment[];
+  budget_allocation_type?:
+    | "EQUAL_PER_SKILL"
+    | "EQUAL_PER_WORKER"
+    | "MANUAL"
+    | "SKILL_WEIGHTED";
+  team_start_threshold?: number;
+  can_start?: boolean;
 }
 
 export interface JobsResponse {
