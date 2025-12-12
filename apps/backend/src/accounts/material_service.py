@@ -6,7 +6,7 @@ import re
 from decimal import Decimal
 from pathlib import Path
 
-from .models import WorkerProfile, WorkerMaterial, Notification
+from .models import WorkerProfile, WorkerMaterial, Specializations, workerSpecialization, Notification
 from django.core.exceptions import ObjectDoesNotExist
 from typing import Dict, List, Optional
 from iayos_project.utils import upload_file
@@ -45,8 +45,26 @@ def add_material(
     unit: str = DEFAULT_UNIT,
     quantity: float = 1.0,
     image_file=None,
+    category_id: Optional[int] = None,
 ) -> Dict:
-    """Add a new material/product for a worker."""
+    """Add a new material/product for a worker.
+    
+    Args:
+        worker_profile: WorkerProfile instance
+        name: Material name (required)
+        description: Material description
+        price: Price in PHP (required, > 0)
+        unit: Unit of measurement (default: "piece")
+        quantity: Quantity available (default: 1.0)
+        image_file: Optional image file
+        category_id: Optional specialization/category ID to link material to
+    
+    Returns:
+        dict: Created material data
+        
+    Raises:
+        ValueError: If validation fails or worker doesn't have the specified skill
+    """
     if not name or len(name.strip()) == 0:
         raise ValueError("Material name is required")
 
@@ -59,6 +77,21 @@ def add_material(
     sanitized_unit = _sanitize_unit(unit)
     price_value = Decimal(str(price))
     quantity_value = Decimal(str(quantity))
+
+    # Validate category if provided
+    category = None
+    if category_id:
+        try:
+            category = Specializations.objects.get(specializationID=category_id)
+            # Verify worker has this specialization
+            has_skill = workerSpecialization.objects.filter(
+                workerID=worker_profile,
+                specializationID=category
+            ).exists()
+            if not has_skill:
+                raise ValueError(f"You must add '{category.specializationName}' as a skill before linking materials to this category")
+        except Specializations.DoesNotExist:
+            raise ValueError(f"Category with ID {category_id} not found")
 
     image_url = ""
     if image_file:
@@ -80,6 +113,7 @@ def add_material(
         unit=sanitized_unit,
         image_url=image_url,
         is_available=True,
+        categoryID=category,
     )
     
     # Create notification
@@ -97,19 +131,53 @@ def add_material(
     return _format_material(material)
 
 
-def list_materials(worker_profile: WorkerProfile) -> List[Dict]:
+def list_materials(worker_profile: WorkerProfile, category_id: Optional[int] = None) -> List[Dict]:
     """
-    Get all materials for a worker.
+    Get all materials for a worker, optionally filtered by category.
     
     Args:
         worker_profile: WorkerProfile instance
+        category_id: Optional category/specialization ID to filter by
     
     Returns:
         list: List of material dictionaries
     """
-    materials = WorkerMaterial.objects.filter(
-        workerID=worker_profile
-    ).order_by('-createdAt')
+    queryset = WorkerMaterial.objects.filter(workerID=worker_profile)
+    
+    if category_id:
+        queryset = queryset.filter(categoryID_id=category_id)
+    
+    materials = queryset.order_by('-createdAt')
+    
+    return [_format_material(material) for material in materials]
+
+
+def list_materials_for_client(worker_profile_id: int, category_id: Optional[int] = None) -> List[Dict]:
+    """
+    Get materials for a worker visible to clients, optionally filtered by category.
+    Only returns available materials.
+    
+    Args:
+        worker_profile_id: Worker's profile ID
+        category_id: Optional category/specialization ID to filter by
+    
+    Returns:
+        list: List of material dictionaries
+    """
+    try:
+        worker_profile = WorkerProfile.objects.get(profileID__profileID=worker_profile_id)
+    except WorkerProfile.DoesNotExist:
+        raise ValueError("Worker profile not found")
+    
+    queryset = WorkerMaterial.objects.filter(
+        workerID=worker_profile,
+        is_available=True
+    )
+    
+    if category_id:
+        queryset = queryset.filter(categoryID_id=category_id)
+    
+    materials = queryset.order_by('-createdAt')
     
     return [_format_material(material) for material in materials]
 
@@ -123,7 +191,8 @@ def update_material(
     unit: Optional[str] = None,
     quantity: Optional[float] = None,
     is_available: Optional[bool] = None,
-    image_file = None
+    image_file = None,
+    category_id: Optional[int] = None,
 ) -> Dict:
     """
     Update material information.
@@ -138,6 +207,7 @@ def update_material(
         quantity: Updated quantity
         is_available: Updated availability status
         image_file: Optional new image file
+        category_id: Optional category ID (None to keep current, -1 to remove)
     
     Returns:
         dict: Updated material data
@@ -177,6 +247,25 @@ def update_material(
     
     if is_available is not None:
         material.is_available = is_available
+    
+    # Update category if provided
+    if category_id is not None:
+        if category_id == -1:
+            # Remove category link
+            material.categoryID = None
+        else:
+            try:
+                category = Specializations.objects.get(specializationID=category_id)
+                # Verify worker has this specialization
+                has_skill = workerSpecialization.objects.filter(
+                    workerID=worker_profile,
+                    specializationID=category
+                ).exists()
+                if not has_skill:
+                    raise ValueError(f"You must add '{category.specializationName}' as a skill before linking materials to this category")
+                material.categoryID = category
+            except Specializations.DoesNotExist:
+                raise ValueError(f"Category with ID {category_id} not found")
     
     # Upload new image if provided
     if image_file:
@@ -263,6 +352,8 @@ def _format_material(material: WorkerMaterial) -> Dict:
         "unit": material.unit,
         "image_url": material.image_url if material.image_url else None,
         "is_available": material.is_available,
+        "category_id": material.categoryID.specializationID if material.categoryID else None,
+        "category_name": material.categoryID.specializationName if material.categoryID else None,
         "createdAt": material.createdAt.isoformat() if material.createdAt else "",
         "updatedAt": material.updatedAt.isoformat() if material.updatedAt else ""
     }

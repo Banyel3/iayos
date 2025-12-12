@@ -202,6 +202,12 @@ export const ENDPOINTS = {
   MATERIALS: `${API_BASE_URL}/accounts/worker/materials`,
   MATERIAL_DETAIL: (id: number) =>
     `${API_BASE_URL}/accounts/worker/materials/${id}`,
+  // Worker public materials (for clients to view filtered by category)
+  WORKER_MATERIALS_PUBLIC: (workerId: number) =>
+    `${API_BASE_URL}/accounts/workers/${workerId}/materials`,
+  // Worker skills (specializations the worker has)
+  AVAILABLE_SKILLS: `${API_BASE_URL.replace("/api", "")}/api/mobile/skills/available`,
+  MY_SKILLS: `${API_BASE_URL.replace("/api", "")}/api/mobile/skills/my-skills`,
 
   // Profile
   PROFILE: (id: number) => `${API_BASE_URL}/profiles/${id}`,

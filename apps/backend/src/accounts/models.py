@@ -341,12 +341,25 @@ class WorkerMaterial(models.Model):
     """
     Materials/products offered by workers.
     Examples: Construction materials, spare parts, products they sell
+    
+    Materials can be linked to a specific specialization/category so clients
+    only see relevant materials when hiring for a specific job type.
     """
     materialID = models.BigAutoField(primary_key=True)
     workerID = models.ForeignKey(
         WorkerProfile,
         on_delete=models.CASCADE,
         related_name='materials'
+    )
+    
+    # Optional link to specialization - allows filtering materials by job category
+    categoryID = models.ForeignKey(
+        Specializations,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='materials',
+        help_text="The category/specialization this material is for (e.g., Plumbing, Electrical). Optional."
     )
     
     name = models.CharField(
@@ -393,11 +406,13 @@ class WorkerMaterial(models.Model):
         ordering = ['-createdAt']
         indexes = [
             models.Index(fields=['workerID', 'is_available']),
+            models.Index(fields=['workerID', 'categoryID']),  # For filtering by category
             models.Index(fields=['name']),
         ]
     
     def __str__(self):
-        return f"{self.name} - ₱{self.price} for {self.quantity} {self.unit}"
+        category = f" [{self.categoryID.specializationName}]" if self.categoryID else ""
+        return f"{self.name}{category} - ₱{self.price} for {self.quantity} {self.unit}"
 
 
 class WorkerPortfolio(models.Model):

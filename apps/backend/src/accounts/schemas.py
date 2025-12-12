@@ -267,6 +267,8 @@ class MaterialSchema(Schema):
     unit: str
     image_url: Optional[str]
     is_available: bool
+    category_id: Optional[int] = None
+    category_name: Optional[str] = None
     createdAt: str
     updatedAt: str
 
@@ -277,6 +279,7 @@ class AddMaterialRequest(Schema):
     price: float
     quantity: float = 1.0
     unit: str = "piece"
+    category_id: Optional[int] = None  # Optional link to specialization/category
 
 class UpdateMaterialRequest(Schema):
     """Schema for updating material"""
@@ -286,6 +289,7 @@ class UpdateMaterialRequest(Schema):
     quantity: Optional[float] = None
     unit: Optional[str] = None
     is_available: Optional[bool] = None
+    category_id: Optional[int] = None  # Can update category link
 
 class MaterialResponse(Schema):
     """Response schema for material operations"""

@@ -42,7 +42,7 @@ from .portfolio_service import (
 )
 from .models import Profile, WorkerProfile
 from .material_service import (
-    add_material, list_materials, update_material, delete_material
+    add_material, list_materials, list_materials_for_client, update_material, delete_material
 )
 # Profile metrics helpers
 from .profile_metrics_service import get_profile_metrics
@@ -1921,7 +1921,8 @@ def add_material_endpoint(
     description: Optional[str] = Form(None),
     quantity: float = Form(1),
     unit: str = Form("piece"),
-    image: Optional[UploadedFile] = File(None)
+    image: Optional[UploadedFile] = File(None),
+    category_id: Optional[int] = Form(None)
 ):
     """
     Add a new material/product with optional image upload.
@@ -1933,6 +1934,7 @@ def add_material_endpoint(
     - quantity: Quantity or stock amount for this listing
     - unit: Unit of measurement (default: "piece")
     - image: Product image
+    - category_id: Optional category/specialization ID to link material to
     """
     try:
         account = request.auth
@@ -1964,7 +1966,8 @@ def add_material_endpoint(
             price=price,
             quantity=quantity,
             unit=unit,
-            image_file=image
+            image_file=image,
+            category_id=category_id
         )
         
         return {
@@ -1989,9 +1992,12 @@ def add_material_endpoint(
 
 
 @router.get("/worker/materials", auth=dual_auth, response=list[MaterialSchema])
-def list_materials_endpoint(request):
+def list_materials_endpoint(request, category_id: Optional[int] = None):
     """
     Get all materials for the authenticated worker.
+    
+    Query params:
+    - category_id: Optional filter by category/specialization
     
     Returns list of materials ordered by creation date (newest first).
     """
@@ -2006,7 +2012,7 @@ def list_materials_endpoint(request):
         worker_profile = worker_profile_result
         
         # Call service function
-        materials = list_materials(worker_profile)
+        materials = list_materials(worker_profile, category_id=category_id)
         
         return materials
         
@@ -2030,12 +2036,16 @@ def update_material_endpoint(
     quantity: float = Form(None),  # type: ignore
     unit: str = Form(None),  # type: ignore
     is_available: bool = Form(None),  # type: ignore
-    image_file: Any = File(None)  # type: ignore
+    image_file: Any = File(None),  # type: ignore
+    category_id: int = Form(None)  # type: ignore
 ):
     """
     Update material information including optional image.
     
     All fields are optional - only provided fields will be updated.
+    
+    Form fields:
+    - category_id: Set to -1 to remove category link, or provide new category ID
     """
     try:
         account = request.auth
@@ -2064,7 +2074,8 @@ def update_material_endpoint(
             quantity=quantity,
             unit=unit,
             is_available=is_available,
-            image_file=image_file
+            image_file=image_file,
+            category_id=category_id
         )
         
         return {
@@ -2121,6 +2132,38 @@ def delete_material_endpoint(request, material_id: int):
         traceback.print_exc()
         return Response(
             {"error": "Failed to delete material"},
+            status=500
+        )
+
+
+@router.get("/workers/{worker_id}/materials", response=list[MaterialSchema])
+def get_worker_materials_public(request, worker_id: int, category_id: Optional[int] = None):
+    """
+    Get materials for a specific worker (public endpoint for clients).
+    Only returns available materials.
+    
+    Query params:
+    - category_id: Optional filter by category/specialization (use for job-specific filtering)
+    
+    Use case: When client invites worker for a plumbing job, filter materials by plumbing category.
+    """
+    try:
+        # Call service function (only returns available materials)
+        materials = list_materials_for_client(worker_id, category_id=category_id)
+        
+        return materials
+        
+    except ValueError as e:
+        return Response(
+            {"error": str(e)},
+            status=404
+        )
+    except Exception as e:
+        print(f"❌ Error getting worker materials: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to get worker materials"},
             status=500
         )
 

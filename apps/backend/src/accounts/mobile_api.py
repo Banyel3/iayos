@@ -809,6 +809,57 @@ def mobile_available_skills(request):
         )
 
 
+@mobile_router.get("/skills/my-skills", auth=jwt_auth)
+def mobile_my_skills(request):
+    """
+    Get current worker's skills (specializations they have added)
+    Returns: List of skills the worker has with id, name, experience years
+    """
+    from .models import WorkerProfile, workerSpecialization
+
+    try:
+        user = request.auth
+        
+        # Get worker profile
+        try:
+            worker_profile = WorkerProfile.objects.get(profileID__accountFK=user)
+        except WorkerProfile.DoesNotExist:
+            return Response(
+                {"error": "Worker profile not found"},
+                status=404
+            )
+        
+        # Get worker's specializations
+        worker_skills = workerSpecialization.objects.filter(
+            workerID=worker_profile
+        ).select_related('specializationID').order_by('specializationID__specializationName')
+        
+        skills_data = [
+            {
+                'id': ws.specializationID.specializationID,
+                'name': ws.specializationID.specializationName,
+                'description': ws.specializationID.description or '',
+                'experienceYears': ws.experienceYears,
+                'certification': ws.certification or '',
+            }
+            for ws in worker_skills
+        ]
+        
+        return {
+            'success': True,
+            'data': skills_data,
+            'count': len(skills_data)
+        }
+    except Exception as e:
+        print(f"[ERROR] Mobile my skills error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to fetch your skills"},
+            status=500
+        )
+
+
 @mobile_router.get("/locations/cities", auth=jwt_auth)
 def get_cities(request):
     """

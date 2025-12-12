@@ -131,15 +131,26 @@ export default function CreateTeamJobScreen() {
   const [specSearchQuery, setSpecSearchQuery] = useState("");
 
   // Wallet balance
-  const { data: walletData, isLoading: walletLoading } = useWallet();
-  const walletBalance = walletData?.balance || 0;
+  const {
+    data: walletData,
+    isLoading: walletLoading,
+    isError: walletError,
+  } = useWallet();
+  const walletBalance =
+    (walletData as { balance?: number } | undefined)?.balance || 0;
 
-  // Fetch specializations
-  const { data: specializations, isLoading: specsLoading } = useQuery({
+  // Fetch specializations (all available skills for team jobs)
+  const { data: specializations, isLoading: specsLoading } = useQuery<
+    Specialization[]
+  >({
     queryKey: ["specializations"],
     queryFn: async () => {
-      const response = await apiRequest(ENDPOINTS.SPECIALIZATIONS);
-      return response.specializations || [];
+      const response = await apiRequest(ENDPOINTS.AVAILABLE_SKILLS);
+      const data = (await response.json()) as {
+        skills?: Specialization[];
+        specializations?: Specialization[];
+      };
+      return data.skills || data.specializations || [];
     },
   });
 
@@ -209,13 +220,23 @@ export default function CreateTeamJobScreen() {
   const totalDue = escrowAmount + platformFee;
   const hasEnoughBalance = walletBalance >= totalDue;
 
+  // Create mutation response type
+  interface CreateTeamJobResponse {
+    job_id: number;
+    skill_slots_created: number;
+    total_workers_needed: number;
+    total_budget: number;
+    escrow_amount: number;
+  }
+
   // Create mutation
   const createJobMutation = useMutation({
-    mutationFn: async (data: any) => {
-      return apiRequest(`${ENDPOINTS.JOBS}/team/create`, {
+    mutationFn: async (data: any): Promise<CreateTeamJobResponse> => {
+      const response = await apiRequest(ENDPOINTS.CREATE_TEAM_JOB, {
         method: "POST",
         body: JSON.stringify(data),
       });
+      return response.json() as Promise<CreateTeamJobResponse>;
     },
     onSuccess: (data) => {
       Alert.alert(
@@ -252,13 +273,8 @@ export default function CreateTeamJobScreen() {
       return;
     }
 
-    // Check if already added
-    if (
-      skillSlots.some((s) => s.specialization_id === selectedSpecialization.id)
-    ) {
-      Alert.alert("Error", "This skill is already added");
-      return;
-    }
+    // Allow adding same category multiple times for different worker groups
+    // Each slot can have its own workers_needed count (1-10)
 
     const newSlot: SkillSlot = {
       id: Date.now().toString(),
@@ -539,6 +555,12 @@ export default function CreateTeamJobScreen() {
               </TouchableOpacity>
             </View>
 
+            <Text style={styles.hintText}>
+              Add skills your team needs. You can add the same skill multiple
+              times for different worker groups (e.g., 2 plumbers for bathroom,
+              1 plumber for kitchen).
+            </Text>
+
             {skillSlots.length === 0 ? (
               <View style={styles.emptySkillsCard}>
                 <Ionicons
@@ -658,13 +680,25 @@ export default function CreateTeamJobScreen() {
                   </Text>
                 </View>
                 <View style={styles.walletBalanceRow}>
-                  <Text style={styles.walletLabel}>
-                    Wallet Balance: ₱{walletBalance.toFixed(2)}
-                  </Text>
-                  {!hasEnoughBalance && (
-                    <Text style={styles.insufficientText}>
-                      (Need ₱{(totalDue - walletBalance).toFixed(2)} more)
+                  {walletError ? (
+                    <Text style={styles.walletErrorText}>
+                      ⚠️ Failed to load wallet balance. Please try again.
                     </Text>
+                  ) : walletLoading ? (
+                    <Text style={styles.walletLabel}>
+                      Loading wallet balance...
+                    </Text>
+                  ) : (
+                    <>
+                      <Text style={styles.walletLabel}>
+                        Wallet Balance: ₱{walletBalance.toFixed(2)}
+                      </Text>
+                      {!hasEnoughBalance && (
+                        <Text style={styles.insufficientText}>
+                          (Need ₱{(totalDue - walletBalance).toFixed(2)} more)
+                        </Text>
+                      )}
+                    </>
                   )}
                 </View>
               </View>
@@ -942,6 +976,11 @@ export default function CreateTeamJobScreen() {
                 <>
                   <View style={styles.inputGroup}>
                     <Text style={styles.label}>Workers Needed</Text>
+                    <Text style={styles.hintText}>
+                      Set the number of workers (1-10) for this skill. You can
+                      add the same skill multiple times with different
+                      requirements.
+                    </Text>
                     <View style={styles.workersStepper}>
                       <TouchableOpacity
                         style={styles.stepperButton}
@@ -1038,7 +1077,7 @@ export default function CreateTeamJobScreen() {
             </View>
             <FlatList
               data={barangays || []}
-              keyExtractor={(item) => item.id.toString()}
+              keyExtractor={(item) => item.barangayID.toString()}
               renderItem={({ item }) => (
                 <TouchableOpacity
                   style={styles.barangayItem}
@@ -1142,6 +1181,12 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginTop: 4,
   },
+  hintText: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.sm,
+    fontStyle: "italic",
+  },
   addSkillButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -1181,7 +1226,8 @@ const styles = StyleSheet.create({
     gap: Spacing.xs,
   },
   skillSlotName: {
-    ...Typography.body.semiBold,
+    ...Typography.body.medium,
+    fontWeight: "600",
     color: Colors.textPrimary,
   },
   skillLevelBadge: {
@@ -1224,7 +1270,8 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
   },
   workersCount: {
-    ...Typography.body.semiBold,
+    ...Typography.body.medium,
+    fontWeight: "600",
     color: Colors.textPrimary,
     minWidth: 30,
     textAlign: "center",
@@ -1284,7 +1331,8 @@ const styles = StyleSheet.create({
     marginTop: Spacing.sm,
   },
   totalWorkersText: {
-    ...Typography.body.semiBold,
+    ...Typography.body.medium,
+    fontWeight: "600",
     color: Colors.primary,
   },
   allocationOptions: {
@@ -1307,7 +1355,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   allocationOptionLabel: {
-    ...Typography.body.semiBold,
+    ...Typography.body.medium,
+    fontWeight: "600",
     color: Colors.textPrimary,
   },
   allocationOptionLabelSelected: {
@@ -1324,7 +1373,8 @@ const styles = StyleSheet.create({
     marginTop: Spacing.md,
   },
   summaryTitle: {
-    ...Typography.body.semiBold,
+    ...Typography.body.medium,
+    fontWeight: "600",
     color: Colors.textPrimary,
     marginBottom: Spacing.sm,
   },
@@ -1348,7 +1398,8 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
   },
   summaryLabelTotal: {
-    ...Typography.body.semiBold,
+    ...Typography.body.medium,
+    fontWeight: "600",
     color: Colors.textPrimary,
   },
   summaryValueTotal: {
@@ -1364,6 +1415,10 @@ const styles = StyleSheet.create({
   walletLabel: {
     ...Typography.body.small,
     color: Colors.textSecondary,
+  },
+  walletErrorText: {
+    ...Typography.body.small,
+    color: Colors.error,
   },
   insufficientText: {
     ...Typography.body.small,
@@ -1387,7 +1442,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary + "10",
   },
   thresholdText: {
-    ...Typography.body.semiBold,
+    ...Typography.body.medium,
+    fontWeight: "600",
     color: Colors.textSecondary,
   },
   thresholdTextSelected: {
@@ -1490,7 +1546,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.textSecondary,
   },
   submitButtonText: {
-    ...Typography.body.semiBold,
+    ...Typography.body.medium,
+    fontWeight: "600",
     color: Colors.white,
   },
   modalContainer: {
@@ -1529,7 +1586,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary + "10",
   },
   specName: {
-    ...Typography.body.semiBold,
+    ...Typography.body.medium,
+    fontWeight: "600",
     color: Colors.textPrimary,
   },
   specCategory: {
@@ -1570,7 +1628,8 @@ const styles = StyleSheet.create({
     marginTop: Spacing.md,
   },
   modalAddButtonText: {
-    ...Typography.body.semiBold,
+    ...Typography.body.medium,
+    fontWeight: "600",
     color: Colors.white,
   },
   barangayItem: {
