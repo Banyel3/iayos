@@ -216,6 +216,7 @@ def get_mobile_job_list(
                 'client_avatar': client_profile.profileImg if client_profile and client_profile.profileImg else None,
                 'is_applied': has_applied,
                 'expected_duration': job.expectedDuration,
+                'is_team_job': job.is_team_job,  # Team job indicator
                 # Sorting helpers
                 '_distance_sort': distance if distance is not None else 999999,
                 '_urgency_sort': urgency_value,
@@ -519,6 +520,7 @@ def get_mobile_job_detail(job_id: int, user: Accounts) -> Dict[str, Any]:
             'status': job.status,
             'created_at': job.createdAt.isoformat(),
             'job_type': job.jobType,
+            'is_team_job': job.is_team_job,  # Team job indicator
             'category': {
                 'id': job.categoryID.specializationID if job.categoryID else None,
                 'name': job.categoryID.specializationName if job.categoryID else "General",
