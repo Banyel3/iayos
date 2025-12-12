@@ -682,9 +682,12 @@ def upload_kyc_document(payload, frontID, backID, clearance, selfie):
         verification_results = []
         any_failed = False
         failure_messages = []
+        
+        # Store raw file data for face matching later
+        file_data_cache = {}
 
         # Import verification service (deferred to avoid circular imports)
-        from accounts.document_verification_service import verify_kyc_document, should_auto_reject, VerificationStatus
+        from accounts.document_verification_service import verify_kyc_document, should_auto_reject, VerificationStatus, verify_face_match
         from django.utils import timezone
 
         # Upload each file
@@ -704,6 +707,10 @@ def upload_kyc_document(payload, frontID, backID, clearance, selfie):
             # Read file data for verification (before upload)
             file_data = file.read()
             file.seek(0)  # Reset file pointer for upload
+            
+            # Cache file data for face matching (FRONTID and SELFIE)
+            if key in ['FRONTID', 'SELFIE']:
+                file_data_cache[key] = file_data
             
             file_url = upload_kyc_doc(
                 file=file,
@@ -807,6 +814,49 @@ def upload_kyc_document(payload, frontID, backID, clearance, selfie):
                 "ai_passed": not should_reject if verification_result else None
             })
 
+        # ============================================
+        # FACE MATCHING: Compare selfie with ID photo
+        # ============================================
+        face_match_result = None
+        if 'FRONTID' in file_data_cache and 'SELFIE' in file_data_cache:
+            print("🔍 Starting face matching between ID and selfie...")
+            try:
+                face_match_result = verify_face_match(
+                    id_image_data=file_data_cache['FRONTID'],
+                    selfie_image_data=file_data_cache['SELFIE'],
+                    similarity_threshold=0.80  # 80% similarity threshold
+                )
+                
+                if face_match_result.get('skipped'):
+                    print(f"⚠️  Face matching skipped: {face_match_result.get('reason')}")
+                elif face_match_result.get('match'):
+                    similarity = face_match_result.get('similarity', 0)
+                    print(f"✅ Face matching PASSED: similarity={similarity:.2f} (threshold=0.80)")
+                else:
+                    similarity = face_match_result.get('similarity', 0)
+                    error = face_match_result.get('error', 'Face does not match')
+                    
+                    if similarity > 0:
+                        # Faces detected but don't match
+                        print(f"❌ Face matching FAILED: similarity={similarity:.2f} < 0.80 threshold")
+                        any_failed = True
+                        failure_messages.append(f"FACE_MATCH: Selfie does not match ID photo (similarity: {similarity:.0%})")
+                    else:
+                        # Could not extract faces - treat as warning, not failure
+                        print(f"⚠️  Face matching could not complete: {error}")
+                        # Don't fail KYC for face extraction errors - admin can verify manually
+                
+            except Exception as fm_error:
+                print(f"⚠️  Face matching error (non-blocking): {str(fm_error)}")
+                # Don't fail KYC for face matching errors - admin can verify manually
+        else:
+            missing = []
+            if 'FRONTID' not in file_data_cache:
+                missing.append('FRONTID')
+            if 'SELFIE' not in file_data_cache:
+                missing.append('SELFIE')
+            print(f"⏭️  Skipping face matching - missing: {', '.join(missing)}")
+
         # If any document failed AI verification, set KYC status to REJECTED
         if any_failed:
             kyc_record.kyc_status = 'REJECTED'
@@ -819,7 +869,8 @@ def upload_kyc_document(payload, frontID, backID, clearance, selfie):
                 "kyc_id": kyc_record.kycID,
                 "status": "REJECTED",
                 "rejection_reasons": failure_messages,
-                "files": uploaded_files
+                "files": uploaded_files,
+                "face_match": face_match_result
             }
 
         # Verify all files were saved
@@ -833,7 +884,8 @@ def upload_kyc_document(payload, frontID, backID, clearance, selfie):
             "message": "KYC documents uploaded successfully",
             "kyc_id": kyc_record.kycID,
             "status": "PENDING",
-            "files": uploaded_files
+            "files": uploaded_files,
+            "face_match": face_match_result  # Include face matching result
         }
 
     except Accounts.DoesNotExist:

@@ -24,8 +24,10 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 # CompreFace configuration
-COMPREFACE_URL = "http://compreface:8100"
-COMPREFACE_API_KEY = "compreface-api-key"  # Will be set via environment variable
+# Inside Docker network, CompreFace runs nginx on port 80 which proxies to Java backend
+# Docker mapping: 8100:80 (external:internal)
+COMPREFACE_URL = "http://compreface:80"
+COMPREFACE_API_KEY = "9f8b2f5e-de2e-4834-8639-2e4a0f8d391f"  # Detection service API key
 
 # Tesseract is imported conditionally to handle environments where it's not installed
 try:
@@ -49,6 +51,7 @@ class RejectionReason(Enum):
     NO_FACE_DETECTED = "NO_FACE_DETECTED"
     MULTIPLE_FACES = "MULTIPLE_FACES"
     FACE_TOO_SMALL = "FACE_TOO_SMALL"
+    FACE_MISMATCH = "FACE_MISMATCH"  # Selfie doesn't match ID photo
     MISSING_REQUIRED_TEXT = "MISSING_REQUIRED_TEXT"
     IMAGE_TOO_BLURRY = "IMAGE_TOO_BLURRY"
     RESOLUTION_TOO_LOW = "RESOLUTION_TOO_LOW"
@@ -68,6 +71,7 @@ class VerificationResult:
     face_count: int = 0
     quality_score: float = 0.0
     warnings: List[str] = None
+    face_embedding: List[float] = None  # Face embedding for matching
 
     def __post_init__(self):
         if self.details is None:
@@ -149,8 +153,9 @@ class DocumentVerificationService:
         try:
             # Try to reach CompreFace health endpoint
             response = httpx.get(f"{self.compreface_url}/api/v1/recognition/faces", timeout=5.0)
-            self._compreface_available = response.status_code in [200, 401, 404]  # Service is up
-            logger.info(f"CompreFace availability: {self._compreface_available}")
+            # Service is up if we get any HTTP response (400/401/404 means it's running but needs auth/params)
+            self._compreface_available = response.status_code in [200, 400, 401, 403, 404]
+            logger.info(f"CompreFace availability check: status={response.status_code}, available={self._compreface_available}")
         except Exception as e:
             logger.warning(f"CompreFace not available: {e}")
             self._compreface_available = False
@@ -485,6 +490,178 @@ class DocumentVerificationService:
                 "error": str(e)
             }
 
+    def _extract_face_embedding(self, image_data: bytes) -> Dict[str, Any]:
+        """
+        Extract face embedding from image using CompreFace recognition API
+        
+        Returns dict with:
+            - success: bool
+            - embedding: list of floats (face vector)
+            - box: face bounding box
+            - confidence: detection confidence
+        """
+        if not self._check_compreface_available():
+            logger.warning("CompreFace not available, skipping embedding extraction")
+            return {
+                "success": False,
+                "embedding": None,
+                "error": "CompreFace service not available"
+            }
+        
+        try:
+            headers = {"x-api-key": self.compreface_api_key}
+            files = {"file": ("image.jpg", image_data, "image/jpeg")}
+            
+            # Use recognition endpoint which returns embeddings
+            response = httpx.post(
+                f"{self.compreface_url}/api/v1/recognition/faces",
+                headers=headers,
+                files=files,
+                params={"limit": 1, "det_prob_threshold": 0.5},
+                timeout=30.0
+            )
+            
+            if response.status_code != 200:
+                logger.warning(f"CompreFace embedding API returned {response.status_code}: {response.text}")
+                return {
+                    "success": False,
+                    "embedding": None,
+                    "error": f"API error: {response.status_code}"
+                }
+            
+            result = response.json()
+            faces = result.get("result", [])
+            
+            if not faces:
+                return {
+                    "success": False,
+                    "embedding": None,
+                    "error": "No face found for embedding"
+                }
+            
+            # Get the first (largest/most prominent) face
+            face = faces[0]
+            embedding = face.get("embedding", [])
+            box = face.get("box", {})
+            
+            return {
+                "success": True,
+                "embedding": embedding,
+                "box": box,
+                "confidence": box.get("probability", 0)
+            }
+            
+        except Exception as e:
+            logger.error(f"Face embedding extraction error: {e}", exc_info=True)
+            return {
+                "success": False,
+                "embedding": None,
+                "error": str(e)
+            }
+
+    def compare_faces(
+        self, 
+        id_image_data: bytes, 
+        selfie_image_data: bytes,
+        similarity_threshold: float = 0.85
+    ) -> Dict[str, Any]:
+        """
+        Compare faces between ID document and selfie using CompreFace
+        
+        Args:
+            id_image_data: Raw bytes of ID document image
+            selfie_image_data: Raw bytes of selfie image
+            similarity_threshold: Minimum similarity score to consider a match (0-1)
+            
+        Returns dict with:
+            - match: bool - whether faces match
+            - similarity: float - similarity score (0-1)
+            - confidence: float - detection confidence
+            - error: str - error message if failed
+        """
+        logger.info("🔍 Starting face comparison between ID and selfie...")
+        
+        if not self._check_compreface_available():
+            logger.warning("CompreFace not available, skipping face comparison")
+            return {
+                "match": None,
+                "similarity": 0,
+                "skipped": True,
+                "reason": "CompreFace service not available"
+            }
+        
+        try:
+            # Extract embeddings from both images
+            id_result = self._extract_face_embedding(id_image_data)
+            if not id_result.get("success"):
+                logger.warning(f"Failed to extract face from ID: {id_result.get('error')}")
+                return {
+                    "match": False,
+                    "similarity": 0,
+                    "error": f"Could not detect face in ID document: {id_result.get('error')}"
+                }
+            
+            selfie_result = self._extract_face_embedding(selfie_image_data)
+            if not selfie_result.get("success"):
+                logger.warning(f"Failed to extract face from selfie: {selfie_result.get('error')}")
+                return {
+                    "match": False,
+                    "similarity": 0,
+                    "error": f"Could not detect face in selfie: {selfie_result.get('error')}"
+                }
+            
+            id_embedding = id_result.get("embedding", [])
+            selfie_embedding = selfie_result.get("embedding", [])
+            
+            if not id_embedding or not selfie_embedding:
+                return {
+                    "match": False,
+                    "similarity": 0,
+                    "error": "Failed to extract face embeddings"
+                }
+            
+            # Calculate cosine similarity between embeddings
+            similarity = self._cosine_similarity(id_embedding, selfie_embedding)
+            
+            is_match = similarity >= similarity_threshold
+            
+            logger.info(f"   Face comparison result: similarity={similarity:.3f}, threshold={similarity_threshold}, match={is_match}")
+            
+            return {
+                "match": is_match,
+                "similarity": similarity,
+                "id_confidence": id_result.get("confidence", 0),
+                "selfie_confidence": selfie_result.get("confidence", 0),
+                "threshold": similarity_threshold
+            }
+            
+        except Exception as e:
+            logger.error(f"Face comparison error: {e}", exc_info=True)
+            return {
+                "match": False,
+                "similarity": 0,
+                "error": str(e)
+            }
+
+    def _cosine_similarity(self, vec1: List[float], vec2: List[float]) -> float:
+        """Calculate cosine similarity between two vectors"""
+        if len(vec1) != len(vec2):
+            logger.warning(f"Embedding dimension mismatch: {len(vec1)} vs {len(vec2)}")
+            return 0.0
+        
+        # Convert to numpy for efficient computation
+        arr1 = np.array(vec1)
+        arr2 = np.array(vec2)
+        
+        dot_product = np.dot(arr1, arr2)
+        norm1 = np.linalg.norm(arr1)
+        norm2 = np.linalg.norm(arr2)
+        
+        if norm1 == 0 or norm2 == 0:
+            return 0.0
+        
+        return float(dot_product / (norm1 * norm2))
+
     def _extract_text(self, image: Image.Image) -> Dict[str, Any]:
         """
         Extract text from image using Tesseract OCR
@@ -648,6 +825,7 @@ def should_auto_reject(result: VerificationResult) -> Tuple[bool, str]:
             RejectionReason.NO_FACE_DETECTED: "No face detected in ID document. Please upload a clear photo of your ID showing your face.",
             RejectionReason.MULTIPLE_FACES: "Multiple faces detected. Please upload an ID with only your face visible.",
             RejectionReason.FACE_TOO_SMALL: "Face in the document is too small. Please upload a clearer, closer photo of your ID.",
+            RejectionReason.FACE_MISMATCH: "The face in your selfie does not match the face on your ID document. Please ensure you're uploading your own documents.",
             RejectionReason.MISSING_REQUIRED_TEXT: "Could not verify document authenticity. Please ensure the document shows required text clearly.",
             RejectionReason.IMAGE_TOO_BLURRY: "Image is too blurry. Please upload a clearer photo.",
             RejectionReason.RESOLUTION_TOO_LOW: "Image resolution is too low. Please upload a higher quality image.",
@@ -658,3 +836,19 @@ def should_auto_reject(result: VerificationResult) -> Tuple[bool, str]:
         return True, message
     
     return False, ""
+
+
+def verify_face_match(id_image_data: bytes, selfie_image_data: bytes, similarity_threshold: float = 0.85) -> Dict[str, Any]:
+    """
+    Compare faces between ID document and selfie
+    
+    Args:
+        id_image_data: Raw bytes of ID document image (front of ID)
+        selfie_image_data: Raw bytes of selfie image
+        similarity_threshold: Minimum similarity score to consider a match (0-1)
+        
+    Returns:
+        Dict with match result, similarity score, and any errors
+    """
+    service = get_verification_service()
+    return service.compare_faces(id_image_data, selfie_image_data, similarity_threshold)

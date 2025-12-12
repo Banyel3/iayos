@@ -29,6 +29,17 @@ import { ENDPOINTS, apiRequest } from "@/lib/api/config";
 import { SaveButton } from "@/components/SaveButton";
 import { JobDetailSkeleton } from "@/components/ui/SkeletonLoader";
 import { EstimatedTimeCard, type EstimatedCompletion } from "@/components";
+import {
+  useTeamJobDetail,
+  useApplyToSkillSlot,
+  useWorkerCompleteAssignment,
+  useClientApproveTeamJob,
+  useTeamJobApplications,
+  useAcceptTeamApplication,
+  useRejectTeamApplication,
+  type SkillSlot,
+  type WorkerAssignment,
+} from "@/lib/hooks/useTeamJob";
 
 const { width } = Dimensions.get("window");
 
@@ -81,6 +92,18 @@ interface JobDetail {
   };
   reviews?: JobReviews;
   estimatedCompletion?: EstimatedCompletion | null;
+  // Team Job Fields
+  is_team_job?: boolean;
+  skill_slots?: SkillSlot[];
+  worker_assignments?: WorkerAssignment[];
+  budget_allocation_type?:
+    | "EQUAL_PER_SKILL"
+    | "EQUAL_PER_WORKER"
+    | "MANUAL"
+    | "SKILL_WEIGHTED";
+  team_fill_percentage?: number;
+  total_workers_needed?: number;
+  total_workers_assigned?: number;
 }
 
 interface JobApplication {
@@ -124,6 +147,14 @@ export default function JobDetailScreen() {
   const [budgetOption, setBudgetOption] = useState<"ACCEPT" | "NEGOTIATE">(
     "ACCEPT"
   );
+
+  // Team Job state
+  const [showTeamApplyModal, setShowTeamApplyModal] = useState(false);
+  const [selectedSkillSlot, setSelectedSkillSlot] = useState<SkillSlot | null>(
+    null
+  );
+  const [showTeamCompletionModal, setShowTeamCompletionModal] = useState(false);
+  const [completionNotes, setCompletionNotes] = useState("");
 
   const isWorker = user?.profile_data?.profileType === "WORKER";
   const isClient = user?.profile_data?.profileType === "CLIENT";
@@ -224,6 +255,14 @@ export default function JobDetailScreen() {
             }
           : undefined,
         estimatedCompletion: jobData.estimated_completion || null,
+        // Team Job fields
+        is_team_job: jobData.is_team_job || false,
+        skill_slots: jobData.skill_slots || [],
+        worker_assignments: jobData.worker_assignments || [],
+        budget_allocation_type: jobData.budget_allocation_type,
+        team_fill_percentage: jobData.team_fill_percentage,
+        total_workers_needed: jobData.total_workers_needed,
+        total_workers_assigned: jobData.total_workers_assigned,
       } as JobDetail;
     },
     enabled: isValidJobId, // Only fetch if we have a valid job ID
@@ -580,6 +619,190 @@ export default function JobDetailScreen() {
     rejectInviteMutation.mutate(rejectReason);
   };
 
+  // ============================================================================
+  // Team Job Hooks & Handlers
+  // ============================================================================
+  const isTeamJob = job?.is_team_job === true;
+
+  // Team job apply mutation
+  const applyToSkillSlot = useApplyToSkillSlot();
+
+  // Team job completion mutations
+  const workerCompleteAssignment = useWorkerCompleteAssignment();
+  const clientApproveTeamJob = useClientApproveTeamJob();
+
+  // Team job applications (for clients)
+  const { data: teamApplicationsData } = useTeamJobApplications(
+    parseInt(id),
+    isClient && isTeamJob
+  );
+
+  // Accept/reject team applications
+  const acceptTeamApplication = useAcceptTeamApplication();
+  const rejectTeamApplication = useRejectTeamApplication();
+
+  // Check if current worker is assigned to this team job
+  const currentWorkerAssignment = job?.worker_assignments?.find(
+    (assignment) => assignment.worker_id === user?.profile_data?.id
+  );
+
+  // Check if current worker has applied to any slot in this team job
+  const teamApplications = (teamApplicationsData as any)?.applications || [];
+  const hasAppliedToTeamJob = teamApplications.some(
+    (app: any) =>
+      app.worker_id === user?.profile_data?.id && app.status === "PENDING"
+  );
+
+  const handleTeamSlotApply = (slot: SkillSlot) => {
+    if (!isWorker) {
+      Alert.alert("Error", "Only workers can apply to team jobs");
+      return;
+    }
+    setSelectedSkillSlot(slot);
+    setProposedBudget(slot.budget_per_worker.toString());
+    setBudgetOption("ACCEPT");
+    setProposalMessage("");
+    setEstimatedDuration("");
+    setShowTeamApplyModal(true);
+  };
+
+  const handleSubmitTeamApplication = () => {
+    if (!selectedSkillSlot) return;
+
+    if (!proposalMessage.trim()) {
+      Alert.alert("Error", "Please provide a proposal message");
+      return;
+    }
+
+    const budgetValue =
+      budgetOption === "ACCEPT"
+        ? selectedSkillSlot.budget_per_worker
+        : parseFloat(proposedBudget);
+
+    applyToSkillSlot.mutate(
+      {
+        jobId: parseInt(id),
+        skillSlotId: selectedSkillSlot.skill_slot_id,
+        proposalMessage: proposalMessage,
+        proposedBudget: budgetValue,
+        budgetOption: budgetOption,
+        estimatedDuration: estimatedDuration || undefined,
+      },
+      {
+        onSuccess: () => {
+          setShowTeamApplyModal(false);
+          setSelectedSkillSlot(null);
+          setProposalMessage("");
+          setProposedBudget("");
+          setEstimatedDuration("");
+        },
+      }
+    );
+  };
+
+  const handleWorkerCompleteAssignment = () => {
+    if (!currentWorkerAssignment) return;
+
+    Alert.alert(
+      "Mark Complete",
+      "Are you sure you want to mark your assignment as complete?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Complete",
+          style: "default",
+          onPress: () => {
+            workerCompleteAssignment.mutate({
+              jobId: parseInt(id),
+              assignmentId: currentWorkerAssignment.assignment_id,
+              completionNotes: completionNotes || undefined,
+            });
+          },
+        },
+      ]
+    );
+  };
+
+  const handleClientApproveTeamJob = () => {
+    Alert.alert(
+      "Approve Job Completion",
+      "Are you sure all team workers have completed their work satisfactorily?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Approve",
+          style: "default",
+          onPress: () => {
+            clientApproveTeamJob.mutate({ jobId: parseInt(id) });
+          },
+        },
+      ]
+    );
+  };
+
+  const handleAcceptTeamApplication = (
+    applicationId: number,
+    workerName: string
+  ) => {
+    Alert.alert(
+      "Accept Team Application",
+      `Assign ${workerName} to this team job?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Accept",
+          style: "default",
+          onPress: () =>
+            acceptTeamApplication.mutate({
+              jobId: parseInt(id),
+              applicationId,
+            }),
+        },
+      ]
+    );
+  };
+
+  const handleRejectTeamApplication = (
+    applicationId: number,
+    workerName: string
+  ) => {
+    Alert.alert("Reject Application", `Reject ${workerName}'s application?`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Reject",
+        style: "destructive",
+        onPress: () =>
+          rejectTeamApplication.mutate({ jobId: parseInt(id), applicationId }),
+      },
+    ]);
+  };
+
+  const getSlotStatusColor = (status: string) => {
+    switch (status) {
+      case "FILLED":
+        return { bg: Colors.successLight, text: Colors.success };
+      case "PARTIALLY_FILLED":
+        return { bg: "#FEF3C7", text: "#92400E" };
+      case "OPEN":
+        return { bg: Colors.primary + "20", text: Colors.primary };
+      default:
+        return { bg: Colors.border, text: Colors.textSecondary };
+    }
+  };
+
+  const getSkillLevelEmoji = (level: string) => {
+    switch (level) {
+      case "ENTRY":
+        return "🌱";
+      case "INTERMEDIATE":
+        return "⭐";
+      case "EXPERT":
+        return "👑";
+      default:
+        return "";
+    }
+  };
+
   const getUrgencyColor = (urgency: string) => {
     switch (urgency) {
       case "HIGH":
@@ -873,6 +1096,379 @@ export default function JobDetailScreen() {
                   color={Colors.primary}
                 />
                 <Text style={styles.listItemText}>{material}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* ============================================================================
+            Team Job Section - Skill Slots & Assignments
+            ============================================================================ */}
+        {isTeamJob && job.skill_slots && job.skill_slots.length > 0 && (
+          <View style={styles.section}>
+            {/* Team Job Header Badge */}
+            <View style={styles.teamJobBadge}>
+              <Ionicons name="people" size={20} color={Colors.white} />
+              <Text style={styles.teamJobBadgeText}>Team Job</Text>
+              <Text style={styles.teamJobBadgeSubtext}>
+                {job.total_workers_assigned || 0}/
+                {job.total_workers_needed || 0} workers assigned
+              </Text>
+            </View>
+
+            {/* Team Fill Progress */}
+            <View style={styles.teamProgressContainer}>
+              <View style={styles.teamProgressBar}>
+                <View
+                  style={[
+                    styles.teamProgressFill,
+                    { width: `${job.team_fill_percentage || 0}%` },
+                  ]}
+                />
+              </View>
+              <Text style={styles.teamProgressText}>
+                {Math.round(job.team_fill_percentage || 0)}% filled
+              </Text>
+            </View>
+
+            <Text style={styles.sectionTitle}>Skill Slots</Text>
+
+            {/* Skill Slot Cards */}
+            {job.skill_slots.map((slot) => {
+              const slotColors = getSlotStatusColor(slot.status);
+              const assignedWorkers =
+                job.worker_assignments?.filter(
+                  (a) => a.skill_slot_id === slot.skill_slot_id
+                ) || [];
+
+              return (
+                <View key={slot.skill_slot_id} style={styles.skillSlotCard}>
+                  <View style={styles.skillSlotHeader}>
+                    <View style={styles.skillSlotTitleRow}>
+                      <Text style={styles.skillSlotTitle}>
+                        {slot.specialization_name}
+                      </Text>
+                      <View
+                        style={[
+                          styles.slotStatusBadge,
+                          { backgroundColor: slotColors.bg },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.slotStatusText,
+                            { color: slotColors.text },
+                          ]}
+                        >
+                          {slot.status.replace(/_/g, " ")}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={styles.skillSlotSubtitle}>
+                      {getSkillLevelEmoji(slot.skill_level_required)}{" "}
+                      {slot.skill_level_required}
+                    </Text>
+                  </View>
+
+                  <View style={styles.skillSlotInfo}>
+                    <View style={styles.skillSlotInfoItem}>
+                      <Ionicons
+                        name="people-outline"
+                        size={16}
+                        color={Colors.textSecondary}
+                      />
+                      <Text style={styles.skillSlotInfoText}>
+                        {slot.workers_assigned}/{slot.workers_needed} workers
+                      </Text>
+                    </View>
+                    <View style={styles.skillSlotInfoItem}>
+                      <Ionicons
+                        name="cash-outline"
+                        size={16}
+                        color={Colors.textSecondary}
+                      />
+                      <Text style={styles.skillSlotInfoText}>
+                        ₱{slot.budget_per_worker.toLocaleString()}/worker
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Assigned Workers List */}
+                  {assignedWorkers.length > 0 && (
+                    <View style={styles.assignedWorkersList}>
+                      <Text style={styles.assignedWorkersLabel}>Assigned:</Text>
+                      {assignedWorkers.map((worker) => (
+                        <View
+                          key={worker.assignment_id}
+                          style={styles.assignedWorkerItem}
+                        >
+                          <Image
+                            source={{
+                              uri:
+                                worker.worker_avatar ||
+                                "https://via.placeholder.com/30",
+                            }}
+                            style={styles.assignedWorkerAvatar}
+                          />
+                          <Text style={styles.assignedWorkerName}>
+                            {worker.worker_name}
+                          </Text>
+                          {worker.worker_marked_complete && (
+                            <Ionicons
+                              name="checkmark-circle"
+                              size={16}
+                              color={Colors.success}
+                            />
+                          )}
+                        </View>
+                      ))}
+                    </View>
+                  )}
+
+                  {/* Apply Button for Workers (if slot is open) */}
+                  {isWorker &&
+                    slot.openings_remaining > 0 &&
+                    job.status === "ACTIVE" &&
+                    !currentWorkerAssignment &&
+                    !hasAppliedToTeamJob && (
+                      <TouchableOpacity
+                        style={styles.applySlotButton}
+                        onPress={() => handleTeamSlotApply(slot)}
+                        activeOpacity={0.8}
+                      >
+                        <Ionicons
+                          name="hand-left"
+                          size={18}
+                          color={Colors.white}
+                        />
+                        <Text style={styles.applySlotButtonText}>
+                          Apply to this Slot
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+
+                  {/* Already Applied Badge */}
+                  {isWorker &&
+                    hasAppliedToTeamJob &&
+                    !currentWorkerAssignment && (
+                      <View style={styles.appliedBadge}>
+                        <Ionicons
+                          name="time"
+                          size={16}
+                          color={Colors.textSecondary}
+                        />
+                        <Text style={styles.appliedBadgeText}>
+                          Application Pending
+                        </Text>
+                      </View>
+                    )}
+                </View>
+              );
+            })}
+
+            {/* Worker's Own Assignment Actions */}
+            {isWorker && currentWorkerAssignment && (
+              <View style={styles.workerAssignmentCard}>
+                <View style={styles.assignmentCardHeader}>
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={24}
+                    color={Colors.success}
+                  />
+                  <Text style={styles.assignmentCardTitle}>
+                    You're Assigned!
+                  </Text>
+                </View>
+                <Text style={styles.assignmentCardSubtitle}>
+                  Slot: {currentWorkerAssignment.specialization_name}
+                </Text>
+
+                {!currentWorkerAssignment.worker_marked_complete ? (
+                  <TouchableOpacity
+                    style={styles.completeAssignmentButton}
+                    onPress={handleWorkerCompleteAssignment}
+                    disabled={workerCompleteAssignment.isPending}
+                    activeOpacity={0.8}
+                  >
+                    {workerCompleteAssignment.isPending ? (
+                      <ActivityIndicator size="small" color={Colors.white} />
+                    ) : (
+                      <>
+                        <Ionicons
+                          name="checkmark-done"
+                          size={20}
+                          color={Colors.white}
+                        />
+                        <Text style={styles.completeAssignmentButtonText}>
+                          Mark My Work Complete
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                ) : (
+                  <View style={styles.completedBadge}>
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={20}
+                      color={Colors.success}
+                    />
+                    <Text style={styles.completedBadgeText}>
+                      Marked Complete - Awaiting Client Approval
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* Client Approve Button */}
+            {isClient && job.status === "IN_PROGRESS" && (
+              <TouchableOpacity
+                style={styles.approveTeamJobButton}
+                onPress={handleClientApproveTeamJob}
+                disabled={clientApproveTeamJob.isPending}
+                activeOpacity={0.8}
+              >
+                {clientApproveTeamJob.isPending ? (
+                  <ActivityIndicator size="small" color={Colors.white} />
+                ) : (
+                  <>
+                    <Ionicons name="thumbs-up" size={20} color={Colors.white} />
+                    <Text style={styles.approveTeamJobButtonText}>
+                      Approve Team Job Completion
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
+        {/* Team Job Applications - For clients to review applications */}
+        {isTeamJob && isClient && teamApplications.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Team Applications</Text>
+              <View style={styles.applicationsBadge}>
+                <Text style={styles.applicationsBadgeText}>
+                  {
+                    teamApplications.filter((a: any) => a.status === "PENDING")
+                      .length
+                  }
+                </Text>
+              </View>
+            </View>
+
+            {teamApplications.map((app: any) => (
+              <View key={app.application_id} style={styles.applicationCard}>
+                <View style={styles.applicationWorkerInfo}>
+                  <Image
+                    source={{
+                      uri:
+                        app.worker_avatar || "https://via.placeholder.com/50",
+                    }}
+                    style={styles.applicationAvatar}
+                  />
+                  <View style={styles.applicationWorkerDetails}>
+                    <Text style={styles.applicationWorkerName}>
+                      {app.worker_name}
+                    </Text>
+                    <View style={styles.applicationWorkerMeta}>
+                      <Ionicons name="star" size={14} color="#F59E0B" />
+                      <Text style={styles.applicationWorkerRating}>
+                        {app.worker_rating?.toFixed(1) || "New"}
+                      </Text>
+                      <Text style={styles.applicationMetaDot}>•</Text>
+                      <Text style={styles.applicationWorkerCity}>
+                        Applying for: {app.specialization_name}
+                      </Text>
+                    </View>
+                  </View>
+                  <View
+                    style={[
+                      styles.applicationStatusBadge,
+                      app.status === "PENDING"
+                        ? styles.statusPending
+                        : app.status === "ACCEPTED"
+                          ? styles.statusAccepted
+                          : styles.statusRejected,
+                    ]}
+                  >
+                    <Text style={styles.applicationStatusText}>
+                      {app.status}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.proposalSection}>
+                  <Text style={styles.proposalLabel}>Proposal</Text>
+                  <Text style={styles.proposalText}>
+                    {app.proposal_message}
+                  </Text>
+                </View>
+
+                <View style={styles.applicationDetails}>
+                  <View style={styles.applicationDetailItem}>
+                    <Ionicons
+                      name="cash-outline"
+                      size={16}
+                      color={Colors.textSecondary}
+                    />
+                    <Text style={styles.applicationDetailText}>
+                      ₱{app.proposed_budget?.toLocaleString()}
+                    </Text>
+                  </View>
+                </View>
+
+                {app.status === "PENDING" && (
+                  <View style={styles.applicationActions}>
+                    <TouchableOpacity
+                      style={styles.acceptButton}
+                      onPress={() =>
+                        handleAcceptTeamApplication(
+                          app.application_id,
+                          app.worker_name
+                        )
+                      }
+                      disabled={acceptTeamApplication.isPending}
+                    >
+                      {acceptTeamApplication.isPending ? (
+                        <ActivityIndicator size="small" color={Colors.white} />
+                      ) : (
+                        <>
+                          <Ionicons
+                            name="checkmark"
+                            size={18}
+                            color={Colors.white}
+                          />
+                          <Text style={styles.acceptButtonText}>Accept</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.rejectButton}
+                      onPress={() =>
+                        handleRejectTeamApplication(
+                          app.application_id,
+                          app.worker_name
+                        )
+                      }
+                      disabled={rejectTeamApplication.isPending}
+                    >
+                      {rejectTeamApplication.isPending ? (
+                        <ActivityIndicator size="small" color={Colors.error} />
+                      ) : (
+                        <>
+                          <Ionicons
+                            name="close"
+                            size={18}
+                            color={Colors.error}
+                          />
+                          <Text style={styles.rejectButtonText}>Reject</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
             ))}
           </View>
@@ -1629,6 +2225,185 @@ export default function JobDetailScreen() {
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
+
+      {/* Team Job Apply Modal */}
+      <Modal
+        visible={showTeamApplyModal}
+        animationType="slide"
+        onRequestClose={() => {
+          setShowTeamApplyModal(false);
+          setSelectedSkillSlot(null);
+        }}
+      >
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Apply to Skill Slot</Text>
+            <TouchableOpacity
+              onPress={() => {
+                setShowTeamApplyModal(false);
+                setSelectedSkillSlot(null);
+                setProposalMessage("");
+                setProposedBudget("");
+                setEstimatedDuration("");
+              }}
+            >
+              <Ionicons name="close" size={24} color={Colors.textPrimary} />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.modalContent}>
+            {/* Selected Slot Info */}
+            {selectedSkillSlot && (
+              <View
+                style={[styles.skillSlotCard, { marginBottom: Spacing.lg }]}
+              >
+                <Text style={styles.skillSlotTitle}>
+                  {selectedSkillSlot.specialization_name}
+                </Text>
+                <Text style={styles.skillSlotSubtitle}>
+                  {getSkillLevelEmoji(selectedSkillSlot.skill_level_required)}{" "}
+                  {selectedSkillSlot.skill_level_required} Level Required
+                </Text>
+                <View style={[styles.skillSlotInfo, { marginTop: Spacing.sm }]}>
+                  <View style={styles.skillSlotInfoItem}>
+                    <Ionicons
+                      name="cash-outline"
+                      size={16}
+                      color={Colors.textSecondary}
+                    />
+                    <Text style={styles.skillSlotInfoText}>
+                      ₱{selectedSkillSlot.budget_per_worker.toLocaleString()}
+                      /worker
+                    </Text>
+                  </View>
+                  <View style={styles.skillSlotInfoItem}>
+                    <Ionicons
+                      name="people-outline"
+                      size={16}
+                      color={Colors.textSecondary}
+                    />
+                    <Text style={styles.skillSlotInfoText}>
+                      {selectedSkillSlot.openings_remaining} openings left
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            )}
+
+            {/* Budget Options */}
+            <Text style={styles.label}>Budget Option</Text>
+            <View style={styles.budgetOptions}>
+              <TouchableOpacity
+                style={[
+                  styles.budgetOption,
+                  budgetOption === "ACCEPT" && styles.budgetOptionActive,
+                ]}
+                onPress={() => setBudgetOption("ACCEPT")}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name={
+                    budgetOption === "ACCEPT"
+                      ? "radio-button-on"
+                      : "radio-button-off"
+                  }
+                  size={20}
+                  color={
+                    budgetOption === "ACCEPT"
+                      ? Colors.primary
+                      : Colors.textSecondary
+                  }
+                />
+                <Text style={styles.budgetOptionText}>
+                  Accept ₱
+                  {selectedSkillSlot?.budget_per_worker.toLocaleString()}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.budgetOption,
+                  budgetOption === "NEGOTIATE" && styles.budgetOptionActive,
+                ]}
+                onPress={() => setBudgetOption("NEGOTIATE")}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name={
+                    budgetOption === "NEGOTIATE"
+                      ? "radio-button-on"
+                      : "radio-button-off"
+                  }
+                  size={20}
+                  color={
+                    budgetOption === "NEGOTIATE"
+                      ? Colors.primary
+                      : Colors.textSecondary
+                  }
+                />
+                <Text style={styles.budgetOptionText}>Negotiate</Text>
+              </TouchableOpacity>
+            </View>
+
+            {budgetOption === "NEGOTIATE" && (
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Proposed Budget</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter your proposed budget"
+                  placeholderTextColor={Colors.textHint}
+                  value={proposedBudget}
+                  onChangeText={setProposedBudget}
+                  keyboardType="numeric"
+                />
+              </View>
+            )}
+
+            {/* Proposal Message */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Proposal Message *</Text>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                placeholder="Explain why you're the best fit for this skill slot..."
+                placeholderTextColor={Colors.textHint}
+                value={proposalMessage}
+                onChangeText={setProposalMessage}
+                multiline
+                numberOfLines={5}
+                textAlignVertical="top"
+              />
+            </View>
+
+            {/* Estimated Duration */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Estimated Duration (Optional)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g., 2 days, 1 week"
+                placeholderTextColor={Colors.textHint}
+                value={estimatedDuration}
+                onChangeText={setEstimatedDuration}
+              />
+            </View>
+
+            {/* Submit Button */}
+            <TouchableOpacity
+              style={[
+                styles.submitButton,
+                applyToSkillSlot.isPending && styles.submitButtonDisabled,
+              ]}
+              onPress={handleSubmitTeamApplication}
+              disabled={applyToSkillSlot.isPending}
+              activeOpacity={0.8}
+            >
+              {applyToSkillSlot.isPending ? (
+                <ActivityIndicator color={Colors.white} />
+              ) : (
+                <Text style={styles.submitButtonText}>Submit Application</Text>
+              )}
+            </TouchableOpacity>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -2362,6 +3137,224 @@ const styles = StyleSheet.create({
     ...Shadows.sm,
   },
   rejectModalSubmitText: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: "700",
+    color: Colors.white,
+  },
+
+  // ============================================================================
+  // Team Job Styles
+  // ============================================================================
+  teamJobBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.primary,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.md,
+    gap: Spacing.sm,
+  },
+  teamJobBadgeText: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: "700",
+    color: Colors.white,
+  },
+  teamJobBadgeSubtext: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.white,
+    opacity: 0.9,
+    marginLeft: "auto",
+  },
+  teamProgressContainer: {
+    marginBottom: Spacing.lg,
+  },
+  teamProgressBar: {
+    height: 8,
+    backgroundColor: Colors.border,
+    borderRadius: BorderRadius.full,
+    overflow: "hidden",
+    marginBottom: Spacing.xs,
+  },
+  teamProgressFill: {
+    height: "100%",
+    backgroundColor: Colors.success,
+    borderRadius: BorderRadius.full,
+  },
+  teamProgressText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+    textAlign: "right",
+  },
+  skillSlotCard: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+    ...Shadows.sm,
+  },
+  skillSlotHeader: {
+    marginBottom: Spacing.sm,
+  },
+  skillSlotTitleRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  skillSlotTitle: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+    flex: 1,
+  },
+  slotStatusBadge: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.sm,
+  },
+  slotStatusText: {
+    fontSize: Typography.fontSize.xs,
+    fontWeight: "600",
+    textTransform: "uppercase",
+  },
+  skillSlotSubtitle: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+  },
+  skillSlotInfo: {
+    flexDirection: "row",
+    gap: Spacing.lg,
+    marginBottom: Spacing.sm,
+  },
+  skillSlotInfoItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  skillSlotInfoText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+  },
+  assignedWorkersList: {
+    marginTop: Spacing.sm,
+    paddingTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  assignedWorkersLabel: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: "600",
+    color: Colors.textSecondary,
+    marginBottom: Spacing.xs,
+  },
+  assignedWorkerItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    paddingVertical: 4,
+  },
+  assignedWorkerAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+  },
+  assignedWorkerName: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textPrimary,
+    flex: 1,
+  },
+  applySlotButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+    backgroundColor: Colors.primary,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    marginTop: Spacing.md,
+  },
+  applySlotButtonText: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: "600",
+    color: Colors.white,
+  },
+  appliedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.xs,
+    backgroundColor: Colors.border,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    marginTop: Spacing.md,
+  },
+  appliedBadgeText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+    fontWeight: "500",
+  },
+  workerAssignmentCard: {
+    backgroundColor: Colors.successLight,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    marginTop: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.success,
+  },
+  assignmentCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    marginBottom: Spacing.xs,
+  },
+  assignmentCardTitle: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: "700",
+    color: Colors.success,
+  },
+  assignmentCardSubtitle: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.md,
+  },
+  completeAssignmentButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+    backgroundColor: Colors.success,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
+  },
+  completeAssignmentButtonText: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: "600",
+    color: Colors.white,
+  },
+  completedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    paddingVertical: Spacing.sm,
+  },
+  completedBadgeText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.success,
+    fontWeight: "500",
+  },
+  approveTeamJobButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+    backgroundColor: Colors.primary,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginTop: Spacing.lg,
+    ...Shadows.sm,
+  },
+  approveTeamJobButtonText: {
     fontSize: Typography.fontSize.base,
     fontWeight: "700",
     color: Colors.white,

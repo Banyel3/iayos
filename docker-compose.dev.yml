@@ -109,12 +109,13 @@ services:
   # CompreFace - Face Detection/Recognition Service for KYC Verification
   # Docs: https://github.com/exadel-inc/CompreFace
   # Using mobilenet model (smaller, 1GB) - good for CPU-only environments
-  # NOTE: CompreFace requires its own database setup. Enable when needed.
+  # NOTE: CompreFace requires initial setup via UI to create detection service and get API key
   compreface:
     image: exadel/compreface:1.2.0-mobilenet
     container_name: iayos-compreface-dev
     ports:
-      - "8100:8000" # CompreFace default is 8000, but we map to 8100 to avoid conflict
+      - "8100:80" # CompreFace nginx frontend on port 80
+      - "8101:8080" # CompreFace API directly (optional)
     networks:
       - iayos-network
     profiles:
