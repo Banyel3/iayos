@@ -270,6 +270,59 @@ def upload_kyc(request):
         traceback.print_exc()
         return {"error": [{"message": "Upload Failed"}]}
 
+
+@router.post("/kyc/validate-document", auth=dual_auth)
+def validate_kyc_document(request):
+    """
+    Quick validation for a single KYC document (per-step validation).
+    Checks resolution, blur, and face detection (for ID/selfie).
+    Does NOT run OCR - that happens on final submission.
+    
+    Request: multipart/form-data
+    - file: The document image file
+    - document_type: Type of document (FRONTID, BACKID, CLEARANCE, SELFIE)
+    
+    Returns:
+    - valid: boolean - whether document passes validation
+    - error: string - user-friendly error message if invalid
+    - details: object - validation details
+    """
+    try:
+        file = request.FILES.get("file")
+        document_type = request.POST.get("document_type", "").upper()
+        
+        if not file:
+            return {"valid": False, "error": "No file provided", "details": {}}
+        
+        if not document_type:
+            return {"valid": False, "error": "Document type not specified", "details": {}}
+        
+        print(f"🔍 [VALIDATE] Document type: {document_type}, File: {file.name} ({file.size} bytes)")
+        
+        # Read file data
+        file_data = file.read()
+        
+        # Determine if face detection is required
+        # Face required for: Front ID (has photo), Selfie
+        # Face NOT required for: Back ID (usually no photo), Clearance (certificate)
+        require_face = document_type in ["FRONTID", "SELFIE"]
+        
+        # Run quick validation
+        from accounts.document_verification_service import DocumentVerificationService
+        verifier = DocumentVerificationService()
+        result = verifier.validate_document_quick(file_data, document_type, require_face=require_face)
+        
+        print(f"   {'✅' if result['valid'] else '❌'} Validation result: valid={result['valid']}, error={result.get('error')}")
+        
+        return result
+        
+    except Exception as e:
+        print(f"❌ Exception in document validation: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"valid": False, "error": "Validation failed. Please try again.", "details": {"error": str(e)}}
+
+
 @router.get("/kyc/history", auth=dual_auth)
 def get_kyc_application_history(request):
     """

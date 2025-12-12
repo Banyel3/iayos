@@ -292,10 +292,11 @@ export const ENDPOINTS = {
   DELETE_NOTIFICATION: (id: number) =>
     `${API_BASE_URL.replace("/api", "")}/api/accounts/notifications/${id}/delete`,
 
-  // Phase 7: KYC Document Upload & Verification (3 endpoints)
+  // Phase 7: KYC Document Upload & Verification (4 endpoints)
   KYC_STATUS: `${API_BASE_URL.replace("/api", "")}/api/accounts/kyc-status`,
   UPLOAD_KYC: `${API_BASE_URL.replace("/api", "")}/api/accounts/upload-kyc`,
   KYC_UPLOAD: `${API_BASE_URL.replace("/api", "")}/api/accounts/upload/kyc`, // Matches Next.js endpoint
+  KYC_VALIDATE_DOCUMENT: `${API_BASE_URL.replace("/api", "")}/api/accounts/kyc/validate-document`, // Per-step validation
   KYC_APPLICATION_HISTORY: `${API_BASE_URL.replace("/api", "")}/api/accounts/kyc-application-history`,
 
   // Dual Profile Management (4 endpoints)

@@ -80,24 +80,25 @@ export const useKYC = () => {
   const hasSubmittedKYC = data?.hasKYC || false;
 
   /**
-   * Get current KYC status
+   * Get current KYC status (normalized to uppercase for comparisons)
    */
   const kycStatus = data?.status || "NOT_SUBMITTED";
+  const normalizedStatus = kycStatus.toUpperCase();
 
   /**
    * Check if KYC is verified/approved
    */
-  const isVerified = kycStatus === "APPROVED";
+  const isVerified = normalizedStatus === "APPROVED";
 
   /**
    * Check if KYC is pending review
    */
-  const isPending = kycStatus === "PENDING";
+  const isPending = normalizedStatus === "PENDING";
 
   /**
    * Check if KYC is rejected
    */
-  const isRejected = kycStatus === "REJECTED";
+  const isRejected = normalizedStatus === "REJECTED";
 
   /**
    * Get rejection reason/notes

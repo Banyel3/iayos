@@ -860,14 +860,17 @@ def upload_kyc_document(payload, frontID, backID, clearance, selfie):
         # If any document failed AI verification, set KYC status to REJECTED
         if any_failed:
             kyc_record.kyc_status = 'REJECTED'
-            kyc_record.notes = f"Auto-rejected by AI verification: {'; '.join(failure_messages)}"
+            # Format rejection messages in a user-friendly way with bullet points
+            formatted_reasons = "\n".join([f"• {msg}" for msg in failure_messages])
+            kyc_record.notes = f"Your documents could not be verified automatically:\n\n{formatted_reasons}\n\nPlease resubmit with clearer images."
             kyc_record.save()
             print(f"❌ KYC auto-rejected due to AI verification failures")
             
             return {
-                "message": "KYC documents uploaded but verification failed",
+                "message": "KYC documents could not be verified",
                 "kyc_id": kyc_record.kycID,
                 "status": "REJECTED",
+                "auto_rejected": True,
                 "rejection_reasons": failure_messages,
                 "files": uploaded_files,
                 "face_match": face_match_result

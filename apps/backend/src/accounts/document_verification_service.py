@@ -94,7 +94,11 @@ class VerificationResult:
 
 
 # Document type to required keywords mapping
+# Each document type has a list of keyword groups
+# For each group, at least ONE keyword must be found
+# ALL groups must pass for the document to be valid
 DOCUMENT_KEYWORDS = {
+    # ============ CLEARANCES ============
     # NBI Clearance - must contain these keywords
     "NBI": [
         ["NBI", "NATIONAL BUREAU OF INVESTIGATION"],  # Must have at least one
@@ -110,6 +114,39 @@ DOCUMENT_KEYWORDS = {
         ["BUSINESS", "MAYOR", "PERMIT", "LICENSE"],
         ["CITY", "MUNICIPALITY", "BARANGAY"],
     ],
+    
+    # ============ GOVERNMENT IDs ============
+    # Philippine Passport - uses Filipino text: "PILIPINAS" and "PASAPORTE"
+    "PASSPORT": [
+        ["PASAPORTE", "PASSPORT"],  # Main identifier
+        ["PILIPINAS", "PHILIPPINES", "REPUBLIKA"],  # Country identifier
+    ],
+    # Philippine National ID (PhilSys)
+    "NATIONALID": [
+        ["PHILSYS", "PHILIPPINE IDENTIFICATION", "NATIONAL ID", "PSN"],
+        ["PILIPINAS", "PHILIPPINES", "REPUBLIKA"],
+    ],
+    # Driver's License (LTO)
+    "DRIVERSLICENSE": [
+        ["DRIVER", "LICENSE", "LTO", "LAND TRANSPORTATION"],
+        ["PILIPINAS", "PHILIPPINES", "REPUBLIKA", "NON-PROFESSIONAL", "PROFESSIONAL"],
+    ],
+    # UMID - Unified Multi-Purpose ID
+    "UMID": [
+        ["UMID", "UNIFIED MULTI-PURPOSE", "MULTI PURPOSE"],
+        ["SSS", "GSIS", "PHILHEALTH", "PAG-IBIG", "PILIPINAS", "PHILIPPINES"],
+    ],
+    # PhilHealth ID
+    "PHILHEALTH": [
+        ["PHILHEALTH", "PHILIPPINE HEALTH", "PHIC"],
+        ["MEMBER", "ID", "IDENTIFICATION", "PILIPINAS", "PHILIPPINES"],
+    ],
+    
+    # ============ FRONT ID (Generic fallback) ============
+    # Generic front ID - at least show it's a Philippine ID
+    "FRONTID": [
+        ["PILIPINAS", "PHILIPPINES", "REPUBLIKA", "PHILIPPINE"],  # Must be Philippine document
+    ],
 }
 
 # Government IDs that require face detection
@@ -119,7 +156,7 @@ FACE_REQUIRED_DOCUMENTS = [
 ]
 
 # Minimum requirements
-MIN_RESOLUTION = 640  # Minimum width or height in pixels
+MIN_RESOLUTION = 400  # Minimum width or height in pixels (lowered from 640 for testing)
 MIN_FACE_SIZE_RATIO = 0.05  # Face must be at least 5% of image area
 MAX_BLUR_THRESHOLD = 100  # Laplacian variance threshold (lower = more blur)
 MIN_CONFIDENCE_FACE = 0.85  # Minimum confidence for face detection
@@ -151,16 +188,120 @@ class DocumentVerificationService:
             return self._compreface_available
             
         try:
-            # Try to reach CompreFace health endpoint
-            response = httpx.get(f"{self.compreface_url}/api/v1/recognition/faces", timeout=5.0)
+            # Try to reach CompreFace Detection API endpoint
+            # Detection service uses /api/v1/detection/detect
+            response = httpx.get(f"{self.compreface_url}/api/v1/detection/detect", timeout=5.0)
             # Service is up if we get any HTTP response (400/401/404 means it's running but needs auth/params)
-            self._compreface_available = response.status_code in [200, 400, 401, 403, 404]
+            self._compreface_available = response.status_code in [200, 400, 401, 403, 404, 405]
             logger.info(f"CompreFace availability check: status={response.status_code}, available={self._compreface_available}")
         except Exception as e:
             logger.warning(f"CompreFace not available: {e}")
             self._compreface_available = False
             
         return self._compreface_available
+
+    def validate_document_quick(
+        self, 
+        file_data: bytes, 
+        document_type: str,
+        require_face: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Quick validation for per-step KYC checks (NO OCR - OCR runs on final submission).
+        Checks: resolution, blur, and optionally face detection.
+        
+        Args:
+            file_data: Raw file bytes
+            document_type: Type of document (e.g., "FRONTID", "SELFIE", "CLEARANCE")
+            require_face: Whether to require face detection (True for ID photos and selfies)
+            
+        Returns:
+            Dict with:
+                - valid: bool - whether document passes validation
+                - error: str - user-friendly error message if invalid
+                - details: dict - validation details
+        """
+        logger.info(f"🔍 Quick validation for {document_type}, require_face={require_face}")
+        
+        try:
+            # Load image
+            image = Image.open(io.BytesIO(file_data))
+            if image.mode != 'RGB':
+                image = image.convert('RGB')
+            
+            width, height = image.size
+            logger.info(f"   Image: {width}x{height}")
+            
+            # Step 1: Check image quality (resolution + blur)
+            quality_result = self._check_image_quality(image)
+            
+            if quality_result["status"] == "FAILED":
+                error_msg = quality_result.get("reason", "Image quality check failed")
+                # Make error message more user-friendly
+                if "resolution" in error_msg.lower():
+                    error_msg = f"Image resolution too low ({width}x{height}). Please use a higher quality image (minimum {MIN_RESOLUTION}x{MIN_RESOLUTION} pixels)."
+                elif "blurry" in error_msg.lower():
+                    error_msg = "Image is too blurry. Please take a clearer photo with good lighting."
+                
+                logger.warning(f"   ❌ Quality check failed: {error_msg}")
+                return {
+                    "valid": False,
+                    "error": error_msg,
+                    "details": {"quality": quality_result, "resolution": f"{width}x{height}"}
+                }
+            
+            # Step 2: Face detection (if required)
+            if require_face:
+                face_result = self._detect_face(file_data)
+                
+                if not face_result.get("detected", False):
+                    if face_result.get("skipped"):
+                        # CompreFace not available - let it pass, manual review will catch it
+                        logger.warning("   ⚠️ Face detection skipped (CompreFace unavailable)")
+                    else:
+                        error_msg = "No face detected in the image. Please ensure your face is clearly visible."
+                        if document_type.upper() == "SELFIE":
+                            error_msg = "No face detected in your selfie. Please take a clear photo of your face looking at the camera."
+                        elif document_type.upper() in ["FRONTID", "BACKID"]:
+                            error_msg = "No face detected on your ID. Please ensure the photo on your ID is clearly visible."
+                        
+                        logger.warning(f"   ❌ No face detected")
+                        return {
+                            "valid": False,
+                            "error": error_msg,
+                            "details": {"face_detection": face_result, "resolution": f"{width}x{height}"}
+                        }
+                
+                if face_result.get("face_too_small"):
+                    error_msg = "Face is too small in the image. Please move closer or use a higher quality image."
+                    logger.warning(f"   ❌ Face too small")
+                    return {
+                        "valid": False,
+                        "error": error_msg,
+                        "details": {"face_detection": face_result, "resolution": f"{width}x{height}"}
+                    }
+                
+                logger.info(f"   ✅ Face detected with confidence {face_result.get('confidence', 0):.2f}")
+            
+            # All checks passed
+            logger.info(f"   ✅ Quick validation passed for {document_type}")
+            return {
+                "valid": True,
+                "error": None,
+                "details": {
+                    "resolution": f"{width}x{height}",
+                    "quality_score": quality_result.get("score", 0),
+                    "warnings": quality_result.get("warnings", [])
+                }
+            }
+            
+        except Exception as e:
+            logger.error(f"Quick validation error: {e}", exc_info=True)
+            return {
+                "valid": False,
+                "error": "Failed to process image. Please try a different photo.",
+                "details": {"error": str(e)}
+            }
 
     def verify_document(
         self, 
@@ -246,26 +387,56 @@ class DocumentVerificationService:
                         warnings=warnings
                     )
                 
-                logger.info(f"   ✅ Face detected: confidence={face_result['confidence']:.2f}")
+                print(f"   ✅ Face detected: confidence={face_result['confidence']:.2f}")
             
-            # Step 3: OCR text extraction (for clearances and permits)
+            # Step 3: OCR text extraction (for clearances and Government IDs)
             ocr_required = document_type.upper() in DOCUMENT_KEYWORDS
             extracted_text = ""
             
+            print(f"   📝 OCR check: document_type={document_type.upper()}, ocr_required={ocr_required}")
+            print(f"   📝 Available DOCUMENT_KEYWORDS: {list(DOCUMENT_KEYWORDS.keys())}")
+            print(f"   📝 TESSERACT_AVAILABLE = {TESSERACT_AVAILABLE}")
+            
             if ocr_required or document_type.upper() in ["NBI", "POLICE", "CLEARANCE"]:
+                print(f"   📝 Running Tesseract OCR for {document_type}...")
                 ocr_result = self._extract_text(image)
                 extracted_text = ocr_result.get("text", "")
                 details["ocr"] = {
                     "text_length": len(extracted_text),
-                    "confidence": ocr_result.get("confidence", 0)
+                    "confidence": ocr_result.get("confidence", 0),
+                    "skipped": ocr_result.get("skipped", False),
+                    "error": ocr_result.get("error"),
+                    "reason": ocr_result.get("reason")
                 }
+                
+                # Log extracted text for debugging (first 500 chars)
+                text_preview = extracted_text[:500].replace('\n', ' ') if extracted_text else "(empty)"
+                print(f"   📝 OCR extracted ({len(extracted_text)} chars): {text_preview}")
+                print(f"   📝 OCR result: skipped={ocr_result.get('skipped')}, error={ocr_result.get('error')}, reason={ocr_result.get('reason')}")
+                
+                # CRITICAL: Fail if OCR was skipped or errored - don't allow documents without text verification
+                if ocr_result.get("skipped") or ocr_result.get("error"):
+                    error_reason = ocr_result.get("reason") or ocr_result.get("error") or "OCR unavailable"
+                    print(f"   ❌ OCR FAILED: {error_reason}")
+                    return VerificationResult(
+                        status=VerificationStatus.FAILED,
+                        rejection_reason=RejectionReason.UNREADABLE_DOCUMENT,
+                        extracted_text="",
+                        face_detected=face_result.get("detected", False),
+                        face_count=face_result.get("count", 0),
+                        quality_score=quality_result["score"],
+                        details=details,
+                        warnings=[f"OCR failed: {error_reason}"]
+                    )
                 
                 if ocr_required:
                     keyword_check = self._check_required_keywords(extracted_text, document_type.upper())
                     details["keyword_check"] = keyword_check
                     
+                    print(f"   📝 Keyword check for {document_type.upper()}: passed={keyword_check['passed']}, found={keyword_check['found_keywords']}, missing={keyword_check['missing_groups']}")
+                    
                     if not keyword_check["passed"]:
-                        logger.warning(f"   ❌ Missing required text for {document_type}")
+                        print(f"   ❌ Missing required text for {document_type}: {keyword_check['missing_groups']}")
                         return VerificationResult(
                             status=VerificationStatus.FAILED,
                             rejection_reason=RejectionReason.MISSING_REQUIRED_TEXT,
@@ -277,7 +448,7 @@ class DocumentVerificationService:
                             warnings=warnings
                         )
                     
-                    logger.info(f"   ✅ Required keywords found for {document_type}")
+                    print(f"   ✅ Required keywords found for {document_type}")
             
             # Calculate overall confidence
             confidence = self._calculate_confidence(
@@ -321,13 +492,13 @@ class DocumentVerificationService:
         warnings = []
         width, height = image.size
         
-        # Check resolution
-        if width < MIN_RESOLUTION and height < MIN_RESOLUTION:
+        # Check resolution - BOTH width and height must meet minimum
+        if width < MIN_RESOLUTION or height < MIN_RESOLUTION:
             return {
                 "status": "FAILED",
                 "rejection_reason": "RESOLUTION_TOO_LOW",
                 "score": 0.2,
-                "reason": f"Image resolution too low ({width}x{height}). Minimum: {MIN_RESOLUTION}px",
+                "reason": f"Image resolution too low ({width}x{height}). Both dimensions must be at least {MIN_RESOLUTION}px.",
                 "warnings": []
             }
         
@@ -512,9 +683,10 @@ class DocumentVerificationService:
             headers = {"x-api-key": self.compreface_api_key}
             files = {"file": ("image.jpg", image_data, "image/jpeg")}
             
-            # Use recognition endpoint which returns embeddings
+            # Use detection endpoint (Detection service API)
+            # Detection API: /api/v1/detection/detect
             response = httpx.post(
-                f"{self.compreface_url}/api/v1/recognition/faces",
+                f"{self.compreface_url}/api/v1/detection/detect",
                 headers=headers,
                 files=files,
                 params={"limit": 1, "det_prob_threshold": 0.5},
@@ -566,80 +738,73 @@ class DocumentVerificationService:
         similarity_threshold: float = 0.85
     ) -> Dict[str, Any]:
         """
-        Compare faces between ID document and selfie using CompreFace
+        Verify faces exist in both ID document and selfie images.
+        Face comparison will be done manually by admin.
         
         Args:
             id_image_data: Raw bytes of ID document image
             selfie_image_data: Raw bytes of selfie image
-            similarity_threshold: Minimum similarity score to consider a match (0-1)
+            similarity_threshold: Not used (kept for backward compatibility)
             
         Returns dict with:
-            - match: bool - whether faces match
-            - similarity: float - similarity score (0-1)
-            - confidence: float - detection confidence
+            - faces_detected: bool - whether faces were found in both images
+            - id_has_face: bool - whether ID has a detectable face
+            - selfie_has_face: bool - whether selfie has a detectable face
             - error: str - error message if failed
         """
-        logger.info("🔍 Starting face comparison between ID and selfie...")
+        logger.info("🔍 Checking for faces in ID and selfie images...")
         
         if not self._check_compreface_available():
-            logger.warning("CompreFace not available, skipping face comparison")
+            logger.warning("CompreFace not available, skipping face detection")
             return {
-                "match": None,
-                "similarity": 0,
+                "faces_detected": None,
                 "skipped": True,
-                "reason": "CompreFace service not available"
+                "reason": "CompreFace service not available - manual verification required"
             }
         
         try:
-            # Extract embeddings from both images
-            id_result = self._extract_face_embedding(id_image_data)
-            if not id_result.get("success"):
-                logger.warning(f"Failed to extract face from ID: {id_result.get('error')}")
+            # Detect face in ID document
+            id_result = self._detect_face(id_image_data)
+            id_has_face = id_result.get("detected", False) and id_result.get("count", 0) > 0
+            
+            if not id_has_face and not id_result.get("skipped"):
+                logger.warning("No face detected in ID document")
                 return {
-                    "match": False,
-                    "similarity": 0,
-                    "error": f"Could not detect face in ID document: {id_result.get('error')}"
+                    "faces_detected": False,
+                    "id_has_face": False,
+                    "selfie_has_face": None,
+                    "error": "No face detected in ID document. Please upload a clear photo of your ID showing your face."
                 }
             
-            selfie_result = self._extract_face_embedding(selfie_image_data)
-            if not selfie_result.get("success"):
-                logger.warning(f"Failed to extract face from selfie: {selfie_result.get('error')}")
+            # Detect face in selfie
+            selfie_result = self._detect_face(selfie_image_data)
+            selfie_has_face = selfie_result.get("detected", False) and selfie_result.get("count", 0) > 0
+            
+            if not selfie_has_face and not selfie_result.get("skipped"):
+                logger.warning("No face detected in selfie")
                 return {
-                    "match": False,
-                    "similarity": 0,
-                    "error": f"Could not detect face in selfie: {selfie_result.get('error')}"
+                    "faces_detected": False,
+                    "id_has_face": id_has_face,
+                    "selfie_has_face": False,
+                    "error": "No face detected in selfie. Please upload a clear photo of your face."
                 }
             
-            id_embedding = id_result.get("embedding", [])
-            selfie_embedding = selfie_result.get("embedding", [])
-            
-            if not id_embedding or not selfie_embedding:
-                return {
-                    "match": False,
-                    "similarity": 0,
-                    "error": "Failed to extract face embeddings"
-                }
-            
-            # Calculate cosine similarity between embeddings
-            similarity = self._cosine_similarity(id_embedding, selfie_embedding)
-            
-            is_match = similarity >= similarity_threshold
-            
-            logger.info(f"   Face comparison result: similarity={similarity:.3f}, threshold={similarity_threshold}, match={is_match}")
+            # Both have faces - success! Manual comparison will be done by admin
+            logger.info(f"   ✅ Face detection result: ID has face={id_has_face}, Selfie has face={selfie_has_face}")
             
             return {
-                "match": is_match,
-                "similarity": similarity,
+                "faces_detected": True,
+                "id_has_face": id_has_face,
+                "selfie_has_face": selfie_has_face,
                 "id_confidence": id_result.get("confidence", 0),
                 "selfie_confidence": selfie_result.get("confidence", 0),
-                "threshold": similarity_threshold
+                "note": "Face comparison will be done manually by admin"
             }
             
         except Exception as e:
-            logger.error(f"Face comparison error: {e}", exc_info=True)
+            logger.error(f"Face detection error: {e}", exc_info=True)
             return {
-                "match": False,
-                "similarity": 0,
+                "faces_detected": False,
                 "error": str(e)
             }
 
@@ -669,14 +834,18 @@ class DocumentVerificationService:
         Returns dict with:
             - text: extracted text
             - confidence: OCR confidence (0-100)
+            - skipped: True if OCR was skipped
+            - error: Error message if OCR failed
         """
+        print(f"   📝 _extract_text called, TESSERACT_AVAILABLE={TESSERACT_AVAILABLE}")
+        
         if not TESSERACT_AVAILABLE:
-            logger.warning("Tesseract not available, skipping OCR")
+            print("   ❌ Tesseract not available - pytesseract module not imported")
             return {
                 "text": "",
                 "confidence": 0,
                 "skipped": True,
-                "reason": "Tesseract not installed"
+                "reason": "pytesseract module not installed"
             }
         
         try:
@@ -684,8 +853,10 @@ class DocumentVerificationService:
             processed = self._preprocess_for_ocr(image)
             
             # Extract text with confidence data
-            # Use English + Filipino
-            custom_config = r'--oem 3 --psm 6 -l eng+fil'
+            # Use English only (Filipino language pack not installed in Alpine)
+            custom_config = r'--oem 3 --psm 6 -l eng'
+            
+            print(f"   📝 Running pytesseract with config: {custom_config}")
             
             # Get detailed data including confidence
             data = pytesseract.image_to_data(processed, config=custom_config, output_type=pytesseract.Output.DICT)
@@ -697,17 +868,24 @@ class DocumentVerificationService:
             # Get plain text
             text = pytesseract.image_to_string(processed, config=custom_config)
             
+            print(f"   📝 Tesseract extracted {len(text)} chars, avg_confidence={avg_confidence:.1f}%")
+            
             return {
                 "text": text.strip(),
                 "confidence": avg_confidence / 100,  # Normalize to 0-1
-                "word_count": len([w for w in data['text'] if w.strip()])
+                "word_count": len([w for w in data['text'] if w.strip()]),
+                "skipped": False,
+                "error": None
             }
             
         except Exception as e:
-            logger.error(f"OCR error: {e}", exc_info=True)
+            print(f"   ❌ OCR error: {e}")
+            import traceback
+            traceback.print_exc()
             return {
                 "text": "",
                 "confidence": 0,
+                "skipped": False,
                 "error": str(e)
             }
 

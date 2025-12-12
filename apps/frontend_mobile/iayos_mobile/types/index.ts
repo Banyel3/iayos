@@ -154,6 +154,7 @@ export interface RegisterPayload {
   province: string;
   postal_code: string;
   country?: string;
+  profileType?: "WORKER" | "CLIENT";
 }
 
 export interface AuthContextType {

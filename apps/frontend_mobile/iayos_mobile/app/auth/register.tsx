@@ -41,6 +41,7 @@ const formatDate = (date: Date) => {
 };
 
 export default function RegisterScreen() {
+  const [profileType, setProfileType] = useState<"WORKER" | "CLIENT">("CLIENT");
   const [firstName, setFirstName] = useState("");
   const [middleName, setMiddleName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -278,6 +279,7 @@ export default function RegisterScreen() {
         province: trimmedProvince,
         postal_code: trimmedPostal,
         country: DEFAULT_COUNTRY,
+        profileType,
       });
 
       Alert.alert(
@@ -327,6 +329,116 @@ export default function RegisterScreen() {
           </View>
 
           <View style={styles.formContainer}>
+            {/* Profile Type Selection */}
+            <View style={styles.profileTypeSection}>
+              <Text style={styles.profileTypeTitle}>I want to...</Text>
+              <View style={styles.profileTypeCards}>
+                {/* Client Card */}
+                <TouchableOpacity
+                  style={[
+                    styles.profileTypeCard,
+                    profileType === "CLIENT" && styles.profileTypeCardSelected,
+                  ]}
+                  onPress={() => setProfileType("CLIENT")}
+                  disabled={isLoading}
+                  activeOpacity={0.8}
+                >
+                  <View
+                    style={[
+                      styles.profileTypeIconContainer,
+                      profileType === "CLIENT" &&
+                        styles.profileTypeIconContainerSelected,
+                    ]}
+                  >
+                    <Ionicons
+                      name="briefcase-outline"
+                      size={32}
+                      color={
+                        profileType === "CLIENT" ? Colors.white : Colors.primary
+                      }
+                    />
+                  </View>
+                  <Text
+                    style={[
+                      styles.profileTypeCardTitle,
+                      profileType === "CLIENT" &&
+                        styles.profileTypeCardTitleSelected,
+                    ]}
+                  >
+                    Hire Workers
+                  </Text>
+                  <Text style={styles.profileTypeCardDescription}>
+                    Post jobs and find skilled workers for your projects
+                  </Text>
+                  {profileType === "CLIENT" && (
+                    <View style={styles.selectedBadge}>
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={20}
+                        color={Colors.primary}
+                      />
+                    </View>
+                  )}
+                </TouchableOpacity>
+
+                {/* Worker Card */}
+                <TouchableOpacity
+                  style={[
+                    styles.profileTypeCard,
+                    profileType === "WORKER" && styles.profileTypeCardSelected,
+                  ]}
+                  onPress={() => setProfileType("WORKER")}
+                  disabled={isLoading}
+                  activeOpacity={0.8}
+                >
+                  <View
+                    style={[
+                      styles.profileTypeIconContainer,
+                      profileType === "WORKER" &&
+                        styles.profileTypeIconContainerSelected,
+                    ]}
+                  >
+                    <Ionicons
+                      name="construct-outline"
+                      size={32}
+                      color={
+                        profileType === "WORKER" ? Colors.white : Colors.primary
+                      }
+                    />
+                  </View>
+                  <Text
+                    style={[
+                      styles.profileTypeCardTitle,
+                      profileType === "WORKER" &&
+                        styles.profileTypeCardTitleSelected,
+                    ]}
+                  >
+                    Find Work
+                  </Text>
+                  <Text style={styles.profileTypeCardDescription}>
+                    Browse jobs and offer your services to clients
+                  </Text>
+                  {profileType === "WORKER" && (
+                    <View style={styles.selectedBadge}>
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={20}
+                        color={Colors.primary}
+                      />
+                    </View>
+                  )}
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.profileTypeNote}>
+                💡 You can add the other profile type later in settings
+              </Text>
+            </View>
+
+            {/* Personal Information Section */}
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Personal Information</Text>
+            </View>
+
             {/* First Name */}
             <Input
               ref={firstNameRef}
@@ -769,5 +881,75 @@ const styles = StyleSheet.create({
   inlineDatePicker: {
     width: "100%",
     minHeight: 180,
+  },
+  // Profile Type Selection Styles
+  profileTypeSection: {
+    marginBottom: Spacing.xl,
+  },
+  profileTypeTitle: {
+    fontSize: Typography.fontSize.xl,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+    marginBottom: Spacing.lg,
+    textAlign: "center",
+  },
+  profileTypeCards: {
+    flexDirection: "row",
+    gap: Spacing.md,
+  },
+  profileTypeCard: {
+    flex: 1,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 2,
+    borderColor: Colors.border,
+    padding: Spacing.lg,
+    alignItems: "center",
+    position: "relative",
+    ...Shadows.sm,
+  },
+  profileTypeCardSelected: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primaryLight || "#E8F5E9",
+  },
+  profileTypeIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: Colors.primaryLight || "#E8F5E9",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+  profileTypeIconContainerSelected: {
+    backgroundColor: Colors.primary,
+  },
+  profileTypeCardTitle: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+    marginBottom: Spacing.xs,
+    textAlign: "center",
+  },
+  profileTypeCardTitleSelected: {
+    color: Colors.primary,
+  },
+  profileTypeCardDescription: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.textSecondary,
+    textAlign: "center",
+    lineHeight: 16,
+  },
+  selectedBadge: {
+    position: "absolute",
+    top: Spacing.sm,
+    right: Spacing.sm,
+  },
+  profileTypeNote: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+    textAlign: "center",
+    marginTop: Spacing.lg,
+    fontStyle: "italic",
   },
 });

@@ -164,7 +164,7 @@ export default function JobCard({
           </View>
 
           {/* Application Count Badge */}
-          {applicationCount && applicationCount > 0 && (
+          {typeof applicationCount === "number" && applicationCount > 0 && (
             <View style={styles.applicationBadgeRow}>
               <Ionicons name="people" size={13} color={Colors.primary} />
               <Text style={styles.applicationText}>

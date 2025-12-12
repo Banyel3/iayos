@@ -479,7 +479,7 @@ class kyc(models.Model):
         blank=True,
         related_name="reviewed_kyc"
     )
-    notes = models.CharField(max_length=211)
+    notes = models.TextField(blank=True, default="")  # Changed from CharField(211) to store AI rejection messages
     
     # KYC Enhancement fields (Module 6)
     rejectionCategory = models.CharField(

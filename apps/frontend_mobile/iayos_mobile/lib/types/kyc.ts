@@ -361,8 +361,13 @@ export const validateDocumentFile = (
 /**
  * Get KYC status display information
  */
-export const getKYCStatusDisplay = (status: KYCStatus) => {
-  switch (status) {
+export const getKYCStatusDisplay = (
+  status: KYCStatus | string | undefined | null
+) => {
+  // Normalize status to uppercase for comparison
+  const normalizedStatus = (status || "").toString().toUpperCase();
+
+  switch (normalizedStatus) {
     case "NOT_SUBMITTED":
       return {
         label: "Not Submitted",
@@ -390,6 +395,14 @@ export const getKYCStatusDisplay = (status: KYCStatus) => {
         color: "#F44336",
         icon: "close-circle-outline",
         description: "Your KYC submission was rejected",
+      };
+    default:
+      // Fallback for unknown statuses
+      return {
+        label: status ? String(status) : "Unknown",
+        color: "#757575",
+        icon: "help-circle-outline",
+        description: "Unable to determine KYC status",
       };
   }
 };
