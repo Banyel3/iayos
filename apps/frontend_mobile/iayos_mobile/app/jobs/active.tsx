@@ -85,8 +85,14 @@ export default function ActiveJobsScreen() {
     setRefreshing(false);
   };
 
-  const handleJobPress = (jobId: string) => {
-    router.push(`/jobs/active/${jobId}` as any);
+  const handleJobPress = (job: ActiveJob) => {
+    // Team jobs go to main job detail (has full team support)
+    // Regular jobs go to active job detail (has completion workflow)
+    if (job.is_team_job) {
+      router.push(`/jobs/${job.id}` as any);
+    } else {
+      router.push(`/jobs/active/${job.id}` as any);
+    }
   };
 
   const getStatusInfo = (job: ActiveJob) => {
@@ -208,7 +214,7 @@ export default function ActiveJobsScreen() {
                 <TouchableOpacity
                   key={job.id}
                   style={styles.jobCard}
-                  onPress={() => handleJobPress(job.id)}
+                  onPress={() => handleJobPress(job)}
                   activeOpacity={0.8}
                 >
                   {/* Status Badge */}

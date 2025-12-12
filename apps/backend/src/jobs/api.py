@@ -5486,7 +5486,7 @@ def get_team_job_applications_endpoint(request, job_id: int, skill_slot_id: int 
                 'application_id': app.applicationID,
                 'worker_id': worker.id if worker else None,
                 'worker_name': f"{profile.firstName} {profile.lastName}" if profile else "Unknown",
-                'worker_avatar': profile.profileImg.url if profile and profile.profileImg else None,
+                'worker_avatar': profile.profileImg if profile else None,  # profileImg is a CharField (URL string), not FileField
                 'worker_rating': float(worker.workerRating) if worker and worker.workerRating else None,
                 'skill_slot_id': slot.skillSlotID if slot else None,
                 'specialization_name': slot.specializationID.specializationName if slot else None,

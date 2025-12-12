@@ -258,7 +258,7 @@ def get_team_job_detail(job_id: int, requesting_user=None) -> dict:
             'assignment_id': assignment.assignmentID,
             'worker_id': worker.id,  # Use .id (primary key), not .workerID
             'worker_name': f"{profile.firstName} {profile.lastName}",
-            'worker_avatar': profile.profileImg.url if profile.profileImg else None,  # profileImg, not profilePicture
+            'worker_avatar': profile.profileImg or None,  # profileImg is a CharField (URL string), not FileField
             'worker_rating': float(worker.workerRating) if worker.workerRating else None,  # workerRating, not rating
             'skill_slot_id': assignment.skillSlotID_id,
             'specialization_name': assignment.skillSlotID.specializationID.specializationName,

@@ -882,7 +882,7 @@ def get_conversations(request, filter: str = "all"):
                         team_members.append({
                             'profile_id': p.profile.profileID,
                             'name': f"{p.profile.firstName} {p.profile.lastName}",
-                            'avatar': p.profile.profileImg.url if p.profile.profileImg else None,  # profileImg, not profilePicture
+                            'avatar': p.profile.profileImg or None,  # profileImg is a CharField (URL string), not FileField
                             'role': p.participant_type,
                             'skill': p.skill_slot.specializationID.specializationName if p.skill_slot else None
                         })

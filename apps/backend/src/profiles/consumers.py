@@ -104,7 +104,7 @@ class InboxConsumer(AsyncWebsocketConsumer):
             sender_name = message.get_sender_name()
             sender_avatar = None
             if message.sender and hasattr(message.sender, 'profileImg') and message.sender.profileImg:
-                sender_avatar = message.sender.profileImg.url
+                sender_avatar = message.sender.profileImg  # profileImg is a CharField (URL string), not FileField
 
             # Broadcast to conversation group
             room_group_name = f'chat_{conversation_id}'

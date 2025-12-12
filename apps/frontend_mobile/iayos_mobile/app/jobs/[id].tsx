@@ -1077,10 +1077,16 @@ export default function JobDetailScreen() {
               <Text style={styles.teamJobHeaderBadgeText}>Team Job</Text>
               <View style={styles.teamJobHeaderDivider} />
               <Text style={styles.teamJobHeaderCount}>
-                {job.total_workers_assigned || 0}/{job.total_workers_needed || 0} workers filled
+                {job.total_workers_assigned || 0}/
+                {job.total_workers_needed || 0} workers filled
               </Text>
               {(job.team_fill_percentage || 0) >= 100 && (
-                <Ionicons name="checkmark-circle" size={16} color={Colors.white} style={{ marginLeft: 4 }} />
+                <Ionicons
+                  name="checkmark-circle"
+                  size={16}
+                  color={Colors.white}
+                  style={{ marginLeft: 4 }}
+                />
               )}
             </View>
           )}
@@ -1313,9 +1319,15 @@ export default function JobDetailScreen() {
             {/* Conversation Lock Notice - Chat only available when all workers selected */}
             {(job.team_fill_percentage || 0) < 100 && (
               <View style={styles.conversationLockBanner}>
-                <Ionicons name="chatbubbles-outline" size={20} color={Colors.warning} />
+                <Ionicons
+                  name="chatbubbles-outline"
+                  size={20}
+                  color={Colors.warning}
+                />
                 <View style={styles.conversationLockContent}>
-                  <Text style={styles.conversationLockTitle}>Group Chat Locked</Text>
+                  <Text style={styles.conversationLockTitle}>
+                    Group Chat Locked
+                  </Text>
                   <Text style={styles.conversationLockText}>
                     {isClient
                       ? `Select ${(job.total_workers_needed || 0) - (job.total_workers_assigned || 0)} more worker(s) to start the team conversation`
@@ -1326,17 +1338,24 @@ export default function JobDetailScreen() {
             )}
 
             {/* Conversation Ready Notice */}
-            {(job.team_fill_percentage || 0) >= 100 && job.status === "ACTIVE" && (
-              <View style={styles.conversationReadyBanner}>
-                <Ionicons name="chatbubbles" size={20} color={Colors.success} />
-                <View style={styles.conversationLockContent}>
-                  <Text style={styles.conversationReadyTitle}>Team Ready!</Text>
-                  <Text style={styles.conversationReadyText}>
-                    All workers selected. Group conversation is now available.
-                  </Text>
+            {(job.team_fill_percentage || 0) >= 100 &&
+              job.status === "ACTIVE" && (
+                <View style={styles.conversationReadyBanner}>
+                  <Ionicons
+                    name="chatbubbles"
+                    size={20}
+                    color={Colors.success}
+                  />
+                  <View style={styles.conversationLockContent}>
+                    <Text style={styles.conversationReadyTitle}>
+                      Team Ready!
+                    </Text>
+                    <Text style={styles.conversationReadyText}>
+                      All workers selected. Group conversation is now available.
+                    </Text>
+                  </View>
                 </View>
-              </View>
-            )}
+              )}
 
             <Text style={styles.sectionTitle}>Skill Slots</Text>
 
@@ -1403,59 +1422,73 @@ export default function JobDetailScreen() {
                   {/* Position Slots with Numbers */}
                   <View style={styles.positionsContainer}>
                     <Text style={styles.positionsLabel}>Positions:</Text>
-                    {Array.from({ length: slot.workers_needed }).map((_, posIndex) => {
-                      const assignedWorker = assignedWorkers[posIndex];
-                      const isFilled = !!assignedWorker;
-                      
-                      return (
-                        <View
-                          key={posIndex}
-                          style={[
-                            styles.positionRow,
-                            isFilled ? styles.positionFilled : styles.positionOpen,
-                          ]}
-                        >
-                          <View style={styles.positionNumber}>
-                            <Text style={styles.positionNumberText}>{posIndex + 1}</Text>
-                          </View>
-                          {isFilled ? (
-                            <>
-                              <Image
-                                source={{
-                                  uri:
-                                    assignedWorker.worker_avatar ||
-                                    "https://via.placeholder.com/30",
-                                }}
-                                style={styles.positionAvatar}
-                              />
-                              <Text style={styles.positionWorkerName}>
-                                {assignedWorker.worker_name}
+                    {Array.from({ length: slot.workers_needed }).map(
+                      (_, posIndex) => {
+                        const assignedWorker = assignedWorkers[posIndex];
+                        const isFilled = !!assignedWorker;
+
+                        return (
+                          <View
+                            key={posIndex}
+                            style={[
+                              styles.positionRow,
+                              isFilled
+                                ? styles.positionFilled
+                                : styles.positionOpen,
+                            ]}
+                          >
+                            <View style={styles.positionNumber}>
+                              <Text style={styles.positionNumberText}>
+                                {posIndex + 1}
                               </Text>
-                              <Ionicons
-                                name="checkmark-circle"
-                                size={18}
-                                color={Colors.success}
-                              />
-                              {assignedWorker.worker_marked_complete && (
-                                <View style={styles.completedTag}>
-                                  <Text style={styles.completedTagText}>Done</Text>
+                            </View>
+                            {isFilled ? (
+                              <>
+                                <Image
+                                  source={{
+                                    uri:
+                                      assignedWorker.worker_avatar ||
+                                      "https://via.placeholder.com/30",
+                                  }}
+                                  style={styles.positionAvatar}
+                                />
+                                <Text style={styles.positionWorkerName}>
+                                  {assignedWorker.worker_name}
+                                </Text>
+                                <Ionicons
+                                  name="checkmark-circle"
+                                  size={18}
+                                  color={Colors.success}
+                                />
+                                {assignedWorker.worker_marked_complete && (
+                                  <View style={styles.completedTag}>
+                                    <Text style={styles.completedTagText}>
+                                      Done
+                                    </Text>
+                                  </View>
+                                )}
+                              </>
+                            ) : (
+                              <>
+                                <View style={styles.positionEmptyAvatar}>
+                                  <Ionicons
+                                    name="person-outline"
+                                    size={16}
+                                    color={Colors.textSecondary}
+                                  />
                                 </View>
-                              )}
-                            </>
-                          ) : (
-                            <>
-                              <View style={styles.positionEmptyAvatar}>
-                                <Ionicons name="person-outline" size={16} color={Colors.textSecondary} />
-                              </View>
-                              <Text style={styles.positionOpenText}>Open Position</Text>
-                              <View style={styles.openTag}>
-                                <Text style={styles.openTagText}>Hiring</Text>
-                              </View>
-                            </>
-                          )}
-                        </View>
-                      );
-                    })}
+                                <Text style={styles.positionOpenText}>
+                                  Open Position
+                                </Text>
+                                <View style={styles.openTag}>
+                                  <Text style={styles.openTagText}>Hiring</Text>
+                                </View>
+                              </>
+                            )}
+                          </View>
+                        );
+                      }
+                    )}
                   </View>
 
                   {/* Apply Button for Workers (if slot is open) */}
