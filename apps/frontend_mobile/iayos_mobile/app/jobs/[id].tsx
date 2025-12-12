@@ -92,6 +92,10 @@ interface JobDetail {
   };
   reviews?: JobReviews;
   estimatedCompletion?: EstimatedCompletion | null;
+  // Universal job fields for ML
+  job_scope?: "MINOR_REPAIR" | "MODERATE_PROJECT" | "MAJOR_RENOVATION";
+  skill_level_required?: "ENTRY" | "INTERMEDIATE" | "EXPERT";
+  work_environment?: "INDOOR" | "OUTDOOR" | "BOTH";
   // Team Job Fields
   is_team_job?: boolean;
   skill_slots?: SkillSlot[];
@@ -123,6 +127,49 @@ interface JobApplication {
   created_at: string;
   updated_at: string;
 }
+
+// ============================================================================
+// Helper functions for Universal Job Fields
+// ============================================================================
+
+const getJobScopeInfo = (scope: string) => {
+  switch (scope) {
+    case "MINOR_REPAIR":
+      return { label: "Minor Repair", emoji: "🔧", color: Colors.success };
+    case "MODERATE_PROJECT":
+      return { label: "Moderate Project", emoji: "🛠️", color: Colors.warning };
+    case "MAJOR_RENOVATION":
+      return { label: "Major Renovation", emoji: "🏗️", color: Colors.error };
+    default:
+      return { label: scope, emoji: "📋", color: Colors.textSecondary };
+  }
+};
+
+const getSkillLevelInfo = (level: string) => {
+  switch (level) {
+    case "ENTRY":
+      return { label: "Entry Level", emoji: "🌱", color: Colors.success };
+    case "INTERMEDIATE":
+      return { label: "Intermediate", emoji: "⭐", color: Colors.warning };
+    case "EXPERT":
+      return { label: "Expert", emoji: "👑", color: Colors.primary };
+    default:
+      return { label: level, emoji: "📊", color: Colors.textSecondary };
+  }
+};
+
+const getWorkEnvironmentInfo = (env: string) => {
+  switch (env) {
+    case "INDOOR":
+      return { label: "Indoor", emoji: "🏠", color: Colors.primary };
+    case "OUTDOOR":
+      return { label: "Outdoor", emoji: "🌳", color: Colors.success };
+    case "BOTH":
+      return { label: "Indoor & Outdoor", emoji: "🔄", color: Colors.warning };
+    default:
+      return { label: env, emoji: "📍", color: Colors.textSecondary };
+  }
+};
 
 export default function JobDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -255,6 +302,10 @@ export default function JobDetailScreen() {
             }
           : undefined,
         estimatedCompletion: jobData.estimated_completion || null,
+        // Universal job fields for ML
+        job_scope: jobData.job_scope || "MODERATE_PROJECT",
+        skill_level_required: jobData.skill_level_required || "INTERMEDIATE",
+        work_environment: jobData.work_environment || "INDOOR",
         // Team Job fields
         is_team_job: jobData.is_team_job || false,
         skill_slots: jobData.skill_slots || [],
@@ -1026,6 +1077,102 @@ export default function JobDetailScreen() {
                   : job.location}
               </Text>
             </View>
+          </View>
+        </View>
+
+        {/* Job Requirements Section - Universal Fields for ML */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Job Requirements</Text>
+          <View style={styles.requirementsGrid}>
+            {/* Job Scope */}
+            {job.job_scope && (
+              <View style={styles.requirementCard}>
+                <View
+                  style={[
+                    styles.requirementIconContainer,
+                    {
+                      backgroundColor:
+                        getJobScopeInfo(job.job_scope).color + "20",
+                    },
+                  ]}
+                >
+                  <Text style={styles.requirementEmoji}>
+                    {getJobScopeInfo(job.job_scope).emoji}
+                  </Text>
+                </View>
+                <Text style={styles.requirementLabel}>Scope</Text>
+                <Text
+                  style={[
+                    styles.requirementValue,
+                    { color: getJobScopeInfo(job.job_scope).color },
+                  ]}
+                >
+                  {getJobScopeInfo(job.job_scope).label}
+                </Text>
+              </View>
+            )}
+
+            {/* Skill Level Required */}
+            {job.skill_level_required && (
+              <View style={styles.requirementCard}>
+                <View
+                  style={[
+                    styles.requirementIconContainer,
+                    {
+                      backgroundColor:
+                        getSkillLevelInfo(job.skill_level_required).color +
+                        "20",
+                    },
+                  ]}
+                >
+                  <Text style={styles.requirementEmoji}>
+                    {getSkillLevelInfo(job.skill_level_required).emoji}
+                  </Text>
+                </View>
+                <Text style={styles.requirementLabel}>Skill Level</Text>
+                <Text
+                  style={[
+                    styles.requirementValue,
+                    {
+                      color: getSkillLevelInfo(job.skill_level_required).color,
+                    },
+                  ]}
+                >
+                  {getSkillLevelInfo(job.skill_level_required).label}
+                </Text>
+              </View>
+            )}
+
+            {/* Work Environment */}
+            {job.work_environment && (
+              <View style={styles.requirementCard}>
+                <View
+                  style={[
+                    styles.requirementIconContainer,
+                    {
+                      backgroundColor:
+                        getWorkEnvironmentInfo(job.work_environment).color +
+                        "20",
+                    },
+                  ]}
+                >
+                  <Text style={styles.requirementEmoji}>
+                    {getWorkEnvironmentInfo(job.work_environment).emoji}
+                  </Text>
+                </View>
+                <Text style={styles.requirementLabel}>Environment</Text>
+                <Text
+                  style={[
+                    styles.requirementValue,
+                    {
+                      color: getWorkEnvironmentInfo(job.work_environment).color,
+                    },
+                  ]}
+                >
+                  {getWorkEnvironmentInfo(job.work_environment).label}
+                </Text>
+              </View>
+            )}
           </View>
         </View>
 
@@ -3358,5 +3505,46 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.base,
     fontWeight: "700",
     color: Colors.white,
+  },
+  // Job Requirements Section (Universal ML Fields)
+  requirementsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
+  },
+  requirementCard: {
+    flex: 1,
+    minWidth: "30%",
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: Colors.border,
+    ...Shadows.sm,
+  },
+  requirementIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: Spacing.xs,
+  },
+  requirementEmoji: {
+    fontSize: 24,
+  },
+  requirementLabel: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.textSecondary,
+    marginTop: 2,
+    textAlign: "center",
+  },
+  requirementValue: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: "600",
+    marginTop: 2,
+    textAlign: "center",
   },
 });

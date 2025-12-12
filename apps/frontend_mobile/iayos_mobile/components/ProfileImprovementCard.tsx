@@ -85,13 +85,40 @@ export default function ProfileImprovementCard({
     setIsExpanded(!isExpanded);
   };
 
-  // Loading state
+  // Loading state - show skeleton while AI is calculating
   if (isLoading) {
     return (
       <View style={styles.container}>
+        {/* Header skeleton */}
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            <Ionicons name="sparkles" size={20} color={Colors.primary} />
+            <Text style={styles.headerTitle}>Profile Score</Text>
+          </View>
+          <View style={styles.skeletonBadge} />
+        </View>
+
+        {/* Loading content */}
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="small" color={Colors.primary} />
-          <Text style={styles.loadingText}>Analyzing your profile...</Text>
+          <View style={styles.loadingIconContainer}>
+            <ActivityIndicator size="large" color={Colors.primary} />
+          </View>
+          <View style={styles.loadingTextContainer}>
+            <Text style={styles.loadingTitle}>
+              🤖 AI Analyzing Your Profile
+            </Text>
+            <Text style={styles.loadingSubtext}>
+              Our AI is evaluating your skills, experience, and profile
+              completeness...
+            </Text>
+          </View>
+        </View>
+
+        {/* Skeleton suggestions */}
+        <View style={styles.skeletonSuggestions}>
+          <View style={styles.skeletonLine} />
+          <View style={[styles.skeletonLine, { width: "75%" }]} />
+          <View style={[styles.skeletonLine, { width: "60%" }]} />
         </View>
       </View>
     );
@@ -413,17 +440,51 @@ const styles = StyleSheet.create({
     padding: 4,
   },
 
-  // Loading
+  // Loading & Skeleton
   loadingContainer: {
-    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: Spacing.sm,
-    paddingVertical: Spacing.md,
+    paddingVertical: Spacing.xl,
   },
-  loadingText: {
+  loadingIconContainer: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: Colors.primary + "15",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+  loadingTextContainer: {
+    alignItems: "center",
+    gap: Spacing.xs,
+  },
+  loadingTitle: {
+    ...Typography.body.medium,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+  },
+  loadingSubtext: {
     ...Typography.body.small,
     color: Colors.textSecondary,
+    textAlign: "center",
+    paddingHorizontal: Spacing.md,
+  },
+  skeletonBadge: {
+    width: 80,
+    height: 24,
+    borderRadius: BorderRadius.medium,
+    backgroundColor: Colors.backgroundSecondary,
+  },
+  skeletonSuggestions: {
+    marginTop: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  skeletonLine: {
+    height: 12,
+    backgroundColor: Colors.backgroundSecondary,
+    borderRadius: 6,
+    width: "90%",
   },
 
   // Error

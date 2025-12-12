@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Image,
   Alert,
+  Modal,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
@@ -89,6 +90,7 @@ export default function JobsScreen() {
   const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>("open");
+  const [showJobTypeModal, setShowJobTypeModal] = useState(false);
 
   const isWorker = user?.profile_data?.profileType === "WORKER";
   const isClient = user?.profile_data?.profileType === "CLIENT";
@@ -657,7 +659,7 @@ export default function JobsScreen() {
             {isClient && (
               <TouchableOpacity
                 style={styles.postJobButton}
-                onPress={() => router.push("/jobs/create" as any)}
+                onPress={() => setShowJobTypeModal(true)}
                 activeOpacity={0.7}
               >
                 <Ionicons name="add" size={18} color={Colors.white} />
@@ -970,7 +972,7 @@ export default function JobsScreen() {
             {activeTab === "open" && isClient && (
               <TouchableOpacity
                 style={styles.createJobButton}
-                onPress={() => router.push("/jobs/create" as any)}
+                onPress={() => setShowJobTypeModal(true)}
                 activeOpacity={0.8}
               >
                 <Ionicons name="add-circle" size={20} color={Colors.white} />
@@ -994,6 +996,144 @@ export default function JobsScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* Job Type Selector Modal */}
+      <Modal
+        visible={showJobTypeModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowJobTypeModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            {/* Header */}
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Choose Job Type</Text>
+              <TouchableOpacity
+                onPress={() => setShowJobTypeModal(false)}
+                style={styles.modalCloseButton}
+              >
+                <Ionicons name="close" size={24} color={Colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Job Type Options */}
+            <View style={styles.jobTypeOptions}>
+              {/* Single Job Option */}
+              <TouchableOpacity
+                style={styles.jobTypeCard}
+                onPress={() => {
+                  setShowJobTypeModal(false);
+                  router.push("/jobs/create" as any);
+                }}
+                activeOpacity={0.7}
+              >
+                <View
+                  style={[
+                    styles.jobTypeIcon,
+                    { backgroundColor: Colors.primary + "20" },
+                  ]}
+                >
+                  <Ionicons
+                    name="person-outline"
+                    size={32}
+                    color={Colors.primary}
+                  />
+                </View>
+                <View style={styles.jobTypeContent}>
+                  <Text style={styles.jobTypeTitle}>Single Worker Job</Text>
+                  <Text style={styles.jobTypeDescription}>
+                    Hire one worker for a specific task
+                  </Text>
+                  <View style={styles.jobTypeFeatures}>
+                    <View style={styles.jobTypeFeature}>
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={16}
+                        color={Colors.success}
+                      />
+                      <Text style={styles.jobTypeFeatureText}>
+                        Quick posting
+                      </Text>
+                    </View>
+                    <View style={styles.jobTypeFeature}>
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={16}
+                        color={Colors.success}
+                      />
+                      <Text style={styles.jobTypeFeatureText}>
+                        Direct communication
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+                <Ionicons
+                  name="chevron-forward"
+                  size={24}
+                  color={Colors.textSecondary}
+                />
+              </TouchableOpacity>
+
+              {/* Team Job Option */}
+              <TouchableOpacity
+                style={styles.jobTypeCard}
+                onPress={() => {
+                  setShowJobTypeModal(false);
+                  router.push("/jobs/create/team" as any);
+                }}
+                activeOpacity={0.7}
+              >
+                <View
+                  style={[
+                    styles.jobTypeIcon,
+                    { backgroundColor: Colors.success + "20" },
+                  ]}
+                >
+                  <Ionicons
+                    name="people-outline"
+                    size={32}
+                    color={Colors.success}
+                  />
+                </View>
+                <View style={styles.jobTypeContent}>
+                  <Text style={styles.jobTypeTitle}>Team Job</Text>
+                  <Text style={styles.jobTypeDescription}>
+                    Hire multiple workers for different tasks
+                  </Text>
+                  <View style={styles.jobTypeFeatures}>
+                    <View style={styles.jobTypeFeature}>
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={16}
+                        color={Colors.success}
+                      />
+                      <Text style={styles.jobTypeFeatureText}>
+                        Multiple specializations
+                      </Text>
+                    </View>
+                    <View style={styles.jobTypeFeature}>
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={16}
+                        color={Colors.success}
+                      />
+                      <Text style={styles.jobTypeFeatureText}>
+                        Flexible budget allocation
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+                <Ionicons
+                  name="chevron-forward"
+                  size={24}
+                  color={Colors.textSecondary}
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1342,5 +1482,83 @@ const styles = StyleSheet.create({
     color: Colors.white,
     fontSize: 10,
     fontWeight: "700",
+  },
+  // Job Type Selector Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: Spacing.lg,
+  },
+  modalContent: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.xl,
+    width: "100%",
+    maxWidth: 500,
+    ...Shadows.lg,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: Spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  modalTitle: {
+    fontSize: Typography.fontSize.xl,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+  },
+  modalCloseButton: {
+    padding: Spacing.xs,
+  },
+  jobTypeOptions: {
+    padding: Spacing.lg,
+    gap: Spacing.md,
+  },
+  jobTypeCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.background,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    borderWidth: 2,
+    borderColor: Colors.border,
+    gap: Spacing.md,
+  },
+  jobTypeIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  jobTypeContent: {
+    flex: 1,
+  },
+  jobTypeTitle: {
+    fontSize: Typography.fontSize.lg,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+    marginBottom: 4,
+  },
+  jobTypeDescription: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.sm,
+  },
+  jobTypeFeatures: {
+    gap: 4,
+  },
+  jobTypeFeature: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  jobTypeFeatureText: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.textSecondary,
   },
 });

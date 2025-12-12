@@ -533,6 +533,10 @@ def get_mobile_job_detail(job_id: int, user: Accounts) -> Dict[str, Any]:
             'downpayment_amount': float(job.budget * Decimal('0.5')),
             'remaining_amount': float(job.budget * Decimal('0.5')),
             'estimated_completion': ml_prediction,
+            # Universal job fields for ML accuracy
+            'job_scope': job.job_scope,
+            'skill_level_required': job.skill_level_required,
+            'work_environment': job.work_environment,
         }
 
         if reviews_payload:

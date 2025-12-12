@@ -23,6 +23,7 @@ import {
   ActivityIndicator,
   Modal,
   FlatList,
+  SafeAreaView,
 } from "react-native";
 import { useRouter, Stack } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -477,589 +478,611 @@ export default function CreateTeamJobScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
+    <SafeAreaView style={styles.safeArea}>
       <Stack.Screen
         options={{
           title: "Create Team Job",
           headerStyle: { backgroundColor: Colors.primary },
           headerTintColor: Colors.white,
+          headerShown: true,
         }}
       />
-
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.content}
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        {/* Job Details Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>📋 Job Details</Text>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Job Title *</Text>
-            <TextInput
-              style={styles.input}
-              value={title}
-              onChangeText={setTitle}
-              placeholder="e.g., Home Renovation - Multiple Skills Needed"
-              maxLength={100}
-            />
-            <Text style={styles.charCount}>{title.length}/100</Text>
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Description *</Text>
-            <TextInput
-              style={[styles.input, styles.textArea]}
-              value={description}
-              onChangeText={setDescription}
-              placeholder="Describe the job in detail. What needs to be done? What are the requirements?"
-              multiline
-              numberOfLines={4}
-              maxLength={1000}
-            />
-            <Text style={styles.charCount}>{description.length}/1000</Text>
-          </View>
-        </View>
-
-        {/* Skill Requirements Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>👥 Team Requirements</Text>
-            <TouchableOpacity
-              style={styles.addSkillButton}
-              onPress={() => setAddSkillModalVisible(true)}
-            >
-              <Ionicons name="add-circle" size={24} color={Colors.primary} />
-              <Text style={styles.addSkillButtonText}>Add Skill</Text>
-            </TouchableOpacity>
-          </View>
-
-          {skillSlots.length === 0 ? (
-            <View style={styles.emptySkillsCard}>
-              <Ionicons
-                name="people-outline"
-                size={48}
-                color={Colors.textSecondary}
-              />
-              <Text style={styles.emptySkillsText}>
-                No skills added yet. Add the skills you need for your team job.
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.skillSlotsList}>
-              {skillSlots.map(renderSkillSlot)}
-
-              <View style={styles.totalWorkersCard}>
-                <Ionicons name="people" size={20} color={Colors.primary} />
-                <Text style={styles.totalWorkersText}>
-                  Total Workers Needed: {totalWorkersNeeded}
-                </Text>
-              </View>
-            </View>
-          )}
-        </View>
-
-        {/* Budget Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>💰 Budget</Text>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Total Budget (₱) *</Text>
-            <TextInput
-              style={styles.input}
-              value={totalBudget}
-              onChangeText={setTotalBudget}
-              placeholder="1000"
-              keyboardType="numeric"
-            />
-            <Text style={styles.hint}>
-              This is the total amount workers will receive for the entire job.
-            </Text>
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Budget Allocation Method</Text>
-            <View style={styles.allocationOptions}>
-              {ALLOCATION_METHODS.map((method) => (
-                <TouchableOpacity
-                  key={method.value}
-                  style={[
-                    styles.allocationOption,
-                    allocationMethod === method.value &&
-                      styles.allocationOptionSelected,
-                  ]}
-                  onPress={() => setAllocationMethod(method.value)}
-                >
-                  <View style={styles.allocationOptionContent}>
-                    <Text
-                      style={[
-                        styles.allocationOptionLabel,
-                        allocationMethod === method.value &&
-                          styles.allocationOptionLabelSelected,
-                      ]}
-                    >
-                      {method.label}
-                    </Text>
-                    <Text style={styles.allocationOptionDesc}>
-                      {method.description}
-                    </Text>
-                  </View>
-                  {allocationMethod === method.value && (
-                    <Ionicons
-                      name="checkmark-circle"
-                      size={20}
-                      color={Colors.primary}
-                    />
-                  )}
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
-          {/* Payment Summary */}
-          {budgetNum > 0 && (
-            <View style={styles.paymentSummary}>
-              <Text style={styles.summaryTitle}>Payment Summary</Text>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>
-                  Total Budget (Workers Receive)
-                </Text>
-                <Text style={styles.summaryValue}>₱{budgetNum.toFixed(2)}</Text>
-              </View>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>
-                  50% Escrow (Downpayment)
-                </Text>
-                <Text style={styles.summaryValue}>
-                  ₱{escrowAmount.toFixed(2)}
-                </Text>
-              </View>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>
-                  Platform Fee (5% of escrow)
-                </Text>
-                <Text style={styles.summaryValue}>
-                  ₱{platformFee.toFixed(2)}
-                </Text>
-              </View>
-              <View style={[styles.summaryRow, styles.summaryRowTotal]}>
-                <Text style={styles.summaryLabelTotal}>Due Now</Text>
-                <Text style={styles.summaryValueTotal}>
-                  ₱{totalDue.toFixed(2)}
-                </Text>
-              </View>
-              <View style={styles.walletBalanceRow}>
-                <Text style={styles.walletLabel}>
-                  Wallet Balance: ₱{walletBalance.toFixed(2)}
-                </Text>
-                {!hasEnoughBalance && (
-                  <Text style={styles.insufficientText}>
-                    (Need ₱{(totalDue - walletBalance).toFixed(2)} more)
-                  </Text>
-                )}
-              </View>
-            </View>
-          )}
-        </View>
-
-        {/* Team Start Threshold */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>🚀 Team Start Options</Text>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>
-              Start When Team is {teamStartThreshold}% Filled
-            </Text>
-            <View style={styles.thresholdSlider}>
-              {[50, 75, 100].map((value) => (
-                <TouchableOpacity
-                  key={value}
-                  style={[
-                    styles.thresholdOption,
-                    teamStartThreshold === value &&
-                      styles.thresholdOptionSelected,
-                  ]}
-                  onPress={() => setTeamStartThreshold(value)}
-                >
-                  <Text
-                    style={[
-                      styles.thresholdText,
-                      teamStartThreshold === value &&
-                        styles.thresholdTextSelected,
-                    ]}
-                  >
-                    {value}%
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <Text style={styles.hint}>
-              {teamStartThreshold === 100
-                ? "Job will start only when ALL positions are filled."
-                : `Job can start when ${teamStartThreshold}% of positions are filled.`}
-            </Text>
-          </View>
-        </View>
-
-        {/* Location Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>📍 Location</Text>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Barangay *</Text>
-            <TouchableOpacity
-              style={styles.selectButton}
-              onPress={() => setBarangayModalVisible(true)}
-            >
-              <Text
-                style={
-                  barangay
-                    ? styles.selectButtonText
-                    : styles.selectButtonPlaceholder
-                }
-              >
-                {barangay || "Select barangay"}
-              </Text>
-              <Ionicons
-                name="chevron-down"
-                size={20}
-                color={Colors.textSecondary}
-              />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Street / House No. *</Text>
-            <TextInput
-              style={styles.input}
-              value={street}
-              onChangeText={setStreet}
-              placeholder="e.g., 123 Main Street"
-            />
-          </View>
-        </View>
-
-        {/* Urgency & Date */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>⏰ Timing</Text>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Urgency Level</Text>
-            <View style={styles.urgencyOptions}>
-              {[
-                { value: "LOW", label: "Low 🟢", color: Colors.success },
-                { value: "MEDIUM", label: "Medium 🟡", color: Colors.warning },
-                { value: "HIGH", label: "High 🔴", color: Colors.error },
-              ].map((opt) => (
-                <TouchableOpacity
-                  key={opt.value}
-                  style={[
-                    styles.urgencyOption,
-                    urgency === opt.value && {
-                      borderColor: opt.color,
-                      backgroundColor: `${opt.color}10`,
-                    },
-                  ]}
-                  onPress={() => setUrgency(opt.value as any)}
-                >
-                  <Text style={styles.urgencyText}>{opt.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Preferred Start Date (Optional)</Text>
-            <TouchableOpacity
-              style={styles.dateButton}
-              onPress={() => setShowDatePicker(true)}
-            >
-              <Ionicons
-                name="calendar"
-                size={20}
-                color={Colors.textSecondary}
-              />
-              <Text
-                style={startDate ? styles.dateText : styles.datePlaceholder}
-              >
-                {startDate ? startDate.toLocaleDateString() : "Select date"}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Materials */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
-            🧰 Materials Needed (Optional)
-          </Text>
-
-          <View style={styles.materialInputRow}>
-            <TextInput
-              style={[styles.input, styles.materialInput]}
-              value={materialInput}
-              onChangeText={setMaterialInput}
-              placeholder="Add material"
-              onSubmitEditing={handleAddMaterial}
-            />
-            <TouchableOpacity
-              style={styles.addMaterialButton}
-              onPress={handleAddMaterial}
-            >
-              <Ionicons name="add" size={24} color={Colors.white} />
-            </TouchableOpacity>
-          </View>
-
-          {materials.length > 0 && (
-            <View style={styles.materialsList}>
-              {materials.map((m, i) => (
-                <View key={i} style={styles.materialTag}>
-                  <Text style={styles.materialTagText}>{m}</Text>
-                  <TouchableOpacity
-                    onPress={() =>
-                      setMaterials(materials.filter((_, idx) => idx !== i))
-                    }
-                  >
-                    <Ionicons
-                      name="close"
-                      size={16}
-                      color={Colors.textSecondary}
-                    />
-                  </TouchableOpacity>
-                </View>
-              ))}
-            </View>
-          )}
-        </View>
-
-        {/* Submit Button */}
-        <TouchableOpacity
-          style={[
-            styles.submitButton,
-            (!hasEnoughBalance ||
-              skillSlots.length === 0 ||
-              createJobMutation.isPending) &&
-              styles.submitButtonDisabled,
-          ]}
-          onPress={handleSubmit}
-          disabled={
-            !hasEnoughBalance ||
-            skillSlots.length === 0 ||
-            createJobMutation.isPending
-          }
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.content}
         >
-          {createJobMutation.isPending ? (
-            <ActivityIndicator color={Colors.white} />
-          ) : (
-            <>
-              <Ionicons
-                name="checkmark-circle"
-                size={24}
-                color={Colors.white}
-              />
-              <Text style={styles.submitButtonText}>Create Team Job</Text>
-            </>
-          )}
-        </TouchableOpacity>
-      </ScrollView>
+          {/* Job Details Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>📋 Job Details</Text>
 
-      {/* Add Skill Modal */}
-      <Modal
-        visible={addSkillModalVisible}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setAddSkillModalVisible(false)}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Add Skill Requirement</Text>
-            <TouchableOpacity onPress={() => setAddSkillModalVisible(false)}>
-              <Ionicons name="close" size={28} color={Colors.textPrimary} />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.modalContent}>
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Search Skill/Specialization</Text>
+              <Text style={styles.label}>Job Title *</Text>
               <TextInput
                 style={styles.input}
-                value={specSearchQuery}
-                onChangeText={setSpecSearchQuery}
-                placeholder="e.g., Plumbing, Electrical, Carpentry"
+                value={title}
+                onChangeText={setTitle}
+                placeholder="e.g., Home Renovation - Multiple Skills Needed"
+                maxLength={100}
               />
+              <Text style={styles.charCount}>{title.length}/100</Text>
             </View>
 
-            <Text style={styles.label}>Select Specialization</Text>
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Description *</Text>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                value={description}
+                onChangeText={setDescription}
+                placeholder="Describe the job in detail. What needs to be done? What are the requirements?"
+                multiline
+                numberOfLines={4}
+                maxLength={1000}
+              />
+              <Text style={styles.charCount}>{description.length}/1000</Text>
+            </View>
+          </View>
+
+          {/* Skill Requirements Section */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>👥 Team Requirements</Text>
+              <TouchableOpacity
+                style={styles.addSkillButton}
+                onPress={() => setAddSkillModalVisible(true)}
+              >
+                <Ionicons name="add-circle" size={24} color={Colors.primary} />
+                <Text style={styles.addSkillButtonText}>Add Skill</Text>
+              </TouchableOpacity>
+            </View>
+
+            {skillSlots.length === 0 ? (
+              <View style={styles.emptySkillsCard}>
+                <Ionicons
+                  name="people-outline"
+                  size={48}
+                  color={Colors.textSecondary}
+                />
+                <Text style={styles.emptySkillsText}>
+                  No skills added yet. Add the skills you need for your team
+                  job.
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.skillSlotsList}>
+                {skillSlots.map(renderSkillSlot)}
+
+                <View style={styles.totalWorkersCard}>
+                  <Ionicons name="people" size={20} color={Colors.primary} />
+                  <Text style={styles.totalWorkersText}>
+                    Total Workers Needed: {totalWorkersNeeded}
+                  </Text>
+                </View>
+              </View>
+            )}
+          </View>
+
+          {/* Budget Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>💰 Budget</Text>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Total Budget (₱) *</Text>
+              <TextInput
+                style={styles.input}
+                value={totalBudget}
+                onChangeText={setTotalBudget}
+                placeholder="1000"
+                keyboardType="numeric"
+              />
+              <Text style={styles.hint}>
+                This is the total amount workers will receive for the entire
+                job.
+              </Text>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Budget Allocation Method</Text>
+              <View style={styles.allocationOptions}>
+                {ALLOCATION_METHODS.map((method) => (
+                  <TouchableOpacity
+                    key={method.value}
+                    style={[
+                      styles.allocationOption,
+                      allocationMethod === method.value &&
+                        styles.allocationOptionSelected,
+                    ]}
+                    onPress={() => setAllocationMethod(method.value)}
+                  >
+                    <View style={styles.allocationOptionContent}>
+                      <Text
+                        style={[
+                          styles.allocationOptionLabel,
+                          allocationMethod === method.value &&
+                            styles.allocationOptionLabelSelected,
+                        ]}
+                      >
+                        {method.label}
+                      </Text>
+                      <Text style={styles.allocationOptionDesc}>
+                        {method.description}
+                      </Text>
+                    </View>
+                    {allocationMethod === method.value && (
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={20}
+                        color={Colors.primary}
+                      />
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Payment Summary */}
+            {budgetNum > 0 && (
+              <View style={styles.paymentSummary}>
+                <Text style={styles.summaryTitle}>Payment Summary</Text>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>
+                    Total Budget (Workers Receive)
+                  </Text>
+                  <Text style={styles.summaryValue}>
+                    ₱{budgetNum.toFixed(2)}
+                  </Text>
+                </View>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>
+                    50% Escrow (Downpayment)
+                  </Text>
+                  <Text style={styles.summaryValue}>
+                    ₱{escrowAmount.toFixed(2)}
+                  </Text>
+                </View>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>
+                    Platform Fee (5% of escrow)
+                  </Text>
+                  <Text style={styles.summaryValue}>
+                    ₱{platformFee.toFixed(2)}
+                  </Text>
+                </View>
+                <View style={[styles.summaryRow, styles.summaryRowTotal]}>
+                  <Text style={styles.summaryLabelTotal}>Due Now</Text>
+                  <Text style={styles.summaryValueTotal}>
+                    ₱{totalDue.toFixed(2)}
+                  </Text>
+                </View>
+                <View style={styles.walletBalanceRow}>
+                  <Text style={styles.walletLabel}>
+                    Wallet Balance: ₱{walletBalance.toFixed(2)}
+                  </Text>
+                  {!hasEnoughBalance && (
+                    <Text style={styles.insufficientText}>
+                      (Need ₱{(totalDue - walletBalance).toFixed(2)} more)
+                    </Text>
+                  )}
+                </View>
+              </View>
+            )}
+          </View>
+
+          {/* Team Start Threshold */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>🚀 Team Start Options</Text>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>
+                Start When Team is {teamStartThreshold}% Filled
+              </Text>
+              <View style={styles.thresholdSlider}>
+                {[50, 75, 100].map((value) => (
+                  <TouchableOpacity
+                    key={value}
+                    style={[
+                      styles.thresholdOption,
+                      teamStartThreshold === value &&
+                        styles.thresholdOptionSelected,
+                    ]}
+                    onPress={() => setTeamStartThreshold(value)}
+                  >
+                    <Text
+                      style={[
+                        styles.thresholdText,
+                        teamStartThreshold === value &&
+                          styles.thresholdTextSelected,
+                      ]}
+                    >
+                      {value}%
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <Text style={styles.hint}>
+                {teamStartThreshold === 100
+                  ? "Job will start only when ALL positions are filled."
+                  : `Job can start when ${teamStartThreshold}% of positions are filled.`}
+              </Text>
+            </View>
+          </View>
+
+          {/* Location Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>📍 Location</Text>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Barangay *</Text>
+              <TouchableOpacity
+                style={styles.selectButton}
+                onPress={() => setBarangayModalVisible(true)}
+              >
+                <Text
+                  style={
+                    barangay
+                      ? styles.selectButtonText
+                      : styles.selectButtonPlaceholder
+                  }
+                >
+                  {barangay || "Select barangay"}
+                </Text>
+                <Ionicons
+                  name="chevron-down"
+                  size={20}
+                  color={Colors.textSecondary}
+                />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Street / House No. *</Text>
+              <TextInput
+                style={styles.input}
+                value={street}
+                onChangeText={setStreet}
+                placeholder="e.g., 123 Main Street"
+              />
+            </View>
+          </View>
+
+          {/* Urgency & Date */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>⏰ Timing</Text>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Urgency Level</Text>
+              <View style={styles.urgencyOptions}>
+                {[
+                  { value: "LOW", label: "Low 🟢", color: Colors.success },
+                  {
+                    value: "MEDIUM",
+                    label: "Medium 🟡",
+                    color: Colors.warning,
+                  },
+                  { value: "HIGH", label: "High 🔴", color: Colors.error },
+                ].map((opt) => (
+                  <TouchableOpacity
+                    key={opt.value}
+                    style={[
+                      styles.urgencyOption,
+                      urgency === opt.value && {
+                        borderColor: opt.color,
+                        backgroundColor: `${opt.color}10`,
+                      },
+                    ]}
+                    onPress={() => setUrgency(opt.value as any)}
+                  >
+                    <Text style={styles.urgencyText}>{opt.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Preferred Start Date (Optional)</Text>
+              <TouchableOpacity
+                style={styles.dateButton}
+                onPress={() => setShowDatePicker(true)}
+              >
+                <Ionicons
+                  name="calendar"
+                  size={20}
+                  color={Colors.textSecondary}
+                />
+                <Text
+                  style={startDate ? styles.dateText : styles.datePlaceholder}
+                >
+                  {startDate ? startDate.toLocaleDateString() : "Select date"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Materials */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>
+              🧰 Materials Needed (Optional)
+            </Text>
+
+            <View style={styles.materialInputRow}>
+              <TextInput
+                style={[styles.input, styles.materialInput]}
+                value={materialInput}
+                onChangeText={setMaterialInput}
+                placeholder="Add material"
+                onSubmitEditing={handleAddMaterial}
+              />
+              <TouchableOpacity
+                style={styles.addMaterialButton}
+                onPress={handleAddMaterial}
+              >
+                <Ionicons name="add" size={24} color={Colors.white} />
+              </TouchableOpacity>
+            </View>
+
+            {materials.length > 0 && (
+              <View style={styles.materialsList}>
+                {materials.map((m, i) => (
+                  <View key={i} style={styles.materialTag}>
+                    <Text style={styles.materialTagText}>{m}</Text>
+                    <TouchableOpacity
+                      onPress={() =>
+                        setMaterials(materials.filter((_, idx) => idx !== i))
+                      }
+                    >
+                      <Ionicons
+                        name="close"
+                        size={16}
+                        color={Colors.textSecondary}
+                      />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+
+          {/* Submit Button */}
+          <TouchableOpacity
+            style={[
+              styles.submitButton,
+              (!hasEnoughBalance ||
+                skillSlots.length === 0 ||
+                createJobMutation.isPending) &&
+                styles.submitButtonDisabled,
+            ]}
+            onPress={handleSubmit}
+            disabled={
+              !hasEnoughBalance ||
+              skillSlots.length === 0 ||
+              createJobMutation.isPending
+            }
+          >
+            {createJobMutation.isPending ? (
+              <ActivityIndicator color={Colors.white} />
+            ) : (
+              <>
+                <Ionicons
+                  name="checkmark-circle"
+                  size={24}
+                  color={Colors.white}
+                />
+                <Text style={styles.submitButtonText}>Create Team Job</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </ScrollView>
+
+        {/* Add Skill Modal */}
+        <Modal
+          visible={addSkillModalVisible}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => setAddSkillModalVisible(false)}
+        >
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Add Skill Requirement</Text>
+              <TouchableOpacity onPress={() => setAddSkillModalVisible(false)}>
+                <Ionicons name="close" size={28} color={Colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalContent}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Search Skill/Specialization</Text>
+                <TextInput
+                  style={styles.input}
+                  value={specSearchQuery}
+                  onChangeText={setSpecSearchQuery}
+                  placeholder="e.g., Plumbing, Electrical, Carpentry"
+                />
+              </View>
+
+              <Text style={styles.label}>Select Specialization</Text>
+              <FlatList
+                data={filteredSpecs}
+                keyExtractor={(item) => item.id.toString()}
+                style={styles.specList}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={[
+                      styles.specItem,
+                      selectedSpecialization?.id === item.id &&
+                        styles.specItemSelected,
+                    ]}
+                    onPress={() => setSelectedSpecialization(item)}
+                  >
+                    <View>
+                      <Text style={styles.specName}>{item.name}</Text>
+                      <Text style={styles.specCategory}>
+                        {item.category_name}
+                      </Text>
+                    </View>
+                    {selectedSpecialization?.id === item.id && (
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={24}
+                        color={Colors.primary}
+                      />
+                    )}
+                  </TouchableOpacity>
+                )}
+                ListEmptyComponent={
+                  <Text style={styles.emptyListText}>
+                    {specsLoading ? "Loading..." : "No specializations found"}
+                  </Text>
+                }
+              />
+
+              {selectedSpecialization && (
+                <>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Workers Needed</Text>
+                    <View style={styles.workersStepper}>
+                      <TouchableOpacity
+                        style={styles.stepperButton}
+                        onPress={() =>
+                          setNewSlotWorkers(Math.max(1, newSlotWorkers - 1))
+                        }
+                      >
+                        <Ionicons
+                          name="remove"
+                          size={24}
+                          color={Colors.primary}
+                        />
+                      </TouchableOpacity>
+                      <Text style={styles.workersCountLarge}>
+                        {newSlotWorkers}
+                      </Text>
+                      <TouchableOpacity
+                        style={styles.stepperButton}
+                        onPress={() =>
+                          setNewSlotWorkers(Math.min(10, newSlotWorkers + 1))
+                        }
+                      >
+                        <Ionicons name="add" size={24} color={Colors.primary} />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Skill Level Required</Text>
+                    <View style={styles.skillLevelOptions}>
+                      {SKILL_LEVELS.map((level) => (
+                        <TouchableOpacity
+                          key={level.value}
+                          style={[
+                            styles.skillLevelOption,
+                            newSlotLevel === level.value &&
+                              styles.skillLevelOptionSelected,
+                          ]}
+                          onPress={() => setNewSlotLevel(level.value as any)}
+                        >
+                          <Text style={styles.skillLevelOptionText}>
+                            {level.label}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Notes (Optional)</Text>
+                    <TextInput
+                      style={[styles.input, styles.textArea]}
+                      value={newSlotNotes}
+                      onChangeText={setNewSlotNotes}
+                      placeholder="Any specific requirements for this role?"
+                      multiline
+                      numberOfLines={2}
+                    />
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.modalAddButton}
+                    onPress={handleAddSkillSlot}
+                  >
+                    <Ionicons
+                      name="add-circle"
+                      size={24}
+                      color={Colors.white}
+                    />
+                    <Text style={styles.modalAddButtonText}>
+                      Add {newSlotWorkers} {selectedSpecialization.name} Worker
+                      {newSlotWorkers > 1 ? "s" : ""}
+                    </Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+          </View>
+        </Modal>
+
+        {/* Barangay Selection Modal */}
+        <Modal
+          visible={barangayModalVisible}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => setBarangayModalVisible(false)}
+        >
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Barangay</Text>
+              <TouchableOpacity onPress={() => setBarangayModalVisible(false)}>
+                <Ionicons name="close" size={28} color={Colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
             <FlatList
-              data={filteredSpecs}
+              data={barangays || []}
               keyExtractor={(item) => item.id.toString()}
-              style={styles.specList}
               renderItem={({ item }) => (
                 <TouchableOpacity
-                  style={[
-                    styles.specItem,
-                    selectedSpecialization?.id === item.id &&
-                      styles.specItemSelected,
-                  ]}
-                  onPress={() => setSelectedSpecialization(item)}
+                  style={styles.barangayItem}
+                  onPress={() => {
+                    setBarangay(item.name);
+                    setBarangayModalVisible(false);
+                  }}
                 >
-                  <View>
-                    <Text style={styles.specName}>{item.name}</Text>
-                    <Text style={styles.specCategory}>
-                      {item.category_name}
-                    </Text>
-                  </View>
-                  {selectedSpecialization?.id === item.id && (
+                  <Text style={styles.barangayName}>{item.name}</Text>
+                  {barangay === item.name && (
                     <Ionicons
-                      name="checkmark-circle"
+                      name="checkmark"
                       size={24}
                       color={Colors.primary}
                     />
                   )}
                 </TouchableOpacity>
               )}
-              ListEmptyComponent={
-                <Text style={styles.emptyListText}>
-                  {specsLoading ? "Loading..." : "No specializations found"}
-                </Text>
-              }
             />
-
-            {selectedSpecialization && (
-              <>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Workers Needed</Text>
-                  <View style={styles.workersStepper}>
-                    <TouchableOpacity
-                      style={styles.stepperButton}
-                      onPress={() =>
-                        setNewSlotWorkers(Math.max(1, newSlotWorkers - 1))
-                      }
-                    >
-                      <Ionicons
-                        name="remove"
-                        size={24}
-                        color={Colors.primary}
-                      />
-                    </TouchableOpacity>
-                    <Text style={styles.workersCountLarge}>
-                      {newSlotWorkers}
-                    </Text>
-                    <TouchableOpacity
-                      style={styles.stepperButton}
-                      onPress={() =>
-                        setNewSlotWorkers(Math.min(10, newSlotWorkers + 1))
-                      }
-                    >
-                      <Ionicons name="add" size={24} color={Colors.primary} />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Skill Level Required</Text>
-                  <View style={styles.skillLevelOptions}>
-                    {SKILL_LEVELS.map((level) => (
-                      <TouchableOpacity
-                        key={level.value}
-                        style={[
-                          styles.skillLevelOption,
-                          newSlotLevel === level.value &&
-                            styles.skillLevelOptionSelected,
-                        ]}
-                        onPress={() => setNewSlotLevel(level.value as any)}
-                      >
-                        <Text style={styles.skillLevelOptionText}>
-                          {level.label}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Notes (Optional)</Text>
-                  <TextInput
-                    style={[styles.input, styles.textArea]}
-                    value={newSlotNotes}
-                    onChangeText={setNewSlotNotes}
-                    placeholder="Any specific requirements for this role?"
-                    multiline
-                    numberOfLines={2}
-                  />
-                </View>
-
-                <TouchableOpacity
-                  style={styles.modalAddButton}
-                  onPress={handleAddSkillSlot}
-                >
-                  <Ionicons name="add-circle" size={24} color={Colors.white} />
-                  <Text style={styles.modalAddButtonText}>
-                    Add {newSlotWorkers} {selectedSpecialization.name} Worker
-                    {newSlotWorkers > 1 ? "s" : ""}
-                  </Text>
-                </TouchableOpacity>
-              </>
-            )}
           </View>
-        </View>
-      </Modal>
+        </Modal>
 
-      {/* Barangay Selection Modal */}
-      <Modal
-        visible={barangayModalVisible}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setBarangayModalVisible(false)}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Select Barangay</Text>
-            <TouchableOpacity onPress={() => setBarangayModalVisible(false)}>
-              <Ionicons name="close" size={28} color={Colors.textPrimary} />
-            </TouchableOpacity>
-          </View>
-          <FlatList
-            data={barangays || []}
-            keyExtractor={(item) => item.id.toString()}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={styles.barangayItem}
-                onPress={() => {
-                  setBarangay(item.name);
-                  setBarangayModalVisible(false);
-                }}
-              >
-                <Text style={styles.barangayName}>{item.name}</Text>
-                {barangay === item.name && (
-                  <Ionicons name="checkmark" size={24} color={Colors.primary} />
-                )}
-              </TouchableOpacity>
-            )}
+        {/* Date Picker */}
+        {showDatePicker && (
+          <DateTimePicker
+            value={startDate || new Date()}
+            mode="date"
+            minimumDate={new Date()}
+            onChange={(event, date) => {
+              setShowDatePicker(false);
+              if (date) setStartDate(date);
+            }}
           />
-        </View>
-      </Modal>
-
-      {/* Date Picker */}
-      {showDatePicker && (
-        <DateTimePicker
-          value={startDate || new Date()}
-          mode="date"
-          minimumDate={new Date()}
-          onChange={(event, date) => {
-            setShowDatePicker(false);
-            if (date) setStartDate(date);
-          }}
-        />
-      )}
-    </KeyboardAvoidingView>
+        )}
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: Colors.primary,
+  },
   container: {
     flex: 1,
     backgroundColor: Colors.background,

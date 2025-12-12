@@ -26,6 +26,7 @@ import {
   ActivityIndicator,
   Modal,
   FlatList,
+  SafeAreaView,
 } from "react-native";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -462,7 +463,7 @@ export default function CreateJobScreen() {
   };
 
   return (
-    <>
+    <SafeAreaView style={styles.safeArea}>
       <Stack.Screen
         options={{
           title: workerId
@@ -1194,11 +1195,15 @@ export default function CreateJobScreen() {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
-    </>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: Colors.white,
+  },
   container: {
     flex: 1,
     backgroundColor: Colors.background,
