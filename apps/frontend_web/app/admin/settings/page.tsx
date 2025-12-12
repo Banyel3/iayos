@@ -121,23 +121,18 @@ export default function SettingsPage() {
             {settingsModules.map((module, index) => (
               <Card
                 key={index}
-                className="border-0 shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden group cursor-pointer"
+                className="border-0 shadow-lg overflow-hidden cursor-pointer"
                 onClick={() => router.push(module.route)}
               >
-                <div
-                  className={`absolute inset-0 bg-gradient-to-br ${module.color} opacity-0 group-hover:opacity-5 transition-opacity pointer-events-none`}
-                ></div>
                 <CardContent className="p-6 relative">
                   <div className="flex items-start justify-between mb-4">
-                    <div
-                      className={`p-3 ${module.iconBg} rounded-xl group-hover:scale-110 transition-transform`}
-                    >
+                    <div className={`p-3 ${module.iconBg} rounded-xl`}>
                       <module.icon className={`h-6 w-6 ${module.iconColor}`} />
                     </div>
-                    <ChevronRight className="h-5 w-5 text-gray-400 group-hover:text-gray-600 group-hover:translate-x-1 transition-all" />
+                    <ChevronRight className="h-5 w-5 text-gray-400" />
                   </div>
 
-                  <h3 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-gray-700 transition-colors">
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">
                     {module.title}
                   </h3>
 
@@ -152,7 +147,7 @@ export default function SettingsPage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="text-xs group-hover:bg-gray-100"
+                      className="text-xs"
                       onClick={(e) => {
                         e.stopPropagation();
                         router.push(module.route);

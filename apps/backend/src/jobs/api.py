@@ -3543,7 +3543,17 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
         is_worker = profile is not None and job.assignedWorkerID and job.assignedWorkerID.profileID.profileID == profile.profileID
         is_agency_owner = is_agency_job and job.assignedEmployeeID.agency == request.auth
         
-        if not (is_client or is_worker or is_agency_owner):
+        # For team jobs, check if worker is part of the team via JobWorkerAssignment
+        is_team_worker = False
+        if job.is_team_job and profile is not None:
+            from accounts.models import JobWorkerAssignment
+            is_team_worker = JobWorkerAssignment.objects.filter(
+                jobID=job,
+                workerID__profileID=profile,
+                assignment_status__in=['ACTIVE', 'COMPLETED']
+            ).exists()
+        
+        if not (is_client or is_worker or is_agency_owner or is_team_worker):
             return Response(
                 {"error": "You are not part of this job"},
                 status=403
@@ -3556,12 +3566,14 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                 status=400
             )
         
-        # Validate rating
-        if data.rating < 1 or data.rating > 5:
-            return Response(
-                {"error": "Rating must be between 1 and 5 stars"},
-                status=400
-            )
+        # Validate ratings (multi-criteria: 1-5 stars each)
+        for rating_field in ['rating_quality', 'rating_communication', 'rating_punctuality', 'rating_professionalism']:
+            rating_value = getattr(data, rating_field, None)
+            if rating_value is None or rating_value < 1 or rating_value > 5:
+                return Response(
+                    {"error": f"{rating_field.replace('_', ' ').title()} must be between 1 and 5 stars"},
+                    status=400
+                )
         
         from accounts.models import JobReview, JobEmployeeAssignment
         from agency.models import AgencyEmployee
@@ -3845,29 +3857,86 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
             }
         
         # Regular job (non-agency) - original logic
+        # This also handles team jobs now
         else:
             reviewer_profile = profile
             if is_client:
-                if not job.assignedWorkerID or not job.assignedWorkerID.profileID:
-                    return Response(
-                        {"error": "Cannot review: No worker assigned to this job"},
-                        status=400
-                    )
-                reviewee_profile = job.assignedWorkerID.profileID
-                reviewer_type = "CLIENT"
+                # Team job client review - must specify which worker to review
+                if job.is_team_job:
+                    from accounts.models import JobWorkerAssignment
+                    
+                    if not data.worker_id:
+                        # Get list of workers that can be reviewed
+                        assignments = JobWorkerAssignment.objects.filter(
+                            jobID=job,
+                            assignment_status__in=['ACTIVE', 'COMPLETED']
+                        ).select_related('workerID__profileID')
+                        
+                        # Check which workers haven't been reviewed yet
+                        reviewed_worker_ids = JobReview.objects.filter(
+                            jobID=job,
+                            reviewerID=request.auth,
+                            reviewerType="CLIENT"
+                        ).values_list('revieweeID', flat=True)
+                        
+                        pending_workers = []
+                        for assignment in assignments:
+                            worker_account = assignment.workerID.profileID.accountFK
+                            if worker_account.id not in reviewed_worker_ids:
+                                pending_workers.append({
+                                    "worker_id": assignment.workerID.workerID,
+                                    "name": f"{assignment.workerID.profileID.firstName} {assignment.workerID.profileID.lastName}"
+                                })
+                        
+                        return Response(
+                            {
+                                "error": "Team job requires worker_id to specify which worker to review",
+                                "pending_worker_reviews": pending_workers
+                            },
+                            status=400
+                        )
+                    
+                    # Find the assignment for the specified worker
+                    try:
+                        assignment = JobWorkerAssignment.objects.select_related(
+                            'workerID__profileID__accountFK'
+                        ).get(
+                            jobID=job,
+                            workerID_id=data.worker_id,
+                            assignment_status__in=['ACTIVE', 'COMPLETED']
+                        )
+                        reviewee_profile = assignment.workerID.profileID
+                    except JobWorkerAssignment.DoesNotExist:
+                        return Response(
+                            {"error": f"Worker {data.worker_id} is not assigned to this team job"},
+                            status=400
+                        )
+                    
+                    reviewer_type = "CLIENT"
+                else:
+                    # Regular (non-team) job
+                    if not job.assignedWorkerID or not job.assignedWorkerID.profileID:
+                        return Response(
+                            {"error": "Cannot review: No worker assigned to this job"},
+                            status=400
+                        )
+                    reviewee_profile = job.assignedWorkerID.profileID
+                    reviewer_type = "CLIENT"
             else:
                 reviewee_profile = job.clientID.profileID
                 reviewer_type = "WORKER"
             
-            # Check if review already exists
+            # Check if review already exists for this specific reviewee
+            # For team jobs, clients can review multiple workers, so we must check revieweeID
             existing_review = JobReview.objects.filter(
                 jobID=job,
-                reviewerID=request.auth
+                reviewerID=request.auth,
+                revieweeID=reviewee_profile.accountFK
             ).first()
             
             if existing_review:
                 return Response(
-                    {"error": "You have already submitted a review for this job"},
+                    {"error": "You have already submitted a review for this person on this job"},
                     status=400
                 )
             

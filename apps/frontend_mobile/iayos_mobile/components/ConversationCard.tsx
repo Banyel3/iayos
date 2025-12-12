@@ -1,5 +1,6 @@
 // ConversationCard Component
 // Displays a single conversation item in the list
+// Supports both 1:1 and team group conversations
 
 import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Image } from "react-native";
@@ -49,6 +50,31 @@ export default function ConversationCard({
     }
   };
 
+  // Check if this is a team conversation
+  const isTeamConversation = conversation.conversation_type === "TEAM_GROUP";
+  
+  // Get display name and avatar based on conversation type
+  const getDisplayInfo = () => {
+    if (isTeamConversation) {
+      // For team conversations, show team info
+      const memberCount = conversation.team_members?.length || 0;
+      const firstMember = conversation.team_members?.[0];
+      return {
+        name: `Team Chat (${memberCount} ${memberCount === 1 ? 'worker' : 'workers'})`,
+        avatar: firstMember?.avatar || null,
+        showTeamBadge: true,
+      };
+    }
+    // For 1:1 conversations
+    return {
+      name: conversation.other_participant?.name || "Unknown",
+      avatar: conversation.other_participant?.avatar || null,
+      showTeamBadge: false,
+    };
+  };
+
+  const displayInfo = getDisplayInfo();
+
   return (
     <TouchableOpacity
       style={styles.container}
@@ -57,10 +83,20 @@ export default function ConversationCard({
     >
       {/* Avatar */}
       <View style={styles.avatarContainer}>
-        <Image
-          source={{ uri: conversation.other_participant.avatar }}
-          style={styles.avatar}
-        />
+        {displayInfo.avatar ? (
+          <Image
+            source={{ uri: displayInfo.avatar }}
+            style={styles.avatar}
+          />
+        ) : (
+          <View style={[styles.avatar, styles.avatarPlaceholder]}>
+            <Ionicons
+              name={isTeamConversation ? "people" : "person"}
+              size={24}
+              color={Colors.textSecondary}
+            />
+          </View>
+        )}
         {conversation.unread_count > 0 && (
           <View style={styles.unreadBadge}>
             <Text style={styles.unreadText}>
@@ -68,6 +104,11 @@ export default function ConversationCard({
                 ? "99+"
                 : conversation.unread_count}
             </Text>
+          </View>
+        )}
+        {displayInfo.showTeamBadge && (
+          <View style={styles.teamBadge}>
+            <Ionicons name="people" size={10} color={Colors.white} />
           </View>
         )}
       </View>
@@ -83,7 +124,7 @@ export default function ConversationCard({
             ]}
             numberOfLines={1}
           >
-            {conversation.other_participant.name}
+            {displayInfo.name}
           </Text>
           {formattedTime && <Text style={styles.time}>{formattedTime}</Text>}
         </View>
@@ -171,6 +212,10 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     backgroundColor: Colors.backgroundSecondary,
   },
+  avatarPlaceholder: {
+    justifyContent: "center",
+    alignItems: "center",
+  },
   unreadBadge: {
     position: "absolute",
     top: -4,
@@ -190,6 +235,19 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700",
     color: Colors.white,
+  },
+  teamBadge: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    backgroundColor: Colors.primary,
+    borderRadius: 10,
+    width: 20,
+    height: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: Colors.white,
   },
   content: {
     flex: 1,

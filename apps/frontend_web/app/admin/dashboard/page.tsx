@@ -42,8 +42,7 @@ export default function AdminDashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const API_BASE =
-    process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
   const fetchStats = async () => {
     try {
@@ -130,7 +129,7 @@ export default function AdminDashboardPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
             {/* Total Users */}
             <Link href="/admin/users">
-              <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+              <Card className="cursor-pointer">
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
                   <CardTitle className="text-sm font-medium text-gray-600">
                     Total Users
@@ -159,7 +158,7 @@ export default function AdminDashboardPage() {
 
             {/* Active Jobs */}
             <Link href="/admin/jobs">
-              <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+              <Card className="cursor-pointer">
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
                   <CardTitle className="text-sm font-medium text-gray-600">
                     Total Jobs
@@ -184,7 +183,7 @@ export default function AdminDashboardPage() {
 
             {/* Pending KYC */}
             <Link href="/admin/kyc/pending">
-              <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+              <Card className="cursor-pointer">
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
                   <CardTitle className="text-sm font-medium text-gray-600">
                     Pending KYC
@@ -599,7 +598,7 @@ export default function AdminDashboardPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Link href="/admin/kyc/pending" className="block">
-                  <div className="p-4 border rounded-lg hover:border-yellow-500 hover:shadow-md transition-all cursor-pointer bg-yellow-50 border-yellow-200">
+                  <div className="p-4 border rounded-lg cursor-pointer bg-yellow-50 border-yellow-200">
                     <div className="flex items-center justify-between">
                       <div>
                         <h3 className="font-semibold text-gray-900">
@@ -615,7 +614,7 @@ export default function AdminDashboardPage() {
                 </Link>
 
                 <Link href="/admin/jobs" className="block">
-                  <div className="p-4 border rounded-lg hover:border-blue-500 hover:shadow-md transition-all cursor-pointer">
+                  <div className="p-4 border rounded-lg cursor-pointer">
                     <div className="flex items-center justify-between">
                       <div>
                         <h3 className="font-semibold text-gray-900">
@@ -631,7 +630,7 @@ export default function AdminDashboardPage() {
                 </Link>
 
                 <Link href="/admin/users" className="block">
-                  <div className="p-4 border rounded-lg hover:border-purple-500 hover:shadow-md transition-all cursor-pointer">
+                  <div className="p-4 border rounded-lg cursor-pointer">
                     <div className="flex items-center justify-between">
                       <div>
                         <h3 className="font-semibold text-gray-900">
@@ -647,7 +646,7 @@ export default function AdminDashboardPage() {
                 </Link>
 
                 <Link href="/admin/reports" className="block">
-                  <div className="p-4 border rounded-lg hover:border-green-500 hover:shadow-md transition-all cursor-pointer">
+                  <div className="p-4 border rounded-lg cursor-pointer">
                     <div className="flex items-center justify-between">
                       <div>
                         <h3 className="font-semibold text-gray-900">

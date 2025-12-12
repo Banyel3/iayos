@@ -194,11 +194,8 @@ def create_team_job(
             description=f'Team job escrow (50%) for: {title} (Platform fee: ₱{platform_fee})'
         )
     
-    # Create team group conversation
-    conversation, _ = Conversation.create_team_conversation(
-        job_posting=job,
-        client_profile=client_profile_obj
-    )
+    # Note: Team group conversation is created when job STARTS (not when posted)
+    # This follows the single-job pattern where conversation is created at work start
     
     return {
         'success': True,
@@ -445,7 +442,10 @@ def accept_team_application(
         skill_slot.status = 'PARTIALLY_FILLED'
     skill_slot.save()
     
-    # Add worker to team conversation
+    # Add worker to team conversation IF it exists
+    # Note: Conversation is created when job STARTS, not when posted
+    # This code handles the case where additional workers are accepted AFTER job has started
+    # (e.g., force_start with partial team, then fill remaining slots)
     conversation = Conversation.objects.filter(relatedJobPosting=job).first()
     if conversation and conversation.is_team_conversation:
         conversation.add_team_worker(application.workerID.profileID, skill_slot)
@@ -576,11 +576,36 @@ def start_team_job(job_id: int, client_user, force_start: bool = False) -> dict:
     # Close all skill slots (no more applications)
     job.skill_slots.update(status='CLOSED')
     
-    # Notify all assigned workers
+    # Get all assigned workers
     assignments = JobWorkerAssignment.objects.filter(
         jobID=job, assignment_status='ACTIVE'
-    ).select_related('workerID__profileID')
+    ).select_related('workerID__profileID', 'skillSlotID')
     
+    # Create team group conversation NOW (when job starts, not when posted)
+    # This follows single-job pattern where conversation is created at work start
+    from profiles.models import Message
+    client_profile = job.clientID.profileID
+    conversation, _ = Conversation.create_team_conversation(
+        job_posting=job,
+        client_profile=client_profile
+    )
+    
+    # Collect worker names and add them to conversation
+    worker_names = []
+    for assignment in assignments:
+        worker_profile = assignment.workerID.profileID
+        worker_names.append(f"{worker_profile.firstName} {worker_profile.lastName}")
+        # Add worker to the team conversation
+        conversation.add_team_worker(worker_profile, assignment.skillSlotID)
+    
+    # Create system message with team member names
+    worker_list = ", ".join(worker_names) if worker_names else "the team"
+    Message.create_system_message(
+        conversation=conversation,
+        message_text=f"Team job '{job.title}' has started! Team members: {worker_list}. You can all communicate here."
+    )
+    
+    # Notify all assigned workers
     for assignment in assignments:
         Notification.objects.create(
             accountFK=assignment.workerID.profileID.accountFK,
@@ -703,6 +728,12 @@ def client_approve_team_job(job_id: int, client_user, payment_method: Optional[s
     job.status = 'COMPLETED'
     job.clientMarkedComplete = True
     job.clientMarkedCompleteAt = timezone.now()
+    # For team jobs, mark worker complete when client approves (all workers already marked their assignments complete)
+    job.workerMarkedComplete = True
+    job.workerMarkedCompleteAt = timezone.now()
+    # Mark remaining payment as paid (team jobs handle payment differently - escrow was paid at creation)
+    job.remainingPaymentPaid = True
+    job.remainingPaymentAt = timezone.now()
     
     if cash_proof_url:
         job.cashPaymentProofUrl = cash_proof_url

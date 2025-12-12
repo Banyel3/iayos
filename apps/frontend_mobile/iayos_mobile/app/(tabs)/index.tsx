@@ -725,7 +725,7 @@ export default function BrowseJobsScreen() {
                 </View>
               )}
 
-              {/* Category Filter */}}
+              {/* Category Filter */}
               <View style={styles.filterSection}>
                 <Text style={styles.filterLabel}>Category</Text>
                 <View style={styles.filterChipsContainer}>
