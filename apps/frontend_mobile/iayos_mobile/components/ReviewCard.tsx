@@ -1,28 +1,11 @@
 // ReviewCard Component
-// Displays individual review with rating, comment, and reviewer info
+// Displays individual review with rating, comment, reviewer info, and category breakdown
 
-import React, { useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  Image,
-  TouchableOpacity,
-  LayoutAnimation,
-  Platform,
-  UIManager,
-} from "react-native";
+import React from "react";
+import { View, Text, StyleSheet, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors, Typography, Spacing, BorderRadius } from "@/constants/theme";
 import { Review } from "@/lib/types/review";
-
-// Enable LayoutAnimation for Android
-if (
-  Platform.OS === "android" &&
-  UIManager.setLayoutAnimationEnabledExperimental
-) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
 
 // Format relative time for review date
 function formatReviewDate(dateString: string): string {
@@ -87,20 +70,7 @@ function CategoryRatingRow({
 }
 
 export function ReviewCard({ review }: ReviewCardProps) {
-  const [showCategoryBreakdown, setShowCategoryBreakdown] = useState(false);
-
-  // Check if this review has multi-criteria ratings (default 0 for old reviews)
-  const hasMultiCriteriaRatings =
-    review.reviewer_type === "CLIENT" &&
-    ((review.rating_quality ?? 0) > 0 ||
-      (review.rating_communication ?? 0) > 0 ||
-      (review.rating_punctuality ?? 0) > 0 ||
-      (review.rating_professionalism ?? 0) > 0);
-
-  const toggleCategoryBreakdown = () => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setShowCategoryBreakdown(!showCategoryBreakdown);
-  };
+  // Category breakdown always shown - displays 0 stars for old reviews without category ratings
 
   const renderStars = () => {
     const stars = [];
@@ -173,28 +143,8 @@ export function ReviewCard({ review }: ReviewCardProps) {
       {/* Review Comment */}
       {review.comment && <Text style={styles.comment}>{review.comment}</Text>}
 
-      {/* Category Breakdown Toggle - Only for CLIENT reviews to workers with multi-criteria ratings */}
-      {hasMultiCriteriaRatings && (
-        <TouchableOpacity
-          onPress={toggleCategoryBreakdown}
-          style={styles.categoryToggle}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.categoryToggleText}>
-            {showCategoryBreakdown
-              ? "Hide detailed ratings"
-              : "Show detailed ratings"}
-          </Text>
-          <Ionicons
-            name={showCategoryBreakdown ? "chevron-up" : "chevron-down"}
-            size={16}
-            color={Colors.primary}
-          />
-        </TouchableOpacity>
-      )}
-
-      {/* Expandable Category Breakdown */}
-      {showCategoryBreakdown && hasMultiCriteriaRatings && (
+      {/* Category Breakdown - Only for CLIENT reviews (clients rating workers) */}
+      {review.reviewer_type === "CLIENT" && (
         <View style={styles.categoryBreakdown}>
           <CategoryRatingRow
             label="Quality of Work"

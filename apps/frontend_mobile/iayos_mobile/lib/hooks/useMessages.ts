@@ -32,6 +32,17 @@ export type Message = {
   attachments?: MessageAttachment[];
 };
 
+// Payment buffer info for completed jobs
+export type PaymentBufferInfo = {
+  buffer_days: number;
+  payment_release_date: string | null;
+  payment_release_date_formatted: string | null;
+  is_payment_released: boolean;
+  payment_released_at: string | null;
+  payment_held_reason: string | null;
+  remaining_days: number | null;
+};
+
 export type ConversationDetail = {
   conversation_id: number;
   job: {
@@ -52,6 +63,8 @@ export type ConversationDetail = {
     clientId?: number;
     // ML-predicted estimated completion time
     estimatedCompletion?: EstimatedCompletion | null;
+    // Payment buffer info for completed jobs
+    paymentBuffer?: PaymentBufferInfo | null;
   };
   other_participant: {
     name: string;

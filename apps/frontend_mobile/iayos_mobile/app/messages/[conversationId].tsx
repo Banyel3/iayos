@@ -79,6 +79,7 @@ export default function ChatScreen() {
   const [ratingCommunication, setRatingCommunication] = useState(0);
   const [ratingPunctuality, setRatingPunctuality] = useState(0);
   const [ratingProfessionalism, setRatingProfessionalism] = useState(0);
+  const [singleRating, setSingleRating] = useState(0); // For worker reviewing client
   const [reviewComment, setReviewComment] = useState("");
   // For agency jobs: track if we're reviewing employee or agency
   const [reviewStep, setReviewStep] = useState<"EMPLOYEE" | "AGENCY">(
@@ -418,17 +419,24 @@ export default function ChatScreen() {
   const handleSubmitReview = () => {
     if (!conversation) return;
 
-    // Check all ratings are filled
-    const allRatingsFilled =
-      ratingQuality > 0 &&
-      ratingCommunication > 0 &&
-      ratingPunctuality > 0 &&
-      ratingProfessionalism > 0;
+    // Check ratings based on role:
+    // CLIENT reviewing WORKER: requires all 4 category ratings
+    // WORKER reviewing CLIENT: requires only single rating
+    const isClientReviewing = conversation.my_role === "CLIENT";
 
-    if (!allRatingsFilled) {
+    const isRatingComplete = isClientReviewing
+      ? ratingQuality > 0 &&
+        ratingCommunication > 0 &&
+        ratingPunctuality > 0 &&
+        ratingProfessionalism > 0
+      : singleRating > 0;
+
+    if (!isRatingComplete) {
       Alert.alert(
-        "Ratings Required",
-        "Please rate all categories before submitting"
+        "Rating Required",
+        isClientReviewing
+          ? "Please rate all categories before submitting"
+          : "Please select a rating before submitting"
       );
       return;
     }
@@ -674,14 +682,24 @@ export default function ChatScreen() {
         return;
       }
 
+      // For WORKER reviewing CLIENT: use single rating for all categories
+      // For CLIENT reviewing WORKER: use multi-criteria ratings
+      const isClientReviewing = conversation.my_role === "CLIENT";
+
       submitReviewMutation.mutate(
         {
           job_id: conversation.job.id,
           reviewee_id: revieweeId,
-          rating_quality: ratingQuality,
-          rating_communication: ratingCommunication,
-          rating_punctuality: ratingPunctuality,
-          rating_professionalism: ratingProfessionalism,
+          rating_quality: isClientReviewing ? ratingQuality : singleRating,
+          rating_communication: isClientReviewing
+            ? ratingCommunication
+            : singleRating,
+          rating_punctuality: isClientReviewing
+            ? ratingPunctuality
+            : singleRating,
+          rating_professionalism: isClientReviewing
+            ? ratingProfessionalism
+            : singleRating,
           comment: reviewComment,
           reviewer_type: conversation.my_role as "CLIENT" | "WORKER",
         },
@@ -691,6 +709,7 @@ export default function ChatScreen() {
             setRatingCommunication(0);
             setRatingPunctuality(0);
             setRatingProfessionalism(0);
+            setSingleRating(0);
             setReviewComment("");
             // Refresh conversation to update review status
             refetch();
@@ -1350,6 +1369,131 @@ export default function ChatScreen() {
               </TouchableOpacity>
             )}
 
+          {/* Payment Buffer Banner - Shows for COMPLETED jobs with payment held */}
+          {conversation.job.status === "COMPLETED" &&
+            conversation.job.clientMarkedComplete &&
+            conversation.job.paymentBuffer && (
+              <View
+                style={[
+                  styles.paymentBufferBanner,
+                  conversation.job.paymentBuffer.is_payment_released
+                    ? styles.paymentReleasedBanner
+                    : null,
+                ]}
+              >
+                <View style={styles.paymentBufferContent}>
+                  <View
+                    style={[
+                      styles.paymentBufferIconContainer,
+                      conversation.job.paymentBuffer.is_payment_released
+                        ? styles.paymentReleasedIconContainer
+                        : null,
+                    ]}
+                  >
+                    <Ionicons
+                      name={
+                        conversation.job.paymentBuffer.is_payment_released
+                          ? "checkmark-circle"
+                          : conversation.my_role === "WORKER"
+                            ? "time"
+                            : "shield-checkmark"
+                      }
+                      size={24}
+                      color={Colors.white}
+                    />
+                  </View>
+                  <View style={styles.paymentBufferText}>
+                    {conversation.job.paymentBuffer.is_payment_released ? (
+                      // Payment already released
+                      <>
+                        <Text style={styles.paymentReleasedTitle}>
+                          ✅ Payment Released
+                        </Text>
+                        <Text style={styles.paymentReleasedSubtitle}>
+                          Funds transferred to worker on{" "}
+                          {conversation.job.paymentBuffer.payment_released_at
+                            ? new Date(
+                                conversation.job.paymentBuffer.payment_released_at
+                              ).toLocaleDateString("en-US", {
+                                month: "short",
+                                day: "numeric",
+                                year: "numeric",
+                              })
+                            : "N/A"}
+                        </Text>
+                      </>
+                    ) : conversation.my_role === "WORKER" ? (
+                      // Worker view - show withheld balance info
+                      <>
+                        <Text style={styles.paymentBufferTitle}>
+                          💰 Payment Withheld
+                        </Text>
+                        <Text style={styles.paymentBufferSubtitle}>
+                          ₱
+                          {(conversation.job.budget * 0.5).toLocaleString(
+                            "en-PH",
+                            {
+                              minimumFractionDigits: 2,
+                            }
+                          )}{" "}
+                          will be released
+                          {conversation.job.paymentBuffer.remaining_days !==
+                            null &&
+                          conversation.job.paymentBuffer.remaining_days > 0
+                            ? ` in ${conversation.job.paymentBuffer.remaining_days} day${conversation.job.paymentBuffer.remaining_days > 1 ? "s" : ""}`
+                            : " soon"}
+                          {conversation.job.paymentBuffer
+                            .payment_release_date_formatted &&
+                            ` (${conversation.job.paymentBuffer.payment_release_date_formatted})`}
+                        </Text>
+                        <Text style={styles.paymentBufferHint}>
+                          Client has{" "}
+                          {conversation.job.paymentBuffer.buffer_days} days to
+                          request a backjob if issues arise
+                        </Text>
+                      </>
+                    ) : (
+                      // Client view - show hold period info
+                      <>
+                        <Text style={styles.paymentBufferTitle}>
+                          ⏳ {conversation.job.paymentBuffer.buffer_days}-Day
+                          Hold Period
+                        </Text>
+                        <Text style={styles.paymentBufferSubtitle}>
+                          Payment releases
+                          {conversation.job.paymentBuffer.remaining_days !==
+                            null &&
+                          conversation.job.paymentBuffer.remaining_days > 0
+                            ? ` in ${conversation.job.paymentBuffer.remaining_days} day${conversation.job.paymentBuffer.remaining_days > 1 ? "s" : ""}`
+                            : " soon"}
+                          {conversation.job.paymentBuffer
+                            .payment_release_date_formatted &&
+                            ` (${conversation.job.paymentBuffer.payment_release_date_formatted})`}
+                        </Text>
+                        <Text style={styles.paymentBufferHint}>
+                          You can request a backjob during this period if you're
+                          not satisfied with the work
+                        </Text>
+                      </>
+                    )}
+                  </View>
+                </View>
+                {/* View in Wallet link for workers */}
+                {conversation.my_role === "WORKER" &&
+                  !conversation.job.paymentBuffer.is_payment_released && (
+                    <TouchableOpacity
+                      style={styles.viewInWalletButton}
+                      onPress={() => router.push("/wallet")}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.viewInWalletText}>
+                        View in Wallet →
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+              </View>
+            )}
+
           {/* Review Section - Shows after client approves completion */}
           {conversation.job.clientMarkedComplete && !isConversationClosed && (
             <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
@@ -1541,30 +1685,157 @@ export default function ChatScreen() {
                       </>
                     )}
 
-                    {/* Multi-Criteria Star Ratings */}
-                    <View style={styles.multiCriteriaContainer}>
-                      {/* Quality Rating */}
-                      <View style={styles.criteriaRow}>
-                        <View style={styles.criteriaLabelRow}>
-                          <Text style={styles.criteriaIcon}>🏆</Text>
-                          <Text style={styles.criteriaLabel}>Quality</Text>
+                    {/* Rating Section - Conditional based on reviewer role */}
+                    {conversation.my_role === "CLIENT" ? (
+                      /* Multi-Criteria Star Ratings for CLIENT reviewing WORKER */
+                      <View style={styles.multiCriteriaContainer}>
+                        {/* Quality Rating */}
+                        <View style={styles.criteriaRow}>
+                          <View style={styles.criteriaLabelRow}>
+                            <Text style={styles.criteriaIcon}>🏆</Text>
+                            <Text style={styles.criteriaLabel}>Quality</Text>
+                          </View>
+                          <View style={styles.criteriaStarsRow}>
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <TouchableOpacity
+                                key={star}
+                                onPress={() => setRatingQuality(star)}
+                                style={styles.starButtonSmall}
+                              >
+                                <Ionicons
+                                  name={
+                                    star <= ratingQuality
+                                      ? "star"
+                                      : "star-outline"
+                                  }
+                                  size={24}
+                                  color={
+                                    star <= ratingQuality
+                                      ? "#FFB800"
+                                      : Colors.border
+                                  }
+                                />
+                              </TouchableOpacity>
+                            ))}
+                          </View>
                         </View>
+
+                        {/* Communication Rating */}
+                        <View style={styles.criteriaRow}>
+                          <View style={styles.criteriaLabelRow}>
+                            <Text style={styles.criteriaIcon}>💬</Text>
+                            <Text style={styles.criteriaLabel}>
+                              Communication
+                            </Text>
+                          </View>
+                          <View style={styles.criteriaStarsRow}>
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <TouchableOpacity
+                                key={star}
+                                onPress={() => setRatingCommunication(star)}
+                                style={styles.starButtonSmall}
+                              >
+                                <Ionicons
+                                  name={
+                                    star <= ratingCommunication
+                                      ? "star"
+                                      : "star-outline"
+                                  }
+                                  size={24}
+                                  color={
+                                    star <= ratingCommunication
+                                      ? "#FFB800"
+                                      : Colors.border
+                                  }
+                                />
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        </View>
+
+                        {/* Punctuality Rating */}
+                        <View style={styles.criteriaRow}>
+                          <View style={styles.criteriaLabelRow}>
+                            <Text style={styles.criteriaIcon}>⏰</Text>
+                            <Text style={styles.criteriaLabel}>
+                              Punctuality
+                            </Text>
+                          </View>
+                          <View style={styles.criteriaStarsRow}>
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <TouchableOpacity
+                                key={star}
+                                onPress={() => setRatingPunctuality(star)}
+                                style={styles.starButtonSmall}
+                              >
+                                <Ionicons
+                                  name={
+                                    star <= ratingPunctuality
+                                      ? "star"
+                                      : "star-outline"
+                                  }
+                                  size={24}
+                                  color={
+                                    star <= ratingPunctuality
+                                      ? "#FFB800"
+                                      : Colors.border
+                                  }
+                                />
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        </View>
+
+                        {/* Professionalism Rating */}
+                        <View style={styles.criteriaRow}>
+                          <View style={styles.criteriaLabelRow}>
+                            <Text style={styles.criteriaIcon}>👔</Text>
+                            <Text style={styles.criteriaLabel}>
+                              Professionalism
+                            </Text>
+                          </View>
+                          <View style={styles.criteriaStarsRow}>
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <TouchableOpacity
+                                key={star}
+                                onPress={() => setRatingProfessionalism(star)}
+                                style={styles.starButtonSmall}
+                              >
+                                <Ionicons
+                                  name={
+                                    star <= ratingProfessionalism
+                                      ? "star"
+                                      : "star-outline"
+                                  }
+                                  size={24}
+                                  color={
+                                    star <= ratingProfessionalism
+                                      ? "#FFB800"
+                                      : Colors.border
+                                  }
+                                />
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        </View>
+                      </View>
+                    ) : (
+                      /* Single Rating for WORKER reviewing CLIENT */
+                      <View style={styles.singleRatingContainer}>
                         <View style={styles.criteriaStarsRow}>
                           {[1, 2, 3, 4, 5].map((star) => (
                             <TouchableOpacity
                               key={star}
-                              onPress={() => setRatingQuality(star)}
-                              style={styles.starButtonSmall}
+                              onPress={() => setSingleRating(star)}
+                              style={styles.starButtonLarge}
                             >
                               <Ionicons
                                 name={
-                                  star <= ratingQuality
-                                    ? "star"
-                                    : "star-outline"
+                                  star <= singleRating ? "star" : "star-outline"
                                 }
-                                size={24}
+                                size={36}
                                 color={
-                                  star <= ratingQuality
+                                  star <= singleRating
                                     ? "#FFB800"
                                     : Colors.border
                                 }
@@ -1572,105 +1843,21 @@ export default function ChatScreen() {
                             </TouchableOpacity>
                           ))}
                         </View>
-                      </View>
-
-                      {/* Communication Rating */}
-                      <View style={styles.criteriaRow}>
-                        <View style={styles.criteriaLabelRow}>
-                          <Text style={styles.criteriaIcon}>💬</Text>
-                          <Text style={styles.criteriaLabel}>
-                            Communication
+                        {singleRating > 0 && (
+                          <Text style={styles.singleRatingLabel}>
+                            {singleRating === 5
+                              ? "Excellent"
+                              : singleRating === 4
+                                ? "Good"
+                                : singleRating === 3
+                                  ? "Fair"
+                                  : singleRating === 2
+                                    ? "Poor"
+                                    : "Very Poor"}
                           </Text>
-                        </View>
-                        <View style={styles.criteriaStarsRow}>
-                          {[1, 2, 3, 4, 5].map((star) => (
-                            <TouchableOpacity
-                              key={star}
-                              onPress={() => setRatingCommunication(star)}
-                              style={styles.starButtonSmall}
-                            >
-                              <Ionicons
-                                name={
-                                  star <= ratingCommunication
-                                    ? "star"
-                                    : "star-outline"
-                                }
-                                size={24}
-                                color={
-                                  star <= ratingCommunication
-                                    ? "#FFB800"
-                                    : Colors.border
-                                }
-                              />
-                            </TouchableOpacity>
-                          ))}
-                        </View>
+                        )}
                       </View>
-
-                      {/* Punctuality Rating */}
-                      <View style={styles.criteriaRow}>
-                        <View style={styles.criteriaLabelRow}>
-                          <Text style={styles.criteriaIcon}>⏰</Text>
-                          <Text style={styles.criteriaLabel}>Punctuality</Text>
-                        </View>
-                        <View style={styles.criteriaStarsRow}>
-                          {[1, 2, 3, 4, 5].map((star) => (
-                            <TouchableOpacity
-                              key={star}
-                              onPress={() => setRatingPunctuality(star)}
-                              style={styles.starButtonSmall}
-                            >
-                              <Ionicons
-                                name={
-                                  star <= ratingPunctuality
-                                    ? "star"
-                                    : "star-outline"
-                                }
-                                size={24}
-                                color={
-                                  star <= ratingPunctuality
-                                    ? "#FFB800"
-                                    : Colors.border
-                                }
-                              />
-                            </TouchableOpacity>
-                          ))}
-                        </View>
-                      </View>
-
-                      {/* Professionalism Rating */}
-                      <View style={styles.criteriaRow}>
-                        <View style={styles.criteriaLabelRow}>
-                          <Text style={styles.criteriaIcon}>👔</Text>
-                          <Text style={styles.criteriaLabel}>
-                            Professionalism
-                          </Text>
-                        </View>
-                        <View style={styles.criteriaStarsRow}>
-                          {[1, 2, 3, 4, 5].map((star) => (
-                            <TouchableOpacity
-                              key={star}
-                              onPress={() => setRatingProfessionalism(star)}
-                              style={styles.starButtonSmall}
-                            >
-                              <Ionicons
-                                name={
-                                  star <= ratingProfessionalism
-                                    ? "star"
-                                    : "star-outline"
-                                }
-                                size={24}
-                                color={
-                                  star <= ratingProfessionalism
-                                    ? "#FFB800"
-                                    : Colors.border
-                                }
-                              />
-                            </TouchableOpacity>
-                          ))}
-                        </View>
-                      </View>
-                    </View>
+                    )}
 
                     {/* Review Comment Input */}
                     <TextInput
@@ -1691,10 +1878,12 @@ export default function ChatScreen() {
                     <TouchableOpacity
                       style={[
                         styles.submitReviewButton,
-                        (ratingQuality === 0 ||
-                          ratingCommunication === 0 ||
-                          ratingPunctuality === 0 ||
-                          ratingProfessionalism === 0 ||
+                        ((conversation.my_role === "CLIENT"
+                          ? ratingQuality === 0 ||
+                            ratingCommunication === 0 ||
+                            ratingPunctuality === 0 ||
+                            ratingProfessionalism === 0
+                          : singleRating === 0) ||
                           !reviewComment.trim() ||
                           submitReviewMutation.isPending) &&
                           styles.submitReviewButtonDisabled,
@@ -1704,10 +1893,12 @@ export default function ChatScreen() {
                         handleSubmitReview();
                       }}
                       disabled={
-                        ratingQuality === 0 ||
-                        ratingCommunication === 0 ||
-                        ratingPunctuality === 0 ||
-                        ratingProfessionalism === 0 ||
+                        (conversation.my_role === "CLIENT"
+                          ? ratingQuality === 0 ||
+                            ratingCommunication === 0 ||
+                            ratingPunctuality === 0 ||
+                            ratingProfessionalism === 0
+                          : singleRating === 0) ||
                         !reviewComment.trim() ||
                         submitReviewMutation.isPending
                       }
@@ -2623,6 +2814,21 @@ const styles = StyleSheet.create({
   starButtonSmall: {
     padding: 2,
   },
+  starButtonLarge: {
+    padding: 4,
+  },
+  // Single rating styles for WORKER reviewing CLIENT
+  singleRatingContainer: {
+    alignItems: "center",
+    paddingVertical: Spacing.lg,
+    marginBottom: Spacing.md,
+  },
+  singleRatingLabel: {
+    ...Typography.body.large,
+    fontWeight: "600",
+    color: "#FFB800",
+    marginTop: Spacing.sm,
+  },
   // Multi-criteria rating styles
   multiCriteriaContainer: {
     marginBottom: Spacing.md,
@@ -2805,5 +3011,75 @@ const styles = StyleSheet.create({
     textAlign: "center",
     paddingVertical: Spacing.xs,
     fontStyle: "italic",
+  },
+  // Payment Buffer Banner Styles
+  paymentBufferBanner: {
+    backgroundColor: "#FFF8E1",
+    marginHorizontal: Spacing.md,
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.sm,
+    borderRadius: BorderRadius.medium,
+    borderWidth: 1,
+    borderColor: "#FFE082",
+    padding: Spacing.md,
+  },
+  paymentReleasedBanner: {
+    backgroundColor: "#E8F5E9",
+    borderColor: "#A5D6A7",
+  },
+  paymentBufferContent: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: Spacing.md,
+  },
+  paymentBufferIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#FFA000",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  paymentReleasedIconContainer: {
+    backgroundColor: Colors.success,
+  },
+  paymentBufferText: {
+    flex: 1,
+  },
+  paymentBufferTitle: {
+    ...Typography.body.medium,
+    fontWeight: "700",
+    color: "#E65100",
+    marginBottom: 4,
+  },
+  paymentBufferSubtitle: {
+    ...Typography.body.small,
+    color: "#F57C00",
+    marginBottom: 4,
+  },
+  paymentBufferHint: {
+    ...Typography.body.small,
+    fontSize: 12,
+    color: "#8D6E63",
+    fontStyle: "italic",
+  },
+  paymentReleasedTitle: {
+    ...Typography.body.medium,
+    fontWeight: "700",
+    color: Colors.success,
+    marginBottom: 4,
+  },
+  paymentReleasedSubtitle: {
+    ...Typography.body.small,
+    color: "#388E3C",
+  },
+  viewInWalletButton: {
+    marginTop: Spacing.sm,
+    alignSelf: "flex-end",
+  },
+  viewInWalletText: {
+    ...Typography.body.small,
+    color: Colors.primary,
+    fontWeight: "600",
   },
 });

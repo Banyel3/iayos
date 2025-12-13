@@ -1573,6 +1573,29 @@ def get_conversation_messages(request, conversation_id: int):
             }
             print(f"   🔄 Backjob info: started={active_dispute.backjobStarted}, worker_done={active_dispute.workerMarkedBackjobComplete}, client_confirmed={active_dispute.clientConfirmedBackjob}")
 
+        # Get payment buffer info for completed jobs
+        payment_buffer_info = None
+        if job.status == 'COMPLETED' and job.clientMarkedComplete:
+            from jobs.payment_buffer_service import get_payment_buffer_days
+            buffer_days = get_payment_buffer_days()
+            
+            # Calculate remaining days if release date is set
+            remaining_days = None
+            if job.paymentReleaseDate:
+                from django.utils import timezone
+                remaining = (job.paymentReleaseDate - timezone.now()).days
+                remaining_days = max(0, remaining)  # Don't show negative days
+            
+            payment_buffer_info = {
+                "buffer_days": buffer_days,
+                "payment_release_date": job.paymentReleaseDate.isoformat() if job.paymentReleaseDate else None,
+                "payment_release_date_formatted": job.paymentReleaseDate.strftime("%b %d, %Y") if job.paymentReleaseDate else None,
+                "is_payment_released": job.paymentReleasedToWorker,
+                "payment_released_at": job.paymentReleasedAt.isoformat() if job.paymentReleasedAt else None,
+                "payment_held_reason": job.paymentHeldReason,
+                "remaining_days": remaining_days,
+            }
+
         return {
             "success": True,
             "conversation_id": conversation.conversationID,
@@ -1593,6 +1616,7 @@ def get_conversation_messages(request, conversation_id: int):
                 "assignedWorkerId": worker_account.accountID if worker_account else None,
                 "clientId": client_account.accountID if client_account else None,
                 "estimatedCompletion": ml_prediction,
+                "paymentBuffer": payment_buffer_info,
             },
             "other_participant": other_participant_info,
             "assigned_employee": assigned_employee_info,  # Legacy single employee
