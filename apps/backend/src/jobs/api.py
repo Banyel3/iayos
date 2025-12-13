@@ -3961,19 +3961,88 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
             print(f"   Reviewer: {reviewer_profile.firstName} ({reviewer_type})")
             print(f"   Rating: {overall_rating} stars (Q:{data.rating_quality} C:{data.rating_communication} P:{data.rating_punctuality} PR:{data.rating_professionalism})")
             
+            # For team jobs: update assignment's individual_rating
+            if job.is_team_job and is_client and data.worker_id:
+                from accounts.models import JobWorkerAssignment
+                try:
+                    assignment = JobWorkerAssignment.objects.get(
+                        jobID=job,
+                        workerID_id=data.worker_id
+                    )
+                    assignment.individual_rating = overall_rating
+                    assignment.save(update_fields=['individual_rating'])
+                    print(f"   ✅ Updated assignment #{assignment.assignmentID} individual_rating to {overall_rating}")
+                except JobWorkerAssignment.DoesNotExist:
+                    print(f"   ⚠️ Could not update assignment rating - assignment not found")
+            
+            # For team jobs: check pending workers and return info
+            pending_team_workers = []
+            all_team_workers_reviewed = False
+            reviewed_worker_name = None
+            
+            if job.is_team_job and is_client:
+                from accounts.models import JobWorkerAssignment
+                # Get all assignments
+                all_assignments = JobWorkerAssignment.objects.filter(
+                    jobID=job,
+                    assignment_status__in=['ACTIVE', 'COMPLETED']
+                ).select_related('workerID__profileID__accountFK', 'skillSlotID__specializationID')
+                
+                # Get reviewed worker IDs
+                reviewed_worker_account_ids = set(JobReview.objects.filter(
+                    jobID=job,
+                    reviewerID=request.auth,
+                    reviewerType="CLIENT"
+                ).values_list('revieweeID', flat=True))
+                
+                for a in all_assignments:
+                    worker_profile = a.workerID.profileID
+                    worker_account_id = worker_profile.accountFK.accountID
+                    worker_name = f"{worker_profile.firstName} {worker_profile.lastName}"
+                    
+                    # Track the name of the worker just reviewed
+                    if worker_account_id == reviewee_profile.accountFK.accountID:
+                        reviewed_worker_name = worker_name
+                    
+                    # Check if still pending review
+                    if worker_account_id not in reviewed_worker_account_ids:
+                        pending_team_workers.append({
+                            "worker_id": a.workerID.workerID,
+                            "account_id": worker_account_id,
+                            "name": worker_name,
+                            "avatar": worker_profile.profileImg,
+                            "skill": a.skillSlotID.specializationID.specializationName if a.skillSlotID else None,
+                        })
+                
+                all_team_workers_reviewed = len(pending_team_workers) == 0
+            
             # Check if both parties have now submitted reviews
             total_reviews = JobReview.objects.filter(jobID=job).count()
             
             job_completed = False
-            if total_reviews >= 2 and job.workerMarkedComplete and job.clientMarkedComplete:
-                # Both reviews exist and both parties marked complete - NOW mark job as COMPLETED
+            # For team jobs: completed when all workers reviewed AND all workers have reviewed client
+            if job.is_team_job:
+                # Count client reviews (one per worker)
+                client_reviews = JobReview.objects.filter(jobID=job, reviewerType="CLIENT").count()
+                worker_reviews = JobReview.objects.filter(jobID=job, reviewerType="WORKER").count()
+                total_workers = job.total_workers_needed
+                
+                if client_reviews >= total_workers and worker_reviews >= total_workers and job.workerMarkedComplete and job.clientMarkedComplete:
+                    job.status = "COMPLETED"
+                    job.completedAt = timezone.now()
+                    job.save()
+                    job_completed = True
+                    print(f"🎉 All team reviews submitted! Job {job_id} marked as COMPLETED.")
+            elif total_reviews >= 2 and job.workerMarkedComplete and job.clientMarkedComplete:
+                # Regular job: Both reviews exist and both parties marked complete
                 job.status = "COMPLETED"
                 job.completedAt = timezone.now()
                 job.save()
                 job_completed = True
                 print(f"🎉 Both reviews submitted! Job {job_id} marked as COMPLETED.")
             
-            return {
+            # Build response
+            response = {
                 "success": True,
                 "message": "Review submitted successfully!",
                 "review_id": review.reviewID,
@@ -3981,6 +4050,18 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                 "reviewer_type": reviewer_type,
                 "job_completed": job_completed
             }
+            
+            # Add team job specific fields
+            if job.is_team_job and is_client:
+                response.update({
+                    "reviewed_worker_name": reviewed_worker_name,
+                    "pending_team_workers": pending_team_workers,
+                    "all_team_workers_reviewed": all_team_workers_reviewed,
+                    "total_team_workers": job.total_workers_needed,
+                    "reviewed_count": job.total_workers_needed - len(pending_team_workers)
+                })
+            
+            return response
         
     except Exception as e:
         print(f"❌ Error submitting review: {str(e)}")

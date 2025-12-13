@@ -1,11 +1,28 @@
 // ReviewCard Component
 // Displays individual review with rating, comment, and reviewer info
 
-import React from "react";
-import { View, Text, StyleSheet, Image } from "react-native";
+import React, { useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  Image,
+  TouchableOpacity,
+  LayoutAnimation,
+  Platform,
+  UIManager,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors, Typography, Spacing, BorderRadius } from "@/constants/theme";
 import { Review } from "@/lib/types/review";
+
+// Enable LayoutAnimation for Android
+if (
+  Platform.OS === "android" &&
+  UIManager.setLayoutAnimationEnabledExperimental
+) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 // Format relative time for review date
 function formatReviewDate(dateString: string): string {
@@ -35,7 +52,56 @@ interface ReviewCardProps {
   review: Review;
 }
 
+// Helper component for category rating row with inline stars
+function CategoryRatingRow({
+  label,
+  rating,
+}: {
+  label: string;
+  rating: number;
+}) {
+  const renderMiniStars = () => {
+    const stars = [];
+    for (let i = 1; i <= 5; i++) {
+      stars.push(
+        <Ionicons
+          key={i}
+          name={i <= rating ? "star" : "star-outline"}
+          size={12}
+          color={i <= rating ? "#FFB800" : Colors.border}
+        />
+      );
+    }
+    return <View style={styles.miniStarsContainer}>{stars}</View>;
+  };
+
+  return (
+    <View style={styles.categoryRow}>
+      <Text style={styles.categoryLabel}>{label}</Text>
+      <View style={styles.categoryRatingValue}>
+        {renderMiniStars()}
+        <Text style={styles.categoryRatingText}>{rating.toFixed(1)}</Text>
+      </View>
+    </View>
+  );
+}
+
 export function ReviewCard({ review }: ReviewCardProps) {
+  const [showCategoryBreakdown, setShowCategoryBreakdown] = useState(false);
+
+  // Check if this review has multi-criteria ratings (default 0 for old reviews)
+  const hasMultiCriteriaRatings =
+    review.reviewer_type === "CLIENT" &&
+    ((review.rating_quality ?? 0) > 0 ||
+      (review.rating_communication ?? 0) > 0 ||
+      (review.rating_punctuality ?? 0) > 0 ||
+      (review.rating_professionalism ?? 0) > 0);
+
+  const toggleCategoryBreakdown = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setShowCategoryBreakdown(!showCategoryBreakdown);
+  };
+
   const renderStars = () => {
     const stars = [];
     const rating = Number(review.rating);
@@ -106,6 +172,48 @@ export function ReviewCard({ review }: ReviewCardProps) {
 
       {/* Review Comment */}
       {review.comment && <Text style={styles.comment}>{review.comment}</Text>}
+
+      {/* Category Breakdown Toggle - Only for CLIENT reviews to workers with multi-criteria ratings */}
+      {hasMultiCriteriaRatings && (
+        <TouchableOpacity
+          onPress={toggleCategoryBreakdown}
+          style={styles.categoryToggle}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.categoryToggleText}>
+            {showCategoryBreakdown
+              ? "Hide detailed ratings"
+              : "Show detailed ratings"}
+          </Text>
+          <Ionicons
+            name={showCategoryBreakdown ? "chevron-up" : "chevron-down"}
+            size={16}
+            color={Colors.primary}
+          />
+        </TouchableOpacity>
+      )}
+
+      {/* Expandable Category Breakdown */}
+      {showCategoryBreakdown && hasMultiCriteriaRatings && (
+        <View style={styles.categoryBreakdown}>
+          <CategoryRatingRow
+            label="Quality of Work"
+            rating={review.rating_quality ?? 0}
+          />
+          <CategoryRatingRow
+            label="Communication"
+            rating={review.rating_communication ?? 0}
+          />
+          <CategoryRatingRow
+            label="Punctuality"
+            rating={review.rating_punctuality ?? 0}
+          />
+          <CategoryRatingRow
+            label="Professionalism"
+            rating={review.rating_professionalism ?? 0}
+          />
+        </View>
+      )}
 
       {/* Worker Response (if any) */}
       {review.worker_response && (
@@ -267,5 +375,55 @@ const styles = StyleSheet.create({
     ...Typography.body.small,
     color: Colors.warning,
     flex: 1,
+  },
+  // Category breakdown styles
+  categoryToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing.sm,
+    marginTop: Spacing.xs,
+  },
+  categoryToggleText: {
+    ...Typography.body.small,
+    color: Colors.primary,
+    fontWeight: "600",
+    marginRight: 4,
+  },
+  categoryBreakdown: {
+    backgroundColor: Colors.backgroundSecondary,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  categoryRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  categoryLabel: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+    flex: 1,
+  },
+  categoryRatingValue: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  miniStarsContainer: {
+    flexDirection: "row",
+    gap: 1,
+  },
+  categoryRatingText: {
+    ...Typography.body.small,
+    color: Colors.textPrimary,
+    fontWeight: "600",
+    minWidth: 24,
+    textAlign: "right",
   },
 });

@@ -87,6 +87,8 @@ export default function ChatScreen() {
   const [employeeReviewSubmitted, setEmployeeReviewSubmitted] = useState(false);
   // For multi-employee agency jobs: track current employee index
   const [currentEmployeeIndex, setCurrentEmployeeIndex] = useState(0);
+  // For team jobs: track current worker being reviewed
+  const [currentTeamWorkerIndex, setCurrentTeamWorkerIndex] = useState(0);
 
   // Fetch conversation and messages
   const {
@@ -575,6 +577,91 @@ export default function ChatScreen() {
           }
         );
       }
+    } else if (conversation.is_team_job && conversation.my_role === "CLIENT") {
+      // Team job client review - must specify which worker to review
+      const pendingWorkers = conversation.pending_team_worker_reviews || [];
+      const allWorkers = conversation.team_worker_assignments || [];
+
+      if (pendingWorkers.length === 0) {
+        Alert.alert("All Done!", "You have already reviewed all team workers.");
+        return;
+      }
+
+      // Get the current worker to review (first pending)
+      const currentWorker = pendingWorkers[0];
+      if (!currentWorker) {
+        Alert.alert("Error", "No worker to review");
+        return;
+      }
+
+      const overallRating =
+        (ratingQuality +
+          ratingCommunication +
+          ratingPunctuality +
+          ratingProfessionalism) /
+        4;
+
+      submitReviewMutation.mutate(
+        {
+          job_id: conversation.job.id,
+          reviewee_id: currentWorker.account_id,
+          rating_quality: ratingQuality,
+          rating_communication: ratingCommunication,
+          rating_punctuality: ratingPunctuality,
+          rating_professionalism: ratingProfessionalism,
+          comment: reviewComment,
+          reviewer_type: "CLIENT",
+          worker_id: currentWorker.worker_id, // For team jobs
+        },
+        {
+          onSuccess: (data: any) => {
+            setRatingQuality(0);
+            setRatingCommunication(0);
+            setRatingPunctuality(0);
+            setRatingProfessionalism(0);
+            setReviewComment("");
+
+            const reviewedName =
+              data.reviewed_worker_name || currentWorker.name;
+            const remaining = data.pending_team_workers || [];
+
+            if (remaining.length > 0) {
+              // More workers to review
+              const nextWorker = remaining[0];
+              Alert.alert(
+                "Worker Rated!",
+                `You gave ${reviewedName} a ${overallRating.toFixed(1)}-star rating.\n\nNow please rate ${nextWorker.name}.`
+              );
+              setCurrentTeamWorkerIndex((prev) => prev + 1);
+              refetch();
+            } else {
+              // All workers reviewed
+              refetch();
+              Alert.alert(
+                "All Done!",
+                `You gave ${reviewedName} a ${overallRating.toFixed(1)}-star rating.\n\nThank you for reviewing all ${data.total_team_workers || allWorkers.length} team workers!`
+              );
+            }
+          },
+          onError: (error: any) => {
+            const errorMessage = error.message || "Failed to submit review";
+            if (errorMessage.toLowerCase().includes("already reviewed")) {
+              setRatingQuality(0);
+              setRatingCommunication(0);
+              setRatingPunctuality(0);
+              setRatingProfessionalism(0);
+              setReviewComment("");
+              refetch();
+              Alert.alert(
+                "Already Rated",
+                "You've already rated this worker. Refreshing..."
+              );
+            } else {
+              Alert.alert("Error", errorMessage);
+            }
+          },
+        }
+      );
     } else {
       // Regular job or agency reviewing client
       const revieweeId =
@@ -1271,8 +1358,11 @@ export default function ChatScreen() {
                 keyboardShouldPersistTaps="handled"
               >
                 {/* Check if current user already reviewed */}
+                {/* For team jobs: client reviewed if all_team_workers_reviewed is true */}
                 {(conversation.my_role === "CLIENT" &&
-                  conversation.job.clientReviewed) ||
+                  (conversation.is_team_job
+                    ? conversation.all_team_workers_reviewed
+                    : conversation.job.clientReviewed)) ||
                 (conversation.my_role === "WORKER" &&
                   conversation.job.workerReviewed) ? (
                   // User has already reviewed - show waiting or thank you message
@@ -1283,7 +1373,10 @@ export default function ChatScreen() {
                       color={Colors.success}
                     />
                     <Text style={styles.reviewWaitingTitle}>
-                      Thank you for your review!
+                      {conversation.is_team_job &&
+                      conversation.my_role === "CLIENT"
+                        ? `Thank you for reviewing all ${conversation.team_worker_assignments?.length || 0} workers!`
+                        : "Thank you for your review!"}
                     </Text>
                     {((conversation.my_role === "CLIENT" &&
                       !conversation.job.workerReviewed) ||
@@ -1292,7 +1385,7 @@ export default function ChatScreen() {
                       <Text style={styles.reviewWaitingText}>
                         Waiting for{" "}
                         {conversation.my_role === "CLIENT"
-                          ? "worker"
+                          ? "workers"
                           : "client"}{" "}
                         to review...
                       </Text>
@@ -1378,6 +1471,54 @@ export default function ChatScreen() {
                                     </Text>
                                   </View>
                                 )}
+                            </>
+                          );
+                        })()}
+                      </>
+                    ) : conversation.is_team_job &&
+                      conversation.my_role === "CLIENT" ? (
+                      // Team job client review - show worker name and progress
+                      <>
+                        {(() => {
+                          const pendingWorkers =
+                            conversation.pending_team_worker_reviews || [];
+                          const allWorkers =
+                            conversation.team_worker_assignments || [];
+                          const totalWorkers = allWorkers.length || 1;
+                          const reviewedCount =
+                            totalWorkers - pendingWorkers.length;
+
+                          // Get current worker being reviewed
+                          const currentWorker = pendingWorkers[0];
+                          const currentWorkerName =
+                            currentWorker?.name || "Worker";
+                          const currentWorkerSkill = currentWorker?.skill || "";
+
+                          return (
+                            <>
+                              <Text style={styles.reviewTitle}>
+                                Rate {currentWorkerName}
+                              </Text>
+                              <Text style={styles.reviewSubtitle}>
+                                How did {currentWorkerName} perform on this job?
+                                {currentWorkerSkill
+                                  ? ` (${currentWorkerSkill})`
+                                  : ""}
+                              </Text>
+
+                              {/* Progress indicator */}
+                              {totalWorkers > 1 && (
+                                <View style={styles.stepIndicator}>
+                                  <Ionicons
+                                    name="people"
+                                    size={16}
+                                    color={Colors.primary}
+                                  />
+                                  <Text style={styles.stepIndicatorText}>
+                                    Worker {reviewedCount + 1} of {totalWorkers}
+                                  </Text>
+                                </View>
+                              )}
                             </>
                           );
                         })()}

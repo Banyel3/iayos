@@ -12,7 +12,7 @@ export interface Review {
   reviewer_profile_img: string | null;
   reviewee_id: number;
   reviewer_type: "CLIENT" | "WORKER";
-  rating: number; // 1.0 to 5.0
+  rating: number; // 1.0 to 5.0 (overall rating)
   comment: string;
   status: "ACTIVE" | "FLAGGED" | "HIDDEN" | "DELETED";
   is_flagged: boolean;
@@ -22,6 +22,11 @@ export interface Review {
   can_edit: boolean; // True if within 24 hours
   worker_response?: string | null;
   worker_response_at?: string | null;
+  // Multi-criteria category ratings (only for worker reviews, 0 for old reviews)
+  rating_quality?: number; // 0.0 to 5.0
+  rating_communication?: number; // 0.0 to 5.0
+  rating_punctuality?: number; // 0.0 to 5.0
+  rating_professionalism?: number; // 0.0 to 5.0
 }
 
 export interface RatingBreakdown {
@@ -70,6 +75,7 @@ export interface SubmitReviewRequest {
   reviewer_type: "CLIENT" | "WORKER";
   review_target?: "EMPLOYEE" | "AGENCY"; // For agency jobs: client reviews employee then agency
   employee_id?: number; // For multi-employee agency jobs: specific employee being reviewed
+  worker_id?: number; // For team jobs: specific worker being reviewed (from JobWorkerAssignment)
 }
 
 export interface EditReviewRequest {

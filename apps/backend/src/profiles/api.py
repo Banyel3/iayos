@@ -1503,6 +1503,50 @@ def get_conversation_messages(request, conversation_id: int):
         except Exception as e:
             print(f"   ⚠️ ML prediction error: {str(e)}")
 
+        # Team job worker review tracking
+        is_team_job = job.is_team_job
+        team_workers_pending_review = []
+        all_team_workers_reviewed = False
+        team_worker_assignments = []
+        
+        if is_team_job and is_client:
+            from accounts.models import JobWorkerAssignment, JobReview
+            
+            # Get all assigned workers for this team job
+            assignments = JobWorkerAssignment.objects.filter(
+                jobID=job,
+                assignment_status__in=['ACTIVE', 'COMPLETED']
+            ).select_related('workerID__profileID__accountFK', 'skillSlotID__specializationID')
+            
+            # Get list of worker accounts already reviewed by this client
+            reviewed_worker_accounts = set(JobReview.objects.filter(
+                jobID=job,
+                reviewerID=request.auth,
+                reviewerType="CLIENT"
+            ).values_list('revieweeID', flat=True))
+            
+            for assignment in assignments:
+                worker_profile = assignment.workerID.profileID
+                worker_account_id = worker_profile.accountFK.accountID
+                worker_name = f"{worker_profile.firstName} {worker_profile.lastName}"
+                skill_name = assignment.skillSlotID.specializationID.specializationName if assignment.skillSlotID else None
+                
+                worker_info = {
+                    "worker_id": assignment.workerID.workerID,
+                    "account_id": worker_account_id,
+                    "name": worker_name,
+                    "avatar": worker_profile.profileImg,
+                    "skill": skill_name,
+                    "assignment_id": assignment.assignmentID,
+                    "is_reviewed": worker_account_id in reviewed_worker_accounts
+                }
+                team_worker_assignments.append(worker_info)
+                
+                if worker_account_id not in reviewed_worker_accounts:
+                    team_workers_pending_review.append(worker_info)
+            
+            all_team_workers_reviewed = len(team_workers_pending_review) == 0 and len(team_worker_assignments) > 0
+        
         # Check for active backjob/dispute
         from accounts.models import JobDispute
         active_dispute = JobDispute.objects.filter(
@@ -1557,6 +1601,10 @@ def get_conversation_messages(request, conversation_id: int):
             "pending_employee_reviews": [e["employee_id"] for e in employees_pending_review] if is_agency_job_for_reviews else [],
             "all_employees_reviewed": employee_review_exists if is_agency_job_for_reviews else None,
             "is_agency_job": is_agency_conversation,
+            "is_team_job": is_team_job,
+            "team_worker_assignments": team_worker_assignments if is_team_job else [],
+            "pending_team_worker_reviews": team_workers_pending_review if is_team_job else [],
+            "all_team_workers_reviewed": all_team_workers_reviewed if is_team_job else None,
             "my_role": my_role,
             "messages": formatted_messages,
             "total_messages": len(formatted_messages),

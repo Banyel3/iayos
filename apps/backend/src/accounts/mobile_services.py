@@ -2603,6 +2603,11 @@ def get_worker_reviews_mobile(worker_id: int, page: int = 1, limit: int = 20) ->
                 'created_at': review.createdAt.isoformat(),
                 'updated_at': review.updatedAt.isoformat(),
                 'can_edit': can_edit,
+                # Multi-criteria category ratings (default 0 for old reviews)
+                'rating_quality': float(review.rating_quality or 0),
+                'rating_communication': float(review.rating_communication or 0),
+                'rating_punctuality': float(review.rating_punctuality or 0),
+                'rating_professionalism': float(review.rating_professionalism or 0),
             })
 
         return {
@@ -2669,6 +2674,11 @@ def get_job_reviews_mobile(job_id: int) -> Dict[str, Any]:
                 'created_at': review.createdAt.isoformat(),
                 'updated_at': review.updatedAt.isoformat(),
                 'can_edit': can_edit,
+                # Multi-criteria category ratings (default 0 for old reviews)
+                'rating_quality': float(review.rating_quality or 0),
+                'rating_communication': float(review.rating_communication or 0),
+                'rating_punctuality': float(review.rating_punctuality or 0),
+                'rating_professionalism': float(review.rating_professionalism or 0),
             })
 
         return {
@@ -2756,6 +2766,11 @@ def get_my_reviews_mobile(user: Accounts, review_type: str = 'given', page: int 
                 'created_at': review.createdAt.isoformat(),
                 'updated_at': review.updatedAt.isoformat(),
                 'can_edit': can_edit and review_type == 'given',  # Can only edit own reviews
+                # Multi-criteria category ratings (default 0 for old reviews)
+                'rating_quality': float(review.rating_quality or 0),
+                'rating_communication': float(review.rating_communication or 0),
+                'rating_punctuality': float(review.rating_punctuality or 0),
+                'rating_professionalism': float(review.rating_professionalism or 0),
             })
 
         return {
@@ -3287,6 +3302,11 @@ def get_client_reviews_mobile(client_id: int, page: int = 1, limit: int = 10) ->
                 'rating': float(review.rating),
                 'comment': review.comment,
                 'created_at': review.createdAt.isoformat(),
+                # Multi-criteria category ratings (default 0 for old reviews)
+                'rating_quality': float(review.rating_quality or 0),
+                'rating_communication': float(review.rating_communication or 0),
+                'rating_punctuality': float(review.rating_punctuality or 0),
+                'rating_professionalism': float(review.rating_professionalism or 0),
             })
         
         return {
