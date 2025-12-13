@@ -543,7 +543,11 @@ export default function ProfileScreen() {
         {/* Wallet Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Wallet</Text>
-          <View style={styles.walletCard}>
+          <TouchableOpacity
+            style={styles.walletCard}
+            activeOpacity={0.8}
+            onPress={() => router.push("/wallet" as any)}
+          >
             <View style={styles.walletHeader}>
               <View style={styles.walletIconContainer}>
                 <Ionicons
@@ -566,6 +570,11 @@ export default function ProfileScreen() {
                   </Text>
                 )}
               </View>
+              <Ionicons
+                name="chevron-forward"
+                size={24}
+                color={Colors.textSecondary}
+              />
             </View>
 
             {/* Reserved Balance Indicator */}
@@ -577,7 +586,10 @@ export default function ProfileScreen() {
                 </Text>
               </View>
             )}
+          </TouchableOpacity>
 
+          {/* Action Buttons */}
+          <View style={styles.walletActions}>
             {isWorker ? (
               <TouchableOpacity
                 style={styles.withdrawButton}
@@ -994,7 +1006,6 @@ const styles = StyleSheet.create({
   walletHeader: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: Spacing.lg,
   },
   walletIconContainer: {
     width: 48,
@@ -1030,13 +1041,16 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.md,
     borderRadius: BorderRadius.sm,
-    marginBottom: Spacing.md,
+    marginTop: Spacing.md,
     gap: 6,
   },
   reservedBalanceText: {
     fontSize: Typography.fontSize.sm,
     color: Colors.warning,
     fontWeight: Typography.fontWeight.medium,
+  },
+  walletActions: {
+    marginTop: Spacing.md,
   },
   addFundsButton: {
     flexDirection: "row",

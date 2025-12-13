@@ -208,6 +208,9 @@ export const ENDPOINTS = {
   // Worker skills (specializations the worker has)
   AVAILABLE_SKILLS: `${API_BASE_URL.replace("/api", "")}/api/mobile/skills/available`,
   MY_SKILLS: `${API_BASE_URL.replace("/api", "")}/api/mobile/skills/my-skills`,
+  ADD_SKILL: `${API_BASE_URL.replace("/api", "")}/api/mobile/skills/add`,
+  UPDATE_SKILL: (skillId: number) => `${API_BASE_URL.replace("/api", "")}/api/mobile/skills/${skillId}`,
+  REMOVE_SKILL: (skillId: number) => `${API_BASE_URL.replace("/api", "")}/api/mobile/skills/${skillId}`,
 
   // Profile
   PROFILE: (id: number) => `${API_BASE_URL}/profiles/${id}`,

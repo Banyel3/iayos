@@ -498,8 +498,8 @@ export default function ProfileScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Skills & Certifications</Text>
-            <Pressable onPress={() => router.push("/profile/edit" as any)}>
-              <Text style={styles.editText}>Edit</Text>
+            <Pressable onPress={() => router.push("/profile/skills" as any)}>
+              <Text style={styles.editText}>Manage Skills</Text>
             </Pressable>
           </View>
           <Text style={styles.sectionDescription}>
@@ -629,7 +629,7 @@ export default function ProfileScreen() {
           </Text>
           <Pressable
             style={styles.addButton}
-            onPress={() => router.push("/profile/edit" as any)}
+            onPress={() => router.push("/profile/skills" as any)}
           >
             <Ionicons
               name="add-circle-outline"

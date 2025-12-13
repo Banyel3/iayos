@@ -1582,7 +1582,6 @@ def get_conversation_messages(request, conversation_id: int):
             # Calculate remaining days if release date is set
             remaining_days = None
             if job.paymentReleaseDate:
-                from django.utils import timezone
                 remaining = (job.paymentReleaseDate - timezone.now()).days
                 remaining_days = max(0, remaining)  # Don't show negative days
             
