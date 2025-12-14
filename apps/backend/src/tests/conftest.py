@@ -27,9 +27,11 @@ def worker_user(db):
     """Create a worker user with complete profile"""
     user = User.objects.create_user(
         email="worker@test.com",
-        password="testpass123",
-        emailConfirmed=True
+        password="testpass123"
     )
+    user.isVerified = True
+    user.save()
+    
     profile = Profile.objects.create(
         accountFK=user,
         firstName="Test",
@@ -59,9 +61,11 @@ def client_user(db):
     """Create a client user with complete profile"""
     user = User.objects.create_user(
         email="client@test.com",
-        password="testpass123",
-        emailConfirmed=True
+        password="testpass123"
     )
+    user.isVerified = True
+    user.save()
+    
     profile = Profile.objects.create(
         accountFK=user,
         firstName="Test",

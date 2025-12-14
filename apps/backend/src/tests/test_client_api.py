@@ -103,8 +103,7 @@ class TestClientJobPosting:
         response = authenticated_client_client.post(
             '/api/jobs/create/',
             data=json.dumps(job_data),
-            content_type='application/json',
-            HTTP_AUTHORIZATION='Bearer fake-token'  # For JWT auth
+            content_type='application/json'
         )
         
         # May fail due to auth, check if endpoint exists
@@ -445,7 +444,7 @@ class TestClientNotifications:
         
         # Create a notification
         notification = Notification.objects.create(
-            userFK=client_user,
+            accountFK=client_user,
             title="Test Notification",
             message="Test message",
             isRead=False

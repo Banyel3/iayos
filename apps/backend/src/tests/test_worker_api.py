@@ -22,7 +22,8 @@ from accounts.models import (
     Profile, WorkerProfile, ClientProfile, Wallet, Transaction,
     Specializations, WorkerCertification, WorkerMaterial, WorkerPortfolio
 )
-from jobs.models import Job, JobApplication
+from jobs.models import Job
+from jobs.models import JobApplication
 
 User = get_user_model()
 
