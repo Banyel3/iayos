@@ -455,7 +455,7 @@ Authorization: Bearer {{worker_login.response.body.$.access_token}}
 ### ========================================
 
 ### 55. WORKER: Mark job as started
-# Note: This endpoint may need to be checked in jobs API
+# Note: Job completion endpoints are in /api/jobs/ (not /api/mobile/)
 POST {{host}}/api/jobs/1/start
 Content-Type: application/json
 Authorization: Bearer {{worker_login.response.body.$.access_token}}
@@ -465,7 +465,7 @@ Authorization: Bearer {{worker_login.response.body.$.access_token}}
 }
 
 ### 56. WORKER: Update job progress
-# Note: This endpoint may need to be checked in jobs API
+# Note: Job completion endpoints are in /api/jobs/ (not /api/mobile/)
 POST {{host}}/api/jobs/1/progress
 Content-Type: application/json
 Authorization: Bearer {{worker_login.response.body.$.access_token}}
@@ -476,7 +476,7 @@ Authorization: Bearer {{worker_login.response.body.$.access_token}}
 }
 
 ### 57. WORKER: Mark job as complete
-# Note: This endpoint may need to be checked in jobs API
+# Note: Job completion endpoints are in /api/jobs/ (not /api/mobile/)
 POST {{host}}/api/jobs/1/worker-complete
 Content-Type: application/json
 Authorization: Bearer {{worker_login.response.body.$.access_token}}

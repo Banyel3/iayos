@@ -287,6 +287,7 @@ GET {{host}}/api/mobile/jobs/my-jobs
 Authorization: Bearer {{login_worker.response.body.$.access_token}}
 
 ### 29. WORKER: Mark job as complete
+# Note: Job completion endpoints are in /api/jobs/ router
 # @name worker_mark_complete
 POST {{host}}/api/jobs/1/worker-complete
 Content-Type: application/json
@@ -297,6 +298,7 @@ Authorization: Bearer {{login_worker.response.body.$.access_token}}
 }
 
 ### 30. CLIENT: Approve job completion (releases payment from escrow)
+# Note: Job completion endpoints are in /api/jobs/ router
 # @name client_approve_completion
 POST {{host}}/api/jobs/1/approve-completion
 Content-Type: application/json
@@ -331,6 +333,7 @@ Authorization: Bearer {{login_worker.response.body.$.access_token}}
 ### ========================================
 
 ### 35. CLIENT: Request backjob during buffer period
+# Note: Backjob endpoints are in /api/jobs/ router
 # @name client_request_backjob
 POST {{host}}/api/jobs/1/request-backjob
 Content-Type: application/json
@@ -342,11 +345,13 @@ Authorization: Bearer {{login_client.response.body.$.access_token}}
 }
 
 ### 36. WORKER: View backjob requests
+# Note: This endpoint is in /api/mobile/ (mobile-specific)
 # @name worker_view_backjobs
 GET {{host}}/api/mobile/jobs/my-backjobs
 Authorization: Bearer {{login_worker.response.body.$.access_token}}
 
 ### 37. CLIENT: Check if can request backjob
+# Note: Backjob endpoints are in /api/jobs/ router
 # @name client_check_backjob_eligibility
 GET {{host}}/api/jobs/1/can-request-backjob
 Authorization: Bearer {{login_client.response.body.$.access_token}}
