@@ -1,0 +1,440 @@
+### ========================================
+### CLIENT ROLE - Comprehensive API Test Suite
+### Testing all CLIENT-specific endpoints and flows
+### ========================================
+
+@host = http://localhost:8000
+@client_email = client_test@iayos.com
+@client_password = TestClient@123
+
+### ========================================
+### CLIENT AUTHENTICATION
+### ========================================
+
+### 1. CLIENT: Register new account
+# @name client_register
+POST {{host}}/api/mobile/auth/register
+Content-Type: application/json
+
+{
+    "email": "{{client_email}}",
+    "password": "{{client_password}}",
+    "confirmPassword": "{{client_password}}"
+}
+
+### 2. CLIENT: Login
+# @name client_login
+POST {{host}}/api/mobile/auth/login
+Content-Type: application/json
+
+{
+    "email": "{{client_email}}",
+    "password": "{{client_password}}"
+}
+
+### 3. CLIENT: Get own profile
+# @name client_profile
+GET {{host}}/api/mobile/auth/profile
+Authorization: Bearer {{client_login.response.body.$.access_token}}
+
+### 4. CLIENT: Assign CLIENT role (if not assigned)
+# @name client_assign_role
+POST {{host}}/api/mobile/auth/assign-role
+Content-Type: application/json
+Authorization: Bearer {{client_login.response.body.$.access_token}}
+
+{
+    "profile_type": "CLIENT",
+    "firstName": "Test",
+    "lastName": "Client",
+    "contactNum": "09123456789",
+    "birthDate": "1990-05-15"
+}
+
+### 5. CLIENT: Get profile metrics
+# @name client_metrics
+GET {{host}}/api/mobile/profile/metrics
+Authorization: Bearer {{client_login.response.body.$.access_token}}
+
+### 6. CLIENT: Update profile
+# @name client_update_profile
+PUT {{host}}/api/mobile/profile/update
+Content-Type: application/json
+Authorization: Bearer {{client_login.response.body.$.access_token}}
+
+{
+    "firstName": "Updated",
+    "lastName": "Client",
+    "contactNum": "09111111111",
+    "street_address": "123 Test St",
+    "city": "Zamboanga City",
+    "province": "Zamboanga del Sur"
+}
+
+### ========================================
+### CLIENT JOB POSTING & MANAGEMENT
+### ========================================
+
+### 7. CLIENT: View job categories
+# @name client_job_categories
+GET {{host}}/api/mobile/jobs/categories
+Authorization: Bearer {{client_login.response.body.$.access_token}}
+
+### 8. CLIENT: Create a new job posting
+# @name client_create_job
+POST {{host}}/api/mobile/jobs/create
+Content-Type: application/json
+Authorization: Bearer {{client_login.response.body.$.access_token}}
+
+{
+    "title": "Need Experienced Electrician",
+    "description": "Looking for a skilled electrician to install new wiring and electrical panel in my home. Must have experience with residential electrical work.",
+    "category_id": 1,
+    "budget": 5000,
+    "location": "Zamboanga City, Philippines",
+    "expected_duration": "2-3 days",
+    "urgency_level": "MEDIUM",
+    "preferred_start_date": "2025-12-20",
+    "materials_needed": ["electrical wiring", "circuit breakers", "outlets"],
+    "downpayment_method": "WALLET"
+}
+
+### 9. CLIENT: Create an invite-only job
+# @name client_create_invite_job
+POST {{host}}/api/mobile/jobs/invite
+Content-Type: application/json
+Authorization: Bearer {{client_login.response.body.$.access_token}}
+
+{
+    "title": "Private Job - Plumbing Repair",
+    "description": "Need specific worker to fix plumbing issues",
+    "category_id": 2,
+    "budget": 3000,
+    "location": "Zamboanga City",
+    "invited_worker_id": 1,
+    "expected_duration": "1 day",
+    "urgency_level": "HIGH",
+    "preferred_start_date": "2025-12-18",
+    "downpayment_method": "WALLET"
+}
+
+### 10. CLIENT: View my posted jobs
+# @name client_my_jobs
+GET {{host}}/api/mobile/jobs/my-jobs
+Authorization: Bearer {{client_login.response.body.$.access_token}}
+
+### 11. CLIENT: View specific job details
+# @name client_job_detail
+GET {{host}}/api/mobile/jobs/1
+Authorization: Bearer {{client_login.response.body.$.access_token}}
+
+### 12. CLIENT: Search for jobs (posted by me)
+# @name client_search_jobs
+GET {{host}}/api/mobile/jobs/search?q=electrician
+Authorization: Bearer {{client_login.response.body.$.access_token}}
+
+### 13. CLIENT: Delete a job
+# @name client_delete_job
+DELETE {{host}}/api/mobile/jobs/999
+Authorization: Bearer {{client_login.response.body.$.access_token}}
+
+### ========================================
+### CLIENT APPLICATION MANAGEMENT
+### ========================================
+
+### 14. CLIENT: View applications for a job
+# @name client_view_applications
+GET {{host}}/api/mobile/jobs/1/applications
+Authorization: Bearer {{client_login.response.body.$.access_token}}
+
+### 15. CLIENT: Accept a worker application
+# @name client_accept_application
+POST {{host}}/api/mobile/jobs/1/applications/1/accept
+Content-Type: application/json
+Authorization: Bearer {{client_login.response.body.$.access_token}}
+
+{
+    "notes": "You seem qualified for this job. Looking forward to working with you."
+}
+
+### 16. CLIENT: Reject a worker application
+# @name client_reject_application
+POST {{host}}/api/mobile/jobs/1/applications/2/reject
+Content-Type: application/json
+Authorization: Bearer {{client_login.response.body.$.access_token}}
+
+{
+    "reason": "Looking for someone with more experience in this specific area."
+}
+
+### ========================================
+### CLIENT WORKER DISCOVERY
+### ========================================
+
+### 17. CLIENT: Browse available workers
+# @name client_browse_workers
+GET {{host}}/api/mobile/workers/list
+Authorization: Bearer {{client_login.response.body.$.access_token}}
+
+### 18. CLIENT: View worker profile details
+# @name client_worker_detail
+GET {{host}}/api/mobile/workers/detail/1
+Authorization: Bearer {{client_login.response.body.$.access_token}}
+
+### 19. CLIENT: View specific worker
+# @name client_view_worker
+GET {{host}}/api/mobile/workers/1
+Authorization: Bearer {{client_login.response.body.$.access_token}}
+
+### 20. CLIENT: Browse agencies
+# @name client_browse_agencies
+GET {{host}}/api/mobile/agencies/list
+Authorization: Bearer {{client_login.response.body.$.access_token}}
+
+### 21. CLIENT: View agency details
+# @name client_agency_detail
+GET {{host}}/api/mobile/agencies/detail/1
+Authorization: Bearer {{client_login.response.body.$.access_token}}
+
+### ========================================
+### CLIENT WALLET & PAYMENTS
+### ========================================
+
+### 22. CLIENT: View wallet balance
+# @name client_wallet_balance
+GET {{host}}/api/mobile/wallet/balance
+Authorization: Bearer {{client_login.response.body.$.access_token}}
+
+### 23. CLIENT: Deposit funds to wallet
+# @name client_deposit_funds
+POST {{host}}/api/mobile/wallet/deposit
+Content-Type: application/json
+Authorization: Bearer {{client_login.response.body.$.access_token}}
+
+{
+    "amount": 10000,
+    "payment_method": "GCASH",
+    "reference_number": "TEST-REF-123456"
+}
+
+### 24. CLIENT: View transaction history
+# @name client_transactions
+GET {{host}}/api/mobile/wallet/transactions
+Authorization: Bearer {{client_login.response.body.$.access_token}}
+
+### 25. CLIENT: View payment methods
+# @name client_payment_methods
+GET {{host}}/api/mobile/payment-methods
+Authorization: Bearer {{client_login.response.body.$.access_token}}
+
+### 26. CLIENT: Add payment method
+# @name client_add_payment_method
+POST {{host}}/api/mobile/payment-methods
+Content-Type: application/json
+Authorization: Bearer {{client_login.response.body.$.access_token}}
+
+{
+    "method_type": "GCASH",
+    "account_number": "09123456789",
+    "account_name": "Test Client"
+}
+
+### 27. CLIENT: Set primary payment method
+# @name client_set_primary_payment
+POST {{host}}/api/mobile/payment-methods/1/set-primary
+Authorization: Bearer {{client_login.response.body.$.access_token}}
+
+### 28. CLIENT: Delete payment method
+# @name client_delete_payment_method
+DELETE {{host}}/api/mobile/payment-methods/2
+Authorization: Bearer {{client_login.response.body.$.access_token}}
+
+### ========================================
+### CLIENT REVIEWS & RATINGS
+### ========================================
+
+### 29. CLIENT: Submit review for worker
+# @name client_submit_review
+POST {{host}}/api/mobile/reviews/submit
+Content-Type: application/json
+Authorization: Bearer {{client_login.response.body.$.access_token}}
+
+{
+    "job_id": 1,
+    "worker_id": 1,
+    "rating": 5,
+    "comment": "Excellent work! Very professional and completed on time. Highly recommended!",
+    "review_type": "WORKER"
+}
+
+### 30. CLIENT: View reviews for a worker
+# @name client_view_worker_reviews
+GET {{host}}/api/mobile/reviews/worker/1
+Authorization: Bearer {{client_login.response.body.$.access_token}}
+
+### 31. CLIENT: View my submitted reviews
+# @name client_my_reviews
+GET {{host}}/api/mobile/reviews/my-reviews
+Authorization: Bearer {{client_login.response.body.$.access_token}}
+
+### 32. CLIENT: View reviews for a specific job
+# @name client_job_reviews
+GET {{host}}/api/mobile/reviews/job/1
+Authorization: Bearer {{client_login.response.body.$.access_token}}
+
+### 33. CLIENT: Edit my review
+# @name client_edit_review
+PUT {{host}}/api/mobile/reviews/1
+Content-Type: application/json
+Authorization: Bearer {{client_login.response.body.$.access_token}}
+
+{
+    "rating": 4,
+    "comment": "Updated review: Good work overall, minor issues but resolved quickly."
+}
+
+### 34. CLIENT: Report a review
+# @name client_report_review
+POST {{host}}/api/mobile/reviews/1/report
+Content-Type: application/json
+Authorization: Bearer {{client_login.response.body.$.access_token}}
+
+{
+    "reason": "INAPPROPRIATE_CONTENT",
+    "description": "Contains offensive language"
+}
+
+### 35. CLIENT: View pending reviews
+# @name client_pending_reviews
+GET {{host}}/api/mobile/reviews/pending
+Authorization: Bearer {{client_login.response.body.$.access_token}}
+
+### ========================================
+### CLIENT DASHBOARD
+### ========================================
+
+### 36. CLIENT: View dashboard statistics
+# @name client_dashboard_stats
+GET {{host}}/api/mobile/dashboard/stats
+Authorization: Bearer {{client_login.response.body.$.access_token}}
+
+### 37. CLIENT: View recent jobs
+# @name client_recent_jobs
+GET {{host}}/api/mobile/dashboard/recent-jobs
+Authorization: Bearer {{client_login.response.body.$.access_token}}
+
+### 38. CLIENT: View available workers (dashboard widget)
+# @name client_dashboard_workers
+GET {{host}}/api/mobile/dashboard/available-workers
+Authorization: Bearer {{client_login.response.body.$.access_token}}
+
+### ========================================
+### CLIENT LOCATION & UTILITIES
+### ========================================
+
+### 39. CLIENT: View available cities
+# @name client_cities
+GET {{host}}/api/mobile/locations/cities
+Authorization: Bearer {{client_login.response.body.$.access_token}}
+
+### 40. CLIENT: View barangays in a city
+# @name client_barangays
+GET {{host}}/api/mobile/locations/cities/1/barangays
+Authorization: Bearer {{client_login.response.body.$.access_token}}
+
+### 41. CLIENT: View available skills (for filtering workers)
+# @name client_available_skills
+GET {{host}}/api/mobile/skills/available
+Authorization: Bearer {{client_login.response.body.$.access_token}}
+
+### ========================================
+### CLIENT PROFILE ENHANCEMENT
+### ========================================
+
+### 42. CLIENT: Upload profile image
+# @name client_upload_image
+POST {{host}}/api/mobile/profile/upload-image
+Content-Type: application/json
+Authorization: Bearer {{client_login.response.body.$.access_token}}
+
+{
+    "image_url": "https://example.com/profile.jpg"
+}
+
+### ========================================
+### CLIENT DUAL PROFILE (CLIENT + WORKER)
+### ========================================
+
+### 43. CLIENT: Check dual profile status
+# @name client_dual_status
+GET {{host}}/api/mobile/profile/dual-status
+Authorization: Bearer {{client_login.response.body.$.access_token}}
+
+### 44. CLIENT: Create worker profile (become dual user)
+# @name client_create_worker_profile
+POST {{host}}/api/mobile/profile/create-worker
+Content-Type: application/json
+Authorization: Bearer {{client_login.response.body.$.access_token}}
+
+{
+    "bio": "I also offer handyman services",
+    "hourly_rate": 400,
+    "description": "Available for small repair jobs"
+}
+
+### 45. CLIENT: Switch to worker profile
+# @name client_switch_to_worker
+POST {{host}}/api/mobile/profile/switch-profile
+Content-Type: application/json
+Authorization: Bearer {{client_login.response.body.$.access_token}}
+
+{
+    "profile_type": "WORKER"
+}
+
+### ========================================
+### CLIENT LOGOUT
+### ========================================
+
+### 46. CLIENT: Logout
+# @name client_logout
+POST {{host}}/api/mobile/auth/logout
+Authorization: Bearer {{client_login.response.body.$.access_token}}
+
+### ========================================
+### CLIENT PASSWORD MANAGEMENT
+### ========================================
+
+### 47. CLIENT: Request password reset
+# @name client_forgot_password
+POST {{host}}/api/mobile/auth/forgot-password
+Content-Type: application/json
+
+{
+    "email": "{{client_email}}"
+}
+
+### 48. CLIENT: Reset password
+# @name client_reset_password
+POST {{host}}/api/mobile/auth/reset-password
+Content-Type: application/json
+
+{
+    "token": "reset-token-here",
+    "new_password": "NewPass@123",
+    "confirm_password": "NewPass@123"
+}
+
+### 49. CLIENT: Refresh auth token
+# @name client_refresh_token
+POST {{host}}/api/mobile/auth/refresh
+Content-Type: application/json
+Authorization: Bearer {{client_login.response.body.$.access_token}}
+
+{
+    "refresh_token": "refresh-token-here"
+}
+
+### ========================================
+### END OF CLIENT TEST SUITE
+### ========================================

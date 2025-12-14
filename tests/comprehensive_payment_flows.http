@@ -1,0 +1,500 @@
+### ========================================
+### PAYMENT FLOWS - Comprehensive Test Suite
+### Testing payment-related endpoints for CLIENT and WORKER roles
+### Includes: Wallet, Deposits, Withdrawals, Job Payments, Escrow
+### ========================================
+
+@host = http://localhost:8000
+@client_email = payment_client@iayos.com
+@worker_email = payment_worker@iayos.com
+@password = TestPayment@123
+
+### ========================================
+### SETUP: CREATE TEST ACCOUNTS
+### ========================================
+
+### 1. Create CLIENT account for payment testing
+# @name setup_client
+POST {{host}}/api/mobile/auth/register
+Content-Type: application/json
+
+{
+    "email": "{{client_email}}",
+    "password": "{{password}}",
+    "confirmPassword": "{{password}}"
+}
+
+### 2. Create WORKER account for payment testing
+# @name setup_worker
+POST {{host}}/api/mobile/auth/register
+Content-Type: application/json
+
+{
+    "email": "{{worker_email}}",
+    "password": "{{password}}",
+    "confirmPassword": "{{password}}"
+}
+
+### 3. Login as CLIENT
+# @name login_client
+POST {{host}}/api/mobile/auth/login
+Content-Type: application/json
+
+{
+    "email": "{{client_email}}",
+    "password": "{{password}}"
+}
+
+### 4. Login as WORKER
+# @name login_worker
+POST {{host}}/api/mobile/auth/login
+Content-Type: application/json
+
+{
+    "email": "{{worker_email}}",
+    "password": "{{password}}"
+}
+
+### 5. Assign CLIENT role
+# @name assign_client_role
+POST {{host}}/api/mobile/auth/assign-role
+Content-Type: application/json
+Authorization: Bearer {{login_client.response.body.$.access_token}}
+
+{
+    "profile_type": "CLIENT",
+    "firstName": "Payment",
+    "lastName": "Client",
+    "contactNum": "09111111111",
+    "birthDate": "1990-01-01"
+}
+
+### 6. Assign WORKER role
+# @name assign_worker_role
+POST {{host}}/api/mobile/auth/assign-role
+Content-Type: application/json
+Authorization: Bearer {{login_worker.response.body.$.access_token}}
+
+{
+    "profile_type": "WORKER",
+    "firstName": "Payment",
+    "lastName": "Worker",
+    "contactNum": "09222222222",
+    "birthDate": "1992-01-01"
+}
+
+### ========================================
+### CLIENT PAYMENT FLOW - WALLET MANAGEMENT
+### ========================================
+
+### 7. CLIENT: Check initial wallet balance
+# @name client_initial_balance
+GET {{host}}/api/mobile/wallet/balance
+Authorization: Bearer {{login_client.response.body.$.access_token}}
+
+### 8. CLIENT: Deposit funds via GCASH
+# @name client_deposit_gcash
+POST {{host}}/api/mobile/wallet/deposit
+Content-Type: application/json
+Authorization: Bearer {{login_client.response.body.$.access_token}}
+
+{
+    "amount": 20000,
+    "payment_method": "GCASH",
+    "reference_number": "GCASH-TEST-20000"
+}
+
+### 9. CLIENT: Deposit funds via Credit Card
+# @name client_deposit_card
+POST {{host}}/api/mobile/wallet/deposit
+Content-Type: application/json
+Authorization: Bearer {{login_client.response.body.$.access_token}}
+
+{
+    "amount": 15000,
+    "payment_method": "CARD",
+    "card_number": "4111111111111111",
+    "cvv": "123",
+    "expiry_month": "12",
+    "expiry_year": "2025"
+}
+
+### 10. CLIENT: Check balance after deposit
+# @name client_balance_after_deposit
+GET {{host}}/api/mobile/wallet/balance
+Authorization: Bearer {{login_client.response.body.$.access_token}}
+
+### 11. CLIENT: View all transactions
+# @name client_all_transactions
+GET {{host}}/api/mobile/wallet/transactions
+Authorization: Bearer {{login_client.response.body.$.access_token}}
+
+### 12. CLIENT: View deposit transactions only
+# @name client_deposit_transactions
+GET {{host}}/api/mobile/wallet/transactions?type=DEPOSIT
+Authorization: Bearer {{login_client.response.body.$.access_token}}
+
+### ========================================
+### CLIENT PAYMENT FLOW - JOB POSTING WITH PAYMENT
+### ========================================
+
+### 13. CLIENT: Create job with WALLET payment
+# @name client_create_job_wallet
+POST {{host}}/api/mobile/jobs/create
+Content-Type: application/json
+Authorization: Bearer {{login_client.response.body.$.access_token}}
+
+{
+    "title": "Electrical Wiring Installation - Payment Test",
+    "description": "Need electrical wiring for new home. Payment will be via wallet escrow.",
+    "category_id": 1,
+    "budget": 10000,
+    "location": "Zamboanga City",
+    "expected_duration": "3 days",
+    "urgency_level": "HIGH",
+    "preferred_start_date": "2025-12-20",
+    "materials_needed": ["wires", "breakers"],
+    "downpayment_method": "WALLET"
+}
+
+### 14. CLIENT: Check wallet balance after job creation (should be reduced)
+# @name client_balance_after_job_creation
+GET {{host}}/api/mobile/wallet/balance
+Authorization: Bearer {{login_client.response.body.$.access_token}}
+
+### 15. CLIENT: View escrow transactions
+# @name client_escrow_transactions
+GET {{host}}/api/mobile/wallet/transactions?type=ESCROW
+Authorization: Bearer {{login_client.response.body.$.access_token}}
+
+### ========================================
+### WORKER PAYMENT FLOW - EARNINGS & WITHDRAWALS
+### ========================================
+
+### 16. WORKER: Check initial wallet balance
+# @name worker_initial_balance
+GET {{host}}/api/mobile/wallet/balance
+Authorization: Bearer {{login_worker.response.body.$.access_token}}
+
+### 17. WORKER: View pending earnings
+# @name worker_pending_earnings
+GET {{host}}/api/mobile/wallet/pending-earnings
+Authorization: Bearer {{login_worker.response.body.$.access_token}}
+
+### 18. WORKER: Add withdrawal payment method (GCASH)
+# @name worker_add_gcash
+POST {{host}}/api/mobile/payment-methods
+Content-Type: application/json
+Authorization: Bearer {{login_worker.response.body.$.access_token}}
+
+{
+    "method_type": "GCASH",
+    "account_number": "09222222222",
+    "account_name": "Payment Worker",
+    "is_primary": true
+}
+
+### 19. WORKER: Add withdrawal payment method (Bank)
+# @name worker_add_bank
+POST {{host}}/api/mobile/payment-methods
+Content-Type: application/json
+Authorization: Bearer {{login_worker.response.body.$.access_token}}
+
+{
+    "method_type": "BANK",
+    "account_number": "1234567890",
+    "account_name": "Payment Worker",
+    "bank_name": "BDO",
+    "is_primary": false
+}
+
+### 20. WORKER: View all payment methods
+# @name worker_payment_methods
+GET {{host}}/api/mobile/payment-methods
+Authorization: Bearer {{login_worker.response.body.$.access_token}}
+
+### 21. WORKER: Withdraw funds via GCASH
+# @name worker_withdraw_gcash
+POST {{host}}/api/mobile/wallet/withdraw
+Content-Type: application/json
+Authorization: Bearer {{login_worker.response.body.$.access_token}}
+
+{
+    "amount": 5000,
+    "withdrawal_method": "GCASH",
+    "account_number": "09222222222",
+    "account_name": "Payment Worker"
+}
+
+### 22. WORKER: Withdraw funds via Bank
+# @name worker_withdraw_bank
+POST {{host}}/api/mobile/wallet/withdraw
+Content-Type: application/json
+Authorization: Bearer {{login_worker.response.body.$.access_token}}
+
+{
+    "amount": 3000,
+    "withdrawal_method": "BANK",
+    "account_number": "1234567890",
+    "account_name": "Payment Worker",
+    "bank_name": "BDO"
+}
+
+### 23. WORKER: Check balance after withdrawal
+# @name worker_balance_after_withdrawal
+GET {{host}}/api/mobile/wallet/balance
+Authorization: Bearer {{login_worker.response.body.$.access_token}}
+
+### 24. WORKER: View withdrawal transactions
+# @name worker_withdrawal_transactions
+GET {{host}}/api/mobile/wallet/transactions?type=WITHDRAWAL
+Authorization: Bearer {{login_worker.response.body.$.access_token}}
+
+### ========================================
+### COMPLETE JOB PAYMENT FLOW (CLIENT -> ESCROW -> WORKER)
+### ========================================
+
+### 25. WORKER: Apply to the client's job
+# @name worker_apply_to_job
+POST {{host}}/api/mobile/jobs/1/apply
+Content-Type: application/json
+Authorization: Bearer {{login_worker.response.body.$.access_token}}
+
+{
+    "cover_letter": "I am experienced in electrical work and can complete this job professionally.",
+    "proposed_rate": 10000,
+    "estimated_duration": "3 days"
+}
+
+### 26. CLIENT: View applications
+# @name client_view_applications
+GET {{host}}/api/mobile/jobs/1/applications
+Authorization: Bearer {{login_client.response.body.$.access_token}}
+
+### 27. CLIENT: Accept worker's application
+# @name client_accept_application
+POST {{host}}/api/mobile/jobs/1/applications/1/accept
+Content-Type: application/json
+Authorization: Bearer {{login_client.response.body.$.access_token}}
+
+{
+    "notes": "Your qualifications look great. Looking forward to working with you."
+}
+
+### 28. WORKER: View accepted job in my jobs
+# @name worker_view_my_jobs
+GET {{host}}/api/mobile/jobs/my-jobs
+Authorization: Bearer {{login_worker.response.body.$.access_token}}
+
+### 29. WORKER: Mark job as complete
+# @name worker_mark_complete
+POST {{host}}/api/jobs/1/worker-complete
+Content-Type: application/json
+Authorization: Bearer {{login_worker.response.body.$.access_token}}
+
+{
+    "completion_notes": "All electrical work completed successfully. All circuits tested and working."
+}
+
+### 30. CLIENT: Approve job completion (releases payment from escrow)
+# @name client_approve_completion
+POST {{host}}/api/jobs/1/approve-completion
+Content-Type: application/json
+Authorization: Bearer {{login_client.response.body.$.access_token}}
+
+{
+    "notes": "Excellent work! Very satisfied with the results."
+}
+
+### 31. WORKER: Check pending earnings (should show released payment in buffer)
+# @name worker_check_pending_after_completion
+GET {{host}}/api/mobile/wallet/pending-earnings
+Authorization: Bearer {{login_worker.response.body.$.access_token}}
+
+### 32. CLIENT: Check wallet after completion (remaining payment should be deducted)
+# @name client_balance_after_completion
+GET {{host}}/api/mobile/wallet/balance
+Authorization: Bearer {{login_client.response.body.$.access_token}}
+
+### 33. CLIENT: View payment transactions
+# @name client_payment_transactions
+GET {{host}}/api/mobile/wallet/transactions?type=PAYMENT
+Authorization: Bearer {{login_client.response.body.$.access_token}}
+
+### 34. WORKER: View earnings transactions
+# @name worker_earnings_transactions
+GET {{host}}/api/mobile/wallet/transactions?type=EARNING
+Authorization: Bearer {{login_worker.response.body.$.access_token}}
+
+### ========================================
+### PAYMENT BUFFER SYSTEM (7-DAY ESCROW)
+### ========================================
+
+### 35. CLIENT: Request backjob during buffer period
+# @name client_request_backjob
+POST {{host}}/api/jobs/1/request-backjob
+Content-Type: application/json
+Authorization: Bearer {{login_client.response.body.$.access_token}}
+
+{
+    "reason": "Some wiring needs adjustment",
+    "description": "A few outlets are not working properly. Need worker to come back and fix."
+}
+
+### 36. WORKER: View backjob requests
+# @name worker_view_backjobs
+GET {{host}}/api/mobile/jobs/my-backjobs
+Authorization: Bearer {{login_worker.response.body.$.access_token}}
+
+### 37. CLIENT: Check if can request backjob
+# @name client_check_backjob_eligibility
+GET {{host}}/api/jobs/1/can-request-backjob
+Authorization: Bearer {{login_client.response.body.$.access_token}}
+
+### 38. WORKER: Check if payment is still in buffer
+# @name worker_check_buffer_status
+GET {{host}}/api/mobile/wallet/pending-earnings
+Authorization: Bearer {{login_worker.response.body.$.access_token}}
+
+### ========================================
+### PAYMENT EDGE CASES & ERROR HANDLING
+### ========================================
+
+### 39. CLIENT: Try to create job with insufficient funds
+# @name client_insufficient_funds
+POST {{host}}/api/mobile/jobs/create
+Content-Type: application/json
+Authorization: Bearer {{login_client.response.body.$.access_token}}
+
+{
+    "title": "Very Expensive Job",
+    "description": "This should fail due to insufficient wallet balance",
+    "category_id": 1,
+    "budget": 1000000,
+    "location": "Zamboanga City",
+    "expected_duration": "1 week",
+    "urgency_level": "HIGH",
+    "preferred_start_date": "2025-12-25",
+    "downpayment_method": "WALLET"
+}
+
+### 40. WORKER: Try to withdraw more than available balance
+# @name worker_insufficient_balance_withdrawal
+POST {{host}}/api/mobile/wallet/withdraw
+Content-Type: application/json
+Authorization: Bearer {{login_worker.response.body.$.access_token}}
+
+{
+    "amount": 999999,
+    "withdrawal_method": "GCASH",
+    "account_number": "09222222222"
+}
+
+### 41. CLIENT: Try to deposit negative amount
+# @name client_negative_deposit
+POST {{host}}/api/mobile/wallet/deposit
+Content-Type: application/json
+Authorization: Bearer {{login_client.response.body.$.access_token}}
+
+{
+    "amount": -100,
+    "payment_method": "GCASH"
+}
+
+### 42. WORKER: Try to withdraw negative amount
+# @name worker_negative_withdrawal
+POST {{host}}/api/mobile/wallet/withdraw
+Content-Type: application/json
+Authorization: Bearer {{login_worker.response.body.$.access_token}}
+
+{
+    "amount": -100,
+    "withdrawal_method": "GCASH"
+}
+
+### 43. CLIENT: Try to deposit zero amount
+# @name client_zero_deposit
+POST {{host}}/api/mobile/wallet/deposit
+Content-Type: application/json
+Authorization: Bearer {{login_client.response.body.$.access_token}}
+
+{
+    "amount": 0,
+    "payment_method": "GCASH"
+}
+
+### ========================================
+### PAYMENT METHOD MANAGEMENT
+### ========================================
+
+### 44. CLIENT: Add multiple payment methods
+# @name client_add_payment_methods
+POST {{host}}/api/mobile/payment-methods
+Content-Type: application/json
+Authorization: Bearer {{login_client.response.body.$.access_token}}
+
+{
+    "method_type": "GCASH",
+    "account_number": "09111111111",
+    "account_name": "Payment Client",
+    "is_primary": true
+}
+
+### 45. CLIENT: Set different primary payment method
+# @name client_set_primary
+POST {{host}}/api/mobile/payment-methods/1/set-primary
+Authorization: Bearer {{login_client.response.body.$.access_token}}
+
+### 46. CLIENT: Delete payment method
+# @name client_delete_payment_method
+DELETE {{host}}/api/mobile/payment-methods/2
+Authorization: Bearer {{login_client.response.body.$.access_token}}
+
+### 47. WORKER: Set primary payment method
+# @name worker_set_primary
+POST {{host}}/api/mobile/payment-methods/1/set-primary
+Authorization: Bearer {{login_worker.response.body.$.access_token}}
+
+### ========================================
+### TRANSACTION HISTORY & FILTERING
+### ========================================
+
+### 48. CLIENT: View all transactions
+# @name client_all_transactions_detailed
+GET {{host}}/api/mobile/wallet/transactions
+Authorization: Bearer {{login_client.response.body.$.access_token}}
+
+### 49. CLIENT: Filter transactions by date
+# @name client_transactions_by_date
+GET {{host}}/api/mobile/wallet/transactions?start_date=2025-12-01&end_date=2025-12-31
+Authorization: Bearer {{login_client.response.body.$.access_token}}
+
+### 50. WORKER: View all transactions
+# @name worker_all_transactions_detailed
+GET {{host}}/api/mobile/wallet/transactions
+Authorization: Bearer {{login_worker.response.body.$.access_token}}
+
+### 51. WORKER: Filter transactions by type
+# @name worker_transactions_by_type
+GET {{host}}/api/mobile/wallet/transactions?type=EARNING
+Authorization: Bearer {{login_worker.response.body.$.access_token}}
+
+### ========================================
+### COMMISSION & FEES VERIFICATION
+### ========================================
+
+### 52. CLIENT: Verify escrow amount calculation (50% + 10% commission)
+# Expected: For 10000 budget, escrow should be 5000 (50%) + 500 (10% commission) = 5500
+# @name client_verify_escrow_calculation
+GET {{host}}/api/mobile/wallet/transactions?job_id=1
+Authorization: Bearer {{login_client.response.body.$.access_token}}
+
+### 53. WORKER: Verify received amount after commission
+# Expected: For 10000 job, worker should receive 5000 (50%) - platform fees
+# @name worker_verify_earnings_calculation
+GET {{host}}/api/mobile/wallet/transactions?job_id=1
+Authorization: Bearer {{login_worker.response.body.$.access_token}}
+
+### ========================================
+### END OF PAYMENT FLOW TEST SUITE
+### ========================================

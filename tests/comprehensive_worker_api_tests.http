@@ -1,0 +1,490 @@
+### ========================================
+### WORKER ROLE - Comprehensive API Test Suite
+### Testing all WORKER-specific endpoints and flows
+### ========================================
+
+@host = http://localhost:8000
+@worker_email = worker_test@iayos.com
+@worker_password = TestWorker@123
+
+### ========================================
+### WORKER AUTHENTICATION
+### ========================================
+
+### 1. WORKER: Register new account
+# @name worker_register
+POST {{host}}/api/mobile/auth/register
+Content-Type: application/json
+
+{
+    "email": "{{worker_email}}",
+    "password": "{{worker_password}}",
+    "confirmPassword": "{{worker_password}}"
+}
+
+### 2. WORKER: Login
+# @name worker_login
+POST {{host}}/api/mobile/auth/login
+Content-Type: application/json
+
+{
+    "email": "{{worker_email}}",
+    "password": "{{worker_password}}"
+}
+
+### 3. WORKER: Get own profile
+# @name worker_profile
+GET {{host}}/api/mobile/auth/profile
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+### 4. WORKER: Assign WORKER role
+# @name worker_assign_role
+POST {{host}}/api/mobile/auth/assign-role
+Content-Type: application/json
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+{
+    "profile_type": "WORKER",
+    "firstName": "Test",
+    "lastName": "Worker",
+    "contactNum": "09987654321",
+    "birthDate": "1992-08-25"
+}
+
+### 5. WORKER: Get profile metrics
+# @name worker_metrics
+GET {{host}}/api/mobile/profile/metrics
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+### 6. WORKER: Update profile
+# @name worker_update_profile
+PUT {{host}}/api/mobile/profile/update
+Content-Type: application/json
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+{
+    "firstName": "Updated",
+    "lastName": "Worker",
+    "contactNum": "09222222222",
+    "bio": "Experienced electrician with 10+ years in residential and commercial projects. Licensed and insured.",
+    "hourly_rate": 600,
+    "description": "Specialized in electrical installations, repairs, and troubleshooting. Available for both small and large projects."
+}
+
+### 7. WORKER: Send verification email
+# @name worker_send_verification
+POST {{host}}/api/mobile/auth/send-verification-email
+Content-Type: application/json
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+{
+    "email": "{{worker_email}}"
+}
+
+### ========================================
+### WORKER SKILLS MANAGEMENT
+### ========================================
+
+### 8. WORKER: View available skills
+# @name worker_available_skills
+GET {{host}}/api/mobile/skills/available
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+### 9. WORKER: View my skills
+# @name worker_my_skills
+GET {{host}}/api/mobile/skills/my-skills
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+### 10. WORKER: Add a skill
+# @name worker_add_skill
+POST {{host}}/api/mobile/skills/add
+Content-Type: application/json
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+{
+    "skill_id": 1,
+    "proficiency_level": "ADVANCED",
+    "years_experience": 10,
+    "description": "Expert in residential and commercial electrical wiring"
+}
+
+### 11. WORKER: Update a skill
+# @name worker_update_skill
+PUT {{host}}/api/mobile/skills/1
+Content-Type: application/json
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+{
+    "proficiency_level": "EXPERT",
+    "years_experience": 12,
+    "description": "Master electrician with industrial experience"
+}
+
+### 12. WORKER: Delete a skill
+# @name worker_delete_skill
+DELETE {{host}}/api/mobile/skills/1
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+### ========================================
+### WORKER JOB DISCOVERY & APPLICATION
+### ========================================
+
+### 13. WORKER: Browse available jobs
+# @name worker_available_jobs
+GET {{host}}/api/mobile/jobs/available
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+### 14. WORKER: View job list
+# @name worker_job_list
+GET {{host}}/api/mobile/jobs/list
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+### 15. WORKER: Search for jobs
+# @name worker_search_jobs
+GET {{host}}/api/mobile/jobs/search?q=electrical&location=Zamboanga&budget_min=3000&budget_max=10000
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+### 16. WORKER: View job categories
+# @name worker_job_categories
+GET {{host}}/api/mobile/jobs/categories
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+### 17. WORKER: View specific job details
+# @name worker_job_detail
+GET {{host}}/api/mobile/jobs/1
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+### 18. WORKER: Apply to a job
+# @name worker_apply_job
+POST {{host}}/api/mobile/jobs/1/apply
+Content-Type: application/json
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+{
+    "cover_letter": "I am a licensed electrician with 10+ years of experience. I have completed similar projects and can guarantee quality work. Available to start immediately.",
+    "proposed_rate": 5000,
+    "estimated_duration": "2 days",
+    "portfolio_items": [1, 2, 3]
+}
+
+### 19. WORKER: View my applications
+# @name worker_my_applications
+GET {{host}}/api/mobile/jobs/applications/my
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+### 20. WORKER: View my active jobs
+# @name worker_my_jobs
+GET {{host}}/api/mobile/jobs/my-jobs
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+### 21. WORKER: View my backjobs
+# @name worker_my_backjobs
+GET {{host}}/api/mobile/jobs/my-backjobs
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+### ========================================
+### WORKER WALLET & PAYMENTS
+### ========================================
+
+### 22. WORKER: View wallet balance
+# @name worker_wallet_balance
+GET {{host}}/api/mobile/wallet/balance
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+### 23. WORKER: View pending earnings
+# @name worker_pending_earnings
+GET {{host}}/api/mobile/wallet/pending-earnings
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+### 24. WORKER: Withdraw funds
+# @name worker_withdraw
+POST {{host}}/api/mobile/wallet/withdraw
+Content-Type: application/json
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+{
+    "amount": 5000,
+    "withdrawal_method": "GCASH",
+    "account_number": "09987654321",
+    "account_name": "Test Worker"
+}
+
+### 25. WORKER: View transaction history
+# @name worker_transactions
+GET {{host}}/api/mobile/wallet/transactions
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+### 26. WORKER: View payment methods
+# @name worker_payment_methods
+GET {{host}}/api/mobile/payment-methods
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+### 27. WORKER: Add payment method
+# @name worker_add_payment_method
+POST {{host}}/api/mobile/payment-methods
+Content-Type: application/json
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+{
+    "method_type": "GCASH",
+    "account_number": "09987654321",
+    "account_name": "Test Worker"
+}
+
+### 28. WORKER: Set primary payment method
+# @name worker_set_primary_payment
+POST {{host}}/api/mobile/payment-methods/1/set-primary
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+### 29. WORKER: Delete payment method
+# @name worker_delete_payment_method
+DELETE {{host}}/api/mobile/payment-methods/2
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+### ========================================
+### WORKER REVIEWS & RATINGS
+### ========================================
+
+### 30. WORKER: Submit review for client
+# @name worker_submit_review
+POST {{host}}/api/mobile/reviews/submit
+Content-Type: application/json
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+{
+    "job_id": 1,
+    "client_id": 1,
+    "rating": 5,
+    "comment": "Great client! Clear communication, paid on time, and provided all necessary materials. Would work with again!",
+    "review_type": "CLIENT"
+}
+
+### 31. WORKER: View reviews about me
+# @name worker_my_reviews
+GET {{host}}/api/mobile/reviews/my-reviews
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+### 32. WORKER: View my review statistics
+# @name worker_review_stats
+GET {{host}}/api/mobile/reviews/stats/1
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+### 33. WORKER: View client reviews
+# @name worker_view_client_reviews
+GET {{host}}/api/mobile/reviews/client/1
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+### 34. WORKER: View reviews for a job
+# @name worker_job_reviews
+GET {{host}}/api/mobile/reviews/job/1
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+### 35. WORKER: View pending reviews
+# @name worker_pending_reviews
+GET {{host}}/api/mobile/reviews/pending
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+### 36. WORKER: Edit my review
+# @name worker_edit_review
+PUT {{host}}/api/mobile/reviews/1
+Content-Type: application/json
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+{
+    "rating": 4,
+    "comment": "Updated: Good client overall, minor communication delays but resolved well."
+}
+
+### 37. WORKER: Report a review
+# @name worker_report_review
+POST {{host}}/api/mobile/reviews/1/report
+Content-Type: application/json
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+{
+    "reason": "FALSE_INFORMATION",
+    "description": "Review contains inaccurate information about the work performed"
+}
+
+### ========================================
+### WORKER DASHBOARD
+### ========================================
+
+### 38. WORKER: View dashboard statistics
+# @name worker_dashboard_stats
+GET {{host}}/api/mobile/dashboard/stats
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+### 39. WORKER: View recent jobs
+# @name worker_recent_jobs
+GET {{host}}/api/mobile/dashboard/recent-jobs
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+### ========================================
+### WORKER PROFILE DISCOVERY
+### ========================================
+
+### 40. WORKER: View client profile
+# @name worker_view_client
+GET {{host}}/api/mobile/clients/1
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+### 41. WORKER: View other workers (competition/networking)
+# @name worker_view_workers
+GET {{host}}/api/mobile/workers/list
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+### 42. WORKER: View specific worker profile
+# @name worker_view_worker_detail
+GET {{host}}/api/mobile/workers/detail/2
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+### 43. WORKER: View agencies
+# @name worker_view_agencies
+GET {{host}}/api/mobile/agencies/list
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+### 44. WORKER: View agency details
+# @name worker_agency_detail
+GET {{host}}/api/mobile/agencies/detail/1
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+### ========================================
+### WORKER LOCATION & UTILITIES
+### ========================================
+
+### 45. WORKER: View available cities
+# @name worker_cities
+GET {{host}}/api/mobile/locations/cities
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+### 46. WORKER: View barangays in a city
+# @name worker_barangays
+GET {{host}}/api/mobile/locations/cities/1/barangays
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+### ========================================
+### WORKER PROFILE ENHANCEMENT
+### ========================================
+
+### 47. WORKER: Upload profile image
+# @name worker_upload_image
+POST {{host}}/api/mobile/profile/upload-image
+Content-Type: application/json
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+{
+    "image_url": "https://example.com/worker-profile.jpg"
+}
+
+### ========================================
+### WORKER DUAL PROFILE (WORKER + CLIENT)
+### ========================================
+
+### 48. WORKER: Check dual profile status
+# @name worker_dual_status
+GET {{host}}/api/mobile/profile/dual-status
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+### 49. WORKER: Create client profile (become dual user)
+# @name worker_create_client_profile
+POST {{host}}/api/mobile/profile/create-client
+Content-Type: application/json
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+{
+    "business_name": "My Construction Business",
+    "description": "Sometimes I need to hire other workers for larger projects"
+}
+
+### 50. WORKER: Switch to client profile
+# @name worker_switch_to_client
+POST {{host}}/api/mobile/profile/switch-profile
+Content-Type: application/json
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+{
+    "profile_type": "CLIENT"
+}
+
+### ========================================
+### WORKER LOGOUT
+### ========================================
+
+### 51. WORKER: Logout
+# @name worker_logout
+POST {{host}}/api/mobile/auth/logout
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+### ========================================
+### WORKER PASSWORD MANAGEMENT
+### ========================================
+
+### 52. WORKER: Request password reset
+# @name worker_forgot_password
+POST {{host}}/api/mobile/auth/forgot-password
+Content-Type: application/json
+
+{
+    "email": "{{worker_email}}"
+}
+
+### 53. WORKER: Reset password
+# @name worker_reset_password
+POST {{host}}/api/mobile/auth/reset-password
+Content-Type: application/json
+
+{
+    "token": "reset-token-here",
+    "new_password": "NewPass@123",
+    "confirm_password": "NewPass@123"
+}
+
+### 54. WORKER: Refresh auth token
+# @name worker_refresh_token
+POST {{host}}/api/mobile/auth/refresh
+Content-Type: application/json
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+{
+    "refresh_token": "refresh-token-here"
+}
+
+### ========================================
+### WORKER JOB COMPLETION FLOW
+### ========================================
+
+### 55. WORKER: Mark job as started
+# Note: This endpoint may need to be checked in jobs API
+POST {{host}}/api/jobs/1/start
+Content-Type: application/json
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+{
+    "notes": "Starting work on the electrical installation"
+}
+
+### 56. WORKER: Update job progress
+# Note: This endpoint may need to be checked in jobs API
+POST {{host}}/api/jobs/1/progress
+Content-Type: application/json
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+{
+    "progress_percentage": 50,
+    "notes": "Completed wiring, now installing fixtures"
+}
+
+### 57. WORKER: Mark job as complete
+# Note: This endpoint may need to be checked in jobs API
+POST {{host}}/api/jobs/1/worker-complete
+Content-Type: application/json
+Authorization: Bearer {{worker_login.response.body.$.access_token}}
+
+{
+    "completion_notes": "All electrical work completed. Tested all circuits and everything working properly."
+}
+
+### ========================================
+### END OF WORKER TEST SUITE
+### ========================================
