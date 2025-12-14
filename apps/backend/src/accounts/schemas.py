@@ -346,3 +346,15 @@ class CreateInviteJobMobileSchema(Schema):
     job_scope: Optional[str] = "MINOR_REPAIR"  # 'MINOR_REPAIR' | 'MODERATE_PROJECT' | 'MAJOR_RENOVATION'
     skill_level_required: Optional[str] = "INTERMEDIATE"  # 'ENTRY' | 'INTERMEDIATE' | 'EXPERT'
     work_environment: Optional[str] = "INDOOR"  # 'INDOOR' | 'OUTDOOR' | 'BOTH'
+
+
+# Skill Management Schemas
+class AddSkillSchema(Schema):
+    """Schema for adding a skill to worker profile"""
+    specialization_id: int
+    experience_years: int = 0
+
+
+class UpdateSkillSchema(Schema):
+    """Schema for updating skill experience years"""
+    experience_years: int

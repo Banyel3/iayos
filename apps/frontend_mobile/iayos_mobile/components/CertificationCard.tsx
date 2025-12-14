@@ -38,7 +38,7 @@ export default function CertificationCard({
   compact = false,
   showActions = true,
 }: CertificationCardProps) {
-  const daysUntilExpiry = getDaysUntilExpiry(certification);
+  const daysUntilExpiry = getDaysUntilExpiry(certification.expiryDate);
   const isExpiringSoon =
     daysUntilExpiry !== null && daysUntilExpiry > 0 && daysUntilExpiry <= 30;
 

@@ -13,6 +13,9 @@ import {
   Modal,
   TextInput,
   ActivityIndicator,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -39,13 +42,23 @@ export default function SkillsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [selectedSkill, setSelectedSkill] = useState<AvailableSkill | null>(null);
+  const [showCertificationSuggestion, setShowCertificationSuggestion] =
+    useState(false);
+  const [justAddedSkillId, setJustAddedSkillId] = useState<number | null>(null);
+  const [selectedSkill, setSelectedSkill] = useState<AvailableSkill | null>(
+    null
+  );
   const [editingSkill, setEditingSkill] = useState<WorkerSkill | null>(null);
   const [experienceYears, setExperienceYears] = useState("0");
 
   // Queries
-  const { data: availableSkills = [], isLoading: availableLoading } = useAvailableSkills();
-  const { data: mySkills = [], isLoading: mySkillsLoading, refetch } = useMySkills();
+  const { data: availableSkills = [], isLoading: availableLoading } =
+    useAvailableSkills();
+  const {
+    data: mySkills = [],
+    isLoading: mySkillsLoading,
+    refetch,
+  } = useMySkills();
 
   // Mutations
   const addSkill = useAddSkill();
@@ -66,6 +79,8 @@ export default function SkillsScreen() {
   const handleAddSkill = () => {
     if (!selectedSkill) return;
 
+    Keyboard.dismiss(); // Dismiss keyboard before processing
+
     const years = parseInt(experienceYears, 10) || 0;
     if (years < 0 || years > 50) {
       Alert.alert("Invalid Input", "Experience years must be between 0 and 50");
@@ -79,10 +94,14 @@ export default function SkillsScreen() {
       },
       {
         onSuccess: (data) => {
-          Alert.alert("Success", data.message);
           setShowAddModal(false);
+          const addedSkillId = data.skill?.id; // Store the skill ID
+          setJustAddedSkillId(addedSkillId || null);
           setSelectedSkill(null);
           setExperienceYears("0");
+
+          // Show custom certification suggestion modal with skill ID
+          setShowCertificationSuggestion(true);
         },
         onError: (error) => {
           Alert.alert("Error", error.message);
@@ -94,6 +113,8 @@ export default function SkillsScreen() {
   // Handle update skill
   const handleUpdateSkill = () => {
     if (!editingSkill) return;
+
+    Keyboard.dismiss(); // Dismiss keyboard before processing
 
     const years = parseInt(experienceYears, 10) || 0;
     if (years < 0 || years > 50) {
@@ -186,7 +207,10 @@ export default function SkillsScreen() {
           <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
         </Pressable>
         <Text style={styles.headerTitle}>My Skills</Text>
-        <Pressable onPress={() => setShowAddModal(true)} style={styles.addButton}>
+        <Pressable
+          onPress={() => setShowAddModal(true)}
+          style={styles.addButton}
+        >
           <Ionicons name="add" size={24} color={Colors.primary} />
         </Pressable>
       </View>
@@ -200,20 +224,27 @@ export default function SkillsScreen() {
       >
         {/* Info Banner */}
         <View style={styles.infoBanner}>
-          <Ionicons name="information-circle" size={20} color={Colors.primary} />
+          <Ionicons
+            name="information-circle"
+            size={20}
+            color={Colors.primary}
+          />
           <Text style={styles.infoText}>
-            Add skills to showcase your expertise. Skills are used to filter jobs and link certifications.
+            Add skills to showcase your expertise. Skills are used to filter
+            jobs and link certifications.
           </Text>
         </View>
 
         {/* My Skills Section */}
-        <Text style={styles.sectionTitle}>
-          My Skills ({mySkills.length})
-        </Text>
+        <Text style={styles.sectionTitle}>My Skills ({mySkills.length})</Text>
 
         {mySkills.length === 0 ? (
           <View style={styles.emptyState}>
-            <Ionicons name="construct-outline" size={48} color={Colors.textTertiary} />
+            <Ionicons
+              name="construct-outline"
+              size={48}
+              color={Colors.textTertiary}
+            />
             <Text style={styles.emptyTitle}>No Skills Added</Text>
             <Text style={styles.emptyText}>
               Tap the + button to add your skills and specializations.
@@ -225,7 +256,8 @@ export default function SkillsScreen() {
               <View style={styles.skillInfo}>
                 <Text style={styles.skillName}>{skill.name}</Text>
                 <Text style={styles.skillExperience}>
-                  {skill.experienceYears} year{skill.experienceYears !== 1 ? "s" : ""} experience
+                  {skill.experienceYears} year
+                  {skill.experienceYears !== 1 ? "s" : ""} experience
                 </Text>
                 {skill.description ? (
                   <Text style={styles.skillDescription} numberOfLines={2}>
@@ -257,90 +289,138 @@ export default function SkillsScreen() {
         visible={showAddModal}
         animationType="slide"
         transparent={true}
-        onRequestClose={() => setShowAddModal(false)}
+        onRequestClose={() => {
+          Keyboard.dismiss();
+          setShowAddModal(false);
+        }}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Add Skill</Text>
-              <Pressable onPress={() => setShowAddModal(false)}>
-                <Ionicons name="close" size={24} color={Colors.textPrimary} />
-              </Pressable>
-            </View>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1 }}
+        >
+          <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+            <Pressable
+              style={styles.modalContent}
+              onPress={(e) => e.stopPropagation()}
+            >
+              <ScrollView bounces={false} showsVerticalScrollIndicator={false}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Add Skill</Text>
+                  <Pressable onPress={() => setShowAddModal(false)}>
+                    <Ionicons
+                      name="close"
+                      size={24}
+                      color={Colors.textPrimary}
+                    />
+                  </Pressable>
+                </View>
 
-            {availableLoading ? (
-              <View style={styles.modalLoading}>
-                <ActivityIndicator size="small" color={Colors.primary} />
-                <Text style={styles.loadingText}>Loading available skills...</Text>
-              </View>
-            ) : availableToAdd.length === 0 ? (
-              <View style={styles.modalEmpty}>
-                <Ionicons name="checkmark-circle" size={48} color={Colors.success} />
-                <Text style={styles.modalEmptyTitle}>All Skills Added!</Text>
-                <Text style={styles.modalEmptyText}>
-                  You've added all available specializations to your profile.
-                </Text>
-              </View>
-            ) : (
-              <>
-                <Text style={styles.modalLabel}>Select a Skill</Text>
-                <ScrollView style={styles.skillsList} showsVerticalScrollIndicator={false}>
-                  {availableToAdd.map((skill) => (
-                    <Pressable
-                      key={skill.id}
-                      style={[
-                        styles.skillOption,
-                        selectedSkill?.id === skill.id && styles.skillOptionSelected,
-                      ]}
-                      onPress={() => setSelectedSkill(skill)}
+                {availableLoading ? (
+                  <View style={styles.modalLoading}>
+                    <ActivityIndicator size="small" color={Colors.primary} />
+                    <Text style={styles.loadingText}>
+                      Loading available skills...
+                    </Text>
+                  </View>
+                ) : availableToAdd.length === 0 ? (
+                  <View style={styles.modalEmpty}>
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={48}
+                      color={Colors.success}
+                    />
+                    <Text style={styles.modalEmptyTitle}>
+                      All Skills Added!
+                    </Text>
+                    <Text style={styles.modalEmptyText}>
+                      You've added all available specializations to your
+                      profile.
+                    </Text>
+                  </View>
+                ) : (
+                  <>
+                    <Text style={styles.modalLabel}>Select a Skill</Text>
+                    <ScrollView
+                      style={styles.skillsList}
+                      showsVerticalScrollIndicator={false}
                     >
-                      <View style={styles.skillOptionInfo}>
-                        <Text style={styles.skillOptionName}>{skill.name}</Text>
-                        {skill.description ? (
-                          <Text style={styles.skillOptionDesc} numberOfLines={2}>
-                            {skill.description}
-                          </Text>
-                        ) : null}
+                      {availableToAdd.map((skill) => (
+                        <Pressable
+                          key={skill.id}
+                          style={[
+                            styles.skillOption,
+                            selectedSkill?.id === skill.id &&
+                              styles.skillOptionSelected,
+                          ]}
+                          onPress={() => setSelectedSkill(skill)}
+                        >
+                          <View style={styles.skillOptionInfo}>
+                            <Text style={styles.skillOptionName}>
+                              {skill.name}
+                            </Text>
+                            {skill.description ? (
+                              <Text
+                                style={styles.skillOptionDesc}
+                                numberOfLines={2}
+                              >
+                                {skill.description}
+                              </Text>
+                            ) : null}
+                          </View>
+                          {selectedSkill?.id === skill.id && (
+                            <Ionicons
+                              name="checkmark-circle"
+                              size={24}
+                              color={Colors.primary}
+                            />
+                          )}
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+
+                    {selectedSkill && (
+                      <View style={styles.experienceSection}>
+                        <Text style={styles.modalLabel}>
+                          Years of Experience
+                        </Text>
+                        <TextInput
+                          style={styles.experienceInput}
+                          value={experienceYears}
+                          onChangeText={setExperienceYears}
+                          keyboardType="number-pad"
+                          placeholder="0"
+                          maxLength={2}
+                          returnKeyType="done"
+                          onSubmitEditing={Keyboard.dismiss}
+                          blurOnSubmit={true}
+                        />
+                        <Text style={styles.experienceHint}>
+                          Tap outside or press Done to close keyboard
+                        </Text>
                       </View>
-                      {selectedSkill?.id === skill.id && (
-                        <Ionicons name="checkmark-circle" size={24} color={Colors.primary} />
+                    )}
+
+                    <Pressable
+                      style={[
+                        styles.modalButton,
+                        (!selectedSkill || addSkill.isPending) &&
+                          styles.modalButtonDisabled,
+                      ]}
+                      onPress={handleAddSkill}
+                      disabled={!selectedSkill || addSkill.isPending}
+                    >
+                      {addSkill.isPending ? (
+                        <ActivityIndicator size="small" color={Colors.white} />
+                      ) : (
+                        <Text style={styles.modalButtonText}>Add Skill</Text>
                       )}
                     </Pressable>
-                  ))}
-                </ScrollView>
-
-                {selectedSkill && (
-                  <View style={styles.experienceSection}>
-                    <Text style={styles.modalLabel}>Years of Experience</Text>
-                    <TextInput
-                      style={styles.experienceInput}
-                      value={experienceYears}
-                      onChangeText={setExperienceYears}
-                      keyboardType="number-pad"
-                      placeholder="0"
-                      maxLength={2}
-                    />
-                  </View>
+                  </>
                 )}
-
-                <Pressable
-                  style={[
-                    styles.modalButton,
-                    (!selectedSkill || addSkill.isPending) && styles.modalButtonDisabled,
-                  ]}
-                  onPress={handleAddSkill}
-                  disabled={!selectedSkill || addSkill.isPending}
-                >
-                  {addSkill.isPending ? (
-                    <ActivityIndicator size="small" color={Colors.white} />
-                  ) : (
-                    <Text style={styles.modalButtonText}>Add Skill</Text>
-                  )}
-                </Pressable>
-              </>
-            )}
-          </View>
-        </View>
+              </ScrollView>
+            </Pressable>
+          </Pressable>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Edit Skill Modal */}
@@ -348,51 +428,128 @@ export default function SkillsScreen() {
         visible={showEditModal}
         animationType="slide"
         transparent={true}
-        onRequestClose={() => setShowEditModal(false)}
+        onRequestClose={() => {
+          Keyboard.dismiss();
+          setShowEditModal(false);
+        }}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Edit Experience</Text>
-              <Pressable onPress={() => setShowEditModal(false)}>
-                <Ionicons name="close" size={24} color={Colors.textPrimary} />
-              </Pressable>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1 }}
+        >
+          <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+            <Pressable
+              style={styles.modalContent}
+              onPress={(e) => e.stopPropagation()}
+            >
+              <ScrollView bounces={false} showsVerticalScrollIndicator={false}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Edit Experience</Text>
+                  <Pressable onPress={() => setShowEditModal(false)}>
+                    <Ionicons
+                      name="close"
+                      size={24}
+                      color={Colors.textPrimary}
+                    />
+                  </Pressable>
+                </View>
+
+                {editingSkill && (
+                  <>
+                    <View style={styles.editSkillInfo}>
+                      <Text style={styles.editSkillName}>
+                        {editingSkill.name}
+                      </Text>
+                    </View>
+
+                    <View style={styles.experienceSection}>
+                      <Text style={styles.modalLabel}>Years of Experience</Text>
+                      <TextInput
+                        style={styles.experienceInput}
+                        value={experienceYears}
+                        onChangeText={setExperienceYears}
+                        keyboardType="number-pad"
+                        placeholder="0"
+                        maxLength={2}
+                        returnKeyType="done"
+                        onSubmitEditing={Keyboard.dismiss}
+                        blurOnSubmit={true}
+                      />
+                      <Text style={styles.experienceHint}>
+                        Tap outside or press Done to close keyboard
+                      </Text>
+                    </View>
+
+                    <Pressable
+                      style={[
+                        styles.modalButton,
+                        updateSkill.isPending && styles.modalButtonDisabled,
+                      ]}
+                      onPress={handleUpdateSkill}
+                      disabled={updateSkill.isPending}
+                    >
+                      {updateSkill.isPending ? (
+                        <ActivityIndicator size="small" color={Colors.white} />
+                      ) : (
+                        <Text style={styles.modalButtonText}>Save Changes</Text>
+                      )}
+                    </Pressable>
+                  </>
+                )}
+              </ScrollView>
+            </Pressable>
+          </Pressable>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Certification Suggestion Modal */}
+      <Modal
+        visible={showCertificationSuggestion}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowCertificationSuggestion(false)}
+      >
+        <View style={styles.suggestionOverlay}>
+          <View style={styles.suggestionCard}>
+            <View style={styles.suggestionIcon}>
+              <Ionicons name="ribbon" size={48} color={Colors.primary} />
             </View>
 
-            {editingSkill && (
-              <>
-                <View style={styles.editSkillInfo}>
-                  <Text style={styles.editSkillName}>{editingSkill.name}</Text>
-                </View>
+            <Text style={styles.suggestionTitle}>Skill Added! 🎉</Text>
 
-                <View style={styles.experienceSection}>
-                  <Text style={styles.modalLabel}>Years of Experience</Text>
-                  <TextInput
-                    style={styles.experienceInput}
-                    value={experienceYears}
-                    onChangeText={setExperienceYears}
-                    keyboardType="number-pad"
-                    placeholder="0"
-                    maxLength={2}
-                  />
-                </View>
+            <Text style={styles.suggestionText}>
+              Great! Would you like to add a certification to verify this skill
+              and boost your profile credibility?
+            </Text>
 
-                <Pressable
-                  style={[
-                    styles.modalButton,
-                    updateSkill.isPending && styles.modalButtonDisabled,
-                  ]}
-                  onPress={handleUpdateSkill}
-                  disabled={updateSkill.isPending}
-                >
-                  {updateSkill.isPending ? (
-                    <ActivityIndicator size="small" color={Colors.white} />
-                  ) : (
-                    <Text style={styles.modalButtonText}>Save Changes</Text>
-                  )}
-                </Pressable>
-              </>
-            )}
+            <View style={styles.suggestionButtons}>
+              <Pressable
+                style={styles.suggestionButtonSecondary}
+                onPress={() => setShowCertificationSuggestion(false)}
+              >
+                <Text style={styles.suggestionButtonSecondaryText}>
+                  Not Now
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={styles.suggestionButtonPrimary}
+                onPress={() => {
+                  setShowCertificationSuggestion(false);
+                  // Navigate with skill ID as query parameter
+                  if (justAddedSkillId) {
+                    router.push(
+                      `/profile/skills/${justAddedSkillId}/certifications` as any
+                    );
+                  }
+                }}
+              >
+                <Ionicons name="add-circle" size={20} color={Colors.white} />
+                <Text style={styles.suggestionButtonPrimaryText}>
+                  Add Certification
+                </Text>
+              </Pressable>
+            </View>
           </View>
         </View>
       </Modal>
@@ -572,7 +729,7 @@ const styles = StyleSheet.create({
     marginTop: Spacing.xs,
   },
   skillsList: {
-    maxHeight: 300,
+    maxHeight: 200,
     marginBottom: Spacing.md,
   },
   skillOption: {
@@ -614,6 +771,16 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 24,
   },
+  experienceHint: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+    textAlign: "center",
+    marginTop: Spacing.xs,
+  },
+  keyboardAvoid: {
+    flex: 1,
+    justifyContent: "flex-end",
+  },
   modalButton: {
     backgroundColor: Colors.primary,
     padding: Spacing.md,
@@ -638,5 +805,82 @@ const styles = StyleSheet.create({
   editSkillName: {
     ...Typography.h4,
     color: Colors.textPrimary,
+  },
+  // Certification Suggestion Modal Styles
+  suggestionOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: Spacing.lg,
+  },
+  suggestionCard: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.xl,
+    width: "100%",
+    maxWidth: 360,
+    alignItems: "center",
+    ...Shadows.lg,
+  },
+  suggestionIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.primaryLight,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+  suggestionTitle: {
+    ...Typography.h3,
+    color: Colors.textPrimary,
+    marginBottom: Spacing.sm,
+    textAlign: "center",
+  },
+  suggestionText: {
+    ...Typography.body.medium,
+    color: Colors.textSecondary,
+    textAlign: "center",
+    marginBottom: Spacing.xl,
+    lineHeight: 22,
+  },
+  suggestionButtons: {
+    flexDirection: "row",
+    gap: Spacing.md,
+    width: "100%",
+  },
+  suggestionButtonSecondary: {
+    flex: 1,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.white,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  suggestionButtonSecondaryText: {
+    ...Typography.body.medium,
+    fontWeight: "600",
+    color: Colors.textSecondary,
+  },
+  suggestionButtonPrimary: {
+    flex: 1,
+    flexDirection: "row",
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.xs,
+    ...Shadows.sm,
+  },
+  suggestionButtonPrimaryText: {
+    ...Typography.body.medium,
+    fontWeight: "600",
+    color: Colors.white,
   },
 });

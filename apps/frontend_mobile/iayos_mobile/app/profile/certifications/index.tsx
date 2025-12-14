@@ -1,591 +1,367 @@
-// Worker Certifications Screen
-// Lists all worker certifications with ability to add, edit, and delete
-
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
-  FlatList,
+  ScrollView,
   Pressable,
-  ActivityIndicator,
-  Alert,
   RefreshControl,
-  SafeAreaView,
+  ActivityIndicator,
 } from "react-native";
-import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { useAuth } from "@/context/AuthContext";
-import {
-  Colors,
-  Typography,
-  Spacing,
-  BorderRadius,
-  Shadows,
-} from "@/constants/theme";
+import { router } from "expo-router";
+import { Colors, Typography, Shadows, BorderRadius } from "@/constants/theme";
+import CertificationCard from "@/components/CertificationCard";
+import CertificationForm from "@/components/CertificationForm";
 import {
   useCertifications,
   useDeleteCertification,
-  type Certification,
-  formatCertificationDate,
-  getDaysUntilExpiry,
 } from "@/lib/hooks/useCertifications";
-import CertificationForm from "@/components/CertificationForm";
-import CustomBackButton from "@/components/navigation/CustomBackButton";
-
-// ===== MAIN COMPONENT =====
+import { useMySkills } from "@/lib/hooks/useSkills";
 
 export default function CertificationsScreen() {
-  const router = useRouter();
-  const { user } = useAuth();
-
-  // Check if user is a worker - redirect if not
-  const isWorker = user?.profile_data?.profileType === "WORKER";
-
-  useEffect(() => {
-    if (!isWorker && user) {
-      Alert.alert(
-        "Worker Feature Only",
-        "Certifications are only available for worker profiles.",
-        [
-          {
-            text: "OK",
-            onPress: () => router.back(),
-          },
-        ]
-      );
-    }
-  }, [isWorker, user, router]);
+  const [isFormVisible, setIsFormVisible] = useState(false);
+  const [editingCertId, setEditingCertId] = useState<number | null>(null);
 
   const {
     data: certifications = [],
-    isLoading,
-    error,
+    isLoading: isCertsLoading,
     refetch,
+    isRefreshing,
   } = useCertifications();
-  const deleteCertification = useDeleteCertification();
-  const [refreshing, setRefreshing] = useState(false);
-  const [formVisible, setFormVisible] = useState(false);
-  const [editingCertification, setEditingCertification] = useState<
-    Certification | undefined
-  >();
+  const { data: skills = [], isLoading: isSkillsLoading } = useMySkills();
+  const deleteMutation = useDeleteCertification();
 
-  // Handle pull-to-refresh
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await refetch();
-    setRefreshing(false);
-  };
-
-  // Handle delete with confirmation
-  const handleDelete = (certification: Certification) => {
-    Alert.alert(
-      "Delete Certification",
-      `Are you sure you want to delete "${certification.name}"?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => deleteCertification.mutate(certification.id),
-        },
-      ]
-    );
-  };
-
-  // Handle add new
   const handleAdd = () => {
-    setEditingCertification(undefined);
-    setFormVisible(true);
+    setEditingCertId(null);
+    setIsFormVisible(true);
   };
 
-  // Handle edit
-  const handleEdit = (certification: Certification) => {
-    setEditingCertification(certification);
-    setFormVisible(true);
+  const handleEdit = (certId: number) => {
+    setEditingCertId(certId);
+    setIsFormVisible(true);
   };
 
-  // Handle form close
+  const handleDelete = (certId: number, certName: string) => {
+    deleteMutation.mutate(certId);
+  };
+
   const handleFormClose = () => {
-    setFormVisible(false);
-    setEditingCertification(undefined);
+    setIsFormVisible(false);
+    setEditingCertId(null);
   };
 
-  // ===== LOADING STATE =====
-  if (isLoading && !refreshing) {
+  const getSkillName = (skillId: number | null): string => {
+    if (!skillId || !skills || !Array.isArray(skills)) return "Unknown Skill";
+    const skill = skills.find((s) => s.id === skillId);
+    return skill?.name || "Unknown Skill";
+  };
+
+  const isLoading = isCertsLoading || isSkillsLoading;
+
+  if (isLoading) {
     return (
-      <SafeAreaView style={styles.safeArea}>
-        <CertificationForm
-          visible={formVisible}
-          onClose={handleFormClose}
-          certification={editingCertification}
-        />
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>Loading certifications...</Text>
-        </View>
-      </SafeAreaView>
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+        <Text style={styles.loadingText}>Loading certifications...</Text>
+      </View>
     );
   }
 
-  // ===== ERROR STATE =====
-  if (error && !refreshing) {
-    return (
-      <SafeAreaView style={styles.safeArea}>
-        <CertificationForm
-          visible={formVisible}
-          onClose={handleFormClose}
-          certification={editingCertification}
-        />
-        <View style={styles.centerContainer}>
-          <Ionicons
-            name="alert-circle-outline"
-            size={64}
-            color={Colors.error}
+  return (
+    <View style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <Pressable
+          onPress={() => router.back()}
+          style={styles.backButton}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
+        </Pressable>
+        <Text style={styles.headerTitle}>Certifications</Text>
+        <Pressable
+          onPress={handleAdd}
+          style={styles.addButton}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Ionicons name="add-circle" size={28} color={Colors.primary} />
+        </Pressable>
+      </View>
+
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={refetch}
+            tintColor={Colors.primary}
           />
-          <Text style={styles.errorText}>Failed to load certifications</Text>
-          <Pressable style={styles.retryButton} onPress={() => refetch()}>
-            <Text style={styles.retryButtonText}>Retry</Text>
-          </Pressable>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  // ===== EMPTY STATE =====
-  if (certifications.length === 0) {
-    return (
-      <SafeAreaView style={styles.safeArea}>
-        <CertificationForm
-          visible={formVisible}
-          onClose={handleFormClose}
-          certification={editingCertification}
-        />
-        <View style={styles.emptyContainer}>
-          <Ionicons
-            name="ribbon-outline"
-            size={80}
-            color={Colors.textSecondary}
-          />
-          <Text style={styles.emptyTitle}>No Certifications Yet</Text>
-          <Text style={styles.emptyText}>
-            Add your professional certifications to build credibility with
-            clients
-          </Text>
-          <Pressable style={styles.addButton} onPress={handleAdd}>
-            <Ionicons name="add-circle" size={20} color={Colors.textLight} />
-            <Text style={styles.addButtonText}>Add Certification</Text>
-          </Pressable>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  // ===== RENDER CERTIFICATION CARD =====
-  const renderCertification = ({ item }: { item: Certification }) => {
-    const daysUntilExpiry = getDaysUntilExpiry(item);
-    const isExpiringSoon =
-      daysUntilExpiry !== null && daysUntilExpiry > 0 && daysUntilExpiry <= 30;
-
-    return (
-      <Pressable
-        style={styles.certificationCard}
-        onPress={() => handleEdit(item)}
+        }
+        showsVerticalScrollIndicator={false}
       >
-        {/* Certificate Image Thumbnail */}
-        {item.certificateUrl && (
-          <View style={styles.certificateThumbnail}>
-            <Ionicons name="document-text" size={32} color={Colors.primary} />
+        {/* Info Card */}
+        <View style={styles.infoCard}>
+          <Ionicons name="information-circle" size={20} color={Colors.info} />
+          <Text style={styles.infoText}>
+            All certifications must be linked to a specific skill. Add skills
+            first if you haven't already.
+          </Text>
+        </View>
+
+        {/* Stats */}
+        <View style={styles.statsRow}>
+          <View style={styles.statCard}>
+            <Ionicons name="ribbon" size={24} color={Colors.success} />
+            <Text style={styles.statValue}>{certifications.length}</Text>
+            <Text style={styles.statLabel}>Total</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Ionicons
+              name="checkmark-circle"
+              size={24}
+              color={Colors.primary}
+            />
+            <Text style={styles.statValue}>
+              {certifications.filter((c) => c.isVerified).length}
+            </Text>
+            <Text style={styles.statLabel}>Verified</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Ionicons name="time" size={24} color={Colors.warning} />
+            <Text style={styles.statValue}>
+              {certifications.filter((c) => !c.isVerified).length}
+            </Text>
+            <Text style={styles.statLabel}>Pending</Text>
+          </View>
+        </View>
+
+        {/* Certifications List */}
+        {certifications.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Ionicons name="ribbon-outline" size={64} color={Colors.border} />
+            <Text style={styles.emptyTitle}>No Certifications Yet</Text>
+            <Text style={styles.emptyText}>
+              Add your first professional certification to boost your profile
+            </Text>
+            <Pressable style={styles.emptyButton} onPress={handleAdd}>
+              <Ionicons name="add-circle" size={20} color={Colors.white} />
+              <Text style={styles.emptyButtonText}>Add Certification</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <View style={styles.certificationsContainer}>
+            {certifications.map((cert) => (
+              <View key={cert.id} style={styles.certWrapper}>
+                <CertificationCard
+                  certification={cert}
+                  onEdit={handleEdit}
+                  onDelete={handleDelete}
+                />
+                {/* Skill Badge */}
+                <View style={styles.skillBadge}>
+                  <Ionicons
+                    name="school"
+                    size={14}
+                    color={Colors.primary}
+                    style={styles.skillIcon}
+                  />
+                  <Text style={styles.skillText}>
+                    {getSkillName(cert.specializationId ?? null)}
+                  </Text>
+                </View>
+              </View>
+            ))}
           </View>
         )}
 
-        {/* Main Content */}
-        <View style={styles.certificationContent}>
-          {/* Header */}
-          <View style={styles.certificationHeader}>
-            <Text style={styles.certificationName} numberOfLines={2}>
-              {item.name}
-            </Text>
-            <View style={styles.statusBadges}>
-              {item.isVerified && (
-                <View style={[styles.badge, styles.verifiedBadge]}>
-                  <Ionicons
-                    name="checkmark-circle"
-                    size={14}
-                    color={Colors.success}
-                  />
-                  <Text style={[styles.badgeText, styles.verifiedText]}>
-                    Verified
-                  </Text>
-                </View>
-              )}
-              {item.isExpired && (
-                <View style={[styles.badge, styles.expiredBadge]}>
-                  <Ionicons
-                    name="alert-circle"
-                    size={14}
-                    color={Colors.error}
-                  />
-                  <Text style={[styles.badgeText, styles.expiredText]}>
-                    Expired
-                  </Text>
-                </View>
-              )}
-              {isExpiringSoon && !item.isExpired && (
-                <View style={[styles.badge, styles.warningSoon]}>
-                  <Ionicons name="warning" size={14} color={Colors.warning} />
-                  <Text style={[styles.badgeText, styles.warningText]}>
-                    Expiring Soon
-                  </Text>
-                </View>
-              )}
-            </View>
-          </View>
-
-          {/* Organization */}
-          <Text style={styles.organization} numberOfLines={1}>
-            {item.issuingOrganization}
-          </Text>
-
-          {/* Dates */}
-          <View style={styles.dateRow}>
-            <View style={styles.dateItem}>
-              <Text style={styles.dateLabel}>Issued:</Text>
-              <Text style={styles.dateValue}>
-                {formatCertificationDate(item.issueDate)}
-              </Text>
-            </View>
-            {item.expiryDate && (
-              <View style={styles.dateItem}>
-                <Text style={styles.dateLabel}>Expires:</Text>
-                <Text
-                  style={[
-                    styles.dateValue,
-                    item.isExpired && styles.expiredDateValue,
-                  ]}
-                >
-                  {formatCertificationDate(item.expiryDate)}
-                </Text>
-              </View>
-            )}
-            {!item.expiryDate && (
-              <View style={styles.dateItem}>
-                <Text style={styles.noExpiryText}>No Expiry</Text>
-              </View>
-            )}
-          </View>
-
-          {/* Actions */}
-          <View style={styles.actions}>
+        {/* Quick Actions */}
+        {certifications.length > 0 && (
+          <View style={styles.quickActions}>
             <Pressable
-              style={styles.editButton}
-              onPress={() => handleEdit(item)}
+              style={styles.quickAction}
+              onPress={() => router.push("/profile/skills" as any)}
             >
-              <Ionicons name="pencil" size={16} color={Colors.primary} />
-              <Text style={styles.editButtonText}>Edit</Text>
-            </Pressable>
-            <Pressable
-              style={styles.deleteButton}
-              onPress={() => handleDelete(item)}
-            >
-              <Ionicons name="trash-outline" size={16} color={Colors.error} />
-              <Text style={styles.deleteButtonText}>Delete</Text>
+              <Ionicons name="list" size={20} color={Colors.primary} />
+              <Text style={styles.quickActionText}>View by Skill</Text>
             </Pressable>
           </View>
-        </View>
-      </Pressable>
-    );
-  };
+        )}
+      </ScrollView>
 
-  // ===== MAIN RENDER =====
-  return (
-    <SafeAreaView style={styles.safeArea}>
+      {/* Add/Edit Certification Modal */}
       <CertificationForm
-        visible={formVisible}
+        visible={isFormVisible}
         onClose={handleFormClose}
-        certification={editingCertification}
+        certificationId={editingCertId}
       />
-      <View style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <CustomBackButton />
-          <View style={styles.headerContent}>
-            <Text style={styles.headerTitle}>Certifications</Text>
-            <Text style={styles.headerSubtitle}>
-              {certifications.length}{" "}
-              {certifications.length === 1 ? "certification" : "certifications"}
-            </Text>
-          </View>
-          <Pressable style={styles.addHeaderButton} onPress={handleAdd}>
-            <Ionicons name="add-circle" size={24} color={Colors.primary} />
-          </Pressable>
-        </View>
-
-        {/* List */}
-        <FlatList
-          data={certifications}
-          renderItem={renderCertification}
-          keyExtractor={(item) => item.id.toString()}
-          contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              colors={[Colors.primary]}
-              tintColor={Colors.primary}
-            />
-          }
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
-        />
-      </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
-// ===== STYLES =====
-
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
   container: {
     flex: 1,
     backgroundColor: Colors.background,
   },
-  centerContainer: {
+  loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: Colors.background,
-    padding: Spacing.lg,
   },
   loadingText: {
     ...Typography.body.medium,
     color: Colors.textSecondary,
-    marginTop: Spacing.md,
+    marginTop: 12,
   },
-  errorText: {
-    ...Typography.body.large,
-    color: Colors.textPrimary,
-    marginTop: Spacing.md,
-    textAlign: "center",
-  },
-  retryButton: {
-    marginTop: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.lg,
-    backgroundColor: Colors.primary,
-    borderRadius: BorderRadius.medium,
-  },
-  retryButtonText: {
-    ...Typography.body.medium,
-    color: Colors.textLight,
-    fontWeight: "600",
-  },
-
-  // Header
   header: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
-    backgroundColor: Colors.surface,
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingTop: 60,
+    paddingBottom: 20,
+    backgroundColor: Colors.white,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
-  headerContent: {
-    flex: 1,
-    marginLeft: Spacing.sm,
-  },
-  headerTitle: {
-    ...Typography.heading.h3,
-    color: Colors.textPrimary,
-  },
-  headerSubtitle: {
-    ...Typography.body.small,
-    color: Colors.textSecondary,
-    marginTop: Spacing.xs,
-  },
-  addHeaderButton: {
-    padding: Spacing.sm,
-  },
-
-  // Empty State
-  emptyContainer: {
-    flex: 1,
+  backButton: {
+    width: 40,
+    height: 40,
     justifyContent: "center",
     alignItems: "center",
-    padding: Spacing.xl,
-    backgroundColor: Colors.background,
+  },
+  headerTitle: {
+    ...Typography.heading.h2,
+    color: Colors.textPrimary,
+    flex: 1,
+    textAlign: "center",
+  },
+  addButton: {
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 20,
+  },
+  infoCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.info + "15",
+    padding: 16,
+    borderRadius: BorderRadius.medium,
+    marginBottom: 20,
+    gap: 12,
+  },
+  infoText: {
+    ...Typography.body.small,
+    color: Colors.info,
+    flex: 1,
+  },
+  statsRow: {
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 24,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: Colors.white,
+    padding: 16,
+    borderRadius: BorderRadius.medium,
+    alignItems: "center",
+    ...Shadows.small,
+  },
+  statValue: {
+    ...Typography.heading.h2,
+    color: Colors.textPrimary,
+    marginTop: 8,
+  },
+  statLabel: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+    marginTop: 4,
+  },
+  certificationsContainer: {
+    gap: 16,
+  },
+  certWrapper: {
+    position: "relative",
+  },
+  skillBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.primary + "15",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.full,
+    marginTop: 8,
+    alignSelf: "flex-start",
+    marginLeft: 16,
+  },
+  skillIcon: {
+    marginRight: 6,
+  },
+  skillText: {
+    ...Typography.body.small,
+    color: Colors.primary,
+    fontWeight: "600",
+  },
+  emptyState: {
+    alignItems: "center",
+    paddingVertical: 60,
+    paddingHorizontal: 40,
   },
   emptyTitle: {
     ...Typography.heading.h3,
     color: Colors.textPrimary,
-    marginTop: Spacing.md,
-    marginBottom: Spacing.sm,
+    marginTop: 16,
   },
   emptyText: {
     ...Typography.body.medium,
     color: Colors.textSecondary,
     textAlign: "center",
-    marginBottom: Spacing.lg,
+    marginTop: 8,
     lineHeight: 22,
   },
-  addButton: {
+  emptyButton: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.xs,
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.lg,
     backgroundColor: Colors.primary,
-    borderRadius: BorderRadius.medium,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: BorderRadius.full,
+    marginTop: 24,
+    gap: 8,
   },
-  addButtonText: {
+  emptyButtonText: {
     ...Typography.body.medium,
-    color: Colors.textLight,
+    color: Colors.white,
     fontWeight: "600",
   },
-
-  // List
-  listContent: {
-    padding: Spacing.md,
+  quickActions: {
+    marginTop: 24,
+    gap: 12,
   },
-  separator: {
-    height: Spacing.md,
-  },
-
-  // Certification Card
-  certificationCard: {
+  quickAction: {
     flexDirection: "row",
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.large,
-    padding: Spacing.md,
-    ...Shadows.small,
-  },
-  certificateThumbnail: {
-    width: 60,
-    height: 60,
-    borderRadius: BorderRadius.medium,
-    backgroundColor: Colors.primaryLight,
+    alignItems: "center",
     justifyContent: "center",
-    alignItems: "center",
-    marginRight: Spacing.md,
+    backgroundColor: Colors.white,
+    padding: 16,
+    borderRadius: BorderRadius.medium,
+    ...Shadows.small,
+    gap: 8,
   },
-  certificationContent: {
-    flex: 1,
-  },
-  certificationHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: Spacing.xs,
-  },
-  certificationName: {
-    ...Typography.heading.h4,
-    color: Colors.textPrimary,
-    flex: 1,
-    marginRight: Spacing.sm,
-  },
-  statusBadges: {
-    flexDirection: "row",
-    gap: Spacing.xs,
-  },
-  badge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: Spacing.xs,
-    paddingVertical: 2,
-    borderRadius: BorderRadius.small,
-  },
-  verifiedBadge: {
-    backgroundColor: Colors.successLight,
-  },
-  expiredBadge: {
-    backgroundColor: Colors.errorLight,
-  },
-  warningSoon: {
-    backgroundColor: Colors.warningLight,
-  },
-  badgeText: {
-    ...Typography.body.small,
-    fontSize: 10,
-    fontWeight: "600",
-  },
-  verifiedText: {
-    color: Colors.success,
-  },
-  expiredText: {
-    color: Colors.error,
-  },
-  warningText: {
-    color: Colors.warning,
-  },
-  organization: {
+  quickActionText: {
     ...Typography.body.medium,
-    color: Colors.textSecondary,
-    marginBottom: Spacing.sm,
-  },
-  dateRow: {
-    flexDirection: "row",
-    gap: Spacing.md,
-    marginBottom: Spacing.sm,
-  },
-  dateItem: {
-    flex: 1,
-  },
-  dateLabel: {
-    ...Typography.body.small,
-    color: Colors.textSecondary,
-    marginBottom: 2,
-  },
-  dateValue: {
-    ...Typography.body.small,
-    color: Colors.textPrimary,
-    fontWeight: "500",
-  },
-  expiredDateValue: {
-    color: Colors.error,
-    fontWeight: "600",
-  },
-  noExpiryText: {
-    ...Typography.body.small,
-    color: Colors.success,
-    fontWeight: "500",
-  },
-  actions: {
-    flexDirection: "row",
-    gap: Spacing.sm,
-    marginTop: Spacing.xs,
-  },
-  editButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingVertical: Spacing.xs,
-    paddingHorizontal: Spacing.sm,
-    backgroundColor: Colors.primaryLight,
-    borderRadius: BorderRadius.small,
-  },
-  editButtonText: {
-    ...Typography.body.small,
     color: Colors.primary,
-    fontWeight: "600",
-  },
-  deleteButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingVertical: Spacing.xs,
-    paddingHorizontal: Spacing.sm,
-    backgroundColor: Colors.errorLight,
-    borderRadius: BorderRadius.small,
-  },
-  deleteButtonText: {
-    ...Typography.body.small,
-    color: Colors.error,
     fontWeight: "600",
   },
 });

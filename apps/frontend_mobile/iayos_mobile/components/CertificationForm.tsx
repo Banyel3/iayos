@@ -40,7 +40,7 @@ import { apiRequest, ENDPOINTS } from "@/lib/api/config";
 
 interface Skill {
   id: number; // Specialization ID (used to link certification)
-  specializationId: number; // Specializations ID  
+  specializationId: number; // Specializations ID
   name: string;
   experienceYears: number;
   certificationCount: number;
@@ -52,6 +52,7 @@ interface CertificationFormProps {
   visible: boolean;
   onClose: () => void;
   certification?: Certification; // If provided, edit mode
+  preselectedSkillId?: number; // If provided, skill is pre-filled and cannot be changed
 }
 
 // ===== VALIDATION =====
@@ -100,8 +101,10 @@ export default function CertificationForm({
   visible,
   onClose,
   certification,
+  preselectedSkillId,
 }: CertificationFormProps) {
   const isEditMode = !!certification;
+  const isSkillLocked = !!preselectedSkillId || isEditMode; // Skill is locked if preselected or editing
   const createCertification = useCreateCertification();
   const updateCertification = useUpdateCertification();
 
@@ -118,28 +121,38 @@ export default function CertificationForm({
     count: number;
   }
 
-  const { data: skillsData, isLoading: skillsLoading, error: skillsError } = useQuery({
+  const {
+    data: skillsData,
+    isLoading: skillsLoading,
+    error: skillsError,
+  } = useQuery({
     queryKey: ["my-skills"],
     queryFn: async () => {
-      console.log("🔍 [CertificationForm] Fetching skills from:", ENDPOINTS.MY_SKILLS);
+      console.log(
+        "🔍 [CertificationForm] Fetching skills from:",
+        ENDPOINTS.MY_SKILLS
+      );
       const response = await apiRequest(ENDPOINTS.MY_SKILLS);
       console.log("🔍 [CertificationForm] Response status:", response.status);
       if (!response.ok) throw new Error("Failed to fetch skills");
       const data = await response.json();
-      console.log("🔍 [CertificationForm] Skills response:", JSON.stringify(data, null, 2));
+      console.log(
+        "🔍 [CertificationForm] Skills response:",
+        JSON.stringify(data, null, 2)
+      );
       return data as MySkillsResponse;
     },
   });
-  
+
   // Map the skills data to the format expected by the skill picker
-  const skills: Skill[] = (skillsData?.data || []).map(s => ({
+  const skills: Skill[] = (skillsData?.data || []).map((s) => ({
     id: s.id, // This is specializationID, used to link certification
     specializationId: s.id,
     name: s.name,
     experienceYears: s.experienceYears,
     certificationCount: 0,
   }));
-  
+
   // Debug log
   console.log("🔍 [CertificationForm] Mapped skills array:", skills);
   console.log("🔍 [CertificationForm] skillsLoading:", skillsLoading);
@@ -163,22 +176,26 @@ export default function CertificationForm({
   const [showIssueDatePicker, setShowIssueDatePicker] = useState(false);
   const [showExpiryDatePicker, setShowExpiryDatePicker] = useState(false);
 
-  // Initialize form with certification data (edit mode)
+  // Initialize form with certification data (edit mode) or preselected skill
   useEffect(() => {
     if (certification) {
       setName(certification.name);
       setOrganization(certification.issuingOrganization);
       setIssueDate(new Date(certification.issueDate));
-      // 0 = General, positive = skill ID, -1 = unselected
-      setSelectedSkillId(certification.specializationId || 0);
+      // Use the certification's skill ID
+      setSelectedSkillId(certification.specializationId || -1);
       if (certification.expiryDate) {
         setExpiryDate(new Date(certification.expiryDate));
         setHasExpiry(true);
       }
+    } else if (preselectedSkillId) {
+      // Pre-fill skill ID for new certification
+      setSelectedSkillId(preselectedSkillId);
+      resetForm();
     } else {
       resetForm();
     }
-  }, [certification, visible]);
+  }, [certification, preselectedSkillId, visible]);
 
   // Reset form
   const resetForm = () => {
@@ -241,8 +258,8 @@ export default function CertificationForm({
         certificateFile: certificateImage
           ? {
               uri: certificateImage.uri,
-              name: certificateImage.fileName || "certificate.jpg",
-              type: certificateImage.mimeType || "image/jpeg",
+              name: certificateImage?.fileName ?? "certificate.jpg",
+              type: certificateImage?.mimeType ?? "image/jpeg",
             }
           : undefined,
       };
@@ -264,8 +281,11 @@ export default function CertificationForm({
       );
     } else {
       // Create mode
-      if (selectedSkillId === -1) {
-        Alert.alert("Skill Required", "Please select a skill or choose 'General Certification'");
+      if (selectedSkillId <= 0) {
+        Alert.alert(
+          "Skill Required",
+          "Please select a skill for this certification"
+        );
         return;
       }
 
@@ -282,12 +302,11 @@ export default function CertificationForm({
           hasExpiry && expiryDate
             ? expiryDate.toISOString().split("T")[0]
             : undefined,
-        // 0 = General (send undefined to backend), positive = skill ID
         specializationId: selectedSkillId > 0 ? selectedSkillId : undefined,
         certificateFile: {
           uri: certificateImage.uri,
-          name: certificateImage.fileName || "certificate.jpg",
-          type: certificateImage.mimeType || "image/jpeg",
+          name: certificateImage?.fileName ?? "certificate.jpg",
+          type: certificateImage?.mimeType ?? "image/jpeg",
         },
       };
 
@@ -402,39 +421,64 @@ export default function CertificationForm({
               )}
             </View>
 
-            {/* Skill Link (Required) */}
+            {/* Skill Link (Required - locked if preselected or editing) */}
             <View style={styles.formGroup}>
               <Text style={styles.label}>
                 Link to Skill <Text style={styles.required}>*</Text>
               </Text>
               <Pressable
-                style={styles.skillPickerButton}
-                onPress={() => !isLoading && setShowSkillPicker(true)}
-                disabled={isLoading}
+                style={[
+                  styles.skillPickerButton,
+                  isSkillLocked && styles.skillPickerButtonDisabled,
+                ]}
+                onPress={() =>
+                  !isLoading && !isSkillLocked && setShowSkillPicker(true)
+                }
+                disabled={isLoading || isSkillLocked}
               >
                 <Ionicons
                   name="briefcase-outline"
                   size={20}
-                  color={Colors.textPrimary}
+                  color={
+                    isSkillLocked ? Colors.textTertiary : Colors.textPrimary
+                  }
                 />
-                <Text style={styles.skillPickerText}>
+                <Text
+                  style={[
+                    styles.skillPickerText,
+                    isSkillLocked && styles.skillPickerTextDisabled,
+                  ]}
+                >
                   {selectedSkillId === -1
                     ? "-- Select a skill --"
-                    : selectedSkillId === 0
-                      ? "🌐 General Certification"
-                      : skills.find((s) => s.id === selectedSkillId)
-                            ?.name || "Select a skill"}
+                    : skills.find((s) => s.id === selectedSkillId)?.name ||
+                      "Select a skill"}
                 </Text>
-                <Ionicons
-                  name="chevron-down"
-                  size={20}
-                  color={Colors.textSecondary}
-                />
+                {!isSkillLocked && (
+                  <Ionicons
+                    name="chevron-down"
+                    size={20}
+                    color={Colors.textSecondary}
+                  />
+                )}
+                {isSkillLocked && (
+                  <Ionicons
+                    name="lock-closed"
+                    size={16}
+                    color={Colors.textTertiary}
+                  />
+                )}
               </Pressable>
-              <Text style={styles.hint}>
-                Select the skill this certification applies to, or choose
-                "General" for certs like First Aid
-              </Text>
+              {!isSkillLocked && (
+                <Text style={styles.hint}>
+                  Select the skill this certification applies to
+                </Text>
+              )}
+              {isSkillLocked && (
+                <Text style={styles.hint}>
+                  Certification is locked to this skill
+                </Text>
+              )}
             </View>
 
             {/* Skill Picker Modal */}
@@ -460,33 +504,16 @@ export default function CertificationForm({
                     </Pressable>
                   </View>
                   <ScrollView style={styles.skillList}>
-                    {/* General option */}
-                    <Pressable
-                      style={[
-                        styles.skillOption,
-                        selectedSkillId === 0 && styles.skillOptionSelected,
-                      ]}
-                      onPress={() => {
-                        setSelectedSkillId(0);
-                        setShowSkillPicker(false);
-                      }}
-                    >
-                      <Text style={styles.skillOptionText}>
-                        🌐 General Certification (not skill-specific)
-                      </Text>
-                      {selectedSkillId === 0 && (
-                        <Ionicons
-                          name="checkmark"
-                          size={20}
-                          color={Colors.primary}
-                        />
-                      )}
-                    </Pressable>
                     {/* Worker's skills */}
                     {skillsLoading ? (
                       <View style={styles.skillLoadingContainer}>
-                        <ActivityIndicator size="small" color={Colors.primary} />
-                        <Text style={styles.skillLoadingText}>Loading skills...</Text>
+                        <ActivityIndicator
+                          size="small"
+                          color={Colors.primary}
+                        />
+                        <Text style={styles.skillLoadingText}>
+                          Loading skills...
+                        </Text>
                       </View>
                     ) : skills.length === 0 ? (
                       <Text style={styles.noSkillsText}>
@@ -506,7 +533,9 @@ export default function CertificationForm({
                             setShowSkillPicker(false);
                           }}
                         >
-                          <Text style={styles.skillOptionText}>{skill.name}</Text>
+                          <Text style={styles.skillOptionText}>
+                            {skill.name}
+                          </Text>
                           {selectedSkillId === skill.id && (
                             <Ionicons
                               name="checkmark"
@@ -956,10 +985,17 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     backgroundColor: Colors.background,
   },
+  skillPickerButtonDisabled: {
+    backgroundColor: Colors.backgroundSecondary,
+    opacity: 0.6,
+  },
   skillPickerText: {
     ...Typography.body.medium,
     color: Colors.textPrimary,
     flex: 1,
+  },
+  skillPickerTextDisabled: {
+    color: Colors.textTertiary,
   },
   skillModalOverlay: {
     flex: 1,

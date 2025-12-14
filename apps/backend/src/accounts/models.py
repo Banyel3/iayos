@@ -256,14 +256,12 @@ class WorkerCertification(models.Model):
         related_name='certifications'
     )
     
-    # Link to specific skill (required - use "General" option for non-skill-specific certs)
+    # Link to specific skill (REQUIRED - all certifications must be bound to a skill)
     specializationID = models.ForeignKey(
         'workerSpecialization',
         on_delete=models.CASCADE,
-        null=True,
-        blank=True,
         related_name='certifications',
-        help_text="The specific skill this certification is for (e.g., Plumbing, Electrical). Use null for General certifications."
+        help_text="The specific skill this certification is for (e.g., Plumbing, Electrical). All certifications must be linked to a skill."
     )
     
     name = models.CharField(

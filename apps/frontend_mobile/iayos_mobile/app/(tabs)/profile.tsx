@@ -685,31 +685,32 @@ export default function ProfileScreen() {
           profileType={isWorker ? "WORKER" : "CLIENT"}
         />
 
-        {/* Worker Certifications & Materials */}
+        {/* Worker Certifications */}
         {isWorker && (
-          <>
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Certifications</Text>
-              <View style={styles.menuCard}>
-                <MenuItem
-                  icon="school-outline"
-                  label="Manage Certifications"
-                  onPress={() => router.push("/profile/certifications" as any)}
-                />
-              </View>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Certifications</Text>
+            <View style={styles.menuCard}>
+              <MenuItem
+                icon="ribbon"
+                label="Manage Certifications"
+                onPress={() => router.push("/profile/certifications" as any)}
+              />
             </View>
+          </View>
+        )}
 
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Materials & Products</Text>
-              <View style={styles.menuCard}>
-                <MenuItem
-                  icon="cube-outline"
-                  label="Manage Materials"
-                  onPress={() => router.push("/profile/materials" as any)}
-                />
-              </View>
+        {/* Worker Materials & Products */}
+        {isWorker && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Materials & Products</Text>
+            <View style={styles.menuCard}>
+              <MenuItem
+                icon="cube-outline"
+                label="Manage Materials"
+                onPress={() => router.push("/profile/materials" as any)}
+              />
             </View>
-          </>
+          </View>
         )}
 
         {/* Payment Methods Section */}

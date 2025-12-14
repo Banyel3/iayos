@@ -142,11 +142,14 @@ export function useUpdateSkill() {
       skill_id: number;
       experience_years: number;
     }): Promise<UpdateSkillResponse> => {
-      const response = await apiRequest(ENDPOINTS.UPDATE_SKILL(payload.skill_id), {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ experience_years: payload.experience_years }),
-      });
+      const response = await apiRequest(
+        ENDPOINTS.UPDATE_SKILL(payload.skill_id),
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ experience_years: payload.experience_years }),
+        }
+      );
 
       const data = await response.json();
 

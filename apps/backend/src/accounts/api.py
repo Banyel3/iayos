@@ -1673,22 +1673,23 @@ def get_profile_completion_endpoint(request):
 @router.post("/worker/certifications", auth=dual_auth, response=CertificationResponse)
 def add_certification_endpoint(
     request,
+    specialization_id: int = Form(...),  # REQUIRED: Link to skill
     name: str = Form(...),
     organization: str = Form(None),
     issue_date: str = Form(None),
     expiry_date: str = Form(None),
-    specialization_id: int = Form(None),  # NEW: Link to skill
     certificate_file: UploadedFile = File(None)
 ):
     """
     Add a new certification with optional file upload.
+    All certifications must be linked to a specific skill.
     
     Form fields:
+    - specialization_id (required): Worker skill ID to link this certification to
     - name (required): Certificate name
     - organization: Issuing organization
     - issue_date: Issue date (YYYY-MM-DD)
     - expiry_date: Expiry date (YYYY-MM-DD)
-    - specialization_id: Worker skill ID to link this certification to
     - certificate_file: Certificate document/image
     """
     try:
@@ -1704,11 +1705,11 @@ def add_certification_endpoint(
         # Call service function
         certification = add_certification(
             worker_profile=worker_profile,
+            specialization_id=specialization_id,
             name=name,
             organization=organization,
             issue_date=issue_date,
             expiry_date=expiry_date,
-            specialization_id=specialization_id,
             certificate_file=certificate_file
         )
         

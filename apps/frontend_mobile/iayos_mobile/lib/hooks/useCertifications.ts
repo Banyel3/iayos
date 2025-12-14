@@ -125,7 +125,10 @@ export const useCreateCertification = () => {
         formData.append("expiry_date", data.expiryDate);
       }
 
-      if (data.specializationId) {
+      if (
+        data.specializationId !== undefined &&
+        data.specializationId !== null
+      ) {
         formData.append("specialization_id", data.specializationId.toString());
       }
 
@@ -290,12 +293,14 @@ export const isCertificationExpired = (
  * Get days until expiry (negative if expired)
  */
 export const getDaysUntilExpiry = (
-  certification: Certification
+  expiryDate: string | null
 ): number | null => {
-  if (!certification.expiryDate) return null;
+  if (!expiryDate) return null;
 
   const today = new Date();
-  const expiry = new Date(certification.expiryDate);
+  const expiry = new Date(expiryDate);
+  if (isNaN(expiry.getTime())) return null;
+
   const diffTime = expiry.getTime() - today.getTime();
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
@@ -305,8 +310,10 @@ export const getDaysUntilExpiry = (
 /**
  * Format date for display
  */
-export const formatCertificationDate = (dateString: string): string => {
+export const formatCertificationDate = (dateString: string | null): string => {
+  if (!dateString) return "N/A";
   const date = new Date(dateString);
+  if (isNaN(date.getTime())) return "Invalid Date";
   return date.toLocaleDateString("en-US", {
     year: "numeric",
     month: "short",

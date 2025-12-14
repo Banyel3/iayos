@@ -587,7 +587,9 @@ export default function EditProfileScreen() {
           <View style={styles.managementSection}>
             <View style={styles.managementHeader}>
               <View>
-                <Text style={styles.sectionTitle}>Skills (Specializations)</Text>
+                <Text style={styles.sectionTitle}>
+                  Skills (Specializations)
+                </Text>
                 <Text style={styles.managementHint}>
                   {mySkills.length > 0
                     ? `${mySkills.length} skill${mySkills.length === 1 ? "" : "s"} added`
@@ -663,7 +665,8 @@ export default function EditProfileScreen() {
                             .split(",")
                             .map((s) => s.trim())
                             .filter(
-                              (s) => s.toLowerCase() !== suggestion.toLowerCase()
+                              (s) =>
+                                s.toLowerCase() !== suggestion.toLowerCase()
                             )
                             .join(", ");
                           setSoftSkills(newSkills);
@@ -762,7 +765,7 @@ export default function EditProfileScreen() {
               <View>
                 <Text style={styles.sectionTitle}>Certifications</Text>
                 <Text style={styles.managementHint}>
-                  Add professional certifications
+                  All certifications are skill-bound
                 </Text>
               </View>
               <Ionicons name="ribbon" size={32} color={Colors.primary} />

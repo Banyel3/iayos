@@ -529,7 +529,9 @@ export default function ProfileScreen() {
           {profile.skills.map((skill) => {
             const isExpanded = expandedSkills.has(skill.id);
             const skillCertifications = certifications.filter(
-              (cert) => cert.specializationId === skill.id
+              (cert) =>
+                cert.specializationId !== null &&
+                cert.specializationId === skill.id
             );
 
             return (
@@ -603,7 +605,9 @@ export default function ProfileScreen() {
                             compact={true}
                             showActions={false}
                             onPress={() =>
-                              router.push("/profile/certifications" as any)
+                              router.push(
+                                `/profile/skills/${skill.id}/certifications` as any
+                              )
                             }
                           />
                         </View>
@@ -621,7 +625,9 @@ export default function ProfileScreen() {
                         <Pressable
                           style={styles.addCertButton}
                           onPress={() =>
-                            router.push("/profile/certifications" as any)
+                            router.push(
+                              `/profile/skills/${skill.id}/certifications` as any
+                            )
                           }
                         >
                           <Ionicons

@@ -23,6 +23,8 @@ from .schemas import (
     SendVerificationEmailSchema,
     SwitchProfileSchema,
     AddPaymentMethodSchema,
+    AddSkillSchema,
+    UpdateSkillSchema,
 )
 from .authentication import jwt_auth, dual_auth  # Use Bearer token auth for mobile, dual_auth for endpoints that support both
 from .profile_metrics_service import get_profile_metrics
@@ -899,7 +901,7 @@ def mobile_available_skills(request):
 
 
 @mobile_router.post("/skills/add", auth=jwt_auth)
-def mobile_add_skill(request, payload: dict):
+def mobile_add_skill(request, payload: AddSkillSchema):
     """
     Add a skill (specialization) to worker's profile.
     Payload: { specialization_id: int, experience_years: int }
@@ -909,9 +911,9 @@ def mobile_add_skill(request, payload: dict):
     try:
         user = request.auth
         
-        # Validate payload
-        specialization_id = payload.get('specialization_id')
-        experience_years = payload.get('experience_years', 0)
+        # Get values from schema
+        specialization_id = payload.specialization_id
+        experience_years = payload.experience_years
         
         if not specialization_id:
             return Response(
@@ -984,7 +986,7 @@ def mobile_add_skill(request, payload: dict):
 
 
 @mobile_router.put("/skills/{skill_id}", auth=jwt_auth)
-def mobile_update_skill(request, skill_id: int, payload: dict):
+def mobile_update_skill(request, skill_id: int, payload: UpdateSkillSchema):
     """
     Update experience years for a worker's skill.
     skill_id: The specialization ID (not workerSpecialization ID)
@@ -994,7 +996,7 @@ def mobile_update_skill(request, skill_id: int, payload: dict):
 
     try:
         user = request.auth
-        experience_years = payload.get('experience_years')
+        experience_years = payload.experience_years
         
         if experience_years is None:
             return Response(
