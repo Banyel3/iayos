@@ -572,7 +572,7 @@ class TestWorkerPayments:
         """Test worker can view transaction history"""
         wallet = Wallet.objects.get(accountFK=worker_user)
         Transaction.objects.create(
-            walletFK=wallet,
+            walletID=wallet,
             amount=Decimal("1500.00"),
             transactionType="JOB_PAYMENT",
             status="COMPLETED"

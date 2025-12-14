@@ -313,7 +313,7 @@ class TestClientPayments:
         # Create a transaction
         wallet = Wallet.objects.get(accountFK=client_user)
         Transaction.objects.create(
-            walletFK=wallet,
+            walletID=wallet,
             amount=Decimal("500.00"),
             transactionType="DEPOSIT",
             status="COMPLETED"
