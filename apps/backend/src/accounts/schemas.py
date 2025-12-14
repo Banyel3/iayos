@@ -201,6 +201,7 @@ class WorkerProfileUpdateSchema(Schema):
     bio: Optional[str] = None
     description: Optional[str] = None
     hourly_rate: Optional[float] = None
+    soft_skills: Optional[str] = None
 
 class WorkerProfileResponse(Schema):
     """Response schema for worker profile update"""
@@ -210,6 +211,7 @@ class WorkerProfileResponse(Schema):
     bio: str
     description: str
     hourly_rate: Optional[float]
+    soft_skills: str
 
 class ProfileCompletionResponse(Schema):
     """Schema for profile completion details"""

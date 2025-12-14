@@ -60,6 +60,7 @@ interface WorkerProfile {
   };
   bio: string | null;
   hourlyRate: number | null;
+  softSkills: string | null;
   skills: Skill[];
   categories: Array<{ id: number; name: string }>;
   serviceAreas: string[];
@@ -490,6 +491,25 @@ export default function ProfileScreen() {
             />
             <Text style={styles.addButtonText}>Set Rate</Text>
           </Pressable>
+        </View>
+      )}
+
+      {/* Soft Skills Section */}
+      {profile.softSkills && profile.softSkills.trim() && (
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Soft Skills</Text>
+            <Pressable onPress={() => router.push("/profile/edit" as any)}>
+              <Text style={styles.editText}>Edit</Text>
+            </Pressable>
+          </View>
+          <View style={styles.softSkillsContainer}>
+            {profile.softSkills.split(",").map((skill, index) => (
+              <View key={index} style={styles.softSkillBubble}>
+                <Text style={styles.softSkillText}>{skill.trim()}</Text>
+              </View>
+            ))}
+          </View>
         </View>
       )}
 
@@ -1021,6 +1041,22 @@ const styles = StyleSheet.create({
   skillText: {
     ...Typography.body.small,
     color: Colors.primary,
+    fontWeight: "500",
+  },
+  softSkillsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.sm,
+  },
+  softSkillBubble: {
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    backgroundColor: Colors.warningLight || "#FFF9E6",
+    borderRadius: BorderRadius.full,
+  },
+  softSkillText: {
+    ...Typography.body.small,
+    color: Colors.warning || "#F59E0B",
     fontWeight: "500",
   },
   categoriesContainer: {

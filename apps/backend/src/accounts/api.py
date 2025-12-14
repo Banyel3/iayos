@@ -1613,7 +1613,8 @@ def update_worker_profile_endpoint(request, payload: WorkerProfileUpdateSchema):
             worker_profile=worker_profile,
             bio=payload.bio,
             description=payload.description,
-            hourly_rate=payload.hourly_rate
+            hourly_rate=payload.hourly_rate,
+            soft_skills=payload.soft_skills
         )
         
         return result

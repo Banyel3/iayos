@@ -160,6 +160,11 @@ class WorkerProfile(models.Model):
         default=0,
         help_text="Profile completion percentage (0-100)"
     )
+    soft_skills = models.TextField(
+        blank=True,
+        default="",
+        help_text="Comma-separated soft skills (e.g., 'Punctual, Team Player, Bilingual')"
+    )
     
     class AvailabilityStatus(models.TextChoices):
         AVAILABLE = "AVAILABLE", 'available'

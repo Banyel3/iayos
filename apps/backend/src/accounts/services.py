@@ -456,6 +456,9 @@ def fetch_currentUser(accountID, profile_type=None):
                     from .models import WorkerProfile, workerSpecialization, WorkerCertification
                     worker_profile = WorkerProfile.objects.get(profileID=profile)
                     profile_data["workerProfileId"] = worker_profile.id  # WorkerProfile primary key
+                    profile_data["bio"] = worker_profile.bio or ""
+                    profile_data["hourlyRate"] = float(worker_profile.hourly_rate) if worker_profile.hourly_rate else None
+                    profile_data["softSkills"] = worker_profile.soft_skills or ""
                     print(f"   🔧 Added worker profile ID: {worker_profile.id}")
                     
                     # Get skills with certification counts
