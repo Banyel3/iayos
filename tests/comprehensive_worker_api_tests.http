@@ -1,6 +1,10 @@
 ### ========================================
 ### WORKER ROLE - Comprehensive API Test Suite
 ### Testing all WORKER-specific endpoints and flows
+###
+### NOTE: This file uses TWO different API routers:
+### 1. /api/mobile/ - Mobile-optimized endpoints (most features)
+### 2. /api/jobs/ - Job management endpoints (completion, backjobs)
 ### ========================================
 
 @host = http://localhost:8000

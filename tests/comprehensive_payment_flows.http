@@ -488,14 +488,22 @@ Authorization: Bearer {{login_worker.response.body.$.access_token}}
 ### COMMISSION & FEES VERIFICATION
 ### ========================================
 
-### 52. CLIENT: Verify escrow amount calculation (50% + 10% commission)
-# Expected: For 10000 budget, escrow should be 5000 (50%) + 500 (10% commission) = 5500
+### 52. CLIENT: Verify escrow amount calculation
+# Escrow Structure:
+# - Downpayment: 50% of budget held in escrow
+# - Platform Commission: 10% of budget (added to escrow amount)
+# - Total Escrow: 60% of budget (50% escrow + 10% commission)
+# Example: For ₱10,000 job, escrow = ₱5,000 + ₱1,000 commission = ₱6,000 total
 # @name client_verify_escrow_calculation
 GET {{host}}/api/mobile/wallet/transactions?job_id=1
 Authorization: Bearer {{login_client.response.body.$.access_token}}
 
 ### 53. WORKER: Verify received amount after commission
-# Expected: For 10000 job, worker should receive 5000 (50%) - platform fees
+# Worker Receives:
+# - 50% of budget on completion (downpayment from escrow)
+# - After 7-day buffer period passes
+# - Platform commission (10%) already deducted from client
+# Example: For ₱10,000 job, worker receives ₱5,000 (client paid ₱6,000 total)
 # @name worker_verify_earnings_calculation
 GET {{host}}/api/mobile/wallet/transactions?job_id=1
 Authorization: Bearer {{login_worker.response.body.$.access_token}}
