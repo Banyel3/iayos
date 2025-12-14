@@ -27,7 +27,7 @@
 - [ ] Job timeline shows status history and supports pull-to-refresh
 
 ### Payments (Client side)
-- [ ] Escrow/downpayment: 50% + platform fee calculation per method (GCash, wallet, cash upload)
+- [ ] Escrow/down payment: 50% + platform fee calculation per method (GCash, wallet, cash upload)
 - [ ] Final payment: remaining 50% + fee, shows escrow summary
 - [ ] Payment status polling + timeline (pending/completed/failed/refunded)
 - [ ] Receipts: render breakdown, share/download, history list
@@ -87,7 +87,7 @@
 - [ ] Profiles/KYC: `/api/mobile/profile/*`, `/api/mobile/kyc/*`
 - [ ] Jobs: `/api/mobile/jobs/*`, `/api/mobile/applications/*`, `/api/mobile/jobs/{id}`
 - [ ] Payments: `/api/mobile/payments/*`, `/api/mobile/wallet/*`, `/api/mobile/payments/timeline`
-- [ ] Chat: `/api/profiles/chat/*` + WS `ws://.../ws/inbox/`
+- [ ] Chat: `/api/profiles/chat/*` + WS `wss://.../ws/inbox/` (use `ws://` only for local dev)
 - [ ] Reviews: `/api/mobile/reviews/*`
 - [ ] Notifications: `/api/mobile/notifications/*`
 - [ ] Disputes/Support: `/api/mobile/disputes/*` (if available)
