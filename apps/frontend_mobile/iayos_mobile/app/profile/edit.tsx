@@ -320,20 +320,6 @@ export default function EditProfileScreen() {
       }
     }
 
-    // Skills validation
-    if (skills.trim().length > 0) {
-      const skillList = skills
-        .split(",")
-        .map((s) => s.trim())
-        .filter((s) => s.length > 0);
-      if (skillList.some((s) => s.length < 2)) {
-        return "Each skill must be at least 2 characters";
-      }
-      if (skillList.some((s) => s.length > 50)) {
-        return "Each skill cannot exceed 50 characters";
-      }
-    }
-
     return null;
   };
 
@@ -852,14 +838,6 @@ export default function EditProfileScreen() {
                 </View>
               )}
 
-              {skills.trim() !== (profile?.skills?.join(", ") || "") && (
-                <View style={styles.previewItem}>
-                  <Text style={styles.previewLabel}>Skills:</Text>
-                  <Text style={styles.previewValue} numberOfLines={2}>
-                    {skills.trim() || "None"}
-                  </Text>
-                </View>
-              )}
             </View>
           )}
         </ScrollView>

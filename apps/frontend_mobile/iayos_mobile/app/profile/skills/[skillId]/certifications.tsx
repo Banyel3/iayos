@@ -70,6 +70,7 @@ export default function SkillCertificationsScreen() {
   } = useCertifications();
 
   // Filter certifications for this specific skill
+  const validSkillId = parseInt(skillId || "0");
   const certifications = allCertifications.filter(
     (cert) =>
       cert.specializationId !== null && cert.specializationId === validSkillId

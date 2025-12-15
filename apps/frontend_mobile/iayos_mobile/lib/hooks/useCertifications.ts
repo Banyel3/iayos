@@ -26,7 +26,7 @@ export interface CreateCertificationRequest {
   organization: string; // Fixed: backend expects 'organization' not 'issuingOrganization'
   issueDate: string; // ISO date string
   expiryDate?: string; // ISO date string (optional)
-  specializationId?: number; // Link to skill (optional)
+  specializationId: number; // Link to skill (REQUIRED - all certs must be skill-bound)
   certificateFile?: {
     uri: string;
     name: string;
@@ -125,12 +125,17 @@ export const useCreateCertification = () => {
         formData.append("expiry_date", data.expiryDate);
       }
 
+      // Always send specialization_id since it's required by backend
       if (
-        data.specializationId !== undefined &&
-        data.specializationId !== null
+        data.specializationId === undefined ||
+        data.specializationId === null ||
+        data.specializationId <= 0
       ) {
-        formData.append("specialization_id", data.specializationId.toString());
+        throw new Error(
+          "Skill ID is required - all certifications must be linked to a skill"
+        );
       }
+      formData.append("specialization_id", data.specializationId.toString());
 
       // Add certificate file if provided
       if (data.certificateFile) {
@@ -148,7 +153,9 @@ export const useCreateCertification = () => {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || "Failed to create certification");
+        throw new Error(
+          error.error || error.message || "Failed to create certification"
+        );
       }
 
       const result = await response.json();

@@ -7,6 +7,7 @@ import {
   Pressable,
   RefreshControl,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
@@ -16,12 +17,13 @@ import CertificationForm from "@/components/CertificationForm";
 import {
   useCertifications,
   useDeleteCertification,
+  Certification,
 } from "@/lib/hooks/useCertifications";
 import { useMySkills } from "@/lib/hooks/useSkills";
 
 export default function CertificationsScreen() {
   const [isFormVisible, setIsFormVisible] = useState(false);
-  const [editingCertId, setEditingCertId] = useState<number | null>(null);
+  const [editingCert, setEditingCert] = useState<Certification | null>(null);
 
   const {
     data: certifications = [],
@@ -33,25 +35,39 @@ export default function CertificationsScreen() {
   const deleteMutation = useDeleteCertification();
 
   const handleAdd = () => {
-    setEditingCertId(null);
+    setEditingCert(null);
     setIsFormVisible(true);
   };
 
-  const handleEdit = (certId: number) => {
-    setEditingCertId(certId);
+  const handleEdit = (cert: Certification) => {
+    setEditingCert(cert);
     setIsFormVisible(true);
   };
 
-  const handleDelete = (certId: number, certName: string) => {
-    deleteMutation.mutate(certId);
+  const handleDelete = (cert: Certification) => {
+    Alert.alert(
+      "Delete Certification",
+      `Are you sure you want to delete "${cert.name}"?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => deleteMutation.mutate(cert.id),
+        },
+      ]
+    );
   };
 
   const handleFormClose = () => {
     setIsFormVisible(false);
-    setEditingCertId(null);
+    setEditingCert(null);
   };
 
-  const getSkillName = (skillId: number | null): string => {
+  const getSkillName = (skillId: number | null, fallbackName?: string | null): string => {
+    // If backend already sent the skill name, prefer it
+    if (fallbackName) return fallbackName;
+
     if (!skillId || !skills || !Array.isArray(skills)) return "Unknown Skill";
     const skill = skills.find((s) => s.id === skillId);
     return skill?.name || "Unknown Skill";
@@ -168,7 +184,7 @@ export default function CertificationsScreen() {
                     style={styles.skillIcon}
                   />
                   <Text style={styles.skillText}>
-                    {getSkillName(cert.specializationId ?? null)}
+                    {getSkillName(cert.specializationId ?? null, cert.skillName)}
                   </Text>
                 </View>
               </View>
@@ -194,7 +210,7 @@ export default function CertificationsScreen() {
       <CertificationForm
         visible={isFormVisible}
         onClose={handleFormClose}
-        certificationId={editingCertId}
+        certification={editingCert ?? undefined}
       />
     </View>
   );

@@ -302,7 +302,7 @@ export default function CertificationForm({
           hasExpiry && expiryDate
             ? expiryDate.toISOString().split("T")[0]
             : undefined,
-        specializationId: selectedSkillId > 0 ? selectedSkillId : undefined,
+        specializationId: selectedSkillId, // Already validated > 0 above
         certificateFile: {
           uri: certificateImage.uri,
           name: certificateImage?.fileName ?? "certificate.jpg",
@@ -589,20 +589,35 @@ export default function CertificationForm({
 
             {/* Issue Date Picker */}
             {showIssueDatePicker && (
-              <DateTimePicker
-                value={issueDate}
-                mode="date"
-                display={Platform.OS === "ios" ? "spinner" : "default"}
-                onChange={(event, selectedDate) => {
-                  setShowIssueDatePicker(Platform.OS === "ios");
-                  if (selectedDate) {
-                    setIssueDate(selectedDate);
-                    if (errors.issueDate)
-                      setErrors({ ...errors, issueDate: undefined });
+              <View style={styles.datePickerContainer}>
+                <DateTimePicker
+                  value={issueDate}
+                  mode="date"
+                  display={Platform.OS === "ios" ? "spinner" : "default"}
+                  onChange={(event, selectedDate) => {
+                    const isIOS = Platform.OS === "ios";
+                    setShowIssueDatePicker(isIOS);
+
+                    if (event.type === "dismissed") {
+                      return;
+                    }
+
+                    if (selectedDate) {
+                      setIssueDate(selectedDate);
+                      if (errors.issueDate)
+                        setErrors({ ...errors, issueDate: undefined });
+                    }
+                  }}
+                  maximumDate={new Date()}
+                  themeVariant="light"
+                  textColor={
+                    Platform.OS === "ios" ? Colors.textPrimary : undefined
                   }
-                }}
-                maximumDate={new Date()}
-              />
+                  style={
+                    Platform.OS === "ios" ? styles.inlineDatePicker : undefined
+                  }
+                />
+              </View>
             )}
 
             {/* Expiry Date Toggle */}
@@ -674,20 +689,35 @@ export default function CertificationForm({
 
             {/* Expiry Date Picker */}
             {showExpiryDatePicker && hasExpiry && (
-              <DateTimePicker
-                value={expiryDate || new Date()}
-                mode="date"
-                display={Platform.OS === "ios" ? "spinner" : "default"}
-                onChange={(event, selectedDate) => {
-                  setShowExpiryDatePicker(Platform.OS === "ios");
-                  if (selectedDate) {
-                    setExpiryDate(selectedDate);
-                    if (errors.expiryDate)
-                      setErrors({ ...errors, expiryDate: undefined });
+              <View style={styles.datePickerContainer}>
+                <DateTimePicker
+                  value={expiryDate || new Date()}
+                  mode="date"
+                  display={Platform.OS === "ios" ? "spinner" : "default"}
+                  onChange={(event, selectedDate) => {
+                    const isIOS = Platform.OS === "ios";
+                    setShowExpiryDatePicker(isIOS);
+
+                    if (event.type === "dismissed") {
+                      return;
+                    }
+
+                    if (selectedDate) {
+                      setExpiryDate(selectedDate);
+                      if (errors.expiryDate)
+                        setErrors({ ...errors, expiryDate: undefined });
+                    }
+                  }}
+                  minimumDate={issueDate}
+                  themeVariant="light"
+                  textColor={
+                    Platform.OS === "ios" ? Colors.textPrimary : undefined
                   }
-                }}
-                minimumDate={issueDate}
-              />
+                  style={
+                    Platform.OS === "ios" ? styles.inlineDatePicker : undefined
+                  }
+                />
+              </View>
             )}
 
             {/* Certificate Image Upload */}
@@ -1055,5 +1085,18 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     textAlign: "center",
     padding: Spacing.lg,
+  },
+  datePickerContainer: {
+    marginTop: Spacing.sm,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.medium,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    overflow: "hidden",
+    alignSelf: "stretch",
+  },
+  inlineDatePicker: {
+    width: "100%",
+    minHeight: 180,
   },
 });
