@@ -84,6 +84,7 @@ interface WorkerDetail {
   phoneNumber?: string;
   profilePicture?: string;
   bio?: string;
+  softSkills?: string;
   hourlyRate?: number;
   rating: number;
   reviewCount: number;
@@ -855,6 +856,20 @@ export default function WorkerDetailScreen() {
             </View>
           )}
 
+          {/* Soft Skills */}
+          {data.softSkills && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Soft Skills</Text>
+              <View style={styles.softSkillsContainer}>
+                {data.softSkills.split(',').map((skill, index) => (
+                  <View key={index} style={styles.softSkillBubble}>
+                    <Text style={styles.softSkillText}>{skill.trim()}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
           {/* Skills with Nested Certifications */}
           {data.skills && data.skills.length > 0 && (
             <View style={styles.section}>
@@ -1549,6 +1564,24 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 24,
     color: Colors.textSecondary,
+  },
+  softSkillsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  softSkillBubble: {
+    backgroundColor: Colors.primaryLight,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: BorderRadius.pill,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+  },
+  softSkillText: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: Colors.primary,
   },
   skillsContainer: {
     flexDirection: "row",

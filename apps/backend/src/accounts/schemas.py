@@ -192,6 +192,13 @@ class AssignRoleMobileSchema(Schema):
     """Mobile-specific schema for assigning role (uses authenticated user)"""
     profile_type: str  # 'WORKER' | 'CLIENT'
 
+class UpdateProfileMobileSchema(Schema):
+    """Mobile-specific schema for updating user profile"""
+    firstName: Optional[str] = None
+    lastName: Optional[str] = None
+    contactNum: Optional[str] = None
+    birthDate: Optional[str] = None  # YYYY-MM-DD format
+
 # ========================================
 # WORKER PHASE 1 SCHEMAS - Profile Enhancement
 # ========================================

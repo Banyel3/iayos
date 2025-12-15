@@ -198,24 +198,26 @@ export default function EditProfileScreen() {
     mutationFn: async (data: UpdateProfileData) => {
       // First update basic profile info
       const profileResponse = await apiRequest(
-        ENDPOINTS.UPDATE_PROFILE(user?.profile_data?.id || 0),
+        ENDPOINTS.UPDATE_PROFILE_MOBILE,
         {
           method: "PUT",
           body: JSON.stringify({
-            first_name: data.firstName,
-            last_name: data.lastName,
-            contact_num: data.phoneNumber,
+            firstName: data.firstName,
+            lastName: data.lastName,
+            contactNum: data.phoneNumber,
           }),
         }
       );
 
       if (!profileResponse.ok) {
-        throw new Error("Failed to update basic profile");
+        const errorData = await profileResponse.json().catch(() => ({}));
+        console.error("[PROFILE UPDATE] Error response:", profileResponse.status, errorData);
+        throw new Error(errorData.detail || errorData.error || errorData.message || JSON.stringify(errorData) || `Failed to update basic profile (${profileResponse.status})`);
       }
 
       // Then update worker-specific fields
       const response = await apiRequest(ENDPOINTS.UPDATE_WORKER_PROFILE, {
-        method: "PUT",
+        method: "POST",
         body: JSON.stringify({
           bio: data.bio,
           hourly_rate: parseFloat(data.hourlyRate) || null,

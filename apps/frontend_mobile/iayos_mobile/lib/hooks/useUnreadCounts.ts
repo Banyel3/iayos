@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ENDPOINTS, apiRequest } from '@/lib/api/config';
 
 export function useUnreadMessageCount() {
@@ -6,6 +7,10 @@ export function useUnreadMessageCount() {
     queryKey: ['unread-messages'],
     queryFn: async () => {
       try {
+        const token = await AsyncStorage.getItem('access_token');
+        if (!token) {
+          return 0;
+        }
         const response = await apiRequest(
           `${ENDPOINTS.CONVERSATIONS}?unread=true`,
           {
@@ -36,6 +41,10 @@ export function useUnreadNotificationCount() {
     queryKey: ['unread-notifications'],
     queryFn: async () => {
       try {
+        const token = await AsyncStorage.getItem('access_token');
+        if (!token) {
+          return 0;
+        }
         const response = await apiRequest(ENDPOINTS.UNREAD_NOTIFICATIONS_COUNT, {
           timeout: 10000,
         });

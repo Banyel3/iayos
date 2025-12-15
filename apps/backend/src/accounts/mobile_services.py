@@ -1967,6 +1967,7 @@ def get_worker_detail_mobile_v2(user, worker_id):
             'phoneNumber': profile.contactNum or None,
             'profilePicture': profile.profileImg or None,
             'bio': worker.bio or worker.description or None,
+            'softSkills': worker.soft_skills or None,
             'hourlyRate': float(worker.hourly_rate) if worker.hourly_rate else None,
             'rating': round(float(avg_rating), 1),
             'reviewCount': review_count,

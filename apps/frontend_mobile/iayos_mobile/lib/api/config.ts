@@ -175,8 +175,8 @@ export const ENDPOINTS = {
 
   // Phase 4: Worker Profile & Application Management
   WORKER_PROFILE: `${API_BASE_URL.replace("/api", "")}/api/mobile/auth/profile`,
-  UPDATE_WORKER_PROFILE: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile`,
-  UPDATE_PROFILE: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/update`, // Client profile update
+  UPDATE_PROFILE_MOBILE: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/update`,
+  UPDATE_WORKER_PROFILE: `${API_BASE_URL}/accounts/worker/profile`,
   APPLICATION_DETAIL: (id: number) =>
     `${API_BASE_URL.replace("/api", "")}/api/mobile/applications/${id}`,
   WITHDRAW_APPLICATION: (id: number) =>
@@ -213,10 +213,6 @@ export const ENDPOINTS = {
     `${API_BASE_URL.replace("/api", "")}/api/mobile/skills/${skillId}`,
   REMOVE_SKILL: (skillId: number) =>
     `${API_BASE_URL.replace("/api", "")}/api/mobile/skills/${skillId}`,
-
-  // Profile
-  PROFILE: (id: number) => `${API_BASE_URL}/profiles/${id}`,
-  UPDATE_PROFILE: (id: number) => `${API_BASE_URL}/profiles/${id}`,
 
   // Worker
   WORKER_AVAILABILITY: `${API_BASE_URL}/accounts/worker/availability`,

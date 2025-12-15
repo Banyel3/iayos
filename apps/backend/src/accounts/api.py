@@ -1591,7 +1591,7 @@ def check_payment_status(request, transaction_id: int):
 # Profile management, certifications, and portfolio for workers
 # ===========================================================================
 
-@router.post("/worker/profile", auth=cookie_auth, response=WorkerProfileResponse)
+@router.post("/worker/profile", auth=dual_auth, response=WorkerProfileResponse)
 def update_worker_profile_endpoint(request, payload: WorkerProfileUpdateSchema):
     """
     Update worker profile fields (bio, description, hourly_rate).

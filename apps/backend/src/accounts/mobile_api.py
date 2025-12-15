@@ -25,6 +25,7 @@ from .schemas import (
     AddPaymentMethodSchema,
     AddSkillSchema,
     UpdateSkillSchema,
+    UpdateProfileMobileSchema,
 )
 from .authentication import jwt_auth, dual_auth  # Use Bearer token auth for mobile, dual_auth for endpoints that support both
 from .profile_metrics_service import get_profile_metrics
@@ -2246,7 +2247,7 @@ def mobile_get_current_profile(request):
 
 
 @mobile_router.put("/profile/update", auth=jwt_auth)
-def mobile_update_profile(request, payload: dict):
+def mobile_update_profile(request, payload: UpdateProfileMobileSchema):
     """
     Update user profile
     Fields: firstName, lastName, contactNum, birthDate
@@ -2254,8 +2255,12 @@ def mobile_update_profile(request, payload: dict):
     from .mobile_services import update_user_profile_mobile
 
     try:
+        print(f"[MOBILE] Profile update - payload received: {payload}")
         user = request.auth
-        result = update_user_profile_mobile(user, payload, request)
+        # Convert schema to dict, excluding None values
+        payload_dict = {k: v for k, v in payload.dict().items() if v is not None}
+        print(f"[MOBILE] Profile update - payload_dict: {payload_dict}")
+        result = update_user_profile_mobile(user, payload_dict, request)
 
         if result['success']:
             return result['data']
