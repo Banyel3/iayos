@@ -685,6 +685,11 @@ def mobile_my_jobs(
                 'assigned_worker_id': job.assignedWorkerID.profileID.profileID if job.assignedWorkerID else None,
                 'assigned_agency_id': assigned_agency.agencyId if assigned_agency else None,
                 'has_backjob': JobDispute.objects.filter(jobID=job).exists(),  # Check if backjob/dispute exists
+                # Team Job Fields
+                'is_team_job': job.is_team_job,
+                'total_workers_needed': job.total_workers_needed if job.is_team_job else None,
+                'total_workers_assigned': job.total_workers_assigned if job.is_team_job else None,
+                'team_fill_percentage': job.team_fill_percentage if job.is_team_job else None,
             }
             
             if job.clientID:
@@ -725,6 +730,73 @@ def mobile_my_jobs(
                 print(f"            - Current worker profile ID: {worker_profile.profileID.profileID if profile.profileType == 'WORKER' else 'N/A'}")
             
             job_list.append(job_data)
+            
+            # 🔧 CONTINGENCY: Auto-create conversations for fully-filled team jobs missing them
+            if profile.profileType == 'CLIENT' and job.is_team_job and job.status == 'ACTIVE':
+                from profiles.models import Conversation, ConversationParticipant
+                from accounts.models import JobWorkerAssignment
+                
+                print(f"\n      🔍 CONTINGENCY CHECK: Job #{job.jobID} '{job.title}'")
+                print(f"         - can_start_team_job: {job.can_start_team_job}")
+                print(f"         - workers: {job.total_workers_assigned}/{job.total_workers_needed}")
+                
+                if job.can_start_team_job:
+                    existing_conv = Conversation.objects.filter(relatedJobPosting=job).first()
+                    print(f"         - existing conversation: {'YES' if existing_conv else 'NO'}")
+                    
+                    if not existing_conv:
+                        print(f"\n   🚨 CONTINGENCY: Creating missing conversation for job #{job.jobID}")
+                        try:
+                            conversation = Conversation.objects.create(
+                                client=job.clientID.profileID if job.clientID else None,
+                                worker=None,
+                                relatedJobPosting=job,
+                                status=Conversation.ConversationStatus.ACTIVE,
+                                conversation_type='TEAM_GROUP'
+                            )
+                            
+                            if job.clientID:
+                                ConversationParticipant.objects.create(
+                                    conversation=conversation,
+                                    profile=job.clientID.profileID,
+                                    participant_type='CLIENT'
+                                )
+                            
+                            assignments = JobWorkerAssignment.objects.filter(
+                                jobID=job,
+                                assignment_status='ACTIVE'
+                            ).select_related('workerID__profileID')
+                            
+                            for assign in assignments:
+                                ConversationParticipant.objects.get_or_create(
+                                    conversation=conversation,
+                                    profile=assign.workerID.profileID,
+                                    defaults={'participant_type': 'WORKER', 'skill_slot': assign.skillSlotID}
+                                )
+                            
+                            print(f"      ✅ Created conversation #{conversation.conversationID}")
+                            
+                            from accounts.models import Notification
+                            Notification.objects.create(
+                                accountFK=job.clientID.profileID.accountFK,
+                                notificationType="TEAM_JOB_READY",
+                                title="Team Ready!",
+                                message=f"All positions for '{job.title}' have been filled.",
+                                relatedJobID=job.jobID
+                            )
+                            
+                            for assign in assignments:
+                                Notification.objects.create(
+                                    accountFK=assign.workerID.profileID.accountFK,
+                                    notificationType="TEAM_JOB_READY",
+                                    title="Team Complete!",
+                                    message=f"The team for '{job.title}' is now complete.",
+                                    relatedJobID=job.jobID
+                                )
+                        except Exception as e:
+                            print(f"      ❌ Error: {str(e)}")
+                            import traceback
+                            traceback.print_exc()
         
         print(f"\n   ✅ SUCCESS: Returning {len(job_list)} jobs")
         print(f"      Total count: {total_count}")
@@ -839,7 +911,8 @@ def mobile_my_skills(request):
         
         skills_data = [
             {
-                'id': ws.specializationID.specializationID,
+                'id': ws.id,  # workerSpecialization ID - used for linking certifications
+                'specializationId': ws.specializationID.specializationID,  # Specializations table ID
                 'name': ws.specializationID.specializationName,
                 'description': ws.specializationID.description or '',
                 'experienceYears': ws.experienceYears,
@@ -1746,12 +1819,14 @@ def mobile_accept_application(request, job_id: int, application_id: int):
                 message_text=f"Application accepted! You can now chat about the job: {job.title}"
             )
         
-        # Reject all other pending applications
-        JobApplication.objects.filter(
-            jobID=job
-        ).exclude(
-            applicationID=application_id
-        ).update(status="REJECTED")
+        # Only reject other applications for non-team (single-worker) jobs
+        # Team jobs use separate accept_team_application endpoint and should not auto-reject
+        if not job.is_team_job:
+            JobApplication.objects.filter(
+                jobID=job
+            ).exclude(
+                applicationID=application_id
+            ).update(status="REJECTED")
         
         print(f"✅ [MOBILE] Application {application_id} accepted, worker assigned, conversation created")
         
@@ -2034,7 +2109,7 @@ def mobile_get_my_applications(request):
         # Get all applications for this worker
         applications = JobApplication.objects.filter(
             workerID=worker_profile
-        ).select_related('jobID', 'jobID__clientID__profileID__accountFK').order_by('-createdAt')
+        ).select_related('jobID', 'jobID__clientID__profileID__accountFK', 'applied_skill_slot').order_by('-createdAt')
         
         # Format the response
         applications_data = []
@@ -2061,6 +2136,8 @@ def mobile_get_my_applications(request):
                     getattr(client_profile, 'profileImage', None)
                     or getattr(client_profile, 'profileImg', None)
                 ),
+                "is_team_job": job.is_team_job,
+                "applied_skill_slot_id": app.applied_skill_slot.skillSlotID if app.applied_skill_slot else None,
             })
         
         print(f"✅ [MOBILE] Found {len(applications_data)} applications")

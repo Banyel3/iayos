@@ -211,8 +211,18 @@ export default function EditProfileScreen() {
 
       if (!profileResponse.ok) {
         const errorData = await profileResponse.json().catch(() => ({}));
-        console.error("[PROFILE UPDATE] Error response:", profileResponse.status, errorData);
-        throw new Error(errorData.detail || errorData.error || errorData.message || JSON.stringify(errorData) || `Failed to update basic profile (${profileResponse.status})`);
+        console.error(
+          "[PROFILE UPDATE] Error response:",
+          profileResponse.status,
+          errorData
+        );
+        throw new Error(
+          errorData.detail ||
+            errorData.error ||
+            errorData.message ||
+            JSON.stringify(errorData) ||
+            `Failed to update basic profile (${profileResponse.status})`
+        );
       }
 
       // Then update worker-specific fields
@@ -839,7 +849,6 @@ export default function EditProfileScreen() {
                   </Text>
                 </View>
               )}
-
             </View>
           )}
         </ScrollView>

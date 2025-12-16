@@ -219,16 +219,40 @@ export default function JobsScreen() {
   const filteredJobs = jobs.filter((job) => {
     if (activeTab === "open") {
       // Open Jobs: LISTING type with no assigned worker yet (open for applications)
-      return isClient
-        ? job.job_type === "LISTING" && !job.assigned_worker_id
-        : true;
+      // EXCLUDE fully-filled team jobs (they should be in "pending" tab)
+      if (isClient) {
+        // For team jobs, check if fully filled - if so, exclude from "open"
+        if (job.is_team_job) {
+          const isFullyFilled =
+            job.total_workers_needed &&
+            job.total_workers_assigned &&
+            job.total_workers_assigned >= job.total_workers_needed;
+          if (isFullyFilled) {
+            return false; // Fully filled team jobs go to "pending", not "open"
+          }
+        }
+        return job.job_type === "LISTING" && !job.assigned_worker_id;
+      }
+      return true;
     }
     if (activeTab === "pending") {
-      // Pending: INVITE type job requests that already have an assignee (worker or agency)
+      // Pending: Jobs waiting for client action before work starts
       if (!isClient) {
         return false;
       }
 
+      // Case 1: Team jobs that are fully filled (waiting for "Workers Have Arrived")
+      if (job.is_team_job && job.status === "ACTIVE") {
+        const isFullyFilled =
+          job.total_workers_needed &&
+          job.total_workers_assigned &&
+          job.total_workers_assigned >= job.total_workers_needed;
+        if (isFullyFilled) {
+          return true;
+        }
+      }
+
+      // Case 2: INVITE type job requests that already have an assignee (worker or agency)
       const hasAssignee = Boolean(
         job.assigned_worker_id || job.assigned_agency_id
       );

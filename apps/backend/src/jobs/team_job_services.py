@@ -460,8 +460,73 @@ def accept_team_application(
         relatedJobID=job.jobID
     )
     
-    # Check if job can now start
+    # Check if job can now start (all slots filled)
+    job.refresh_from_db()
     can_start = job.can_start_team_job
+    conversation_created = False
+    conversation_id = None
+    
+    # AUTO-CREATE CONVERSATION when all slots are filled
+    if can_start:
+        # Check if conversation already exists
+        existing_conversation = Conversation.objects.filter(relatedJobPosting=job).first()
+        if not existing_conversation:
+            # Create team conversation
+            conversation = Conversation.objects.create(
+                client=job.clientID.profileID if job.clientID else None,
+                worker=None,  # Team jobs have multiple workers
+                relatedJobPosting=job,
+                status=Conversation.ConversationStatus.ACTIVE,
+                conversation_type='TEAM'
+            )
+            
+            # Add client as participant
+            if job.clientID:
+                ConversationParticipant.objects.create(
+                    conversation=conversation,
+                    profile=job.clientID.profileID,
+                    participant_type='CLIENT'
+                )
+            
+            # Add ALL assigned workers as participants
+            assignments = JobWorkerAssignment.objects.filter(
+                jobID=job,
+                assignment_status='ACTIVE'
+            ).select_related('workerID__profileID', 'skillSlotID__specializationID')
+            
+            for assign in assignments:
+                ConversationParticipant.objects.get_or_create(
+                    conversation=conversation,
+                    profile=assign.workerID.profileID,
+                    defaults={
+                        'participant_type': 'WORKER',
+                        'skill_slot': assign.skillSlotID
+                    }
+                )
+            
+            conversation_created = True
+            conversation_id = conversation.conversationID
+            
+            # Notify client that team is ready
+            Notification.objects.create(
+                accountFK=job.clientID.profileID.accountFK,
+                notificationType="TEAM_JOB_READY",
+                title="Team Ready!",
+                message=f"All positions for '{job.title}' have been filled. Your team is ready to start!",
+                relatedJobID=job.jobID
+            )
+            
+            # Notify all workers that team is complete
+            for assign in assignments:
+                Notification.objects.create(
+                    accountFK=assign.workerID.profileID.accountFK,
+                    notificationType="TEAM_JOB_READY",
+                    title="Team Complete!",
+                    message=f"The team for '{job.title}' is now complete. Waiting for client to confirm work start.",
+                    relatedJobID=job.jobID
+                )
+        else:
+            conversation_id = existing_conversation.conversationID
     
     return {
         'success': True,
@@ -470,7 +535,10 @@ def accept_team_application(
         'skill_slot': skill_slot.specializationID.specializationName,
         'slot_position': assignment.slot_position,
         'can_start_job': can_start,
-        'message': f'Worker assigned to {skill_slot.specializationID.specializationName} position #{assignment.slot_position}'
+        'all_slots_filled': can_start,
+        'conversation_created': conversation_created,
+        'conversation_id': conversation_id,
+        'message': f'Worker assigned to {skill_slot.specializationID.specializationName} position #{assignment.slot_position}' + (' - Team is ready!' if can_start else '')
     }
 
 

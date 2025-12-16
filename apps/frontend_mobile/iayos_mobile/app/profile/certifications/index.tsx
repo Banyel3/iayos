@@ -64,7 +64,10 @@ export default function CertificationsScreen() {
     setEditingCert(null);
   };
 
-  const getSkillName = (skillId: number | null, fallbackName?: string | null): string => {
+  const getSkillName = (
+    skillId: number | null,
+    fallbackName?: string | null
+  ): string => {
     // If backend already sent the skill name, prefer it
     if (fallbackName) return fallbackName;
 
@@ -184,7 +187,10 @@ export default function CertificationsScreen() {
                     style={styles.skillIcon}
                   />
                   <Text style={styles.skillText}>
-                    {getSkillName(cert.specializationId ?? null, cert.skillName)}
+                    {getSkillName(
+                      cert.specializationId ?? null,
+                      cert.skillName
+                    )}
                   </Text>
                 </View>
               </View>

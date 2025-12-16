@@ -1213,9 +1213,18 @@ def get_conversation_messages(request, conversation_id: int):
         # Check if this is an agency conversation
         is_agency_conversation = conversation.agency is not None and conversation.worker is None
         
-        # Verify user is a participant (either client, worker, or agency owner)
+        # Verify user is a participant (either client, worker, team participant, or agency owner)
         is_client = conversation.client == user_profile
         is_worker = conversation.worker == user_profile if conversation.worker else False
+
+        # Team conversations use ConversationParticipant entries instead of the single worker field
+        from profiles.models import ConversationParticipant
+        is_team_participant = ConversationParticipant.objects.filter(
+            conversation=conversation,
+            profile=user_profile
+        ).exists()
+        # Treat team participant as worker-equivalent for permissioning and role calculation
+        is_worker = is_worker or is_team_participant
         
         # For agency conversations, check if user is the agency owner
         is_agency_owner = False
@@ -1230,8 +1239,9 @@ def get_conversation_messages(request, conversation_id: int):
         if conversation.agency:
             print(f"   Agency: {conversation.agency.businessName}")
         print(f"   Is Client: {is_client}, Is Worker: {is_worker}, Is Agency Owner: {is_agency_owner}")
+        print(f"   Is Team Participant: {is_team_participant}")
         
-        if not (is_client or is_worker or is_agency_owner):
+        if not (is_client or is_worker or is_agency_owner or is_team_participant):
             return Response(
                 {"error": "You are not a participant in this conversation"},
                 status=403
@@ -1532,7 +1542,8 @@ def get_conversation_messages(request, conversation_id: int):
                 skill_name = assignment.skillSlotID.specializationID.specializationName if assignment.skillSlotID else None
                 
                 worker_info = {
-                    "worker_id": assignment.workerID.workerID,
+                    # Use FK raw id to avoid attribute errors (WorkerProfile has no workerID attr)
+                    "worker_id": assignment.workerID_id,
                     "account_id": worker_account_id,
                     "name": worker_name,
                     "avatar": worker_profile.profileImg,

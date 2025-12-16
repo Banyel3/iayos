@@ -159,9 +159,17 @@ export const ENDPOINTS = {
 
   // Team Jobs (Multi-Skill Multi-Worker)
   CREATE_TEAM_JOB: `${API_BASE_URL}/jobs/team/create`,
-  TEAM_JOB_DETAIL: (id: number) => `${API_BASE_URL}/jobs/${id}/team`,
+  TEAM_JOB_DETAIL: (id: number) => `${API_BASE_URL}/jobs/team/${id}`,
+  TEAM_JOB_APPLICATIONS: (jobId: number) =>
+    `${API_BASE_URL}/jobs/team/${jobId}/applications`,
+  TEAM_ACCEPT_APPLICATION: (jobId: number, applicationId: number) =>
+    `${API_BASE_URL}/jobs/team/${jobId}/applications/${applicationId}/accept`,
+  TEAM_REJECT_APPLICATION: (jobId: number, applicationId: number) =>
+    `${API_BASE_URL}/jobs/team/${jobId}/applications/${applicationId}/reject`,
   TEAM_APPLY_SKILL_SLOT: (jobId: number) =>
-    `${API_BASE_URL}/jobs/${jobId}/team/apply`,
+    `${API_BASE_URL}/jobs/team/${jobId}/apply`,
+  TEAM_START_JOB: (jobId: number) => `${API_BASE_URL}/jobs/team/${jobId}/start`,
+  // These two use /{job_id}/team pattern (backend inconsistency)
   TEAM_APPROVE_COMPLETION: (jobId: number) =>
     `${API_BASE_URL}/jobs/${jobId}/team/approve-completion`,
   TEAM_WORKER_COMPLETE: (jobId: number, assignmentId: number) =>

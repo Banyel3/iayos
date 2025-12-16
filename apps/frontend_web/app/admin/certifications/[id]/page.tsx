@@ -344,8 +344,12 @@ export default function CertificationDetailPage() {
     );
   }
 
-  const certificateImage = detail.certification.certificate_url?.trim()
-    ? detail.certification.certificate_url
+  // Handle relative URLs (local storage) vs absolute URLs (Supabase)
+  const rawCertUrl = detail.certification.certificate_url?.trim();
+  const certificateImage = rawCertUrl
+    ? rawCertUrl.startsWith("/")
+      ? `${API_BASE}${rawCertUrl}`
+      : rawCertUrl
     : null;
 
   return (

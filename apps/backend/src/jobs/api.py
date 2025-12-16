@@ -2100,29 +2100,31 @@ def accept_application(request, job_id: int, application_id: int):
                 message_text=f"Application accepted! You can now chat about the job: {job.title}"
             )
         
-        # Reject all other pending applications for this job
-        other_applications = JobApplication.objects.filter(
-            jobID=job,
-            status=JobApplication.ApplicationStatus.PENDING
-        ).exclude(
-            applicationID=application_id
-        ).select_related('workerID__profileID__accountFK')
+        # Only reject other applications for non-team (single-worker) jobs
+        # Team jobs use separate team job acceptance endpoint and should not auto-reject
+        if not job.is_team_job:
+            other_applications = JobApplication.objects.filter(
+                jobID=job,
+                status=JobApplication.ApplicationStatus.PENDING
+            ).exclude(
+                applicationID=application_id
+            ).select_related('workerID__profileID__accountFK')
 
-        # Notify rejected workers
-        from accounts.models import Notification
-        for other_app in other_applications:
-            Notification.objects.create(
-                accountFK=other_app.workerID.profileID.accountFK,
-                notificationType="APPLICATION_REJECTED",
-                title=f"Application Not Selected",
-                message=f"Unfortunately, your application for '{job.title}' was not selected. Keep applying to find more opportunities!",
-                relatedJobID=job.jobID,
-                relatedApplicationID=other_app.applicationID
-            )
-            print(f"📬 Rejection notification sent to worker {other_app.workerID.profileID.accountFK.email}")
+            # Notify rejected workers
+            from accounts.models import Notification
+            for other_app in other_applications:
+                Notification.objects.create(
+                    accountFK=other_app.workerID.profileID.accountFK,
+                    notificationType="APPLICATION_REJECTED",
+                    title=f"Application Not Selected",
+                    message=f"Unfortunately, your application for '{job.title}' was not selected. Keep applying to find more opportunities!",
+                    relatedJobID=job.jobID,
+                    relatedApplicationID=other_app.applicationID
+                )
+                print(f"📬 Rejection notification sent to worker {other_app.workerID.profileID.accountFK.email}")
 
-        # Update status
-        other_applications.update(status=JobApplication.ApplicationStatus.REJECTED)
+            # Update status
+            other_applications.update(status=JobApplication.ApplicationStatus.REJECTED)
 
         # Create notification for accepted worker
         client_name = f"{client_profile.profileID.firstName} {client_profile.profileID.lastName}"

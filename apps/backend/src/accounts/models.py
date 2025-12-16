@@ -2114,6 +2114,10 @@ class JobWorkerAssignment(models.Model):
         default="ACTIVE"
     )
     
+    # Worker arrival confirmation (matches regular job workflow)
+    client_confirmed_arrival = models.BooleanField(default=False)
+    client_confirmed_arrival_at = models.DateTimeField(null=True, blank=True)
+    
     # Worker completion tracking (for individual worker completion in team jobs)
     worker_marked_complete = models.BooleanField(default=False)
     worker_marked_complete_at = models.DateTimeField(null=True, blank=True)

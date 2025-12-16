@@ -171,7 +171,7 @@ export function useAcceptTeamApplication() {
       applicationId: number;
     }) => {
       const response = await apiRequest(
-        `${ENDPOINTS.TEAM_JOB_DETAIL(jobId).replace("/team", "/team/applications")}/${applicationId}/accept`,
+        ENDPOINTS.TEAM_ACCEPT_APPLICATION(jobId, applicationId),
         { method: "POST" }
       );
 
@@ -219,7 +219,7 @@ export function useRejectTeamApplication() {
       reason?: string;
     }) => {
       const response = await apiRequest(
-        `${ENDPOINTS.TEAM_JOB_DETAIL(jobId).replace("/team", "/team/applications")}/${applicationId}/reject`,
+        ENDPOINTS.TEAM_REJECT_APPLICATION(jobId, applicationId),
         {
           method: "POST",
           body: JSON.stringify({ reason }),
@@ -391,9 +391,7 @@ export function useTeamJobApplications(jobId: number, enabled: boolean = true) {
   return useQuery<{ applications: TeamJobApplication[]; total: number }>({
     queryKey: ["team-job-applications", jobId],
     queryFn: async () => {
-      const response = await apiRequest(
-        `${ENDPOINTS.TEAM_JOB_DETAIL(jobId).replace("/team", "/team/applications")}`
-      );
+      const response = await apiRequest(ENDPOINTS.TEAM_JOB_APPLICATIONS(jobId));
       if (!response.ok) {
         const error = await response.json().catch(() => ({}));
         throw new Error(error.error || "Failed to fetch team job applications");

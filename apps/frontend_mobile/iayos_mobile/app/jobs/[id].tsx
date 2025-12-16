@@ -40,6 +40,7 @@ import {
   type SkillSlot,
   type WorkerAssignment,
 } from "@/lib/hooks/useTeamJob";
+import { useMySkills } from "@/lib/hooks/useSkills";
 
 const { width } = Dimensions.get("window");
 
@@ -327,26 +328,41 @@ export default function JobDetailScreen() {
     enabled: isValidJobId, // Only fetch if we have a valid job ID
   });
 
-  // Check if already applied
-  const { data: hasApplied = false } = useQuery<boolean, unknown, boolean>({
+  // Check if already applied and track which skill slots
+  const { data: applicationStatus } = useQuery<{
+    hasApplied: boolean;
+    appliedSlotIds: number[];
+  }>({
     queryKey: ["jobs", id, "applied"],
-    queryFn: async (): Promise<boolean> => {
+    queryFn: async (): Promise<{
+      hasApplied: boolean;
+      appliedSlotIds: number[];
+    }> => {
       const response = await apiRequest(ENDPOINTS.MY_APPLICATIONS, {
         method: "GET",
       });
 
-      if (!response.ok) return false;
+      if (!response.ok) return { hasApplied: false, appliedSlotIds: [] };
 
       const data = (await response.json()) as any;
       if (data.success && data.applications) {
-        return data.applications.some(
+        const jobApplications = data.applications.filter(
           (app: any) => app.job_id.toString() === id
         );
+        const hasApplied = jobApplications.length > 0;
+        const appliedSlotIds = jobApplications
+          .filter((app: any) => app.applied_skill_slot_id !== null)
+          .map((app: any) => app.applied_skill_slot_id);
+        return { hasApplied, appliedSlotIds };
       }
-      return false;
+      return { hasApplied: false, appliedSlotIds: [] };
     },
     enabled: isWorker,
   });
+
+  // Destructure for easier access
+  const hasApplied = applicationStatus?.hasApplied ?? false;
+  const appliedSlotIds = applicationStatus?.appliedSlotIds ?? [];
 
   // Submit application mutation
   const submitApplication = useMutation({
@@ -695,6 +711,9 @@ export default function JobDetailScreen() {
   // Team job apply mutation
   const applyToSkillSlot = useApplyToSkillSlot();
 
+  // Fetch worker's skills for skill mismatch warning
+  const { data: mySkills = [] } = useMySkills();
+
   // Team job completion mutations
   const workerCompleteAssignment = useWorkerCompleteAssignment();
   const clientApproveTeamJob = useClientApproveTeamJob();
@@ -714,18 +733,50 @@ export default function JobDetailScreen() {
     (assignment) => assignment.worker_id === user?.profile_data?.id
   );
 
-  // Check if current worker has applied to any slot in this team job
+  // Team job applications list for client view
   const teamApplications = (teamApplicationsData as any)?.applications || [];
-  const hasAppliedToTeamJob = teamApplications.some(
-    (app: any) =>
-      app.worker_id === user?.profile_data?.id && app.status === "PENDING"
-  );
 
   const handleTeamSlotApply = (slot: SkillSlot) => {
     if (!isWorker) {
       Alert.alert("Error", "Only workers can apply to team jobs");
       return;
     }
+
+    // Check if worker has the required skill
+    const hasRequiredSkill = mySkills.some(
+      (skill) => skill.id === slot.specialization_id
+    );
+
+    if (!hasRequiredSkill) {
+      // Show warning but still allow them to proceed
+      Alert.alert(
+        "⚠️ Skill Mismatch Warning",
+        `You don't have "${slot.specialization_name}" listed as a skill on your profile.\n\nClients may prefer workers with matching skills. Would you like to continue anyway?`,
+        [
+          {
+            text: "Cancel",
+            style: "cancel",
+          },
+          {
+            text: "Add Skill First",
+            onPress: () => router.push("/profile/skills" as any),
+          },
+          {
+            text: "Continue Anyway",
+            onPress: () => {
+              setSelectedSkillSlot(slot);
+              setProposedBudget(slot.budget_per_worker.toString());
+              setBudgetOption("ACCEPT");
+              setProposalMessage("");
+              setEstimatedDuration("");
+              setShowTeamApplyModal(true);
+            },
+          },
+        ]
+      );
+      return;
+    }
+
     setSelectedSkillSlot(slot);
     setProposedBudget(slot.budget_per_worker.toString());
     setBudgetOption("ACCEPT");
@@ -1491,12 +1542,12 @@ export default function JobDetailScreen() {
                     )}
                   </View>
 
-                  {/* Apply Button for Workers (if slot is open) */}
+                  {/* Apply Button for Workers (if slot is open and not already applied to THIS slot) */}
                   {isWorker &&
                     slot.openings_remaining > 0 &&
                     job.status === "ACTIVE" &&
                     !currentWorkerAssignment &&
-                    !hasAppliedToTeamJob && (
+                    !appliedSlotIds.includes(slot.skill_slot_id) && (
                       <TouchableOpacity
                         style={styles.applySlotButton}
                         onPress={() => handleTeamSlotApply(slot)}
@@ -1513,18 +1564,23 @@ export default function JobDetailScreen() {
                       </TouchableOpacity>
                     )}
 
-                  {/* Already Applied Badge */}
+                  {/* Already Applied Badge - Per Slot */}
                   {isWorker &&
-                    hasAppliedToTeamJob &&
+                    appliedSlotIds.includes(slot.skill_slot_id) &&
                     !currentWorkerAssignment && (
                       <View style={styles.appliedBadge}>
                         <Ionicons
-                          name="time"
+                          name="checkmark-circle"
                           size={16}
-                          color={Colors.textSecondary}
+                          color={Colors.success}
                         />
-                        <Text style={styles.appliedBadgeText}>
-                          Application Pending
+                        <Text
+                          style={[
+                            styles.appliedBadgeText,
+                            { color: Colors.success },
+                          ]}
+                        >
+                          Already Applied
                         </Text>
                       </View>
                     )}
@@ -1806,188 +1862,191 @@ export default function JobDetailScreen() {
             </View>
           )}
 
-        {/* Applications Section - Only for open LISTING jobs by client */}
-        {isClient && job.jobType === "LISTING" && !job.assignedWorker && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Applications</Text>
-              {applications.length > 0 && (
-                <View style={styles.applicationsBadge}>
-                  <Text style={styles.applicationsBadgeText}>
-                    {applications.length}
+        {/* Applications Section - Only for open LISTING jobs by client (non-team jobs only) */}
+        {isClient &&
+          job.jobType === "LISTING" &&
+          !job.assignedWorker &&
+          !isTeamJob && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Applications</Text>
+                {applications.length > 0 && (
+                  <View style={styles.applicationsBadge}>
+                    <Text style={styles.applicationsBadgeText}>
+                      {applications.length}
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              {applicationsLoading ? (
+                <ActivityIndicator size="small" color={Colors.primary} />
+              ) : applications.length === 0 ? (
+                <View style={styles.emptyApplications}>
+                  <Ionicons
+                    name="document-text-outline"
+                    size={48}
+                    color={Colors.textSecondary}
+                  />
+                  <Text style={styles.emptyApplicationsText}>
+                    No applications yet
                   </Text>
+                  <Text style={styles.emptyApplicationsSubtext}>
+                    Workers who apply will appear here
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.applicationsList}>
+                  {applications.map((application) => (
+                    <View key={application.id} style={styles.applicationCard}>
+                      {/* Worker Info */}
+                      <View style={styles.applicationWorkerInfo}>
+                        <Image
+                          source={{
+                            uri:
+                              application.worker.avatar ||
+                              "https://via.placeholder.com/50",
+                          }}
+                          style={styles.applicationAvatar}
+                        />
+                        <View style={styles.applicationWorkerDetails}>
+                          <Text style={styles.applicationWorkerName}>
+                            {application.worker.name}
+                          </Text>
+                          <View style={styles.applicationWorkerMeta}>
+                            <Ionicons name="star" size={14} color="#F59E0B" />
+                            <Text style={styles.applicationWorkerRating}>
+                              {application.worker.rating.toFixed(1)}
+                            </Text>
+                            {application.worker.city && (
+                              <>
+                                <Text style={styles.applicationMetaDot}>•</Text>
+                                <Text style={styles.applicationWorkerCity}>
+                                  {application.worker.city}
+                                </Text>
+                              </>
+                            )}
+                          </View>
+                        </View>
+                        <View
+                          style={[
+                            styles.applicationStatusBadge,
+                            application.status === "PENDING" &&
+                              styles.statusPending,
+                            application.status === "ACCEPTED" &&
+                              styles.statusAccepted,
+                            application.status === "REJECTED" &&
+                              styles.statusRejected,
+                          ]}
+                        >
+                          <Text style={styles.applicationStatusText}>
+                            {application.status}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {/* Proposal Details */}
+                      {application.proposal_message && (
+                        <View style={styles.proposalSection}>
+                          <Text style={styles.proposalLabel}>Proposal:</Text>
+                          <Text style={styles.proposalText} numberOfLines={3}>
+                            {application.proposal_message}
+                          </Text>
+                        </View>
+                      )}
+
+                      <View style={styles.applicationDetails}>
+                        {application.budget_option === "NEGOTIATE" && (
+                          <View style={styles.applicationDetailItem}>
+                            <Ionicons
+                              name="cash-outline"
+                              size={16}
+                              color={Colors.textSecondary}
+                            />
+                            <Text style={styles.applicationDetailText}>
+                              Proposed: ₱
+                              {application.proposed_budget.toLocaleString()}
+                            </Text>
+                          </View>
+                        )}
+                        {application.estimated_duration && (
+                          <View style={styles.applicationDetailItem}>
+                            <Ionicons
+                              name="time-outline"
+                              size={16}
+                              color={Colors.textSecondary}
+                            />
+                            <Text style={styles.applicationDetailText}>
+                              {application.estimated_duration}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+
+                      {/* Action Buttons */}
+                      {application.status === "PENDING" && (
+                        <View style={styles.applicationActions}>
+                          <TouchableOpacity
+                            style={styles.rejectButton}
+                            onPress={() =>
+                              handleRejectApplication(
+                                application.id,
+                                application.worker.name
+                              )
+                            }
+                            disabled={rejectApplicationMutation.isPending}
+                          >
+                            {rejectApplicationMutation.isPending ? (
+                              <ActivityIndicator
+                                size="small"
+                                color={Colors.error}
+                              />
+                            ) : (
+                              <>
+                                <Ionicons
+                                  name="close-circle-outline"
+                                  size={20}
+                                  color={Colors.error}
+                                />
+                                <Text style={styles.rejectButtonText}>
+                                  Reject
+                                </Text>
+                              </>
+                            )}
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={styles.acceptButton}
+                            onPress={() =>
+                              handleAcceptApplication(
+                                application.id,
+                                application.worker.name
+                              )
+                            }
+                            disabled={acceptApplicationMutation.isPending}
+                          >
+                            {acceptApplicationMutation.isPending ? (
+                              <ActivityIndicator size="small" color="#FFF" />
+                            ) : (
+                              <>
+                                <Ionicons
+                                  name="checkmark-circle-outline"
+                                  size={20}
+                                  color="#FFF"
+                                />
+                                <Text style={styles.acceptButtonText}>
+                                  Accept
+                                </Text>
+                              </>
+                            )}
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                    </View>
+                  ))}
                 </View>
               )}
             </View>
-
-            {applicationsLoading ? (
-              <ActivityIndicator size="small" color={Colors.primary} />
-            ) : applications.length === 0 ? (
-              <View style={styles.emptyApplications}>
-                <Ionicons
-                  name="document-text-outline"
-                  size={48}
-                  color={Colors.textSecondary}
-                />
-                <Text style={styles.emptyApplicationsText}>
-                  No applications yet
-                </Text>
-                <Text style={styles.emptyApplicationsSubtext}>
-                  Workers who apply will appear here
-                </Text>
-              </View>
-            ) : (
-              <View style={styles.applicationsList}>
-                {applications.map((application) => (
-                  <View key={application.id} style={styles.applicationCard}>
-                    {/* Worker Info */}
-                    <View style={styles.applicationWorkerInfo}>
-                      <Image
-                        source={{
-                          uri:
-                            application.worker.avatar ||
-                            "https://via.placeholder.com/50",
-                        }}
-                        style={styles.applicationAvatar}
-                      />
-                      <View style={styles.applicationWorkerDetails}>
-                        <Text style={styles.applicationWorkerName}>
-                          {application.worker.name}
-                        </Text>
-                        <View style={styles.applicationWorkerMeta}>
-                          <Ionicons name="star" size={14} color="#F59E0B" />
-                          <Text style={styles.applicationWorkerRating}>
-                            {application.worker.rating.toFixed(1)}
-                          </Text>
-                          {application.worker.city && (
-                            <>
-                              <Text style={styles.applicationMetaDot}>•</Text>
-                              <Text style={styles.applicationWorkerCity}>
-                                {application.worker.city}
-                              </Text>
-                            </>
-                          )}
-                        </View>
-                      </View>
-                      <View
-                        style={[
-                          styles.applicationStatusBadge,
-                          application.status === "PENDING" &&
-                            styles.statusPending,
-                          application.status === "ACCEPTED" &&
-                            styles.statusAccepted,
-                          application.status === "REJECTED" &&
-                            styles.statusRejected,
-                        ]}
-                      >
-                        <Text style={styles.applicationStatusText}>
-                          {application.status}
-                        </Text>
-                      </View>
-                    </View>
-
-                    {/* Proposal Details */}
-                    {application.proposal_message && (
-                      <View style={styles.proposalSection}>
-                        <Text style={styles.proposalLabel}>Proposal:</Text>
-                        <Text style={styles.proposalText} numberOfLines={3}>
-                          {application.proposal_message}
-                        </Text>
-                      </View>
-                    )}
-
-                    <View style={styles.applicationDetails}>
-                      {application.budget_option === "NEGOTIATE" && (
-                        <View style={styles.applicationDetailItem}>
-                          <Ionicons
-                            name="cash-outline"
-                            size={16}
-                            color={Colors.textSecondary}
-                          />
-                          <Text style={styles.applicationDetailText}>
-                            Proposed: ₱
-                            {application.proposed_budget.toLocaleString()}
-                          </Text>
-                        </View>
-                      )}
-                      {application.estimated_duration && (
-                        <View style={styles.applicationDetailItem}>
-                          <Ionicons
-                            name="time-outline"
-                            size={16}
-                            color={Colors.textSecondary}
-                          />
-                          <Text style={styles.applicationDetailText}>
-                            {application.estimated_duration}
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-
-                    {/* Action Buttons */}
-                    {application.status === "PENDING" && (
-                      <View style={styles.applicationActions}>
-                        <TouchableOpacity
-                          style={styles.rejectButton}
-                          onPress={() =>
-                            handleRejectApplication(
-                              application.id,
-                              application.worker.name
-                            )
-                          }
-                          disabled={rejectApplicationMutation.isPending}
-                        >
-                          {rejectApplicationMutation.isPending ? (
-                            <ActivityIndicator
-                              size="small"
-                              color={Colors.error}
-                            />
-                          ) : (
-                            <>
-                              <Ionicons
-                                name="close-circle-outline"
-                                size={20}
-                                color={Colors.error}
-                              />
-                              <Text style={styles.rejectButtonText}>
-                                Reject
-                              </Text>
-                            </>
-                          )}
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={styles.acceptButton}
-                          onPress={() =>
-                            handleAcceptApplication(
-                              application.id,
-                              application.worker.name
-                            )
-                          }
-                          disabled={acceptApplicationMutation.isPending}
-                        >
-                          {acceptApplicationMutation.isPending ? (
-                            <ActivityIndicator size="small" color="#FFF" />
-                          ) : (
-                            <>
-                              <Ionicons
-                                name="checkmark-circle-outline"
-                                size={20}
-                                color="#FFF"
-                              />
-                              <Text style={styles.acceptButtonText}>
-                                Accept
-                              </Text>
-                            </>
-                          )}
-                        </TouchableOpacity>
-                      </View>
-                    )}
-                  </View>
-                ))}
-              </View>
-            )}
-          </View>
-        )}
+          )}
 
         {/* Job Feedback */}
         {jobHasFeedback && (

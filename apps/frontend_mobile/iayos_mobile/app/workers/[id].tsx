@@ -861,7 +861,7 @@ export default function WorkerDetailScreen() {
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Soft Skills</Text>
               <View style={styles.softSkillsContainer}>
-                {data.softSkills.split(',').map((skill, index) => (
+                {data.softSkills.split(",").map((skill, index) => (
                   <View key={index} style={styles.softSkillBubble}>
                     <Text style={styles.softSkillText}>{skill.trim()}</Text>
                   </View>
