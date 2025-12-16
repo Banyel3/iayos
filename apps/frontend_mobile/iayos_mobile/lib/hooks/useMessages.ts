@@ -92,6 +92,30 @@ export type ConversationDetail = {
   pending_employee_reviews?: number[]; // Employee IDs not yet reviewed
   all_employees_reviewed?: boolean;
   is_agency_job?: boolean;
+  // Team job support (multi-worker jobs)
+  is_team_job?: boolean;
+  team_worker_assignments?: Array<{
+    worker_id: number;
+    account_id: number;
+    name: string;
+    avatar: string;
+    skill: string;
+    assignment_id: number;
+    is_reviewed: boolean;
+    // Arrival tracking (3-phase workflow)
+    client_confirmed_arrival: boolean;
+    client_confirmed_arrival_at: string | null;
+    // Completion tracking
+    worker_marked_complete: boolean;
+    worker_marked_complete_at: string | null;
+  }>;
+  pending_team_worker_reviews?: Array<{
+    worker_id: number;
+    account_id: number;
+    name: string;
+    avatar: string;
+  }>;
+  all_team_workers_reviewed?: boolean;
   my_role: "CLIENT" | "WORKER" | "AGENCY";
   messages: Message[];
   total_messages: number;
@@ -132,6 +156,15 @@ export function useMessages(conversationId: number) {
         assigned_employees: data.assigned_employees?.map((emp: any) => ({
           ...emp,
           avatar: getAbsoluteMediaUrl(emp.avatar),
+        })),
+        // Team worker assignments for team jobs
+        team_worker_assignments: data.team_worker_assignments?.map((worker: any) => ({
+          ...worker,
+          avatar: getAbsoluteMediaUrl(worker.avatar),
+        })),
+        pending_team_worker_reviews: data.pending_team_worker_reviews?.map((worker: any) => ({
+          ...worker,
+          avatar: getAbsoluteMediaUrl(worker.avatar),
         })),
         messages: data.messages.map((msg: Message) => ({
           ...msg,

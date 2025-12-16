@@ -37,7 +37,11 @@ import {
   useConfirmWorkStarted,
   useMarkComplete,
   useApproveCompletion,
+  useConfirmTeamWorkerArrival,
+  useMarkTeamAssignmentComplete,
+  useApproveTeamJobCompletion,
 } from "../../lib/hooks/useJobActions";
+import { useAuth } from "../../context/AuthContext";
 import {
   useConfirmBackjobStarted,
   useMarkBackjobComplete,
@@ -148,6 +152,12 @@ export default function ChatScreen() {
   const markCompleteMutation = useMarkComplete();
   const approveCompletionMutation = useApproveCompletion();
   const submitReviewMutation = useSubmitReview();
+  const confirmTeamWorkerArrivalMutation = useConfirmTeamWorkerArrival();
+  const markTeamAssignmentCompleteMutation = useMarkTeamAssignmentComplete();
+  const approveTeamJobCompletionMutation = useApproveTeamJobCompletion();
+
+  // Get current user for team job assignment identification
+  const { user } = useAuth();
 
   // Backjob action mutations
   const confirmBackjobStartedMutation = useConfirmBackjobStarted();
@@ -209,6 +219,79 @@ export default function ChatScreen() {
           onPress: () => {
             confirmWorkStartedMutation.mutate(conversation.job.id);
           },
+        },
+      ]
+    );
+  };
+
+  // Handle confirm team worker arrival (CLIENT only, for team jobs)
+  const handleConfirmTeamWorkerArrival = (
+    assignmentId: number,
+    workerName: string
+  ) => {
+    if (!conversation) return;
+
+    Alert.alert(
+      "Confirm Worker Arrival",
+      `Has ${workerName} arrived at the job site?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Confirm Arrival",
+          onPress: () => {
+            confirmTeamWorkerArrivalMutation.mutate({
+              jobId: conversation.job.id,
+              assignmentId,
+            });
+          },
+        },
+      ]
+    );
+  };
+
+  // Handle mark team assignment complete (WORKER only, for team jobs)
+  const handleMarkTeamAssignmentComplete = (assignmentId: number) => {
+    if (!conversation) return;
+
+    Alert.prompt(
+      "Mark Assignment Complete",
+      "Add optional completion notes:",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Submit",
+          onPress: (notes?: string) => {
+            markTeamAssignmentCompleteMutation.mutate({
+              jobId: conversation.job.id,
+              assignmentId,
+              notes: notes || undefined,
+            });
+          },
+        },
+      ],
+      "plain-text",
+      "",
+      "default"
+    );
+  };
+
+  // Handle approve team job completion (CLIENT only, for team jobs)
+  const handleApproveTeamJobCompletion = () => {
+    if (!conversation) return;
+
+    // Calculate remaining amount (50% of total budget)
+    const remainingAmount = conversation.job.budget
+      ? (conversation.job.budget * 0.5).toFixed(2)
+      : "0.00";
+
+    Alert.alert(
+      "Approve Team Job & Pay",
+      `All workers have completed their assignments.\n\nYou will need to pay the remaining 50% of the job budget:\n\n₱${remainingAmount}\n\nPlease select your payment method.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Continue",
+          onPress: () => setShowPaymentModal(true),
         },
       ]
     );
@@ -285,9 +368,13 @@ export default function ChatScreen() {
         ? (conversation.job.budget * 0.5).toFixed(2)
         : "0.00";
 
+      const workerText = conversation.is_team_job
+        ? "the workers"
+        : "the worker";
+
       Alert.alert(
         "Cash Payment",
-        `Please pay ₱${remainingAmount} to the worker directly, then upload a photo of your payment receipt.\n\nThis proof will be stored for dispute resolution.`,
+        `Please pay ₱${remainingAmount} to ${workerText} directly, then upload a photo of your payment receipt.\n\nThis proof will be stored for dispute resolution.`,
         [
           { text: "Cancel", style: "cancel" },
           {
@@ -296,7 +383,14 @@ export default function ChatScreen() {
           },
         ]
       );
+    } else if (conversation.is_team_job) {
+      // Team job approval (wallet only, no GCASH for now)
+      approveTeamJobCompletionMutation.mutate({
+        jobId: conversation.job.id,
+        paymentMethod: "WALLET",
+      });
     } else {
+      // Regular job approval
       approveCompletionMutation.mutate({
         jobId: conversation.job.id,
         paymentMethod: method,
@@ -321,11 +415,21 @@ export default function ChatScreen() {
   const handleCashProofSubmit = () => {
     if (!conversation || !selectedImage) return;
 
-    approveCompletionMutation.mutate({
-      jobId: conversation.job.id,
-      paymentMethod: "CASH",
-      cashProofImage: selectedImage,
-    });
+    if (conversation.is_team_job) {
+      // Team job cash proof
+      approveTeamJobCompletionMutation.mutate({
+        jobId: conversation.job.id,
+        paymentMethod: "CASH",
+        cashProofImage: selectedImage,
+      });
+    } else {
+      // Regular job cash proof
+      approveCompletionMutation.mutate({
+        jobId: conversation.job.id,
+        paymentMethod: "CASH",
+        cashProofImage: selectedImage,
+      });
+    }
 
     setShowCashUploadModal(false);
     setSelectedImage(null);
@@ -1151,8 +1255,242 @@ export default function ChatScreen() {
           {conversation.job.status === "IN_PROGRESS" &&
             !conversation.job.clientMarkedComplete && (
               <View style={styles.actionButtonsContainer}>
-                {/* CLIENT: Confirm Work Started Button */}
-                {conversation.my_role === "CLIENT" &&
+                {/* TEAM JOB: Per-Worker Arrival Confirmation (CLIENT only) */}
+                {conversation.is_team_job &&
+                  conversation.my_role === "CLIENT" &&
+                  conversation.team_worker_assignments &&
+                  conversation.team_worker_assignments.length > 0 && (
+                    <View style={styles.teamArrivalSection}>
+                      <Text style={styles.teamArrivalTitle}>
+                        Worker Arrivals
+                      </Text>
+                      {conversation.team_worker_assignments.map((assignment) => (
+                        <View
+                          key={assignment.assignment_id}
+                          style={styles.teamWorkerCard}
+                        >
+                          <View style={styles.teamWorkerInfo}>
+                            {assignment.avatar && (
+                              <Image
+                                source={{ uri: assignment.avatar }}
+                                style={styles.teamWorkerAvatar}
+                              />
+                            )}
+                            <View style={styles.teamWorkerDetails}>
+                              <Text style={styles.teamWorkerName}>
+                                {assignment.name}
+                              </Text>
+                              <Text style={styles.teamWorkerSkill}>
+                                {assignment.skill}
+                              </Text>
+                            </View>
+                          </View>
+
+                          {assignment.client_confirmed_arrival ? (
+                            <View style={styles.arrivedBadge}>
+                              <Ionicons
+                                name="checkmark-circle"
+                                size={16}
+                                color={Colors.success}
+                              />
+                              <Text style={styles.arrivedText}>
+                                Arrived{" "}
+                                {assignment.client_confirmed_arrival_at &&
+                                  format(
+                                    new Date(
+                                      assignment.client_confirmed_arrival_at
+                                    ),
+                                    "h:mm a"
+                                  )}
+                              </Text>
+                            </View>
+                          ) : (
+                            <TouchableOpacity
+                              style={styles.confirmArrivalButton}
+                              onPress={() =>
+                                handleConfirmTeamWorkerArrival(
+                                  assignment.assignment_id,
+                                  assignment.name
+                                )
+                              }
+                              disabled={
+                                confirmTeamWorkerArrivalMutation.isPending
+                              }
+                            >
+                              {confirmTeamWorkerArrivalMutation.isPending ? (
+                                <ActivityIndicator
+                                  size="small"
+                                  color={Colors.white}
+                                />
+                              ) : (
+                                <>
+                                  <Ionicons
+                                    name="checkmark-circle-outline"
+                                    size={16}
+                                    color={Colors.white}
+                                  />
+                                  <Text style={styles.confirmArrivalButtonText}>
+                                    Confirm Arrival
+                                  </Text>
+                                </>
+                              )}
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      ))}
+
+                      {/* Progress indicator */}
+                      <View style={styles.teamProgressContainer}>
+                        <Text style={styles.teamProgressText}>
+                          {
+                            conversation.team_worker_assignments.filter(
+                              (a) => a.client_confirmed_arrival
+                            ).length
+                          }{" "}
+                          of {conversation.team_worker_assignments.length}{" "}
+                          workers arrived
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+
+                {/* TEAM JOB PHASE 2: Worker Marks Assignment Complete */}
+                {conversation.is_team_job &&
+                  conversation.my_role === "WORKER" &&
+                  user &&
+                  (() => {
+                    // Find worker's own assignment
+                    const myAssignment = conversation.team_worker_assignments?.find(
+                      (a) => a.account_id === user.accountID
+                    );
+
+                    if (!myAssignment) return null;
+
+                    // Check if arrival was confirmed
+                    if (!myAssignment.client_confirmed_arrival) {
+                      return (
+                        <View style={[styles.actionButton, styles.waitingButton]}>
+                          <Ionicons
+                            name="time-outline"
+                            size={20}
+                            color={Colors.textSecondary}
+                          />
+                          <Text style={styles.waitingButtonText}>
+                            Waiting for client to confirm your arrival...
+                          </Text>
+                        </View>
+                      );
+                    }
+
+                    // Show mark complete button if not yet marked
+                    if (!myAssignment.worker_marked_complete) {
+                      return (
+                        <TouchableOpacity
+                          style={[styles.actionButton, styles.markCompleteButton]}
+                          onPress={() =>
+                            handleMarkTeamAssignmentComplete(
+                              myAssignment.assignment_id
+                            )
+                          }
+                          disabled={markTeamAssignmentCompleteMutation.isPending}
+                        >
+                          {markTeamAssignmentCompleteMutation.isPending ? (
+                            <ActivityIndicator size="small" color={Colors.white} />
+                          ) : (
+                            <>
+                              <Ionicons
+                                name="checkmark-done"
+                                size={20}
+                                color={Colors.white}
+                              />
+                              <Text style={styles.actionButtonText}>
+                                Mark My Assignment Complete
+                              </Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+                      );
+                    }
+
+                    // Show waiting for client approval
+                    return (
+                      <View style={[styles.actionButton, styles.waitingButton]}>
+                        <Ionicons
+                          name="time-outline"
+                          size={20}
+                          color={Colors.textSecondary}
+                        />
+                        <Text style={styles.waitingButtonText}>
+                          ✓ Assignment complete. Waiting for client approval...
+                        </Text>
+                      </View>
+                    );
+                  })()}
+
+                {/* TEAM JOB PHASE 3: Client Approves All Workers */}
+                {conversation.is_team_job &&
+                  conversation.my_role === "CLIENT" &&
+                  conversation.team_worker_assignments &&
+                  (() => {
+                    const allWorkersComplete = conversation.team_worker_assignments.every(
+                      (a) => a.worker_marked_complete
+                    );
+                    const completedCount = conversation.team_worker_assignments.filter(
+                      (a) => a.worker_marked_complete
+                    ).length;
+
+                    // Show progress if not all complete
+                    if (!allWorkersComplete) {
+                      return (
+                        <View style={[styles.actionButton, styles.waitingButton]}>
+                          <Ionicons
+                            name="time-outline"
+                            size={20}
+                            color={Colors.textSecondary}
+                          />
+                          <Text style={styles.waitingButtonText}>
+                            {completedCount} of {conversation.team_worker_assignments.length} workers marked complete...
+                          </Text>
+                        </View>
+                      );
+                    }
+
+                    // Show approve button if all complete and not yet approved
+                    if (!conversation.job.clientMarkedComplete) {
+                      return (
+                        <TouchableOpacity
+                          style={[
+                            styles.actionButton,
+                            styles.approveCompletionButton,
+                          ]}
+                          onPress={handleApproveTeamJobCompletion}
+                          disabled={approveTeamJobCompletionMutation.isPending}
+                        >
+                          {approveTeamJobCompletionMutation.isPending ? (
+                            <ActivityIndicator size="small" color={Colors.white} />
+                          ) : (
+                            <>
+                              <Ionicons
+                                name="wallet"
+                                size={20}
+                                color={Colors.white}
+                              />
+                              <Text style={styles.actionButtonText}>
+                                Approve & Pay Team (₱
+                                {(conversation.job.budget * 0.5).toLocaleString()})
+                              </Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+                      );
+                    }
+
+                    return null;
+                  })()}
+
+                {/* CLIENT: Confirm Work Started Button (Regular Jobs Only) */}
+                {!conversation.is_team_job &&
+                  conversation.my_role === "CLIENT" &&
                   !conversation.job.clientConfirmedWorkStarted && (
                     <TouchableOpacity
                       style={[
@@ -1179,8 +1517,9 @@ export default function ChatScreen() {
                     </TouchableOpacity>
                   )}
 
-                {/* CLIENT: Waiting for Worker to Complete */}
-                {conversation.my_role === "CLIENT" &&
+                {/* CLIENT: Waiting for Worker to Complete (Regular Jobs Only) */}
+                {!conversation.is_team_job &&
+                  conversation.my_role === "CLIENT" &&
                   conversation.job.clientConfirmedWorkStarted &&
                   !conversation.job.workerMarkedComplete && (
                     <View style={[styles.actionButton, styles.waitingButton]}>
@@ -1195,8 +1534,9 @@ export default function ChatScreen() {
                     </View>
                   )}
 
-                {/* WORKER: Waiting for Client Confirmation */}
-                {conversation.my_role === "WORKER" &&
+                {/* WORKER: Waiting for Client Confirmation (Regular Jobs Only) */}
+                {!conversation.is_team_job &&
+                  conversation.my_role === "WORKER" &&
                   !conversation.job.clientConfirmedWorkStarted && (
                     <View style={[styles.actionButton, styles.waitingButton]}>
                       <Ionicons
@@ -2468,6 +2808,89 @@ const styles = StyleSheet.create({
   actionButtonDisabled: {
     backgroundColor: Colors.textSecondary,
     opacity: 0.5,
+  },
+  // Team Worker Arrival Styles
+  teamArrivalSection: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.medium,
+    padding: Spacing.md,
+    gap: Spacing.sm,
+  },
+  teamArrivalTitle: {
+    ...Typography.heading.h4,
+    marginBottom: Spacing.xs,
+  },
+  teamWorkerCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: Colors.backgroundSecondary,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.small,
+    gap: Spacing.md,
+  },
+  teamWorkerInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    flex: 1,
+  },
+  teamWorkerAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.border,
+  },
+  teamWorkerDetails: {
+    flex: 1,
+  },
+  teamWorkerName: {
+    ...Typography.body.medium,
+    fontWeight: "600",
+  },
+  teamWorkerSkill: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+  },
+  arrivedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    backgroundColor: "#E8F5E9",
+    borderRadius: BorderRadius.small,
+  },
+  arrivedText: {
+    ...Typography.body.small,
+    color: Colors.success,
+    fontWeight: "600",
+  },
+  confirmArrivalButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.small,
+  },
+  confirmArrivalButtonText: {
+    ...Typography.body.small,
+    color: Colors.white,
+    fontWeight: "600",
+  },
+  teamProgressContainer: {
+    marginTop: Spacing.xs,
+    paddingTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  teamProgressText: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+    textAlign: "center",
+    fontWeight: "600",
   },
   actionButtonText: {
     ...Typography.body.medium,

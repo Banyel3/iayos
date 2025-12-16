@@ -750,6 +750,83 @@ def worker_complete_team_assignment(assignment_id: int, worker_user, notes: str 
     }
 
 
+def confirm_team_worker_arrival(job_id: int, assignment_id: int, client_user) -> dict:
+    """
+    Client confirms a specific team worker has arrived at the job site.
+    This matches the regular job workflow where client confirms arrival before work starts.
+    """
+    from accounts.models import Notification
+    
+    try:
+        job = Job.objects.get(jobID=job_id)
+    except Job.DoesNotExist:
+        return {'success': False, 'error': 'Job not found'}
+    
+    if not job.is_team_job:
+        return {'success': False, 'error': 'This is not a team job'}
+    
+    # Verify client ownership
+    client_profile = job.clientID
+    if not client_profile or client_profile.profileID.accountFK != client_user:
+        return {'success': False, 'error': 'Only the client can confirm worker arrival'}
+    
+    # Get the specific worker assignment
+    try:
+        assignment = JobWorkerAssignment.objects.get(
+            assignmentID=assignment_id,
+            jobID=job
+        )
+    except JobWorkerAssignment.DoesNotExist:
+        return {'success': False, 'error': 'Worker assignment not found'}
+    
+    # Check if already confirmed
+    if assignment.client_confirmed_arrival:
+        return {
+            'success': False, 
+            'error': f'Worker arrival already confirmed at {assignment.client_confirmed_arrival_at.strftime("%Y-%m-%d %H:%M")}'
+        }
+    
+    # Mark arrival as confirmed
+    assignment.client_confirmed_arrival = True
+    assignment.client_confirmed_arrival_at = timezone.now()
+    assignment.save()
+    
+    # Notify worker
+    worker_name = f"{assignment.workerID.profileID.firstName} {assignment.workerID.profileID.lastName}"
+    Notification.objects.create(
+        accountFK=assignment.workerID.profileID.accountFK,
+        notificationType="ARRIVAL_CONFIRMED",
+        title="Client Confirmed Your Arrival",
+        message=f"Client has confirmed you arrived at the job site for '{job.title}'",
+        relatedJobID=job.jobID
+    )
+    
+    # Check if all assigned workers have arrived
+    total_workers = JobWorkerAssignment.objects.filter(
+        jobID=job,
+        assignment_status='ACTIVE'
+    ).count()
+    
+    arrived_workers = JobWorkerAssignment.objects.filter(
+        jobID=job,
+        assignment_status='ACTIVE',
+        client_confirmed_arrival=True
+    ).count()
+    
+    all_arrived = (arrived_workers == total_workers)
+    
+    return {
+        'success': True,
+        'assignment_id': assignment.assignmentID,
+        'worker_name': worker_name,
+        'confirmed_at': assignment.client_confirmed_arrival_at.isoformat(),
+        'all_workers_arrived': all_arrived,
+        'arrived_count': arrived_workers,
+        'total_count': total_workers,
+        'message': f'Confirmed {worker_name} has arrived'
+    }
+
+
 def client_approve_team_job(job_id: int, client_user, payment_method: Optional[str] = None, cash_proof_url: Optional[str] = None) -> dict:
     """
     Client approves team job completion. This closes the job and team conversation.

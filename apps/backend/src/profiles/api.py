@@ -1549,7 +1549,13 @@ def get_conversation_messages(request, conversation_id: int):
                     "avatar": worker_profile.profileImg,
                     "skill": skill_name,
                     "assignment_id": assignment.assignmentID,
-                    "is_reviewed": worker_account_id in reviewed_worker_accounts
+                    "is_reviewed": worker_account_id in reviewed_worker_accounts,
+                    # Arrival tracking (matches regular job workflow)
+                    "client_confirmed_arrival": assignment.client_confirmed_arrival,
+                    "client_confirmed_arrival_at": assignment.client_confirmed_arrival_at.isoformat() if assignment.client_confirmed_arrival_at else None,
+                    # Completion tracking
+                    "worker_marked_complete": assignment.worker_marked_complete,
+                    "worker_marked_complete_at": assignment.worker_marked_complete_at.isoformat() if assignment.worker_marked_complete_at else None
                 }
                 team_worker_assignments.append(worker_info)
                 

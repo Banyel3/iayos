@@ -973,9 +973,17 @@ def get_available_jobs(request):
                 status=400
             )
         
-        # Get all ACTIVE job postings with client info
+        # Get all ACTIVE job postings (exclude INVITE jobs with PENDING status)
+        # LISTING jobs: inviteStatus is null, show if ACTIVE
+        # INVITE jobs: only show if ACCEPTED (not PENDING or REJECTED)
+        from django.db.models import Q
+        
         job_postings = JobPosting.objects.filter(
-            status=JobPosting.JobStatus.ACTIVE
+            Q(status=JobPosting.JobStatus.ACTIVE) &
+            (
+                Q(jobType='LISTING') |  # LISTING jobs (open to all workers)
+                Q(jobType='INVITE', inviteStatus='ACCEPTED')  # INVITE jobs only if accepted
+            )
         ).select_related(
             'categoryID',
             'clientID__profileID__accountFK'
@@ -5587,6 +5595,26 @@ def get_team_job_applications_endpoint(request, job_id: int, skill_slot_id: int 
     except Exception as e:
         print(f"❌ Error getting team applications: {str(e)}")
         return Response({"error": str(e)}, status=500)
+
+
+@router.post("/{job_id}/team/confirm-arrival/{assignment_id}", auth=dual_auth)
+def confirm_team_worker_arrival_endpoint(request, job_id: int, assignment_id: int):
+    """
+    Client confirms a team worker has arrived at the job site.
+    Matches regular job workflow where client confirms arrival before work starts.
+    """
+    from jobs.team_job_services import confirm_team_worker_arrival
+    
+    result = confirm_team_worker_arrival(
+        job_id=job_id,
+        assignment_id=assignment_id,
+        client_user=request.auth
+    )
+    
+    if not result.get('success'):
+        return Response({"error": result.get('error', 'Failed to confirm arrival')}, status=400)
+    
+    return result
 
 
 @router.post("/{job_id}/team/approve-completion", auth=dual_auth)

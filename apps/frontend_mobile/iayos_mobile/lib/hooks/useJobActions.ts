@@ -2,7 +2,7 @@
 // Handles confirm work started, mark complete, approve completion
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ENDPOINTS, apiRequest } from "../api/config";
+import { ENDPOINTS, apiRequest, API_BASE_URL } from "../api/config";
 import Toast from "react-native-toast-message";
 
 /**
@@ -41,6 +41,177 @@ export function useConfirmWorkStarted() {
       Toast.show({
         type: "error",
         text1: "Confirmation Failed",
+        text2: error.message,
+      });
+    },
+  });
+}
+
+/**
+ * Client confirms a team worker has arrived (for team jobs)
+ */
+export function useConfirmTeamWorkerArrival() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      jobId,
+      assignmentId,
+    }: {
+      jobId: number;
+      assignmentId: number;
+    }) => {
+      const url = `${API_BASE_URL.replace("/api", "")}/api/jobs/${jobId}/team/confirm-arrival/${assignmentId}`;
+      const response = await apiRequest(url, {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        const error = (await response.json()) as { error?: string };
+        throw new Error(error.error || "Failed to confirm worker arrival");
+      }
+
+      return response.json();
+    },
+    onSuccess: (data: any, { jobId }) => {
+      Toast.show({
+        type: "success",
+        text1: "Worker Arrival Confirmed",
+        text2: `${data.worker_name} has been notified`,
+      });
+
+      // Invalidate messages to refetch with updated arrival status
+      queryClient.invalidateQueries({ queryKey: ["messages"] });
+      queryClient.invalidateQueries({ queryKey: ["jobDetails", jobId] });
+    },
+    onError: (error: Error) => {
+      Toast.show({
+        type: "error",
+        text1: "Confirmation Failed",
+        text2: error.message,
+      });
+    },
+  });
+}
+
+/**
+ * Worker marks their team assignment as complete (for team jobs)
+ */
+export function useMarkTeamAssignmentComplete() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      jobId,
+      assignmentId,
+      notes,
+    }: {
+      jobId: number;
+      assignmentId: number;
+      notes?: string;
+    }) => {
+      const url = `${API_BASE_URL.replace("/api", "")}/api/jobs/team/assignments/${assignmentId}/complete`;
+      const response = await apiRequest(url, {
+        method: "POST",
+        body: JSON.stringify({ notes: notes || "" }),
+      });
+
+      if (!response.ok) {
+        const error = (await response.json()) as { error?: string };
+        throw new Error(error.error || "Failed to mark assignment complete");
+      }
+
+      return response.json();
+    },
+    onSuccess: (data: any, { jobId }) => {
+      Toast.show({
+        type: "success",
+        text1: "Assignment Marked Complete",
+        text2: "Client will review your work",
+      });
+
+      // Invalidate messages to refetch with updated completion status
+      queryClient.invalidateQueries({ queryKey: ["messages"] });
+      queryClient.invalidateQueries({ queryKey: ["jobDetails", jobId] });
+      queryClient.invalidateQueries({ queryKey: ["myJobs"] });
+    },
+    onError: (error: Error) => {
+      Toast.show({
+        type: "error",
+        text1: "Failed to Mark Complete",
+        text2: error.message,
+      });
+    },
+  });
+}
+
+/**
+ * Client approves team job completion and processes final payment (for team jobs)
+ */
+export function useApproveTeamJobCompletion() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      jobId,
+      paymentMethod,
+      cashProofImage,
+    }: {
+      jobId: number;
+      paymentMethod: "WALLET" | "CASH";
+      cashProofImage?: string;
+    }) => {
+      const url = `${API_BASE_URL.replace("/api", "")}/api/jobs/${jobId}/team/approve-completion`;
+
+      let body: any;
+      let headers: Record<string, string> | undefined;
+
+      if (paymentMethod === "CASH" && cashProofImage) {
+        // Use FormData for cash proof image upload
+        const formData = new FormData();
+        formData.append("payment_method", paymentMethod);
+        formData.append("cash_proof_image", {
+          uri: cashProofImage,
+          type: "image/jpeg",
+          name: "cash_proof.jpg",
+        } as any);
+        body = formData;
+        headers = undefined; // Let browser set multipart boundary
+      } else {
+        // JSON for wallet payment
+        body = JSON.stringify({ payment_method: paymentMethod });
+        headers = { "Content-Type": "application/json" };
+      }
+
+      const response = await apiRequest(url, {
+        method: "POST",
+        body,
+        ...(headers && { headers }),
+      });
+
+      if (!response.ok) {
+        const error = (await response.json()) as { error?: string };
+        throw new Error(error.error || "Failed to approve team job completion");
+      }
+
+      return response.json();
+    },
+    onSuccess: (data: any, { jobId }) => {
+      Toast.show({
+        type: "success",
+        text1: "Team Job Completed!",
+        text2: "Payment processed and workers notified",
+      });
+
+      // Invalidate messages to refetch with updated approval status
+      queryClient.invalidateQueries({ queryKey: ["messages"] });
+      queryClient.invalidateQueries({ queryKey: ["jobDetails", jobId] });
+      queryClient.invalidateQueries({ queryKey: ["myJobs"] });
+    },
+    onError: (error: Error) => {
+      Toast.show({
+        type: "error",
+        text1: "Approval Failed",
         text2: error.message,
       });
     },
