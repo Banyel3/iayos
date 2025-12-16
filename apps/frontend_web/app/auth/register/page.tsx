@@ -407,7 +407,9 @@ function RegisterContent() {
       {/* Desktop Navigation Bar */}
       <div className="hidden lg:block fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
-          <div className="text-2xl font-bold text-gray-900">iAyos</div>
+          <Link href="/">
+            <Image src="/logo.png" alt="iAyos" width={120} height={40} className="h-10 w-auto" />
+          </Link>
           <Link
             href="/auth/register/agency"
             className="px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
@@ -423,6 +425,7 @@ function RegisterContent() {
         <div className="lg:hidden flex justify-center items-center min-h-screen max-h-screen overflow-hidden p-4">
           <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl p-6 max-h-[95vh] overflow-y-auto">
             <div className="text-center mb-6">
+              <Image src="/logo.png" alt="iAyos" width={100} height={33} className="h-8 w-auto mx-auto mb-4" />
               <h1 className="font-inter text-xl font-semibold text-gray-900 mb-1">
                 Create account
               </h1>
@@ -843,6 +846,7 @@ function RegisterContent() {
           {/* Left Side - Branding/Image */}
           <div className="lg:w-1/2 bg-gradient-to-br from-blue-600 to-purple-700 flex items-center justify-center p-8">
             <div className="max-w-md text-center text-white">
+              <Image src="/logo-white.png" alt="iAyos" width={180} height={60} className="h-16 w-auto mx-auto mb-6" />
               <h1 className="text-4xl font-bold mb-4">Join iAyos</h1>
               <p className="text-xl mb-8 opacity-90">
                 Connect with skilled professionals or find your next opportunity

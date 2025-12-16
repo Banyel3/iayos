@@ -29,6 +29,7 @@ import { ENDPOINTS, apiRequest } from "@/lib/api/config";
 import { SaveButton } from "@/components/SaveButton";
 import { JobDetailSkeleton } from "@/components/ui/SkeletonLoader";
 import { EstimatedTimeCard, type EstimatedCompletion } from "@/components";
+import JobReceiptModal from "@/components/JobReceiptModal";
 import {
   useTeamJobDetail,
   useApplyToSkillSlot,
@@ -187,6 +188,7 @@ export default function JobDetailScreen() {
   const [isSaved, setIsSaved] = useState(false);
   const [showRejectInviteModal, setShowRejectInviteModal] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
 
   // Application form state
   const [proposalMessage, setProposalMessage] = useState("");
@@ -2063,6 +2065,34 @@ export default function JobDetailScreen() {
           </View>
         )}
 
+        {/* View Receipt Button - Shows for COMPLETED jobs */}
+        {job.status === "COMPLETED" && (
+          <View style={styles.section}>
+            <TouchableOpacity
+              style={styles.viewReceiptButton}
+              onPress={() => setShowReceiptModal(true)}
+              activeOpacity={0.8}
+            >
+              <View style={styles.viewReceiptButtonContent}>
+                <View style={styles.viewReceiptIconContainer}>
+                  <Ionicons name="receipt" size={22} color={Colors.white} />
+                </View>
+                <View style={styles.viewReceiptTextContainer}>
+                  <Text style={styles.viewReceiptButtonTitle}>View Receipt</Text>
+                  <Text style={styles.viewReceiptButtonSubtitle}>
+                    Payment breakdown and job details
+                  </Text>
+                </View>
+                <Ionicons
+                  name="chevron-forward"
+                  size={20}
+                  color={Colors.primary}
+                />
+              </View>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* Client & Worker Info - Different display based on job type */}
         {job.jobType === "INVITE" ||
         job.status === "IN_PROGRESS" ||
@@ -2729,6 +2759,14 @@ export default function JobDetailScreen() {
           </ScrollView>
         </SafeAreaView>
       </Modal>
+
+      {/* Job Receipt Modal */}
+      <JobReceiptModal
+        visible={showReceiptModal}
+        onClose={() => setShowReceiptModal(false)}
+        jobId={parseInt(id)}
+        userRole={isWorker ? "WORKER" : "CLIENT"}
+      />
     </SafeAreaView>
   );
 }
@@ -2954,6 +2992,41 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.xs,
     color: Colors.primary,
     marginTop: Spacing.xs,
+  },
+  // View Receipt Button Styles
+  viewReceiptButton: {
+    backgroundColor: Colors.primaryLight || "#E3F2FD",
+    borderRadius: BorderRadius.medium,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    overflow: "hidden",
+  },
+  viewReceiptButtonContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.md,
+    gap: Spacing.sm,
+  },
+  viewReceiptIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  viewReceiptTextContainer: {
+    flex: 1,
+  },
+  viewReceiptButtonTitle: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: "600",
+    color: Colors.primary,
+  },
+  viewReceiptButtonSubtitle: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+    marginTop: 2,
   },
   applyButtonContainer: {
     position: "absolute",

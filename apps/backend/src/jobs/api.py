@@ -5656,3 +5656,206 @@ def worker_mark_team_complete(request, job_id: int, assignment_id: int, notes: s
     return result
 
 #endregion
+
+
+# ============================================================================
+# JOB RECEIPT / INVOICE ENDPOINTS
+# ============================================================================
+#region Receipt Endpoints
+
+@router.get("/{job_id}/receipt", auth=dual_auth)
+def get_job_receipt(request, job_id: int):
+    """
+    Get complete receipt/invoice data for a completed job.
+    Works for all completed jobs, including those completed before this feature was added.
+    
+    Returns:
+    - Job details (title, description, category, dates)
+    - Payment breakdown (budget, escrow, platform fee, worker earnings)
+    - Buffer status (release date, days remaining, payment released)
+    - Worker/agency info
+    - Transaction history for this job
+    """
+    from decimal import Decimal
+    from django.utils import timezone
+    from jobs.payment_buffer_service import get_payment_buffer_days
+    
+    try:
+        # Get the job
+        job = Job.objects.select_related(
+            'clientID__profileID__accountFK',
+            'assignedWorkerID__profileID__accountFK',
+            'assignedAgencyFK__accountFK',
+            'categoryID'
+        ).get(jobID=job_id)
+        
+        # Verify user is client or assigned worker/agency for this job
+        user = request.auth
+        is_client = job.clientID.profileID.accountFK == user
+        is_worker = (
+            job.assignedWorkerID and 
+            job.assignedWorkerID.profileID.accountFK == user
+        )
+        is_agency = (
+            job.assignedAgencyFK and 
+            job.assignedAgencyFK.accountFK == user
+        )
+        
+        if not (is_client or is_worker or is_agency):
+            return Response({"error": "You don't have access to this job's receipt"}, status=403)
+        
+        # Calculate payment breakdown
+        budget = Decimal(str(job.budget))
+        escrow_amount = budget * Decimal('0.5')  # 50% downpayment
+        
+        # Platform fee: 10% for regular jobs, 5% for team jobs
+        platform_fee_rate = Decimal('0.05') if job.is_team_job else Decimal('0.10')
+        platform_fee = budget * platform_fee_rate
+        
+        # Worker receives full budget (client pays budget + fee)
+        worker_earnings = budget
+        total_client_paid = budget + platform_fee
+        
+        # Get buffer period settings
+        buffer_days = get_payment_buffer_days()
+        
+        # Calculate buffer dates and status
+        buffer_start_date = job.clientMarkedCompleteAt or job.completedAt
+        if buffer_start_date:
+            from datetime import timedelta
+            buffer_end_date = buffer_start_date + timedelta(days=buffer_days)
+            now = timezone.now()
+            remaining_days = max(0, (buffer_end_date - now).days) if not job.paymentReleasedToWorker else 0
+        else:
+            buffer_end_date = None
+            remaining_days = None
+        
+        # Get related transactions for this job
+        transactions = []
+        try:
+            # Get all transactions related to this job (from any wallet)
+            from accounts.models import Transaction
+            related_transactions = Transaction.objects.filter(
+                relatedJobPosting=job
+            ).order_by('-createdAt')[:10]  # Last 10 transactions
+            
+            for txn in related_transactions:
+                transactions.append({
+                    'id': txn.transactionID,
+                    'type': txn.transactionType,
+                    'amount': float(txn.amount),
+                    'status': txn.status,
+                    'description': txn.description,
+                    'reference_number': txn.referenceNumber,
+                    'payment_method': txn.paymentMethod,
+                    'created_at': txn.createdAt.isoformat() if txn.createdAt else None,
+                    'completed_at': txn.completedAt.isoformat() if txn.completedAt else None,
+                })
+        except Exception as e:
+            print(f"⚠️ Error fetching transactions for receipt: {e}")
+        
+        # Build worker/agency info
+        worker_info = None
+        if job.assignedWorkerID:
+            worker_profile = job.assignedWorkerID.profileID
+            worker_info = {
+                'type': 'WORKER',
+                'id': job.assignedWorkerID.workerID,
+                'name': f"{worker_profile.firstName} {worker_profile.lastName}",
+                'avatar': worker_profile.profileImg,
+                'contact': worker_profile.contactNum,
+            }
+        elif job.assignedAgencyFK:
+            agency = job.assignedAgencyFK
+            worker_info = {
+                'type': 'AGENCY',
+                'id': agency.agencyID,
+                'name': agency.businessName,
+                'avatar': agency.profileImg,
+                'contact': agency.contactNum,
+            }
+        
+        # Build client info
+        client_profile = job.clientID.profileID
+        client_info = {
+            'id': client_profile.profileID,
+            'name': f"{client_profile.firstName} {client_profile.lastName}",
+            'avatar': client_profile.profileImg,
+            'contact': client_profile.contactNum,
+        }
+        
+        # Build the receipt response
+        receipt_data = {
+            'success': True,
+            'receipt': {
+                # Job info
+                'job_id': job.jobID,
+                'title': job.title,
+                'description': job.description,
+                'category': job.categoryID.specializationName if job.categoryID else None,
+                'location': job.location,
+                'is_team_job': job.is_team_job,
+                'job_type': job.jobType,
+                
+                # Status and dates
+                'status': job.status,
+                'created_at': job.createdAt.isoformat() if job.createdAt else None,
+                'started_at': job.clientConfirmedWorkStartedAt.isoformat() if job.clientConfirmedWorkStartedAt else None,
+                'worker_completed_at': job.workerMarkedCompleteAt.isoformat() if job.workerMarkedCompleteAt else None,
+                'client_approved_at': job.clientMarkedCompleteAt.isoformat() if job.clientMarkedCompleteAt else None,
+                'completed_at': job.completedAt.isoformat() if job.completedAt else None,
+                
+                # Payment breakdown (all in PHP)
+                'payment': {
+                    'currency': 'PHP',
+                    'budget': float(budget),
+                    'escrow_amount': float(escrow_amount),
+                    'final_payment': float(escrow_amount),  # Same as escrow (50/50 split)
+                    'platform_fee': float(platform_fee),
+                    'platform_fee_rate': f"{int(platform_fee_rate * 100)}%",
+                    'worker_earnings': float(worker_earnings),
+                    'total_client_paid': float(total_client_paid),
+                    'escrow_paid': job.escrowPaid,
+                    'escrow_paid_at': job.escrowPaidAt.isoformat() if job.escrowPaidAt else None,
+                    'final_payment_paid': job.remainingPaymentPaid,
+                    'final_payment_paid_at': job.remainingPaymentPaidAt.isoformat() if job.remainingPaymentPaidAt else None,
+                    'payment_method': job.finalPaymentMethod,
+                },
+                
+                # Buffer status (7-day holding period)
+                'buffer': {
+                    'buffer_days': buffer_days,
+                    'start_date': buffer_start_date.isoformat() if buffer_start_date else None,
+                    'end_date': buffer_end_date.isoformat() if buffer_end_date else None,
+                    'remaining_days': remaining_days,
+                    'is_released': job.paymentReleasedToWorker,
+                    'released_at': job.paymentReleasedAt.isoformat() if job.paymentReleasedAt else None,
+                    'hold_reason': job.paymentHeldReason,
+                },
+                
+                # Parties involved
+                'client': client_info,
+                'worker': worker_info,
+                
+                # Transaction history
+                'transactions': transactions,
+                
+                # Review status
+                'reviews': {
+                    'client_reviewed': job.clientReviewed if hasattr(job, 'clientReviewed') else False,
+                    'worker_reviewed': job.workerReviewed if hasattr(job, 'workerReviewed') else False,
+                },
+            }
+        }
+        
+        return receipt_data
+        
+    except Job.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+    except Exception as e:
+        print(f"❌ Error generating receipt for job {job_id}: {e}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": f"Failed to generate receipt: {str(e)}"}, status=500)
+
+#endregion

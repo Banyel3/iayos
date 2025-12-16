@@ -1364,6 +1364,7 @@ def get_conversation_messages(request, conversation_id: int):
         employee_review_exists = False
         agency_review_exists = False
         employees_pending_review = []  # For multi-employee support
+        is_team_job = job.is_team_job  # Check if this is a team job (for per-worker review tracking)
         
         # For agency jobs, check employee and agency reviews separately
         if is_agency_job_for_reviews and client_account:
@@ -1417,6 +1418,20 @@ def get_conversation_messages(request, conversation_id: int):
                     jobID=job,
                     reviewerID=agency_account
                 ).exists()
+        elif is_team_job and not is_client and client_account:
+            # Team job - check if current worker (viewer) has reviewed the client
+            # For team jobs, each worker reviews the client independently
+            worker_reviewed = JobReview.objects.filter(
+                jobID=job,
+                reviewerID=request.auth,  # Current authenticated user (the worker)
+                reviewerType="WORKER"
+            ).exists()
+            
+            # Check if client has reviewed (any workers so far)
+            client_reviewed = JobReview.objects.filter(
+                jobID=job,
+                reviewerID=client_account
+            ).exists()
         elif worker_account and client_account:
             # Regular (non-agency) job
             worker_reviewed = JobReview.objects.filter(
@@ -1519,7 +1534,9 @@ def get_conversation_messages(request, conversation_id: int):
         all_team_workers_reviewed = False
         team_worker_assignments = []
         
-        if is_team_job and is_client:
+        # Populate team_worker_assignments for BOTH clients AND workers
+        # Workers need this to see their own assignment status (Phase 2 banners)
+        if is_team_job:
             from accounts.models import JobWorkerAssignment, JobReview
             
             # Get all assigned workers for this team job
@@ -1528,12 +1545,14 @@ def get_conversation_messages(request, conversation_id: int):
                 assignment_status__in=['ACTIVE', 'COMPLETED']
             ).select_related('workerID__profileID__accountFK', 'skillSlotID__specializationID')
             
-            # Get list of worker accounts already reviewed by this client
-            reviewed_worker_accounts = set(JobReview.objects.filter(
-                jobID=job,
-                reviewerID=request.auth,
-                reviewerType="CLIENT"
-            ).values_list('revieweeID', flat=True))
+            # Get list of worker accounts already reviewed by this client (only relevant for clients)
+            reviewed_worker_accounts = set()
+            if is_client:
+                reviewed_worker_accounts = set(JobReview.objects.filter(
+                    jobID=job,
+                    reviewerID=request.auth,
+                    reviewerType="CLIENT"
+                ).values_list('revieweeID', flat=True))
             
             for assignment in assignments:
                 worker_profile = assignment.workerID.profileID
@@ -1559,10 +1578,12 @@ def get_conversation_messages(request, conversation_id: int):
                 }
                 team_worker_assignments.append(worker_info)
                 
-                if worker_account_id not in reviewed_worker_accounts:
+                # Review tracking only for clients
+                if is_client and worker_account_id not in reviewed_worker_accounts:
                     team_workers_pending_review.append(worker_info)
             
-            all_team_workers_reviewed = len(team_workers_pending_review) == 0 and len(team_worker_assignments) > 0
+            if is_client:
+                all_team_workers_reviewed = len(team_workers_pending_review) == 0 and len(team_worker_assignments) > 0
         
         # Check for active backjob/dispute
         from accounts.models import JobDispute

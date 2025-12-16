@@ -471,13 +471,17 @@ def accept_team_application(
         # Check if conversation already exists
         existing_conversation = Conversation.objects.filter(relatedJobPosting=job).first()
         if not existing_conversation:
+            # CRITICAL: Change job status to IN_PROGRESS (like regular jobs)
+            job.status = 'IN_PROGRESS'
+            job.save()
+            
             # Create team conversation
             conversation = Conversation.objects.create(
                 client=job.clientID.profileID if job.clientID else None,
                 worker=None,  # Team jobs have multiple workers
                 relatedJobPosting=job,
                 status=Conversation.ConversationStatus.ACTIVE,
-                conversation_type='TEAM'
+                conversation_type='TEAM_GROUP'
             )
             
             # Add client as participant
@@ -512,7 +516,7 @@ def accept_team_application(
                 accountFK=job.clientID.profileID.accountFK,
                 notificationType="TEAM_JOB_READY",
                 title="Team Ready!",
-                message=f"All positions for '{job.title}' have been filled. Your team is ready to start!",
+                message=f"All positions for '{job.title}' have been filled. You can now confirm worker arrivals!",
                 relatedJobID=job.jobID
             )
             
@@ -522,7 +526,7 @@ def accept_team_application(
                     accountFK=assign.workerID.profileID.accountFK,
                     notificationType="TEAM_JOB_READY",
                     title="Team Complete!",
-                    message=f"The team for '{job.title}' is now complete. Waiting for client to confirm work start.",
+                    message=f"The team for '{job.title}' is now complete. Please coordinate with the client for work start.",
                     relatedJobID=job.jobID
                 )
         else:
