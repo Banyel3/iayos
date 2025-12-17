@@ -15,6 +15,8 @@ export interface Material {
   unit: string; // e.g., "per kg", "per piece", "per meter"
   isAvailable: boolean;
   imageUrl: string | null;
+  categoryId: number | null; // Linked category/specialization ID
+  categoryName: string | null; // Category name for display
   createdAt: string;
   updatedAt: string;
 }
@@ -26,6 +28,7 @@ export interface CreateMaterialRequest {
   quantity: number;
   unit: string;
   isAvailable?: boolean;
+  categoryId?: number; // Optional category link
   imageFile?: {
     uri: string;
     name: string;
@@ -40,6 +43,7 @@ export interface UpdateMaterialRequest {
   quantity?: number;
   unit?: string;
   isAvailable?: boolean;
+  categoryId?: number | null; // null/-1 to remove category
   imageFile?: {
     uri: string;
     name: string;
@@ -57,6 +61,8 @@ function mapMaterialResponse(material: any): Material {
     unit: material.unit,
     isAvailable: material.is_available,
     imageUrl: material.image_url,
+    categoryId: material.category_id ?? null,
+    categoryName: material.category_name ?? null,
     createdAt: material.createdAt,
     updatedAt: material.updatedAt,
   };
@@ -117,6 +123,11 @@ export function useCreateMaterial() {
       formData.append("unit", data.unit);
       formData.append("isAvailable", (data.isAvailable ?? true).toString());
 
+      // Add category_id if provided
+      if (data.categoryId !== undefined && data.categoryId !== null) {
+        formData.append("category_id", data.categoryId.toString());
+      }
+
       if (data.imageFile) {
         formData.append("image", {
           uri: data.imageFile.uri,
@@ -132,7 +143,9 @@ export function useCreateMaterial() {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || "Failed to create material");
+        throw new Error(
+          error.message || error.error || "Failed to create material"
+        );
       }
 
       const result = await response.json();
@@ -148,6 +161,8 @@ export function useCreateMaterial() {
           unit: result.material.unit,
           isAvailable: result.material.is_available,
           imageUrl: result.material.image_url,
+          categoryId: result.material.category_id ?? null,
+          categoryName: result.material.category_name ?? null,
           createdAt: result.material.createdAt,
           updatedAt: result.material.updatedAt,
         };
@@ -194,6 +209,12 @@ export function useUpdateMaterial() {
         if (data.isAvailable !== undefined)
           formData.append("is_available", data.isAvailable.toString());
 
+        // Handle category update: null/-1 removes category, number sets it
+        if (data.categoryId !== undefined) {
+          const categoryValue = data.categoryId === null ? -1 : data.categoryId;
+          formData.append("category_id", categoryValue.toString());
+        }
+
         formData.append("image_file", {
           uri: data.imageFile.uri,
           name: data.imageFile.name,
@@ -205,13 +226,28 @@ export function useUpdateMaterial() {
           body: formData,
         });
       } else {
-        // Use JSON for text-only updates
+        // Use FormData for text-only updates too (backend expects Form params)
+        const formData = new FormData();
+        if (data.name) formData.append("name", data.name);
+        if (data.description !== undefined)
+          formData.append("description", data.description);
+        if (data.price !== undefined)
+          formData.append("price", data.price.toString());
+        if (data.quantity !== undefined)
+          formData.append("quantity", data.quantity.toString());
+        if (data.unit) formData.append("unit", data.unit);
+        if (data.isAvailable !== undefined)
+          formData.append("is_available", data.isAvailable.toString());
+
+        // Handle category update: null/-1 removes category, number sets it
+        if (data.categoryId !== undefined) {
+          const categoryValue = data.categoryId === null ? -1 : data.categoryId;
+          formData.append("category_id", categoryValue.toString());
+        }
+
         response = await apiRequest(ENDPOINTS.MATERIAL_DETAIL(id), {
           method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(data),
+          body: formData,
         });
       }
 
@@ -333,4 +369,33 @@ export function formatPricePerUnit(
  */
 export function isValidPrice(price: number): boolean {
   return price > 0 && price <= 1000000;
+}
+
+// ===== WORKER SKILLS =====
+
+export interface WorkerSkill {
+  id: number;
+  name: string;
+  description: string;
+  experienceYears: number;
+  certification: string;
+}
+
+/**
+ * Fetch worker's own skills/specializations
+ * Used for material category selection (workers can only link materials to skills they have)
+ */
+export function useMySkills() {
+  return useQuery<WorkerSkill[]>({
+    queryKey: ["my-skills"],
+    queryFn: async (): Promise<WorkerSkill[]> => {
+      const response = await apiRequest(ENDPOINTS.MY_SKILLS);
+      if (!response.ok) {
+        throw new Error("Failed to fetch skills");
+      }
+      const result = await response.json();
+      return Array.isArray(result.data) ? result.data : [];
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
 }

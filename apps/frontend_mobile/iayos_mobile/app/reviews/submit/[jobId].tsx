@@ -75,37 +75,46 @@ export default function SubmitReviewScreen() {
   const { jobId, revieweeId, revieweeName, reviewerType } =
     useLocalSearchParams();
 
+  // Check if this is a client reviewing a worker (multi-criteria) or worker reviewing client (single rating)
+  const isClientReviewingWorker = reviewerType === "CLIENT";
+
   const [ratings, setRatings] = useState<Ratings>({
     quality: 0,
     communication: 0,
     punctuality: 0,
     professionalism: 0,
   });
+  const [singleRating, setSingleRating] = useState(0); // For worker reviewing client
   const [comment, setComment] = useState("");
 
   const submitReviewMutation = useSubmitReview();
 
-  // Calculate overall rating
-  const overallRating =
-    (ratings.quality +
-      ratings.communication +
-      ratings.punctuality +
-      ratings.professionalism) /
-    4;
+  // Calculate overall rating based on review type
+  const overallRating = isClientReviewingWorker
+    ? (ratings.quality +
+        ratings.communication +
+        ratings.punctuality +
+        ratings.professionalism) /
+      4
+    : singleRating;
 
-  // Check if all ratings are filled
-  const allRatingsFilled = Object.values(ratings).every((r) => r > 0);
+  // Check if rating is complete based on review type
+  const isRatingComplete = isClientReviewingWorker
+    ? Object.values(ratings).every((r) => r > 0)
+    : singleRating > 0;
 
   const handleRatingChange = (category: keyof Ratings, value: number) => {
     setRatings((prev) => ({ ...prev, [category]: value }));
   };
 
   const handleSubmit = () => {
-    // Validation - check all categories
-    if (!allRatingsFilled) {
+    // Validation based on review type
+    if (!isRatingComplete) {
       Alert.alert(
-        "Ratings Required",
-        "Please rate all categories before submitting"
+        "Rating Required",
+        isClientReviewingWorker
+          ? "Please rate all categories before submitting"
+          : "Please select a rating before submitting"
       );
       return;
     }
@@ -126,13 +135,22 @@ export default function SubmitReviewScreen() {
       return;
     }
 
+    // Build review data based on review type
     const reviewData: SubmitReviewRequest = {
       job_id: Number(jobId),
       reviewee_id: Number(revieweeId),
-      rating_quality: ratings.quality,
-      rating_communication: ratings.communication,
-      rating_punctuality: ratings.punctuality,
-      rating_professionalism: ratings.professionalism,
+      // For client reviewing worker: use category ratings
+      // For worker reviewing client: use single rating for all categories (backend calculates overall)
+      rating_quality: isClientReviewingWorker ? ratings.quality : singleRating,
+      rating_communication: isClientReviewingWorker
+        ? ratings.communication
+        : singleRating,
+      rating_punctuality: isClientReviewingWorker
+        ? ratings.punctuality
+        : singleRating,
+      rating_professionalism: isClientReviewingWorker
+        ? ratings.professionalism
+        : singleRating,
       comment: comment.trim(),
       reviewer_type: reviewerType as "CLIENT" | "WORKER",
     };
@@ -173,58 +191,87 @@ export default function SubmitReviewScreen() {
           </Card.Content>
         </Card>
 
-        {/* Multi-Criteria Rating Section */}
+        {/* Rating Section - Different UI based on reviewer type */}
         <Card style={styles.card}>
           <Card.Content>
             <Text style={styles.sectionTitle}>Rate your experience</Text>
-            <Text style={styles.sectionSubtitle}>
-              Please rate each category from 1 to 5 stars
-            </Text>
 
-            {RATING_CATEGORIES.map((category, index) => (
-              <View key={category.key} style={styles.ratingRow}>
-                <View style={styles.ratingLabelContainer}>
-                  <Text style={styles.ratingIcon}>{category.icon}</Text>
-                  <View style={styles.ratingTextContainer}>
-                    <Text style={styles.ratingLabel}>{category.label}</Text>
-                    <Text style={styles.ratingDescription}>
-                      {category.description}
+            {isClientReviewingWorker ? (
+              <>
+                {/* Multi-Criteria Rating for CLIENT reviewing WORKER */}
+                <Text style={styles.sectionSubtitle}>
+                  Please rate each category from 1 to 5 stars
+                </Text>
+
+                {RATING_CATEGORIES.map((category, index) => (
+                  <View key={category.key} style={styles.ratingRow}>
+                    <View style={styles.ratingLabelContainer}>
+                      <Text style={styles.ratingIcon}>{category.icon}</Text>
+                      <View style={styles.ratingTextContainer}>
+                        <Text style={styles.ratingLabel}>{category.label}</Text>
+                        <Text style={styles.ratingDescription}>
+                          {category.description}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={styles.starContainer}>
+                      <StarRating
+                        rating={ratings[category.key]}
+                        onChange={(value) =>
+                          handleRatingChange(category.key, value)
+                        }
+                        size={28}
+                        interactive={true}
+                      />
+                    </View>
+                    {index < RATING_CATEGORIES.length - 1 && (
+                      <Divider style={styles.ratingDivider} />
+                    )}
+                  </View>
+                ))}
+
+                {/* Overall Rating Summary for multi-criteria */}
+                {isRatingComplete && (
+                  <View style={styles.overallRatingContainer}>
+                    <Divider style={styles.overallDivider} />
+                    <View style={styles.overallRatingRow}>
+                      <Text style={styles.overallRatingLabel}>
+                        Overall Rating
+                      </Text>
+                      <View style={styles.overallRatingValue}>
+                        <Text style={styles.overallRatingText}>
+                          {overallRating.toFixed(1)}
+                        </Text>
+                        <Text style={styles.overallRatingStar}>⭐</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.overallRatingDescription}>
+                      {getRatingLabel(overallRating)}
                     </Text>
                   </View>
-                </View>
-                <View style={styles.starContainer}>
+                )}
+              </>
+            ) : (
+              <>
+                {/* Single Rating for WORKER reviewing CLIENT */}
+                <Text style={styles.sectionSubtitle}>
+                  How was your experience working with this client?
+                </Text>
+
+                <View style={styles.singleRatingContainer}>
                   <StarRating
-                    rating={ratings[category.key]}
-                    onChange={(value) =>
-                      handleRatingChange(category.key, value)
-                    }
-                    size={28}
+                    rating={singleRating}
+                    onChange={setSingleRating}
+                    size={40}
                     interactive={true}
                   />
-                </View>
-                {index < RATING_CATEGORIES.length - 1 && (
-                  <Divider style={styles.ratingDivider} />
-                )}
-              </View>
-            ))}
-
-            {/* Overall Rating Summary */}
-            {allRatingsFilled && (
-              <View style={styles.overallRatingContainer}>
-                <Divider style={styles.overallDivider} />
-                <View style={styles.overallRatingRow}>
-                  <Text style={styles.overallRatingLabel}>Overall Rating</Text>
-                  <View style={styles.overallRatingValue}>
-                    <Text style={styles.overallRatingText}>
-                      {overallRating.toFixed(1)}
+                  {singleRating > 0 && (
+                    <Text style={styles.singleRatingLabel}>
+                      {getRatingLabel(singleRating)}
                     </Text>
-                    <Text style={styles.overallRatingStar}>⭐</Text>
-                  </View>
+                  )}
                 </View>
-                <Text style={styles.overallRatingDescription}>
-                  {getRatingLabel(overallRating)}
-                </Text>
-              </View>
+              </>
             )}
           </Card.Content>
         </Card>
@@ -277,10 +324,10 @@ export default function SubmitReviewScreen() {
           <Button
             mode="contained"
             onPress={handleSubmit}
-            disabled={submitReviewMutation.isPending || !allRatingsFilled}
+            disabled={submitReviewMutation.isPending || !isRatingComplete}
             style={[
               styles.submitButton,
-              !allRatingsFilled && styles.submitButtonDisabled,
+              !isRatingComplete && styles.submitButtonDisabled,
             ]}
             contentStyle={styles.submitButtonContent}
           >
@@ -291,9 +338,11 @@ export default function SubmitReviewScreen() {
             )}
           </Button>
 
-          {!allRatingsFilled && (
+          {!isRatingComplete && (
             <Text style={styles.incompleteText}>
-              Please rate all categories to submit
+              {isClientReviewingWorker
+                ? "Please rate all categories to submit"
+                : "Please select a rating to submit"}
             </Text>
           )}
 
@@ -421,6 +470,16 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#FFB800",
     marginTop: 4,
+  },
+  singleRatingContainer: {
+    alignItems: "center",
+    paddingVertical: 24,
+  },
+  singleRatingLabel: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#FFB800",
+    marginTop: 12,
   },
   textInput: {
     minHeight: 150,

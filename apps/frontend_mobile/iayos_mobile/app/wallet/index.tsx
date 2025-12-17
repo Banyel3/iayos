@@ -4,7 +4,7 @@
  * Features:
  * - Balance card with current balance and last updated timestamp
  * - Pending Earnings (Due Balance) section for workers (7-day buffer)
- * - Quick stats row (Pending, This Month, Total)
+ * - Quick stats row (This Month, Total Earned)
  * - Transaction history with tab filtering
  * - Pull-to-refresh
  * - Infinite scroll pagination
@@ -337,19 +337,6 @@ export default function WalletScreen() {
           <View style={styles.statsRow}>
             <Card style={styles.statCard}>
               <Ionicons
-                name="time-outline"
-                size={20}
-                color={Colors.warning}
-                style={styles.statIcon}
-              />
-              <Text style={styles.statLabel}>Pending</Text>
-              <Text style={[styles.statValue, { color: Colors.warning }]}>
-                {formatCurrency(walletData?.pending || 0)}
-              </Text>
-            </Card>
-
-            <Card style={styles.statCard}>
-              <Ionicons
                 name="calendar-outline"
                 size={20}
                 color={Colors.info}
@@ -368,7 +355,7 @@ export default function WalletScreen() {
                 color={Colors.success}
                 style={styles.statIcon}
               />
-              <Text style={styles.statLabel}>Total</Text>
+              <Text style={styles.statLabel}>Total Earned</Text>
               <Text style={[styles.statValue, { color: Colors.success }]}>
                 {formatCurrency(walletData?.total_earned || 0)}
               </Text>

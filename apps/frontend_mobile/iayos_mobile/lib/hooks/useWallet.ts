@@ -65,10 +65,10 @@ interface WithdrawPayload {
 export function useWallet() {
   return useQuery<WalletData>({
     queryKey: ["wallet"],
-    queryFn: async () => {
+    queryFn: async (): Promise<WalletData> => {
       const response = await apiRequest(ENDPOINTS.WALLET_BALANCE);
       if (!response.ok) throw new Error("Failed to fetch wallet");
-      return response.json();
+      return response.json() as Promise<WalletData>;
     },
     staleTime: 1000 * 5, // 5 seconds - data considered fresh
     gcTime: 1000 * 60 * 5, // 5 minutes (cacheTime)

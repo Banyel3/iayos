@@ -82,6 +82,8 @@ export interface WorkerFilters {
   longitude?: number;
   // Client-side sort options (distance asc/desc, rating asc/desc)
   sortBy?: "distance_asc" | "distance_desc" | "rating_desc" | "rating_asc";
+  // Minimum rating filter (e.g., 3, 4, 4.5)
+  minRating?: number;
   page?: number;
   limit?: number;
 }
@@ -140,6 +142,13 @@ export function useWorkers(
         transformedWorkers = transformedWorkers.filter((w) => {
           if (w.distance == null) return true; // keep if no distance info
           return w.distance <= filters.maxDistance!;
+        });
+      }
+
+      // Client-side minimum rating filter
+      if (filters.minRating) {
+        transformedWorkers = transformedWorkers.filter((w) => {
+          return (w.rating ?? 0) >= filters.minRating!;
         });
       }
 
@@ -231,6 +240,13 @@ export function useInfiniteWorkers(filters: Omit<WorkerFilters, "page"> = {}) {
         transformedWorkers = transformedWorkers.filter((w) => {
           if (w.distance == null) return true;
           return w.distance <= filters.maxDistance!;
+        });
+      }
+
+      // Client-side minimum rating filter
+      if (filters.minRating) {
+        transformedWorkers = transformedWorkers.filter((w) => {
+          return (w.rating ?? 0) >= filters.minRating!;
         });
       }
 

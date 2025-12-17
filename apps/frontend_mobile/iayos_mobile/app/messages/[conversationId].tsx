@@ -37,7 +37,11 @@ import {
   useConfirmWorkStarted,
   useMarkComplete,
   useApproveCompletion,
+  useConfirmTeamWorkerArrival,
+  useMarkTeamAssignmentComplete,
+  useApproveTeamJobCompletion,
 } from "../../lib/hooks/useJobActions";
+import { useAuth } from "../../context/AuthContext";
 import {
   useConfirmBackjobStarted,
   useMarkBackjobComplete,
@@ -49,6 +53,7 @@ import MessageInput from "../../components/MessageInput";
 import { ImageMessage } from "../../components/ImageMessage";
 import { TypingIndicator } from "../../components/TypingIndicator";
 import { EstimatedTimeCard } from "../../components";
+import JobReceiptModal from "../../components/JobReceiptModal";
 import {
   Colors,
   Typography,
@@ -73,12 +78,15 @@ export default function ChatScreen() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showCashUploadModal, setShowCashUploadModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
 
   // Review state - Multi-criteria ratings
   const [ratingQuality, setRatingQuality] = useState(0);
   const [ratingCommunication, setRatingCommunication] = useState(0);
   const [ratingPunctuality, setRatingPunctuality] = useState(0);
   const [ratingProfessionalism, setRatingProfessionalism] = useState(0);
+  const [singleRating, setSingleRating] = useState(0); // For worker reviewing client
   const [reviewComment, setReviewComment] = useState("");
   // For agency jobs: track if we're reviewing employee or agency
   const [reviewStep, setReviewStep] = useState<"EMPLOYEE" | "AGENCY">(
@@ -87,6 +95,8 @@ export default function ChatScreen() {
   const [employeeReviewSubmitted, setEmployeeReviewSubmitted] = useState(false);
   // For multi-employee agency jobs: track current employee index
   const [currentEmployeeIndex, setCurrentEmployeeIndex] = useState(0);
+  // For team jobs: track current worker being reviewed
+  const [currentTeamWorkerIndex, setCurrentTeamWorkerIndex] = useState(0);
 
   // Fetch conversation and messages
   const {
@@ -145,6 +155,12 @@ export default function ChatScreen() {
   const markCompleteMutation = useMarkComplete();
   const approveCompletionMutation = useApproveCompletion();
   const submitReviewMutation = useSubmitReview();
+  const confirmTeamWorkerArrivalMutation = useConfirmTeamWorkerArrival();
+  const markTeamAssignmentCompleteMutation = useMarkTeamAssignmentComplete();
+  const approveTeamJobCompletionMutation = useApproveTeamJobCompletion();
+
+  // Get current user for team job assignment identification
+  const { user } = useAuth();
 
   // Backjob action mutations
   const confirmBackjobStartedMutation = useConfirmBackjobStarted();
@@ -206,6 +222,79 @@ export default function ChatScreen() {
           onPress: () => {
             confirmWorkStartedMutation.mutate(conversation.job.id);
           },
+        },
+      ]
+    );
+  };
+
+  // Handle confirm team worker arrival (CLIENT only, for team jobs)
+  const handleConfirmTeamWorkerArrival = (
+    assignmentId: number,
+    workerName: string
+  ) => {
+    if (!conversation) return;
+
+    Alert.alert(
+      "Confirm Worker Arrival",
+      `Has ${workerName} arrived at the job site?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Confirm Arrival",
+          onPress: () => {
+            confirmTeamWorkerArrivalMutation.mutate({
+              jobId: conversation.job.id,
+              assignmentId,
+            });
+          },
+        },
+      ]
+    );
+  };
+
+  // Handle mark team assignment complete (WORKER only, for team jobs)
+  const handleMarkTeamAssignmentComplete = (assignmentId: number) => {
+    if (!conversation) return;
+
+    Alert.prompt(
+      "Mark Assignment Complete",
+      "Add optional completion notes:",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Submit",
+          onPress: (notes?: string) => {
+            markTeamAssignmentCompleteMutation.mutate({
+              jobId: conversation.job.id,
+              assignmentId,
+              notes: notes || undefined,
+            });
+          },
+        },
+      ],
+      "plain-text",
+      "",
+      "default"
+    );
+  };
+
+  // Handle approve team job completion (CLIENT only, for team jobs)
+  const handleApproveTeamJobCompletion = () => {
+    if (!conversation) return;
+
+    // Calculate remaining amount (50% of total budget)
+    const remainingAmount = conversation.job.budget
+      ? (conversation.job.budget * 0.5).toFixed(2)
+      : "0.00";
+
+    Alert.alert(
+      "Approve Team Job & Pay",
+      `All workers have completed their assignments.\n\nYou will need to pay the remaining 50% of the job budget:\n\n₱${remainingAmount}\n\nPlease select your payment method.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Continue",
+          onPress: () => setShowPaymentModal(true),
         },
       ]
     );
@@ -282,9 +371,13 @@ export default function ChatScreen() {
         ? (conversation.job.budget * 0.5).toFixed(2)
         : "0.00";
 
+      const workerText = conversation.is_team_job
+        ? "the workers"
+        : "the worker";
+
       Alert.alert(
         "Cash Payment",
-        `Please pay ₱${remainingAmount} to the worker directly, then upload a photo of your payment receipt.\n\nThis proof will be stored for dispute resolution.`,
+        `Please pay ₱${remainingAmount} to ${workerText} directly, then upload a photo of your payment receipt.\n\nThis proof will be stored for dispute resolution.`,
         [
           { text: "Cancel", style: "cancel" },
           {
@@ -293,7 +386,14 @@ export default function ChatScreen() {
           },
         ]
       );
+    } else if (conversation.is_team_job) {
+      // Team job approval (wallet only, no GCASH for now)
+      approveTeamJobCompletionMutation.mutate({
+        jobId: conversation.job.id,
+        paymentMethod: "WALLET",
+      });
     } else {
+      // Regular job approval
       approveCompletionMutation.mutate({
         jobId: conversation.job.id,
         paymentMethod: method,
@@ -318,11 +418,21 @@ export default function ChatScreen() {
   const handleCashProofSubmit = () => {
     if (!conversation || !selectedImage) return;
 
-    approveCompletionMutation.mutate({
-      jobId: conversation.job.id,
-      paymentMethod: "CASH",
-      cashProofImage: selectedImage,
-    });
+    if (conversation.is_team_job) {
+      // Team job cash proof
+      approveTeamJobCompletionMutation.mutate({
+        jobId: conversation.job.id,
+        paymentMethod: "CASH",
+        cashProofImage: selectedImage,
+      });
+    } else {
+      // Regular job cash proof
+      approveCompletionMutation.mutate({
+        jobId: conversation.job.id,
+        paymentMethod: "CASH",
+        cashProofImage: selectedImage,
+      });
+    }
 
     setShowCashUploadModal(false);
     setSelectedImage(null);
@@ -416,17 +526,24 @@ export default function ChatScreen() {
   const handleSubmitReview = () => {
     if (!conversation) return;
 
-    // Check all ratings are filled
-    const allRatingsFilled =
-      ratingQuality > 0 &&
-      ratingCommunication > 0 &&
-      ratingPunctuality > 0 &&
-      ratingProfessionalism > 0;
+    // Check ratings based on role:
+    // CLIENT reviewing WORKER: requires all 4 category ratings
+    // WORKER reviewing CLIENT: requires only single rating
+    const isClientReviewing = conversation.my_role === "CLIENT";
 
-    if (!allRatingsFilled) {
+    const isRatingComplete = isClientReviewing
+      ? ratingQuality > 0 &&
+        ratingCommunication > 0 &&
+        ratingPunctuality > 0 &&
+        ratingProfessionalism > 0
+      : singleRating > 0;
+
+    if (!isRatingComplete) {
       Alert.alert(
-        "Ratings Required",
-        "Please rate all categories before submitting"
+        "Rating Required",
+        isClientReviewing
+          ? "Please rate all categories before submitting"
+          : "Please select a rating before submitting"
       );
       return;
     }
@@ -520,6 +637,7 @@ export default function ChatScreen() {
                 refetch();
               } else {
                 // All reviews done
+                setShowReviewModal(false);
                 refetch();
                 Alert.alert("Thank You!", "Your reviews have been submitted.");
               }
@@ -566,6 +684,7 @@ export default function ChatScreen() {
               setRatingPunctuality(0);
               setRatingProfessionalism(0);
               setReviewComment("");
+              setShowReviewModal(false);
               refetch();
               Alert.alert("Thank You!", "Your reviews have been submitted.");
             },
@@ -575,6 +694,92 @@ export default function ChatScreen() {
           }
         );
       }
+    } else if (conversation.is_team_job && conversation.my_role === "CLIENT") {
+      // Team job client review - must specify which worker to review
+      const pendingWorkers = conversation.pending_team_worker_reviews || [];
+      const allWorkers = conversation.team_worker_assignments || [];
+
+      if (pendingWorkers.length === 0) {
+        Alert.alert("All Done!", "You have already reviewed all team workers.");
+        return;
+      }
+
+      // Get the current worker to review (first pending)
+      const currentWorker = pendingWorkers[0];
+      if (!currentWorker) {
+        Alert.alert("Error", "No worker to review");
+        return;
+      }
+
+      const overallRating =
+        (ratingQuality +
+          ratingCommunication +
+          ratingPunctuality +
+          ratingProfessionalism) /
+        4;
+
+      submitReviewMutation.mutate(
+        {
+          job_id: conversation.job.id,
+          reviewee_id: currentWorker.account_id,
+          rating_quality: ratingQuality,
+          rating_communication: ratingCommunication,
+          rating_punctuality: ratingPunctuality,
+          rating_professionalism: ratingProfessionalism,
+          comment: reviewComment,
+          reviewer_type: "CLIENT",
+          worker_id: currentWorker.worker_id, // For team jobs
+        },
+        {
+          onSuccess: (data: any) => {
+            setRatingQuality(0);
+            setRatingCommunication(0);
+            setRatingPunctuality(0);
+            setRatingProfessionalism(0);
+            setReviewComment("");
+
+            const reviewedName =
+              data.reviewed_worker_name || currentWorker.name;
+            const remaining = data.pending_team_workers || [];
+
+            if (remaining.length > 0) {
+              // More workers to review
+              const nextWorker = remaining[0];
+              Alert.alert(
+                "Worker Rated!",
+                `You gave ${reviewedName} a ${overallRating.toFixed(1)}-star rating.\n\nNow please rate ${nextWorker.name}.`
+              );
+              setCurrentTeamWorkerIndex((prev) => prev + 1);
+              refetch();
+            } else {
+              // All workers reviewed
+              setShowReviewModal(false);
+              refetch();
+              Alert.alert(
+                "All Done!",
+                `You gave ${reviewedName} a ${overallRating.toFixed(1)}-star rating.\n\nThank you for reviewing all ${data.total_team_workers || allWorkers.length} team workers!`
+              );
+            }
+          },
+          onError: (error: any) => {
+            const errorMessage = error.message || "Failed to submit review";
+            if (errorMessage.toLowerCase().includes("already reviewed")) {
+              setRatingQuality(0);
+              setRatingCommunication(0);
+              setRatingPunctuality(0);
+              setRatingProfessionalism(0);
+              setReviewComment("");
+              refetch();
+              Alert.alert(
+                "Already Rated",
+                "You've already rated this worker. Refreshing..."
+              );
+            } else {
+              Alert.alert("Error", errorMessage);
+            }
+          },
+        }
+      );
     } else {
       // Regular job or agency reviewing client
       const revieweeId =
@@ -587,14 +792,24 @@ export default function ChatScreen() {
         return;
       }
 
+      // For WORKER reviewing CLIENT: use single rating for all categories
+      // For CLIENT reviewing WORKER: use multi-criteria ratings
+      const isClientReviewing = conversation.my_role === "CLIENT";
+
       submitReviewMutation.mutate(
         {
           job_id: conversation.job.id,
           reviewee_id: revieweeId,
-          rating_quality: ratingQuality,
-          rating_communication: ratingCommunication,
-          rating_punctuality: ratingPunctuality,
-          rating_professionalism: ratingProfessionalism,
+          rating_quality: isClientReviewing ? ratingQuality : singleRating,
+          rating_communication: isClientReviewing
+            ? ratingCommunication
+            : singleRating,
+          rating_punctuality: isClientReviewing
+            ? ratingPunctuality
+            : singleRating,
+          rating_professionalism: isClientReviewing
+            ? ratingProfessionalism
+            : singleRating,
           comment: reviewComment,
           reviewer_type: conversation.my_role as "CLIENT" | "WORKER",
         },
@@ -604,7 +819,9 @@ export default function ChatScreen() {
             setRatingCommunication(0);
             setRatingPunctuality(0);
             setRatingProfessionalism(0);
+            setSingleRating(0);
             setReviewComment("");
+            setShowReviewModal(false);
             // Refresh conversation to update review status
             refetch();
           },
@@ -934,7 +1151,8 @@ export default function ChatScreen() {
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle} numberOfLines={1}>
-            {conversation.other_participant?.name || "Unknown"}
+            {conversation.other_participant?.name || 
+              (conversation.is_team_job ? conversation.job?.title : "Unknown")}
           </Text>
           {/* Show assigned workers for agency jobs (client view) - Multi-employee support */}
           {conversation.is_agency_job &&
@@ -1045,8 +1263,237 @@ export default function ChatScreen() {
           {conversation.job.status === "IN_PROGRESS" &&
             !conversation.job.clientMarkedComplete && (
               <View style={styles.actionButtonsContainer}>
-                {/* CLIENT: Confirm Work Started Button */}
-                {conversation.my_role === "CLIENT" &&
+                {/* TEAM JOB: Per-Worker Arrival Confirmation (CLIENT only) */}
+                {conversation.is_team_job &&
+                  conversation.my_role === "CLIENT" &&
+                  conversation.team_worker_assignments &&
+                  conversation.team_worker_assignments.length > 0 && (
+                    <View style={styles.teamArrivalSection}>
+                      <View style={styles.teamArrivalHeader}>
+                        <Text style={styles.teamArrivalTitle}>
+                          Worker Arrivals
+                        </Text>
+                        <Text style={styles.teamArrivalProgress}>
+                          {
+                            conversation.team_worker_assignments.filter(
+                              (a) => a.client_confirmed_arrival
+                            ).length
+                          }/{conversation.team_worker_assignments.length} arrived
+                        </Text>
+                      </View>
+                      <ScrollView 
+                        horizontal 
+                        showsHorizontalScrollIndicator={false}
+                        style={styles.teamWorkersScrollView}
+                        contentContainerStyle={styles.teamWorkersScrollContent}
+                      >
+                        {conversation.team_worker_assignments.map((assignment) => (
+                          <View
+                            key={assignment.assignment_id}
+                            style={[
+                              styles.teamWorkerCardCompact,
+                              assignment.client_confirmed_arrival && styles.teamWorkerCardConfirmed
+                            ]}
+                          >
+                            <View style={styles.teamWorkerInfoCompact}>
+                              {assignment.avatar ? (
+                                <Image
+                                  source={{ uri: assignment.avatar }}
+                                  style={styles.teamWorkerAvatarCompact}
+                                />
+                              ) : (
+                                <View style={[styles.teamWorkerAvatarCompact, styles.teamWorkerAvatarPlaceholder]}>
+                                  <Ionicons name="person" size={16} color={Colors.textSecondary} />
+                                </View>
+                              )}
+                              <View style={styles.teamWorkerDetailsCompact}>
+                                <Text style={styles.teamWorkerNameCompact} numberOfLines={1}>
+                                  {assignment.name.split(' ')[0]}
+                                </Text>
+                                <Text style={styles.teamWorkerSkillCompact} numberOfLines={1}>
+                                  {assignment.skill}
+                                </Text>
+                              </View>
+                            </View>
+
+                            {assignment.client_confirmed_arrival ? (
+                              <View style={styles.arrivedBadgeCompact}>
+                                <Ionicons
+                                  name="checkmark-circle"
+                                  size={14}
+                                  color={Colors.success}
+                                />
+                                <Text style={styles.arrivedTextCompact}>
+                                  {assignment.client_confirmed_arrival_at &&
+                                    format(
+                                      new Date(assignment.client_confirmed_arrival_at),
+                                      "h:mm a"
+                                    )}
+                                </Text>
+                              </View>
+                            ) : (
+                              <TouchableOpacity
+                                style={styles.confirmArrivalButtonCompact}
+                                onPress={() =>
+                                  handleConfirmTeamWorkerArrival(
+                                    assignment.assignment_id,
+                                    assignment.name
+                                  )
+                                }
+                                disabled={confirmTeamWorkerArrivalMutation.isPending}
+                              >
+                                {confirmTeamWorkerArrivalMutation.isPending ? (
+                                  <ActivityIndicator size="small" color={Colors.white} />
+                                ) : (
+                                  <Text style={styles.confirmArrivalButtonTextCompact}>
+                                    Confirm
+                                  </Text>
+                                )}
+                              </TouchableOpacity>
+                            )}
+                          </View>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  )}
+
+                {/* TEAM JOB PHASE 2: Worker Marks Assignment Complete */}
+                {conversation.is_team_job &&
+                  conversation.my_role === "WORKER" &&
+                  user &&
+                  (() => {
+                    // Find worker's own assignment
+                    const myAssignment = conversation.team_worker_assignments?.find(
+                      (a) => a.account_id === user.accountID
+                    );
+
+                    if (!myAssignment) return null;
+
+                    // Check if arrival was confirmed
+                    if (!myAssignment.client_confirmed_arrival) {
+                      return (
+                        <View style={[styles.actionButton, styles.waitingButton]}>
+                          <Ionicons
+                            name="time-outline"
+                            size={20}
+                            color={Colors.textSecondary}
+                          />
+                          <Text style={styles.waitingButtonText}>
+                            Waiting for client to confirm your arrival...
+                          </Text>
+                        </View>
+                      );
+                    }
+
+                    // Show mark complete button if not yet marked
+                    if (!myAssignment.worker_marked_complete) {
+                      return (
+                        <TouchableOpacity
+                          style={[styles.actionButton, styles.markCompleteButton]}
+                          onPress={() =>
+                            handleMarkTeamAssignmentComplete(
+                              myAssignment.assignment_id
+                            )
+                          }
+                          disabled={markTeamAssignmentCompleteMutation.isPending}
+                        >
+                          {markTeamAssignmentCompleteMutation.isPending ? (
+                            <ActivityIndicator size="small" color={Colors.white} />
+                          ) : (
+                            <>
+                              <Ionicons
+                                name="checkmark-done"
+                                size={20}
+                                color={Colors.white}
+                              />
+                              <Text style={styles.actionButtonText}>
+                                Mark My Assignment Complete
+                              </Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+                      );
+                    }
+
+                    // Show waiting for client approval
+                    return (
+                      <View style={[styles.actionButton, styles.waitingButton]}>
+                        <Ionicons
+                          name="time-outline"
+                          size={20}
+                          color={Colors.textSecondary}
+                        />
+                        <Text style={styles.waitingButtonText}>
+                          ✓ Assignment complete. Waiting for client approval...
+                        </Text>
+                      </View>
+                    );
+                  })()}
+
+                {/* TEAM JOB PHASE 3: Client Approves All Workers */}
+                {conversation.is_team_job &&
+                  conversation.my_role === "CLIENT" &&
+                  conversation.team_worker_assignments &&
+                  (() => {
+                    const allWorkersComplete = conversation.team_worker_assignments.every(
+                      (a) => a.worker_marked_complete
+                    );
+                    const completedCount = conversation.team_worker_assignments.filter(
+                      (a) => a.worker_marked_complete
+                    ).length;
+
+                    // Show progress if not all complete
+                    if (!allWorkersComplete) {
+                      return (
+                        <View style={[styles.actionButton, styles.waitingButton]}>
+                          <Ionicons
+                            name="time-outline"
+                            size={20}
+                            color={Colors.textSecondary}
+                          />
+                          <Text style={styles.waitingButtonText}>
+                            {completedCount} of {conversation.team_worker_assignments.length} workers marked complete...
+                          </Text>
+                        </View>
+                      );
+                    }
+
+                    // Show approve button if all complete and not yet approved
+                    if (!conversation.job.clientMarkedComplete) {
+                      return (
+                        <TouchableOpacity
+                          style={[
+                            styles.actionButton,
+                            styles.approveCompletionButton,
+                          ]}
+                          onPress={handleApproveTeamJobCompletion}
+                          disabled={approveTeamJobCompletionMutation.isPending}
+                        >
+                          {approveTeamJobCompletionMutation.isPending ? (
+                            <ActivityIndicator size="small" color={Colors.white} />
+                          ) : (
+                            <>
+                              <Ionicons
+                                name="wallet"
+                                size={20}
+                                color={Colors.white}
+                              />
+                              <Text style={styles.actionButtonText}>
+                                Approve & Pay Team (₱
+                                {(conversation.job.budget * 0.5).toLocaleString()})
+                              </Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+                      );
+                    }
+
+                    return null;
+                  })()}
+
+                {/* CLIENT: Confirm Work Started Button (Regular Jobs Only) */}
+                {!conversation.is_team_job &&
+                  conversation.my_role === "CLIENT" &&
                   !conversation.job.clientConfirmedWorkStarted && (
                     <TouchableOpacity
                       style={[
@@ -1073,8 +1520,9 @@ export default function ChatScreen() {
                     </TouchableOpacity>
                   )}
 
-                {/* CLIENT: Waiting for Worker to Complete */}
-                {conversation.my_role === "CLIENT" &&
+                {/* CLIENT: Waiting for Worker to Complete (Regular Jobs Only) */}
+                {!conversation.is_team_job &&
+                  conversation.my_role === "CLIENT" &&
                   conversation.job.clientConfirmedWorkStarted &&
                   !conversation.job.workerMarkedComplete && (
                     <View style={[styles.actionButton, styles.waitingButton]}>
@@ -1089,8 +1537,9 @@ export default function ChatScreen() {
                     </View>
                   )}
 
-                {/* WORKER: Waiting for Client Confirmation */}
-                {conversation.my_role === "WORKER" &&
+                {/* WORKER: Waiting for Client Confirmation (Regular Jobs Only) */}
+                {!conversation.is_team_job &&
+                  conversation.my_role === "WORKER" &&
                   !conversation.job.clientConfirmedWorkStarted && (
                     <View style={[styles.actionButton, styles.waitingButton]}>
                       <Ionicons
@@ -1225,6 +1674,32 @@ export default function ChatScreen() {
             </View>
           )}
 
+          {/* View Receipt Button - Shows for COMPLETED jobs */}
+          {conversation.job.status === "COMPLETED" && (
+            <TouchableOpacity
+              style={styles.viewReceiptBanner}
+              onPress={() => setShowReceiptModal(true)}
+              activeOpacity={0.8}
+            >
+              <View style={styles.viewReceiptContent}>
+                <View style={styles.viewReceiptIconContainer}>
+                  <Ionicons name="receipt" size={20} color={Colors.white} />
+                </View>
+                <View style={styles.viewReceiptTextContainer}>
+                  <Text style={styles.viewReceiptTitle}>View Receipt</Text>
+                  <Text style={styles.viewReceiptSubtitle}>
+                    Payment breakdown and job details
+                  </Text>
+                </View>
+                <Ionicons
+                  name="chevron-forward"
+                  size={20}
+                  color={Colors.primary}
+                />
+              </View>
+            </TouchableOpacity>
+          )}
+
           {/* Request Backjob Banner - Only for clients on completed jobs without existing backjob */}
           {conversation.my_role === "CLIENT" &&
             conversation.job.status === "COMPLETED" &&
@@ -1263,16 +1738,146 @@ export default function ChatScreen() {
               </TouchableOpacity>
             )}
 
-          {/* Review Section - Shows after client approves completion */}
-          {conversation.job.clientMarkedComplete && !isConversationClosed && (
-            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-              <ScrollView
-                style={styles.reviewSection}
-                keyboardShouldPersistTaps="handled"
+          {/* Payment Buffer Banner - Shows for COMPLETED jobs with payment held - COMPACT */}
+          {conversation.job.status === "COMPLETED" &&
+            conversation.job.clientMarkedComplete &&
+            conversation.job.paymentBuffer && (
+              <TouchableOpacity
+                style={[
+                  styles.paymentBufferBannerCompact,
+                  conversation.job.paymentBuffer.is_payment_released
+                    ? styles.paymentReleasedBannerCompact
+                    : null,
+                ]}
+                onPress={() => conversation.my_role === "WORKER" && router.push("/wallet")}
+                activeOpacity={conversation.my_role === "WORKER" ? 0.7 : 1}
               >
-                {/* Check if current user already reviewed */}
-                {(conversation.my_role === "CLIENT" &&
-                  conversation.job.clientReviewed) ||
+                <Ionicons
+                  name={
+                    conversation.job.paymentBuffer.is_payment_released
+                      ? "checkmark-circle"
+                      : conversation.my_role === "WORKER"
+                        ? "time"
+                        : "shield-checkmark"
+                  }
+                  size={20}
+                  color={conversation.job.paymentBuffer.is_payment_released ? Colors.success : "#FFA000"}
+                />
+                <View style={styles.paymentBufferTextCompact}>
+                  {conversation.job.paymentBuffer.is_payment_released ? (
+                    <Text style={styles.paymentReleasedTitleCompact}>
+                      ✅ Payment Released
+                    </Text>
+                  ) : conversation.my_role === "WORKER" ? (
+                    <Text style={styles.paymentBufferTitleCompact}>
+                      💰 ₱{(conversation.job.budget * 0.5).toLocaleString("en-PH", { minimumFractionDigits: 0 })} held
+                      {conversation.job.paymentBuffer.remaining_days !== null &&
+                      conversation.job.paymentBuffer.remaining_days > 0
+                        ? ` · ${conversation.job.paymentBuffer.remaining_days}d left`
+                        : " · releasing soon"}
+                    </Text>
+                  ) : (
+                    <Text style={styles.paymentBufferTitleCompact}>
+                      ⏳ {conversation.job.paymentBuffer.buffer_days}-Day Hold
+                      {conversation.job.paymentBuffer.remaining_days !== null &&
+                      conversation.job.paymentBuffer.remaining_days > 0
+                        ? ` · ${conversation.job.paymentBuffer.remaining_days}d remaining`
+                        : " · releasing soon"}
+                    </Text>
+                  )}
+                </View>
+                {conversation.my_role === "WORKER" && !conversation.job.paymentBuffer.is_payment_released && (
+                  <Ionicons name="chevron-forward" size={16} color="#FFA000" />
+                )}
+              </TouchableOpacity>
+            )}
+
+          {/* Review Section - Compact Banner that opens modal */}
+          {conversation.job.clientMarkedComplete && !isConversationClosed && (
+            <>
+              {/* Check if current user already reviewed */}
+              {(conversation.my_role === "CLIENT" &&
+                (conversation.is_team_job
+                  ? conversation.all_team_workers_reviewed
+                  : conversation.job.clientReviewed)) ||
+              (conversation.my_role === "WORKER" &&
+                conversation.job.workerReviewed) ? (
+                // User has already reviewed - show compact waiting banner
+                <View style={styles.reviewCompleteBanner}>
+                  <Ionicons name="checkmark-circle" size={20} color={Colors.success} />
+                  <Text style={styles.reviewCompleteBannerText}>
+                    {conversation.is_team_job && conversation.my_role === "CLIENT"
+                      ? `✅ Reviewed all ${conversation.team_worker_assignments?.length || 0} workers`
+                      : "✅ Review submitted"}
+                  </Text>
+                  {((conversation.my_role === "CLIENT" && !conversation.job.workerReviewed) ||
+                    (conversation.my_role === "WORKER" && !conversation.job.clientReviewed)) && (
+                    <View style={styles.reviewWaitingBadge}>
+                      <Ionicons name="time-outline" size={12} color={Colors.textSecondary} />
+                      <Text style={styles.reviewWaitingBadgeText}>
+                        Waiting for {conversation.my_role === "CLIENT" ? "worker" : "client"}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              ) : (
+                // User hasn't reviewed yet - show compact banner to open modal
+                <TouchableOpacity
+                  style={styles.leaveReviewBanner}
+                  onPress={() => setShowReviewModal(true)}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="star" size={20} color="#FFB800" />
+                  <View style={styles.leaveReviewTextContainer}>
+                    <Text style={styles.leaveReviewTitle}>
+                      {conversation.is_team_job && conversation.my_role === "CLIENT"
+                        ? `Rate ${(conversation.pending_team_worker_reviews?.length || conversation.team_worker_assignments?.length || 0)} worker${(conversation.pending_team_worker_reviews?.length || conversation.team_worker_assignments?.length || 0) > 1 ? "s" : ""}`
+                        : conversation.is_agency_job && conversation.my_role === "CLIENT"
+                          ? reviewStep === "EMPLOYEE" ? "Rate Employee" : "Rate Agency"
+                          : `Rate ${conversation.my_role === "CLIENT" ? "Worker" : "Client"}`}
+                    </Text>
+                  </View>
+                  <View style={styles.leaveReviewBadge}>
+                    <Text style={styles.leaveReviewBadgeText}>Tap to review</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color={Colors.primary} />
+                </TouchableOpacity>
+              )}
+            </>
+          )}
+
+          {/* Review Modal */}
+          <Modal
+            visible={showReviewModal}
+            animationType="slide"
+            presentationStyle="pageSheet"
+            onRequestClose={() => setShowReviewModal(false)}
+          >
+            <SafeAreaView style={styles.reviewModalContainer}>
+              {/* Modal Header */}
+              <View style={styles.reviewModalHeader}>
+                <TouchableOpacity
+                  onPress={() => setShowReviewModal(false)}
+                  style={styles.reviewModalCloseButton}
+                >
+                  <Ionicons name="close" size={24} color={Colors.textPrimary} />
+                </TouchableOpacity>
+                <Text style={styles.reviewModalTitle}>Leave a Review</Text>
+                <View style={{ width: 40 }} />
+              </View>
+
+              {/* Modal Content - ScrollView for the review form */}
+              <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+                <ScrollView
+                  style={styles.reviewModalContent}
+                  keyboardShouldPersistTaps="handled"
+                  contentContainerStyle={{ paddingBottom: 40 }}
+                >
+                  {/* For team jobs: client reviewed if all_team_workers_reviewed is true */}
+                  {(conversation.my_role === "CLIENT" &&
+                  (conversation.is_team_job
+                    ? conversation.all_team_workers_reviewed
+                    : conversation.job.clientReviewed)) ||
                 (conversation.my_role === "WORKER" &&
                   conversation.job.workerReviewed) ? (
                   // User has already reviewed - show waiting or thank you message
@@ -1283,7 +1888,10 @@ export default function ChatScreen() {
                       color={Colors.success}
                     />
                     <Text style={styles.reviewWaitingTitle}>
-                      Thank you for your review!
+                      {conversation.is_team_job &&
+                      conversation.my_role === "CLIENT"
+                        ? `Thank you for reviewing all ${conversation.team_worker_assignments?.length || 0} workers!`
+                        : "Thank you for your review!"}
                     </Text>
                     {((conversation.my_role === "CLIENT" &&
                       !conversation.job.workerReviewed) ||
@@ -1292,7 +1900,7 @@ export default function ChatScreen() {
                       <Text style={styles.reviewWaitingText}>
                         Waiting for{" "}
                         {conversation.my_role === "CLIENT"
-                          ? "worker"
+                          ? "workers"
                           : "client"}{" "}
                         to review...
                       </Text>
@@ -1382,6 +1990,54 @@ export default function ChatScreen() {
                           );
                         })()}
                       </>
+                    ) : conversation.is_team_job &&
+                      conversation.my_role === "CLIENT" ? (
+                      // Team job client review - show worker name and progress
+                      <>
+                        {(() => {
+                          const pendingWorkers =
+                            conversation.pending_team_worker_reviews || [];
+                          const allWorkers =
+                            conversation.team_worker_assignments || [];
+                          const totalWorkers = allWorkers.length || 1;
+                          const reviewedCount =
+                            totalWorkers - pendingWorkers.length;
+
+                          // Get current worker being reviewed
+                          const currentWorker = pendingWorkers[0];
+                          const currentWorkerName =
+                            currentWorker?.name || "Worker";
+                          const currentWorkerSkill = currentWorker?.skill || "";
+
+                          return (
+                            <>
+                              <Text style={styles.reviewTitle}>
+                                Rate {currentWorkerName}
+                              </Text>
+                              <Text style={styles.reviewSubtitle}>
+                                How did {currentWorkerName} perform on this job?
+                                {currentWorkerSkill
+                                  ? ` (${currentWorkerSkill})`
+                                  : ""}
+                              </Text>
+
+                              {/* Progress indicator */}
+                              {totalWorkers > 1 && (
+                                <View style={styles.stepIndicator}>
+                                  <Ionicons
+                                    name="people"
+                                    size={16}
+                                    color={Colors.primary}
+                                  />
+                                  <Text style={styles.stepIndicatorText}>
+                                    Worker {reviewedCount + 1} of {totalWorkers}
+                                  </Text>
+                                </View>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </>
                     ) : (
                       <>
                         <Text style={styles.reviewTitle}>
@@ -1400,30 +2056,157 @@ export default function ChatScreen() {
                       </>
                     )}
 
-                    {/* Multi-Criteria Star Ratings */}
-                    <View style={styles.multiCriteriaContainer}>
-                      {/* Quality Rating */}
-                      <View style={styles.criteriaRow}>
-                        <View style={styles.criteriaLabelRow}>
-                          <Text style={styles.criteriaIcon}>🏆</Text>
-                          <Text style={styles.criteriaLabel}>Quality</Text>
+                    {/* Rating Section - Conditional based on reviewer role */}
+                    {conversation.my_role === "CLIENT" ? (
+                      /* Multi-Criteria Star Ratings for CLIENT reviewing WORKER */
+                      <View style={styles.multiCriteriaContainer}>
+                        {/* Quality Rating */}
+                        <View style={styles.criteriaRow}>
+                          <View style={styles.criteriaLabelRow}>
+                            <Text style={styles.criteriaIcon}>🏆</Text>
+                            <Text style={styles.criteriaLabel}>Quality</Text>
+                          </View>
+                          <View style={styles.criteriaStarsRow}>
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <TouchableOpacity
+                                key={star}
+                                onPress={() => setRatingQuality(star)}
+                                style={styles.starButtonSmall}
+                              >
+                                <Ionicons
+                                  name={
+                                    star <= ratingQuality
+                                      ? "star"
+                                      : "star-outline"
+                                  }
+                                  size={24}
+                                  color={
+                                    star <= ratingQuality
+                                      ? "#FFB800"
+                                      : Colors.border
+                                  }
+                                />
+                              </TouchableOpacity>
+                            ))}
+                          </View>
                         </View>
+
+                        {/* Communication Rating */}
+                        <View style={styles.criteriaRow}>
+                          <View style={styles.criteriaLabelRow}>
+                            <Text style={styles.criteriaIcon}>💬</Text>
+                            <Text style={styles.criteriaLabel}>
+                              Communication
+                            </Text>
+                          </View>
+                          <View style={styles.criteriaStarsRow}>
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <TouchableOpacity
+                                key={star}
+                                onPress={() => setRatingCommunication(star)}
+                                style={styles.starButtonSmall}
+                              >
+                                <Ionicons
+                                  name={
+                                    star <= ratingCommunication
+                                      ? "star"
+                                      : "star-outline"
+                                  }
+                                  size={24}
+                                  color={
+                                    star <= ratingCommunication
+                                      ? "#FFB800"
+                                      : Colors.border
+                                  }
+                                />
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        </View>
+
+                        {/* Punctuality Rating */}
+                        <View style={styles.criteriaRow}>
+                          <View style={styles.criteriaLabelRow}>
+                            <Text style={styles.criteriaIcon}>⏰</Text>
+                            <Text style={styles.criteriaLabel}>
+                              Punctuality
+                            </Text>
+                          </View>
+                          <View style={styles.criteriaStarsRow}>
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <TouchableOpacity
+                                key={star}
+                                onPress={() => setRatingPunctuality(star)}
+                                style={styles.starButtonSmall}
+                              >
+                                <Ionicons
+                                  name={
+                                    star <= ratingPunctuality
+                                      ? "star"
+                                      : "star-outline"
+                                  }
+                                  size={24}
+                                  color={
+                                    star <= ratingPunctuality
+                                      ? "#FFB800"
+                                      : Colors.border
+                                  }
+                                />
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        </View>
+
+                        {/* Professionalism Rating */}
+                        <View style={styles.criteriaRow}>
+                          <View style={styles.criteriaLabelRow}>
+                            <Text style={styles.criteriaIcon}>👔</Text>
+                            <Text style={styles.criteriaLabel}>
+                              Professionalism
+                            </Text>
+                          </View>
+                          <View style={styles.criteriaStarsRow}>
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <TouchableOpacity
+                                key={star}
+                                onPress={() => setRatingProfessionalism(star)}
+                                style={styles.starButtonSmall}
+                              >
+                                <Ionicons
+                                  name={
+                                    star <= ratingProfessionalism
+                                      ? "star"
+                                      : "star-outline"
+                                  }
+                                  size={24}
+                                  color={
+                                    star <= ratingProfessionalism
+                                      ? "#FFB800"
+                                      : Colors.border
+                                  }
+                                />
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        </View>
+                      </View>
+                    ) : (
+                      /* Single Rating for WORKER reviewing CLIENT */
+                      <View style={styles.singleRatingContainer}>
                         <View style={styles.criteriaStarsRow}>
                           {[1, 2, 3, 4, 5].map((star) => (
                             <TouchableOpacity
                               key={star}
-                              onPress={() => setRatingQuality(star)}
-                              style={styles.starButtonSmall}
+                              onPress={() => setSingleRating(star)}
+                              style={styles.starButtonLarge}
                             >
                               <Ionicons
                                 name={
-                                  star <= ratingQuality
-                                    ? "star"
-                                    : "star-outline"
+                                  star <= singleRating ? "star" : "star-outline"
                                 }
-                                size={24}
+                                size={36}
                                 color={
-                                  star <= ratingQuality
+                                  star <= singleRating
                                     ? "#FFB800"
                                     : Colors.border
                                 }
@@ -1431,105 +2214,21 @@ export default function ChatScreen() {
                             </TouchableOpacity>
                           ))}
                         </View>
-                      </View>
-
-                      {/* Communication Rating */}
-                      <View style={styles.criteriaRow}>
-                        <View style={styles.criteriaLabelRow}>
-                          <Text style={styles.criteriaIcon}>💬</Text>
-                          <Text style={styles.criteriaLabel}>
-                            Communication
+                        {singleRating > 0 && (
+                          <Text style={styles.singleRatingLabel}>
+                            {singleRating === 5
+                              ? "Excellent"
+                              : singleRating === 4
+                                ? "Good"
+                                : singleRating === 3
+                                  ? "Fair"
+                                  : singleRating === 2
+                                    ? "Poor"
+                                    : "Very Poor"}
                           </Text>
-                        </View>
-                        <View style={styles.criteriaStarsRow}>
-                          {[1, 2, 3, 4, 5].map((star) => (
-                            <TouchableOpacity
-                              key={star}
-                              onPress={() => setRatingCommunication(star)}
-                              style={styles.starButtonSmall}
-                            >
-                              <Ionicons
-                                name={
-                                  star <= ratingCommunication
-                                    ? "star"
-                                    : "star-outline"
-                                }
-                                size={24}
-                                color={
-                                  star <= ratingCommunication
-                                    ? "#FFB800"
-                                    : Colors.border
-                                }
-                              />
-                            </TouchableOpacity>
-                          ))}
-                        </View>
+                        )}
                       </View>
-
-                      {/* Punctuality Rating */}
-                      <View style={styles.criteriaRow}>
-                        <View style={styles.criteriaLabelRow}>
-                          <Text style={styles.criteriaIcon}>⏰</Text>
-                          <Text style={styles.criteriaLabel}>Punctuality</Text>
-                        </View>
-                        <View style={styles.criteriaStarsRow}>
-                          {[1, 2, 3, 4, 5].map((star) => (
-                            <TouchableOpacity
-                              key={star}
-                              onPress={() => setRatingPunctuality(star)}
-                              style={styles.starButtonSmall}
-                            >
-                              <Ionicons
-                                name={
-                                  star <= ratingPunctuality
-                                    ? "star"
-                                    : "star-outline"
-                                }
-                                size={24}
-                                color={
-                                  star <= ratingPunctuality
-                                    ? "#FFB800"
-                                    : Colors.border
-                                }
-                              />
-                            </TouchableOpacity>
-                          ))}
-                        </View>
-                      </View>
-
-                      {/* Professionalism Rating */}
-                      <View style={styles.criteriaRow}>
-                        <View style={styles.criteriaLabelRow}>
-                          <Text style={styles.criteriaIcon}>👔</Text>
-                          <Text style={styles.criteriaLabel}>
-                            Professionalism
-                          </Text>
-                        </View>
-                        <View style={styles.criteriaStarsRow}>
-                          {[1, 2, 3, 4, 5].map((star) => (
-                            <TouchableOpacity
-                              key={star}
-                              onPress={() => setRatingProfessionalism(star)}
-                              style={styles.starButtonSmall}
-                            >
-                              <Ionicons
-                                name={
-                                  star <= ratingProfessionalism
-                                    ? "star"
-                                    : "star-outline"
-                                }
-                                size={24}
-                                color={
-                                  star <= ratingProfessionalism
-                                    ? "#FFB800"
-                                    : Colors.border
-                                }
-                              />
-                            </TouchableOpacity>
-                          ))}
-                        </View>
-                      </View>
-                    </View>
+                    )}
 
                     {/* Review Comment Input */}
                     <TextInput
@@ -1550,10 +2249,12 @@ export default function ChatScreen() {
                     <TouchableOpacity
                       style={[
                         styles.submitReviewButton,
-                        (ratingQuality === 0 ||
-                          ratingCommunication === 0 ||
-                          ratingPunctuality === 0 ||
-                          ratingProfessionalism === 0 ||
+                        ((conversation.my_role === "CLIENT"
+                          ? ratingQuality === 0 ||
+                            ratingCommunication === 0 ||
+                            ratingPunctuality === 0 ||
+                            ratingProfessionalism === 0
+                          : singleRating === 0) ||
                           !reviewComment.trim() ||
                           submitReviewMutation.isPending) &&
                           styles.submitReviewButtonDisabled,
@@ -1563,10 +2264,12 @@ export default function ChatScreen() {
                         handleSubmitReview();
                       }}
                       disabled={
-                        ratingQuality === 0 ||
-                        ratingCommunication === 0 ||
-                        ratingPunctuality === 0 ||
-                        ratingProfessionalism === 0 ||
+                        (conversation.my_role === "CLIENT"
+                          ? ratingQuality === 0 ||
+                            ratingCommunication === 0 ||
+                            ratingPunctuality === 0 ||
+                            ratingProfessionalism === 0
+                          : singleRating === 0) ||
                         !reviewComment.trim() ||
                         submitReviewMutation.isPending
                       }
@@ -1590,9 +2293,10 @@ export default function ChatScreen() {
                     <View style={{ height: 20 }} />
                   </>
                 )}
-              </ScrollView>
-            </TouchableWithoutFeedback>
-          )}
+                </ScrollView>
+              </TouchableWithoutFeedback>
+            </SafeAreaView>
+          </Modal>
         </View>
 
         {/* Upload Progress */}
@@ -1600,9 +2304,10 @@ export default function ChatScreen() {
 
         {/* Backjob Banner - shows when there's an active backjob */}
         {conversation.backjob?.has_backjob && (
-          <View style={styles.backjobSection}>
+          <View style={styles.backjobSectionCompact}>
+            {/* Compact Backjob Banner */}
             <TouchableOpacity
-              style={styles.backjobBanner}
+              style={styles.backjobBannerCompact}
               onPress={() =>
                 router.push(
                   `/jobs/backjob-detail?jobId=${conversation.job.id}&disputeId=${conversation.backjob?.dispute_id}`
@@ -1610,45 +2315,26 @@ export default function ChatScreen() {
               }
               activeOpacity={0.8}
             >
-              <View style={styles.backjobBannerContent}>
-                <View style={styles.backjobIconContainer}>
-                  <Ionicons name="construct" size={20} color={Colors.white} />
-                </View>
-                <View style={styles.backjobBannerText}>
-                  <Text style={styles.backjobBannerTitle}>
-                    🔄 Active Backjob Request
-                  </Text>
-                  <Text style={styles.backjobBannerSubtitle} numberOfLines={1}>
-                    {conversation.backjob.reason || "Backjob work required"}
-                  </Text>
-                  <View style={styles.backjobStatusBadge}>
-                    <Text style={styles.backjobStatusText}>
-                      Status:{" "}
-                      {conversation.backjob.status === "UNDER_REVIEW"
-                        ? "Action Required"
-                        : "Pending Review"}
-                    </Text>
-                  </View>
-                </View>
-                <Ionicons
-                  name="chevron-forward"
-                  size={20}
-                  color={Colors.warning}
-                />
+              <Ionicons name="construct" size={18} color={Colors.warning} />
+              <Text style={styles.backjobBannerTitleCompact} numberOfLines={1}>
+                🔄 Backjob: {conversation.backjob.reason || "Rework required"}
+              </Text>
+              <View style={styles.backjobStatusBadgeCompact}>
+                <Text style={styles.backjobStatusTextCompact}>
+                  {conversation.backjob.status === "UNDER_REVIEW" ? "Action" : "Pending"}
+                </Text>
               </View>
+              <Ionicons name="chevron-forward" size={16} color={Colors.warning} />
             </TouchableOpacity>
 
             {/* Backjob Workflow Action Buttons - Only show when backjob is approved (UNDER_REVIEW) */}
             {hasApprovedBackjob && (
-              <View style={styles.backjobActionButtonsContainer}>
+              <View style={styles.backjobActionButtonsCompact}>
                 {/* CLIENT: Confirm Backjob Started Button */}
                 {conversation.my_role === "CLIENT" &&
                   !conversation.backjob?.backjob_started && (
                     <TouchableOpacity
-                      style={[
-                        styles.actionButton,
-                        styles.confirmBackjobStartedButton,
-                      ]}
+                      style={styles.backjobActionButtonCompact}
                       onPress={handleConfirmBackjobStarted}
                       disabled={confirmBackjobStartedMutation.isPending}
                     >
@@ -1658,11 +2344,11 @@ export default function ChatScreen() {
                         <>
                           <Ionicons
                             name="checkmark-circle"
-                            size={20}
+                            size={16}
                             color={Colors.white}
                           />
-                          <Text style={styles.actionButtonText}>
-                            Confirm Backjob Work Started
+                          <Text style={styles.backjobActionButtonText}>
+                            Confirm Started
                           </Text>
                         </>
                       )}
@@ -1673,14 +2359,14 @@ export default function ChatScreen() {
                 {conversation.my_role === "CLIENT" &&
                   conversation.backjob?.backjob_started &&
                   !conversation.backjob?.worker_marked_complete && (
-                    <View style={[styles.actionButton, styles.waitingButton]}>
+                    <View style={styles.backjobWaitingBadge}>
                       <Ionicons
                         name="time-outline"
-                        size={20}
+                        size={14}
                         color={Colors.textSecondary}
                       />
-                      <Text style={styles.waitingButtonText}>
-                        Waiting for worker to mark backjob complete...
+                      <Text style={styles.backjobWaitingText}>
+                        Waiting for worker...
                       </Text>
                     </View>
                   )}
@@ -1688,14 +2374,14 @@ export default function ChatScreen() {
                 {/* WORKER: Waiting for Client Confirmation */}
                 {conversation.my_role === "WORKER" &&
                   !conversation.backjob?.backjob_started && (
-                    <View style={[styles.actionButton, styles.waitingButton]}>
+                    <View style={styles.backjobWaitingBadge}>
                       <Ionicons
                         name="time-outline"
-                        size={20}
+                        size={14}
                         color={Colors.textSecondary}
                       />
-                      <Text style={styles.waitingButtonText}>
-                        Waiting for client to confirm backjob started...
+                      <Text style={styles.backjobWaitingText}>
+                        Waiting for client...
                       </Text>
                     </View>
                   )}
@@ -1705,10 +2391,7 @@ export default function ChatScreen() {
                   conversation.backjob?.backjob_started &&
                   !conversation.backjob?.worker_marked_complete && (
                     <TouchableOpacity
-                      style={[
-                        styles.actionButton,
-                        styles.markBackjobCompleteButton,
-                      ]}
+                      style={[styles.backjobActionButtonCompact, { backgroundColor: Colors.warning }]}
                       onPress={handleMarkBackjobComplete}
                       disabled={markBackjobCompleteMutation.isPending}
                     >
@@ -1718,11 +2401,11 @@ export default function ChatScreen() {
                         <>
                           <Ionicons
                             name="checkmark-done"
-                            size={20}
+                            size={16}
                             color={Colors.white}
                           />
-                          <Text style={styles.actionButtonText}>
-                            Mark Backjob Complete
+                          <Text style={styles.backjobActionButtonText}>
+                            Mark Complete
                           </Text>
                         </>
                       )}
@@ -1733,14 +2416,14 @@ export default function ChatScreen() {
                 {conversation.my_role === "WORKER" &&
                   conversation.backjob?.worker_marked_complete &&
                   !conversation.backjob?.client_confirmed_complete && (
-                    <View style={[styles.actionButton, styles.waitingButton]}>
+                    <View style={styles.backjobWaitingBadge}>
                       <Ionicons
                         name="time-outline"
-                        size={20}
+                        size={14}
                         color={Colors.textSecondary}
                       />
-                      <Text style={styles.waitingButtonText}>
-                        Waiting for client to approve backjob...
+                      <Text style={styles.backjobWaitingText}>
+                        Awaiting approval...
                       </Text>
                     </View>
                   )}
@@ -1750,7 +2433,7 @@ export default function ChatScreen() {
                   conversation.backjob?.worker_marked_complete &&
                   !conversation.backjob?.client_confirmed_complete && (
                     <TouchableOpacity
-                      style={[styles.actionButton, styles.approveBackjobButton]}
+                      style={[styles.backjobActionButtonCompact, { backgroundColor: Colors.success }]}
                       onPress={handleApproveBackjobCompletion}
                       disabled={approveBackjobCompletionMutation.isPending}
                     >
@@ -1760,33 +2443,15 @@ export default function ChatScreen() {
                         <>
                           <Ionicons
                             name="checkmark-circle"
-                            size={20}
+                            size={16}
                             color={Colors.white}
                           />
-                          <Text style={styles.actionButtonText}>
-                            Approve Backjob & Close
+                          <Text style={styles.backjobActionButtonText}>
+                            Approve & Close
                           </Text>
                         </>
                       )}
                     </TouchableOpacity>
-                  )}
-
-                {/* Status Messages */}
-                {conversation.backjob?.backjob_started &&
-                  conversation.my_role === "WORKER" &&
-                  !conversation.backjob?.worker_marked_complete && (
-                    <Text style={styles.backjobStatusMessage}>
-                      ✓ Client confirmed backjob work started
-                    </Text>
-                  )}
-
-                {conversation.backjob?.worker_marked_complete &&
-                  !conversation.backjob?.client_confirmed_complete && (
-                    <Text style={styles.backjobStatusMessage}>
-                      {conversation.my_role === "CLIENT"
-                        ? "Worker marked backjob complete. Please review and approve."
-                        : "✓ Marked complete. Waiting for client approval."}
-                    </Text>
                   )}
               </View>
             )}
@@ -1969,6 +2634,14 @@ export default function ChatScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Job Receipt Modal */}
+      <JobReceiptModal
+        visible={showReceiptModal}
+        onClose={() => setShowReceiptModal(false)}
+        jobId={conversation?.job?.id || null}
+        userRole={conversation?.my_role === "WORKER" ? "WORKER" : "CLIENT"}
+      />
     </SafeAreaView>
   );
 }
@@ -2136,6 +2809,177 @@ const styles = StyleSheet.create({
   actionButtonDisabled: {
     backgroundColor: Colors.textSecondary,
     opacity: 0.5,
+  },
+  // Team Worker Arrival Styles - Compact Horizontal Layout
+  teamArrivalSection: {
+    backgroundColor: Colors.white,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  teamArrivalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.xs,
+  },
+  teamArrivalTitle: {
+    ...Typography.body.medium,
+    fontWeight: "600",
+  },
+  teamArrivalProgress: {
+    ...Typography.body.small,
+    color: Colors.primary,
+    fontWeight: "600",
+  },
+  teamWorkersScrollView: {
+    marginHorizontal: -Spacing.md,
+  },
+  teamWorkersScrollContent: {
+    paddingHorizontal: Spacing.md,
+    gap: Spacing.sm,
+  },
+  teamWorkerCardCompact: {
+    backgroundColor: Colors.backgroundSecondary,
+    borderRadius: BorderRadius.small,
+    padding: Spacing.sm,
+    minWidth: 130,
+    maxWidth: 150,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  teamWorkerCardConfirmed: {
+    backgroundColor: "#E8F5E9",
+    borderColor: Colors.success,
+  },
+  teamWorkerInfoCompact: {
+    alignItems: "center",
+    marginBottom: Spacing.xs,
+  },
+  teamWorkerAvatarCompact: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.border,
+    marginBottom: 4,
+  },
+  teamWorkerAvatarPlaceholder: {
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  teamWorkerDetailsCompact: {
+    alignItems: "center",
+  },
+  teamWorkerNameCompact: {
+    ...Typography.body.small,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  teamWorkerSkillCompact: {
+    ...Typography.body.small,
+    fontSize: 10,
+    color: Colors.textSecondary,
+    textAlign: "center",
+  },
+  arrivedBadgeCompact: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+  },
+  arrivedTextCompact: {
+    ...Typography.body.small,
+    fontSize: 10,
+    color: Colors.success,
+    fontWeight: "600",
+  },
+  confirmArrivalButtonCompact: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.small,
+    minWidth: 60,
+    alignItems: "center",
+  },
+  confirmArrivalButtonTextCompact: {
+    ...Typography.body.small,
+    fontSize: 11,
+    color: Colors.white,
+    fontWeight: "600",
+  },
+  // Legacy team styles - keeping for reference
+  teamWorkerCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: Colors.backgroundSecondary,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.small,
+    gap: Spacing.md,
+  },
+  teamWorkerInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    flex: 1,
+  },
+  teamWorkerAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.border,
+  },
+  teamWorkerDetails: {
+    flex: 1,
+  },
+  teamWorkerName: {
+    ...Typography.body.medium,
+    fontWeight: "600",
+  },
+  teamWorkerSkill: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+  },
+  arrivedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    backgroundColor: "#E8F5E9",
+    borderRadius: BorderRadius.small,
+  },
+  arrivedText: {
+    ...Typography.body.small,
+    color: Colors.success,
+    fontWeight: "600",
+  },
+  confirmArrivalButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.small,
+  },
+  confirmArrivalButtonText: {
+    ...Typography.body.small,
+    color: Colors.white,
+    fontWeight: "600",
+  },
+  teamProgressContainer: {
+    marginTop: Spacing.xs,
+    paddingTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  teamProgressText: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+    textAlign: "center",
+    fontWeight: "600",
   },
   actionButtonText: {
     ...Typography.body.medium,
@@ -2482,6 +3326,21 @@ const styles = StyleSheet.create({
   starButtonSmall: {
     padding: 2,
   },
+  starButtonLarge: {
+    padding: 4,
+  },
+  // Single rating styles for WORKER reviewing CLIENT
+  singleRatingContainer: {
+    alignItems: "center",
+    paddingVertical: Spacing.lg,
+    marginBottom: Spacing.md,
+  },
+  singleRatingLabel: {
+    ...Typography.body.large,
+    fontWeight: "600",
+    color: "#FFB800",
+    marginTop: Spacing.sm,
+  },
   // Multi-criteria rating styles
   multiCriteriaContainer: {
     marginBottom: Spacing.md,
@@ -2602,6 +3461,42 @@ const styles = StyleSheet.create({
     color: "#E65100",
     fontWeight: "600",
   },
+  // View Receipt Banner Styles
+  viewReceiptBanner: {
+    backgroundColor: Colors.primaryLight || "#E3F2FD",
+    marginHorizontal: Spacing.md,
+    marginTop: Spacing.sm,
+    borderRadius: BorderRadius.medium,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+  },
+  viewReceiptContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.md,
+    gap: Spacing.sm,
+  },
+  viewReceiptIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  viewReceiptTextContainer: {
+    flex: 1,
+  },
+  viewReceiptTitle: {
+    ...Typography.body.medium,
+    fontWeight: "600",
+    color: Colors.primary,
+  },
+  viewReceiptSubtitle: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
   // Request Backjob Banner Styles (for clients to request rework)
   requestBackjobBanner: {
     backgroundColor: Colors.primaryLight || "#E3F2FD",
@@ -2664,5 +3559,255 @@ const styles = StyleSheet.create({
     textAlign: "center",
     paddingVertical: Spacing.xs,
     fontStyle: "italic",
+  },
+  // Payment Buffer Banner Styles
+  paymentBufferBanner: {
+    backgroundColor: "#FFF8E1",
+    marginHorizontal: Spacing.md,
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.sm,
+    borderRadius: BorderRadius.medium,
+    borderWidth: 1,
+    borderColor: "#FFE082",
+    padding: Spacing.md,
+  },
+  paymentReleasedBanner: {
+    backgroundColor: "#E8F5E9",
+    borderColor: "#A5D6A7",
+  },
+  paymentBufferContent: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: Spacing.md,
+  },
+  paymentBufferIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#FFA000",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  paymentReleasedIconContainer: {
+    backgroundColor: Colors.success,
+  },
+  paymentBufferText: {
+    flex: 1,
+  },
+  paymentBufferTitle: {
+    ...Typography.body.medium,
+    fontWeight: "700",
+    color: "#E65100",
+    marginBottom: 4,
+  },
+  paymentBufferSubtitle: {
+    ...Typography.body.small,
+    color: "#F57C00",
+    marginBottom: 4,
+  },
+  paymentBufferHint: {
+    ...Typography.body.small,
+    fontSize: 12,
+    color: "#8D6E63",
+    fontStyle: "italic",
+  },
+  paymentReleasedTitle: {
+    ...Typography.body.medium,
+    fontWeight: "700",
+    color: Colors.success,
+    marginBottom: 4,
+  },
+  paymentReleasedSubtitle: {
+    ...Typography.body.small,
+    color: "#388E3C",
+  },
+  viewInWalletButton: {
+    marginTop: Spacing.sm,
+    alignSelf: "flex-end",
+  },
+  viewInWalletText: {
+    ...Typography.body.small,
+    color: Colors.primary,
+    fontWeight: "600",
+  },
+  // Compact Payment Buffer Styles
+  paymentBufferBannerCompact: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    backgroundColor: "#FFF8E1",
+    borderBottomWidth: 1,
+    borderBottomColor: "#FFE082",
+    gap: Spacing.sm,
+  },
+  paymentReleasedBannerCompact: {
+    backgroundColor: "#E8F5E9",
+    borderBottomColor: "#A5D6A7",
+  },
+  paymentBufferTextCompact: {
+    flex: 1,
+  },
+  paymentBufferTitleCompact: {
+    ...Typography.body.small,
+    fontWeight: "600",
+    color: "#E65100",
+  },
+  paymentReleasedTitleCompact: {
+    color: Colors.success,
+  },
+  // Compact Backjob Styles
+  backjobSectionCompact: {
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  backjobBannerCompact: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    backgroundColor: "#FFF3E0",
+    gap: Spacing.sm,
+  },
+  backjobBannerTitleCompact: {
+    flex: 1,
+    ...Typography.body.small,
+    fontWeight: "600",
+    color: "#E65100",
+  },
+  backjobStatusBadgeCompact: {
+    backgroundColor: "#FFE0B2",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  backjobStatusTextCompact: {
+    ...Typography.body.small,
+    fontSize: 10,
+    fontWeight: "600",
+    color: "#E65100",
+  },
+  backjobActionButtonsCompact: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    backgroundColor: "#FFF8E1",
+    gap: Spacing.sm,
+  },
+  backjobActionButtonCompact: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.small,
+    gap: 4,
+  },
+  backjobActionButtonText: {
+    ...Typography.body.small,
+    color: Colors.white,
+    fontWeight: "600",
+  },
+  backjobWaitingBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  backjobWaitingText: {
+    ...Typography.body.small,
+    fontSize: 11,
+    color: Colors.textSecondary,
+  },
+  // Compact Review Banner Styles
+  reviewCompleteBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    backgroundColor: "#E8F5E9",
+    borderBottomWidth: 1,
+    borderBottomColor: "#C8E6C9",
+    gap: Spacing.sm,
+  },
+  reviewCompleteBannerText: {
+    flex: 1,
+    ...Typography.body.small,
+    fontWeight: "600",
+    color: Colors.success,
+  },
+  reviewWaitingBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#F5F5F5",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  reviewWaitingBadgeText: {
+    ...Typography.body.small,
+    fontSize: 10,
+    color: Colors.textSecondary,
+  },
+  leaveReviewBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    backgroundColor: "#FFFDE7",
+    borderBottomWidth: 1,
+    borderBottomColor: "#FFF59D",
+    gap: Spacing.sm,
+  },
+  leaveReviewTextContainer: {
+    flex: 1,
+  },
+  leaveReviewTitle: {
+    ...Typography.body.small,
+    fontWeight: "600",
+    color: "#F57F17",
+  },
+  leaveReviewBadge: {
+    backgroundColor: "#FFF9C4",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  leaveReviewBadgeText: {
+    ...Typography.body.small,
+    fontSize: 10,
+    fontWeight: "600",
+    color: "#F9A825",
+  },
+  // Review Modal Styles
+  reviewModalContainer: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  reviewModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    backgroundColor: Colors.white,
+  },
+  reviewModalCloseButton: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  reviewModalTitle: {
+    ...Typography.heading.h3,
+    color: Colors.textPrimary,
+  },
+  reviewModalContent: {
+    flex: 1,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.lg,
+    backgroundColor: Colors.white,
   },
 });

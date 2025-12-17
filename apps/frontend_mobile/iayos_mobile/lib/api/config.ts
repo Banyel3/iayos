@@ -159,9 +159,17 @@ export const ENDPOINTS = {
 
   // Team Jobs (Multi-Skill Multi-Worker)
   CREATE_TEAM_JOB: `${API_BASE_URL}/jobs/team/create`,
-  TEAM_JOB_DETAIL: (id: number) => `${API_BASE_URL}/jobs/${id}/team`,
+  TEAM_JOB_DETAIL: (id: number) => `${API_BASE_URL}/jobs/team/${id}`,
+  TEAM_JOB_APPLICATIONS: (jobId: number) =>
+    `${API_BASE_URL}/jobs/team/${jobId}/applications`,
+  TEAM_ACCEPT_APPLICATION: (jobId: number, applicationId: number) =>
+    `${API_BASE_URL}/jobs/team/${jobId}/applications/${applicationId}/accept`,
+  TEAM_REJECT_APPLICATION: (jobId: number, applicationId: number) =>
+    `${API_BASE_URL}/jobs/team/${jobId}/applications/${applicationId}/reject`,
   TEAM_APPLY_SKILL_SLOT: (jobId: number) =>
-    `${API_BASE_URL}/jobs/${jobId}/team/apply`,
+    `${API_BASE_URL}/jobs/team/${jobId}/apply`,
+  TEAM_START_JOB: (jobId: number) => `${API_BASE_URL}/jobs/team/${jobId}/start`,
+  // These two use /{job_id}/team pattern (backend inconsistency)
   TEAM_APPROVE_COMPLETION: (jobId: number) =>
     `${API_BASE_URL}/jobs/${jobId}/team/approve-completion`,
   TEAM_WORKER_COMPLETE: (jobId: number, assignmentId: number) =>
@@ -175,8 +183,8 @@ export const ENDPOINTS = {
 
   // Phase 4: Worker Profile & Application Management
   WORKER_PROFILE: `${API_BASE_URL.replace("/api", "")}/api/mobile/auth/profile`,
-  UPDATE_WORKER_PROFILE: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile`,
-  UPDATE_PROFILE: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/update`, // Client profile update
+  UPDATE_PROFILE_MOBILE: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/update`,
+  UPDATE_WORKER_PROFILE: `${API_BASE_URL}/accounts/worker/profile`,
   APPLICATION_DETAIL: (id: number) =>
     `${API_BASE_URL.replace("/api", "")}/api/mobile/applications/${id}`,
   WITHDRAW_APPLICATION: (id: number) =>
@@ -202,10 +210,17 @@ export const ENDPOINTS = {
   MATERIALS: `${API_BASE_URL}/accounts/worker/materials`,
   MATERIAL_DETAIL: (id: number) =>
     `${API_BASE_URL}/accounts/worker/materials/${id}`,
-
-  // Profile
-  PROFILE: (id: number) => `${API_BASE_URL}/profiles/${id}`,
-  UPDATE_PROFILE: (id: number) => `${API_BASE_URL}/profiles/${id}`,
+  // Worker public materials (for clients to view filtered by category)
+  WORKER_MATERIALS_PUBLIC: (workerId: number) =>
+    `${API_BASE_URL}/accounts/workers/${workerId}/materials`,
+  // Worker skills (specializations the worker has)
+  AVAILABLE_SKILLS: `${API_BASE_URL.replace("/api", "")}/api/mobile/skills/available`,
+  MY_SKILLS: `${API_BASE_URL.replace("/api", "")}/api/mobile/skills/my-skills`,
+  ADD_SKILL: `${API_BASE_URL.replace("/api", "")}/api/mobile/skills/add`,
+  UPDATE_SKILL: (skillId: number) =>
+    `${API_BASE_URL.replace("/api", "")}/api/mobile/skills/${skillId}`,
+  REMOVE_SKILL: (skillId: number) =>
+    `${API_BASE_URL.replace("/api", "")}/api/mobile/skills/${skillId}`,
 
   // Worker
   WORKER_AVAILABILITY: `${API_BASE_URL}/accounts/worker/availability`,
@@ -255,6 +270,10 @@ export const ENDPOINTS = {
   XENDIT_WEBHOOK: `${API_BASE_URL.replace("/api", "")}/api/payments/xendit/callback`,
   PAYMENT_RECEIPT: (id: number) =>
     `${API_BASE_URL.replace("/api", "")}/api/mobile/payments/receipt/${id}`,
+  
+  // Job Receipt/Invoice
+  JOB_RECEIPT: (jobId: number) =>
+    `${API_BASE_URL.replace("/api", "")}/api/jobs/${jobId}/receipt`,
 
   // Phase 4: Final Payment System (8 endpoints)
   CREATE_FINAL_PAYMENT: `${API_BASE_URL.replace("/api", "")}/api/mobile/payments/final`,
@@ -292,10 +311,11 @@ export const ENDPOINTS = {
   DELETE_NOTIFICATION: (id: number) =>
     `${API_BASE_URL.replace("/api", "")}/api/accounts/notifications/${id}/delete`,
 
-  // Phase 7: KYC Document Upload & Verification (3 endpoints)
+  // Phase 7: KYC Document Upload & Verification (4 endpoints)
   KYC_STATUS: `${API_BASE_URL.replace("/api", "")}/api/accounts/kyc-status`,
   UPLOAD_KYC: `${API_BASE_URL.replace("/api", "")}/api/accounts/upload-kyc`,
   KYC_UPLOAD: `${API_BASE_URL.replace("/api", "")}/api/accounts/upload/kyc`, // Matches Next.js endpoint
+  KYC_VALIDATE_DOCUMENT: `${API_BASE_URL.replace("/api", "")}/api/accounts/kyc/validate-document`, // Per-step validation
   KYC_APPLICATION_HISTORY: `${API_BASE_URL.replace("/api", "")}/api/accounts/kyc-application-history`,
 
   // Dual Profile Management (4 endpoints)

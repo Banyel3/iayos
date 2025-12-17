@@ -1,0 +1,194 @@
+### Worker Materials with Category Support
+### Test endpoints for category-linked materials
+
+@baseUrl = http://localhost:8000
+@contentType = application/json
+
+### ======================================
+### 1. Login as worker
+### ======================================
+
+# @name loginWorker
+POST {{baseUrl}}/api/accounts/login
+Content-Type: {{contentType}}
+
+{
+    "email": "worker@test.com",
+    "password": "test1234"
+}
+
+### Save token
+@token = {{loginWorker.response.body.token}}
+
+### ======================================
+### 2. Get worker's skills/specializations
+### ======================================
+
+# @name getSkills
+GET {{baseUrl}}/api/accounts/worker/specializations
+Authorization: Bearer {{token}}
+
+### ======================================
+### 3. Get all categories
+### ======================================
+
+# @name getCategories
+GET {{baseUrl}}/api/jobs/categories
+Authorization: Bearer {{token}}
+
+### ======================================
+### 4. List worker materials (all)
+### ======================================
+
+# @name listMaterials
+GET {{baseUrl}}/api/accounts/worker/materials
+Authorization: Bearer {{token}}
+
+### ======================================
+### 5. List worker materials filtered by category
+### Replace 1 with actual category ID
+### ======================================
+
+# @name listMaterialsByCategory
+GET {{baseUrl}}/api/accounts/worker/materials?category_id=1
+Authorization: Bearer {{token}}
+
+### ======================================
+### 6. Add material WITHOUT category
+### ======================================
+
+# @name addMaterialNoCategory
+POST {{baseUrl}}/api/accounts/worker/materials
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="name"
+
+PVC Pipe 1/2 inch
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="description"
+
+High-quality PVC pipe for plumbing
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="price"
+
+250
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="quantity"
+
+10
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="unit"
+
+per meter
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### ======================================
+### 7. Add material WITH category
+### Replace 1 with actual category ID from worker's skills
+### ======================================
+
+# @name addMaterialWithCategory
+POST {{baseUrl}}/api/accounts/worker/materials
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="name"
+
+Plumbing Tape
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="description"
+
+PTFE tape for pipe fittings
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="price"
+
+50
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="quantity"
+
+50
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="unit"
+
+per roll
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="category_id"
+
+1
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### ======================================
+### 8. Add material with INVALID category
+### (worker doesn't have this skill - should fail)
+### ======================================
+
+# @name addMaterialInvalidCategory
+POST {{baseUrl}}/api/accounts/worker/materials
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="name"
+
+Invalid Item
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="price"
+
+100
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="category_id"
+
+9999
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### ======================================
+### 9. Update material to add category
+### Replace {material_id} with actual ID
+### ======================================
+
+# @name updateMaterialAddCategory
+PUT {{baseUrl}}/api/accounts/worker/materials/1
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="category_id"
+
+1
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### ======================================
+### 10. Update material to remove category
+### Use -1 to remove category link
+### ======================================
+
+# @name updateMaterialRemoveCategory
+PUT {{baseUrl}}/api/accounts/worker/materials/1
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="category_id"
+
+-1
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### ======================================
+### 11. PUBLIC: Get worker materials (for clients)
+### Replace {worker_id} with actual profile ID
+### ======================================
+
+# @name getWorkerMaterialsPublic
+GET {{baseUrl}}/api/accounts/workers/1/materials
+
+### ======================================
+### 12. PUBLIC: Get worker materials filtered by category
+### Used when client invites worker for specific job category
+### ======================================
+
+# @name getWorkerMaterialsPublicFiltered
+GET {{baseUrl}}/api/accounts/workers/1/materials?category_id=1
+

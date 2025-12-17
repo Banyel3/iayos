@@ -194,11 +194,8 @@ def create_team_job(
             description=f'Team job escrow (50%) for: {title} (Platform fee: ₱{platform_fee})'
         )
     
-    # Create team group conversation
-    conversation, _ = Conversation.create_team_conversation(
-        job_posting=job,
-        client_profile=client_profile_obj
-    )
+    # Note: Team group conversation is created when job STARTS (not when posted)
+    # This follows the single-job pattern where conversation is created at work start
     
     return {
         'success': True,
@@ -261,7 +258,7 @@ def get_team_job_detail(job_id: int, requesting_user=None) -> dict:
             'assignment_id': assignment.assignmentID,
             'worker_id': worker.id,  # Use .id (primary key), not .workerID
             'worker_name': f"{profile.firstName} {profile.lastName}",
-            'worker_avatar': profile.profileImg.url if profile.profileImg else None,  # profileImg, not profilePicture
+            'worker_avatar': profile.profileImg or None,  # profileImg is a CharField (URL string), not FileField
             'worker_rating': float(worker.workerRating) if worker.workerRating else None,  # workerRating, not rating
             'skill_slot_id': assignment.skillSlotID_id,
             'specialization_name': assignment.skillSlotID.specializationID.specializationName,
@@ -445,7 +442,10 @@ def accept_team_application(
         skill_slot.status = 'PARTIALLY_FILLED'
     skill_slot.save()
     
-    # Add worker to team conversation
+    # Add worker to team conversation IF it exists
+    # Note: Conversation is created when job STARTS, not when posted
+    # This code handles the case where additional workers are accepted AFTER job has started
+    # (e.g., force_start with partial team, then fill remaining slots)
     conversation = Conversation.objects.filter(relatedJobPosting=job).first()
     if conversation and conversation.is_team_conversation:
         conversation.add_team_worker(application.workerID.profileID, skill_slot)
@@ -460,8 +460,77 @@ def accept_team_application(
         relatedJobID=job.jobID
     )
     
-    # Check if job can now start
+    # Check if job can now start (all slots filled)
+    job.refresh_from_db()
     can_start = job.can_start_team_job
+    conversation_created = False
+    conversation_id = None
+    
+    # AUTO-CREATE CONVERSATION when all slots are filled
+    if can_start:
+        # Check if conversation already exists
+        existing_conversation = Conversation.objects.filter(relatedJobPosting=job).first()
+        if not existing_conversation:
+            # CRITICAL: Change job status to IN_PROGRESS (like regular jobs)
+            job.status = 'IN_PROGRESS'
+            job.save()
+            
+            # Create team conversation
+            conversation = Conversation.objects.create(
+                client=job.clientID.profileID if job.clientID else None,
+                worker=None,  # Team jobs have multiple workers
+                relatedJobPosting=job,
+                status=Conversation.ConversationStatus.ACTIVE,
+                conversation_type='TEAM_GROUP'
+            )
+            
+            # Add client as participant
+            if job.clientID:
+                ConversationParticipant.objects.create(
+                    conversation=conversation,
+                    profile=job.clientID.profileID,
+                    participant_type='CLIENT'
+                )
+            
+            # Add ALL assigned workers as participants
+            assignments = JobWorkerAssignment.objects.filter(
+                jobID=job,
+                assignment_status='ACTIVE'
+            ).select_related('workerID__profileID', 'skillSlotID__specializationID')
+            
+            for assign in assignments:
+                ConversationParticipant.objects.get_or_create(
+                    conversation=conversation,
+                    profile=assign.workerID.profileID,
+                    defaults={
+                        'participant_type': 'WORKER',
+                        'skill_slot': assign.skillSlotID
+                    }
+                )
+            
+            conversation_created = True
+            conversation_id = conversation.conversationID
+            
+            # Notify client that team is ready
+            Notification.objects.create(
+                accountFK=job.clientID.profileID.accountFK,
+                notificationType="TEAM_JOB_READY",
+                title="Team Ready!",
+                message=f"All positions for '{job.title}' have been filled. You can now confirm worker arrivals!",
+                relatedJobID=job.jobID
+            )
+            
+            # Notify all workers that team is complete
+            for assign in assignments:
+                Notification.objects.create(
+                    accountFK=assign.workerID.profileID.accountFK,
+                    notificationType="TEAM_JOB_READY",
+                    title="Team Complete!",
+                    message=f"The team for '{job.title}' is now complete. Please coordinate with the client for work start.",
+                    relatedJobID=job.jobID
+                )
+        else:
+            conversation_id = existing_conversation.conversationID
     
     return {
         'success': True,
@@ -470,7 +539,10 @@ def accept_team_application(
         'skill_slot': skill_slot.specializationID.specializationName,
         'slot_position': assignment.slot_position,
         'can_start_job': can_start,
-        'message': f'Worker assigned to {skill_slot.specializationID.specializationName} position #{assignment.slot_position}'
+        'all_slots_filled': can_start,
+        'conversation_created': conversation_created,
+        'conversation_id': conversation_id,
+        'message': f'Worker assigned to {skill_slot.specializationID.specializationName} position #{assignment.slot_position}' + (' - Team is ready!' if can_start else '')
     }
 
 
@@ -576,11 +648,36 @@ def start_team_job(job_id: int, client_user, force_start: bool = False) -> dict:
     # Close all skill slots (no more applications)
     job.skill_slots.update(status='CLOSED')
     
-    # Notify all assigned workers
+    # Get all assigned workers
     assignments = JobWorkerAssignment.objects.filter(
         jobID=job, assignment_status='ACTIVE'
-    ).select_related('workerID__profileID')
+    ).select_related('workerID__profileID', 'skillSlotID')
     
+    # Create team group conversation NOW (when job starts, not when posted)
+    # This follows single-job pattern where conversation is created at work start
+    from profiles.models import Message
+    client_profile = job.clientID.profileID
+    conversation, _ = Conversation.create_team_conversation(
+        job_posting=job,
+        client_profile=client_profile
+    )
+    
+    # Collect worker names and add them to conversation
+    worker_names = []
+    for assignment in assignments:
+        worker_profile = assignment.workerID.profileID
+        worker_names.append(f"{worker_profile.firstName} {worker_profile.lastName}")
+        # Add worker to the team conversation
+        conversation.add_team_worker(worker_profile, assignment.skillSlotID)
+    
+    # Create system message with team member names
+    worker_list = ", ".join(worker_names) if worker_names else "the team"
+    Message.create_system_message(
+        conversation=conversation,
+        message_text=f"Team job '{job.title}' has started! Team members: {worker_list}. You can all communicate here."
+    )
+    
+    # Notify all assigned workers
     for assignment in assignments:
         Notification.objects.create(
             accountFK=assignment.workerID.profileID.accountFK,
@@ -657,6 +754,83 @@ def worker_complete_team_assignment(assignment_id: int, worker_user, notes: str 
     }
 
 
+def confirm_team_worker_arrival(job_id: int, assignment_id: int, client_user) -> dict:
+    """
+    Client confirms a specific team worker has arrived at the job site.
+    This matches the regular job workflow where client confirms arrival before work starts.
+    """
+    from accounts.models import Notification
+    
+    try:
+        job = Job.objects.get(jobID=job_id)
+    except Job.DoesNotExist:
+        return {'success': False, 'error': 'Job not found'}
+    
+    if not job.is_team_job:
+        return {'success': False, 'error': 'This is not a team job'}
+    
+    # Verify client ownership
+    client_profile = job.clientID
+    if not client_profile or client_profile.profileID.accountFK != client_user:
+        return {'success': False, 'error': 'Only the client can confirm worker arrival'}
+    
+    # Get the specific worker assignment
+    try:
+        assignment = JobWorkerAssignment.objects.get(
+            assignmentID=assignment_id,
+            jobID=job
+        )
+    except JobWorkerAssignment.DoesNotExist:
+        return {'success': False, 'error': 'Worker assignment not found'}
+    
+    # Check if already confirmed
+    if assignment.client_confirmed_arrival:
+        return {
+            'success': False, 
+            'error': f'Worker arrival already confirmed at {assignment.client_confirmed_arrival_at.strftime("%Y-%m-%d %H:%M")}'
+        }
+    
+    # Mark arrival as confirmed
+    assignment.client_confirmed_arrival = True
+    assignment.client_confirmed_arrival_at = timezone.now()
+    assignment.save()
+    
+    # Notify worker
+    worker_name = f"{assignment.workerID.profileID.firstName} {assignment.workerID.profileID.lastName}"
+    Notification.objects.create(
+        accountFK=assignment.workerID.profileID.accountFK,
+        notificationType="ARRIVAL_CONFIRMED",
+        title="Client Confirmed Your Arrival",
+        message=f"Client has confirmed you arrived at the job site for '{job.title}'",
+        relatedJobID=job.jobID
+    )
+    
+    # Check if all assigned workers have arrived
+    total_workers = JobWorkerAssignment.objects.filter(
+        jobID=job,
+        assignment_status='ACTIVE'
+    ).count()
+    
+    arrived_workers = JobWorkerAssignment.objects.filter(
+        jobID=job,
+        assignment_status='ACTIVE',
+        client_confirmed_arrival=True
+    ).count()
+    
+    all_arrived = (arrived_workers == total_workers)
+    
+    return {
+        'success': True,
+        'assignment_id': assignment.assignmentID,
+        'worker_name': worker_name,
+        'confirmed_at': assignment.client_confirmed_arrival_at.isoformat(),
+        'all_workers_arrived': all_arrived,
+        'arrived_count': arrived_workers,
+        'total_count': total_workers,
+        'message': f'Confirmed {worker_name} has arrived'
+    }
+
+
 def client_approve_team_job(job_id: int, client_user, payment_method: Optional[str] = None, cash_proof_url: Optional[str] = None) -> dict:
     """
     Client approves team job completion. This closes the job and team conversation.
@@ -703,6 +877,12 @@ def client_approve_team_job(job_id: int, client_user, payment_method: Optional[s
     job.status = 'COMPLETED'
     job.clientMarkedComplete = True
     job.clientMarkedCompleteAt = timezone.now()
+    # For team jobs, mark worker complete when client approves (all workers already marked their assignments complete)
+    job.workerMarkedComplete = True
+    job.workerMarkedCompleteAt = timezone.now()
+    # Mark remaining payment as paid (team jobs handle payment differently - escrow was paid at creation)
+    job.remainingPaymentPaid = True
+    job.remainingPaymentAt = timezone.now()
     
     if cash_proof_url:
         job.cashPaymentProofUrl = cash_proof_url

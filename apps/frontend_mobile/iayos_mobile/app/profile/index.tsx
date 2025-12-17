@@ -60,6 +60,7 @@ interface WorkerProfile {
   };
   bio: string | null;
   hourlyRate: number | null;
+  softSkills: string | null;
   skills: Skill[];
   categories: Array<{ id: number; name: string }>;
   serviceAreas: string[];
@@ -493,13 +494,32 @@ export default function ProfileScreen() {
         </View>
       )}
 
+      {/* Soft Skills Section */}
+      {profile.softSkills && profile.softSkills.trim() && (
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Soft Skills</Text>
+            <Pressable onPress={() => router.push("/profile/edit" as any)}>
+              <Text style={styles.editText}>Edit</Text>
+            </Pressable>
+          </View>
+          <View style={styles.softSkillsContainer}>
+            {profile.softSkills.split(",").map((skill, index) => (
+              <View key={index} style={styles.softSkillBubble}>
+                <Text style={styles.softSkillText}>{skill.trim()}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      )}
+
       {/* Skills Section with Nested Certifications */}
       {profile.skills.length > 0 ? (
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Skills & Certifications</Text>
-            <Pressable onPress={() => router.push("/profile/edit" as any)}>
-              <Text style={styles.editText}>Edit</Text>
+            <Pressable onPress={() => router.push("/profile/skills" as any)}>
+              <Text style={styles.editText}>Manage Skills</Text>
             </Pressable>
           </View>
           <Text style={styles.sectionDescription}>
@@ -509,7 +529,9 @@ export default function ProfileScreen() {
           {profile.skills.map((skill) => {
             const isExpanded = expandedSkills.has(skill.id);
             const skillCertifications = certifications.filter(
-              (cert) => cert.specializationId === skill.id
+              (cert) =>
+                cert.specializationId !== null &&
+                cert.specializationId === skill.id
             );
 
             return (
@@ -583,7 +605,9 @@ export default function ProfileScreen() {
                             compact={true}
                             showActions={false}
                             onPress={() =>
-                              router.push("/profile/certifications" as any)
+                              router.push(
+                                `/profile/skills/${skill.id}/certifications` as any
+                              )
                             }
                           />
                         </View>
@@ -601,7 +625,9 @@ export default function ProfileScreen() {
                         <Pressable
                           style={styles.addCertButton}
                           onPress={() =>
-                            router.push("/profile/certifications" as any)
+                            router.push(
+                              `/profile/skills/${skill.id}/certifications` as any
+                            )
                           }
                         >
                           <Ionicons
@@ -629,7 +655,7 @@ export default function ProfileScreen() {
           </Text>
           <Pressable
             style={styles.addButton}
-            onPress={() => router.push("/profile/edit" as any)}
+            onPress={() => router.push("/profile/skills" as any)}
           >
             <Ionicons
               name="add-circle-outline"
@@ -1021,6 +1047,22 @@ const styles = StyleSheet.create({
   skillText: {
     ...Typography.body.small,
     color: Colors.primary,
+    fontWeight: "500",
+  },
+  softSkillsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.sm,
+  },
+  softSkillBubble: {
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    backgroundColor: Colors.warningLight || "#FFF9E6",
+    borderRadius: BorderRadius.full,
+  },
+  softSkillText: {
+    ...Typography.body.small,
+    color: Colors.warning || "#F59E0B",
     fontWeight: "500",
   },
   categoriesContainer: {

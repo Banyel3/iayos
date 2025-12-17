@@ -4,27 +4,42 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ENDPOINTS, apiRequest, getAbsoluteMediaUrl } from "../api/config";
 
+export type TeamMember = {
+  profile_id: number;
+  name: string;
+  avatar: string | null;
+  role: string;
+  skill: string | null;
+};
+
 export type Conversation = {
   id: number;
+  conversation_type: "ONE_ON_ONE" | "TEAM_GROUP";
   job: {
     id: number;
     title: string;
     status: string;
     budget: number;
     location: string;
-    workerMarkedComplete: boolean;
-    clientMarkedComplete: boolean;
-    workerReviewed: boolean;
-    clientReviewed: boolean;
-    remainingPaymentPaid: boolean;
+    workerMarkedComplete?: boolean;
+    clientMarkedComplete?: boolean;
+    workerReviewed?: boolean;
+    clientReviewed?: boolean;
+    remainingPaymentPaid?: boolean;
+    is_team_job?: boolean;
+    total_workers?: number;
   };
-  other_participant: {
+  // For ONE_ON_ONE conversations
+  other_participant?: {
     name: string;
-    avatar: string;
+    avatar: string | null;
     profile_type: string;
     city: string | null;
     job_title: string | null;
   };
+  // For TEAM_GROUP conversations
+  team_members?: TeamMember[];
+  my_skill?: string | null;
   my_role: "CLIENT" | "WORKER";
   last_message: string | null;
   last_message_time: string | null;
@@ -59,19 +74,34 @@ export function useConversations(
         );
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as ConversationsResponse;
       // Transform avatar URLs to absolute URLs for local storage compatibility
       return {
         ...data,
-        conversations: data.conversations.map((conv: Conversation) => ({
-          ...conv,
-          other_participant: {
-            ...conv.other_participant,
-            avatar: getAbsoluteMediaUrl(
-              conv.other_participant.avatar
-            ) as string,
-          },
-        })),
+        conversations: data.conversations.map((conv: Conversation) => {
+          // Handle team group conversations
+          if (conv.conversation_type === "TEAM_GROUP") {
+            return {
+              ...conv,
+              team_members: conv.team_members?.map((member: TeamMember) => ({
+                ...member,
+                avatar: getAbsoluteMediaUrl(member.avatar) as string | null,
+              })),
+            };
+          }
+          // Handle 1:1 conversations
+          return {
+            ...conv,
+            other_participant: conv.other_participant
+              ? {
+                  ...conv.other_participant,
+                  avatar: getAbsoluteMediaUrl(conv.other_participant.avatar) as
+                    | string
+                    | null,
+                }
+              : undefined,
+          };
+        }),
       };
     },
     staleTime: 30000, // 30 seconds - refresh frequently for real-time feel
@@ -89,9 +119,18 @@ export function useConversationSearch(searchQuery: string) {
   const filteredConversations =
     conversationsData?.conversations.filter((conv) => {
       const query = searchQuery.toLowerCase();
-      const participantName = conv.other_participant.name.toLowerCase();
       const jobTitle = conv.job.title.toLowerCase();
 
+      // For team conversations, search in team member names
+      if (conv.conversation_type === "TEAM_GROUP") {
+        const teamMemberMatch = conv.team_members?.some((member) =>
+          member.name.toLowerCase().includes(query)
+        );
+        return teamMemberMatch || jobTitle.includes(query);
+      }
+
+      // For 1:1 conversations
+      const participantName = conv.other_participant?.name?.toLowerCase() || "";
       return participantName.includes(query) || jobTitle.includes(query);
     }) || [];
 
@@ -151,11 +190,13 @@ export function useArchiveConversation() {
       );
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
+        const errorData = (await response
+          .json()
+          .catch(() => ({ error: "Unknown error" }))) as { error?: string };
         throw new Error(errorData.error || "Failed to toggle archive status");
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as { message: string };
       console.log(`[useArchiveConversation] Success: ${data.message}`, data);
 
       return data;

@@ -3,7 +3,8 @@
 
 from .models import (
     Accounts, Profile, WorkerProfile, ClientProfile,
-    JobPosting, JobApplication, Specializations, JobPhoto, JobReview, Job, Agency
+    JobPosting, JobApplication, Specializations, JobPhoto, JobReview, Job, Agency,
+    JobSkillSlot, JobWorkerAssignment
 )
 from django.db.models import Q, Count, Avg, Prefetch
 from django.utils import timezone
@@ -200,6 +201,20 @@ def get_mobile_job_list(
             # NEW: Map urgency to numeric values for sorting
             urgency_value = {'LOW': 1, 'MEDIUM': 2, 'HIGH': 3}.get(job.urgency, 0)
 
+            # Calculate team job stats if applicable
+            team_workers_needed = 0
+            team_workers_assigned = 0
+            team_fill_percentage = 0
+            if job.is_team_job:
+                skill_slots = JobSkillSlot.objects.filter(jobID=job)
+                for slot in skill_slots:
+                    team_workers_needed += slot.workers_needed
+                    team_workers_assigned += slot.worker_assignments.filter(
+                        assignment_status__in=['ACTIVE', 'COMPLETED']
+                    ).count()
+                if team_workers_needed > 0:
+                    team_fill_percentage = round((team_workers_assigned / team_workers_needed) * 100, 1)
+
             job_data = {
                 'id': job.jobID,
                 'title': job.title,
@@ -216,6 +231,11 @@ def get_mobile_job_list(
                 'client_avatar': client_profile.profileImg if client_profile and client_profile.profileImg else None,
                 'is_applied': has_applied,
                 'expected_duration': job.expectedDuration,
+                'is_team_job': job.is_team_job,  # Team job indicator
+                # Team job stats (for list view)
+                'total_workers_needed': team_workers_needed if job.is_team_job else None,
+                'total_workers_assigned': team_workers_assigned if job.is_team_job else None,
+                'team_fill_percentage': team_fill_percentage if job.is_team_job else None,
                 # Sorting helpers
                 '_distance_sort': distance if distance is not None else 999999,
                 '_urgency_sort': urgency_value,
@@ -519,6 +539,7 @@ def get_mobile_job_detail(job_id: int, user: Accounts) -> Dict[str, Any]:
             'status': job.status,
             'created_at': job.createdAt.isoformat(),
             'job_type': job.jobType,
+            'is_team_job': job.is_team_job,  # Team job indicator
             'category': {
                 'id': job.categoryID.specializationID if job.categoryID else None,
                 'name': job.categoryID.specializationName if job.categoryID else "General",
@@ -533,7 +554,43 @@ def get_mobile_job_detail(job_id: int, user: Accounts) -> Dict[str, Any]:
             'downpayment_amount': float(job.budget * Decimal('0.5')),
             'remaining_amount': float(job.budget * Decimal('0.5')),
             'estimated_completion': ml_prediction,
+            # Universal job fields for ML accuracy
+            'job_scope': job.job_scope,
+            'skill_level_required': job.skill_level_required,
+            'work_environment': job.work_environment,
         }
+
+        # Add team job data if this is a team job
+        if job.is_team_job:
+            print(f"   🔧 Fetching team job data...")
+            from jobs.team_job_services import get_team_job_detail
+            team_detail = get_team_job_detail(job.jobID, user)
+            
+            if 'error' not in team_detail:
+                job_data.update({
+                    'skill_slots': team_detail.get('skill_slots', []),
+                    'worker_assignments': team_detail.get('worker_assignments', []),
+                    'team_fill_percentage': team_detail.get('team_fill_percentage', 0),
+                    'total_workers_needed': team_detail.get('total_workers_needed', 0),
+                    'total_workers_assigned': team_detail.get('total_workers_assigned', 0),
+                    'budget_allocation_type': team_detail.get('budget_allocation_type'),
+                    'team_start_threshold': team_detail.get('team_start_threshold', 100),
+                    'can_start': team_detail.get('can_start', False),
+                })
+                print(f"   ✅ Team job data: {len(job_data.get('skill_slots', []))} slots, {job_data.get('total_workers_assigned', 0)}/{job_data.get('total_workers_needed', 0)} workers")
+            else:
+                print(f"   ⚠️ Team job detail fetch error: {team_detail.get('error')}")
+                # Still provide empty arrays so UI can handle gracefully
+                job_data.update({
+                    'skill_slots': [],
+                    'worker_assignments': [],
+                    'team_fill_percentage': 0,
+                    'total_workers_needed': 0,
+                    'total_workers_assigned': 0,
+                    'budget_allocation_type': None,
+                    'team_start_threshold': 100,
+                    'can_start': False,
+                })
 
         if reviews_payload:
             job_data['reviews'] = reviews_payload
@@ -635,6 +692,10 @@ def create_mobile_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[str, Any
             status='PENDING_PAYMENT',  # Will change to ACTIVE after payment
             escrowAmount=escrow_amount,  # 50% held in escrow
             remainingPayment=escrow_amount,  # 50% remaining payment (no commission on final)
+            # Universal job fields for ML accuracy
+            job_scope=job_data.get('job_scope', 'MINOR_REPAIR'),
+            skill_level_required=job_data.get('skill_level_required', 'INTERMEDIATE'),
+            work_environment=job_data.get('work_environment', 'INDOOR'),
         )
 
         # Handle payment based on method
@@ -909,7 +970,11 @@ def create_mobile_invite_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[s
                     inviteStatus="PENDING",  # Waiting for worker/agency response
                     status="ACTIVE",  # Job created, awaiting acceptance
                     assignedAgencyFK=assigned_agency,
-                    assignedWorkerID=assigned_worker
+                    assignedWorkerID=assigned_worker,
+                    # Universal job fields for ML accuracy
+                    job_scope=job_data.get('job_scope', 'MINOR_REPAIR'),
+                    skill_level_required=job_data.get('skill_level_required', 'INTERMEDIATE'),
+                    work_environment=job_data.get('work_environment', 'INDOOR'),
                 )
                 
                 # Create escrow transaction
@@ -1902,6 +1967,7 @@ def get_worker_detail_mobile_v2(user, worker_id):
             'phoneNumber': profile.contactNum or None,
             'profilePicture': profile.profileImg or None,
             'bio': worker.bio or worker.description or None,
+            'softSkills': worker.soft_skills or None,
             'hourlyRate': float(worker.hourly_rate) if worker.hourly_rate else None,
             'rating': round(float(avg_rating), 1),
             'reviewCount': review_count,
@@ -2538,6 +2604,11 @@ def get_worker_reviews_mobile(worker_id: int, page: int = 1, limit: int = 20) ->
                 'created_at': review.createdAt.isoformat(),
                 'updated_at': review.updatedAt.isoformat(),
                 'can_edit': can_edit,
+                # Multi-criteria category ratings (default 0 for old reviews)
+                'rating_quality': float(review.rating_quality or 0),
+                'rating_communication': float(review.rating_communication or 0),
+                'rating_punctuality': float(review.rating_punctuality or 0),
+                'rating_professionalism': float(review.rating_professionalism or 0),
             })
 
         return {
@@ -2604,6 +2675,11 @@ def get_job_reviews_mobile(job_id: int) -> Dict[str, Any]:
                 'created_at': review.createdAt.isoformat(),
                 'updated_at': review.updatedAt.isoformat(),
                 'can_edit': can_edit,
+                # Multi-criteria category ratings (default 0 for old reviews)
+                'rating_quality': float(review.rating_quality or 0),
+                'rating_communication': float(review.rating_communication or 0),
+                'rating_punctuality': float(review.rating_punctuality or 0),
+                'rating_professionalism': float(review.rating_professionalism or 0),
             })
 
         return {
@@ -2691,6 +2767,11 @@ def get_my_reviews_mobile(user: Accounts, review_type: str = 'given', page: int 
                 'created_at': review.createdAt.isoformat(),
                 'updated_at': review.updatedAt.isoformat(),
                 'can_edit': can_edit and review_type == 'given',  # Can only edit own reviews
+                # Multi-criteria category ratings (default 0 for old reviews)
+                'rating_quality': float(review.rating_quality or 0),
+                'rating_communication': float(review.rating_communication or 0),
+                'rating_punctuality': float(review.rating_punctuality or 0),
+                'rating_professionalism': float(review.rating_professionalism or 0),
             })
 
         return {
@@ -3222,6 +3303,11 @@ def get_client_reviews_mobile(client_id: int, page: int = 1, limit: int = 10) ->
                 'rating': float(review.rating),
                 'comment': review.comment,
                 'created_at': review.createdAt.isoformat(),
+                # Multi-criteria category ratings (default 0 for old reviews)
+                'rating_quality': float(review.rating_quality or 0),
+                'rating_communication': float(review.rating_communication or 0),
+                'rating_punctuality': float(review.rating_punctuality or 0),
+                'rating_professionalism': float(review.rating_professionalism or 0),
             })
         
         return {

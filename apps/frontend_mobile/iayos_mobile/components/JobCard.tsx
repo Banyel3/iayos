@@ -41,6 +41,11 @@ interface JobCardProps {
   status?: "active" | "in_progress" | "completed" | "cancelled";
   applicationCount?: number;
   onPress?: () => void;
+  // Team Job Fields
+  isTeamJob?: boolean;
+  totalWorkersNeeded?: number;
+  totalWorkersAssigned?: number;
+  teamFillPercentage?: number;
 }
 
 export default function JobCard({
@@ -54,6 +59,11 @@ export default function JobCard({
   status = "active",
   applicationCount,
   onPress,
+  // Team Job Fields
+  isTeamJob,
+  totalWorkersNeeded,
+  totalWorkersAssigned,
+  teamFillPercentage,
 }: JobCardProps) {
   const scaleAnim = React.useRef(new Animated.Value(1)).current;
 
@@ -164,13 +174,36 @@ export default function JobCard({
           </View>
 
           {/* Application Count Badge */}
-          {applicationCount && applicationCount > 0 && (
+          {typeof applicationCount === "number" && applicationCount > 0 && (
             <View style={styles.applicationBadgeRow}>
               <Ionicons name="people" size={13} color={Colors.primary} />
               <Text style={styles.applicationText}>
                 {applicationCount}{" "}
                 {applicationCount === 1 ? "applicant" : "applicants"}
               </Text>
+            </View>
+          )}
+
+          {/* Team Job Badge */}
+          {isTeamJob && (
+            <View style={styles.teamJobBadgeRow}>
+              <View style={styles.teamJobBadge}>
+                <Ionicons name="people-circle" size={14} color={Colors.white} />
+                <Text style={styles.teamJobBadgeText}>Team Job</Text>
+              </View>
+              <View style={styles.teamJobProgress}>
+                <View style={styles.teamJobProgressBar}>
+                  <View
+                    style={[
+                      styles.teamJobProgressFill,
+                      { width: `${teamFillPercentage || 0}%` },
+                    ]}
+                  />
+                </View>
+                <Text style={styles.teamJobProgressText}>
+                  {totalWorkersAssigned || 0}/{totalWorkersNeeded || 0} workers
+                </Text>
+              </View>
             </View>
           )}
         </View>
@@ -275,6 +308,53 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.xs,
     fontWeight: Typography.fontWeight.semiBold,
     color: Colors.primary,
+  },
+  // Team Job Styles
+  teamJobBadgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    marginTop: Spacing.xs,
+  },
+  teamJobBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.primary,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.pill,
+    gap: 4,
+  },
+  teamJobBadgeText: {
+    fontSize: 10,
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.white,
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
+  teamJobProgress: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  teamJobProgressBar: {
+    flex: 1,
+    height: 6,
+    backgroundColor: "#E5E7EB",
+    borderRadius: 3,
+    overflow: "hidden",
+  },
+  teamJobProgressFill: {
+    height: "100%",
+    backgroundColor: Colors.success,
+    borderRadius: 3,
+  },
+  teamJobProgressText: {
+    fontSize: 10,
+    fontWeight: Typography.fontWeight.semiBold,
+    color: Colors.textSecondary,
+    minWidth: 55,
   },
   rightSection: {
     minWidth: 95,

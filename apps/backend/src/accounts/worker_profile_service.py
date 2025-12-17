@@ -12,7 +12,8 @@ def update_worker_profile(
     worker_profile: WorkerProfile,
     bio: Optional[str] = None,
     description: Optional[str] = None,
-    hourly_rate: Optional[float] = None
+    hourly_rate: Optional[float] = None,
+    soft_skills: Optional[str] = None
 ) -> Dict:
     """
     Update worker profile fields and recalculate completion percentage.
@@ -52,6 +53,13 @@ def update_worker_profile(
             raise ValueError("Hourly rate must be greater than 0")
         worker_profile.hourly_rate = Decimal(str(hourly_rate))
     
+    if soft_skills is not None:
+        # Clean and validate soft skills (comma-separated)
+        cleaned_skills = ', '.join([s.strip() for s in soft_skills.split(',') if s.strip()])
+        if len(cleaned_skills) > 500:
+            raise ValueError("Soft skills must be 500 characters or less")
+        worker_profile.soft_skills = cleaned_skills
+    
     # Save changes
     worker_profile.save()
     
@@ -77,7 +85,8 @@ def update_worker_profile(
         'profile_completion_percentage': completion_percentage,
         'bio': worker_profile.bio,
         'description': worker_profile.description,
-        'hourly_rate': float(worker_profile.hourly_rate) if worker_profile.hourly_rate else None
+        'hourly_rate': float(worker_profile.hourly_rate) if worker_profile.hourly_rate else None,
+        'soft_skills': worker_profile.soft_skills
     }
 
 

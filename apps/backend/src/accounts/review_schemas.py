@@ -40,6 +40,11 @@ class ReviewResponse(Schema):
     can_edit: bool  # True if within 24 hours
     worker_response: Optional[str] = None
     worker_response_at: Optional[datetime] = None
+    # Multi-criteria category ratings (only for worker reviews)
+    rating_quality: Optional[Decimal] = None
+    rating_communication: Optional[Decimal] = None
+    rating_punctuality: Optional[Decimal] = None
+    rating_professionalism: Optional[Decimal] = None
 
 
 # ===========================================================================

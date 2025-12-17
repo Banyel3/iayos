@@ -65,6 +65,20 @@ class PriceFeatureExtractor:
         'EXPERT': 2
     }
     
+    # Mapping for job scope (affects pricing significantly)
+    JOB_SCOPE_MAPPING = {
+        'MINOR_REPAIR': 0,
+        'MODERATE_PROJECT': 1,
+        'MAJOR_RENOVATION': 2
+    }
+    
+    # Mapping for work environment
+    WORK_ENVIRONMENT_MAPPING = {
+        'INDOOR': 0,
+        'OUTDOOR': 1,
+        'BOTH': 2
+    }
+    
     # Maximum categories for one-hot encoding
     MAX_CATEGORIES = 30
     
@@ -126,6 +140,8 @@ class PriceFeatureExtractor:
             'avg_word_length',
             'urgency',
             'skill_level',
+            'job_scope',
+            'work_environment',
             'materials_count',
             'has_tags',
             'tag_count',
@@ -264,11 +280,15 @@ class PriceFeatureExtractor:
         # Metadata features (defaults for CSV)
         urgency = 1  # MEDIUM default
         skill_level = 1  # INTERMEDIATE default
+        job_scope = 1  # MODERATE_PROJECT default (CSV data is typically moderate)
+        work_environment = 0  # INDOOR default
         materials_count = 0
         
         metadata_features = np.array([
             urgency / 2.0,
             skill_level / 2.0,
+            job_scope / 2.0,
+            work_environment / 2.0,
             materials_count / 10.0,
         ], dtype=np.float32)
         
@@ -313,17 +333,31 @@ class PriceFeatureExtractor:
         # Metadata features
         urgency = self.URGENCY_MAPPING.get(job.urgency, 1)
         
-        # Get skill level from category if available
+        # Get skill level from job's skill_level_required field, fallback to category
         skill_level = 1  # Default INTERMEDIATE
-        if job.categoryID:
+        if hasattr(job, 'skill_level_required') and job.skill_level_required:
+            skill_level = self.SKILL_LEVEL_MAPPING.get(job.skill_level_required, 1)
+        elif job.categoryID:
             skill_str = getattr(job.categoryID, 'skillLevel', 'INTERMEDIATE')
             skill_level = self.SKILL_LEVEL_MAPPING.get(skill_str, 1)
+        
+        # Get job_scope from job field
+        job_scope = 1  # Default MODERATE_PROJECT
+        if hasattr(job, 'job_scope') and job.job_scope:
+            job_scope = self.JOB_SCOPE_MAPPING.get(job.job_scope, 1)
+        
+        # Get work_environment from job field
+        work_environment = 0  # Default INDOOR
+        if hasattr(job, 'work_environment') and job.work_environment:
+            work_environment = self.WORK_ENVIRONMENT_MAPPING.get(job.work_environment, 0)
         
         materials_count = len(materials)
         
         metadata_features = np.array([
             urgency / 2.0,
             skill_level / 2.0,
+            job_scope / 2.0,
+            work_environment / 2.0,
             materials_count / 10.0,
         ], dtype=np.float32)
         
@@ -340,8 +374,8 @@ class PriceFeatureExtractor:
     
     def get_feature_dim(self) -> int:
         """Get the total number of features."""
-        # 5 text + 3 metadata + 2 tag basic + 30 category + 20 tag one-hot
-        return 5 + 3 + 2 + self.MAX_CATEGORIES + 20
+        # 5 text + 5 metadata (urgency, skill_level, job_scope, work_environment, materials_count) + 2 tag basic + 30 category + 20 tag one-hot
+        return 5 + 5 + 2 + self.MAX_CATEGORIES + 20
 
 
 class PriceDatasetBuilder:

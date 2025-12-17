@@ -882,7 +882,7 @@ def get_conversations(request, filter: str = "all"):
                         team_members.append({
                             'profile_id': p.profile.profileID,
                             'name': f"{p.profile.firstName} {p.profile.lastName}",
-                            'avatar': p.profile.profileImg.url if p.profile.profileImg else None,  # profileImg, not profilePicture
+                            'avatar': p.profile.profileImg or None,  # profileImg is a CharField (URL string), not FileField
                             'role': p.participant_type,
                             'skill': p.skill_slot.specializationID.specializationName if p.skill_slot else None
                         })
@@ -1213,9 +1213,18 @@ def get_conversation_messages(request, conversation_id: int):
         # Check if this is an agency conversation
         is_agency_conversation = conversation.agency is not None and conversation.worker is None
         
-        # Verify user is a participant (either client, worker, or agency owner)
+        # Verify user is a participant (either client, worker, team participant, or agency owner)
         is_client = conversation.client == user_profile
         is_worker = conversation.worker == user_profile if conversation.worker else False
+
+        # Team conversations use ConversationParticipant entries instead of the single worker field
+        from profiles.models import ConversationParticipant
+        is_team_participant = ConversationParticipant.objects.filter(
+            conversation=conversation,
+            profile=user_profile
+        ).exists()
+        # Treat team participant as worker-equivalent for permissioning and role calculation
+        is_worker = is_worker or is_team_participant
         
         # For agency conversations, check if user is the agency owner
         is_agency_owner = False
@@ -1230,8 +1239,9 @@ def get_conversation_messages(request, conversation_id: int):
         if conversation.agency:
             print(f"   Agency: {conversation.agency.businessName}")
         print(f"   Is Client: {is_client}, Is Worker: {is_worker}, Is Agency Owner: {is_agency_owner}")
+        print(f"   Is Team Participant: {is_team_participant}")
         
-        if not (is_client or is_worker or is_agency_owner):
+        if not (is_client or is_worker or is_agency_owner or is_team_participant):
             return Response(
                 {"error": "You are not a participant in this conversation"},
                 status=403
@@ -1354,6 +1364,7 @@ def get_conversation_messages(request, conversation_id: int):
         employee_review_exists = False
         agency_review_exists = False
         employees_pending_review = []  # For multi-employee support
+        is_team_job = job.is_team_job  # Check if this is a team job (for per-worker review tracking)
         
         # For agency jobs, check employee and agency reviews separately
         if is_agency_job_for_reviews and client_account:
@@ -1407,6 +1418,20 @@ def get_conversation_messages(request, conversation_id: int):
                     jobID=job,
                     reviewerID=agency_account
                 ).exists()
+        elif is_team_job and not is_client and client_account:
+            # Team job - check if current worker (viewer) has reviewed the client
+            # For team jobs, each worker reviews the client independently
+            worker_reviewed = JobReview.objects.filter(
+                jobID=job,
+                reviewerID=request.auth,  # Current authenticated user (the worker)
+                reviewerType="WORKER"
+            ).exists()
+            
+            # Check if client has reviewed (any workers so far)
+            client_reviewed = JobReview.objects.filter(
+                jobID=job,
+                reviewerID=client_account
+            ).exists()
         elif worker_account and client_account:
             # Regular (non-agency) job
             worker_reviewed = JobReview.objects.filter(
@@ -1503,6 +1528,63 @@ def get_conversation_messages(request, conversation_id: int):
         except Exception as e:
             print(f"   ⚠️ ML prediction error: {str(e)}")
 
+        # Team job worker review tracking
+        is_team_job = job.is_team_job
+        team_workers_pending_review = []
+        all_team_workers_reviewed = False
+        team_worker_assignments = []
+        
+        # Populate team_worker_assignments for BOTH clients AND workers
+        # Workers need this to see their own assignment status (Phase 2 banners)
+        if is_team_job:
+            from accounts.models import JobWorkerAssignment, JobReview
+            
+            # Get all assigned workers for this team job
+            assignments = JobWorkerAssignment.objects.filter(
+                jobID=job,
+                assignment_status__in=['ACTIVE', 'COMPLETED']
+            ).select_related('workerID__profileID__accountFK', 'skillSlotID__specializationID')
+            
+            # Get list of worker accounts already reviewed by this client (only relevant for clients)
+            reviewed_worker_accounts = set()
+            if is_client:
+                reviewed_worker_accounts = set(JobReview.objects.filter(
+                    jobID=job,
+                    reviewerID=request.auth,
+                    reviewerType="CLIENT"
+                ).values_list('revieweeID', flat=True))
+            
+            for assignment in assignments:
+                worker_profile = assignment.workerID.profileID
+                worker_account_id = worker_profile.accountFK.accountID
+                worker_name = f"{worker_profile.firstName} {worker_profile.lastName}"
+                skill_name = assignment.skillSlotID.specializationID.specializationName if assignment.skillSlotID else None
+                
+                worker_info = {
+                    # Use FK raw id to avoid attribute errors (WorkerProfile has no workerID attr)
+                    "worker_id": assignment.workerID_id,
+                    "account_id": worker_account_id,
+                    "name": worker_name,
+                    "avatar": worker_profile.profileImg,
+                    "skill": skill_name,
+                    "assignment_id": assignment.assignmentID,
+                    "is_reviewed": worker_account_id in reviewed_worker_accounts,
+                    # Arrival tracking (matches regular job workflow)
+                    "client_confirmed_arrival": assignment.client_confirmed_arrival,
+                    "client_confirmed_arrival_at": assignment.client_confirmed_arrival_at.isoformat() if assignment.client_confirmed_arrival_at else None,
+                    # Completion tracking
+                    "worker_marked_complete": assignment.worker_marked_complete,
+                    "worker_marked_complete_at": assignment.worker_marked_complete_at.isoformat() if assignment.worker_marked_complete_at else None
+                }
+                team_worker_assignments.append(worker_info)
+                
+                # Review tracking only for clients
+                if is_client and worker_account_id not in reviewed_worker_accounts:
+                    team_workers_pending_review.append(worker_info)
+            
+            if is_client:
+                all_team_workers_reviewed = len(team_workers_pending_review) == 0 and len(team_worker_assignments) > 0
+        
         # Check for active backjob/dispute
         from accounts.models import JobDispute
         active_dispute = JobDispute.objects.filter(
@@ -1529,6 +1611,28 @@ def get_conversation_messages(request, conversation_id: int):
             }
             print(f"   🔄 Backjob info: started={active_dispute.backjobStarted}, worker_done={active_dispute.workerMarkedBackjobComplete}, client_confirmed={active_dispute.clientConfirmedBackjob}")
 
+        # Get payment buffer info for completed jobs
+        payment_buffer_info = None
+        if job.status == 'COMPLETED' and job.clientMarkedComplete:
+            from jobs.payment_buffer_service import get_payment_buffer_days
+            buffer_days = get_payment_buffer_days()
+            
+            # Calculate remaining days if release date is set
+            remaining_days = None
+            if job.paymentReleaseDate:
+                remaining = (job.paymentReleaseDate - timezone.now()).days
+                remaining_days = max(0, remaining)  # Don't show negative days
+            
+            payment_buffer_info = {
+                "buffer_days": buffer_days,
+                "payment_release_date": job.paymentReleaseDate.isoformat() if job.paymentReleaseDate else None,
+                "payment_release_date_formatted": job.paymentReleaseDate.strftime("%b %d, %Y") if job.paymentReleaseDate else None,
+                "is_payment_released": job.paymentReleasedToWorker,
+                "payment_released_at": job.paymentReleasedAt.isoformat() if job.paymentReleasedAt else None,
+                "payment_held_reason": job.paymentHeldReason,
+                "remaining_days": remaining_days,
+            }
+
         return {
             "success": True,
             "conversation_id": conversation.conversationID,
@@ -1549,6 +1653,7 @@ def get_conversation_messages(request, conversation_id: int):
                 "assignedWorkerId": worker_account.accountID if worker_account else None,
                 "clientId": client_account.accountID if client_account else None,
                 "estimatedCompletion": ml_prediction,
+                "paymentBuffer": payment_buffer_info,
             },
             "other_participant": other_participant_info,
             "assigned_employee": assigned_employee_info,  # Legacy single employee
@@ -1557,6 +1662,10 @@ def get_conversation_messages(request, conversation_id: int):
             "pending_employee_reviews": [e["employee_id"] for e in employees_pending_review] if is_agency_job_for_reviews else [],
             "all_employees_reviewed": employee_review_exists if is_agency_job_for_reviews else None,
             "is_agency_job": is_agency_conversation,
+            "is_team_job": is_team_job,
+            "team_worker_assignments": team_worker_assignments if is_team_job else [],
+            "pending_team_worker_reviews": team_workers_pending_review if is_team_job else [],
+            "all_team_workers_reviewed": all_team_workers_reviewed if is_team_job else None,
             "my_role": my_role,
             "messages": formatted_messages,
             "total_messages": len(formatted_messages),

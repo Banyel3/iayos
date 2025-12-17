@@ -319,6 +319,8 @@ class PricePredictionRequest(Schema):
     description: str = ""
     urgency: str = "MEDIUM"  # LOW, MEDIUM, HIGH
     skill_level: str = "INTERMEDIATE"  # ENTRY, INTERMEDIATE, EXPERT
+    job_scope: str = "MINOR_REPAIR"  # MINOR_REPAIR, MODERATE_PROJECT, MAJOR_RENOVATION
+    work_environment: str = "INDOOR"  # INDOOR, OUTDOOR, BOTH
     materials: List[str] = []
 
 
@@ -408,6 +410,8 @@ def predict_price_budget(request: HttpRequest, data: PricePredictionRequest):
                     description=data.description,
                     urgency=data.urgency,
                     skill_level=data.skill_level,
+                    job_scope=data.job_scope,
+                    work_environment=data.work_environment,
                     materials=data.materials
                 )
                 
@@ -433,6 +437,8 @@ def predict_price_budget(request: HttpRequest, data: PricePredictionRequest):
                     'description': data.description,
                     'urgency': data.urgency,
                     'skill_level': data.skill_level,
+                    'job_scope': data.job_scope,
+                    'work_environment': data.work_environment,
                     'materials': data.materials
                 }
             )
@@ -480,6 +486,14 @@ def predict_price_budget(request: HttpRequest, data: PricePredictionRequest):
         # Adjust for skill level
         skill_multiplier = {'ENTRY': 0.8, 'INTERMEDIATE': 1.0, 'EXPERT': 1.3}
         mult *= skill_multiplier.get(data.skill_level, 1.0)
+        
+        # Adjust for job scope (bigger jobs = higher price)
+        scope_multiplier = {'MINOR_REPAIR': 0.7, 'MODERATE_PROJECT': 1.0, 'MAJOR_RENOVATION': 1.8}
+        mult *= scope_multiplier.get(data.job_scope, 1.0)
+        
+        # Adjust for work environment (outdoor may have slight premium)
+        env_multiplier = {'INDOOR': 1.0, 'OUTDOOR': 1.05, 'BOTH': 1.1}
+        mult *= env_multiplier.get(data.work_environment, 1.0)
         
         return PricePredictionResponse(
             min_price=round(fallback_min * mult, 2),

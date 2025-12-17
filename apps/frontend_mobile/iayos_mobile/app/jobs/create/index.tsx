@@ -26,6 +26,7 @@ import {
   ActivityIndicator,
   Modal,
   FlatList,
+  SafeAreaView,
 } from "react-native";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -72,6 +73,10 @@ interface CreateJobRequest {
   payment_method: "WALLET"; // Jobs only use Wallet payment (GCash is for deposits/withdrawals only)
   worker_id?: number;
   agency_id?: number;
+  // Universal job fields for ML accuracy
+  skill_level_required?: "ENTRY" | "INTERMEDIATE" | "EXPERT";
+  job_scope?: "MINOR_REPAIR" | "MODERATE_PROJECT" | "MAJOR_RENOVATION";
+  work_environment?: "INDOOR" | "OUTDOOR" | "BOTH";
 }
 
 export default function CreateJobScreen() {
@@ -105,6 +110,16 @@ export default function CreateJobScreen() {
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedMaterials, setSelectedMaterials] = useState<number[]>([]);
+  // New universal job fields for ML accuracy
+  const [skillLevel, setSkillLevel] = useState<
+    "ENTRY" | "INTERMEDIATE" | "EXPERT"
+  >("INTERMEDIATE");
+  const [jobScope, setJobScope] = useState<
+    "MINOR_REPAIR" | "MODERATE_PROJECT" | "MAJOR_RENOVATION"
+  >("MINOR_REPAIR");
+  const [workEnvironment, setWorkEnvironment] = useState<
+    "INDOOR" | "OUTDOOR" | "BOTH"
+  >("INDOOR");
   const queryClient = useQueryClient();
   // Jobs only use Wallet payment - GCash is for deposits/withdrawals only
   // No payment method selection needed - always WALLET
@@ -185,6 +200,9 @@ export default function CreateJobScreen() {
           description,
           category_id: categoryId,
           urgency,
+          skill_level: skillLevel,
+          job_scope: jobScope,
+          work_environment: workEnvironment,
         });
       }, 800);
     } else {
@@ -203,6 +221,9 @@ export default function CreateJobScreen() {
     description,
     categoryId,
     urgency,
+    skillLevel,
+    jobScope,
+    workEnvironment,
     predictPrice,
     resetPricePrediction,
   ]);
@@ -424,6 +445,10 @@ export default function CreateJobScreen() {
         ? startDate.toISOString().split("T")[0]
         : undefined,
       payment_method: "WALLET", // Jobs only use Wallet payment
+      // Universal job fields for ML accuracy
+      skill_level_required: skillLevel,
+      job_scope: jobScope,
+      work_environment: workEnvironment,
     };
 
     // Add worker or agency ID if provided
@@ -438,7 +463,7 @@ export default function CreateJobScreen() {
   };
 
   return (
-    <>
+    <SafeAreaView style={styles.safeArea}>
       <Stack.Screen
         options={{
           title: workerId
@@ -472,125 +497,120 @@ export default function CreateJobScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.content}>
-            {/* Job Title */}
-            <View style={styles.formGroup}>
-              <Text style={styles.label}>
-                Job Title <Text style={styles.required}>*</Text>
-              </Text>
-              <TextInput
-                style={styles.input}
-                placeholder="e.g., Fix leaking pipe in bathroom"
-                value={title}
-                onChangeText={setTitle}
-                placeholderTextColor={Colors.textHint}
-              />
-            </View>
+            {/* Job Details Section */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>📋 Job Details</Text>
 
-            {/* Description */}
-            <View style={styles.formGroup}>
-              <Text style={styles.label}>
-                Description <Text style={styles.required}>*</Text>
-              </Text>
-              <TextInput
-                style={[styles.input, styles.textArea]}
-                placeholder="Describe the job in detail..."
-                value={description}
-                onChangeText={setDescription}
-                multiline
-                numberOfLines={4}
-                textAlignVertical="top"
-                placeholderTextColor={Colors.textHint}
-              />
-              <Text style={styles.helperText}>
-                {description.length}/500 characters
-              </Text>
-            </View>
-
-            {/* Category Selection */}
-            <View style={styles.formGroup}>
-              <Text style={styles.label}>
-                Category <Text style={styles.required}>*</Text>
-              </Text>
-              {categoriesLoading ? (
-                <View style={styles.loadingCategories}>
-                  <ActivityIndicator size="small" color={Colors.primary} />
-                  <Text style={styles.loadingText}>Loading categories...</Text>
-                </View>
-              ) : (
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  style={styles.categoryScroll}
-                >
-                  {Array.isArray(categories) &&
-                    categories.map((category) => (
-                      <TouchableOpacity
-                        key={category.id}
-                        style={[
-                          styles.categoryChip,
-                          categoryId === category.id &&
-                            styles.categoryChipActive,
-                        ]}
-                        onPress={() => {
-                          setCategoryId(category.id);
-                          setSelectedCategory(category);
-                          // Auto-populate budget with minimum rate
-                          if (category.minimum_rate > 0) {
-                            setBudget(category.minimum_rate.toFixed(2));
-                          }
-                        }}
-                      >
-                        <Text
-                          style={[
-                            styles.categoryChipText,
-                            categoryId === category.id &&
-                              styles.categoryChipTextActive,
-                          ]}
-                        >
-                          {category.name}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                </ScrollView>
-              )}
-            </View>
-
-            {/* Budget */}
-            <View style={styles.formGroup}>
-              <Text style={styles.label}>
-                Budget (₱) <Text style={styles.required}>*</Text>
-              </Text>
-              <View
-                style={[
-                  styles.budgetInput,
-                  !categoryId && styles.inputDisabled,
-                ]}
-              >
-                <Text style={styles.currencySymbol}>₱</Text>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Job Title *</Text>
                 <TextInput
-                  style={styles.budgetTextInput}
-                  placeholder={categoryId ? "0.00" : "Select a category first"}
-                  value={budget}
-                  onChangeText={setBudget}
-                  keyboardType="decimal-pad"
+                  style={styles.input}
+                  placeholder="e.g., Fix leaking pipe in bathroom"
+                  value={title}
+                  onChangeText={setTitle}
                   placeholderTextColor={Colors.textHint}
-                  editable={!!categoryId}
+                  maxLength={100}
                 />
+                <Text style={styles.charCount}>{title.length}/100</Text>
               </View>
-              {selectedCategory && selectedCategory.minimum_rate > 0 ? (
-                <Text style={styles.helperText}>
-                  Minimum budget: ₱{selectedCategory.minimum_rate.toFixed(2)} •
-                  50% downpayment (₱
-                  {budget ? (parseFloat(budget) * 0.5).toFixed(2) : "0.00"})
-                  will be held in escrow
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Description *</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  placeholder="Describe the job in detail..."
+                  value={description}
+                  onChangeText={setDescription}
+                  multiline
+                  numberOfLines={4}
+                  textAlignVertical="top"
+                  placeholderTextColor={Colors.textHint}
+                  maxLength={500}
+                />
+                <Text style={styles.charCount}>{description.length}/500</Text>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Category *</Text>
+                {categoriesLoading ? (
+                  <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="small" color={Colors.primary} />
+                    <Text style={styles.loadingText}>
+                      Loading categories...
+                    </Text>
+                  </View>
+                ) : (
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.categoryScroll}
+                  >
+                    {Array.isArray(categories) &&
+                      categories.map((category) => (
+                        <TouchableOpacity
+                          key={category.id}
+                          style={[
+                            styles.categoryChip,
+                            categoryId === category.id &&
+                              styles.categoryChipActive,
+                          ]}
+                          onPress={() => {
+                            setCategoryId(category.id);
+                            setSelectedCategory(category);
+                            if (category.minimum_rate > 0) {
+                              setBudget(category.minimum_rate.toFixed(2));
+                            }
+                          }}
+                        >
+                          <Text
+                            style={[
+                              styles.categoryChipText,
+                              categoryId === category.id &&
+                                styles.categoryChipTextActive,
+                            ]}
+                          >
+                            {category.name}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                  </ScrollView>
+                )}
+              </View>
+            </View>
+
+            {/* Budget Section */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>💰 Budget</Text>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Total Budget (₱) *</Text>
+                <View
+                  style={[
+                    styles.budgetInput,
+                    !categoryId && styles.inputDisabled,
+                  ]}
+                >
+                  <Text style={styles.currencySymbol}>₱</Text>
+                  <TextInput
+                    style={styles.budgetTextInput}
+                    placeholder={
+                      categoryId ? "0.00" : "Select a category first"
+                    }
+                    value={budget}
+                    onChangeText={setBudget}
+                    keyboardType="decimal-pad"
+                    placeholderTextColor={Colors.textHint}
+                    editable={!!categoryId}
+                  />
+                </View>
+                <Text style={styles.hint}>
+                  {selectedCategory && selectedCategory.minimum_rate > 0
+                    ? `Minimum: ₱${selectedCategory.minimum_rate.toFixed(2)}`
+                    : categoryId
+                      ? "This is what the worker will receive"
+                      : "Select a category first"}
                 </Text>
-              ) : (
-                <Text style={styles.helperText}>
-                  {categoryId
-                    ? `50% downpayment (₱${budget ? (parseFloat(budget) * 0.5).toFixed(2) : "0.00"}) will be held in escrow`
-                    : "Please select a category to set minimum budget"}
-                </Text>
-              )}
+              </View>
 
               {/* AI Price Suggestion Card */}
               {categoryId &&
@@ -606,65 +626,133 @@ export default function CreateJobScreen() {
                     onApplySuggested={handleApplySuggestedPrice}
                   />
                 )}
+
+              {/* Payment Summary */}
+              {budget && parseFloat(budget) > 0 && (
+                <View style={styles.paymentSummary}>
+                  <Text style={styles.summaryTitle}>Payment Summary</Text>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>
+                      Total Budget (Worker Receives)
+                    </Text>
+                    <Text style={styles.summaryValue}>
+                      ₱{parseFloat(budget).toFixed(2)}
+                    </Text>
+                  </View>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>
+                      50% Escrow (Downpayment)
+                    </Text>
+                    <Text style={styles.summaryValue}>
+                      ₱{(parseFloat(budget) * 0.5).toFixed(2)}
+                    </Text>
+                  </View>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>
+                      Platform Fee (5% of escrow)
+                    </Text>
+                    <Text style={styles.summaryValue}>
+                      ₱{(parseFloat(budget) * 0.5 * 0.05).toFixed(2)}
+                    </Text>
+                  </View>
+                  <View style={[styles.summaryRow, styles.summaryRowTotal]}>
+                    <Text style={styles.summaryLabelTotal}>Due Now</Text>
+                    <Text style={styles.summaryValueTotal}>
+                      ₱{(parseFloat(budget) * 0.5 * 1.05).toFixed(2)}
+                    </Text>
+                  </View>
+                  <View style={styles.walletBalanceRow}>
+                    {walletLoading ? (
+                      <Text style={styles.walletLabel}>
+                        Loading wallet balance...
+                      </Text>
+                    ) : (
+                      <>
+                        <Text style={styles.walletLabel}>
+                          Wallet Balance: ₱{walletBalance.toFixed(2)}
+                        </Text>
+                        {hasInsufficientBalance && (
+                          <Text style={styles.insufficientText}>
+                            (Need ₱{shortfallAmount.toFixed(2)} more)
+                          </Text>
+                        )}
+                      </>
+                    )}
+                  </View>
+                </View>
+              )}
             </View>
 
-            {/* Barangay */}
-            <View style={styles.formGroup}>
-              <Text style={styles.label}>
-                Barangay <Text style={styles.required}>*</Text>
-              </Text>
-              {barangaysLoading ? (
-                <View style={styles.pickerContainer}>
-                  <View style={[styles.picker, styles.pickerLoading]}>
-                    <ActivityIndicator size="small" color={Colors.primary} />
-                    <Text style={styles.pickerLoadingText}>
-                      Loading barangays...
-                    </Text>
+            {/* Location Section */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>📍 Location</Text>
+
+              {/* Barangay */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>
+                  Barangay <Text style={styles.required}>*</Text>
+                </Text>
+                {barangaysLoading ? (
+                  <View style={styles.pickerContainer}>
+                    <View style={[styles.picker, styles.pickerLoading]}>
+                      <ActivityIndicator size="small" color={Colors.primary} />
+                      <Text style={styles.pickerLoadingText}>
+                        Loading barangays...
+                      </Text>
+                    </View>
                   </View>
-                </View>
-              ) : barangaysError ? (
-                <View style={styles.pickerContainer}>
-                  <View style={[styles.picker, styles.pickerError]}>
-                    <Text style={styles.pickerErrorText}>
-                      ⚠️ Failed to load
-                    </Text>
+                ) : barangaysError ? (
+                  <View style={styles.pickerContainer}>
+                    <View style={[styles.picker, styles.pickerError]}>
+                      <Text style={styles.pickerErrorText}>
+                        ⚠️ Failed to load
+                      </Text>
+                    </View>
                   </View>
-                </View>
-              ) : barangays.length === 0 ? (
-                <View style={styles.pickerContainer}>
-                  <View style={[styles.picker, styles.pickerError]}>
-                    <Text style={styles.pickerErrorText}>
-                      No barangays available
-                    </Text>
+                ) : barangays.length === 0 ? (
+                  <View style={styles.pickerContainer}>
+                    <View style={[styles.picker, styles.pickerError]}>
+                      <Text style={styles.pickerErrorText}>
+                        No barangays available
+                      </Text>
+                    </View>
                   </View>
-                </View>
-              ) : (
-                <TouchableOpacity
-                  style={styles.barangayButton}
-                  onPress={() => setBarangayModalVisible(true)}
-                  activeOpacity={0.7}
-                >
-                  <Text
-                    style={
-                      barangay
-                        ? styles.barangayButtonText
-                        : styles.barangayButtonPlaceholder
-                    }
+                ) : (
+                  <TouchableOpacity
+                    style={styles.barangayButton}
+                    onPress={() => setBarangayModalVisible(true)}
+                    activeOpacity={0.7}
                   >
-                    {barangay || "Select a barangay"}
-                  </Text>
-                  <Text style={styles.barangayButtonIcon}>▼</Text>
-                </TouchableOpacity>
-              )}
-              <Text style={styles.helperText}>
-                {barangaysLoading
-                  ? "Loading..."
-                  : barangaysError
-                    ? `Error: ${barangaysError.message || "Failed to load"}`
-                    : barangays.length === 0
-                      ? "No barangays found"
-                      : `${barangays.length} barangays available`}
-              </Text>
+                    <Text
+                      style={
+                        barangay
+                          ? styles.barangayButtonText
+                          : styles.barangayButtonPlaceholder
+                      }
+                    >
+                      {barangay || "Select a barangay"}
+                    </Text>
+                    <Text style={styles.barangayButtonIcon}>▼</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {/* Street Address */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>
+                  Street Address <Text style={styles.required}>*</Text>
+                </Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g., 123 Bonifacio Street"
+                  value={street}
+                  onChangeText={setStreet}
+                  placeholderTextColor={Colors.textHint}
+                />
+                <Text style={styles.hint}>
+                  Provide the specific street address or landmark
+                </Text>
+              </View>
             </View>
 
             {/* Barangay Selection Modal */}
@@ -719,178 +807,281 @@ export default function CreateJobScreen() {
               </View>
             </Modal>
 
-            {/* Street Address */}
-            <View style={styles.formGroup}>
-              <Text style={styles.label}>
-                Street Address <Text style={styles.required}>*</Text>
-              </Text>
-              <TextInput
-                style={styles.input}
-                placeholder="e.g., 123 Bonifacio Street"
-                value={street}
-                onChangeText={setStreet}
-                placeholderTextColor={Colors.textHint}
-              />
-              <Text style={styles.helperText}>
-                Provide the specific street address or landmark
-              </Text>
-            </View>
+            {/* Timing Section */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>⏰ Timing & Urgency</Text>
 
-            {/* Expected Duration */}
-            <View style={styles.formGroup}>
-              <Text style={styles.label}>Expected Duration (Optional)</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="e.g., 2-3 hours, 1 day"
-                value={duration}
-                onChangeText={setDuration}
-                placeholderTextColor={Colors.textHint}
-              />
-            </View>
-
-            {/* Urgency Level */}
-            <View style={styles.formGroup}>
-              <Text style={styles.label}>Urgency Level</Text>
-              <View style={styles.urgencyRow}>
-                {(["LOW", "MEDIUM", "HIGH"] as const).map((level) => (
-                  <TouchableOpacity
-                    key={level}
-                    style={[
-                      styles.urgencyButton,
-                      urgency === level && styles.urgencyButtonActive,
-                      urgency === level && level === "LOW" && styles.urgencyLow,
-                      urgency === level &&
-                        level === "MEDIUM" &&
-                        styles.urgencyMedium,
-                      urgency === level &&
-                        level === "HIGH" &&
-                        styles.urgencyHigh,
-                    ]}
-                    onPress={() => setUrgency(level)}
-                  >
-                    <Text
+              {/* Urgency Level */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Urgency Level</Text>
+                <View style={styles.urgencyRow}>
+                  {(["LOW", "MEDIUM", "HIGH"] as const).map((level) => (
+                    <TouchableOpacity
+                      key={level}
                       style={[
-                        styles.urgencyText,
-                        urgency === level && styles.urgencyTextActive,
+                        styles.urgencyButton,
+                        urgency === level && styles.urgencyButtonActive,
+                        urgency === level &&
+                          level === "LOW" &&
+                          styles.urgencyLow,
+                        urgency === level &&
+                          level === "MEDIUM" &&
+                          styles.urgencyMedium,
+                        urgency === level &&
+                          level === "HIGH" &&
+                          styles.urgencyHigh,
                       ]}
+                      onPress={() => setUrgency(level)}
                     >
-                      {level}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                      <Text
+                        style={[
+                          styles.urgencyText,
+                          urgency === level && styles.urgencyTextActive,
+                        ]}
+                      >
+                        {level === "LOW"
+                          ? "🟢 Low"
+                          : level === "MEDIUM"
+                            ? "🟡 Medium"
+                            : "🔴 High"}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* Expected Duration */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Expected Duration (Optional)</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g., 2-3 hours, 1 day"
+                  value={duration}
+                  onChangeText={setDuration}
+                  placeholderTextColor={Colors.textHint}
+                />
+              </View>
+
+              {/* Preferred Start Date */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>
+                  Preferred Start Date (Optional)
+                </Text>
+                <TouchableOpacity
+                  style={styles.dateButton}
+                  onPress={() => setShowDatePicker(true)}
+                >
+                  <Ionicons
+                    name="calendar"
+                    size={20}
+                    color={Colors.textSecondary}
+                  />
+                  <Text style={styles.dateButtonText}>
+                    {startDate
+                      ? startDate.toLocaleDateString()
+                      : "Select a date"}
+                  </Text>
+                </TouchableOpacity>
+                {showDatePicker && (
+                  <DateTimePicker
+                    value={startDate || new Date()}
+                    mode="date"
+                    display="default"
+                    minimumDate={new Date()}
+                    onChange={(event, selectedDate) => {
+                      setShowDatePicker(Platform.OS === "ios");
+                      if (selectedDate) {
+                        setStartDate(selectedDate);
+                      }
+                    }}
+                  />
+                )}
               </View>
             </View>
 
-            {/* Preferred Start Date */}
-            <View style={styles.formGroup}>
-              <Text style={styles.label}>Preferred Start Date (Optional)</Text>
-              <TouchableOpacity
-                style={styles.dateButton}
-                onPress={() => setShowDatePicker(true)}
-              >
-                <Ionicons
-                  name="calendar"
-                  size={20}
-                  color={Colors.textSecondary}
-                />
-                <Text style={styles.dateButtonText}>
-                  {startDate ? startDate.toLocaleDateString() : "Select a date"}
-                </Text>
-              </TouchableOpacity>
-              {showDatePicker && (
-                <DateTimePicker
-                  value={startDate || new Date()}
-                  mode="date"
-                  display="default"
-                  minimumDate={new Date()}
-                  onChange={(event, selectedDate) => {
-                    setShowDatePicker(Platform.OS === "ios");
-                    if (selectedDate) {
-                      setStartDate(selectedDate);
-                    }
-                  }}
-                />
-              )}
+            {/* Job Options Section */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>⚙️ Job Options</Text>
+
+              {/* Skill Level Required */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Skill Level Required</Text>
+                <View style={styles.urgencyRow}>
+                  {(
+                    [
+                      { value: "ENTRY", label: "🌱 Entry" },
+                      { value: "INTERMEDIATE", label: "⭐ Intermediate" },
+                      { value: "EXPERT", label: "👑 Expert" },
+                    ] as const
+                  ).map((level) => (
+                    <TouchableOpacity
+                      key={level.value}
+                      style={[
+                        styles.urgencyButton,
+                        skillLevel === level.value && styles.skillLevelActive,
+                      ]}
+                      onPress={() => setSkillLevel(level.value)}
+                    >
+                      <Text
+                        style={[
+                          styles.urgencyText,
+                          skillLevel === level.value &&
+                            styles.urgencyTextActive,
+                        ]}
+                      >
+                        {level.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* Job Scope */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Job Scope</Text>
+                <View style={styles.urgencyRow}>
+                  {(
+                    [
+                      { value: "MINOR_REPAIR", label: "🔧 Minor" },
+                      { value: "MODERATE_PROJECT", label: "🛠️ Moderate" },
+                      { value: "MAJOR_RENOVATION", label: "🏗️ Major" },
+                    ] as const
+                  ).map((scope) => (
+                    <TouchableOpacity
+                      key={scope.value}
+                      style={[
+                        styles.urgencyButton,
+                        jobScope === scope.value && styles.jobScopeActive,
+                      ]}
+                      onPress={() => setJobScope(scope.value)}
+                    >
+                      <Text
+                        style={[
+                          styles.urgencyText,
+                          jobScope === scope.value && styles.urgencyTextActive,
+                        ]}
+                      >
+                        {scope.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* Work Environment */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Work Environment</Text>
+                <View style={styles.urgencyRow}>
+                  {(
+                    [
+                      { value: "INDOOR", label: "🏠 Indoor" },
+                      { value: "OUTDOOR", label: "🌳 Outdoor" },
+                      { value: "BOTH", label: "🔄 Both" },
+                    ] as const
+                  ).map((env) => (
+                    <TouchableOpacity
+                      key={env.value}
+                      style={[
+                        styles.urgencyButton,
+                        workEnvironment === env.value && styles.workEnvActive,
+                      ]}
+                      onPress={() => setWorkEnvironment(env.value)}
+                    >
+                      <Text
+                        style={[
+                          styles.urgencyText,
+                          workEnvironment === env.value &&
+                            styles.urgencyTextActive,
+                        ]}
+                      >
+                        {env.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
             </View>
 
-            {/* Materials Needed */}
+            {/* Materials Section (only if worker selected) */}
             {workerId && (
-              <View style={styles.formGroup}>
-                <Text style={styles.label}>
-                  Materials Needed from Worker (Optional)
-                </Text>
-                {materialsLoading ? (
-                  <View style={styles.loadingCategories}>
-                    <ActivityIndicator size="small" color={Colors.primary} />
-                    <Text style={styles.loadingText}>Loading materials...</Text>
-                  </View>
-                ) : workerMaterials.length > 0 ? (
-                  <View style={styles.materialsContainer}>
-                    {workerMaterials.map((material) => (
-                      <TouchableOpacity
-                        key={material.id}
-                        style={[
-                          styles.materialCard,
-                          selectedMaterials.includes(material.id) &&
-                            styles.materialCardSelected,
-                        ]}
-                        onPress={() => {
-                          setSelectedMaterials((prev) =>
-                            prev.includes(material.id)
-                              ? prev.filter((id) => id !== material.id)
-                              : [...prev, material.id]
-                          );
-                        }}
-                      >
-                        <View style={styles.materialCardContent}>
-                          <View style={styles.materialInfo}>
-                            <Text style={styles.materialName}>
-                              {material.name}
-                            </Text>
-                            {material.description && (
-                              <Text
-                                style={styles.materialDesc}
-                                numberOfLines={1}
-                              >
-                                {material.description}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>🧰 Materials</Text>
+                <View style={styles.inputGroup}>
+                  {materialsLoading ? (
+                    <View style={styles.loadingCategories}>
+                      <ActivityIndicator size="small" color={Colors.primary} />
+                      <Text style={styles.loadingText}>
+                        Loading materials...
+                      </Text>
+                    </View>
+                  ) : workerMaterials.length > 0 ? (
+                    <View style={styles.materialsContainer}>
+                      {workerMaterials.map((material) => (
+                        <TouchableOpacity
+                          key={material.id}
+                          style={[
+                            styles.materialCard,
+                            selectedMaterials.includes(material.id) &&
+                              styles.materialCardSelected,
+                          ]}
+                          onPress={() => {
+                            setSelectedMaterials((prev) =>
+                              prev.includes(material.id)
+                                ? prev.filter((id) => id !== material.id)
+                                : [...prev, material.id]
+                            );
+                          }}
+                        >
+                          <View style={styles.materialCardContent}>
+                            <View style={styles.materialInfo}>
+                              <Text style={styles.materialName}>
+                                {material.name}
                               </Text>
-                            )}
-                            <Text style={styles.materialPrice}>
-                              ₱{material.price.toLocaleString()} /{" "}
-                              {material.priceUnit}
-                            </Text>
+                              {material.description && (
+                                <Text
+                                  style={styles.materialDesc}
+                                  numberOfLines={1}
+                                >
+                                  {material.description}
+                                </Text>
+                              )}
+                              <Text style={styles.materialPrice}>
+                                ₱{material.price.toLocaleString()} /{" "}
+                                {material.priceUnit}
+                              </Text>
+                            </View>
+                            <View style={styles.materialCheckbox}>
+                              {selectedMaterials.includes(material.id) && (
+                                <Ionicons
+                                  name="checkmark"
+                                  size={20}
+                                  color={Colors.white}
+                                />
+                              )}
+                            </View>
                           </View>
-                          <View style={styles.materialCheckbox}>
-                            {selectedMaterials.includes(material.id) && (
-                              <Ionicons
-                                name="checkmark"
-                                size={20}
-                                color={Colors.white}
-                              />
-                            )}
-                          </View>
-                        </View>
-                        {!material.inStock && (
-                          <View style={styles.outOfStockBadge}>
-                            <Text style={styles.outOfStockText}>
-                              Out of Stock
-                            </Text>
-                          </View>
-                        )}
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                ) : (
-                  <Text style={styles.helperText}>
-                    This worker has no materials listed
-                  </Text>
-                )}
+                          {!material.inStock && (
+                            <View style={styles.outOfStockBadge}>
+                              <Text style={styles.outOfStockText}>
+                                Out of Stock
+                              </Text>
+                            </View>
+                          )}
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  ) : (
+                    <Text style={styles.hint}>
+                      This worker has no materials listed
+                    </Text>
+                  )}
+                </View>
               </View>
             )}
 
-            {/* Payment Method - Wallet Only */}
-            <View style={styles.formGroup}>
-              <Text style={styles.label}>Payment Method</Text>
+            {/* Payment Method Section */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>💳 Payment</Text>
 
               {/* Wallet Balance Card */}
               <View
@@ -1007,24 +1198,24 @@ export default function CreateJobScreen() {
                   <Text style={styles.successText}>GCash account linked</Text>
                 </View>
               )}
-            </View>
 
-            {/* Info Box */}
-            <View style={styles.infoBox}>
-              <Ionicons
-                name="information-circle"
-                size={24}
-                color={Colors.primary}
-              />
-              <View style={styles.infoTextContainer}>
-                <Text style={styles.infoTitle}>Payment Process</Text>
-                <Text style={styles.infoText}>
-                  {workerId || agencyId
-                    ? // INVITE job - immediate deduction
-                      `• 50% downpayment will be deducted immediately\n• Funds held in escrow until job completion\n• Worker/Agency completes the job\n• You approve completion\n• Remaining 50% is released`
-                    : // LISTING job - reservation
-                      `• 50% downpayment will be reserved (not deducted)\n• Funds are held when a worker is accepted\n• Worker completes the job\n• You approve completion\n• Remaining 50% is released`}
-                </Text>
+              {/* Info Box */}
+              <View style={styles.infoBox}>
+                <Ionicons
+                  name="information-circle"
+                  size={24}
+                  color={Colors.primary}
+                />
+                <View style={styles.infoTextContainer}>
+                  <Text style={styles.infoTitle}>Payment Process</Text>
+                  <Text style={styles.infoText}>
+                    {workerId || agencyId
+                      ? // INVITE job - immediate deduction
+                        `• 50% downpayment will be deducted immediately\n• Funds held in escrow until job completion\n• Worker/Agency completes the job\n• You approve completion\n• Remaining 50% is released`
+                      : // LISTING job - reservation
+                        `• 50% downpayment will be reserved (not deducted)\n• Funds are held when a worker is accepted\n• Worker completes the job\n• You approve completion\n• Remaining 50% is released`}
+                  </Text>
+                </View>
               </View>
             </View>
           </View>
@@ -1053,11 +1244,15 @@ export default function CreateJobScreen() {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
-    </>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: Colors.white,
+  },
   container: {
     flex: 1,
     backgroundColor: Colors.background,
@@ -1090,7 +1285,106 @@ const styles = StyleSheet.create({
   content: {
     padding: 16,
     paddingBottom: 100,
+    gap: 16,
   },
+  // Section Card Styles
+  section: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    ...Shadows.sm,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+    marginBottom: Spacing.md,
+  },
+  inputGroup: {
+    marginBottom: Spacing.md,
+  },
+  hint: {
+    fontSize: 12,
+    color: Colors.textHint,
+    marginTop: 4,
+  },
+  charCount: {
+    fontSize: 12,
+    color: Colors.textHint,
+    textAlign: "right",
+    marginTop: 4,
+  },
+  // Loading styles
+  loadingContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.md,
+    gap: 8,
+  },
+  // Payment Summary Styles
+  paymentSummary: {
+    backgroundColor: Colors.backgroundSecondary,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginTop: Spacing.sm,
+  },
+  summaryTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+    marginBottom: 8,
+  },
+  summaryRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingVertical: 6,
+  },
+  summaryLabel: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+  },
+  summaryValue: {
+    fontSize: 14,
+    color: Colors.textPrimary,
+    fontWeight: "500",
+  },
+  summaryRowTotal: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    marginTop: 4,
+  },
+  summaryLabelTotal: {
+    fontSize: 15,
+    color: Colors.textPrimary,
+    fontWeight: "600",
+  },
+  summaryValueTotal: {
+    fontSize: 15,
+    color: Colors.primary,
+    fontWeight: "700",
+  },
+  walletBalanceRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingTop: 8,
+    marginTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  walletLabel: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+  },
+  insufficientText: {
+    fontSize: 13,
+    color: Colors.error,
+    fontWeight: "500",
+  },
+  // Legacy styles below
   formGroup: {
     marginBottom: 24,
   },
@@ -1209,6 +1503,18 @@ const styles = StyleSheet.create({
   },
   urgencyTextActive: {
     color: Colors.white,
+  },
+  // Skill Level active style
+  skillLevelActive: {
+    backgroundColor: Colors.info || "#3B82F6",
+  },
+  // Job Scope active style
+  jobScopeActive: {
+    backgroundColor: Colors.warning || "#F59E0B",
+  },
+  // Work Environment active style
+  workEnvActive: {
+    backgroundColor: Colors.success || "#10B981",
   },
   dateButton: {
     flexDirection: "row",
@@ -1409,7 +1715,7 @@ const styles = StyleSheet.create({
   },
   barangayButtonText: {
     fontSize: 16,
-    color: Colors.text,
+    color: Colors.textPrimary,
   },
   barangayButtonPlaceholder: {
     fontSize: 16,
@@ -1443,7 +1749,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: "600",
-    color: Colors.text,
+    color: Colors.textPrimary,
   },
   modalCloseButton: {
     padding: 4,
@@ -1469,7 +1775,7 @@ const styles = StyleSheet.create({
   },
   barangayItemText: {
     fontSize: 16,
-    color: Colors.text,
+    color: Colors.textPrimary,
   },
   barangayItemTextSelected: {
     color: Colors.primary,

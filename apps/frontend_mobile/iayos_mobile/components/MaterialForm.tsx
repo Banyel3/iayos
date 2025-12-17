@@ -28,6 +28,7 @@ import {
 import {
   useCreateMaterial,
   useUpdateMaterial,
+  useMySkills,
   type Material,
   type CreateMaterialRequest,
   type UpdateMaterialRequest,
@@ -127,6 +128,7 @@ export default function MaterialForm({
   const isEditMode = !!material;
   const createMaterial = useCreateMaterial();
   const updateMaterial = useUpdateMaterial();
+  const { data: mySkills = [], isLoading: skillsLoading } = useMySkills();
 
   // Form State
   const [name, setName] = useState("");
@@ -135,6 +137,7 @@ export default function MaterialForm({
   const [quantity, setQuantity] = useState("1");
   const [unit, setUnit] = useState(DEFAULT_UNIT_VALUE);
   const [isAvailable, setIsAvailable] = useState(true);
+  const [categoryId, setCategoryId] = useState<number | null>(null);
   const [materialImage, setMaterialImage] =
     useState<ImagePicker.ImagePickerAsset | null>(null);
   const [errors, setErrors] = useState<FormErrors>({});
@@ -161,6 +164,7 @@ export default function MaterialForm({
       setQuantity(material.quantity?.toString() || "1");
       setUnit(material.unit || DEFAULT_UNIT_VALUE);
       setIsAvailable(material.isAvailable);
+      setCategoryId(material.categoryId ?? null);
       // Don't set materialImage - let user optionally pick a new one
     } else {
       resetForm();
@@ -175,6 +179,7 @@ export default function MaterialForm({
     setQuantity("1");
     setUnit(DEFAULT_UNIT_VALUE);
     setIsAvailable(true);
+    setCategoryId(null);
     setMaterialImage(null);
     setErrors({});
   };
@@ -219,6 +224,7 @@ export default function MaterialForm({
         quantity: quantityNum,
         unit: unit.trim(),
         isAvailable,
+        categoryId: categoryId, // null to remove, number to set
         imageFile: materialImage
           ? {
               uri: materialImage.uri,
@@ -249,6 +255,7 @@ export default function MaterialForm({
         quantity: quantityNum,
         unit: unit.trim(),
         isAvailable,
+        categoryId: categoryId ?? undefined, // Only include if set
         imageFile: materialImage
           ? {
               uri: materialImage.uri,
@@ -481,6 +488,85 @@ export default function MaterialForm({
               )}
               <Text style={styles.hint}>
                 Tap a unit to describe how this material is sold
+              </Text>
+            </View>
+
+            {/* Category/Skill Selection (Optional) */}
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>
+                Link to Skill/Category{" "}
+                <Text style={styles.optional}>(Optional)</Text>
+              </Text>
+              {skillsLoading ? (
+                <View style={styles.skillsLoadingContainer}>
+                  <ActivityIndicator size="small" color={Colors.primary} />
+                  <Text style={styles.skillsLoadingText}>
+                    Loading your skills...
+                  </Text>
+                </View>
+              ) : mySkills && mySkills.length > 0 ? (
+                <View style={styles.unitChipsContainer}>
+                  {/* None option */}
+                  <Pressable
+                    style={[
+                      styles.unitChip,
+                      categoryId === null && styles.unitChipSelected,
+                      isLoading && styles.unitChipDisabled,
+                    ]}
+                    onPress={() => setCategoryId(null)}
+                    disabled={isLoading}
+                  >
+                    <Text
+                      style={[
+                        styles.unitChipText,
+                        categoryId === null && styles.unitChipTextSelected,
+                      ]}
+                    >
+                      None
+                    </Text>
+                  </Pressable>
+                  {/* Skill options */}
+                  {mySkills.map((skill) => {
+                    const isSelected = categoryId === skill.id;
+                    return (
+                      <Pressable
+                        key={skill.id}
+                        style={[
+                          styles.unitChip,
+                          isSelected && styles.unitChipSelected,
+                          isLoading && styles.unitChipDisabled,
+                        ]}
+                        onPress={() => setCategoryId(skill.id)}
+                        disabled={isLoading}
+                      >
+                        <Text
+                          style={[
+                            styles.unitChipText,
+                            isSelected && styles.unitChipTextSelected,
+                          ]}
+                        >
+                          {skill.name}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              ) : (
+                <View style={styles.noSkillsContainer}>
+                  <Ionicons
+                    name="information-circle-outline"
+                    size={20}
+                    color={Colors.textSecondary}
+                  />
+                  <Text style={styles.noSkillsText}>
+                    Add skills to your profile to link materials to specific
+                    categories
+                  </Text>
+                </View>
+              )}
+              <Text style={styles.hint}>
+                Link this material to a skill so clients see it when requesting
+                related jobs
               </Text>
             </View>
 
@@ -729,6 +815,37 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginTop: Spacing.xs,
     fontStyle: "italic",
+  },
+  optional: {
+    color: Colors.textSecondary,
+    fontWeight: "normal",
+    fontStyle: "italic",
+  },
+  skillsLoadingContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    paddingVertical: Spacing.md,
+  },
+  skillsLoadingText: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+  },
+  noSkillsContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    backgroundColor: Colors.background,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.medium,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderStyle: "dashed",
+  },
+  noSkillsText: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+    flex: 1,
   },
   errorText: {
     ...Typography.body.small,

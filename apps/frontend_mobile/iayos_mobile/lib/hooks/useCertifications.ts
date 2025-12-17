@@ -26,7 +26,7 @@ export interface CreateCertificationRequest {
   organization: string; // Fixed: backend expects 'organization' not 'issuingOrganization'
   issueDate: string; // ISO date string
   expiryDate?: string; // ISO date string (optional)
-  specializationId?: number; // Link to skill (optional)
+  specializationId: number; // Link to skill (REQUIRED - all certs must be skill-bound)
   certificateFile?: {
     uri: string;
     name: string;
@@ -125,9 +125,17 @@ export const useCreateCertification = () => {
         formData.append("expiry_date", data.expiryDate);
       }
 
-      if (data.specializationId) {
-        formData.append("specialization_id", data.specializationId.toString());
+      // Always send specialization_id since it's required by backend
+      if (
+        data.specializationId === undefined ||
+        data.specializationId === null ||
+        data.specializationId <= 0
+      ) {
+        throw new Error(
+          "Skill ID is required - all certifications must be linked to a skill"
+        );
       }
+      formData.append("specialization_id", data.specializationId.toString());
 
       // Add certificate file if provided
       if (data.certificateFile) {
@@ -145,7 +153,9 @@ export const useCreateCertification = () => {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || "Failed to create certification");
+        throw new Error(
+          error.error || error.message || "Failed to create certification"
+        );
       }
 
       const result = await response.json();
@@ -290,12 +300,14 @@ export const isCertificationExpired = (
  * Get days until expiry (negative if expired)
  */
 export const getDaysUntilExpiry = (
-  certification: Certification
+  expiryDate: string | null
 ): number | null => {
-  if (!certification.expiryDate) return null;
+  if (!expiryDate) return null;
 
   const today = new Date();
-  const expiry = new Date(certification.expiryDate);
+  const expiry = new Date(expiryDate);
+  if (isNaN(expiry.getTime())) return null;
+
   const diffTime = expiry.getTime() - today.getTime();
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
@@ -305,8 +317,10 @@ export const getDaysUntilExpiry = (
 /**
  * Format date for display
  */
-export const formatCertificationDate = (dateString: string): string => {
+export const formatCertificationDate = (dateString: string | null): string => {
+  if (!dateString) return "N/A";
   const date = new Date(dateString);
+  if (isNaN(date.getTime())) return "Invalid Date";
   return date.toLocaleDateString("en-US", {
     year: "numeric",
     month: "short",

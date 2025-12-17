@@ -26,6 +26,17 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ENDPOINTS, apiRequest } from "@/lib/api/config";
 import * as ImagePicker from "expo-image-picker";
 import { EstimatedTimeCard, type EstimatedCompletion } from "@/components";
+import {
+  useTeamJobDetail,
+  useWorkerCompleteAssignment,
+  useClientApproveTeamJob,
+  type SkillSlot,
+  type WorkerAssignment,
+} from "@/lib/hooks/useTeamJob";
+
+// ============================================================================
+// Interfaces
+// ============================================================================
 
 interface ActiveJobDetail {
   id: string;
@@ -60,7 +71,53 @@ interface ActiveJobDetail {
     file_name: string;
   }>;
   estimated_completion?: EstimatedCompletion | null;
+  // Team Job Fields
+  is_team_job?: boolean;
+  skill_slots?: SkillSlot[];
+  worker_assignments?: WorkerAssignment[];
+  total_workers_needed?: number;
+  total_workers_assigned?: number;
+  team_fill_percentage?: number;
 }
+
+// ============================================================================
+// Helper functions for team jobs
+// ============================================================================
+
+const getSkillLevelBadge = (level: string) => {
+  switch (level) {
+    case "ENTRY":
+      return { label: "Entry", emoji: "🌱", color: "#10B981" };
+    case "INTERMEDIATE":
+      return { label: "Intermediate", emoji: "⭐", color: "#F59E0B" };
+    case "EXPERT":
+      return { label: "Expert", emoji: "👑", color: "#8B5CF6" };
+    default:
+      return { label: level, emoji: "📋", color: Colors.textSecondary };
+  }
+};
+
+const getAssignmentStatusBadge = (status: string, markedComplete: boolean) => {
+  if (markedComplete) {
+    return { label: "Done", color: "#10B981", bg: "#D1FAE5" };
+  }
+  switch (status) {
+    case "ACTIVE":
+      return { label: "Working", color: "#3B82F6", bg: "#DBEAFE" };
+    case "COMPLETED":
+      return { label: "Done", color: "#10B981", bg: "#D1FAE5" };
+    case "REMOVED":
+      return { label: "Removed", color: "#EF4444", bg: "#FEE2E2" };
+    case "WITHDRAWN":
+      return { label: "Withdrawn", color: "#6B7280", bg: "#F3F4F6" };
+    default:
+      return {
+        label: status,
+        color: Colors.textSecondary,
+        bg: Colors.background,
+      };
+  }
+};
 
 export default function ActiveJobDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -73,8 +130,11 @@ export default function ActiveJobDetailScreen() {
   const [uploadedPhotos, setUploadedPhotos] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [selectedAssignment, setSelectedAssignment] =
+    useState<WorkerAssignment | null>(null);
 
   const isWorker = user?.profile_data?.profileType === "WORKER";
+  const currentWorkerId = user?.profile_data?.profileID;
 
   // Fetch job details
   const {
@@ -95,6 +155,33 @@ export default function ActiveJobDetailScreen() {
       return data; // Backend returns job data directly, not wrapped
     },
   });
+
+  // Team job detail hook (for additional team data)
+  const { data: teamJobData } = useTeamJobDetail(
+    Number(id),
+    !!job?.is_team_job
+  );
+
+  // Team job completion hooks
+  const workerCompleteMutation = useWorkerCompleteAssignment();
+  const clientApproveMutation = useClientApproveTeamJob();
+
+  // Determine if this worker is assigned to this team job
+  const myAssignment =
+    job?.is_team_job && job?.worker_assignments
+      ? job.worker_assignments.find((a) => a.worker_id === currentWorkerId)
+      : null;
+
+  // Check if all workers in team have marked complete
+  const allWorkersComplete =
+    job?.is_team_job && job?.worker_assignments
+      ? job.worker_assignments.every((a) => a.worker_marked_complete)
+      : false;
+
+  // Count completed workers
+  const completedWorkersCount =
+    job?.worker_assignments?.filter((a) => a.worker_marked_complete).length ||
+    0;
 
   // Upload photos helper function
   const uploadPhotos = async (jobId: string): Promise<boolean> => {
@@ -301,6 +388,111 @@ export default function ActiveJobDetailScreen() {
         {
           text: "Approve",
           onPress: () => approveCompletionMutation.mutate(),
+        },
+      ]
+    );
+  };
+
+  // ============================================================================
+  // Team Job Handlers
+  // ============================================================================
+
+  const handleTeamWorkerComplete = (assignment: WorkerAssignment) => {
+    setSelectedAssignment(assignment);
+    setShowCompletionModal(true);
+  };
+
+  const handleTeamMarkComplete = () => {
+    if (!completionNotes.trim()) {
+      Alert.alert(
+        "Required",
+        "Please add completion notes describing the work done"
+      );
+      return;
+    }
+
+    if (!selectedAssignment) {
+      Alert.alert("Error", "No assignment selected");
+      return;
+    }
+
+    Alert.alert(
+      "Confirm Completion",
+      "Are you sure you want to mark your work as complete?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Mark Complete",
+          onPress: () => {
+            workerCompleteMutation.mutate(
+              {
+                assignmentId: selectedAssignment.assignment_id,
+                completionNotes: completionNotes,
+              },
+              {
+                onSuccess: () => {
+                  Alert.alert(
+                    "Success",
+                    "Your work has been marked as complete!"
+                  );
+                  setShowCompletionModal(false);
+                  setCompletionNotes("");
+                  setSelectedAssignment(null);
+                  refetch();
+                  queryClient.invalidateQueries({
+                    queryKey: ["team-job", Number(id)],
+                  });
+                },
+                onError: (error: any) => {
+                  Alert.alert(
+                    "Error",
+                    error.message || "Failed to mark complete"
+                  );
+                },
+              }
+            );
+          },
+        },
+      ]
+    );
+  };
+
+  const handleTeamApproveCompletion = () => {
+    if (!allWorkersComplete) {
+      Alert.alert(
+        "Workers Not Complete",
+        `${completedWorkersCount}/${job?.total_workers_needed || 0} workers have marked their work complete. All workers must complete their work first.`
+      );
+      return;
+    }
+
+    Alert.alert(
+      "Approve Team Job",
+      "Are you satisfied with all workers' work? Approving will release payment to all team members.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Approve All",
+          onPress: () => {
+            clientApproveMutation.mutate(
+              { jobId: Number(id) },
+              {
+                onSuccess: () => {
+                  Alert.alert(
+                    "Success",
+                    "Team job completed! Payments will be processed.",
+                    [{ text: "OK", onPress: () => router.back() }]
+                  );
+                },
+                onError: (error: any) => {
+                  Alert.alert(
+                    "Error",
+                    error.message || "Failed to approve completion"
+                  );
+                },
+              }
+            );
+          },
         },
       ]
     );
@@ -521,6 +713,223 @@ export default function ActiveJobDetailScreen() {
                 />
               ))}
             </ScrollView>
+          </View>
+        )}
+
+        {/* Team Job Section */}
+        {job.is_team_job && job.skill_slots && job.skill_slots.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.teamJobHeader}>
+              <View style={styles.teamBadge}>
+                <Ionicons name="people" size={16} color={Colors.white} />
+                <Text style={styles.teamBadgeText}>Team Job</Text>
+              </View>
+              <Text style={styles.teamFillText}>
+                {job.total_workers_assigned || 0}/
+                {job.total_workers_needed || 0} Workers Assigned
+              </Text>
+            </View>
+
+            {/* Team Progress Bar */}
+            <View style={styles.teamProgressContainer}>
+              <View style={styles.teamProgressBar}>
+                <View
+                  style={[
+                    styles.teamProgressFill,
+                    { width: `${job.team_fill_percentage || 0}%` },
+                  ]}
+                />
+              </View>
+              <Text style={styles.teamProgressText}>
+                {Math.round(job.team_fill_percentage || 0)}% Filled
+              </Text>
+            </View>
+
+            {/* Skill Slots */}
+            <Text style={styles.subsectionTitle}>Skill Requirements</Text>
+            {job.skill_slots.map((slot: SkillSlot) => (
+              <View key={slot.skill_slot_id} style={styles.skillSlotCard}>
+                <View style={styles.skillSlotHeader}>
+                  <Text style={styles.skillSlotName}>
+                    {slot.specialization_name}
+                  </Text>
+                  {getSkillLevelBadge(slot.skill_level)}
+                </View>
+                <View style={styles.skillSlotMeta}>
+                  <View style={styles.skillSlotMetaItem}>
+                    <Ionicons
+                      name="people-outline"
+                      size={14}
+                      color={Colors.textSecondary}
+                    />
+                    <Text style={styles.skillSlotMetaText}>
+                      {slot.workers_assigned}/{slot.workers_needed} workers
+                    </Text>
+                  </View>
+                  <View style={styles.skillSlotMetaItem}>
+                    <Ionicons
+                      name="cash-outline"
+                      size={14}
+                      color={Colors.textSecondary}
+                    />
+                    <Text style={styles.skillSlotMetaText}>
+                      ₱{slot.budget_allocated?.toLocaleString() || "0"}
+                    </Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.slotStatusBadge,
+                      slot.status === "FILLED"
+                        ? styles.slotStatusFilled
+                        : slot.status === "PARTIAL"
+                          ? styles.slotStatusPartial
+                          : styles.slotStatusOpen,
+                    ]}
+                  >
+                    <Text style={styles.slotStatusText}>{slot.status}</Text>
+                  </View>
+                </View>
+              </View>
+            ))}
+
+            {/* Worker Assignments */}
+            {job.worker_assignments && job.worker_assignments.length > 0 && (
+              <>
+                <Text
+                  style={[styles.subsectionTitle, { marginTop: Spacing.lg }]}
+                >
+                  Assigned Workers ({completedWorkersCount}/
+                  {job.worker_assignments.length} Complete)
+                </Text>
+                {job.worker_assignments.map((assignment: WorkerAssignment) => (
+                  <View
+                    key={assignment.assignment_id}
+                    style={styles.assignmentCard}
+                  >
+                    <View style={styles.assignmentHeader}>
+                      <Image
+                        source={{
+                          uri:
+                            assignment.worker_avatar ||
+                            "https://via.placeholder.com/40",
+                        }}
+                        style={styles.assignmentAvatar}
+                      />
+                      <View style={styles.assignmentInfo}>
+                        <Text style={styles.assignmentWorkerName}>
+                          {assignment.worker_name}
+                        </Text>
+                        <Text style={styles.assignmentSlot}>
+                          {assignment.slot_specialization}
+                        </Text>
+                      </View>
+                      {getAssignmentStatusBadge(assignment.assignment_status)}
+                    </View>
+
+                    {/* Worker Completion Status */}
+                    <View style={styles.assignmentStatus}>
+                      <View style={styles.assignmentStatusItem}>
+                        <Ionicons
+                          name={
+                            assignment.worker_marked_complete
+                              ? "checkmark-circle"
+                              : "ellipse-outline"
+                          }
+                          size={18}
+                          color={
+                            assignment.worker_marked_complete
+                              ? Colors.success
+                              : Colors.textHint
+                          }
+                        />
+                        <Text
+                          style={[
+                            styles.assignmentStatusText,
+                            assignment.worker_marked_complete &&
+                              styles.assignmentStatusComplete,
+                          ]}
+                        >
+                          {assignment.worker_marked_complete
+                            ? "Work Completed"
+                            : "In Progress"}
+                        </Text>
+                      </View>
+                      {assignment.completion_notes && (
+                        <Text style={styles.assignmentNotes} numberOfLines={2}>
+                          "{assignment.completion_notes}"
+                        </Text>
+                      )}
+                    </View>
+
+                    {/* Worker's own assignment - show mark complete button */}
+                    {isWorker &&
+                      assignment.worker_id === currentWorkerId &&
+                      !assignment.worker_marked_complete && (
+                        <TouchableOpacity
+                          style={styles.assignmentActionButton}
+                          onPress={() => {
+                            setSelectedAssignment(assignment);
+                            setShowCompletionModal(true);
+                          }}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons
+                            name="checkmark-circle-outline"
+                            size={18}
+                            color={Colors.white}
+                          />
+                          <Text style={styles.assignmentActionText}>
+                            Mark My Work Complete
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                  </View>
+                ))}
+
+                {/* Client: Approve All Workers Button */}
+                {!isWorker &&
+                  allWorkersComplete &&
+                  !job.client_marked_complete && (
+                    <TouchableOpacity
+                      style={styles.approveAllButton}
+                      onPress={handleTeamApproveCompletion}
+                      disabled={clientApproveMutation.isPending}
+                      activeOpacity={0.8}
+                    >
+                      {clientApproveMutation.isPending ? (
+                        <ActivityIndicator color={Colors.white} />
+                      ) : (
+                        <>
+                          <Ionicons
+                            name="checkmark-done"
+                            size={20}
+                            color={Colors.white}
+                          />
+                          <Text style={styles.approveAllText}>
+                            Approve All & Complete Job
+                          </Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  )}
+
+                {/* Client waiting message */}
+                {!isWorker && !allWorkersComplete && (
+                  <View style={styles.waitingMessage}>
+                    <Ionicons
+                      name="time-outline"
+                      size={20}
+                      color={Colors.warning}
+                    />
+                    <Text style={styles.waitingMessageText}>
+                      Waiting for{" "}
+                      {job.worker_assignments.length - completedWorkersCount}{" "}
+                      worker(s) to complete
+                    </Text>
+                  </View>
+                )}
+              </>
+            )}
           </View>
         )}
 
@@ -1119,5 +1528,226 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+  },
+  // Team Job Styles
+  teamJobHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: Spacing.md,
+  },
+  teamBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.full,
+  },
+  teamBadgeText: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: "600",
+    color: Colors.white,
+  },
+  teamFillText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+    fontWeight: "500",
+  },
+  teamProgressContainer: {
+    marginBottom: Spacing.lg,
+  },
+  teamProgressBar: {
+    height: 8,
+    backgroundColor: Colors.border,
+    borderRadius: BorderRadius.full,
+    overflow: "hidden",
+    marginBottom: Spacing.xs,
+  },
+  teamProgressFill: {
+    height: "100%",
+    backgroundColor: Colors.success,
+    borderRadius: BorderRadius.full,
+  },
+  teamProgressText: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.textSecondary,
+    textAlign: "right",
+  },
+  subsectionTitle: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+    marginBottom: Spacing.sm,
+  },
+  skillSlotCard: {
+    backgroundColor: Colors.white,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.sm,
+    ...Shadows.sm,
+  },
+  skillSlotHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: Spacing.xs,
+  },
+  skillSlotName: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+  },
+  skillLevelBadge: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.sm,
+  },
+  skillLevelBadgeText: {
+    fontSize: Typography.fontSize.xs,
+    fontWeight: "500",
+  },
+  skillSlotMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    flexWrap: "wrap",
+  },
+  skillSlotMetaItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  skillSlotMetaText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+  },
+  slotStatusBadge: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.sm,
+  },
+  slotStatusFilled: {
+    backgroundColor: "#D1FAE5",
+  },
+  slotStatusPartial: {
+    backgroundColor: "#FEF3C7",
+  },
+  slotStatusOpen: {
+    backgroundColor: "#FEE2E2",
+  },
+  slotStatusText: {
+    fontSize: Typography.fontSize.xs,
+    fontWeight: "500",
+    color: Colors.textPrimary,
+  },
+  assignmentCard: {
+    backgroundColor: Colors.white,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.sm,
+    ...Shadows.sm,
+  },
+  assignmentHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: Spacing.sm,
+  },
+  assignmentAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: Spacing.sm,
+  },
+  assignmentInfo: {
+    flex: 1,
+  },
+  assignmentWorkerName: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+  },
+  assignmentSlot: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+  },
+  assignmentStatusBadge: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.sm,
+  },
+  assignmentStatusBadgeText: {
+    fontSize: Typography.fontSize.xs,
+    fontWeight: "500",
+  },
+  assignmentStatus: {
+    paddingTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  assignmentStatusItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+  },
+  assignmentStatusText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+  },
+  assignmentStatusComplete: {
+    color: Colors.success,
+    fontWeight: "500",
+  },
+  assignmentNotes: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+    fontStyle: "italic",
+    marginTop: Spacing.xs,
+  },
+  assignmentActionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.xs,
+    backgroundColor: Colors.primary,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    marginTop: Spacing.sm,
+  },
+  assignmentActionText: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: "600",
+    color: Colors.white,
+  },
+  approveAllButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+    backgroundColor: Colors.success,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginTop: Spacing.md,
+    ...Shadows.sm,
+  },
+  approveAllText: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: "600",
+    color: Colors.white,
+  },
+  waitingMessage: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    backgroundColor: "#FEF3C7",
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginTop: Spacing.md,
+  },
+  waitingMessageText: {
+    flex: 1,
+    fontSize: Typography.fontSize.sm,
+    color: "#92400E",
   },
 });

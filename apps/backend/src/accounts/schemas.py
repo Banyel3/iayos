@@ -147,6 +147,10 @@ class CreateJobMobileSchema(Schema):
     preferred_start_date: Optional[str] = None  # ISO format datetime string
     materials_needed: Optional[list] = None  # List of strings
     downpayment_method: str  # 'WALLET' | 'GCASH'
+    # Universal fields for ML accuracy
+    job_scope: Optional[str] = "MINOR_REPAIR"  # 'MINOR_REPAIR' | 'MODERATE_PROJECT' | 'MAJOR_RENOVATION'
+    skill_level_required: Optional[str] = "INTERMEDIATE"  # 'ENTRY' | 'INTERMEDIATE' | 'EXPERT'
+    work_environment: Optional[str] = "INDOOR"  # 'INDOOR' | 'OUTDOOR' | 'BOTH'
 
 class ApplyJobMobileSchema(Schema):
     """Mobile-optimized schema for job application"""
@@ -188,6 +192,13 @@ class AssignRoleMobileSchema(Schema):
     """Mobile-specific schema for assigning role (uses authenticated user)"""
     profile_type: str  # 'WORKER' | 'CLIENT'
 
+class UpdateProfileMobileSchema(Schema):
+    """Mobile-specific schema for updating user profile"""
+    firstName: Optional[str] = None
+    lastName: Optional[str] = None
+    contactNum: Optional[str] = None
+    birthDate: Optional[str] = None  # YYYY-MM-DD format
+
 # ========================================
 # WORKER PHASE 1 SCHEMAS - Profile Enhancement
 # ========================================
@@ -197,6 +208,7 @@ class WorkerProfileUpdateSchema(Schema):
     bio: Optional[str] = None
     description: Optional[str] = None
     hourly_rate: Optional[float] = None
+    soft_skills: Optional[str] = None
 
 class WorkerProfileResponse(Schema):
     """Response schema for worker profile update"""
@@ -206,6 +218,7 @@ class WorkerProfileResponse(Schema):
     bio: str
     description: str
     hourly_rate: Optional[float]
+    soft_skills: str
 
 class ProfileCompletionResponse(Schema):
     """Schema for profile completion details"""
@@ -263,6 +276,8 @@ class MaterialSchema(Schema):
     unit: str
     image_url: Optional[str]
     is_available: bool
+    category_id: Optional[int] = None
+    category_name: Optional[str] = None
     createdAt: str
     updatedAt: str
 
@@ -273,6 +288,7 @@ class AddMaterialRequest(Schema):
     price: float
     quantity: float = 1.0
     unit: str = "piece"
+    category_id: Optional[int] = None  # Optional link to specialization/category
 
 class UpdateMaterialRequest(Schema):
     """Schema for updating material"""
@@ -282,6 +298,7 @@ class UpdateMaterialRequest(Schema):
     quantity: Optional[float] = None
     unit: Optional[str] = None
     is_available: Optional[bool] = None
+    category_id: Optional[int] = None  # Can update category link
 
 class MaterialResponse(Schema):
     """Response schema for material operations"""
@@ -332,3 +349,19 @@ class CreateInviteJobMobileSchema(Schema):
     worker_id: Optional[int] = None  # Either worker_id OR agency_id (not both)
     agency_id: Optional[int] = None
     downpayment_method: str  # 'WALLET' | 'GCASH'
+    # Universal fields for ML accuracy
+    job_scope: Optional[str] = "MINOR_REPAIR"  # 'MINOR_REPAIR' | 'MODERATE_PROJECT' | 'MAJOR_RENOVATION'
+    skill_level_required: Optional[str] = "INTERMEDIATE"  # 'ENTRY' | 'INTERMEDIATE' | 'EXPERT'
+    work_environment: Optional[str] = "INDOOR"  # 'INDOOR' | 'OUTDOOR' | 'BOTH'
+
+
+# Skill Management Schemas
+class AddSkillSchema(Schema):
+    """Schema for adding a skill to worker profile"""
+    specialization_id: int
+    experience_years: int = 0
+
+
+class UpdateSkillSchema(Schema):
+    """Schema for updating skill experience years"""
+    experience_years: int

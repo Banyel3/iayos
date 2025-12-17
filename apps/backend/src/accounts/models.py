@@ -160,6 +160,11 @@ class WorkerProfile(models.Model):
         default=0,
         help_text="Profile completion percentage (0-100)"
     )
+    soft_skills = models.TextField(
+        blank=True,
+        default="",
+        help_text="Comma-separated soft skills (e.g., 'Punctual, Team Player, Bilingual')"
+    )
     
     class AvailabilityStatus(models.TextChoices):
         AVAILABLE = "AVAILABLE", 'available'
@@ -251,14 +256,12 @@ class WorkerCertification(models.Model):
         related_name='certifications'
     )
     
-    # Link to specific skill (optional - certifications can be general)
+    # Link to specific skill (REQUIRED - all certifications must be bound to a skill)
     specializationID = models.ForeignKey(
         'workerSpecialization',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
+        on_delete=models.CASCADE,
         related_name='certifications',
-        help_text="The specific skill this certification is for (e.g., Plumbing, Electrical)"
+        help_text="The specific skill this certification is for (e.g., Plumbing, Electrical). All certifications must be linked to a skill."
     )
     
     name = models.CharField(
@@ -341,12 +344,25 @@ class WorkerMaterial(models.Model):
     """
     Materials/products offered by workers.
     Examples: Construction materials, spare parts, products they sell
+    
+    Materials can be linked to a specific specialization/category so clients
+    only see relevant materials when hiring for a specific job type.
     """
     materialID = models.BigAutoField(primary_key=True)
     workerID = models.ForeignKey(
         WorkerProfile,
         on_delete=models.CASCADE,
         related_name='materials'
+    )
+    
+    # Optional link to specialization - allows filtering materials by job category
+    categoryID = models.ForeignKey(
+        Specializations,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='materials',
+        help_text="The category/specialization this material is for (e.g., Plumbing, Electrical). Optional."
     )
     
     name = models.CharField(
@@ -393,11 +409,13 @@ class WorkerMaterial(models.Model):
         ordering = ['-createdAt']
         indexes = [
             models.Index(fields=['workerID', 'is_available']),
+            models.Index(fields=['workerID', 'categoryID']),  # For filtering by category
             models.Index(fields=['name']),
         ]
     
     def __str__(self):
-        return f"{self.name} - ₱{self.price} for {self.quantity} {self.unit}"
+        category = f" [{self.categoryID.specializationName}]" if self.categoryID else ""
+        return f"{self.name}{category} - ₱{self.price} for {self.quantity} {self.unit}"
 
 
 class WorkerPortfolio(models.Model):
@@ -479,7 +497,7 @@ class kyc(models.Model):
         blank=True,
         related_name="reviewed_kyc"
     )
-    notes = models.CharField(max_length=211)
+    notes = models.TextField(blank=True, default="")  # Changed from CharField(211) to store AI rejection messages
     
     # KYC Enhancement fields (Module 6)
     rejectionCategory = models.CharField(
@@ -529,6 +547,23 @@ class kycFiles(models.Model):
         POLICE = "POLICE", 'police'
         NBI = "NBI", 'nbi'
 
+    class AIVerificationStatus(models.TextChoices):
+        PENDING = "PENDING", "Pending Verification"
+        PASSED = "PASSED", "AI Verification Passed"
+        FAILED = "FAILED", "AI Verification Failed"
+        WARNING = "WARNING", "Needs Manual Review"
+        SKIPPED = "SKIPPED", "Verification Skipped"
+    
+    class AIRejectionReason(models.TextChoices):
+        NO_FACE_DETECTED = "NO_FACE_DETECTED", "No Face Detected"
+        MULTIPLE_FACES = "MULTIPLE_FACES", "Multiple Faces"
+        FACE_TOO_SMALL = "FACE_TOO_SMALL", "Face Too Small"
+        MISSING_REQUIRED_TEXT = "MISSING_REQUIRED_TEXT", "Missing Required Text"
+        IMAGE_TOO_BLURRY = "IMAGE_TOO_BLURRY", "Image Too Blurry"
+        RESOLUTION_TOO_LOW = "RESOLUTION_TOO_LOW", "Resolution Too Low"
+        INVALID_ORIENTATION = "INVALID_ORIENTATION", "Invalid Orientation"
+        UNREADABLE_DOCUMENT = "UNREADABLE_DOCUMENT", "Unreadable Document"
+
     idType = models.CharField(
         max_length=20, 
         choices=IDType.choices, 
@@ -539,6 +574,32 @@ class kycFiles(models.Model):
     fileName = models.CharField(max_length=255, null=True, blank=True)
     fileSize = models.IntegerField(null=True, blank=True)  # Size in bytes
     uploadedAt = models.DateTimeField(auto_now_add=True)
+    
+    # AI Verification Fields (CompreFace + Tesseract OCR)
+    ai_verification_status = models.CharField(
+        max_length=20,
+        choices=AIVerificationStatus.choices,
+        default=AIVerificationStatus.PENDING,
+        help_text='Result of automated AI verification'
+    )
+    face_detected = models.BooleanField(null=True, blank=True, help_text='Face detected in document')
+    face_count = models.IntegerField(null=True, blank=True, help_text='Number of faces detected')
+    face_confidence = models.FloatField(null=True, blank=True, help_text='Face detection confidence (0-1)')
+    ocr_text = models.TextField(null=True, blank=True, help_text='Extracted text via OCR')
+    ocr_confidence = models.FloatField(null=True, blank=True, help_text='OCR confidence (0-1)')
+    quality_score = models.FloatField(null=True, blank=True, help_text='Image quality score (0-1)')
+    ai_confidence_score = models.FloatField(null=True, blank=True, help_text='Overall AI confidence (0-1)')
+    ai_rejection_reason = models.CharField(
+        max_length=50,
+        choices=AIRejectionReason.choices,
+        null=True,
+        blank=True,
+        help_text='Reason for AI rejection'
+    )
+    ai_rejection_message = models.CharField(max_length=500, null=True, blank=True, help_text='User-facing rejection message')
+    ai_warnings = models.JSONField(null=True, blank=True, default=list, help_text='Warnings from AI')
+    ai_details = models.JSONField(null=True, blank=True, default=dict, help_text='Full AI verification details')
+    verified_at = models.DateTimeField(null=True, blank=True, help_text='When AI verification completed')
     
     def clean(self):
         """Validate that idType is provided for ID files"""
@@ -552,6 +613,11 @@ class kycFiles(models.Model):
     def save(self, *args, **kwargs):
         self.full_clean() 
         super().save(*args, **kwargs)
+    
+    class Meta:
+        indexes = [
+            models.Index(fields=['ai_verification_status'], name='kyc_ai_status_idx'),
+        ]
 
 
 class Notification(models.Model):
@@ -796,6 +862,46 @@ class Job(models.Model):
         choices=UrgencyLevel.choices,
         default="MEDIUM"
     )
+    
+    # ============================================================
+    # UNIVERSAL JOB FIELDS - For ML Price Prediction Accuracy
+    # ============================================================
+    class JobScope(models.TextChoices):
+        MINOR_REPAIR = "MINOR_REPAIR", "Minor Repair (quick fix)"
+        MODERATE_PROJECT = "MODERATE_PROJECT", "Moderate Project (few hours to a day)"
+        MAJOR_RENOVATION = "MAJOR_RENOVATION", "Major Renovation (multi-day project)"
+    
+    job_scope = models.CharField(
+        max_length=20,
+        choices=JobScope.choices,
+        default="MINOR_REPAIR",
+        help_text="Scope/complexity of the job"
+    )
+    
+    class SkillLevelRequired(models.TextChoices):
+        ENTRY = "ENTRY", "Entry Level (basic skills)"
+        INTERMEDIATE = "INTERMEDIATE", "Intermediate (experienced)"
+        EXPERT = "EXPERT", "Expert (specialized/licensed)"
+    
+    skill_level_required = models.CharField(
+        max_length=15,
+        choices=SkillLevelRequired.choices,
+        default="INTERMEDIATE",
+        help_text="Skill level required for this job"
+    )
+    
+    class WorkEnvironment(models.TextChoices):
+        INDOOR = "INDOOR", "Indoor"
+        OUTDOOR = "OUTDOOR", "Outdoor"
+        BOTH = "BOTH", "Both Indoor & Outdoor"
+    
+    work_environment = models.CharField(
+        max_length=10,
+        choices=WorkEnvironment.choices,
+        default="INDOOR",
+        help_text="Where the work will be performed"
+    )
+    # ============================================================
     
     # Preferred Start Date
     preferredStartDate = models.DateField(null=True, blank=True)
@@ -2007,6 +2113,10 @@ class JobWorkerAssignment(models.Model):
         choices=AssignmentStatus.choices,
         default="ACTIVE"
     )
+    
+    # Worker arrival confirmation (matches regular job workflow)
+    client_confirmed_arrival = models.BooleanField(default=False)
+    client_confirmed_arrival_at = models.DateTimeField(null=True, blank=True)
     
     # Worker completion tracking (for individual worker completion in team jobs)
     worker_marked_complete = models.BooleanField(default=False)

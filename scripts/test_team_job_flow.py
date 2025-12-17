@@ -13,10 +13,22 @@ BASE_URL = "http://localhost:8000/api"
 CLIENT_EMAIL = "testclient_team@test.com"  # Test Client
 CLIENT_PASSWORD = "test123456"
 
-WORKER1_EMAIL = "testworker1_team@test.com"  # Worker 1
-WORKER2_EMAIL = "testworker2_team@test.com"  # Worker 2
-WORKER3_EMAIL = "testworker3_team@test.com"  # Worker 3
+# Use test worker accounts (passwords have been reset)
+# Worker info: (email, worker_id from API)
+# Worker IDs are from the worker_assignments API response
+WORKERS = [
+    {"email": "testworker1_team@test.com", "name": "Worker1 Test"},
+    {"email": "testworker2_team@test.com", "name": "Worker2 Test"},
+    {"email": "testworker3_team@test.com", "name": "Worker3 Test"},
+]
 WORKER_PASSWORD = "test123456"
+
+# Mapping from worker names (as returned by API) to their emails
+WORKER_NAME_TO_EMAIL = {
+    "Worker1 Test": "testworker1_team@test.com",
+    "Worker2 Test": "testworker2_team@test.com",
+    "Worker3 Test": "testworker3_team@test.com",
+}
 
 # Specialization IDs from database
 PLUMBING_SPEC_ID = 1
@@ -98,12 +110,14 @@ def main():
     
     results["client_login"] = client_token is not None
     
-    # Try to login workers
+    # Try to login workers - store as dict mapping email to token
     worker_tokens = []
-    for email in [WORKER1_EMAIL, WORKER2_EMAIL, WORKER3_EMAIL]:
-        token = login(email, WORKER_PASSWORD)
+    worker_tokens_by_email = {}  # email -> token mapping
+    for worker in WORKERS:
+        token = login(worker["email"], WORKER_PASSWORD)
         if token:
             worker_tokens.append(token)
+            worker_tokens_by_email[worker["email"]] = token
     
     results["worker_logins"] = len(worker_tokens) > 0
     print(f"\n📋 Authenticated {len(worker_tokens)} workers")
@@ -446,7 +460,275 @@ def main():
                     for member in tc.get('team_members', []):
                         print(f"   - {member.get('name', 'N/A')} ({member.get('skill', 'N/A')}) - {member.get('role', 'N/A')}")
                     break
+
+    # ===========================================================================
+    # STEP 11: Worker 3 Applies to fill remaining Plumbing slot
+    # ===========================================================================
+    print_section("STEP 11: Worker 3 Applies to Remaining Plumbing Slot")
     
+    results["worker3_application"] = False
+    plumbing_slot_id = None
+    
+    # Find the Plumbing slot ID
+    for slot in skill_slots:
+        if slot.get('specialization_name') == 'Plumbing':
+            plumbing_slot_id = slot.get('skill_slot_id') or slot.get('id')
+            break
+    
+    if len(worker_tokens) >= 3 and plumbing_slot_id:
+        apply_data = {
+            "skill_slot_id": plumbing_slot_id,
+            "proposal_message": "Worker 3 applying to complete the plumbing team. Experienced plumber ready to work!",
+            "proposed_budget": 5000,
+            "budget_option": "ACCEPT"
+        }
+        response = requests.post(
+            f"{BASE_URL}/jobs/team/{team_job_id}/apply",
+            json=apply_data,
+            headers=get_auth_header(worker_tokens[2])
+        )
+        results["worker3_application"] = print_result("Worker 3 Apply to Plumbing Slot", response)
+        
+        if response.status_code == 200:
+            app_data = response.json()
+            worker3_app_id = app_data.get('application_id')
+            print(f"\n✅ Worker 3 Application ID: {worker3_app_id}")
+            
+            # Client accepts Worker 3
+            print_section("STEP 12: Client Accepts Worker 3")
+            response = requests.post(
+                f"{BASE_URL}/jobs/team/{team_job_id}/applications/{worker3_app_id}/accept",
+                headers=get_auth_header(client_token)
+            )
+            results["accept_worker3"] = print_result("Accept Worker 3 Application", response)
+    else:
+        print("⚠️ Cannot apply Worker 3 - missing token or slot ID")
+    
+    # ===========================================================================
+    # STEP 13: Check Team is Now Full and Start Job
+    # ===========================================================================
+    print_section("STEP 13: Check Team Status & Start Job")
+    
+    response = requests.get(
+        f"{BASE_URL}/jobs/team/{team_job_id}",
+        headers=get_auth_header(client_token)
+    )
+    
+    if response.status_code == 200:
+        team_detail = response.json()
+        print(f"\n📋 Updated Team Status:")
+        print(f"   Workers Assigned: {team_detail.get('total_workers_assigned', 0)}/{team_detail.get('total_workers_needed', 0)}")
+        print(f"   Fill Percentage: {team_detail.get('team_fill_percentage', 0)}%")
+        print(f"   Can Start: {team_detail.get('can_start', False)}")
+        
+        assignments = team_detail.get('worker_assignments', [])
+        assignment_ids = [a.get('assignment_id') for a in assignments]
+        
+        if team_detail.get('can_start') or team_detail.get('team_fill_percentage', 0) >= 100:
+            # Start the job with available workers
+            response = requests.post(
+                f"{BASE_URL}/jobs/team/{team_job_id}/start",
+                headers=get_auth_header(client_token)
+            )
+            results["job_started"] = print_result("Start Team Job", response)
+        else:
+            print("⚠️ Team not yet full, attempting to start anyway...")
+            response = requests.post(
+                f"{BASE_URL}/jobs/team/{team_job_id}/start",
+                headers=get_auth_header(client_token)
+            )
+            results["job_started"] = print_result("Start Team Job (Force)", response)
+    
+    # ===========================================================================
+    # STEP 13b: Verify Team Conversation Created After Job Start
+    # ===========================================================================
+    print_section("STEP 13b: Verify Team Group Conversation Created")
+    
+    team_conversation_id = None
+    
+    # Workers should now have access to the team conversation
+    response = requests.get(
+        f"{BASE_URL}/profiles/chat/conversations",
+        headers=get_auth_header(worker_tokens[0])
+    )
+    
+    if response.status_code == 200:
+        conv_data = response.json()
+        convs = conv_data.get('conversations', [])
+        
+        # Find the conversation for our team job
+        for conv in convs:
+            if conv.get('job', {}).get('id') == team_job_id:
+                team_conversation_id = conv.get('id')
+                print(f"✅ Found team conversation ID: {team_conversation_id} for Job {team_job_id}")
+                print(f"   Team Members: {len(conv.get('team_members', []))}")
+                print(f"   Last Message: {conv.get('last_message', '')[:80]}...")
+                break
+        
+        if not team_conversation_id:
+            print(f"⚠️ No conversation found for job {team_job_id}")
+            # List all team job IDs for debugging
+            job_ids = [c.get('job', {}).get('id') for c in convs if c.get('conversation_type') == 'TEAM_GROUP']
+            print(f"   Available team job IDs: {job_ids[:5]}...")
+    
+    results["group_chat_messaging"] = team_conversation_id is not None
+    
+    # ===========================================================================
+    # STEP 14: Workers Mark Their Assignments Complete
+    # ===========================================================================
+    print_section("STEP 14: Workers Mark Assignments Complete")
+    
+    results["workers_complete"] = False
+    
+    # Get current assignments
+    response = requests.get(
+        f"{BASE_URL}/jobs/team/{team_job_id}",
+        headers=get_auth_header(client_token)
+    )
+    
+    if response.status_code == 200:
+        team_detail = response.json()
+        assignments = team_detail.get('worker_assignments', [])
+        complete_count = 0
+        
+        # Use global mapping of worker names to emails
+        for assignment in assignments:
+            assignment_id = assignment.get('assignment_id')
+            worker_name = assignment.get('worker_name', 'Unknown')
+            worker_email = WORKER_NAME_TO_EMAIL.get(worker_name)
+            
+            if worker_email and worker_email in worker_tokens_by_email:
+                token = worker_tokens_by_email[worker_email]
+                
+                complete_data = {
+                    "notes": f"{worker_name}: Work completed successfully! All tasks done as requested."
+                }
+                
+                # Correct endpoint: /team/assignments/{assignment_id}/complete
+                response = requests.post(
+                    f"{BASE_URL}/jobs/team/assignments/{assignment_id}/complete",
+                    json=complete_data,
+                    headers=get_auth_header(token)
+                )
+                
+                if print_result(f"{worker_name} Marks Complete (Assignment #{assignment_id})", response):
+                    complete_count += 1
+            else:
+                print(f"⚠️ Could not find token for {worker_name} (email: {worker_email})")
+        
+        results["workers_complete"] = complete_count == len(assignments)
+        print(f"\n✅ {complete_count}/{len(assignments)} workers marked complete")
+    
+    # ===========================================================================
+    # STEP 15: Client Approves Team Job Completion
+    # ===========================================================================
+    print_section("STEP 15: Client Approves Team Job Completion")
+    
+    results["client_approval"] = False
+    
+    # Correct endpoint: /{job_id}/team/approve-completion
+    response = requests.post(
+        f"{BASE_URL}/jobs/{team_job_id}/team/approve-completion",
+        headers=get_auth_header(client_token)
+    )
+    results["client_approval"] = print_result("Client Approves Team Completion", response)
+    
+    # ===========================================================================
+    # STEP 16: Submit Reviews
+    # ===========================================================================
+    print_section("STEP 16: Submit Reviews")
+    
+    results["reviews_submitted"] = False
+    reviews_count = 0
+    
+    # Client reviews each worker
+    response = requests.get(
+        f"{BASE_URL}/jobs/team/{team_job_id}",
+        headers=get_auth_header(client_token)
+    )
+    
+    if response.status_code == 200:
+        team_detail = response.json()
+        assignments = team_detail.get('worker_assignments', [])
+        
+        for assignment in assignments:
+            worker_id = assignment.get('worker_id')
+            worker_name = assignment.get('worker_name', 'Worker')
+            
+            # Multi-criteria ratings required
+            review_data = {
+                "worker_id": worker_id,  # For team jobs: specific worker to review
+                "rating_quality": 5,
+                "rating_communication": 5,
+                "rating_punctuality": 5,
+                "rating_professionalism": 5,
+                "message": f"Excellent work by {worker_name}! Very professional and completed on time."
+            }
+            
+            # Correct endpoint: /{job_id}/review
+            response = requests.post(
+                f"{BASE_URL}/jobs/{team_job_id}/review",
+                json=review_data,
+                headers=get_auth_header(client_token)
+            )
+            
+            if print_result(f"Client Review for {worker_name}", response):
+                reviews_count += 1
+        
+        # Workers review the client - need to use correct token for each worker
+        client_id = team_detail.get('client_id')
+        
+        for assignment in assignments:
+            worker_name = assignment.get('worker_name', 'Worker')
+            worker_email = WORKER_NAME_TO_EMAIL.get(worker_name)
+            
+            if worker_email and worker_email in worker_tokens_by_email:
+                token = worker_tokens_by_email[worker_email]
+                
+                review_data = {
+                    "rating_quality": 5,
+                    "rating_communication": 5,
+                    "rating_punctuality": 5,
+                    "rating_professionalism": 5,
+                    "message": f"Great client to work with! Clear instructions and prompt payment."
+                }
+                
+                # Correct endpoint: /{job_id}/review
+                response = requests.post(
+                    f"{BASE_URL}/jobs/{team_job_id}/review",
+                    json=review_data,
+                    headers=get_auth_header(token)
+                )
+                
+                if print_result(f"{worker_name} Review for Client", response):
+                    reviews_count += 1
+    
+    results["reviews_submitted"] = reviews_count > 0
+    print(f"\n📝 Total reviews submitted: {reviews_count}")
+    
+    # ===========================================================================
+    # STEP 17: Final Job Status Check
+    # ===========================================================================
+    print_section("STEP 17: Final Job Status")
+    
+    response = requests.get(
+        f"{BASE_URL}/jobs/team/{team_job_id}",
+        headers=get_auth_header(client_token)
+    )
+    
+    if response.status_code == 200:
+        final_detail = response.json()
+        print(f"\n🏁 FINAL JOB STATUS:")
+        print(f"   Job ID: {team_job_id}")
+        print(f"   Title: {final_detail.get('title')}")
+        print(f"   Status: {final_detail.get('status')}")
+        print(f"   Total Budget: ₱{final_detail.get('total_budget', 0):,.2f}")
+        print(f"   Workers: {final_detail.get('total_workers_assigned', 0)}/{final_detail.get('total_workers_needed', 0)}")
+        
+        for a in final_detail.get('worker_assignments', []):
+            status = "✅ COMPLETE" if a.get('worker_marked_complete') else "⏳ In Progress"
+            print(f"   - {a.get('worker_name')}: {status}")
+
     # ===========================================================================
     # SUMMARY
     # ===========================================================================

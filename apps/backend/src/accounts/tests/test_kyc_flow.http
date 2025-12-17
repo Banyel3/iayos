@@ -1,0 +1,194 @@
+# ===========================================================================
+# KYC DOCUMENT UPLOAD & VERIFICATION FLOW TEST
+# Tests the complete KYC lifecycle with AI verification (Tesseract OCR + CompreFace)
+# ===========================================================================
+
+@baseUrl = http://localhost:8000/api
+@testEmail = test@test.com
+@testPassword = test123456
+
+# ===========================================================================
+# STEP 0: Authentication - Get token
+# ===========================================================================
+
+### 0.1 Login to get token
+# @name userLogin
+POST {{baseUrl}}/mobile/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{testEmail}}",
+  "password": "{{testPassword}}"
+}
+
+### Save token
+@authToken = {{userLogin.response.body.access_token}}
+
+# ===========================================================================
+# STEP 1: Check Current KYC Status
+# ===========================================================================
+
+### 1.1 Get current KYC status (before upload)
+# @name kycStatusBefore
+GET {{baseUrl}}/accounts/kyc-status
+Authorization: Bearer {{authToken}}
+
+### 1.2 Get KYC history
+# @name kycHistory
+GET {{baseUrl}}/accounts/kyc/history
+Authorization: Bearer {{authToken}}
+
+# ===========================================================================
+# STEP 2: Upload KYC Documents (ID + Clearance)
+# Note: Replace file paths with actual test images on your system
+# ===========================================================================
+
+### 2.1 Upload National ID (Front + Back) with Selfie
+# Uses form-data for file upload
+# IDType options: PASSPORT, NATIONALID, UMID, PHILHEALTH, DRIVERSLICENSE
+# clearanceType options: POLICE, NBI
+# @name uploadKYCNationalID
+POST {{baseUrl}}/accounts/upload/kyc
+Authorization: Bearer {{authToken}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="IDType"
+
+NATIONALID
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="clearanceType"
+
+NBI
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### 2.2 Check KYC status after upload
+# @name kycStatusAfter
+GET {{baseUrl}}/accounts/kyc-status
+Authorization: Bearer {{authToken}}
+
+# ===========================================================================
+# STEP 3: Admin Panel KYC Management Endpoints
+# ===========================================================================
+
+### 3.1 Get pending KYC submissions (Admin)
+# @name pendingKYC
+GET {{baseUrl}}/adminpanel/kyc/pending
+Authorization: Bearer {{authToken}}
+
+### 3.2 Get KYC statistics (Admin)
+# @name kycStats
+GET {{baseUrl}}/adminpanel/kyc/stats
+Authorization: Bearer {{authToken}}
+
+### 3.3 Get specific KYC detail (replace ID)
+# @kycId = 1
+# @name kycDetail
+GET {{baseUrl}}/adminpanel/kyc/{{kycId}}
+Authorization: Bearer {{authToken}}
+
+# ===========================================================================
+# STEP 4: Test AI Verification Status Queries
+# ===========================================================================
+
+### 4.1 Get profile to check KYC verification status
+# @name profileStatus
+GET {{baseUrl}}/mobile/profile/me
+Authorization: Bearer {{authToken}}
+
+### 4.2 Check current user info
+# @name currentUser
+GET {{baseUrl}}/accounts/current
+Authorization: Bearer {{authToken}}
+
+# ===========================================================================
+# STEP 5: Error Cases
+# ===========================================================================
+
+### 5.1 Upload without auth (should fail 401)
+POST {{baseUrl}}/accounts/upload/kyc
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary
+
+------WebKitFormBoundary
+Content-Disposition: form-data; name="IDType"
+
+NATIONALID
+------WebKitFormBoundary--
+
+### 5.2 Get KYC status without auth (should fail 401)
+GET {{baseUrl}}/accounts/kyc-status
+
+# ===========================================================================
+# Admin KYC Approval/Rejection
+# ===========================================================================
+
+### 6.1 Approve KYC (Admin) - replace kycId
+# @name approveKYC
+POST {{baseUrl}}/adminpanel/kyc/1/approve
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+  "notes": "All documents verified successfully"
+}
+
+### 6.2 Reject KYC (Admin) - replace kycId  
+# @name rejectKYC
+POST {{baseUrl}}/adminpanel/kyc/1/reject
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+  "reason": "Document image is too blurry, please resubmit with clearer photos"
+}
+
+### 6.3 Check KYC status after admin action
+GET {{baseUrl}}/accounts/kyc-status
+Authorization: Bearer {{authToken}}
+
+### 6.4 Check KYC history after admin action
+GET {{baseUrl}}/accounts/kyc/history
+Authorization: Bearer {{authToken}}
+
+# ===========================================================================
+# EXPECTED RESPONSES
+# ===========================================================================
+
+# KYC Status Response (before upload):
+# {
+#   "success": true,
+#   "status": "NOT_STARTED",
+#   "kyc_id": null,
+#   "files": []
+# }
+
+# KYC Status Response (after upload):
+# {
+#   "success": true,
+#   "status": "PENDING",
+#   "kyc_id": 123,
+#   "submitted_at": "2025-12-12T...",
+#   "files": [
+#     {
+#       "file_id": 1,
+#       "file_type": "NATIONALID",
+#       "file_url": "https://...",
+#       "ai_status": "PASSED" | "FAILED" | "WARNING",
+#       "ai_confidence": 0.85,
+#       "face_detected": true,
+#       "ocr_text": "extracted text...",
+#       "quality_score": 0.92
+#     }
+#   ]
+# }
+
+# AI Verification adds these fields to each file:
+# - ai_verification_status: PENDING | PASSED | FAILED | WARNING | SKIPPED
+# - face_detected: boolean
+# - face_count: number
+# - face_confidence: 0.0-1.0
+# - ocr_text: extracted text from document
+# - ocr_confidence: 0.0-1.0
+# - quality_score: 0.0-1.0 (blur detection)
+# - ai_rejection_reason: null or one of AIRejectionReason choices
+# - ai_rejection_message: human-readable rejection message

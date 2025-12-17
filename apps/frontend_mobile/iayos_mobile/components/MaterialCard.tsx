@@ -133,6 +133,16 @@ export default function MaterialCard({
           {material.description}
         </Text>
 
+        {/* Category Badge (if linked to a skill) */}
+        {material.categoryName && (
+          <View style={styles.categoryBadge}>
+            <Ionicons name="pricetag" size={12} color={Colors.primary} />
+            <Text style={styles.categoryBadgeText}>
+              {material.categoryName}
+            </Text>
+          </View>
+        )}
+
         {/* Price and Availability Row */}
         <View style={styles.priceRow}>
           <Text style={styles.priceText}>
@@ -280,6 +290,22 @@ const styles = StyleSheet.create({
     ...Typography.body.medium,
     color: Colors.textSecondary,
     marginBottom: Spacing.sm,
+  },
+  categoryBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: Colors.primaryLight,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.small,
+    alignSelf: "flex-start",
+    marginBottom: Spacing.sm,
+  },
+  categoryBadgeText: {
+    ...Typography.body.small,
+    color: Colors.primary,
+    fontWeight: "500",
   },
   priceRow: {
     flexDirection: "row",

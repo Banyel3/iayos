@@ -31,9 +31,9 @@
       "androidCollapsedTitle": "iAyos"
     },
     "web": {
-      "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "bundler": "metro"
     },
+    "platforms": ["ios", "android"],
     "plugins": [
       "expo-router",
       [

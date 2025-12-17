@@ -17,7 +17,6 @@ import {
   Image,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { Picker } from "@react-native-picker/picker";
 import * as ImagePicker from "expo-image-picker";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useQuery } from "@tanstack/react-query";
@@ -40,16 +39,11 @@ import { apiRequest, ENDPOINTS } from "@/lib/api/config";
 // ===== TYPES =====
 
 interface Skill {
-  id: number; // workerSpecialization ID
+  id: number; // Specialization ID (used to link certification)
   specializationId: number; // Specializations ID
   name: string;
   experienceYears: number;
   certificationCount: number;
-}
-
-interface WorkerProfile {
-  skills: Skill[];
-  // ... other fields not needed
 }
 
 // ===== PROPS =====
@@ -58,6 +52,7 @@ interface CertificationFormProps {
   visible: boolean;
   onClose: () => void;
   certification?: Certification; // If provided, edit mode
+  preselectedSkillId?: number; // If provided, skill is pre-filled and cannot be changed
 }
 
 // ===== VALIDATION =====
@@ -106,26 +101,71 @@ export default function CertificationForm({
   visible,
   onClose,
   certification,
+  preselectedSkillId,
 }: CertificationFormProps) {
   const isEditMode = !!certification;
+  const isSkillLocked = !!preselectedSkillId || isEditMode; // Skill is locked if preselected or editing
   const createCertification = useCreateCertification();
   const updateCertification = useUpdateCertification();
 
-  // Fetch worker's skills for skill selector
-  const { data: profile } = useQuery<WorkerProfile>({
-    queryKey: ["worker-profile"],
+  // Fetch worker's skills using the dedicated endpoint
+  interface MySkillsResponse {
+    success: boolean;
+    data: Array<{
+      id: number; // Specialization ID
+      name: string;
+      description: string;
+      experienceYears: number;
+      certification: string;
+    }>;
+    count: number;
+  }
+
+  const {
+    data: skillsData,
+    isLoading: skillsLoading,
+    error: skillsError,
+  } = useQuery({
+    queryKey: ["my-skills"],
     queryFn: async () => {
-      const response = await apiRequest(ENDPOINTS.WORKER_PROFILE);
-      if (!response.ok) throw new Error("Failed to fetch profile");
-      return response.json();
+      console.log(
+        "🔍 [CertificationForm] Fetching skills from:",
+        ENDPOINTS.MY_SKILLS
+      );
+      const response = await apiRequest(ENDPOINTS.MY_SKILLS);
+      console.log("🔍 [CertificationForm] Response status:", response.status);
+      if (!response.ok) throw new Error("Failed to fetch skills");
+      const data = await response.json();
+      console.log(
+        "🔍 [CertificationForm] Skills response:",
+        JSON.stringify(data, null, 2)
+      );
+      return data as MySkillsResponse;
     },
   });
+
+  // Map the skills data to the format expected by the skill picker
+  const skills: Skill[] = (skillsData?.data || []).map((s) => ({
+    id: s.id, // This is specializationID, used to link certification
+    specializationId: s.id,
+    name: s.name,
+    experienceYears: s.experienceYears,
+    certificationCount: 0,
+  }));
+
+  // Debug log
+  console.log("🔍 [CertificationForm] Mapped skills array:", skills);
+  console.log("🔍 [CertificationForm] skillsLoading:", skillsLoading);
+  console.log("🔍 [CertificationForm] skillsError:", skillsError);
+
+  // Skill picker modal state
+  const [showSkillPicker, setShowSkillPicker] = useState(false);
 
   // Form State
   const [name, setName] = useState("");
   const [organization, setOrganization] = useState("");
   const [issueDate, setIssueDate] = useState(new Date());
-  const [selectedSkillId, setSelectedSkillId] = useState<number | null>(null);
+  const [selectedSkillId, setSelectedSkillId] = useState<number>(-1);
   const [expiryDate, setExpiryDate] = useState<Date | null>(null);
   const [hasExpiry, setHasExpiry] = useState(false);
   const [certificateImage, setCertificateImage] =
@@ -136,21 +176,26 @@ export default function CertificationForm({
   const [showIssueDatePicker, setShowIssueDatePicker] = useState(false);
   const [showExpiryDatePicker, setShowExpiryDatePicker] = useState(false);
 
-  // Initialize form with certification data (edit mode)
+  // Initialize form with certification data (edit mode) or preselected skill
   useEffect(() => {
     if (certification) {
       setName(certification.name);
       setOrganization(certification.issuingOrganization);
       setIssueDate(new Date(certification.issueDate));
-      setSelectedSkillId(certification.specializationId || null);
+      // Use the certification's skill ID
+      setSelectedSkillId(certification.specializationId || -1);
       if (certification.expiryDate) {
         setExpiryDate(new Date(certification.expiryDate));
         setHasExpiry(true);
       }
+    } else if (preselectedSkillId) {
+      // Pre-fill skill ID for new certification
+      setSelectedSkillId(preselectedSkillId);
+      resetForm();
     } else {
       resetForm();
     }
-  }, [certification, visible]);
+  }, [certification, preselectedSkillId, visible]);
 
   // Reset form
   const resetForm = () => {
@@ -160,7 +205,8 @@ export default function CertificationForm({
     setExpiryDate(null);
     setHasExpiry(false);
     setCertificateImage(null);
-    setSelectedSkillId(null);
+    setSelectedSkillId(-1);
+    setShowSkillPicker(false);
     setErrors({});
   };
 
@@ -207,12 +253,13 @@ export default function CertificationForm({
           hasExpiry && expiryDate
             ? expiryDate.toISOString().split("T")[0]
             : undefined,
-        specializationId: selectedSkillId || undefined,
+        // 0 = General (send undefined to backend), positive = skill ID
+        specializationId: selectedSkillId > 0 ? selectedSkillId : undefined,
         certificateFile: certificateImage
           ? {
               uri: certificateImage.uri,
-              name: certificateImage.fileName || "certificate.jpg",
-              type: certificateImage.mimeType || "image/jpeg",
+              name: certificateImage?.fileName ?? "certificate.jpg",
+              type: certificateImage?.mimeType ?? "image/jpeg",
             }
           : undefined,
       };
@@ -234,6 +281,14 @@ export default function CertificationForm({
       );
     } else {
       // Create mode
+      if (selectedSkillId <= 0) {
+        Alert.alert(
+          "Skill Required",
+          "Please select a skill for this certification"
+        );
+        return;
+      }
+
       if (!certificateImage) {
         Alert.alert("Image Required", "Please upload a certificate document");
         return;
@@ -247,11 +302,11 @@ export default function CertificationForm({
           hasExpiry && expiryDate
             ? expiryDate.toISOString().split("T")[0]
             : undefined,
-        specializationId: selectedSkillId || undefined,
+        specializationId: selectedSkillId, // Already validated > 0 above
         certificateFile: {
           uri: certificateImage.uri,
-          name: certificateImage.fileName || "certificate.jpg",
-          type: certificateImage.mimeType || "image/jpeg",
+          name: certificateImage?.fileName ?? "certificate.jpg",
+          type: certificateImage?.mimeType ?? "image/jpeg",
         },
       };
 
@@ -366,34 +421,135 @@ export default function CertificationForm({
               )}
             </View>
 
-            {/* Skill Link (Optional) */}
+            {/* Skill Link (Required - locked if preselected or editing) */}
             <View style={styles.formGroup}>
-              <Text style={styles.label}>Link to Skill (Optional)</Text>
-              <View style={styles.pickerContainer}>
-                <Picker
-                  selectedValue={selectedSkillId}
-                  onValueChange={(itemValue) => setSelectedSkillId(itemValue)}
-                  style={styles.picker}
-                  enabled={!isLoading}
-                >
-                  <Picker.Item
-                    label="No skill link (General Certification)"
-                    value={null}
-                  />
-                  {(profile?.skills || []).map((skill) => (
-                    <Picker.Item
-                      key={skill.id}
-                      label={skill.name}
-                      value={skill.id}
-                    />
-                  ))}
-                </Picker>
-              </View>
-              <Text style={styles.hint}>
-                Link this certification to one of your skills to display it in
-                your skill sections
+              <Text style={styles.label}>
+                Link to Skill <Text style={styles.required}>*</Text>
               </Text>
+              <Pressable
+                style={[
+                  styles.skillPickerButton,
+                  isSkillLocked && styles.skillPickerButtonDisabled,
+                ]}
+                onPress={() =>
+                  !isLoading && !isSkillLocked && setShowSkillPicker(true)
+                }
+                disabled={isLoading || isSkillLocked}
+              >
+                <Ionicons
+                  name="briefcase-outline"
+                  size={20}
+                  color={
+                    isSkillLocked ? Colors.textTertiary : Colors.textPrimary
+                  }
+                />
+                <Text
+                  style={[
+                    styles.skillPickerText,
+                    isSkillLocked && styles.skillPickerTextDisabled,
+                  ]}
+                >
+                  {selectedSkillId === -1
+                    ? "-- Select a skill --"
+                    : skills.find((s) => s.id === selectedSkillId)?.name ||
+                      "Select a skill"}
+                </Text>
+                {!isSkillLocked && (
+                  <Ionicons
+                    name="chevron-down"
+                    size={20}
+                    color={Colors.textSecondary}
+                  />
+                )}
+                {isSkillLocked && (
+                  <Ionicons
+                    name="lock-closed"
+                    size={16}
+                    color={Colors.textTertiary}
+                  />
+                )}
+              </Pressable>
+              {!isSkillLocked && (
+                <Text style={styles.hint}>
+                  Select the skill this certification applies to
+                </Text>
+              )}
+              {isSkillLocked && (
+                <Text style={styles.hint}>
+                  Certification is locked to this skill
+                </Text>
+              )}
             </View>
+
+            {/* Skill Picker Modal */}
+            <Modal
+              visible={showSkillPicker}
+              transparent
+              animationType="slide"
+              onRequestClose={() => setShowSkillPicker(false)}
+            >
+              <Pressable
+                style={styles.skillModalOverlay}
+                onPress={() => setShowSkillPicker(false)}
+              >
+                <View style={styles.skillModalContent}>
+                  <View style={styles.skillModalHeader}>
+                    <Text style={styles.skillModalTitle}>Select Skill</Text>
+                    <Pressable onPress={() => setShowSkillPicker(false)}>
+                      <Ionicons
+                        name="close"
+                        size={24}
+                        color={Colors.textPrimary}
+                      />
+                    </Pressable>
+                  </View>
+                  <ScrollView style={styles.skillList}>
+                    {/* Worker's skills */}
+                    {skillsLoading ? (
+                      <View style={styles.skillLoadingContainer}>
+                        <ActivityIndicator
+                          size="small"
+                          color={Colors.primary}
+                        />
+                        <Text style={styles.skillLoadingText}>
+                          Loading skills...
+                        </Text>
+                      </View>
+                    ) : skills.length === 0 ? (
+                      <Text style={styles.noSkillsText}>
+                        No skills added yet. Add skills in your profile first.
+                      </Text>
+                    ) : (
+                      skills.map((skill) => (
+                        <Pressable
+                          key={skill.id}
+                          style={[
+                            styles.skillOption,
+                            selectedSkillId === skill.id &&
+                              styles.skillOptionSelected,
+                          ]}
+                          onPress={() => {
+                            setSelectedSkillId(skill.id);
+                            setShowSkillPicker(false);
+                          }}
+                        >
+                          <Text style={styles.skillOptionText}>
+                            {skill.name}
+                          </Text>
+                          {selectedSkillId === skill.id && (
+                            <Ionicons
+                              name="checkmark"
+                              size={20}
+                              color={Colors.primary}
+                            />
+                          )}
+                        </Pressable>
+                      ))
+                    )}
+                  </ScrollView>
+                </View>
+              </Pressable>
+            </Modal>
 
             {/* Issue Date */}
             <View style={styles.formGroup}>
@@ -433,20 +589,35 @@ export default function CertificationForm({
 
             {/* Issue Date Picker */}
             {showIssueDatePicker && (
-              <DateTimePicker
-                value={issueDate}
-                mode="date"
-                display={Platform.OS === "ios" ? "spinner" : "default"}
-                onChange={(event, selectedDate) => {
-                  setShowIssueDatePicker(Platform.OS === "ios");
-                  if (selectedDate) {
-                    setIssueDate(selectedDate);
-                    if (errors.issueDate)
-                      setErrors({ ...errors, issueDate: undefined });
+              <View style={styles.datePickerContainer}>
+                <DateTimePicker
+                  value={issueDate}
+                  mode="date"
+                  display={Platform.OS === "ios" ? "spinner" : "default"}
+                  onChange={(event, selectedDate) => {
+                    const isIOS = Platform.OS === "ios";
+                    setShowIssueDatePicker(isIOS);
+
+                    if (event.type === "dismissed") {
+                      return;
+                    }
+
+                    if (selectedDate) {
+                      setIssueDate(selectedDate);
+                      if (errors.issueDate)
+                        setErrors({ ...errors, issueDate: undefined });
+                    }
+                  }}
+                  maximumDate={new Date()}
+                  themeVariant="light"
+                  textColor={
+                    Platform.OS === "ios" ? Colors.textPrimary : undefined
                   }
-                }}
-                maximumDate={new Date()}
-              />
+                  style={
+                    Platform.OS === "ios" ? styles.inlineDatePicker : undefined
+                  }
+                />
+              </View>
             )}
 
             {/* Expiry Date Toggle */}
@@ -518,20 +689,35 @@ export default function CertificationForm({
 
             {/* Expiry Date Picker */}
             {showExpiryDatePicker && hasExpiry && (
-              <DateTimePicker
-                value={expiryDate || new Date()}
-                mode="date"
-                display={Platform.OS === "ios" ? "spinner" : "default"}
-                onChange={(event, selectedDate) => {
-                  setShowExpiryDatePicker(Platform.OS === "ios");
-                  if (selectedDate) {
-                    setExpiryDate(selectedDate);
-                    if (errors.expiryDate)
-                      setErrors({ ...errors, expiryDate: undefined });
+              <View style={styles.datePickerContainer}>
+                <DateTimePicker
+                  value={expiryDate || new Date()}
+                  mode="date"
+                  display={Platform.OS === "ios" ? "spinner" : "default"}
+                  onChange={(event, selectedDate) => {
+                    const isIOS = Platform.OS === "ios";
+                    setShowExpiryDatePicker(isIOS);
+
+                    if (event.type === "dismissed") {
+                      return;
+                    }
+
+                    if (selectedDate) {
+                      setExpiryDate(selectedDate);
+                      if (errors.expiryDate)
+                        setErrors({ ...errors, expiryDate: undefined });
+                    }
+                  }}
+                  minimumDate={issueDate}
+                  themeVariant="light"
+                  textColor={
+                    Platform.OS === "ios" ? Colors.textPrimary : undefined
                   }
-                }}
-                minimumDate={issueDate}
-              />
+                  style={
+                    Platform.OS === "ios" ? styles.inlineDatePicker : undefined
+                  }
+                />
+              </View>
             )}
 
             {/* Certificate Image Upload */}
@@ -819,15 +1005,98 @@ const styles = StyleSheet.create({
     marginTop: Spacing.xs,
     fontStyle: "italic",
   },
-  pickerContainer: {
+  skillPickerButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
     borderWidth: 1,
     borderColor: Colors.border,
     borderRadius: BorderRadius.medium,
-    backgroundColor: Colors.surface,
-    overflow: "hidden",
+    padding: Spacing.md,
+    backgroundColor: Colors.background,
   },
-  picker: {
-    height: 50,
+  skillPickerButtonDisabled: {
+    backgroundColor: Colors.backgroundSecondary,
+    opacity: 0.6,
+  },
+  skillPickerText: {
+    ...Typography.body.medium,
     color: Colors.textPrimary,
+    flex: 1,
+  },
+  skillPickerTextDisabled: {
+    color: Colors.textTertiary,
+  },
+  skillModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  skillModalContent: {
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: BorderRadius.large,
+    borderTopRightRadius: BorderRadius.large,
+    maxHeight: "70%",
+  },
+  skillModalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: Spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  skillModalTitle: {
+    ...Typography.heading.h4,
+    color: Colors.textPrimary,
+  },
+  skillList: {
+    padding: Spacing.md,
+  },
+  skillOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: Spacing.md,
+    borderRadius: BorderRadius.medium,
+    marginBottom: Spacing.xs,
+  },
+  skillOptionSelected: {
+    backgroundColor: Colors.primary + "15",
+  },
+  skillOptionText: {
+    ...Typography.body.medium,
+    color: Colors.textPrimary,
+    flex: 1,
+  },
+  skillLoadingContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  skillLoadingText: {
+    ...Typography.body.medium,
+    color: Colors.textSecondary,
+  },
+  noSkillsText: {
+    ...Typography.body.medium,
+    color: Colors.textSecondary,
+    textAlign: "center",
+    padding: Spacing.lg,
+  },
+  datePickerContainer: {
+    marginTop: Spacing.sm,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.medium,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    overflow: "hidden",
+    alignSelf: "stretch",
+  },
+  inlineDatePicker: {
+    width: "100%",
+    minHeight: 180,
   },
 });

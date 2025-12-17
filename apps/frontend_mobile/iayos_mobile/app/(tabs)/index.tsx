@@ -68,6 +68,7 @@ export default function BrowseJobsScreen() {
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [maxDistance, setMaxDistance] = useState<number | undefined>(undefined);
   const [sortBy, setSortBy] = useState<string>("distance_asc");
+  const [minRating, setMinRating] = useState<number | undefined>(undefined);
 
   const isWorker = user?.profile_data?.profileType === "WORKER";
   const { data: myLocation } = useMyLocation();
@@ -82,7 +83,7 @@ export default function BrowseJobsScreen() {
     if (!isWorker && viewTab === "workers" && workersQuery.data) {
       workersQuery.refetch();
     }
-  }, [maxDistance, sortBy, selectedCategory]);
+  }, [maxDistance, sortBy, selectedCategory, minRating]);
   const categories = categoriesData?.categories || [];
 
   // WORKER: Only fetch jobs
@@ -103,6 +104,7 @@ export default function BrowseJobsScreen() {
       latitude: myLocation?.latitude,
       longitude: myLocation?.longitude,
       sortBy,
+      minRating,
     },
     {
       enabled: !isWorker && viewTab === "workers", // Only fetch workers if client and workers tab
@@ -442,6 +444,11 @@ export default function BrowseJobsScreen() {
       status={item.status?.toLowerCase() as any}
       applicationCount={item.applicationCount}
       onPress={() => handleJobPress(item.id)}
+      // Team Job Fields
+      isTeamJob={item.is_team_job}
+      totalWorkersNeeded={item.total_workers_needed}
+      totalWorkersAssigned={item.total_workers_assigned}
+      teamFillPercentage={item.team_fill_percentage}
     />
   );
 
@@ -694,6 +701,35 @@ export default function BrowseJobsScreen() {
                 </View>
               )}
 
+              {/* Minimum Rating Filter (clients on Workers tab) */}
+              {!isWorker && viewTab === "workers" && (
+                <View style={styles.filterSection}>
+                  <Text style={styles.filterLabel}>Minimum Rating</Text>
+                  <View style={styles.ratingChipsContainer}>
+                    <FilterChip
+                      label="Any"
+                      selected={!minRating}
+                      onPress={() => setMinRating(undefined)}
+                    />
+                    <FilterChip
+                      label="⭐ 3+"
+                      selected={minRating === 3}
+                      onPress={() => setMinRating(3)}
+                    />
+                    <FilterChip
+                      label="⭐ 4+"
+                      selected={minRating === 4}
+                      onPress={() => setMinRating(4)}
+                    />
+                    <FilterChip
+                      label="⭐ 4.5+"
+                      selected={minRating === 4.5}
+                      onPress={() => setMinRating(4.5)}
+                    />
+                  </View>
+                </View>
+              )}
+
               {/* Category Filter */}
               <View style={styles.filterSection}>
                 <Text style={styles.filterLabel}>Category</Text>
@@ -723,6 +759,7 @@ export default function BrowseJobsScreen() {
                   setSelectedCategory(undefined);
                   setMaxDistance(undefined);
                   setSortBy("distance_asc");
+                  setMinRating(undefined);
                 }}
               >
                 <Text style={styles.clearButtonText}>Clear All</Text>
@@ -1034,6 +1071,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
+  },
+  ratingChipsContainer: {
+    flexDirection: "row",
+    flexWrap: "nowrap",
+    gap: 10,
   },
   slider: {
     width: "100%",

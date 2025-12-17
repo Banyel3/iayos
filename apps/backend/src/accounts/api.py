@@ -42,7 +42,7 @@ from .portfolio_service import (
 )
 from .models import Profile, WorkerProfile
 from .material_service import (
-    add_material, list_materials, update_material, delete_material
+    add_material, list_materials, list_materials_for_client, update_material, delete_material
 )
 # Profile metrics helpers
 from .profile_metrics_service import get_profile_metrics
@@ -269,6 +269,59 @@ def upload_kyc(request):
         import traceback
         traceback.print_exc()
         return {"error": [{"message": "Upload Failed"}]}
+
+
+@router.post("/kyc/validate-document", auth=dual_auth)
+def validate_kyc_document(request):
+    """
+    Quick validation for a single KYC document (per-step validation).
+    Checks resolution, blur, and face detection (for ID/selfie).
+    Does NOT run OCR - that happens on final submission.
+    
+    Request: multipart/form-data
+    - file: The document image file
+    - document_type: Type of document (FRONTID, BACKID, CLEARANCE, SELFIE)
+    
+    Returns:
+    - valid: boolean - whether document passes validation
+    - error: string - user-friendly error message if invalid
+    - details: object - validation details
+    """
+    try:
+        file = request.FILES.get("file")
+        document_type = request.POST.get("document_type", "").upper()
+        
+        if not file:
+            return {"valid": False, "error": "No file provided", "details": {}}
+        
+        if not document_type:
+            return {"valid": False, "error": "Document type not specified", "details": {}}
+        
+        print(f"🔍 [VALIDATE] Document type: {document_type}, File: {file.name} ({file.size} bytes)")
+        
+        # Read file data
+        file_data = file.read()
+        
+        # Determine if face detection is required
+        # Face required for: Front ID (has photo), Selfie
+        # Face NOT required for: Back ID (usually no photo), Clearance (certificate)
+        require_face = document_type in ["FRONTID", "SELFIE"]
+        
+        # Run quick validation
+        from accounts.document_verification_service import DocumentVerificationService
+        verifier = DocumentVerificationService()
+        result = verifier.validate_document_quick(file_data, document_type, require_face=require_face)
+        
+        print(f"   {'✅' if result['valid'] else '❌'} Validation result: valid={result['valid']}, error={result.get('error')}")
+        
+        return result
+        
+    except Exception as e:
+        print(f"❌ Exception in document validation: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"valid": False, "error": "Validation failed. Please try again.", "details": {"error": str(e)}}
+
 
 @router.get("/kyc/history", auth=dual_auth)
 def get_kyc_application_history(request):
@@ -1538,7 +1591,7 @@ def check_payment_status(request, transaction_id: int):
 # Profile management, certifications, and portfolio for workers
 # ===========================================================================
 
-@router.post("/worker/profile", auth=cookie_auth, response=WorkerProfileResponse)
+@router.post("/worker/profile", auth=dual_auth, response=WorkerProfileResponse)
 def update_worker_profile_endpoint(request, payload: WorkerProfileUpdateSchema):
     """
     Update worker profile fields (bio, description, hourly_rate).
@@ -1560,7 +1613,8 @@ def update_worker_profile_endpoint(request, payload: WorkerProfileUpdateSchema):
             worker_profile=worker_profile,
             bio=payload.bio,
             description=payload.description,
-            hourly_rate=payload.hourly_rate
+            hourly_rate=payload.hourly_rate,
+            soft_skills=payload.soft_skills
         )
         
         return result
@@ -1619,22 +1673,23 @@ def get_profile_completion_endpoint(request):
 @router.post("/worker/certifications", auth=dual_auth, response=CertificationResponse)
 def add_certification_endpoint(
     request,
+    specialization_id: int = Form(...),  # REQUIRED: Link to skill
     name: str = Form(...),
     organization: str = Form(None),
     issue_date: str = Form(None),
     expiry_date: str = Form(None),
-    specialization_id: int = Form(None),  # NEW: Link to skill
     certificate_file: UploadedFile = File(None)
 ):
     """
     Add a new certification with optional file upload.
+    All certifications must be linked to a specific skill.
     
     Form fields:
+    - specialization_id (required): Worker skill ID to link this certification to
     - name (required): Certificate name
     - organization: Issuing organization
     - issue_date: Issue date (YYYY-MM-DD)
     - expiry_date: Expiry date (YYYY-MM-DD)
-    - specialization_id: Worker skill ID to link this certification to
     - certificate_file: Certificate document/image
     """
     try:
@@ -1650,11 +1705,11 @@ def add_certification_endpoint(
         # Call service function
         certification = add_certification(
             worker_profile=worker_profile,
+            specialization_id=specialization_id,
             name=name,
             organization=organization,
             issue_date=issue_date,
             expiry_date=expiry_date,
-            specialization_id=specialization_id,
             certificate_file=certificate_file
         )
         
@@ -1868,7 +1923,8 @@ def add_material_endpoint(
     description: Optional[str] = Form(None),
     quantity: float = Form(1),
     unit: str = Form("piece"),
-    image: Optional[UploadedFile] = File(None)
+    image: Optional[UploadedFile] = File(None),
+    category_id: Optional[int] = Form(None)
 ):
     """
     Add a new material/product with optional image upload.
@@ -1880,6 +1936,7 @@ def add_material_endpoint(
     - quantity: Quantity or stock amount for this listing
     - unit: Unit of measurement (default: "piece")
     - image: Product image
+    - category_id: Optional category/specialization ID to link material to
     """
     try:
         account = request.auth
@@ -1911,7 +1968,8 @@ def add_material_endpoint(
             price=price,
             quantity=quantity,
             unit=unit,
-            image_file=image
+            image_file=image,
+            category_id=category_id
         )
         
         return {
@@ -1936,9 +1994,12 @@ def add_material_endpoint(
 
 
 @router.get("/worker/materials", auth=dual_auth, response=list[MaterialSchema])
-def list_materials_endpoint(request):
+def list_materials_endpoint(request, category_id: Optional[int] = None):
     """
     Get all materials for the authenticated worker.
+    
+    Query params:
+    - category_id: Optional filter by category/specialization
     
     Returns list of materials ordered by creation date (newest first).
     """
@@ -1953,7 +2014,7 @@ def list_materials_endpoint(request):
         worker_profile = worker_profile_result
         
         # Call service function
-        materials = list_materials(worker_profile)
+        materials = list_materials(worker_profile, category_id=category_id)
         
         return materials
         
@@ -1977,12 +2038,16 @@ def update_material_endpoint(
     quantity: float = Form(None),  # type: ignore
     unit: str = Form(None),  # type: ignore
     is_available: bool = Form(None),  # type: ignore
-    image_file: Any = File(None)  # type: ignore
+    image_file: Any = File(None),  # type: ignore
+    category_id: int = Form(None)  # type: ignore
 ):
     """
     Update material information including optional image.
     
     All fields are optional - only provided fields will be updated.
+    
+    Form fields:
+    - category_id: Set to -1 to remove category link, or provide new category ID
     """
     try:
         account = request.auth
@@ -2011,7 +2076,8 @@ def update_material_endpoint(
             quantity=quantity,
             unit=unit,
             is_available=is_available,
-            image_file=image_file
+            image_file=image_file,
+            category_id=category_id
         )
         
         return {
@@ -2068,6 +2134,38 @@ def delete_material_endpoint(request, material_id: int):
         traceback.print_exc()
         return Response(
             {"error": "Failed to delete material"},
+            status=500
+        )
+
+
+@router.get("/workers/{worker_id}/materials", response=list[MaterialSchema])
+def get_worker_materials_public(request, worker_id: int, category_id: Optional[int] = None):
+    """
+    Get materials for a specific worker (public endpoint for clients).
+    Only returns available materials.
+    
+    Query params:
+    - category_id: Optional filter by category/specialization (use for job-specific filtering)
+    
+    Use case: When client invites worker for a plumbing job, filter materials by plumbing category.
+    """
+    try:
+        # Call service function (only returns available materials)
+        materials = list_materials_for_client(worker_id, category_id=category_id)
+        
+        return materials
+        
+    except ValueError as e:
+        return Response(
+            {"error": str(e)},
+            status=404
+        )
+    except Exception as e:
+        print(f"❌ Error getting worker materials: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to get worker materials"},
             status=500
         )
 

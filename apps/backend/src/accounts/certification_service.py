@@ -11,11 +11,11 @@ from iayos_project.utils import upload_file
 
 def add_certification(
     worker_profile: WorkerProfile,
+    specialization_id: int,  # REQUIRED: Link to skill
     name: str,
     organization: Optional[str] = None,
     issue_date: Optional[str] = None,
     expiry_date: Optional[str] = None,
-    specialization_id: Optional[int] = None,  # NEW: Link to skill
     certificate_file = None
 ) -> Dict:
     """
@@ -23,11 +23,11 @@ def add_certification(
     
     Args:
         worker_profile: WorkerProfile instance
+        specialization_id: workerSpecialization ID to link this cert to (REQUIRED)
         name: Certificate name (required)
         organization: Issuing organization
         issue_date: Date issued (YYYY-MM-DD format)
         expiry_date: Expiration date (YYYY-MM-DD format)
-        specialization_id: workerSpecialization ID to link this cert to (optional)
         certificate_file: Uploaded file (optional)
     
     Returns:
@@ -40,17 +40,18 @@ def add_certification(
     if not name or len(name.strip()) == 0:
         raise ValueError("Certificate name is required")
     
-    # Validate and get specialization if provided
-    worker_specialization = None
-    if specialization_id:
-        from .models import workerSpecialization
-        try:
-            worker_specialization = workerSpecialization.objects.get(
-                id=specialization_id,
-                workerID=worker_profile
-            )
-        except workerSpecialization.DoesNotExist:
-            raise ValueError(f"Skill with ID {specialization_id} not found for this worker")
+    if not specialization_id:
+        raise ValueError("Skill ID is required - all certifications must be linked to a skill")
+    
+    # Validate and get specialization (REQUIRED)
+    from .models import workerSpecialization
+    try:
+        worker_specialization = workerSpecialization.objects.get(
+            id=specialization_id,
+            workerID=worker_profile
+        )
+    except workerSpecialization.DoesNotExist:
+        raise ValueError(f"Skill with ID {specialization_id} not found for this worker")
     
     # Parse dates
     parsed_issue_date = None
@@ -195,21 +196,17 @@ def update_certification(
     except WorkerCertification.DoesNotExist:
         raise ObjectDoesNotExist("Certification not found or you don't have permission to edit it")
     
-    # Update specialization link if provided
+    # Update specializationID if provided (must be valid, cannot unlink)
     if specialization_id is not None:
-        if specialization_id == 0 or specialization_id == -1:
-            # Allow unlinking
-            certification.specializationID = None
-        else:
-            from .models import workerSpecialization
-            try:
-                worker_specialization = workerSpecialization.objects.get(
-                    id=specialization_id,
-                    workerID=worker_profile
-                )
-                certification.specializationID = worker_specialization
-            except workerSpecialization.DoesNotExist:
-                raise ValueError(f"Skill with ID {specialization_id} not found for this worker")
+        from .models import workerSpecialization
+        try:
+            worker_specialization = workerSpecialization.objects.get(
+                id=specialization_id,
+                workerID=worker_profile
+            )
+            certification.specializationID = worker_specialization
+        except workerSpecialization.DoesNotExist:
+            raise ValueError(f"Skill with ID {specialization_id} not found for this worker")
     
     # Update fields if provided
     if name is not None:

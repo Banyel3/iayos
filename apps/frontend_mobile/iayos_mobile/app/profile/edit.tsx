@@ -29,6 +29,7 @@ import {
   Shadows,
 } from "@/constants/theme";
 import { ENDPOINTS, apiRequest, getAbsoluteMediaUrl } from "@/lib/api/config";
+import { useMySkills } from "@/lib/hooks/useSkills";
 import * as ImagePicker from "expo-image-picker";
 
 // ===== TYPES =====
@@ -43,6 +44,7 @@ interface WorkerProfile {
   bio: string | null;
   hourlyRate: number | null;
   skills: string[];
+  softSkills: string | null;
 }
 
 interface UpdateProfileData {
@@ -51,7 +53,7 @@ interface UpdateProfileData {
   bio: string;
   hourlyRate: string;
   phoneNumber: string;
-  skills: string;
+  softSkills: string;
 }
 
 // ===== MAIN COMPONENT =====
@@ -70,13 +72,30 @@ export default function EditProfileScreen() {
   const [bio, setBio] = useState("");
   const [hourlyRate, setHourlyRate] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
-  const [skills, setSkills] = useState("");
+  const [softSkills, setSoftSkills] = useState("");
   const [hasChanges, setHasChanges] = useState(false);
 
   // Avatar state
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [avatarChanged, setAvatarChanged] = useState(false);
+
+  // Soft skills suggestions
+  const softSkillsSuggestions = [
+    "Punctual",
+    "Team Player",
+    "Fast Learner",
+    "Bilingual",
+    "Detail-Oriented",
+    "Problem Solver",
+    "Good Communicator",
+    "Reliable",
+    "Organized",
+    "Flexible",
+  ];
+
+  // Fetch worker's current backend skills
+  const { data: mySkills = [] } = useMySkills();
 
   // Fetch current profile
   const { data: profile, isLoading } = useQuery<WorkerProfile>({
@@ -105,7 +124,7 @@ export default function EditProfileScreen() {
     if (profile) {
       setBio(profile.bio || "");
       setHourlyRate(profile.hourlyRate ? profile.hourlyRate.toString() : "");
-      setSkills(profile.skills?.join(", ") || "");
+      setSoftSkills(profile.softSkills || "");
       // Override phone if profile has it
       if (profile.user?.phoneNumber) {
         setPhoneNumber(profile.user.phoneNumber);
@@ -179,32 +198,41 @@ export default function EditProfileScreen() {
     mutationFn: async (data: UpdateProfileData) => {
       // First update basic profile info
       const profileResponse = await apiRequest(
-        ENDPOINTS.UPDATE_PROFILE(user?.profile_data?.id || 0),
+        ENDPOINTS.UPDATE_PROFILE_MOBILE,
         {
           method: "PUT",
           body: JSON.stringify({
-            first_name: data.firstName,
-            last_name: data.lastName,
-            contact_num: data.phoneNumber,
+            firstName: data.firstName,
+            lastName: data.lastName,
+            contactNum: data.phoneNumber,
           }),
         }
       );
 
       if (!profileResponse.ok) {
-        throw new Error("Failed to update basic profile");
+        const errorData = await profileResponse.json().catch(() => ({}));
+        console.error(
+          "[PROFILE UPDATE] Error response:",
+          profileResponse.status,
+          errorData
+        );
+        throw new Error(
+          errorData.detail ||
+            errorData.error ||
+            errorData.message ||
+            JSON.stringify(errorData) ||
+            `Failed to update basic profile (${profileResponse.status})`
+        );
       }
 
       // Then update worker-specific fields
       const response = await apiRequest(ENDPOINTS.UPDATE_WORKER_PROFILE, {
-        method: "PUT",
+        method: "POST",
         body: JSON.stringify({
           bio: data.bio,
           hourly_rate: parseFloat(data.hourlyRate) || null,
           phone_number: data.phoneNumber,
-          skills: data.skills
-            .split(",")
-            .map((s) => s.trim())
-            .filter((s) => s.length > 0),
+          soft_skills: data.softSkills,
         }),
       });
 
@@ -240,7 +268,7 @@ export default function EditProfileScreen() {
     const originalRate = profile?.hourlyRate
       ? profile.hourlyRate.toString()
       : "";
-    const originalSkills = profile?.skills?.join(", ") || "";
+    const originalSoftSkills = profile?.softSkills || "";
 
     const changed =
       avatarChanged ||
@@ -249,7 +277,7 @@ export default function EditProfileScreen() {
       bio !== originalBio ||
       hourlyRate !== originalRate ||
       phoneNumber !== originalPhone ||
-      skills !== originalSkills;
+      softSkills !== originalSoftSkills;
 
     setHasChanges(changed);
   }, [
@@ -258,7 +286,7 @@ export default function EditProfileScreen() {
     bio,
     hourlyRate,
     phoneNumber,
-    skills,
+    softSkills,
     profile,
     user,
     avatarChanged,
@@ -304,20 +332,6 @@ export default function EditProfileScreen() {
       }
     }
 
-    // Skills validation
-    if (skills.trim().length > 0) {
-      const skillList = skills
-        .split(",")
-        .map((s) => s.trim())
-        .filter((s) => s.length > 0);
-      if (skillList.some((s) => s.length < 2)) {
-        return "Each skill must be at least 2 characters";
-      }
-      if (skillList.some((s) => s.length > 50)) {
-        return "Each skill cannot exceed 50 characters";
-      }
-    }
-
     return null;
   };
 
@@ -340,7 +354,7 @@ export default function EditProfileScreen() {
       bio: bio.trim(),
       hourlyRate: hourlyRate.trim(),
       phoneNumber: phoneNumber.trim(),
-      skills: skills.trim(),
+      softSkills: softSkills.trim(),
     });
   };
 
@@ -565,22 +579,181 @@ export default function EditProfileScreen() {
               </View>
               <Text style={styles.hint}>Set your preferred hourly rate</Text>
             </View>
+          </View>
 
-            {/* Skills Field */}
+          {/* Skills Management Section */}
+          <View style={styles.managementSection}>
+            <View style={styles.managementHeader}>
+              <View>
+                <Text style={styles.sectionTitle}>
+                  Skills (Specializations)
+                </Text>
+                <Text style={styles.managementHint}>
+                  {mySkills.length > 0
+                    ? `${mySkills.length} skill${mySkills.length === 1 ? "" : "s"} added`
+                    : "Add skills to showcase your expertise"}
+                </Text>
+              </View>
+              <Ionicons name="construct" size={32} color={Colors.primary} />
+            </View>
+
+            {/* Display current skills as read-only bubbles */}
+            {mySkills.length > 0 && (
+              <View style={styles.skillBubblesContainer}>
+                {mySkills.map((skill) => (
+                  <View key={skill.id} style={styles.skillBubble}>
+                    <Text style={styles.skillBubbleText}>{skill.name}</Text>
+                    <Text style={styles.skillBubbleYears}>
+                      {skill.experienceYears}y
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            <Pressable
+              style={styles.manageButton}
+              onPress={() => router.push("/profile/skills" as any)}
+            >
+              <Ionicons
+                name="settings-outline"
+                size={20}
+                color={Colors.primary}
+              />
+              <Text style={styles.manageButtonText}>Manage Skills</Text>
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={Colors.primary}
+              />
+            </Pressable>
+          </View>
+
+          {/* Soft Skills Section */}
+          <View style={styles.formSection}>
             <View style={styles.fieldContainer}>
               <Text style={styles.label}>
-                Skills <Text style={styles.optional}>(optional)</Text>
+                Soft Skills <Text style={styles.optional}>(optional)</Text>
               </Text>
-              <TextInput
-                style={[styles.input, skills.length > 0 && styles.inputActive]}
-                value={skills}
-                onChangeText={setSkills}
-                placeholder="e.g. Plumbing, Electrical, Carpentry"
-                placeholderTextColor={Colors.textSecondary}
-              />
-              <Text style={styles.hint}>
-                Separate multiple skills with commas
+              <Text style={[styles.hint, { marginBottom: Spacing.sm }]}>
+                Personal attributes that don't affect job filtering
               </Text>
+
+              {/* Suggestions chips */}
+              <View style={styles.suggestionsContainer}>
+                {softSkillsSuggestions.map((suggestion) => {
+                  const currentSkills = softSkills
+                    .split(",")
+                    .map((s) => s.trim().toLowerCase());
+                  const isSelected = currentSkills.includes(
+                    suggestion.toLowerCase()
+                  );
+
+                  return (
+                    <Pressable
+                      key={suggestion}
+                      style={[
+                        styles.suggestionChip,
+                        isSelected && styles.suggestionChipSelected,
+                      ]}
+                      onPress={() => {
+                        if (isSelected) {
+                          // Remove the skill
+                          const newSkills = softSkills
+                            .split(",")
+                            .map((s) => s.trim())
+                            .filter(
+                              (s) =>
+                                s.toLowerCase() !== suggestion.toLowerCase()
+                            )
+                            .join(", ");
+                          setSoftSkills(newSkills);
+                        } else {
+                          // Add the skill
+                          const current = softSkills.trim();
+                          if (current) {
+                            setSoftSkills(`${current}, ${suggestion}`);
+                          } else {
+                            setSoftSkills(suggestion);
+                          }
+                        }
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.suggestionChipText,
+                          isSelected && styles.suggestionChipTextSelected,
+                        ]}
+                      >
+                        {suggestion}
+                      </Text>
+                      {isSelected && (
+                        <Ionicons
+                          name="checkmark"
+                          size={14}
+                          color={Colors.background}
+                          style={{ marginLeft: 4 }}
+                        />
+                      )}
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              {/* Display selected soft skills */}
+              {softSkills.trim() && (
+                <View style={styles.selectedSoftSkillsContainer}>
+                  {softSkills
+                    .split(",")
+                    .map((s) => s.trim())
+                    .filter((s) => s.length > 0)
+                    .map((skill, index) => (
+                      <View key={index} style={styles.softSkillBubble}>
+                        <Text style={styles.softSkillBubbleText}>{skill}</Text>
+                        <Pressable
+                          onPress={() => {
+                            const newSkills = softSkills
+                              .split(",")
+                              .map((s) => s.trim())
+                              .filter(
+                                (s) => s.toLowerCase() !== skill.toLowerCase()
+                              )
+                              .join(", ");
+                            setSoftSkills(newSkills);
+                          }}
+                        >
+                          <Ionicons
+                            name="close-circle"
+                            size={16}
+                            color={Colors.textSecondary}
+                          />
+                        </Pressable>
+                      </View>
+                    ))}
+                </View>
+              )}
+
+              {/* Custom soft skill input */}
+              <View style={styles.customSoftSkillInput}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Add custom soft skill..."
+                  placeholderTextColor={Colors.textSecondary}
+                  onSubmitEditing={(e) => {
+                    const value = e.nativeEvent.text.trim();
+                    if (value) {
+                      const current = softSkills.trim();
+                      if (current) {
+                        setSoftSkills(`${current}, ${value}`);
+                      } else {
+                        setSoftSkills(value);
+                      }
+                      e.currentTarget.clear();
+                    }
+                  }}
+                  returnKeyType="done"
+                />
+              </View>
             </View>
           </View>
 
@@ -590,7 +763,7 @@ export default function EditProfileScreen() {
               <View>
                 <Text style={styles.sectionTitle}>Certifications</Text>
                 <Text style={styles.managementHint}>
-                  Add professional certifications
+                  All certifications are skill-bound
                 </Text>
               </View>
               <Ionicons name="ribbon" size={32} color={Colors.primary} />
@@ -673,15 +846,6 @@ export default function EditProfileScreen() {
                   <Text style={styles.previewLabel}>Phone:</Text>
                   <Text style={styles.previewValue}>
                     {phoneNumber.trim() || "Not set"}
-                  </Text>
-                </View>
-              )}
-
-              {skills.trim() !== (profile?.skills?.join(", ") || "") && (
-                <View style={styles.previewItem}>
-                  <Text style={styles.previewLabel}>Skills:</Text>
-                  <Text style={styles.previewValue} numberOfLines={2}>
-                    {skills.trim() || "None"}
                   </Text>
                 </View>
               )}
@@ -982,6 +1146,87 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     flex: 1,
     marginLeft: Spacing.sm,
+  },
+
+  // Skill Bubbles
+  skillBubblesContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  skillBubble: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.primary,
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    borderRadius: 20,
+    gap: Spacing.xs,
+  },
+  skillBubbleText: {
+    ...Typography.body.small,
+    color: Colors.white,
+    fontWeight: "600",
+  },
+  skillBubbleYears: {
+    ...Typography.body.small,
+    color: Colors.white,
+    opacity: 0.8,
+    fontSize: 10,
+  },
+
+  // Soft Skills
+  suggestionsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.xs,
+    marginBottom: Spacing.md,
+  },
+  suggestionChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.surface,
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  suggestionChipSelected: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  suggestionChipText: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+  },
+  suggestionChipTextSelected: {
+    color: Colors.white,
+  },
+  selectedSoftSkillsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  softSkillBubble: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.primaryLight,
+    paddingVertical: Spacing.xs,
+    paddingLeft: Spacing.md,
+    paddingRight: Spacing.xs,
+    borderRadius: 16,
+    gap: Spacing.xs,
+  },
+  softSkillBubbleText: {
+    ...Typography.body.small,
+    color: Colors.primary,
+    fontWeight: "500",
+  },
+  customSoftSkillInput: {
+    marginTop: Spacing.xs,
   },
 
   // Caption Edit Modal

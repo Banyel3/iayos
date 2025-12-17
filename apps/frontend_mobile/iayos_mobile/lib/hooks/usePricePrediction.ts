@@ -30,6 +30,8 @@ export interface PricePredictionRequest {
   category_id: number;
   urgency?: "LOW" | "MEDIUM" | "HIGH";
   skill_level?: "ENTRY" | "INTERMEDIATE" | "EXPERT";
+  job_scope?: "MINOR_REPAIR" | "MODERATE_PROJECT" | "MAJOR_RENOVATION";
+  work_environment?: "INDOOR" | "OUTDOOR" | "BOTH";
   materials?: string[];
 }
 
@@ -80,6 +82,8 @@ export function usePricePrediction() {
             category_id: data.category_id,
             urgency: data.urgency || "MEDIUM",
             skill_level: data.skill_level || "INTERMEDIATE",
+            job_scope: data.job_scope || "MINOR_REPAIR",
+            work_environment: data.work_environment || "INDOOR",
             materials: data.materials || [],
           }),
         }

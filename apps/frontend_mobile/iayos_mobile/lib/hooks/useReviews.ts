@@ -159,7 +159,7 @@ export function useSubmitReview() {
 
   return useMutation({
     mutationFn: async (data: SubmitReviewRequest): Promise<any> => {
-      // Use the jobs API endpoint which supports agency employee reviews
+      // Use the jobs API endpoint which supports agency employee reviews and team job reviews
       const response = await apiRequest(ENDPOINTS.SUBMIT_REVIEW(data.job_id), {
         method: "POST",
         body: JSON.stringify({
@@ -171,6 +171,7 @@ export function useSubmitReview() {
           message: data.comment,
           review_target: data.review_target, // "EMPLOYEE" or "AGENCY" for agency jobs
           employee_id: data.employee_id, // For multi-employee agency jobs
+          worker_id: data.worker_id, // For team jobs: specific worker to review
         }),
       });
 

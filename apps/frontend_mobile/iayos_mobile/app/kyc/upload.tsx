@@ -65,6 +65,7 @@ export default function KYCUploadScreen() {
     hasSubmittedKYC,
     isPending,
     isRejected,
+    rejectionReason,
     isLoading: kycLoading,
   } = useKYC();
   const queryClient = useQueryClient();
@@ -78,6 +79,7 @@ export default function KYCUploadScreen() {
   const [clearanceFile, setClearanceFile] = useState<ImageFile | null>(null);
   const [selfieFile, setSelfieFile] = useState<ImageFile | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isValidating, setIsValidating] = useState(false);
 
   // Redirect if KYC already submitted and pending (not rejected)
   useEffect(() => {
@@ -101,10 +103,10 @@ export default function KYCUploadScreen() {
     const { status: mediaStatus } =
       await ImagePicker.requestMediaLibraryPermissionsAsync();
 
-    if (cameraStatus !== "granted" || mediaStatus !== "granted") {
+    if (cameraStatus !== "granted") {
       Alert.alert(
-        "Permissions Required",
-        "Camera and photo library access are required."
+        "Camera Permission Required",
+        "Camera access is required to capture your documents for verification."
       );
       return false;
     }
@@ -115,11 +117,9 @@ export default function KYCUploadScreen() {
     const hasPermission = await requestPermissions();
     if (!hasPermission) return;
 
-    Alert.alert("Select Image Source", "Choose how to upload", [
-      { text: "Camera", onPress: () => captureImage(type) },
-      { text: "Gallery", onPress: () => selectFromGallery(type) },
-      { text: "Cancel", style: "cancel" },
-    ]);
+    // Security: Only allow camera capture, no gallery uploads
+    // This ensures users take live photos of their documents
+    captureImage(type);
   };
 
   const captureImage = async (
@@ -127,22 +127,8 @@ export default function KYCUploadScreen() {
   ) => {
     const result = await ImagePicker.launchCameraAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 0.8,
-    });
-
-    if (!result.canceled && result.assets[0]) {
-      handleImageSelected(type, result.assets[0]);
-    }
-  };
-
-  const selectFromGallery = async (
-    type: "front" | "back" | "clearance" | "selfie"
-  ) => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 0.8,
+      allowsEditing: false,
+      quality: 1.0,
     });
 
     if (!result.canceled && result.assets[0]) {
@@ -176,24 +162,138 @@ export default function KYCUploadScreen() {
     }
   };
 
-  const handleNext = () => {
+  // Helper function to validate a single document
+  const validateDocument = async (
+    file: ImageFile,
+    documentType: string
+  ): Promise<{ valid: boolean; error?: string }> => {
+    try {
+      const token = await AsyncStorage.getItem("access_token");
+      const formData = new FormData();
+      formData.append("file", {
+        uri: file.uri,
+        name: file.name,
+        type: file.type,
+      } as any);
+      formData.append("document_type", documentType);
+
+      const response = await fetch(ENDPOINTS.KYC_VALIDATE_DOCUMENT, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData as any,
+      });
+
+      const data = (await response.json()) as {
+        valid: boolean;
+        error?: string;
+      };
+      return { valid: data.valid, error: data.error };
+    } catch (error) {
+      console.error("Validation error:", error);
+      return {
+        valid: false,
+        error: "Failed to validate image. Please try again.",
+      };
+    }
+  };
+
+  const handleNext = async () => {
+    // Step 1: ID Type selection (no validation needed)
     if (currentStep === 1 && !selectedIDType) {
       Alert.alert("Required", "Please select an ID type");
       return;
     }
+
+    // Step 2: Front/Back ID - validate both images
     if (currentStep === 2 && (!frontIDFile || !backIDFile)) {
       Alert.alert("Required", "Please upload both sides of your ID");
       return;
     }
+
+    // Step 3: Clearance - validate clearance image
     if (currentStep === 3 && (!selectedClearanceType || !clearanceFile)) {
       Alert.alert("Required", "Please upload clearance certificate");
       return;
     }
+
+    // Step 4: Selfie - validate selfie image
     if (currentStep === 4 && !selfieFile) {
       Alert.alert("Required", "Please take a selfie");
       return;
     }
 
+    // Per-step validation with AI (resolution, blur, face detection)
+    setIsValidating(true);
+
+    try {
+      // Step 2: Validate ID documents
+      if (currentStep === 2) {
+        // Validate front ID
+        const frontResult = await validateDocument(frontIDFile!, "FRONTID");
+        if (!frontResult.valid) {
+          Alert.alert(
+            "Front ID Issue",
+            frontResult.error || "Please retake the front of your ID"
+          );
+          setIsValidating(false);
+          return;
+        }
+
+        // Validate back ID
+        const backResult = await validateDocument(backIDFile!, "BACKID");
+        if (!backResult.valid) {
+          Alert.alert(
+            "Back ID Issue",
+            backResult.error || "Please retake the back of your ID"
+          );
+          setIsValidating(false);
+          return;
+        }
+      }
+
+      // Step 3: Validate clearance document
+      if (currentStep === 3) {
+        const clearanceResult = await validateDocument(
+          clearanceFile!,
+          "CLEARANCE"
+        );
+        if (!clearanceResult.valid) {
+          Alert.alert(
+            "Clearance Issue",
+            clearanceResult.error || "Please retake your clearance document"
+          );
+          setIsValidating(false);
+          return;
+        }
+      }
+
+      // Step 4: Validate selfie (with face detection)
+      if (currentStep === 4) {
+        const selfieResult = await validateDocument(selfieFile!, "SELFIE");
+        if (!selfieResult.valid) {
+          Alert.alert(
+            "Selfie Issue",
+            selfieResult.error || "Please retake your selfie"
+          );
+          setIsValidating(false);
+          return;
+        }
+      }
+    } catch (error) {
+      console.error("Validation error:", error);
+      Alert.alert(
+        "Validation Error",
+        "Failed to validate your document. Please try again."
+      );
+      setIsValidating(false);
+      return;
+    } finally {
+      setIsValidating(false);
+    }
+
+    // All validations passed, proceed to next step or submit
     if (currentStep < 4) {
       setCurrentStep(currentStep + 1);
     } else {
@@ -250,19 +350,42 @@ export default function KYCUploadScreen() {
         body: formData as any, // React Native FormData compatible with apiRequest
       });
 
+      const responseData = (await response.json().catch(() => ({}))) as {
+        message?: string;
+        status?: string;
+        auto_rejected?: boolean;
+        rejection_reasons?: string[];
+      };
+
       if (!response.ok) {
-        const errorData = (await response.json().catch(() => ({}))) as {
-          message?: string;
-        };
-        throw new Error(errorData.message || "Upload failed");
+        throw new Error(responseData.message || "Upload failed");
       }
 
       // Invalidate KYC status cache so banner and status page update immediately
       queryClient.invalidateQueries({ queryKey: ["kycStatus"] });
 
-      Alert.alert("Success", "Your KYC documents have been submitted!", [
-        { text: "OK", onPress: () => router.replace("/kyc/status") },
-      ]);
+      // Check if auto-rejected by AI verification
+      if (responseData.auto_rejected || responseData.status === "REJECTED") {
+        const reasons = responseData.rejection_reasons || [];
+        const formattedReasons =
+          reasons.length > 0
+            ? reasons.map((r) => `• ${r}`).join("\n")
+            : "Please ensure your documents are clear and readable.";
+
+        Alert.alert(
+          "Verification Failed",
+          `Your documents could not be verified automatically:\n\n${formattedReasons}\n\nPlease resubmit with clearer images.`,
+          [{ text: "OK", onPress: () => router.replace("/kyc/status") }]
+        );
+      } else {
+        Alert.alert(
+          "Success",
+          isRejected
+            ? "Your KYC documents have been resubmitted for review!"
+            : "Your KYC documents have been submitted for review!",
+          [{ text: "OK", onPress: () => router.replace("/kyc/status") }]
+        );
+      }
     } catch (error) {
       Alert.alert(
         "Upload Failed",
@@ -525,6 +648,27 @@ export default function KYCUploadScreen() {
 
       {renderStepIndicator()}
 
+      {/* Rejection Banner - Show only on first step when resubmitting after rejection */}
+      {isRejected && currentStep === 1 && (
+        <View style={styles.rejectionBanner}>
+          <Ionicons name="alert-circle" size={24} color={Colors.error} />
+          <View style={{ flex: 1, marginLeft: 12 }}>
+            <Text style={styles.rejectionBannerTitle}>
+              Previous Submission Rejected
+            </Text>
+            {rejectionReason ? (
+              <Text style={styles.rejectionBannerReason}>
+                Reason: {rejectionReason}
+              </Text>
+            ) : (
+              <Text style={styles.rejectionBannerReason}>
+                Please upload new documents to resubmit.
+              </Text>
+            )}
+          </View>
+        </View>
+      )}
+
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -537,25 +681,56 @@ export default function KYCUploadScreen() {
 
       <View style={styles.footer}>
         {currentStep > 1 && (
-          <TouchableOpacity style={styles.backButton} onPress={handleBack}>
-            <Ionicons name="arrow-back" size={20} color={Colors.primary} />
-            <Text style={styles.backButtonText}>Back</Text>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={handleBack}
+            disabled={isValidating || isSubmitting}
+          >
+            <Ionicons
+              name="arrow-back"
+              size={20}
+              color={
+                isValidating || isSubmitting
+                  ? Colors.textSecondary
+                  : Colors.primary
+              }
+            />
+            <Text
+              style={[
+                styles.backButtonText,
+                (isValidating || isSubmitting) && {
+                  color: Colors.textSecondary,
+                },
+              ]}
+            >
+              Back
+            </Text>
           </TouchableOpacity>
         )}
         <TouchableOpacity
           style={[
             styles.nextButton,
             currentStep === 1 && styles.nextButtonFull,
+            (isValidating || isSubmitting) && { opacity: 0.7 },
           ]}
           onPress={handleNext}
-          disabled={isSubmitting}
+          disabled={isSubmitting || isValidating}
         >
-          {isSubmitting ? (
-            <ActivityIndicator color={Colors.white} />
+          {isSubmitting || isValidating ? (
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <ActivityIndicator color={Colors.white} size="small" />
+              <Text style={[styles.nextButtonText, { marginLeft: 8 }]}>
+                {isValidating ? "Validating..." : "Submitting..."}
+              </Text>
+            </View>
           ) : (
             <>
               <Text style={styles.nextButtonText}>
-                {currentStep === 4 ? "Submit" : "Next"}
+                {currentStep === 4
+                  ? isRejected
+                    ? "Resubmit Documents"
+                    : "Submit"
+                  : "Next"}
               </Text>
               <Ionicons
                 name={currentStep === 4 ? "checkmark" : "arrow-forward"}
@@ -595,6 +770,28 @@ const styles = StyleSheet.create({
   },
   headerRight: {
     width: 40, // Balance the back button on the left
+  },
+  rejectionBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    padding: 16,
+    marginHorizontal: 16,
+    marginTop: 12,
+    backgroundColor: "#FEE2E2",
+    borderRadius: BorderRadius.lg,
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.error,
+  },
+  rejectionBannerTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: Colors.error,
+    marginBottom: 4,
+  },
+  rejectionBannerReason: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    lineHeight: 20,
   },
   stepIndicator: {
     flexDirection: "row",

@@ -29,6 +29,19 @@ import { ENDPOINTS, apiRequest } from "@/lib/api/config";
 import { SaveButton } from "@/components/SaveButton";
 import { JobDetailSkeleton } from "@/components/ui/SkeletonLoader";
 import { EstimatedTimeCard, type EstimatedCompletion } from "@/components";
+import JobReceiptModal from "@/components/JobReceiptModal";
+import {
+  useTeamJobDetail,
+  useApplyToSkillSlot,
+  useWorkerCompleteAssignment,
+  useClientApproveTeamJob,
+  useTeamJobApplications,
+  useAcceptTeamApplication,
+  useRejectTeamApplication,
+  type SkillSlot,
+  type WorkerAssignment,
+} from "@/lib/hooks/useTeamJob";
+import { useMySkills } from "@/lib/hooks/useSkills";
 
 const { width } = Dimensions.get("window");
 
@@ -81,6 +94,22 @@ interface JobDetail {
   };
   reviews?: JobReviews;
   estimatedCompletion?: EstimatedCompletion | null;
+  // Universal job fields for ML
+  job_scope?: "MINOR_REPAIR" | "MODERATE_PROJECT" | "MAJOR_RENOVATION";
+  skill_level_required?: "ENTRY" | "INTERMEDIATE" | "EXPERT";
+  work_environment?: "INDOOR" | "OUTDOOR" | "BOTH";
+  // Team Job Fields
+  is_team_job?: boolean;
+  skill_slots?: SkillSlot[];
+  worker_assignments?: WorkerAssignment[];
+  budget_allocation_type?:
+    | "EQUAL_PER_SKILL"
+    | "EQUAL_PER_WORKER"
+    | "MANUAL"
+    | "SKILL_WEIGHTED";
+  team_fill_percentage?: number;
+  total_workers_needed?: number;
+  total_workers_assigned?: number;
 }
 
 interface JobApplication {
@@ -101,6 +130,49 @@ interface JobApplication {
   updated_at: string;
 }
 
+// ============================================================================
+// Helper functions for Universal Job Fields
+// ============================================================================
+
+const getJobScopeInfo = (scope: string) => {
+  switch (scope) {
+    case "MINOR_REPAIR":
+      return { label: "Minor Repair", emoji: "🔧", color: Colors.success };
+    case "MODERATE_PROJECT":
+      return { label: "Moderate Project", emoji: "🛠️", color: Colors.warning };
+    case "MAJOR_RENOVATION":
+      return { label: "Major Renovation", emoji: "🏗️", color: Colors.error };
+    default:
+      return { label: scope, emoji: "📋", color: Colors.textSecondary };
+  }
+};
+
+const getSkillLevelInfo = (level: string) => {
+  switch (level) {
+    case "ENTRY":
+      return { label: "Entry Level", emoji: "🌱", color: Colors.success };
+    case "INTERMEDIATE":
+      return { label: "Intermediate", emoji: "⭐", color: Colors.warning };
+    case "EXPERT":
+      return { label: "Expert", emoji: "👑", color: Colors.primary };
+    default:
+      return { label: level, emoji: "📊", color: Colors.textSecondary };
+  }
+};
+
+const getWorkEnvironmentInfo = (env: string) => {
+  switch (env) {
+    case "INDOOR":
+      return { label: "Indoor", emoji: "🏠", color: Colors.primary };
+    case "OUTDOOR":
+      return { label: "Outdoor", emoji: "🌳", color: Colors.success };
+    case "BOTH":
+      return { label: "Indoor & Outdoor", emoji: "🔄", color: Colors.warning };
+    default:
+      return { label: env, emoji: "📍", color: Colors.textSecondary };
+  }
+};
+
 export default function JobDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
@@ -116,6 +188,7 @@ export default function JobDetailScreen() {
   const [isSaved, setIsSaved] = useState(false);
   const [showRejectInviteModal, setShowRejectInviteModal] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
 
   // Application form state
   const [proposalMessage, setProposalMessage] = useState("");
@@ -124,6 +197,14 @@ export default function JobDetailScreen() {
   const [budgetOption, setBudgetOption] = useState<"ACCEPT" | "NEGOTIATE">(
     "ACCEPT"
   );
+
+  // Team Job state
+  const [showTeamApplyModal, setShowTeamApplyModal] = useState(false);
+  const [selectedSkillSlot, setSelectedSkillSlot] = useState<SkillSlot | null>(
+    null
+  );
+  const [showTeamCompletionModal, setShowTeamCompletionModal] = useState(false);
+  const [completionNotes, setCompletionNotes] = useState("");
 
   const isWorker = user?.profile_data?.profileType === "WORKER";
   const isClient = user?.profile_data?.profileType === "CLIENT";
@@ -162,6 +243,14 @@ export default function JobDetailScreen() {
 
       const result = (await response.json()) as any;
       const jobData = result.data || result; // Handle both wrapped and unwrapped responses
+
+      // Debug: Log team job data from API
+      console.log("[JobDetail] Raw API response:", {
+        is_team_job: jobData.is_team_job,
+        skill_slots_count: jobData.skill_slots?.length || 0,
+        total_workers_needed: jobData.total_workers_needed,
+        total_workers_assigned: jobData.total_workers_assigned,
+      });
 
       const mapReview = (reviewData: any): JobReviewSummary => ({
         rating:
@@ -224,31 +313,58 @@ export default function JobDetailScreen() {
             }
           : undefined,
         estimatedCompletion: jobData.estimated_completion || null,
+        // Universal job fields for ML
+        job_scope: jobData.job_scope || "MODERATE_PROJECT",
+        skill_level_required: jobData.skill_level_required || "INTERMEDIATE",
+        work_environment: jobData.work_environment || "INDOOR",
+        // Team Job fields
+        is_team_job: jobData.is_team_job || false,
+        skill_slots: jobData.skill_slots || [],
+        worker_assignments: jobData.worker_assignments || [],
+        budget_allocation_type: jobData.budget_allocation_type,
+        team_fill_percentage: jobData.team_fill_percentage,
+        total_workers_needed: jobData.total_workers_needed,
+        total_workers_assigned: jobData.total_workers_assigned,
       } as JobDetail;
     },
     enabled: isValidJobId, // Only fetch if we have a valid job ID
   });
 
-  // Check if already applied
-  const { data: hasApplied = false } = useQuery<boolean, unknown, boolean>({
+  // Check if already applied and track which skill slots
+  const { data: applicationStatus } = useQuery<{
+    hasApplied: boolean;
+    appliedSlotIds: number[];
+  }>({
     queryKey: ["jobs", id, "applied"],
-    queryFn: async (): Promise<boolean> => {
+    queryFn: async (): Promise<{
+      hasApplied: boolean;
+      appliedSlotIds: number[];
+    }> => {
       const response = await apiRequest(ENDPOINTS.MY_APPLICATIONS, {
         method: "GET",
       });
 
-      if (!response.ok) return false;
+      if (!response.ok) return { hasApplied: false, appliedSlotIds: [] };
 
       const data = (await response.json()) as any;
       if (data.success && data.applications) {
-        return data.applications.some(
+        const jobApplications = data.applications.filter(
           (app: any) => app.job_id.toString() === id
         );
+        const hasApplied = jobApplications.length > 0;
+        const appliedSlotIds = jobApplications
+          .filter((app: any) => app.applied_skill_slot_id !== null)
+          .map((app: any) => app.applied_skill_slot_id);
+        return { hasApplied, appliedSlotIds };
       }
-      return false;
+      return { hasApplied: false, appliedSlotIds: [] };
     },
     enabled: isWorker,
   });
+
+  // Destructure for easier access
+  const hasApplied = applicationStatus?.hasApplied ?? false;
+  const appliedSlotIds = applicationStatus?.appliedSlotIds ?? [];
 
   // Submit application mutation
   const submitApplication = useMutation({
@@ -580,6 +696,234 @@ export default function JobDetailScreen() {
     rejectInviteMutation.mutate(rejectReason);
   };
 
+  // ============================================================================
+  // Team Job Hooks & Handlers
+  // ============================================================================
+  const isTeamJob = job?.is_team_job === true;
+
+  // Debug: Log team job state in render
+  console.log("[JobDetail] Team Job State:", {
+    isTeamJob,
+    job_is_team_job: job?.is_team_job,
+    skill_slots_count: job?.skill_slots?.length || 0,
+    total_workers_needed: job?.total_workers_needed,
+    total_workers_assigned: job?.total_workers_assigned,
+  });
+
+  // Team job apply mutation
+  const applyToSkillSlot = useApplyToSkillSlot();
+
+  // Fetch worker's skills for skill mismatch warning
+  const { data: mySkills = [] } = useMySkills();
+
+  // Team job completion mutations
+  const workerCompleteAssignment = useWorkerCompleteAssignment();
+  const clientApproveTeamJob = useClientApproveTeamJob();
+
+  // Team job applications (for clients)
+  const { data: teamApplicationsData } = useTeamJobApplications(
+    parseInt(id),
+    isClient && isTeamJob
+  );
+
+  // Accept/reject team applications
+  const acceptTeamApplication = useAcceptTeamApplication();
+  const rejectTeamApplication = useRejectTeamApplication();
+
+  // Check if current worker is assigned to this team job
+  const currentWorkerAssignment = job?.worker_assignments?.find(
+    (assignment) => assignment.worker_id === user?.profile_data?.id
+  );
+
+  // Team job applications list for client view
+  const teamApplications = (teamApplicationsData as any)?.applications || [];
+
+  const handleTeamSlotApply = (slot: SkillSlot) => {
+    if (!isWorker) {
+      Alert.alert("Error", "Only workers can apply to team jobs");
+      return;
+    }
+
+    // Check if worker has the required skill
+    const hasRequiredSkill = mySkills.some(
+      (skill) => skill.id === slot.specialization_id
+    );
+
+    if (!hasRequiredSkill) {
+      // Show warning but still allow them to proceed
+      Alert.alert(
+        "⚠️ Skill Mismatch Warning",
+        `You don't have "${slot.specialization_name}" listed as a skill on your profile.\n\nClients may prefer workers with matching skills. Would you like to continue anyway?`,
+        [
+          {
+            text: "Cancel",
+            style: "cancel",
+          },
+          {
+            text: "Add Skill First",
+            onPress: () => router.push("/profile/skills" as any),
+          },
+          {
+            text: "Continue Anyway",
+            onPress: () => {
+              setSelectedSkillSlot(slot);
+              setProposedBudget(slot.budget_per_worker.toString());
+              setBudgetOption("ACCEPT");
+              setProposalMessage("");
+              setEstimatedDuration("");
+              setShowTeamApplyModal(true);
+            },
+          },
+        ]
+      );
+      return;
+    }
+
+    setSelectedSkillSlot(slot);
+    setProposedBudget(slot.budget_per_worker.toString());
+    setBudgetOption("ACCEPT");
+    setProposalMessage("");
+    setEstimatedDuration("");
+    setShowTeamApplyModal(true);
+  };
+
+  const handleSubmitTeamApplication = () => {
+    if (!selectedSkillSlot) return;
+
+    if (!proposalMessage.trim()) {
+      Alert.alert("Error", "Please provide a proposal message");
+      return;
+    }
+
+    const budgetValue =
+      budgetOption === "ACCEPT"
+        ? selectedSkillSlot.budget_per_worker
+        : parseFloat(proposedBudget);
+
+    applyToSkillSlot.mutate(
+      {
+        jobId: parseInt(id),
+        skillSlotId: selectedSkillSlot.skill_slot_id,
+        proposalMessage: proposalMessage,
+        proposedBudget: budgetValue,
+        budgetOption: budgetOption,
+        estimatedDuration: estimatedDuration || undefined,
+      },
+      {
+        onSuccess: () => {
+          setShowTeamApplyModal(false);
+          setSelectedSkillSlot(null);
+          setProposalMessage("");
+          setProposedBudget("");
+          setEstimatedDuration("");
+        },
+      }
+    );
+  };
+
+  const handleWorkerCompleteAssignment = () => {
+    if (!currentWorkerAssignment) return;
+
+    Alert.alert(
+      "Mark Complete",
+      "Are you sure you want to mark your assignment as complete?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Complete",
+          style: "default",
+          onPress: () => {
+            workerCompleteAssignment.mutate({
+              jobId: parseInt(id),
+              assignmentId: currentWorkerAssignment.assignment_id,
+              completionNotes: completionNotes || undefined,
+            });
+          },
+        },
+      ]
+    );
+  };
+
+  const handleClientApproveTeamJob = () => {
+    Alert.alert(
+      "Approve Job Completion",
+      "Are you sure all team workers have completed their work satisfactorily?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Approve",
+          style: "default",
+          onPress: () => {
+            clientApproveTeamJob.mutate({ jobId: parseInt(id) });
+          },
+        },
+      ]
+    );
+  };
+
+  const handleAcceptTeamApplication = (
+    applicationId: number,
+    workerName: string
+  ) => {
+    Alert.alert(
+      "Accept Team Application",
+      `Assign ${workerName} to this team job?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Accept",
+          style: "default",
+          onPress: () =>
+            acceptTeamApplication.mutate({
+              jobId: parseInt(id),
+              applicationId,
+            }),
+        },
+      ]
+    );
+  };
+
+  const handleRejectTeamApplication = (
+    applicationId: number,
+    workerName: string
+  ) => {
+    Alert.alert("Reject Application", `Reject ${workerName}'s application?`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Reject",
+        style: "destructive",
+        onPress: () =>
+          rejectTeamApplication.mutate({ jobId: parseInt(id), applicationId }),
+      },
+    ]);
+  };
+
+  const getSlotStatusColor = (status: string) => {
+    switch (status) {
+      case "FILLED":
+        return { bg: Colors.successLight, text: Colors.success };
+      case "PARTIALLY_FILLED":
+        return { bg: "#FEF3C7", text: "#92400E" };
+      case "OPEN":
+        return { bg: Colors.primary + "20", text: Colors.primary };
+      default:
+        return { bg: Colors.border, text: Colors.textSecondary };
+    }
+  };
+
+  const getSkillLevelEmoji = (level: string) => {
+    switch (level) {
+      case "ENTRY":
+        return "🌱";
+      case "INTERMEDIATE":
+        return "⭐";
+      case "EXPERT":
+        return "👑";
+      default:
+        return "";
+    }
+  };
+
   const getUrgencyColor = (urgency: string) => {
     switch (urgency) {
       case "HIGH":
@@ -778,6 +1122,27 @@ export default function JobDetailScreen() {
                 : job.category}
             </Text>
           </View>
+
+          {/* Team Job Header Badge - Prominent indicator at top */}
+          {isTeamJob && (
+            <View style={styles.teamJobHeaderBadge}>
+              <Ionicons name="people-circle" size={20} color={Colors.white} />
+              <Text style={styles.teamJobHeaderBadgeText}>Team Job</Text>
+              <View style={styles.teamJobHeaderDivider} />
+              <Text style={styles.teamJobHeaderCount}>
+                {job.total_workers_assigned || 0}/
+                {job.total_workers_needed || 0} workers filled
+              </Text>
+              {(job.team_fill_percentage || 0) >= 100 && (
+                <Ionicons
+                  name="checkmark-circle"
+                  size={16}
+                  color={Colors.white}
+                  style={{ marginLeft: 4 }}
+                />
+              )}
+            </View>
+          )}
         </View>
 
         {/* Budget & Location */}
@@ -803,6 +1168,102 @@ export default function JobDetailScreen() {
                   : job.location}
               </Text>
             </View>
+          </View>
+        </View>
+
+        {/* Job Requirements Section - Universal Fields for ML */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Job Requirements</Text>
+          <View style={styles.requirementsGrid}>
+            {/* Job Scope */}
+            {job.job_scope && (
+              <View style={styles.requirementCard}>
+                <View
+                  style={[
+                    styles.requirementIconContainer,
+                    {
+                      backgroundColor:
+                        getJobScopeInfo(job.job_scope).color + "20",
+                    },
+                  ]}
+                >
+                  <Text style={styles.requirementEmoji}>
+                    {getJobScopeInfo(job.job_scope).emoji}
+                  </Text>
+                </View>
+                <Text style={styles.requirementLabel}>Scope</Text>
+                <Text
+                  style={[
+                    styles.requirementValue,
+                    { color: getJobScopeInfo(job.job_scope).color },
+                  ]}
+                >
+                  {getJobScopeInfo(job.job_scope).label}
+                </Text>
+              </View>
+            )}
+
+            {/* Skill Level Required */}
+            {job.skill_level_required && (
+              <View style={styles.requirementCard}>
+                <View
+                  style={[
+                    styles.requirementIconContainer,
+                    {
+                      backgroundColor:
+                        getSkillLevelInfo(job.skill_level_required).color +
+                        "20",
+                    },
+                  ]}
+                >
+                  <Text style={styles.requirementEmoji}>
+                    {getSkillLevelInfo(job.skill_level_required).emoji}
+                  </Text>
+                </View>
+                <Text style={styles.requirementLabel}>Skill Level</Text>
+                <Text
+                  style={[
+                    styles.requirementValue,
+                    {
+                      color: getSkillLevelInfo(job.skill_level_required).color,
+                    },
+                  ]}
+                >
+                  {getSkillLevelInfo(job.skill_level_required).label}
+                </Text>
+              </View>
+            )}
+
+            {/* Work Environment */}
+            {job.work_environment && (
+              <View style={styles.requirementCard}>
+                <View
+                  style={[
+                    styles.requirementIconContainer,
+                    {
+                      backgroundColor:
+                        getWorkEnvironmentInfo(job.work_environment).color +
+                        "20",
+                    },
+                  ]}
+                >
+                  <Text style={styles.requirementEmoji}>
+                    {getWorkEnvironmentInfo(job.work_environment).emoji}
+                  </Text>
+                </View>
+                <Text style={styles.requirementLabel}>Environment</Text>
+                <Text
+                  style={[
+                    styles.requirementValue,
+                    {
+                      color: getWorkEnvironmentInfo(job.work_environment).color,
+                    },
+                  ]}
+                >
+                  {getWorkEnvironmentInfo(job.work_environment).label}
+                </Text>
+              </View>
+            )}
           </View>
         </View>
 
@@ -878,6 +1339,465 @@ export default function JobDetailScreen() {
           </View>
         )}
 
+        {/* ============================================================================
+            Team Job Section - Skill Slots & Assignments
+            ============================================================================ */}
+        {isTeamJob && job.skill_slots && job.skill_slots.length > 0 && (
+          <View style={styles.section}>
+            {/* Team Job Header Badge */}
+            <View style={styles.teamJobBadge}>
+              <Ionicons name="people" size={20} color={Colors.white} />
+              <Text style={styles.teamJobBadgeText}>Team Job</Text>
+              <Text style={styles.teamJobBadgeSubtext}>
+                {job.total_workers_assigned || 0}/
+                {job.total_workers_needed || 0} workers assigned
+              </Text>
+            </View>
+
+            {/* Team Fill Progress */}
+            <View style={styles.teamProgressContainer}>
+              <View style={styles.teamProgressBar}>
+                <View
+                  style={[
+                    styles.teamProgressFill,
+                    { width: `${job.team_fill_percentage || 0}%` },
+                  ]}
+                />
+              </View>
+              <Text style={styles.teamProgressText}>
+                {Math.round(job.team_fill_percentage || 0)}% filled
+              </Text>
+            </View>
+
+            {/* Conversation Lock Notice - Chat only available when all workers selected */}
+            {(job.team_fill_percentage || 0) < 100 && (
+              <View style={styles.conversationLockBanner}>
+                <Ionicons
+                  name="chatbubbles-outline"
+                  size={20}
+                  color={Colors.warning}
+                />
+                <View style={styles.conversationLockContent}>
+                  <Text style={styles.conversationLockTitle}>
+                    Group Chat Locked
+                  </Text>
+                  <Text style={styles.conversationLockText}>
+                    {isClient
+                      ? `Select ${(job.total_workers_needed || 0) - (job.total_workers_assigned || 0)} more worker(s) to start the team conversation`
+                      : "Team chat will be available once all positions are filled"}
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {/* Conversation Ready Notice */}
+            {(job.team_fill_percentage || 0) >= 100 &&
+              job.status === "ACTIVE" && (
+                <View style={styles.conversationReadyBanner}>
+                  <Ionicons
+                    name="chatbubbles"
+                    size={20}
+                    color={Colors.success}
+                  />
+                  <View style={styles.conversationLockContent}>
+                    <Text style={styles.conversationReadyTitle}>
+                      Team Ready!
+                    </Text>
+                    <Text style={styles.conversationReadyText}>
+                      All workers selected. Group conversation is now available.
+                    </Text>
+                  </View>
+                </View>
+              )}
+
+            <Text style={styles.sectionTitle}>Skill Slots</Text>
+
+            {/* Skill Slot Cards */}
+            {job.skill_slots.map((slot) => {
+              const slotColors = getSlotStatusColor(slot.status);
+              const assignedWorkers =
+                job.worker_assignments?.filter(
+                  (a) => a.skill_slot_id === slot.skill_slot_id
+                ) || [];
+
+              return (
+                <View key={slot.skill_slot_id} style={styles.skillSlotCard}>
+                  <View style={styles.skillSlotHeader}>
+                    <View style={styles.skillSlotTitleRow}>
+                      <Text style={styles.skillSlotTitle}>
+                        {slot.specialization_name}
+                      </Text>
+                      <View
+                        style={[
+                          styles.slotStatusBadge,
+                          { backgroundColor: slotColors.bg },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.slotStatusText,
+                            { color: slotColors.text },
+                          ]}
+                        >
+                          {slot.status.replace(/_/g, " ")}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={styles.skillSlotSubtitle}>
+                      {getSkillLevelEmoji(slot.skill_level_required)}{" "}
+                      {slot.skill_level_required}
+                    </Text>
+                  </View>
+
+                  <View style={styles.skillSlotInfo}>
+                    <View style={styles.skillSlotInfoItem}>
+                      <Ionicons
+                        name="people-outline"
+                        size={16}
+                        color={Colors.textSecondary}
+                      />
+                      <Text style={styles.skillSlotInfoText}>
+                        {slot.workers_assigned}/{slot.workers_needed} workers
+                      </Text>
+                    </View>
+                    <View style={styles.skillSlotInfoItem}>
+                      <Ionicons
+                        name="cash-outline"
+                        size={16}
+                        color={Colors.textSecondary}
+                      />
+                      <Text style={styles.skillSlotInfoText}>
+                        ₱{slot.budget_per_worker.toLocaleString()}/worker
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Position Slots with Numbers */}
+                  <View style={styles.positionsContainer}>
+                    <Text style={styles.positionsLabel}>Positions:</Text>
+                    {Array.from({ length: slot.workers_needed }).map(
+                      (_, posIndex) => {
+                        const assignedWorker = assignedWorkers[posIndex];
+                        const isFilled = !!assignedWorker;
+
+                        return (
+                          <View
+                            key={posIndex}
+                            style={[
+                              styles.positionRow,
+                              isFilled
+                                ? styles.positionFilled
+                                : styles.positionOpen,
+                            ]}
+                          >
+                            <View style={styles.positionNumber}>
+                              <Text style={styles.positionNumberText}>
+                                {posIndex + 1}
+                              </Text>
+                            </View>
+                            {isFilled ? (
+                              <>
+                                <Image
+                                  source={{
+                                    uri:
+                                      assignedWorker.worker_avatar ||
+                                      "https://via.placeholder.com/30",
+                                  }}
+                                  style={styles.positionAvatar}
+                                />
+                                <Text style={styles.positionWorkerName}>
+                                  {assignedWorker.worker_name}
+                                </Text>
+                                <Ionicons
+                                  name="checkmark-circle"
+                                  size={18}
+                                  color={Colors.success}
+                                />
+                                {assignedWorker.worker_marked_complete && (
+                                  <View style={styles.completedTag}>
+                                    <Text style={styles.completedTagText}>
+                                      Done
+                                    </Text>
+                                  </View>
+                                )}
+                              </>
+                            ) : (
+                              <>
+                                <View style={styles.positionEmptyAvatar}>
+                                  <Ionicons
+                                    name="person-outline"
+                                    size={16}
+                                    color={Colors.textSecondary}
+                                  />
+                                </View>
+                                <Text style={styles.positionOpenText}>
+                                  Open Position
+                                </Text>
+                                <View style={styles.openTag}>
+                                  <Text style={styles.openTagText}>Hiring</Text>
+                                </View>
+                              </>
+                            )}
+                          </View>
+                        );
+                      }
+                    )}
+                  </View>
+
+                  {/* Apply Button for Workers (if slot is open and not already applied to THIS slot) */}
+                  {isWorker &&
+                    slot.openings_remaining > 0 &&
+                    job.status === "ACTIVE" &&
+                    !currentWorkerAssignment &&
+                    !appliedSlotIds.includes(slot.skill_slot_id) && (
+                      <TouchableOpacity
+                        style={styles.applySlotButton}
+                        onPress={() => handleTeamSlotApply(slot)}
+                        activeOpacity={0.8}
+                      >
+                        <Ionicons
+                          name="hand-left"
+                          size={18}
+                          color={Colors.white}
+                        />
+                        <Text style={styles.applySlotButtonText}>
+                          Apply to this Slot
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+
+                  {/* Already Applied Badge - Per Slot */}
+                  {isWorker &&
+                    appliedSlotIds.includes(slot.skill_slot_id) &&
+                    !currentWorkerAssignment && (
+                      <View style={styles.appliedBadge}>
+                        <Ionicons
+                          name="checkmark-circle"
+                          size={16}
+                          color={Colors.success}
+                        />
+                        <Text
+                          style={[
+                            styles.appliedBadgeText,
+                            { color: Colors.success },
+                          ]}
+                        >
+                          Already Applied
+                        </Text>
+                      </View>
+                    )}
+                </View>
+              );
+            })}
+
+            {/* Worker's Own Assignment Actions */}
+            {isWorker && currentWorkerAssignment && (
+              <View style={styles.workerAssignmentCard}>
+                <View style={styles.assignmentCardHeader}>
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={24}
+                    color={Colors.success}
+                  />
+                  <Text style={styles.assignmentCardTitle}>
+                    You're Assigned!
+                  </Text>
+                </View>
+                <Text style={styles.assignmentCardSubtitle}>
+                  Slot: {currentWorkerAssignment.specialization_name}
+                </Text>
+
+                {!currentWorkerAssignment.worker_marked_complete ? (
+                  <TouchableOpacity
+                    style={styles.completeAssignmentButton}
+                    onPress={handleWorkerCompleteAssignment}
+                    disabled={workerCompleteAssignment.isPending}
+                    activeOpacity={0.8}
+                  >
+                    {workerCompleteAssignment.isPending ? (
+                      <ActivityIndicator size="small" color={Colors.white} />
+                    ) : (
+                      <>
+                        <Ionicons
+                          name="checkmark-done"
+                          size={20}
+                          color={Colors.white}
+                        />
+                        <Text style={styles.completeAssignmentButtonText}>
+                          Mark My Work Complete
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                ) : (
+                  <View style={styles.completedBadge}>
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={20}
+                      color={Colors.success}
+                    />
+                    <Text style={styles.completedBadgeText}>
+                      Marked Complete - Awaiting Client Approval
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* Client Approve Button */}
+            {isClient && job.status === "IN_PROGRESS" && (
+              <TouchableOpacity
+                style={styles.approveTeamJobButton}
+                onPress={handleClientApproveTeamJob}
+                disabled={clientApproveTeamJob.isPending}
+                activeOpacity={0.8}
+              >
+                {clientApproveTeamJob.isPending ? (
+                  <ActivityIndicator size="small" color={Colors.white} />
+                ) : (
+                  <>
+                    <Ionicons name="thumbs-up" size={20} color={Colors.white} />
+                    <Text style={styles.approveTeamJobButtonText}>
+                      Approve Team Job Completion
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
+        {/* Team Job Applications - For clients to review applications */}
+        {isTeamJob && isClient && teamApplications.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Team Applications</Text>
+              <View style={styles.applicationsBadge}>
+                <Text style={styles.applicationsBadgeText}>
+                  {
+                    teamApplications.filter((a: any) => a.status === "PENDING")
+                      .length
+                  }
+                </Text>
+              </View>
+            </View>
+
+            {teamApplications.map((app: any) => (
+              <View key={app.application_id} style={styles.applicationCard}>
+                <View style={styles.applicationWorkerInfo}>
+                  <Image
+                    source={{
+                      uri:
+                        app.worker_avatar || "https://via.placeholder.com/50",
+                    }}
+                    style={styles.applicationAvatar}
+                  />
+                  <View style={styles.applicationWorkerDetails}>
+                    <Text style={styles.applicationWorkerName}>
+                      {app.worker_name}
+                    </Text>
+                    <View style={styles.applicationWorkerMeta}>
+                      <Ionicons name="star" size={14} color="#F59E0B" />
+                      <Text style={styles.applicationWorkerRating}>
+                        {app.worker_rating?.toFixed(1) || "New"}
+                      </Text>
+                      <Text style={styles.applicationMetaDot}>•</Text>
+                      <Text style={styles.applicationWorkerCity}>
+                        Applying for: {app.specialization_name}
+                      </Text>
+                    </View>
+                  </View>
+                  <View
+                    style={[
+                      styles.applicationStatusBadge,
+                      app.status === "PENDING"
+                        ? styles.statusPending
+                        : app.status === "ACCEPTED"
+                          ? styles.statusAccepted
+                          : styles.statusRejected,
+                    ]}
+                  >
+                    <Text style={styles.applicationStatusText}>
+                      {app.status}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.proposalSection}>
+                  <Text style={styles.proposalLabel}>Proposal</Text>
+                  <Text style={styles.proposalText}>
+                    {app.proposal_message}
+                  </Text>
+                </View>
+
+                <View style={styles.applicationDetails}>
+                  <View style={styles.applicationDetailItem}>
+                    <Ionicons
+                      name="cash-outline"
+                      size={16}
+                      color={Colors.textSecondary}
+                    />
+                    <Text style={styles.applicationDetailText}>
+                      ₱{app.proposed_budget?.toLocaleString()}
+                    </Text>
+                  </View>
+                </View>
+
+                {app.status === "PENDING" && (
+                  <View style={styles.applicationActions}>
+                    <TouchableOpacity
+                      style={styles.acceptButton}
+                      onPress={() =>
+                        handleAcceptTeamApplication(
+                          app.application_id,
+                          app.worker_name
+                        )
+                      }
+                      disabled={acceptTeamApplication.isPending}
+                    >
+                      {acceptTeamApplication.isPending ? (
+                        <ActivityIndicator size="small" color={Colors.white} />
+                      ) : (
+                        <>
+                          <Ionicons
+                            name="checkmark"
+                            size={18}
+                            color={Colors.white}
+                          />
+                          <Text style={styles.acceptButtonText}>Accept</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.rejectButton}
+                      onPress={() =>
+                        handleRejectTeamApplication(
+                          app.application_id,
+                          app.worker_name
+                        )
+                      }
+                      disabled={rejectTeamApplication.isPending}
+                    >
+                      {rejectTeamApplication.isPending ? (
+                        <ActivityIndicator size="small" color={Colors.error} />
+                      ) : (
+                        <>
+                          <Ionicons
+                            name="close"
+                            size={18}
+                            color={Colors.error}
+                          />
+                          <Text style={styles.rejectButtonText}>Reject</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            ))}
+          </View>
+        )}
+
         {/* Job Invitation Actions - For workers to accept/reject INVITE jobs */}
         {isWorker &&
           job.jobType === "INVITE" &&
@@ -944,188 +1864,191 @@ export default function JobDetailScreen() {
             </View>
           )}
 
-        {/* Applications Section - Only for open LISTING jobs by client */}
-        {isClient && job.jobType === "LISTING" && !job.assignedWorker && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Applications</Text>
-              {applications.length > 0 && (
-                <View style={styles.applicationsBadge}>
-                  <Text style={styles.applicationsBadgeText}>
-                    {applications.length}
+        {/* Applications Section - Only for open LISTING jobs by client (non-team jobs only) */}
+        {isClient &&
+          job.jobType === "LISTING" &&
+          !job.assignedWorker &&
+          !isTeamJob && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Applications</Text>
+                {applications.length > 0 && (
+                  <View style={styles.applicationsBadge}>
+                    <Text style={styles.applicationsBadgeText}>
+                      {applications.length}
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              {applicationsLoading ? (
+                <ActivityIndicator size="small" color={Colors.primary} />
+              ) : applications.length === 0 ? (
+                <View style={styles.emptyApplications}>
+                  <Ionicons
+                    name="document-text-outline"
+                    size={48}
+                    color={Colors.textSecondary}
+                  />
+                  <Text style={styles.emptyApplicationsText}>
+                    No applications yet
                   </Text>
+                  <Text style={styles.emptyApplicationsSubtext}>
+                    Workers who apply will appear here
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.applicationsList}>
+                  {applications.map((application) => (
+                    <View key={application.id} style={styles.applicationCard}>
+                      {/* Worker Info */}
+                      <View style={styles.applicationWorkerInfo}>
+                        <Image
+                          source={{
+                            uri:
+                              application.worker.avatar ||
+                              "https://via.placeholder.com/50",
+                          }}
+                          style={styles.applicationAvatar}
+                        />
+                        <View style={styles.applicationWorkerDetails}>
+                          <Text style={styles.applicationWorkerName}>
+                            {application.worker.name}
+                          </Text>
+                          <View style={styles.applicationWorkerMeta}>
+                            <Ionicons name="star" size={14} color="#F59E0B" />
+                            <Text style={styles.applicationWorkerRating}>
+                              {application.worker.rating.toFixed(1)}
+                            </Text>
+                            {application.worker.city && (
+                              <>
+                                <Text style={styles.applicationMetaDot}>•</Text>
+                                <Text style={styles.applicationWorkerCity}>
+                                  {application.worker.city}
+                                </Text>
+                              </>
+                            )}
+                          </View>
+                        </View>
+                        <View
+                          style={[
+                            styles.applicationStatusBadge,
+                            application.status === "PENDING" &&
+                              styles.statusPending,
+                            application.status === "ACCEPTED" &&
+                              styles.statusAccepted,
+                            application.status === "REJECTED" &&
+                              styles.statusRejected,
+                          ]}
+                        >
+                          <Text style={styles.applicationStatusText}>
+                            {application.status}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {/* Proposal Details */}
+                      {application.proposal_message && (
+                        <View style={styles.proposalSection}>
+                          <Text style={styles.proposalLabel}>Proposal:</Text>
+                          <Text style={styles.proposalText} numberOfLines={3}>
+                            {application.proposal_message}
+                          </Text>
+                        </View>
+                      )}
+
+                      <View style={styles.applicationDetails}>
+                        {application.budget_option === "NEGOTIATE" && (
+                          <View style={styles.applicationDetailItem}>
+                            <Ionicons
+                              name="cash-outline"
+                              size={16}
+                              color={Colors.textSecondary}
+                            />
+                            <Text style={styles.applicationDetailText}>
+                              Proposed: ₱
+                              {application.proposed_budget.toLocaleString()}
+                            </Text>
+                          </View>
+                        )}
+                        {application.estimated_duration && (
+                          <View style={styles.applicationDetailItem}>
+                            <Ionicons
+                              name="time-outline"
+                              size={16}
+                              color={Colors.textSecondary}
+                            />
+                            <Text style={styles.applicationDetailText}>
+                              {application.estimated_duration}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+
+                      {/* Action Buttons */}
+                      {application.status === "PENDING" && (
+                        <View style={styles.applicationActions}>
+                          <TouchableOpacity
+                            style={styles.rejectButton}
+                            onPress={() =>
+                              handleRejectApplication(
+                                application.id,
+                                application.worker.name
+                              )
+                            }
+                            disabled={rejectApplicationMutation.isPending}
+                          >
+                            {rejectApplicationMutation.isPending ? (
+                              <ActivityIndicator
+                                size="small"
+                                color={Colors.error}
+                              />
+                            ) : (
+                              <>
+                                <Ionicons
+                                  name="close-circle-outline"
+                                  size={20}
+                                  color={Colors.error}
+                                />
+                                <Text style={styles.rejectButtonText}>
+                                  Reject
+                                </Text>
+                              </>
+                            )}
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={styles.acceptButton}
+                            onPress={() =>
+                              handleAcceptApplication(
+                                application.id,
+                                application.worker.name
+                              )
+                            }
+                            disabled={acceptApplicationMutation.isPending}
+                          >
+                            {acceptApplicationMutation.isPending ? (
+                              <ActivityIndicator size="small" color="#FFF" />
+                            ) : (
+                              <>
+                                <Ionicons
+                                  name="checkmark-circle-outline"
+                                  size={20}
+                                  color="#FFF"
+                                />
+                                <Text style={styles.acceptButtonText}>
+                                  Accept
+                                </Text>
+                              </>
+                            )}
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                    </View>
+                  ))}
                 </View>
               )}
             </View>
-
-            {applicationsLoading ? (
-              <ActivityIndicator size="small" color={Colors.primary} />
-            ) : applications.length === 0 ? (
-              <View style={styles.emptyApplications}>
-                <Ionicons
-                  name="document-text-outline"
-                  size={48}
-                  color={Colors.textSecondary}
-                />
-                <Text style={styles.emptyApplicationsText}>
-                  No applications yet
-                </Text>
-                <Text style={styles.emptyApplicationsSubtext}>
-                  Workers who apply will appear here
-                </Text>
-              </View>
-            ) : (
-              <View style={styles.applicationsList}>
-                {applications.map((application) => (
-                  <View key={application.id} style={styles.applicationCard}>
-                    {/* Worker Info */}
-                    <View style={styles.applicationWorkerInfo}>
-                      <Image
-                        source={{
-                          uri:
-                            application.worker.avatar ||
-                            "https://via.placeholder.com/50",
-                        }}
-                        style={styles.applicationAvatar}
-                      />
-                      <View style={styles.applicationWorkerDetails}>
-                        <Text style={styles.applicationWorkerName}>
-                          {application.worker.name}
-                        </Text>
-                        <View style={styles.applicationWorkerMeta}>
-                          <Ionicons name="star" size={14} color="#F59E0B" />
-                          <Text style={styles.applicationWorkerRating}>
-                            {application.worker.rating.toFixed(1)}
-                          </Text>
-                          {application.worker.city && (
-                            <>
-                              <Text style={styles.applicationMetaDot}>•</Text>
-                              <Text style={styles.applicationWorkerCity}>
-                                {application.worker.city}
-                              </Text>
-                            </>
-                          )}
-                        </View>
-                      </View>
-                      <View
-                        style={[
-                          styles.applicationStatusBadge,
-                          application.status === "PENDING" &&
-                            styles.statusPending,
-                          application.status === "ACCEPTED" &&
-                            styles.statusAccepted,
-                          application.status === "REJECTED" &&
-                            styles.statusRejected,
-                        ]}
-                      >
-                        <Text style={styles.applicationStatusText}>
-                          {application.status}
-                        </Text>
-                      </View>
-                    </View>
-
-                    {/* Proposal Details */}
-                    {application.proposal_message && (
-                      <View style={styles.proposalSection}>
-                        <Text style={styles.proposalLabel}>Proposal:</Text>
-                        <Text style={styles.proposalText} numberOfLines={3}>
-                          {application.proposal_message}
-                        </Text>
-                      </View>
-                    )}
-
-                    <View style={styles.applicationDetails}>
-                      {application.budget_option === "NEGOTIATE" && (
-                        <View style={styles.applicationDetailItem}>
-                          <Ionicons
-                            name="cash-outline"
-                            size={16}
-                            color={Colors.textSecondary}
-                          />
-                          <Text style={styles.applicationDetailText}>
-                            Proposed: ₱
-                            {application.proposed_budget.toLocaleString()}
-                          </Text>
-                        </View>
-                      )}
-                      {application.estimated_duration && (
-                        <View style={styles.applicationDetailItem}>
-                          <Ionicons
-                            name="time-outline"
-                            size={16}
-                            color={Colors.textSecondary}
-                          />
-                          <Text style={styles.applicationDetailText}>
-                            {application.estimated_duration}
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-
-                    {/* Action Buttons */}
-                    {application.status === "PENDING" && (
-                      <View style={styles.applicationActions}>
-                        <TouchableOpacity
-                          style={styles.rejectButton}
-                          onPress={() =>
-                            handleRejectApplication(
-                              application.id,
-                              application.worker.name
-                            )
-                          }
-                          disabled={rejectApplicationMutation.isPending}
-                        >
-                          {rejectApplicationMutation.isPending ? (
-                            <ActivityIndicator
-                              size="small"
-                              color={Colors.error}
-                            />
-                          ) : (
-                            <>
-                              <Ionicons
-                                name="close-circle-outline"
-                                size={20}
-                                color={Colors.error}
-                              />
-                              <Text style={styles.rejectButtonText}>
-                                Reject
-                              </Text>
-                            </>
-                          )}
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={styles.acceptButton}
-                          onPress={() =>
-                            handleAcceptApplication(
-                              application.id,
-                              application.worker.name
-                            )
-                          }
-                          disabled={acceptApplicationMutation.isPending}
-                        >
-                          {acceptApplicationMutation.isPending ? (
-                            <ActivityIndicator size="small" color="#FFF" />
-                          ) : (
-                            <>
-                              <Ionicons
-                                name="checkmark-circle-outline"
-                                size={20}
-                                color="#FFF"
-                              />
-                              <Text style={styles.acceptButtonText}>
-                                Accept
-                              </Text>
-                            </>
-                          )}
-                        </TouchableOpacity>
-                      </View>
-                    )}
-                  </View>
-                ))}
-              </View>
-            )}
-          </View>
-        )}
+          )}
 
         {/* Job Feedback */}
         {jobHasFeedback && (
@@ -1139,6 +2062,34 @@ export default function JobDetailScreen() {
               isWorker ? "Your Feedback" : "Worker → Client",
               job.reviews?.workerToClient
             )}
+          </View>
+        )}
+
+        {/* View Receipt Button - Shows for COMPLETED jobs */}
+        {job.status === "COMPLETED" && (
+          <View style={styles.section}>
+            <TouchableOpacity
+              style={styles.viewReceiptButton}
+              onPress={() => setShowReceiptModal(true)}
+              activeOpacity={0.8}
+            >
+              <View style={styles.viewReceiptButtonContent}>
+                <View style={styles.viewReceiptIconContainer}>
+                  <Ionicons name="receipt" size={22} color={Colors.white} />
+                </View>
+                <View style={styles.viewReceiptTextContainer}>
+                  <Text style={styles.viewReceiptButtonTitle}>View Receipt</Text>
+                  <Text style={styles.viewReceiptButtonSubtitle}>
+                    Payment breakdown and job details
+                  </Text>
+                </View>
+                <Ionicons
+                  name="chevron-forward"
+                  size={20}
+                  color={Colors.primary}
+                />
+              </View>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -1629,6 +2580,193 @@ export default function JobDetailScreen() {
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
+
+      {/* Team Job Apply Modal */}
+      <Modal
+        visible={showTeamApplyModal}
+        animationType="slide"
+        onRequestClose={() => {
+          setShowTeamApplyModal(false);
+          setSelectedSkillSlot(null);
+        }}
+      >
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Apply to Skill Slot</Text>
+            <TouchableOpacity
+              onPress={() => {
+                setShowTeamApplyModal(false);
+                setSelectedSkillSlot(null);
+                setProposalMessage("");
+                setProposedBudget("");
+                setEstimatedDuration("");
+              }}
+            >
+              <Ionicons name="close" size={24} color={Colors.textPrimary} />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.modalContent}>
+            {/* Selected Slot Info */}
+            {selectedSkillSlot && (
+              <View
+                style={[styles.skillSlotCard, { marginBottom: Spacing.lg }]}
+              >
+                <Text style={styles.skillSlotTitle}>
+                  {selectedSkillSlot.specialization_name}
+                </Text>
+                <Text style={styles.skillSlotSubtitle}>
+                  {getSkillLevelEmoji(selectedSkillSlot.skill_level_required)}{" "}
+                  {selectedSkillSlot.skill_level_required} Level Required
+                </Text>
+                <View style={[styles.skillSlotInfo, { marginTop: Spacing.sm }]}>
+                  <View style={styles.skillSlotInfoItem}>
+                    <Ionicons
+                      name="cash-outline"
+                      size={16}
+                      color={Colors.textSecondary}
+                    />
+                    <Text style={styles.skillSlotInfoText}>
+                      ₱{selectedSkillSlot.budget_per_worker.toLocaleString()}
+                      /worker
+                    </Text>
+                  </View>
+                  <View style={styles.skillSlotInfoItem}>
+                    <Ionicons
+                      name="people-outline"
+                      size={16}
+                      color={Colors.textSecondary}
+                    />
+                    <Text style={styles.skillSlotInfoText}>
+                      {selectedSkillSlot.openings_remaining} openings left
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            )}
+
+            {/* Budget Options */}
+            <Text style={styles.label}>Budget Option</Text>
+            <View style={styles.budgetOptions}>
+              <TouchableOpacity
+                style={[
+                  styles.budgetOption,
+                  budgetOption === "ACCEPT" && styles.budgetOptionActive,
+                ]}
+                onPress={() => setBudgetOption("ACCEPT")}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name={
+                    budgetOption === "ACCEPT"
+                      ? "radio-button-on"
+                      : "radio-button-off"
+                  }
+                  size={20}
+                  color={
+                    budgetOption === "ACCEPT"
+                      ? Colors.primary
+                      : Colors.textSecondary
+                  }
+                />
+                <Text style={styles.budgetOptionText}>
+                  Accept ₱
+                  {selectedSkillSlot?.budget_per_worker.toLocaleString()}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.budgetOption,
+                  budgetOption === "NEGOTIATE" && styles.budgetOptionActive,
+                ]}
+                onPress={() => setBudgetOption("NEGOTIATE")}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name={
+                    budgetOption === "NEGOTIATE"
+                      ? "radio-button-on"
+                      : "radio-button-off"
+                  }
+                  size={20}
+                  color={
+                    budgetOption === "NEGOTIATE"
+                      ? Colors.primary
+                      : Colors.textSecondary
+                  }
+                />
+                <Text style={styles.budgetOptionText}>Negotiate</Text>
+              </TouchableOpacity>
+            </View>
+
+            {budgetOption === "NEGOTIATE" && (
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Proposed Budget</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter your proposed budget"
+                  placeholderTextColor={Colors.textHint}
+                  value={proposedBudget}
+                  onChangeText={setProposedBudget}
+                  keyboardType="numeric"
+                />
+              </View>
+            )}
+
+            {/* Proposal Message */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Proposal Message *</Text>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                placeholder="Explain why you're the best fit for this skill slot..."
+                placeholderTextColor={Colors.textHint}
+                value={proposalMessage}
+                onChangeText={setProposalMessage}
+                multiline
+                numberOfLines={5}
+                textAlignVertical="top"
+              />
+            </View>
+
+            {/* Estimated Duration */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Estimated Duration (Optional)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g., 2 days, 1 week"
+                placeholderTextColor={Colors.textHint}
+                value={estimatedDuration}
+                onChangeText={setEstimatedDuration}
+              />
+            </View>
+
+            {/* Submit Button */}
+            <TouchableOpacity
+              style={[
+                styles.submitButton,
+                applyToSkillSlot.isPending && styles.submitButtonDisabled,
+              ]}
+              onPress={handleSubmitTeamApplication}
+              disabled={applyToSkillSlot.isPending}
+              activeOpacity={0.8}
+            >
+              {applyToSkillSlot.isPending ? (
+                <ActivityIndicator color={Colors.white} />
+              ) : (
+                <Text style={styles.submitButtonText}>Submit Application</Text>
+              )}
+            </TouchableOpacity>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
+      {/* Job Receipt Modal */}
+      <JobReceiptModal
+        visible={showReceiptModal}
+        onClose={() => setShowReceiptModal(false)}
+        jobId={parseInt(id)}
+        userRole={isWorker ? "WORKER" : "CLIENT"}
+      />
     </SafeAreaView>
   );
 }
@@ -1854,6 +2992,41 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.xs,
     color: Colors.primary,
     marginTop: Spacing.xs,
+  },
+  // View Receipt Button Styles
+  viewReceiptButton: {
+    backgroundColor: Colors.primaryLight || "#E3F2FD",
+    borderRadius: BorderRadius.medium,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    overflow: "hidden",
+  },
+  viewReceiptButtonContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.md,
+    gap: Spacing.sm,
+  },
+  viewReceiptIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  viewReceiptTextContainer: {
+    flex: 1,
+  },
+  viewReceiptButtonTitle: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: "600",
+    color: Colors.primary,
+  },
+  viewReceiptButtonSubtitle: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+    marginTop: 2,
   },
   applyButtonContainer: {
     position: "absolute",
@@ -2365,5 +3538,431 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.base,
     fontWeight: "700",
     color: Colors.white,
+  },
+
+  // ============================================================================
+  // Team Job Styles
+  // ============================================================================
+  teamJobHeaderBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#7C3AED",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.lg,
+    marginTop: Spacing.md,
+    gap: Spacing.sm,
+  },
+  teamJobHeaderBadgeText: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: "700",
+    color: Colors.white,
+  },
+  teamJobHeaderDivider: {
+    width: 1,
+    height: 16,
+    backgroundColor: "rgba(255,255,255,0.3)",
+  },
+  teamJobHeaderCount: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: "600",
+    color: Colors.white,
+    opacity: 0.95,
+  },
+  teamJobBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.primary,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.md,
+    gap: Spacing.sm,
+  },
+  teamJobBadgeText: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: "700",
+    color: Colors.white,
+  },
+  teamJobBadgeSubtext: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.white,
+    opacity: 0.9,
+    marginLeft: "auto",
+  },
+  teamProgressContainer: {
+    marginBottom: Spacing.lg,
+  },
+  teamProgressBar: {
+    height: 8,
+    backgroundColor: Colors.border,
+    borderRadius: BorderRadius.full,
+    overflow: "hidden",
+    marginBottom: Spacing.xs,
+  },
+  teamProgressFill: {
+    height: "100%",
+    backgroundColor: Colors.success,
+    borderRadius: BorderRadius.full,
+  },
+  teamProgressText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+    textAlign: "right",
+  },
+  skillSlotCard: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+    ...Shadows.sm,
+  },
+  skillSlotHeader: {
+    marginBottom: Spacing.sm,
+  },
+  skillSlotTitleRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  skillSlotTitle: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+    flex: 1,
+  },
+  slotStatusBadge: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.sm,
+  },
+  slotStatusText: {
+    fontSize: Typography.fontSize.xs,
+    fontWeight: "600",
+    textTransform: "uppercase",
+  },
+  skillSlotSubtitle: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+  },
+  skillSlotInfo: {
+    flexDirection: "row",
+    gap: Spacing.lg,
+    marginBottom: Spacing.sm,
+  },
+  skillSlotInfoItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  skillSlotInfoText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+  },
+  // Conversation Lock/Ready Banners
+  conversationLockBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: Colors.warningLight,
+    borderWidth: 1,
+    borderColor: Colors.warning,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    marginBottom: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  conversationReadyBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: Colors.successLight,
+    borderWidth: 1,
+    borderColor: Colors.success,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    marginBottom: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  conversationLockContent: {
+    flex: 1,
+  },
+  conversationLockTitle: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: "700",
+    color: Colors.warning,
+    marginBottom: 2,
+  },
+  conversationLockText: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.textSecondary,
+    lineHeight: 18,
+  },
+  conversationReadyTitle: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: "700",
+    color: Colors.success,
+    marginBottom: 2,
+  },
+  conversationReadyText: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.textSecondary,
+    lineHeight: 18,
+  },
+  // Position Slots Styles
+  positionsContainer: {
+    marginTop: Spacing.sm,
+    paddingTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  positionsLabel: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: "600",
+    color: Colors.textSecondary,
+    marginBottom: Spacing.sm,
+  },
+  positionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.xs,
+    gap: Spacing.sm,
+  },
+  positionFilled: {
+    backgroundColor: Colors.successLight,
+  },
+  positionOpen: {
+    backgroundColor: Colors.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderStyle: "dashed",
+  },
+  positionNumber: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: Colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  positionNumberText: {
+    fontSize: Typography.fontSize.xs,
+    fontWeight: "700",
+    color: Colors.white,
+  },
+  positionAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: Colors.success,
+  },
+  positionEmptyAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: Colors.border,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  positionWorkerName: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+    flex: 1,
+  },
+  positionOpenText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+    fontStyle: "italic",
+    flex: 1,
+  },
+  completedTag: {
+    backgroundColor: Colors.success,
+    paddingHorizontal: Spacing.xs,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.sm,
+  },
+  completedTagText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: Colors.white,
+  },
+  openTag: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.sm,
+  },
+  openTagText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: Colors.white,
+  },
+  assignedWorkersList: {
+    marginTop: Spacing.sm,
+    paddingTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  assignedWorkersLabel: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: "600",
+    color: Colors.textSecondary,
+    marginBottom: Spacing.xs,
+  },
+  assignedWorkerItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    paddingVertical: 4,
+  },
+  assignedWorkerAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+  },
+  assignedWorkerName: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textPrimary,
+    flex: 1,
+  },
+  applySlotButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+    backgroundColor: Colors.primary,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    marginTop: Spacing.md,
+  },
+  applySlotButtonText: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: "600",
+    color: Colors.white,
+  },
+  appliedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.xs,
+    backgroundColor: Colors.border,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    marginTop: Spacing.md,
+  },
+  appliedBadgeText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+    fontWeight: "500",
+  },
+  workerAssignmentCard: {
+    backgroundColor: Colors.successLight,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    marginTop: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.success,
+  },
+  assignmentCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    marginBottom: Spacing.xs,
+  },
+  assignmentCardTitle: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: "700",
+    color: Colors.success,
+  },
+  assignmentCardSubtitle: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.md,
+  },
+  completeAssignmentButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+    backgroundColor: Colors.success,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
+  },
+  completeAssignmentButtonText: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: "600",
+    color: Colors.white,
+  },
+  completedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    paddingVertical: Spacing.sm,
+  },
+  completedBadgeText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.success,
+    fontWeight: "500",
+  },
+  approveTeamJobButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+    backgroundColor: Colors.primary,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginTop: Spacing.lg,
+    ...Shadows.sm,
+  },
+  approveTeamJobButtonText: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: "700",
+    color: Colors.white,
+  },
+  // Job Requirements Section (Universal ML Fields)
+  requirementsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
+  },
+  requirementCard: {
+    flex: 1,
+    minWidth: "30%",
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: Colors.border,
+    ...Shadows.sm,
+  },
+  requirementIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: Spacing.xs,
+  },
+  requirementEmoji: {
+    fontSize: 24,
+  },
+  requirementLabel: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.textSecondary,
+    marginTop: 2,
+    textAlign: "center",
+  },
+  requirementValue: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: "600",
+    marginTop: 2,
+    textAlign: "center",
   },
 });

@@ -79,25 +79,24 @@ export default function WorkerCard({ worker, onPress }: WorkerCardProps) {
       )}
 
       <View style={styles.footer}>
-        {worker.hourlyRate && typeof worker.hourlyRate === "number" && (
+        {typeof worker.hourlyRate === "number" && worker.hourlyRate > 0 && (
           <View style={styles.rateSection}>
             <Ionicons name="cash-outline" size={16} color={Colors.primary} />
             <Text style={styles.rate}>₱{worker.hourlyRate}/hr</Text>
           </View>
         )}
-        {worker.distance !== undefined &&
-          typeof worker.distance === "number" && (
-            <View style={styles.distanceSection}>
-              <Ionicons
-                name="location-outline"
-                size={16}
-                color={Colors.textSecondary}
-              />
-              <Text style={styles.distance}>
-                {worker.distance.toFixed(1)} km away
-              </Text>
-            </View>
-          )}
+        {typeof worker.distance === "number" && (
+          <View style={styles.distanceSection}>
+            <Ionicons
+              name="location-outline"
+              size={16}
+              color={Colors.textSecondary}
+            />
+            <Text style={styles.distance}>
+              {worker.distance.toFixed(1)} km away
+            </Text>
+          </View>
+        )}
       </View>
     </TouchableOpacity>
   );

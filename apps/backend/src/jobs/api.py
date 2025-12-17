@@ -973,9 +973,17 @@ def get_available_jobs(request):
                 status=400
             )
         
-        # Get all ACTIVE job postings with client info
+        # Get all ACTIVE job postings (exclude INVITE jobs with PENDING status)
+        # LISTING jobs: inviteStatus is null, show if ACTIVE
+        # INVITE jobs: only show if ACCEPTED (not PENDING or REJECTED)
+        from django.db.models import Q
+        
         job_postings = JobPosting.objects.filter(
-            status=JobPosting.JobStatus.ACTIVE
+            Q(status=JobPosting.JobStatus.ACTIVE) &
+            (
+                Q(jobType='LISTING') |  # LISTING jobs (open to all workers)
+                Q(jobType='INVITE', inviteStatus='ACCEPTED')  # INVITE jobs only if accepted
+            )
         ).select_related(
             'categoryID',
             'clientID__profileID__accountFK'
@@ -2100,29 +2108,31 @@ def accept_application(request, job_id: int, application_id: int):
                 message_text=f"Application accepted! You can now chat about the job: {job.title}"
             )
         
-        # Reject all other pending applications for this job
-        other_applications = JobApplication.objects.filter(
-            jobID=job,
-            status=JobApplication.ApplicationStatus.PENDING
-        ).exclude(
-            applicationID=application_id
-        ).select_related('workerID__profileID__accountFK')
+        # Only reject other applications for non-team (single-worker) jobs
+        # Team jobs use separate team job acceptance endpoint and should not auto-reject
+        if not job.is_team_job:
+            other_applications = JobApplication.objects.filter(
+                jobID=job,
+                status=JobApplication.ApplicationStatus.PENDING
+            ).exclude(
+                applicationID=application_id
+            ).select_related('workerID__profileID__accountFK')
 
-        # Notify rejected workers
-        from accounts.models import Notification
-        for other_app in other_applications:
-            Notification.objects.create(
-                accountFK=other_app.workerID.profileID.accountFK,
-                notificationType="APPLICATION_REJECTED",
-                title=f"Application Not Selected",
-                message=f"Unfortunately, your application for '{job.title}' was not selected. Keep applying to find more opportunities!",
-                relatedJobID=job.jobID,
-                relatedApplicationID=other_app.applicationID
-            )
-            print(f"📬 Rejection notification sent to worker {other_app.workerID.profileID.accountFK.email}")
+            # Notify rejected workers
+            from accounts.models import Notification
+            for other_app in other_applications:
+                Notification.objects.create(
+                    accountFK=other_app.workerID.profileID.accountFK,
+                    notificationType="APPLICATION_REJECTED",
+                    title=f"Application Not Selected",
+                    message=f"Unfortunately, your application for '{job.title}' was not selected. Keep applying to find more opportunities!",
+                    relatedJobID=job.jobID,
+                    relatedApplicationID=other_app.applicationID
+                )
+                print(f"📬 Rejection notification sent to worker {other_app.workerID.profileID.accountFK.email}")
 
-        # Update status
-        other_applications.update(status=JobApplication.ApplicationStatus.REJECTED)
+            # Update status
+            other_applications.update(status=JobApplication.ApplicationStatus.REJECTED)
 
         # Create notification for accepted worker
         client_name = f"{client_profile.profileID.firstName} {client_profile.profileID.lastName}"
@@ -3543,7 +3553,17 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
         is_worker = profile is not None and job.assignedWorkerID and job.assignedWorkerID.profileID.profileID == profile.profileID
         is_agency_owner = is_agency_job and job.assignedEmployeeID.agency == request.auth
         
-        if not (is_client or is_worker or is_agency_owner):
+        # For team jobs, check if worker is part of the team via JobWorkerAssignment
+        is_team_worker = False
+        if job.is_team_job and profile is not None:
+            from accounts.models import JobWorkerAssignment
+            is_team_worker = JobWorkerAssignment.objects.filter(
+                jobID=job,
+                workerID__profileID=profile,
+                assignment_status__in=['ACTIVE', 'COMPLETED']
+            ).exists()
+        
+        if not (is_client or is_worker or is_agency_owner or is_team_worker):
             return Response(
                 {"error": "You are not part of this job"},
                 status=403
@@ -3556,12 +3576,14 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                 status=400
             )
         
-        # Validate rating
-        if data.rating < 1 or data.rating > 5:
-            return Response(
-                {"error": "Rating must be between 1 and 5 stars"},
-                status=400
-            )
+        # Validate ratings (multi-criteria: 1-5 stars each)
+        for rating_field in ['rating_quality', 'rating_communication', 'rating_punctuality', 'rating_professionalism']:
+            rating_value = getattr(data, rating_field, None)
+            if rating_value is None or rating_value < 1 or rating_value > 5:
+                return Response(
+                    {"error": f"{rating_field.replace('_', ' ').title()} must be between 1 and 5 stars"},
+                    status=400
+                )
         
         from accounts.models import JobReview, JobEmployeeAssignment
         from agency.models import AgencyEmployee
@@ -3845,29 +3867,86 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
             }
         
         # Regular job (non-agency) - original logic
+        # This also handles team jobs now
         else:
             reviewer_profile = profile
             if is_client:
-                if not job.assignedWorkerID or not job.assignedWorkerID.profileID:
-                    return Response(
-                        {"error": "Cannot review: No worker assigned to this job"},
-                        status=400
-                    )
-                reviewee_profile = job.assignedWorkerID.profileID
-                reviewer_type = "CLIENT"
+                # Team job client review - must specify which worker to review
+                if job.is_team_job:
+                    from accounts.models import JobWorkerAssignment
+                    
+                    if not data.worker_id:
+                        # Get list of workers that can be reviewed
+                        assignments = JobWorkerAssignment.objects.filter(
+                            jobID=job,
+                            assignment_status__in=['ACTIVE', 'COMPLETED']
+                        ).select_related('workerID__profileID')
+                        
+                        # Check which workers haven't been reviewed yet
+                        reviewed_worker_ids = JobReview.objects.filter(
+                            jobID=job,
+                            reviewerID=request.auth,
+                            reviewerType="CLIENT"
+                        ).values_list('revieweeID', flat=True)
+                        
+                        pending_workers = []
+                        for assignment in assignments:
+                            worker_account = assignment.workerID.profileID.accountFK
+                            if worker_account.id not in reviewed_worker_ids:
+                                pending_workers.append({
+                                    "worker_id": assignment.workerID.workerID,
+                                    "name": f"{assignment.workerID.profileID.firstName} {assignment.workerID.profileID.lastName}"
+                                })
+                        
+                        return Response(
+                            {
+                                "error": "Team job requires worker_id to specify which worker to review",
+                                "pending_worker_reviews": pending_workers
+                            },
+                            status=400
+                        )
+                    
+                    # Find the assignment for the specified worker
+                    try:
+                        assignment = JobWorkerAssignment.objects.select_related(
+                            'workerID__profileID__accountFK'
+                        ).get(
+                            jobID=job,
+                            workerID_id=data.worker_id,
+                            assignment_status__in=['ACTIVE', 'COMPLETED']
+                        )
+                        reviewee_profile = assignment.workerID.profileID
+                    except JobWorkerAssignment.DoesNotExist:
+                        return Response(
+                            {"error": f"Worker {data.worker_id} is not assigned to this team job"},
+                            status=400
+                        )
+                    
+                    reviewer_type = "CLIENT"
+                else:
+                    # Regular (non-team) job
+                    if not job.assignedWorkerID or not job.assignedWorkerID.profileID:
+                        return Response(
+                            {"error": "Cannot review: No worker assigned to this job"},
+                            status=400
+                        )
+                    reviewee_profile = job.assignedWorkerID.profileID
+                    reviewer_type = "CLIENT"
             else:
                 reviewee_profile = job.clientID.profileID
                 reviewer_type = "WORKER"
             
-            # Check if review already exists
+            # Check if review already exists for this specific reviewee
+            # For team jobs, clients can review multiple workers, so we must check revieweeID
             existing_review = JobReview.objects.filter(
                 jobID=job,
-                reviewerID=request.auth
+                reviewerID=request.auth,
+                revieweeID=reviewee_profile.accountFK
             ).first()
             
             if existing_review:
                 return Response(
-                    {"error": "You have already submitted a review for this job"},
+                    {"error": "You have already submitted a review for this person on this job"},
                     status=400
                 )
             
@@ -3892,19 +3971,88 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
             print(f"   Reviewer: {reviewer_profile.firstName} ({reviewer_type})")
             print(f"   Rating: {overall_rating} stars (Q:{data.rating_quality} C:{data.rating_communication} P:{data.rating_punctuality} PR:{data.rating_professionalism})")
             
+            # For team jobs: update assignment's individual_rating
+            if job.is_team_job and is_client and data.worker_id:
+                from accounts.models import JobWorkerAssignment
+                try:
+                    assignment = JobWorkerAssignment.objects.get(
+                        jobID=job,
+                        workerID_id=data.worker_id
+                    )
+                    assignment.individual_rating = overall_rating
+                    assignment.save(update_fields=['individual_rating'])
+                    print(f"   ✅ Updated assignment #{assignment.assignmentID} individual_rating to {overall_rating}")
+                except JobWorkerAssignment.DoesNotExist:
+                    print(f"   ⚠️ Could not update assignment rating - assignment not found")
+            
+            # For team jobs: check pending workers and return info
+            pending_team_workers = []
+            all_team_workers_reviewed = False
+            reviewed_worker_name = None
+            
+            if job.is_team_job and is_client:
+                from accounts.models import JobWorkerAssignment
+                # Get all assignments
+                all_assignments = JobWorkerAssignment.objects.filter(
+                    jobID=job,
+                    assignment_status__in=['ACTIVE', 'COMPLETED']
+                ).select_related('workerID__profileID__accountFK', 'skillSlotID__specializationID')
+                
+                # Get reviewed worker IDs
+                reviewed_worker_account_ids = set(JobReview.objects.filter(
+                    jobID=job,
+                    reviewerID=request.auth,
+                    reviewerType="CLIENT"
+                ).values_list('revieweeID', flat=True))
+                
+                for a in all_assignments:
+                    worker_profile = a.workerID.profileID
+                    worker_account_id = worker_profile.accountFK.accountID
+                    worker_name = f"{worker_profile.firstName} {worker_profile.lastName}"
+                    
+                    # Track the name of the worker just reviewed
+                    if worker_account_id == reviewee_profile.accountFK.accountID:
+                        reviewed_worker_name = worker_name
+                    
+                    # Check if still pending review
+                    if worker_account_id not in reviewed_worker_account_ids:
+                        pending_team_workers.append({
+                            "worker_id": a.workerID.workerID,
+                            "account_id": worker_account_id,
+                            "name": worker_name,
+                            "avatar": worker_profile.profileImg,
+                            "skill": a.skillSlotID.specializationID.specializationName if a.skillSlotID else None,
+                        })
+                
+                all_team_workers_reviewed = len(pending_team_workers) == 0
+            
             # Check if both parties have now submitted reviews
             total_reviews = JobReview.objects.filter(jobID=job).count()
             
             job_completed = False
-            if total_reviews >= 2 and job.workerMarkedComplete and job.clientMarkedComplete:
-                # Both reviews exist and both parties marked complete - NOW mark job as COMPLETED
+            # For team jobs: completed when all workers reviewed AND all workers have reviewed client
+            if job.is_team_job:
+                # Count client reviews (one per worker)
+                client_reviews = JobReview.objects.filter(jobID=job, reviewerType="CLIENT").count()
+                worker_reviews = JobReview.objects.filter(jobID=job, reviewerType="WORKER").count()
+                total_workers = job.total_workers_needed
+                
+                if client_reviews >= total_workers and worker_reviews >= total_workers and job.workerMarkedComplete and job.clientMarkedComplete:
+                    job.status = "COMPLETED"
+                    job.completedAt = timezone.now()
+                    job.save()
+                    job_completed = True
+                    print(f"🎉 All team reviews submitted! Job {job_id} marked as COMPLETED.")
+            elif total_reviews >= 2 and job.workerMarkedComplete and job.clientMarkedComplete:
+                # Regular job: Both reviews exist and both parties marked complete
                 job.status = "COMPLETED"
                 job.completedAt = timezone.now()
                 job.save()
                 job_completed = True
                 print(f"🎉 Both reviews submitted! Job {job_id} marked as COMPLETED.")
             
-            return {
+            # Build response
+            response = {
                 "success": True,
                 "message": "Review submitted successfully!",
                 "review_id": review.reviewID,
@@ -3912,6 +4060,18 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                 "reviewer_type": reviewer_type,
                 "job_completed": job_completed
             }
+            
+            # Add team job specific fields
+            if job.is_team_job and is_client:
+                response.update({
+                    "reviewed_worker_name": reviewed_worker_name,
+                    "pending_team_workers": pending_team_workers,
+                    "all_team_workers_reviewed": all_team_workers_reviewed,
+                    "total_team_workers": job.total_workers_needed,
+                    "reviewed_count": job.total_workers_needed - len(pending_team_workers)
+                })
+            
+            return response
         
     except Exception as e:
         print(f"❌ Error submitting review: {str(e)}")
@@ -5417,7 +5577,7 @@ def get_team_job_applications_endpoint(request, job_id: int, skill_slot_id: int 
                 'application_id': app.applicationID,
                 'worker_id': worker.id if worker else None,
                 'worker_name': f"{profile.firstName} {profile.lastName}" if profile else "Unknown",
-                'worker_avatar': profile.profileImg.url if profile and profile.profileImg else None,
+                'worker_avatar': profile.profileImg if profile else None,  # profileImg is a CharField (URL string), not FileField
                 'worker_rating': float(worker.workerRating) if worker and worker.workerRating else None,
                 'skill_slot_id': slot.skillSlotID if slot else None,
                 'specialization_name': slot.specializationID.specializationName if slot else None,
@@ -5435,6 +5595,26 @@ def get_team_job_applications_endpoint(request, job_id: int, skill_slot_id: int 
     except Exception as e:
         print(f"❌ Error getting team applications: {str(e)}")
         return Response({"error": str(e)}, status=500)
+
+
+@router.post("/{job_id}/team/confirm-arrival/{assignment_id}", auth=dual_auth)
+def confirm_team_worker_arrival_endpoint(request, job_id: int, assignment_id: int):
+    """
+    Client confirms a team worker has arrived at the job site.
+    Matches regular job workflow where client confirms arrival before work starts.
+    """
+    from jobs.team_job_services import confirm_team_worker_arrival
+    
+    result = confirm_team_worker_arrival(
+        job_id=job_id,
+        assignment_id=assignment_id,
+        client_user=request.auth
+    )
+    
+    if not result.get('success'):
+        return Response({"error": result.get('error', 'Failed to confirm arrival')}, status=400)
+    
+    return result
 
 
 @router.post("/{job_id}/team/approve-completion", auth=dual_auth)
@@ -5474,5 +5654,208 @@ def worker_mark_team_complete(request, job_id: int, assignment_id: int, notes: s
         return Response({"error": result.get('error', 'Failed to mark complete')}, status=400)
     
     return result
+
+#endregion
+
+
+# ============================================================================
+# JOB RECEIPT / INVOICE ENDPOINTS
+# ============================================================================
+#region Receipt Endpoints
+
+@router.get("/{job_id}/receipt", auth=dual_auth)
+def get_job_receipt(request, job_id: int):
+    """
+    Get complete receipt/invoice data for a completed job.
+    Works for all completed jobs, including those completed before this feature was added.
+    
+    Returns:
+    - Job details (title, description, category, dates)
+    - Payment breakdown (budget, escrow, platform fee, worker earnings)
+    - Buffer status (release date, days remaining, payment released)
+    - Worker/agency info
+    - Transaction history for this job
+    """
+    from decimal import Decimal
+    from django.utils import timezone
+    from jobs.payment_buffer_service import get_payment_buffer_days
+    
+    try:
+        # Get the job
+        job = Job.objects.select_related(
+            'clientID__profileID__accountFK',
+            'assignedWorkerID__profileID__accountFK',
+            'assignedAgencyFK__accountFK',
+            'categoryID'
+        ).get(jobID=job_id)
+        
+        # Verify user is client or assigned worker/agency for this job
+        user = request.auth
+        is_client = job.clientID.profileID.accountFK == user
+        is_worker = (
+            job.assignedWorkerID and 
+            job.assignedWorkerID.profileID.accountFK == user
+        )
+        is_agency = (
+            job.assignedAgencyFK and 
+            job.assignedAgencyFK.accountFK == user
+        )
+        
+        if not (is_client or is_worker or is_agency):
+            return Response({"error": "You don't have access to this job's receipt"}, status=403)
+        
+        # Calculate payment breakdown
+        budget = Decimal(str(job.budget))
+        escrow_amount = budget * Decimal('0.5')  # 50% downpayment
+        
+        # Platform fee: 10% for regular jobs, 5% for team jobs
+        platform_fee_rate = Decimal('0.05') if job.is_team_job else Decimal('0.10')
+        platform_fee = budget * platform_fee_rate
+        
+        # Worker receives full budget (client pays budget + fee)
+        worker_earnings = budget
+        total_client_paid = budget + platform_fee
+        
+        # Get buffer period settings
+        buffer_days = get_payment_buffer_days()
+        
+        # Calculate buffer dates and status
+        buffer_start_date = job.clientMarkedCompleteAt or job.completedAt
+        if buffer_start_date:
+            from datetime import timedelta
+            buffer_end_date = buffer_start_date + timedelta(days=buffer_days)
+            now = timezone.now()
+            remaining_days = max(0, (buffer_end_date - now).days) if not job.paymentReleasedToWorker else 0
+        else:
+            buffer_end_date = None
+            remaining_days = None
+        
+        # Get related transactions for this job
+        transactions = []
+        try:
+            # Get all transactions related to this job (from any wallet)
+            from accounts.models import Transaction
+            related_transactions = Transaction.objects.filter(
+                relatedJobPosting=job
+            ).order_by('-createdAt')[:10]  # Last 10 transactions
+            
+            for txn in related_transactions:
+                transactions.append({
+                    'id': txn.transactionID,
+                    'type': txn.transactionType,
+                    'amount': float(txn.amount),
+                    'status': txn.status,
+                    'description': txn.description,
+                    'reference_number': txn.referenceNumber,
+                    'payment_method': txn.paymentMethod,
+                    'created_at': txn.createdAt.isoformat() if txn.createdAt else None,
+                    'completed_at': txn.completedAt.isoformat() if txn.completedAt else None,
+                })
+        except Exception as e:
+            print(f"⚠️ Error fetching transactions for receipt: {e}")
+        
+        # Build worker/agency info
+        worker_info = None
+        if job.assignedWorkerID:
+            worker_profile = job.assignedWorkerID.profileID
+            worker_info = {
+                'type': 'WORKER',
+                'id': job.assignedWorkerID.workerID,
+                'name': f"{worker_profile.firstName} {worker_profile.lastName}",
+                'avatar': worker_profile.profileImg,
+                'contact': worker_profile.contactNum,
+            }
+        elif job.assignedAgencyFK:
+            agency = job.assignedAgencyFK
+            worker_info = {
+                'type': 'AGENCY',
+                'id': agency.agencyID,
+                'name': agency.businessName,
+                'avatar': agency.profileImg,
+                'contact': agency.contactNum,
+            }
+        
+        # Build client info
+        client_profile = job.clientID.profileID
+        client_info = {
+            'id': client_profile.profileID,
+            'name': f"{client_profile.firstName} {client_profile.lastName}",
+            'avatar': client_profile.profileImg,
+            'contact': client_profile.contactNum,
+        }
+        
+        # Build the receipt response
+        receipt_data = {
+            'success': True,
+            'receipt': {
+                # Job info
+                'job_id': job.jobID,
+                'title': job.title,
+                'description': job.description,
+                'category': job.categoryID.specializationName if job.categoryID else None,
+                'location': job.location,
+                'is_team_job': job.is_team_job,
+                'job_type': job.jobType,
+                
+                # Status and dates
+                'status': job.status,
+                'created_at': job.createdAt.isoformat() if job.createdAt else None,
+                'started_at': job.clientConfirmedWorkStartedAt.isoformat() if job.clientConfirmedWorkStartedAt else None,
+                'worker_completed_at': job.workerMarkedCompleteAt.isoformat() if job.workerMarkedCompleteAt else None,
+                'client_approved_at': job.clientMarkedCompleteAt.isoformat() if job.clientMarkedCompleteAt else None,
+                'completed_at': job.completedAt.isoformat() if job.completedAt else None,
+                
+                # Payment breakdown (all in PHP)
+                'payment': {
+                    'currency': 'PHP',
+                    'budget': float(budget),
+                    'escrow_amount': float(escrow_amount),
+                    'final_payment': float(escrow_amount),  # Same as escrow (50/50 split)
+                    'platform_fee': float(platform_fee),
+                    'platform_fee_rate': f"{int(platform_fee_rate * 100)}%",
+                    'worker_earnings': float(worker_earnings),
+                    'total_client_paid': float(total_client_paid),
+                    'escrow_paid': job.escrowPaid,
+                    'escrow_paid_at': job.escrowPaidAt.isoformat() if job.escrowPaidAt else None,
+                    'final_payment_paid': job.remainingPaymentPaid,
+                    'final_payment_paid_at': job.remainingPaymentPaidAt.isoformat() if job.remainingPaymentPaidAt else None,
+                    'payment_method': job.finalPaymentMethod,
+                },
+                
+                # Buffer status (7-day holding period)
+                'buffer': {
+                    'buffer_days': buffer_days,
+                    'start_date': buffer_start_date.isoformat() if buffer_start_date else None,
+                    'end_date': buffer_end_date.isoformat() if buffer_end_date else None,
+                    'remaining_days': remaining_days,
+                    'is_released': job.paymentReleasedToWorker,
+                    'released_at': job.paymentReleasedAt.isoformat() if job.paymentReleasedAt else None,
+                    'hold_reason': job.paymentHeldReason,
+                },
+                
+                # Parties involved
+                'client': client_info,
+                'worker': worker_info,
+                
+                # Transaction history
+                'transactions': transactions,
+                
+                # Review status
+                'reviews': {
+                    'client_reviewed': job.clientReviewed if hasattr(job, 'clientReviewed') else False,
+                    'worker_reviewed': job.workerReviewed if hasattr(job, 'workerReviewed') else False,
+                },
+            }
+        }
+        
+        return receipt_data
+        
+    except Job.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+    except Exception as e:
+        print(f"❌ Error generating receipt for job {job_id}: {e}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": f"Failed to generate receipt: {str(e)}"}, status=500)
 
 #endregion

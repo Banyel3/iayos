@@ -23,6 +23,9 @@ from .schemas import (
     SendVerificationEmailSchema,
     SwitchProfileSchema,
     AddPaymentMethodSchema,
+    AddSkillSchema,
+    UpdateSkillSchema,
+    UpdateProfileMobileSchema,
 )
 from .authentication import jwt_auth, dual_auth  # Use Bearer token auth for mobile, dual_auth for endpoints that support both
 from .profile_metrics_service import get_profile_metrics
@@ -682,6 +685,11 @@ def mobile_my_jobs(
                 'assigned_worker_id': job.assignedWorkerID.profileID.profileID if job.assignedWorkerID else None,
                 'assigned_agency_id': assigned_agency.agencyId if assigned_agency else None,
                 'has_backjob': JobDispute.objects.filter(jobID=job).exists(),  # Check if backjob/dispute exists
+                # Team Job Fields
+                'is_team_job': job.is_team_job,
+                'total_workers_needed': job.total_workers_needed if job.is_team_job else None,
+                'total_workers_assigned': job.total_workers_assigned if job.is_team_job else None,
+                'team_fill_percentage': job.team_fill_percentage if job.is_team_job else None,
             }
             
             if job.clientID:
@@ -722,6 +730,73 @@ def mobile_my_jobs(
                 print(f"            - Current worker profile ID: {worker_profile.profileID.profileID if profile.profileType == 'WORKER' else 'N/A'}")
             
             job_list.append(job_data)
+            
+            # 🔧 CONTINGENCY: Auto-create conversations for fully-filled team jobs missing them
+            if profile.profileType == 'CLIENT' and job.is_team_job and job.status == 'ACTIVE':
+                from profiles.models import Conversation, ConversationParticipant
+                from accounts.models import JobWorkerAssignment
+                
+                print(f"\n      🔍 CONTINGENCY CHECK: Job #{job.jobID} '{job.title}'")
+                print(f"         - can_start_team_job: {job.can_start_team_job}")
+                print(f"         - workers: {job.total_workers_assigned}/{job.total_workers_needed}")
+                
+                if job.can_start_team_job:
+                    existing_conv = Conversation.objects.filter(relatedJobPosting=job).first()
+                    print(f"         - existing conversation: {'YES' if existing_conv else 'NO'}")
+                    
+                    if not existing_conv:
+                        print(f"\n   🚨 CONTINGENCY: Creating missing conversation for job #{job.jobID}")
+                        try:
+                            conversation = Conversation.objects.create(
+                                client=job.clientID.profileID if job.clientID else None,
+                                worker=None,
+                                relatedJobPosting=job,
+                                status=Conversation.ConversationStatus.ACTIVE,
+                                conversation_type='TEAM_GROUP'
+                            )
+                            
+                            if job.clientID:
+                                ConversationParticipant.objects.create(
+                                    conversation=conversation,
+                                    profile=job.clientID.profileID,
+                                    participant_type='CLIENT'
+                                )
+                            
+                            assignments = JobWorkerAssignment.objects.filter(
+                                jobID=job,
+                                assignment_status='ACTIVE'
+                            ).select_related('workerID__profileID')
+                            
+                            for assign in assignments:
+                                ConversationParticipant.objects.get_or_create(
+                                    conversation=conversation,
+                                    profile=assign.workerID.profileID,
+                                    defaults={'participant_type': 'WORKER', 'skill_slot': assign.skillSlotID}
+                                )
+                            
+                            print(f"      ✅ Created conversation #{conversation.conversationID}")
+                            
+                            from accounts.models import Notification
+                            Notification.objects.create(
+                                accountFK=job.clientID.profileID.accountFK,
+                                notificationType="TEAM_JOB_READY",
+                                title="Team Ready!",
+                                message=f"All positions for '{job.title}' have been filled.",
+                                relatedJobID=job.jobID
+                            )
+                            
+                            for assign in assignments:
+                                Notification.objects.create(
+                                    accountFK=assign.workerID.profileID.accountFK,
+                                    notificationType="TEAM_JOB_READY",
+                                    title="Team Complete!",
+                                    message=f"The team for '{job.title}' is now complete.",
+                                    relatedJobID=job.jobID
+                                )
+                        except Exception as e:
+                            print(f"      ❌ Error: {str(e)}")
+                            import traceback
+                            traceback.print_exc()
         
         print(f"\n   ✅ SUCCESS: Returning {len(job_list)} jobs")
         print(f"      Total count: {total_count}")
@@ -805,6 +880,313 @@ def mobile_available_skills(request):
         print(f"[ERROR] Mobile available skills error: {str(e)}")
         return Response(
             {"error": "Failed to fetch available skills"},
+            status=500
+        )
+
+
+@mobile_router.get("/skills/my-skills", auth=jwt_auth)
+def mobile_my_skills(request):
+    """
+    Get current worker's skills (specializations they have added)
+    Returns: List of skills the worker has with id, name, experience years
+    """
+    from .models import WorkerProfile, workerSpecialization
+
+    try:
+        user = request.auth
+        
+        # Get worker profile
+        try:
+            worker_profile = WorkerProfile.objects.get(profileID__accountFK=user)
+        except WorkerProfile.DoesNotExist:
+            return Response(
+                {"error": "Worker profile not found"},
+                status=404
+            )
+        
+        # Get worker's specializations
+        worker_skills = workerSpecialization.objects.filter(
+            workerID=worker_profile
+        ).select_related('specializationID').order_by('specializationID__specializationName')
+        
+        skills_data = [
+            {
+                'id': ws.id,  # workerSpecialization ID - used for linking certifications
+                'specializationId': ws.specializationID.specializationID,  # Specializations table ID
+                'name': ws.specializationID.specializationName,
+                'description': ws.specializationID.description or '',
+                'experienceYears': ws.experienceYears,
+                'certification': ws.certification or '',
+            }
+            for ws in worker_skills
+        ]
+        
+        return {
+            'success': True,
+            'data': skills_data,
+            'count': len(skills_data)
+        }
+    except Exception as e:
+        print(f"[ERROR] Mobile my skills error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to fetch your skills"},
+            status=500
+        )
+
+
+@mobile_router.get("/skills/available", auth=jwt_auth)
+def mobile_available_skills(request):
+    """
+    Get all available specializations that workers can add to their profile.
+    Returns: List of all specializations with id, name, description, rates
+    """
+    from .models import Specializations
+
+    try:
+        specializations = Specializations.objects.all().order_by('specializationName')
+        
+        skills_data = [
+            {
+                'id': spec.specializationID,
+                'name': spec.specializationName,
+                'description': spec.description or '',
+                'minimumRate': float(spec.minimumRate),
+                'rateType': spec.rateType,
+                'skillLevel': spec.skillLevel,
+            }
+            for spec in specializations
+        ]
+        
+        return {
+            'success': True,
+            'data': skills_data,
+            'count': len(skills_data)
+        }
+    except Exception as e:
+        print(f"[ERROR] Mobile available skills error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to fetch available skills"},
+            status=500
+        )
+
+
+@mobile_router.post("/skills/add", auth=jwt_auth)
+def mobile_add_skill(request, payload: AddSkillSchema):
+    """
+    Add a skill (specialization) to worker's profile.
+    Payload: { specialization_id: int, experience_years: int }
+    """
+    from .models import WorkerProfile, workerSpecialization, Specializations
+
+    try:
+        user = request.auth
+        
+        # Get values from schema
+        specialization_id = payload.specialization_id
+        experience_years = payload.experience_years
+        
+        if not specialization_id:
+            return Response(
+                {"error": "specialization_id is required"},
+                status=400
+            )
+        
+        if experience_years < 0 or experience_years > 50:
+            return Response(
+                {"error": "experience_years must be between 0 and 50"},
+                status=400
+            )
+        
+        # Get worker profile
+        try:
+            worker_profile = WorkerProfile.objects.get(profileID__accountFK=user)
+        except WorkerProfile.DoesNotExist:
+            return Response(
+                {"error": "Worker profile not found"},
+                status=404
+            )
+        
+        # Check specialization exists
+        try:
+            specialization = Specializations.objects.get(specializationID=specialization_id)
+        except Specializations.DoesNotExist:
+            return Response(
+                {"error": "Specialization not found"},
+                status=404
+            )
+        
+        # Check if worker already has this skill
+        if workerSpecialization.objects.filter(
+            workerID=worker_profile,
+            specializationID=specialization
+        ).exists():
+            return Response(
+                {"error": f"You already have '{specialization.specializationName}' as a skill"},
+                status=400
+            )
+        
+        # Create worker specialization
+        worker_skill = workerSpecialization.objects.create(
+            workerID=worker_profile,
+            specializationID=specialization,
+            experienceYears=experience_years,
+            certification=''
+        )
+        
+        print(f"✅ [SKILL] Added skill '{specialization.specializationName}' to {user.email}")
+        
+        return {
+            'success': True,
+            'message': f"Added '{specialization.specializationName}' to your skills",
+            'data': {
+                'id': specialization.specializationID,
+                'workerSkillId': worker_skill.id,
+                'name': specialization.specializationName,
+                'experienceYears': experience_years,
+            }
+        }
+    except Exception as e:
+        print(f"[ERROR] Mobile add skill error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to add skill"},
+            status=500
+        )
+
+
+@mobile_router.put("/skills/{skill_id}", auth=jwt_auth)
+def mobile_update_skill(request, skill_id: int, payload: UpdateSkillSchema):
+    """
+    Update experience years for a worker's skill.
+    skill_id: The specialization ID (not workerSpecialization ID)
+    Payload: { experience_years: int }
+    """
+    from .models import WorkerProfile, workerSpecialization
+
+    try:
+        user = request.auth
+        experience_years = payload.experience_years
+        
+        if experience_years is None:
+            return Response(
+                {"error": "experience_years is required"},
+                status=400
+            )
+        
+        if experience_years < 0 or experience_years > 50:
+            return Response(
+                {"error": "experience_years must be between 0 and 50"},
+                status=400
+            )
+        
+        # Get worker profile
+        try:
+            worker_profile = WorkerProfile.objects.get(profileID__accountFK=user)
+        except WorkerProfile.DoesNotExist:
+            return Response(
+                {"error": "Worker profile not found"},
+                status=404
+            )
+        
+        # Get worker's skill
+        try:
+            worker_skill = workerSpecialization.objects.get(
+                workerID=worker_profile,
+                specializationID_id=skill_id
+            )
+        except workerSpecialization.DoesNotExist:
+            return Response(
+                {"error": "Skill not found in your profile"},
+                status=404
+            )
+        
+        # Update experience years
+        worker_skill.experienceYears = experience_years
+        worker_skill.save()
+        
+        print(f"✅ [SKILL] Updated skill experience for {user.email}: {worker_skill.specializationID.specializationName} = {experience_years} years")
+        
+        return {
+            'success': True,
+            'message': 'Skill updated successfully',
+            'data': {
+                'id': skill_id,
+                'name': worker_skill.specializationID.specializationName,
+                'experienceYears': experience_years,
+            }
+        }
+    except Exception as e:
+        print(f"[ERROR] Mobile update skill error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to update skill"},
+            status=500
+        )
+
+
+@mobile_router.delete("/skills/{skill_id}", auth=jwt_auth)
+def mobile_remove_skill(request, skill_id: int):
+    """
+    Remove a skill from worker's profile.
+    skill_id: The specialization ID (not workerSpecialization ID)
+    Note: This will also cascade delete linked certifications.
+    """
+    from .models import WorkerProfile, workerSpecialization, WorkerCertification
+
+    try:
+        user = request.auth
+        
+        # Get worker profile
+        try:
+            worker_profile = WorkerProfile.objects.get(profileID__accountFK=user)
+        except WorkerProfile.DoesNotExist:
+            return Response(
+                {"error": "Worker profile not found"},
+                status=404
+            )
+        
+        # Get worker's skill
+        try:
+            worker_skill = workerSpecialization.objects.get(
+                workerID=worker_profile,
+                specializationID_id=skill_id
+            )
+        except workerSpecialization.DoesNotExist:
+            return Response(
+                {"error": "Skill not found in your profile"},
+                status=404
+            )
+        
+        skill_name = worker_skill.specializationID.specializationName
+        
+        # Check for linked certifications
+        linked_certs_count = WorkerCertification.objects.filter(
+            workerID=worker_profile,
+            specializationID=worker_skill
+        ).count()
+        
+        # Delete the skill (will cascade delete linked certifications)
+        worker_skill.delete()
+        
+        print(f"✅ [SKILL] Removed skill '{skill_name}' from {user.email} (cascaded {linked_certs_count} certifications)")
+        
+        return {
+            'success': True,
+            'message': f"Removed '{skill_name}' from your skills",
+            'deletedCertifications': linked_certs_count
+        }
+    except Exception as e:
+        print(f"[ERROR] Mobile remove skill error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to remove skill"},
             status=500
         )
 
@@ -1437,12 +1819,14 @@ def mobile_accept_application(request, job_id: int, application_id: int):
                 message_text=f"Application accepted! You can now chat about the job: {job.title}"
             )
         
-        # Reject all other pending applications
-        JobApplication.objects.filter(
-            jobID=job
-        ).exclude(
-            applicationID=application_id
-        ).update(status="REJECTED")
+        # Only reject other applications for non-team (single-worker) jobs
+        # Team jobs use separate accept_team_application endpoint and should not auto-reject
+        if not job.is_team_job:
+            JobApplication.objects.filter(
+                jobID=job
+            ).exclude(
+                applicationID=application_id
+            ).update(status="REJECTED")
         
         print(f"✅ [MOBILE] Application {application_id} accepted, worker assigned, conversation created")
         
@@ -1725,7 +2109,7 @@ def mobile_get_my_applications(request):
         # Get all applications for this worker
         applications = JobApplication.objects.filter(
             workerID=worker_profile
-        ).select_related('jobID', 'jobID__clientID__profileID__accountFK').order_by('-createdAt')
+        ).select_related('jobID', 'jobID__clientID__profileID__accountFK', 'applied_skill_slot').order_by('-createdAt')
         
         # Format the response
         applications_data = []
@@ -1752,6 +2136,8 @@ def mobile_get_my_applications(request):
                     getattr(client_profile, 'profileImage', None)
                     or getattr(client_profile, 'profileImg', None)
                 ),
+                "is_team_job": job.is_team_job,
+                "applied_skill_slot_id": app.applied_skill_slot.skillSlotID if app.applied_skill_slot else None,
             })
         
         print(f"✅ [MOBILE] Found {len(applications_data)} applications")
@@ -1938,7 +2324,7 @@ def mobile_get_current_profile(request):
 
 
 @mobile_router.put("/profile/update", auth=jwt_auth)
-def mobile_update_profile(request, payload: dict):
+def mobile_update_profile(request, payload: UpdateProfileMobileSchema):
     """
     Update user profile
     Fields: firstName, lastName, contactNum, birthDate
@@ -1946,8 +2332,12 @@ def mobile_update_profile(request, payload: dict):
     from .mobile_services import update_user_profile_mobile
 
     try:
+        print(f"[MOBILE] Profile update - payload received: {payload}")
         user = request.auth
-        result = update_user_profile_mobile(user, payload, request)
+        # Convert schema to dict, excluding None values
+        payload_dict = {k: v for k, v in payload.dict().items() if v is not None}
+        print(f"[MOBILE] Profile update - payload_dict: {payload_dict}")
+        result = update_user_profile_mobile(user, payload_dict, request)
 
         if result['success']:
             return result['data']
@@ -2774,8 +3164,8 @@ def mobile_withdraw_funds(request, payload: WithdrawFundsSchema):
 
 
 @mobile_router.get("/wallet/transactions", auth=jwt_auth)
-def mobile_get_transactions(request):
-    """Get wallet transaction history - Mobile"""
+def mobile_get_transactions(request, page: int = 1, limit: int = 20, type: Optional[str] = None):
+    """Get wallet transaction history - Mobile with pagination"""
     try:
         from .models import Wallet, Transaction
         
@@ -2784,33 +3174,58 @@ def mobile_get_transactions(request):
         
         if not wallet:
             return {
-                "success": True,
-                "transactions": []
+                "results": [],
+                "count": 0,
+                "has_next": False,
+                "next_page": None
             }
         
-        # Get transactions
-        transactions = Transaction.objects.filter(
-            walletID=wallet
-        ).order_by('-createdAt')[:50]  # Last 50 transactions
+        # Build query with optional type filter
+        queryset = Transaction.objects.filter(walletID=wallet)
+        
+        if type:
+            type_mapping = {
+                'DEPOSIT': Transaction.TransactionType.DEPOSIT,
+                'PAYMENT': Transaction.TransactionType.PAYMENT,
+                'WITHDRAWAL': Transaction.TransactionType.WITHDRAWAL,
+            }
+            if type.upper() in type_mapping:
+                queryset = queryset.filter(transactionType=type_mapping[type.upper()])
+        
+        # Get total count
+        total_count = queryset.count()
+        
+        # Paginate
+        offset = (page - 1) * limit
+        transactions = queryset.order_by('-createdAt')[offset:offset + limit]
         
         transaction_list = []
         for t in transactions:
+            # Map transaction type to frontend format
+            type_display = t.transactionType
+            if t.transactionType == Transaction.TransactionType.EARNING:
+                type_display = 'PAYMENT'  # Frontend expects PAYMENT for earnings
+            
             transaction_list.append({
-                'transactionID': t.transactionID,
-                'transactionType': t.transactionType,
+                'id': t.transactionID,
+                'type': type_display,
+                'title': t.description or f'{t.transactionType} Transaction',
+                'description': t.description or '',
                 'amount': float(t.amount),
-                'balanceAfter': float(t.balanceAfter),
-                'status': t.status,
-                'description': t.description,
-                'paymentMethod': t.paymentMethod,
-                'invoiceURL': t.invoiceURL,
-                'createdAt': t.createdAt.isoformat(),
-                'completedAt': t.completedAt.isoformat() if t.completedAt else None,
+                'created_at': t.createdAt.isoformat(),
+                'status': t.status.lower() if t.status else 'pending',
+                'payment_method': t.paymentMethod or 'wallet',
+                'transaction_id': str(t.transactionID),
+                'job': None,  # TODO: Link to job if applicable
             })
         
+        has_next = (offset + limit) < total_count
+        
         return {
-            "success": True,
-            "transactions": transaction_list
+            "results": transaction_list,
+            "count": total_count,
+            "has_next": has_next,
+            "next_page": page + 1 if has_next else None
         }
 
     except Exception as e:

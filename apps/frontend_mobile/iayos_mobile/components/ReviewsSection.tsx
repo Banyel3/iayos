@@ -12,7 +12,11 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors, Typography, Spacing, BorderRadius } from "@/constants/theme";
-import { useReviewStats, useWorkerReviews } from "@/lib/hooks/useReviews";
+import {
+  useReviewStats,
+  useWorkerReviews,
+  useClientReviews,
+} from "@/lib/hooks/useReviews";
 import { ReviewCard } from "./ReviewCard";
 
 interface ReviewsSectionProps {
@@ -27,21 +31,46 @@ export function ReviewsSection({
   const [showAllReviews, setShowAllReviews] = React.useState(false);
   const INITIAL_REVIEW_LIMIT = 3;
 
-  // Fetch review stats
+  // Fetch review stats (only for workers - pass 0 to disable for clients)
   const {
     data: stats,
     isLoading: statsLoading,
     error: statsError,
-  } = useReviewStats(accountId);
+  } = useReviewStats(profileType === "WORKER" ? accountId : 0);
 
-  // Fetch reviews (first page only for profile view)
+  // Fetch reviews based on profile type
+  // Workers get reviews from clients, Clients get reviews from workers
+  // Pass 0 to disable the query we don't need (hooks have enabled: !!id check)
   const {
-    data: reviewsData,
-    isLoading: reviewsLoading,
-    error: reviewsError,
-  } = useWorkerReviews(accountId, 1, 10, "latest");
+    data: workerReviewsData,
+    isLoading: workerReviewsLoading,
+    error: workerReviewsError,
+  } = useWorkerReviews(
+    profileType === "WORKER" ? accountId : 0,
+    1,
+    10,
+    "latest"
+  );
 
-  if (statsLoading || reviewsLoading) {
+  const {
+    data: clientReviewsData,
+    isLoading: clientReviewsLoading,
+    error: clientReviewsError,
+  } = useClientReviews(profileType === "CLIENT" ? accountId : 0, 1, 10);
+
+  // Select the correct reviews data based on profile type
+  const reviewsData =
+    profileType === "WORKER" ? workerReviewsData : clientReviewsData;
+  const reviewsLoading =
+    profileType === "WORKER" ? workerReviewsLoading : clientReviewsLoading;
+  const reviewsError =
+    profileType === "WORKER" ? workerReviewsError : clientReviewsError;
+
+  // For CLIENT profiles, only wait for reviews (not stats)
+  const isLoading =
+    profileType === "WORKER" ? statsLoading || reviewsLoading : reviewsLoading;
+
+  if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={Colors.primary} />
@@ -50,7 +79,24 @@ export function ReviewsSection({
     );
   }
 
-  if (statsError || reviewsError || !stats || !reviewsData) {
+  // For CLIENT profiles, show a simplified view if no reviews data
+  if (profileType === "CLIENT" && !reviewsData) {
+    return (
+      <View style={styles.noReviewsContainer}>
+        <Ionicons name="star-outline" size={48} color={Colors.textSecondary} />
+        <Text style={styles.noReviewsText}>No reviews yet</Text>
+        <Text style={styles.noReviewsSubtext}>
+          Reviews from workers will appear here
+        </Text>
+      </View>
+    );
+  }
+
+  // For WORKER profiles, check both stats and reviews
+  if (
+    profileType === "WORKER" &&
+    (statsError || reviewsError || !stats || !reviewsData)
+  ) {
     return (
       <View style={styles.errorContainer}>
         <Ionicons name="alert-circle-outline" size={48} color={Colors.error} />
@@ -59,10 +105,26 @@ export function ReviewsSection({
     );
   }
 
-  const hasReviews = stats.total_reviews > 0;
+  // For CLIENT profiles, just check reviews error
+  if (profileType === "CLIENT" && reviewsError) {
+    return (
+      <View style={styles.errorContainer}>
+        <Ionicons name="alert-circle-outline" size={48} color={Colors.error} />
+        <Text style={styles.errorText}>Unable to load reviews</Text>
+      </View>
+    );
+  }
 
-  // Render rating breakdown bars
+  // Calculate hasReviews based on profile type
+  const hasReviews =
+    profileType === "WORKER"
+      ? (stats?.total_reviews || 0) > 0
+      : (reviewsData?.reviews?.length || 0) > 0;
+
+  // Render rating breakdown bars (only for workers with stats)
   const renderRatingBreakdown = () => {
+    if (!stats || !stats.rating_breakdown) return null;
+
     const { rating_breakdown } = stats;
     const ratings = [
       { stars: 5, count: rating_breakdown.five_star },
@@ -127,61 +189,71 @@ export function ReviewsSection({
       {/* Section Header */}
       <View style={styles.header}>
         <Text style={styles.sectionTitle}>Reviews & Ratings</Text>
-        {hasReviews && (
+        {hasReviews && profileType === "WORKER" && stats && (
           <Text style={styles.reviewCount}>
             {stats.total_reviews}{" "}
             {stats.total_reviews === 1 ? "review" : "reviews"}
+          </Text>
+        )}
+        {hasReviews && profileType === "CLIENT" && reviewsData && (
+          <Text style={styles.reviewCount}>
+            {reviewsData.reviews.length}{" "}
+            {reviewsData.reviews.length === 1 ? "review" : "reviews"}
           </Text>
         )}
       </View>
 
       {hasReviews ? (
         <>
-          {/* Rating Summary Card */}
-          <View style={styles.summaryCard}>
-            <View style={styles.summaryLeft}>
-              <Text style={styles.averageRating}>
-                {stats.average_rating.toFixed(1)}
-              </Text>
-              {renderStars(stats.average_rating)}
-              <Text style={styles.totalReviews}>
-                Based on {stats.total_reviews}{" "}
-                {stats.total_reviews === 1 ? "review" : "reviews"}
-              </Text>
-            </View>
+          {/* Rating Summary Card - Only for WORKER profiles */}
+          {profileType === "WORKER" && stats && (
+            <View style={styles.summaryCard}>
+              <View style={styles.summaryLeft}>
+                <Text style={styles.averageRating}>
+                  {stats.average_rating.toFixed(1)}
+                </Text>
+                {renderStars(stats.average_rating)}
+                <Text style={styles.totalReviews}>
+                  Based on {stats.total_reviews}{" "}
+                  {stats.total_reviews === 1 ? "review" : "reviews"}
+                </Text>
+              </View>
 
-            <View style={styles.summaryRight}>{renderRatingBreakdown()}</View>
-          </View>
+              <View style={styles.summaryRight}>{renderRatingBreakdown()}</View>
+            </View>
+          )}
 
           {/* Reviews List */}
-          <View style={styles.reviewsList}>
-            <Text style={styles.reviewsListTitle}>Recent Reviews</Text>
-            {(showAllReviews
-              ? reviewsData.reviews
-              : reviewsData.reviews.slice(0, INITIAL_REVIEW_LIMIT)
-            ).map((review) => (
-              <ReviewCard key={review.review_id} review={review} />
-            ))}
+          {reviewsData && reviewsData.reviews && (
+            <View style={styles.reviewsList}>
+              <Text style={styles.reviewsListTitle}>Recent Reviews</Text>
+              {(showAllReviews
+                ? reviewsData.reviews
+                : reviewsData.reviews.slice(0, INITIAL_REVIEW_LIMIT)
+              ).map((review) => (
+                <ReviewCard key={review.review_id} review={review} />
+              ))}
 
-            {/* Show More/Less Button */}
-            {reviewsData.reviews.length > INITIAL_REVIEW_LIMIT && (
-              <TouchableOpacity
-                style={styles.showMoreButton}
-                onPress={() => setShowAllReviews(!showAllReviews)}
-              >
-                <Text style={styles.showMoreText}>
-                  {showAllReviews
-                    ? "Show less reviews"
-                    : `View ${reviewsData.reviews.length - INITIAL_REVIEW_LIMIT} more ${reviewsData.reviews.length - INITIAL_REVIEW_LIMIT === 1 ? "review" : "reviews"}`}
-                </Text>
-                <Ionicons
-                  name={showAllReviews ? "chevron-up" : "chevron-down"}
-                  size={20}
-                  color={Colors.primary}
-                />
-              </TouchableOpacity>
-            )}
-          </View>
+              {/* Show More/Less Button */}
+              {reviewsData.reviews.length > INITIAL_REVIEW_LIMIT && (
+                <TouchableOpacity
+                  style={styles.showMoreButton}
+                  onPress={() => setShowAllReviews(!showAllReviews)}
+                >
+                  <Text style={styles.showMoreText}>
+                    {showAllReviews
+                      ? "Show less reviews"
+                      : `View ${reviewsData.reviews.length - INITIAL_REVIEW_LIMIT} more ${reviewsData.reviews.length - INITIAL_REVIEW_LIMIT === 1 ? "review" : "reviews"}`}
+                  </Text>
+                  <Ionicons
+                    name={showAllReviews ? "chevron-up" : "chevron-down"}
+                    size={20}
+                    color={Colors.primary}
+                  />
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
         </>
       ) : (
         <View style={styles.emptyContainer}>
@@ -240,6 +312,26 @@ const styles = StyleSheet.create({
     ...Typography.body.medium,
     color: Colors.error,
     marginTop: Spacing.md,
+  },
+  noReviewsContainer: {
+    alignItems: "center",
+    paddingVertical: Spacing["3xl"],
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    marginHorizontal: Spacing.lg,
+    marginVertical: Spacing.lg,
+  },
+  noReviewsText: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+    marginTop: Spacing.lg,
+    marginBottom: Spacing.xs,
+  },
+  noReviewsSubtext: {
+    ...Typography.body.medium,
+    color: Colors.textSecondary,
+    textAlign: "center",
   },
   summaryCard: {
     flexDirection: "row",

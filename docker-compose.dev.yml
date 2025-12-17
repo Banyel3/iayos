@@ -104,7 +104,22 @@ services:
         echo 'Flutter mobile container ready. Use: docker exec -it iayos-mobile-dev flutter run'
       "
     profiles:
-      - mobile # This service won't start by default, use: docker-compose --profile mobile up
+      - mobile # Optional - use: docker-compose --profile mobile up
+
+  # CompreFace - Face Detection/Recognition Service for KYC Verification
+  # Docs: https://github.com/exadel-inc/CompreFace
+  # Using mobilenet model (smaller, 1GB) - good for CPU-only environments
+  # NOTE: CompreFace requires initial setup via UI to create detection service and get API key
+  compreface:
+    image: exadel/compreface:1.2.0-mobilenet
+    container_name: iayos-compreface-dev
+    ports:
+      - "8100:80" # CompreFace nginx frontend on port 80
+      - "8101:8080" # CompreFace API directly (optional)
+    networks:
+      - iayos-network
+    # Removed profile - now starts by default with docker-compose up
+    restart: unless-stopped
 
   # ML Service - TensorFlow-based predictions (Debian for glibc compatibility)
   ml:

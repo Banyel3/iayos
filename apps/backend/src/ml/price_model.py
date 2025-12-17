@@ -233,6 +233,8 @@ def predict_price_range(
     description: str = "",
     urgency: str = "MEDIUM",
     skill_level: str = "INTERMEDIATE",
+    job_scope: str = "MINOR_REPAIR",
+    work_environment: str = "INDOOR",
     materials: list = None
 ) -> Dict[str, float]:
     """
@@ -246,6 +248,8 @@ def predict_price_range(
         description: Job description
         urgency: Urgency level (LOW/MEDIUM/HIGH)
         skill_level: Skill level (ENTRY/INTERMEDIATE/EXPERT)
+        job_scope: Job scope (MINOR_REPAIR/MODERATE_PROJECT/MAJOR_RENOVATION)
+        work_environment: Work environment (INDOOR/OUTDOOR/BOTH)
         materials: List of materials needed
         
     Returns:
@@ -259,9 +263,11 @@ def predict_price_range(
     
     urgency_val = feature_extractor.URGENCY_MAPPING.get(urgency, 1) / 2.0
     skill_val = feature_extractor.SKILL_LEVEL_MAPPING.get(skill_level, 1) / 2.0
+    job_scope_val = feature_extractor.JOB_SCOPE_MAPPING.get(job_scope, 1) / 2.0
+    work_env_val = feature_extractor.WORK_ENVIRONMENT_MAPPING.get(work_environment, 0) / 2.0
     materials_count = min(len(materials), 10) / 10.0
     
-    metadata_features = np.array([urgency_val, skill_val, materials_count], dtype=np.float32)
+    metadata_features = np.array([urgency_val, skill_val, job_scope_val, work_env_val, materials_count], dtype=np.float32)
     
     tag_features = np.array([
         1.0 if materials else 0.0,

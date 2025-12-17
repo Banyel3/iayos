@@ -59,6 +59,7 @@ class SubmitReviewSchema(Schema):
     message: Optional[str] = None  # Optional review message
     review_target: Optional[str] = None  # For agency jobs: "EMPLOYEE" or "AGENCY"
     employee_id: Optional[int] = None  # For multi-employee jobs: specific employee to review
+    worker_id: Optional[int] = None  # For team jobs: specific worker to review (client reviews workers)
 
 
 class ApproveJobCompletionSchema(Schema):
