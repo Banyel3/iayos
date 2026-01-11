@@ -1,21 +1,119 @@
-/## Flutter / Dart / Mobile focused .gitignore
-# This file is tailored to a Flutter mobile project. It intentionally removes
-# non-mobile entries (Node, Next.js, Python/Django, OS-level files, etc.) to
-# keep the repo clean for mobile development.
+# =============================================================================
+# iAyos Monorepo - .gitignore
+# =============================================================================
+# This file covers: Backend (Django), Frontend (Next.js), Mobile (React Native)
+# =============================================================================
 
-# Flutter/Dart build and tooling
-.dart_tool/
-/.dart_tool/
+# =============================================================================
+# ENVIRONMENT & SECRETS (CRITICAL - NEVER COMMIT)
+# =============================================================================
+.env
+.env.local
+.env.docker
+.env.production
+.env.staging
+*.env
+
+# Include example files for documentation
+!.env.example
+!.env.*.example
+
+# Cookie/session files
+cookies.txt
+admin_cookies.txt
+
+# =============================================================================
+# OS & EDITOR FILES
+# =============================================================================
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDEs
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# VS Code (keep config but ignore local settings)
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# =============================================================================
+# NODE.JS / JAVASCRIPT / TYPESCRIPT
+# =============================================================================
+node_modules/
+/.pnp
+.pnp.*
+.yarn/
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# Build outputs
+dist/
 build/
-/**/build/
-/.claude
-/.playwright-mcp
-# Pub
-pubspec.lock
+.turbo/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Lock files (optional - uncomment if you want to ignore)
+# package-lock.json
+# yarn.lock
+
+# =============================================================================
+# NEXT.JS (Frontend Web)
+# =============================================================================
+.next/
+out/
+.vercel
+
+# Prisma
+/lib/generated/prisma
+
+# =============================================================================
+# PYTHON / DJANGO (Backend)
+# =============================================================================
+# Byte-compiled / cached
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env/
+
+# Django
+*.sqlite3
+/media/
+/staticfiles/
+*.log
+
+# Pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+# =============================================================================
+# REACT NATIVE / EXPO (Mobile)
+# =============================================================================
+# Flutter/Dart (if used)
+.dart_tool/
 .pub-cache/
 .pub/
-
-/docs
+pubspec.lock
 
 # Generated plugin registrant
 **/generated_plugin_registrant.*
@@ -33,178 +131,25 @@ ios/Podfile.lock
 ios/Runner.xcworkspace/
 ios/Runner.xcodeproj/project.xcworkspace/
 ios/.symlinks/
+**/ios/Flutter/.last_build_id
 DerivedData/
 *.xcworkspace
 *.xcuserdata
 *.xcuserstate
 
 # Android
-android/.gradle
+android/.gradle/
 android/local.properties
-android/.idea
+android/.idea/
 android/app/build/
 android/build/
 **/captures/
 **/outputs/
-
-# Keystore / signing files
-*.jks
-*.keystore
-
-# IDEs / editors
-.idea/
-.vscode/
-*.iml
-
-# OS files (optional, usually fine for mobile-only)
-.DS_Store
-Thumbs.db
-
-# Logs
-*.log
-
-# Secrets and env
-.env
-.env.*
-
-# Optional: ignore generated Dart analysis cache
-.dart_tool/package_config.json
-
-# Keep this file minimal and focused on mobile development.
-# If you also maintain frontend/backend in this repo and want to ignore
-# their artifacts, add separate .gitignore files in those directories.
-
-# Ignore frontend workspace node_modules (frontend_web)
-/apps/frontend_web/node_modules/
-
-/node_modules
-/.pnp
-.pnp.*
-.yarn/
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
-
-# Next.js build / outputs
-/.next/
-/apps/frontend_web/.next/
-/out/
-
-# Turbo / workspace
-.turbo
-
-# Build artifacts
-/build
-
-# Misc
-.vercel
-package-lock.json
-
-########################
-# Python / Backend (Django)
-########################
-# Byte-compiled / Python cache
-__pycache__/
-*.py[cod]
-*$py.class
-
-# Virtualenvs
-/apps/backend/venv/
-.venv/
-
-# Django stuff
-*.sqlite3
-/media/
-*.log
-/staticfiles/
-
-# Pip / requirements
-env/
-
-########################
-# General / IDE / OS
-########################
-# Env files
-.env*
-.env
-.env.local
-.env.docker.example
-
-# Logs
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
-*.log
-
-# OS files
-.DS_Store
-Thumbs.db
-
-# IDEs
-.idea/
-.vscode/
-*.iml
-
-# Prisma generated
-/lib/generated/prisma
-
-# Optional: Dart analysis cache
-.dart_tool/package_config.json
-
-# Keep any additional per-project ignores in that project's directory if
-# you want to be more specific. This file is intentionally broad for
-# monorepo convenience.
-
-# Miscellaneous
-*.class
-*.log
-*.pyc
-*.swp
-.DS_Store
-.atom/
-.build/
-.buildlog/
-.history
-.svn/
-.swiftpm/
-migrate_working_dir/
-
-# IntelliJ related
-*.iml
-*.ipr
-*.iws
-.idea/
-
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
-#.vscode/
-
-# Flutter/Dart/Pub related
-**/doc/api/
-**/ios/Flutter/.last_build_id
-.dart_tool/
-.flutter-plugins-dependencies
-.pub-cache/
-.pub/
-/build/
-/coverage/
-
-# Symbolication related
-app.*.symbols
-
-# Obfuscation related
-app.*.map.json
-
-# Android Studio will place build artifacts here
 /android/app/debug
 /android/app/profile
 /android/app/release
-
 gradle-wrapper.jar
-/.gradle
+/.gradle/
 /captures/
 /gradlew
 /gradlew.bat
@@ -212,42 +157,82 @@ gradle-wrapper.jar
 GeneratedPluginRegistrant.java
 .cxx/
 
-# Remember to never publicly share your keystore.
-# See https://flutter.dev/to/reference-keystore
+# Keystore / signing files (NEVER COMMIT)
+*.jks
+*.keystore
 key.properties
-**/*.keystore
-**/*.jks
 
-/apps/frontend_web/.next/*
-/apps/frontend_web/.next/server
-acli.exe
+# Expo
+.expo/
+web-build/
 
-/.claude
+# Metro
+.metro-health-check*
 
-CLAUDE.md
-AGENTS.md
+# =============================================================================
+# MACHINE LEARNING / DATA
+# =============================================================================
+# Model files (large binary files)
+*.h5
+*.pkl
+*.model
+*.weights
 
-########################
-# Archive folder (preserved utility scripts)
-########################
-/archive/
+# Training logs
+runs/
+logs/
+tensorboard/
 
-########################
-# Test artifacts & logs
-########################
+# =============================================================================
+# DATABASE & BACKUPS
+# =============================================================================
+# SQL dumps (keep in apps/backend/backups/ but ignore by default)
+*.sql.gz
+*.dump
+
+# SQLite
+*.sqlite3
+
+# =============================================================================
+# TEST ARTIFACTS
+# =============================================================================
 *_output.txt
 *_results.txt
 *_errors.txt
-test_*.txt
+coverage/
+.nyc_output/
+
+# =============================================================================
+# TEMPORARY & GENERATED FILES
+# =============================================================================
+*.tmp
+*.temp
+.tmp_*
+*.bak
+
+# Debug logs
 debug.log
 django_server.log
 django.log
-flutter_debug.log
+frontend_dev.log
 
-########################
-# One-time fix scripts
-########################
-fix-*.sh
-fix_*.js
-quick-fixes.sh
-*.iml
+# Executables that shouldn't be in repo
+*.exe
+
+# Obfuscation / Symbolication (Mobile)
+app.*.symbols
+app.*.map.json
+
+# =============================================================================
+# CLAUDE / AI ASSISTANTS
+# =============================================================================
+/.claude/
+/.playwright-mcp/
+CLAUDE.md
+AGENTS.md
+
+# =============================================================================
+# PROJECT-SPECIFIC IGNORES
+# =============================================================================
+# MCP config (may contain local paths)
+.mcp.json

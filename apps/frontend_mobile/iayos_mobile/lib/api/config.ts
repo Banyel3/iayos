@@ -270,7 +270,7 @@ export const ENDPOINTS = {
   XENDIT_WEBHOOK: `${API_BASE_URL.replace("/api", "")}/api/payments/xendit/callback`,
   PAYMENT_RECEIPT: (id: number) =>
     `${API_BASE_URL.replace("/api", "")}/api/mobile/payments/receipt/${id}`,
-  
+
   // Job Receipt/Invoice
   JOB_RECEIPT: (jobId: number) =>
     `${API_BASE_URL.replace("/api", "")}/api/jobs/${jobId}/receipt`,
@@ -311,12 +311,14 @@ export const ENDPOINTS = {
   DELETE_NOTIFICATION: (id: number) =>
     `${API_BASE_URL.replace("/api", "")}/api/accounts/notifications/${id}/delete`,
 
-  // Phase 7: KYC Document Upload & Verification (4 endpoints)
+  // Phase 7: KYC Document Upload & Verification (7 endpoints)
   KYC_STATUS: `${API_BASE_URL.replace("/api", "")}/api/accounts/kyc-status`,
   UPLOAD_KYC: `${API_BASE_URL.replace("/api", "")}/api/accounts/upload-kyc`,
   KYC_UPLOAD: `${API_BASE_URL.replace("/api", "")}/api/accounts/upload/kyc`, // Matches Next.js endpoint
   KYC_VALIDATE_DOCUMENT: `${API_BASE_URL.replace("/api", "")}/api/accounts/kyc/validate-document`, // Per-step validation
   KYC_APPLICATION_HISTORY: `${API_BASE_URL.replace("/api", "")}/api/accounts/kyc-application-history`,
+  KYC_AUTOFILL: `${API_BASE_URL.replace("/api", "")}/api/accounts/kyc/autofill`, // Get AI-extracted data for auto-fill
+  KYC_CONFIRM: `${API_BASE_URL.replace("/api", "")}/api/accounts/kyc/confirm`, // Confirm/edit extracted data
 
   // Dual Profile Management (4 endpoints)
   DUAL_PROFILE_STATUS: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/dual-status`,

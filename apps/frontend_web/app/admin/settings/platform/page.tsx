@@ -30,6 +30,10 @@ interface PlatformSettings {
   max_upload_size_mb: number;
   last_updated?: string;
   updated_by?: string;
+  // New KYC auto-approval thresholds
+  kyc_auto_approve_min_confidence: number;
+  kyc_face_match_min_similarity: number;
+  kyc_require_user_confirmation: boolean;
 }
 
 export default function PlatformSettingsPage() {
@@ -47,6 +51,10 @@ export default function PlatformSettingsPage() {
     kyc_document_expiry_days: 365,
     session_timeout_minutes: 60,
     max_upload_size_mb: 10,
+    // New KYC auto-approval thresholds
+    kyc_auto_approve_min_confidence: 0.9,
+    kyc_face_match_min_similarity: 0.85,
+    kyc_require_user_confirmation: true,
   });
   const [originalSettings, setOriginalSettings] =
     useState<PlatformSettings | null>(null);
@@ -197,6 +205,10 @@ export default function PlatformSettingsPage() {
       kyc_document_expiry_days: 365,
       session_timeout_minutes: 60,
       max_upload_size_mb: 10,
+      // New KYC auto-approval thresholds
+      kyc_auto_approve_min_confidence: 0.9,
+      kyc_face_match_min_similarity: 0.85,
+      kyc_require_user_confirmation: true,
     };
 
     setSettings(defaults);
@@ -541,6 +553,106 @@ export default function PlatformSettingsPage() {
                     />
                   </button>
                 </div>
+
+                {/* KYC Auto-Approval Thresholds (shown when auto-approve is enabled) */}
+                {settings.auto_approve_kyc && (
+                  <div className="ml-4 p-4 rounded-lg bg-blue-50 border border-blue-200 space-y-4">
+                    <div className="flex items-center gap-2 text-blue-800 text-sm font-medium">
+                      <Shield className="h-4 w-4" />
+                      AI Auto-Approval Thresholds
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium text-gray-900 text-sm">
+                          Require User Confirmation
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          Users must review and confirm extracted data before
+                          auto-approval
+                        </p>
+                      </div>
+                      <button
+                        onClick={() =>
+                          handleChange(
+                            "kyc_require_user_confirmation",
+                            !settings.kyc_require_user_confirmation
+                          )
+                        }
+                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                          settings.kyc_require_user_confirmation
+                            ? "bg-blue-600"
+                            : "bg-gray-300"
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
+                            settings.kyc_require_user_confirmation
+                              ? "translate-x-5"
+                              : "translate-x-1"
+                          }`}
+                        />
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Min. Confidence Score
+                        </label>
+                        <div className="relative">
+                          <Input
+                            type="number"
+                            min="0"
+                            max="1"
+                            step="0.05"
+                            value={settings.kyc_auto_approve_min_confidence}
+                            onChange={(e) =>
+                              handleChange(
+                                "kyc_auto_approve_min_confidence",
+                                parseFloat(e.target.value)
+                              )
+                            }
+                            className="pr-8"
+                          />
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">
+                          AI extraction confidence (0.0 - 1.0)
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Min. Face Match Score
+                        </label>
+                        <div className="relative">
+                          <Input
+                            type="number"
+                            min="0"
+                            max="1"
+                            step="0.05"
+                            value={settings.kyc_face_match_min_similarity}
+                            onChange={(e) =>
+                              handleChange(
+                                "kyc_face_match_min_similarity",
+                                parseFloat(e.target.value)
+                              )
+                            }
+                            className="pr-8"
+                          />
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">
+                          ID-selfie similarity (0.0 - 1.0)
+                        </p>
+                      </div>
+                    </div>
+
+                    <p className="text-xs text-blue-700 mt-2">
+                      💡 Higher thresholds = stricter auto-approval.
+                      Recommended: 0.85-0.95
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="h-px bg-gray-200"></div>

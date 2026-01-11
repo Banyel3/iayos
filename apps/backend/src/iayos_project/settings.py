@@ -27,16 +27,40 @@ load_dotenv(BASE_DIR.parent / ".env")
 
 load_dotenv(BASE_DIR.parent / ".env.local", override=True)
 
+# ============================================================================
+# SENTRY INITIALIZATION (Early - before other imports)
+# ============================================================================
+try:
+    from iayos_project.observability import configure_sentry
+    configure_sentry()
+except ImportError:
+    pass  # Observability module not yet loaded
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-ss_o*cm)=s&gj!mnt)w&6+-20*s+4imz84l1=m_(59s0ztn9y+')
+# In production, DJANGO_SECRET_KEY must be set in environment variables
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
+if not SECRET_KEY:
+    if os.environ.get('ENVIRONMENT', 'development') == 'production':
+        raise ValueError("DJANGO_SECRET_KEY must be set in production environment")
+    # Only use insecure default in development
+    SECRET_KEY = 'django-insecure-dev-only-change-in-production'
+    print("⚠ Using insecure SECRET_KEY - set DJANGO_SECRET_KEY in production!")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# Defaults to False for safety - must explicitly enable in development
+DEBUG = os.environ.get('DEBUG', 'false').lower() == 'true'
 
-ALLOWED_HOSTS = ['*']  # Allow all hosts in development (restrict in production)
+# SECURITY: In production, ALLOWED_HOSTS must be explicitly set
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '').split(',')
+if not any(ALLOWED_HOSTS) or ALLOWED_HOSTS == ['']:
+    if DEBUG:
+        ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0']
+    else:
+        print("⚠ ALLOWED_HOSTS not set - defaulting to localhost only")
+        ALLOWED_HOSTS = ['localhost']
 
 
 # Application definition
@@ -67,6 +91,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'iayos_project.observability.RequestIDMiddleware',  # Request ID for tracing (first)
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -76,7 +101,29 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     "allauth.account.middleware.AccountMiddleware",
+    'iayos_project.rate_limiting.RateLimitMiddleware',  # Rate limiting (last)
 ]
+
+# ============================================================================
+# OBSERVABILITY CONFIGURATION
+# ============================================================================
+
+# Sentry Error Tracking (Optional - set in environment)
+SENTRY_DSN = os.environ.get('SENTRY_DSN', None)
+SENTRY_TRACES_SAMPLE_RATE = float(os.environ.get('SENTRY_TRACES_SAMPLE_RATE', '0.1'))
+SENTRY_PROFILES_SAMPLE_RATE = float(os.environ.get('SENTRY_PROFILES_SAMPLE_RATE', '0.1'))
+ENVIRONMENT = os.environ.get('ENVIRONMENT', 'development')
+APP_VERSION = os.environ.get('APP_VERSION', '1.0.0')
+
+# Logging configuration
+LOG_LEVEL = os.environ.get('LOG_LEVEL', 'INFO')
+JSON_LOGGING = os.environ.get('JSON_LOGGING', 'false').lower() == 'true'
+
+# Rate limiting
+RATE_LIMIT_DISABLED = os.environ.get('RATE_LIMIT_DISABLED', 'false').lower() == 'true'
+
+# Query caching
+QUERY_CACHE_DISABLED = os.environ.get('QUERY_CACHE_DISABLED', 'false').lower() == 'true'
 
 AUTHENTICATION_BACKENDS = [
     # Needed to login by username in Django admin, regardless of `allauth`
@@ -186,21 +233,27 @@ WSGI_APPLICATION = 'iayos_project.wsgi.application'
 # Toggle between local PostgreSQL and Neon cloud database
 USE_LOCAL_DB = os.getenv("USE_LOCAL_DB", "false").lower() == "true"
 
+# Connection pooling settings
+DB_CONN_MAX_AGE = int(os.getenv("DB_CONN_MAX_AGE", "60"))  # Persistent connections for 60 seconds
+DB_CONN_HEALTH_CHECKS = os.getenv("DB_CONN_HEALTH_CHECKS", "true").lower() == "true"
+
 if USE_LOCAL_DB:
-    # Local PostgreSQL - no SSL required
+    # Local PostgreSQL - no SSL required, with connection pooling
     DATABASES = {
         'default': dj_database_url.parse(
             os.getenv("DATABASE_URL_LOCAL", "postgresql://iayos_user:iayos_local_pass@postgres:5432/iayos_db"),
-            conn_max_age=0,
+            conn_max_age=DB_CONN_MAX_AGE,
+            conn_health_checks=DB_CONN_HEALTH_CHECKS,
             ssl_require=False,
         )
     }
 else:
-    # Neon Cloud PostgreSQL - SSL required
+    # Neon Cloud PostgreSQL - SSL required, with connection pooling
     DATABASES = {
         'default': dj_database_url.parse(
             os.getenv("DATABASE_URL"),
-            conn_max_age=0,
+            conn_max_age=DB_CONN_MAX_AGE,
+            conn_health_checks=DB_CONN_HEALTH_CHECKS,
             ssl_require=True,
         )
     }
@@ -341,12 +394,24 @@ else:
     else:
         print("⚠ No file storage configured - uploads will fail")
 
-# Xendit Configuration
+# Xendit Configuration (Legacy - for rollback)
 XENDIT_API_KEY = os.getenv("XENDIT_API_KEY")  # Must be set in .env.docker
 XENDIT_WEBHOOK_TOKEN = os.getenv("XENDIT_WEBHOOK_TOKEN", "")  # Optional: for webhook verification
 XENDIT_TEST_MODE = True  # Always True for development
 XENDIT_TEST_ACCOUNT_NAME = os.getenv("XENDIT_TEST_ACCOUNT_NAME", "Test GCash User")
 XENDIT_TEST_ACCOUNT_NUMBER = os.getenv("XENDIT_TEST_ACCOUNT_NUMBER", "09123456789")
+
+# =====================================================
+# PAYMONGO PAYMENT GATEWAY (Primary)
+# =====================================================
+# PayMongo API keys - Get from https://dashboard.paymongo.com/developers
+# Test keys: sk_test_ / pk_test_ | Live keys: sk_live_ / pk_live_
+PAYMONGO_SECRET_KEY = os.getenv("PAYMONGO_SECRET_KEY", "")
+PAYMONGO_PUBLIC_KEY = os.getenv("PAYMONGO_PUBLIC_KEY", "")
+PAYMONGO_WEBHOOK_SECRET = os.getenv("PAYMONGO_WEBHOOK_SECRET", "")
+
+# Payment provider selection: "paymongo" (default) or "xendit" (legacy rollback)
+PAYMENT_PROVIDER = os.getenv("PAYMENT_PROVIDER", "paymongo")
 
 # Frontend URL for redirects
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
@@ -354,11 +419,52 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 # Django Channels Configuration
 ASGI_APPLICATION = "iayos_project.asgi.application"
 
-CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "channels.layers.InMemoryChannelLayer"
-    },
-}
+# Redis URL for Channel Layer and Caching
+REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
+
+# Channel Layers - Use Redis for production (supports multiple workers/replicas)
+# Falls back to InMemoryChannelLayer only if Redis is not configured
+if REDIS_URL and REDIS_URL != "none":
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {
+                "hosts": [REDIS_URL],
+                "capacity": 1500,  # Maximum messages per channel
+                "expiry": 60,  # Message expiry in seconds
+            },
+        },
+    }
+    print(f"✓ Using Redis Channel Layer: {REDIS_URL.split('@')[-1] if '@' in REDIS_URL else REDIS_URL}")
+else:
+    # Fallback for local development without Redis
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels.layers.InMemoryChannelLayer"
+        },
+    }
+    print("⚠ Using InMemoryChannelLayer - WebSockets won't work across multiple workers")
+
+# Django Cache Configuration - Use Redis
+if REDIS_URL and REDIS_URL != "none":
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": REDIS_URL,
+            "OPTIONS": {
+                "CLIENT_CLASS": "django_redis.client.DefaultClient",
+            },
+            "KEY_PREFIX": "iayos",
+            "TIMEOUT": 300,  # 5 minutes default cache timeout
+        }
+    }
+else:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "unique-snowflake",
+        }
+    }
 
 # Frontend URL for redirects
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")

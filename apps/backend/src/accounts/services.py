@@ -886,6 +886,14 @@ def upload_kyc_document(payload, frontID, backID, clearance, selfie):
         if saved_files_count != len(uploaded_files):
             print(f"⚠️  WARNING: Mismatch between uploaded ({len(uploaded_files)}) and saved ({saved_files_count}) files!")
 
+        # Trigger KYC extraction to populate auto-fill data
+        try:
+            from .kyc_extraction_service import trigger_kyc_extraction_after_upload
+            trigger_kyc_extraction_after_upload(kyc_record)
+        except Exception as ext_error:
+            print(f"⚠️  KYC extraction failed (non-blocking): {str(ext_error)}")
+            # Don't fail KYC upload if extraction fails - admin can still verify manually
+
         return {
             "message": "KYC documents uploaded successfully",
             "kyc_id": kyc_record.kycID,

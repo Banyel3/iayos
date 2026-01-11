@@ -14,6 +14,9 @@ from jobs.api import router as jobs_router
 from client.api import router as client_router
 from ml.api import router as ml_router  # Machine Learning predictions
 
+# Import health check views
+from iayos_project.health import liveness_check, readiness_check, detailed_status
+
 api = NinjaExtraAPI()
 
 # Add routers from apps
@@ -30,6 +33,11 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/", api.urls),  # mounts all the API routes
     path("auth/", include("allauth.urls")),
+    
+    # Health check endpoints for Kubernetes/Docker
+    path("health/live", liveness_check, name="health_liveness"),
+    path("health/ready", readiness_check, name="health_readiness"),
+    path("health/status", detailed_status, name="health_status"),
 ]
 
 # Serve media files in development (for local storage / offline mode)

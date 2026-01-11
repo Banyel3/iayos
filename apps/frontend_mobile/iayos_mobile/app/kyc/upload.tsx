@@ -363,6 +363,8 @@ export default function KYCUploadScreen() {
 
       // Invalidate KYC status cache so banner and status page update immediately
       queryClient.invalidateQueries({ queryKey: ["kycStatus"] });
+      // Also invalidate auto-fill cache to trigger extraction data fetch
+      queryClient.invalidateQueries({ queryKey: ["kycAutofill"] });
 
       // Check if auto-rejected by AI verification
       if (responseData.auto_rejected || responseData.status === "REJECTED") {
@@ -378,12 +380,19 @@ export default function KYCUploadScreen() {
           [{ text: "OK", onPress: () => router.replace("/kyc/status") }]
         );
       } else {
+        // Success - offer to review extracted data
         Alert.alert(
-          "Success",
+          "Documents Uploaded!",
           isRejected
-            ? "Your KYC documents have been resubmitted for review!"
-            : "Your KYC documents have been submitted for review!",
-          [{ text: "OK", onPress: () => router.replace("/kyc/status") }]
+            ? "Your KYC documents have been resubmitted. Would you like to review the extracted information?"
+            : "Your KYC documents are being processed. Would you like to review the extracted information?",
+          [
+            { text: "Skip", onPress: () => router.replace("/kyc/status") },
+            {
+              text: "Review Details",
+              onPress: () => router.replace("/kyc/confirm"),
+            },
+          ]
         );
       }
     } catch (error) {

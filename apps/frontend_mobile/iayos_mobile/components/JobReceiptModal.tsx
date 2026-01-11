@@ -1,13 +1,13 @@
 /**
  * JobReceiptModal - Professional receipt/invoice modal for completed jobs
- * 
+ *
  * Displays:
  * - Job details and timeline
  * - Complete payment breakdown
  * - Buffer status for workers
  * - Transaction history
  * - Client and worker information
- * 
+ *
  * Works for all completed jobs, including those completed before this feature.
  */
 
@@ -25,7 +25,13 @@ import {
   Image,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { Colors, Typography, Spacing, BorderRadius, Shadows } from "../constants/theme";
+import {
+  Colors,
+  Typography,
+  Spacing,
+  BorderRadius,
+  Shadows,
+} from "../constants/theme";
 import {
   useJobReceipt,
   formatCurrency,
@@ -57,7 +63,7 @@ export default function JobReceiptModal({
 
   const handleShare = async () => {
     if (!receipt) return;
-    
+
     try {
       const message = `
 📄 iAyos Job Receipt
@@ -74,7 +80,7 @@ Status: ${receipt.status}
 
 iAyos - May sira? May iAyos.
       `.trim();
-      
+
       await Share.share({
         message,
         title: `Receipt - ${receipt.title}`,
@@ -108,7 +114,11 @@ iAyos - May sira? May iAyos.
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             disabled={!receipt}
           >
-            <Ionicons name="share-outline" size={22} color={receipt ? Colors.primary : Colors.textHint} />
+            <Ionicons
+              name="share-outline"
+              size={22}
+              color={receipt ? Colors.primary : Colors.textHint}
+            />
           </TouchableOpacity>
         </View>
 
@@ -140,14 +150,22 @@ iAyos - May sira? May iAyos.
               </View>
               <View style={styles.receiptBadge}>
                 <Ionicons
-                  name={receipt.status === "COMPLETED" ? "checkmark-circle" : "time"}
+                  name={
+                    receipt.status === "COMPLETED" ? "checkmark-circle" : "time"
+                  }
                   size={16}
-                  color={receipt.status === "COMPLETED" ? Colors.success : Colors.warning}
+                  color={
+                    receipt.status === "COMPLETED"
+                      ? Colors.success
+                      : Colors.warning
+                  }
                 />
                 <Text
                   style={[
                     styles.receiptBadgeText,
-                    receipt.status === "COMPLETED" ? styles.completedText : styles.pendingText,
+                    receipt.status === "COMPLETED"
+                      ? styles.completedText
+                      : styles.pendingText,
                   ]}
                 >
                   {receipt.status === "COMPLETED" ? "Paid" : "Pending"}
@@ -159,19 +177,29 @@ iAyos - May sira? May iAyos.
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Job Details</Text>
               <View style={styles.divider} />
-              
+
               <Text style={styles.jobTitle}>{receipt.title}</Text>
-              
+
               <View style={styles.infoRow}>
-                <Ionicons name="folder-outline" size={16} color={Colors.textSecondary} />
-                <Text style={styles.infoText}>{receipt.category || "Uncategorized"}</Text>
+                <Ionicons
+                  name="folder-outline"
+                  size={16}
+                  color={Colors.textSecondary}
+                />
+                <Text style={styles.infoText}>
+                  {receipt.category || "Uncategorized"}
+                </Text>
               </View>
-              
+
               <View style={styles.infoRow}>
-                <Ionicons name="location-outline" size={16} color={Colors.textSecondary} />
+                <Ionicons
+                  name="location-outline"
+                  size={16}
+                  color={Colors.textSecondary}
+                />
                 <Text style={styles.infoText}>{receipt.location}</Text>
               </View>
-              
+
               {receipt.is_team_job && (
                 <View style={styles.teamBadge}>
                   <Ionicons name="people" size={14} color={Colors.primary} />
@@ -184,30 +212,32 @@ iAyos - May sira? May iAyos.
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Payment Breakdown</Text>
               <View style={styles.divider} />
-              
+
               <View style={styles.paymentRow}>
                 <Text style={styles.paymentLabel}>Job Budget</Text>
                 <Text style={styles.paymentValue}>
                   {formatCurrency(receipt.payment.budget)}
                 </Text>
               </View>
-              
+
               <View style={styles.paymentRow}>
-                <Text style={styles.paymentLabel}>50% Escrow (Downpayment)</Text>
+                <Text style={styles.paymentLabel}>
+                  50% Escrow (Downpayment)
+                </Text>
                 <Text style={styles.paymentValue}>
                   {formatCurrency(receipt.payment.escrow_amount)}
                 </Text>
               </View>
-              
+
               <View style={styles.paymentRow}>
                 <Text style={styles.paymentLabel}>50% Final Payment</Text>
                 <Text style={styles.paymentValue}>
                   {formatCurrency(receipt.payment.final_payment)}
                 </Text>
               </View>
-              
+
               <View style={styles.paymentDivider} />
-              
+
               <View style={styles.paymentRow}>
                 <Text style={styles.paymentLabel}>
                   Platform Fee ({receipt.payment.platform_fee_rate})
@@ -216,7 +246,7 @@ iAyos - May sira? May iAyos.
                   +{formatCurrency(receipt.payment.platform_fee)}
                 </Text>
               </View>
-              
+
               <View style={styles.totalRow}>
                 <Text style={styles.totalLabel}>
                   {userRole === "CLIENT" ? "Total You Paid" : "Worker Earnings"}
@@ -229,11 +259,15 @@ iAyos - May sira? May iAyos.
                   )}
                 </Text>
               </View>
-              
+
               {receipt.payment.payment_method && (
                 <View style={styles.paymentMethodRow}>
                   <Ionicons
-                    name={receipt.payment.payment_method === "GCASH" ? "wallet" : "cash"}
+                    name={
+                      receipt.payment.payment_method === "GCASH"
+                        ? "wallet"
+                        : "cash"
+                    }
                     size={16}
                     color={Colors.primary}
                   />
@@ -248,7 +282,7 @@ iAyos - May sira? May iAyos.
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Timeline</Text>
               <View style={styles.divider} />
-              
+
               <TimelineItem
                 label="Job Created"
                 date={receipt.created_at}
@@ -285,32 +319,52 @@ iAyos - May sira? May iAyos.
 
             {/* Buffer Status Card (for workers) */}
             {userRole === "WORKER" && receipt.buffer && (
-              <View style={[styles.card, receipt.buffer.is_released ? styles.releasedCard : styles.bufferCard]}>
+              <View
+                style={[
+                  styles.card,
+                  receipt.buffer.is_released
+                    ? styles.releasedCard
+                    : styles.bufferCard,
+                ]}
+              >
                 <View style={styles.bufferHeader}>
                   <Ionicons
-                    name={receipt.buffer.is_released ? "checkmark-circle" : "time"}
+                    name={
+                      receipt.buffer.is_released ? "checkmark-circle" : "time"
+                    }
                     size={24}
-                    color={receipt.buffer.is_released ? Colors.success : "#FFA000"}
+                    color={
+                      receipt.buffer.is_released ? Colors.success : "#FFA000"
+                    }
                   />
                   <Text style={styles.cardTitle}>
-                    {receipt.buffer.is_released ? "Payment Released" : "Payment Pending"}
+                    {receipt.buffer.is_released
+                      ? "Payment Released"
+                      : "Payment Pending"}
                   </Text>
                 </View>
                 <View style={styles.divider} />
-                
+
                 {receipt.buffer.is_released ? (
                   <View style={styles.bufferContent}>
                     <Text style={styles.bufferText}>
-                      ₱{formatCurrency(receipt.payment.worker_earnings).replace("₱", "")} has been added to your wallet.
+                      ₱
+                      {formatCurrency(receipt.payment.worker_earnings).replace(
+                        "₱",
+                        ""
+                      )}{" "}
+                      has been added to your wallet.
                     </Text>
                     <Text style={styles.bufferDate}>
-                      Released on {formatReceiptDate(receipt.buffer.released_at)}
+                      Released on{" "}
+                      {formatReceiptDate(receipt.buffer.released_at)}
                     </Text>
                   </View>
                 ) : (
                   <View style={styles.bufferContent}>
                     <Text style={styles.bufferText}>
-                      Your earnings are held for {receipt.buffer.buffer_days} days to allow for backjob requests.
+                      Your earnings are held for {receipt.buffer.buffer_days}{" "}
+                      days to allow for backjob requests.
                     </Text>
                     <View style={styles.bufferStats}>
                       <View style={styles.bufferStat}>
@@ -321,7 +375,9 @@ iAyos - May sira? May iAyos.
                       </View>
                       <View style={styles.bufferStat}>
                         <Text style={styles.bufferStatValue}>
-                          {formatReceiptDate(receipt.buffer.end_date)?.split(",")[0] ?? "—"}
+                          {formatReceiptDate(receipt.buffer.end_date)?.split(
+                            ","
+                          )[0] ?? "—"}
                         </Text>
                         <Text style={styles.bufferStatLabel}>Release Date</Text>
                       </View>
@@ -338,17 +394,25 @@ iAyos - May sira? May iAyos.
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Parties</Text>
               <View style={styles.divider} />
-              
+
               {/* Client */}
               <View style={styles.partyRow}>
                 <View style={styles.partyAvatar}>
                   {receipt.client.avatar ? (
                     <Image
-                      source={{ uri: getAbsoluteMediaUrl(receipt.client.avatar) || undefined }}
+                      source={{
+                        uri:
+                          getAbsoluteMediaUrl(receipt.client.avatar) ||
+                          undefined,
+                      }}
                       style={styles.avatarImage}
                     />
                   ) : (
-                    <Ionicons name="person" size={24} color={Colors.textSecondary} />
+                    <Ionicons
+                      name="person"
+                      size={24}
+                      color={Colors.textSecondary}
+                    />
                   )}
                 </View>
                 <View style={styles.partyInfo}>
@@ -356,19 +420,27 @@ iAyos - May sira? May iAyos.
                   <Text style={styles.partyName}>{receipt.client.name}</Text>
                 </View>
               </View>
-              
+
               {/* Worker/Agency */}
               {receipt.worker && (
                 <View style={styles.partyRow}>
                   <View style={styles.partyAvatar}>
                     {receipt.worker.avatar ? (
                       <Image
-                        source={{ uri: getAbsoluteMediaUrl(receipt.worker.avatar) || undefined }}
+                        source={{
+                          uri:
+                            getAbsoluteMediaUrl(receipt.worker.avatar) ||
+                            undefined,
+                        }}
                         style={styles.avatarImage}
                       />
                     ) : (
                       <Ionicons
-                        name={receipt.worker.type === "AGENCY" ? "business" : "person"}
+                        name={
+                          receipt.worker.type === "AGENCY"
+                            ? "business"
+                            : "person"
+                        }
                         size={24}
                         color={Colors.textSecondary}
                       />
@@ -389,53 +461,62 @@ iAyos - May sira? May iAyos.
               <View style={styles.card}>
                 <Text style={styles.cardTitle}>Transaction History</Text>
                 <View style={styles.divider} />
-                
-                {receipt.transactions.map((txn: ReceiptTransaction, index: number) => (
-                  <View
-                    key={txn.id}
-                    style={[
-                      styles.transactionRow,
-                      index < receipt.transactions.length - 1 && styles.transactionBorder,
-                    ]}
-                  >
-                    <View style={styles.transactionIcon}>
-                      <Ionicons
-                        name={
-                          txn.type === "EARNING" || txn.type === "PENDING_EARNING"
-                            ? "arrow-down"
-                            : txn.type === "PAYMENT"
-                              ? "arrow-up"
-                              : "swap-horizontal"
-                        }
-                        size={16}
-                        color={
-                          txn.type === "EARNING" || txn.type === "PENDING_EARNING"
-                            ? Colors.success
-                            : Colors.error
-                        }
-                      />
-                    </View>
-                    <View style={styles.transactionInfo}>
-                      <Text style={styles.transactionType}>
-                        {getTransactionTypeLabel(txn.type)}
-                      </Text>
-                      <Text style={styles.transactionDate}>
-                        {formatReceiptDate(txn.created_at)}
-                      </Text>
-                    </View>
-                    <Text
+
+                {receipt.transactions.map(
+                  (txn: ReceiptTransaction, index: number) => (
+                    <View
+                      key={txn.id}
                       style={[
-                        styles.transactionAmount,
-                        txn.type === "EARNING" || txn.type === "PENDING_EARNING"
-                          ? styles.positiveAmount
-                          : styles.negativeAmount,
+                        styles.transactionRow,
+                        index < receipt.transactions.length - 1 &&
+                          styles.transactionBorder,
                       ]}
                     >
-                      {txn.type === "EARNING" || txn.type === "PENDING_EARNING" ? "+" : "-"}
-                      {formatCurrency(txn.amount)}
-                    </Text>
-                  </View>
-                ))}
+                      <View style={styles.transactionIcon}>
+                        <Ionicons
+                          name={
+                            txn.type === "EARNING" ||
+                            txn.type === "PENDING_EARNING"
+                              ? "arrow-down"
+                              : txn.type === "PAYMENT"
+                                ? "arrow-up"
+                                : "swap-horizontal"
+                          }
+                          size={16}
+                          color={
+                            txn.type === "EARNING" ||
+                            txn.type === "PENDING_EARNING"
+                              ? Colors.success
+                              : Colors.error
+                          }
+                        />
+                      </View>
+                      <View style={styles.transactionInfo}>
+                        <Text style={styles.transactionType}>
+                          {getTransactionTypeLabel(txn.type)}
+                        </Text>
+                        <Text style={styles.transactionDate}>
+                          {formatReceiptDate(txn.created_at)}
+                        </Text>
+                      </View>
+                      <Text
+                        style={[
+                          styles.transactionAmount,
+                          txn.type === "EARNING" ||
+                          txn.type === "PENDING_EARNING"
+                            ? styles.positiveAmount
+                            : styles.negativeAmount,
+                        ]}
+                      >
+                        {txn.type === "EARNING" ||
+                        txn.type === "PENDING_EARNING"
+                          ? "+"
+                          : "-"}
+                        {formatCurrency(txn.amount)}
+                      </Text>
+                    </View>
+                  )
+                )}
               </View>
             )}
 
@@ -465,7 +546,14 @@ interface TimelineItemProps {
   completed?: boolean;
 }
 
-function TimelineItem({ label, date, icon, isFirst, isLast, completed }: TimelineItemProps) {
+function TimelineItem({
+  label,
+  date,
+  icon,
+  isFirst,
+  isLast,
+  completed,
+}: TimelineItemProps) {
   return (
     <View style={styles.timelineItem}>
       {/* Line before */}
@@ -478,13 +566,10 @@ function TimelineItem({ label, date, icon, isFirst, isLast, completed }: Timelin
           ]}
         />
       )}
-      
+
       {/* Icon */}
       <View
-        style={[
-          styles.timelineIcon,
-          completed && styles.timelineIconCompleted,
-        ]}
+        style={[styles.timelineIcon, completed && styles.timelineIconCompleted]}
       >
         <Ionicons
           name={icon as any}
@@ -492,7 +577,7 @@ function TimelineItem({ label, date, icon, isFirst, isLast, completed }: Timelin
           color={completed ? Colors.white : Colors.textHint}
         />
       </View>
-      
+
       {/* Line after */}
       {!isLast && (
         <View
@@ -503,10 +588,15 @@ function TimelineItem({ label, date, icon, isFirst, isLast, completed }: Timelin
           ]}
         />
       )}
-      
+
       {/* Content */}
       <View style={styles.timelineContent}>
-        <Text style={[styles.timelineLabel, !completed && styles.timelineLabelPending]}>
+        <Text
+          style={[
+            styles.timelineLabel,
+            !completed && styles.timelineLabelPending,
+          ]}
+        >
           {label}
         </Text>
         <Text style={styles.timelineDate}>

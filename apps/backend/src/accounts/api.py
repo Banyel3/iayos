@@ -382,6 +382,337 @@ def get_kyc_status_endpoint(request):
         return {"success": False, "error": "Failed to fetch KYC status"}
 
 
+# =============================================================================
+# KYC AUTO-FILL ENDPOINTS (Mobile KYC Enhancement)
+# =============================================================================
+
+@router.get("/kyc/autofill", auth=dual_auth)
+def get_kyc_autofill_data(request):
+    """
+    Get AI-extracted KYC data for mobile auto-fill.
+    
+    Returns extracted fields from OCR processing that users can review/confirm.
+    Called by mobile app after document upload to pre-populate form fields.
+    
+    Returns:
+    - has_extracted_data: Whether extraction data exists
+    - extraction_status: PENDING, EXTRACTED, CONFIRMED, FAILED
+    - fields: Dictionary of extracted fields with values and confidence scores
+    - needs_confirmation: Whether user needs to confirm/edit the data
+    """
+    try:
+        from .models import kyc, KYCExtractedData
+        
+        user = request.auth
+        print(f"🔍 [KYC AUTOFILL] Fetching auto-fill data for user: {user.email}")
+        
+        # Get user's KYC record
+        try:
+            kyc_record = kyc.objects.get(accountFK=user)
+        except kyc.DoesNotExist:
+            return {
+                "success": True,
+                "has_extracted_data": False,
+                "message": "No KYC submission found"
+            }
+        
+        # Get extracted data
+        try:
+            extracted = KYCExtractedData.objects.get(kycID=kyc_record)
+            autofill_data = extracted.get_autofill_data()
+            
+            return {
+                "success": True,
+                "has_extracted_data": True,
+                "extraction_status": extracted.extraction_status,
+                "needs_confirmation": extracted.extraction_status == "EXTRACTED",
+                "extracted_at": extracted.extracted_at.isoformat() if extracted.extracted_at else None,
+                "confirmed_at": extracted.confirmed_at.isoformat() if extracted.confirmed_at else None,
+                "fields": autofill_data,
+                "user_edited_fields": extracted.user_edited_fields or []
+            }
+            
+        except KYCExtractedData.DoesNotExist:
+            return {
+                "success": True,
+                "has_extracted_data": False,
+                "message": "No extracted data available yet"
+            }
+            
+    except Exception as e:
+        print(f"❌ [KYC AUTOFILL] Error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": "Failed to fetch auto-fill data"}
+
+
+@router.post("/kyc/confirm", auth=dual_auth)
+def confirm_kyc_extracted_data(request, payload: dict):
+    """
+    Confirm or edit KYC extracted data from mobile.
+    
+    Users review AI-extracted fields and can confirm or edit them.
+    This saves their confirmed values for admin verification.
+    
+    If auto-approval is enabled and confidence thresholds are met,
+    the KYC will be automatically approved without admin review.
+    
+    Body:
+    - full_name: Confirmed full name
+    - first_name: Confirmed first name
+    - middle_name: Confirmed middle name
+    - last_name: Confirmed last name
+    - birth_date: Confirmed birth date (YYYY-MM-DD)
+    - address: Confirmed address
+    - id_number: Confirmed ID number
+    
+    Returns:
+    - success: Whether confirmation was saved
+    - extraction_status: New status (CONFIRMED)
+    - auto_approved: Whether KYC was auto-approved
+    """
+    try:
+        from .models import kyc, KYCExtractedData
+        from django.utils import timezone
+        
+        user = request.auth
+        print(f"🔍 [KYC CONFIRM] Confirming data for user: {user.email}")
+        print(f"   Payload: {payload}")
+        
+        # Get user's KYC record
+        try:
+            kyc_record = kyc.objects.get(accountFK=user)
+        except kyc.DoesNotExist:
+            return {"success": False, "error": "No KYC submission found"}
+        
+        # Get or create extracted data record
+        extracted, created = KYCExtractedData.objects.get_or_create(
+            kycID=kyc_record,
+            defaults={"extraction_status": "PENDING"}
+        )
+        
+        # Track which fields were edited by user
+        edited_fields = []
+        
+        # Update confirmed fields from payload
+        field_mappings = {
+            "full_name": "confirmed_full_name",
+            "first_name": "confirmed_first_name",
+            "middle_name": "confirmed_middle_name",
+            "last_name": "confirmed_last_name",
+            "address": "confirmed_address",
+            "id_number": "confirmed_id_number",
+        }
+        
+        for payload_field, model_field in field_mappings.items():
+            if payload_field in payload and payload[payload_field]:
+                new_value = payload[payload_field]
+                extracted_field = model_field.replace("confirmed_", "extracted_")
+                extracted_value = getattr(extracted, extracted_field, "")
+                
+                # Check if user edited the value
+                if new_value != extracted_value:
+                    edited_fields.append(payload_field)
+                
+                setattr(extracted, model_field, new_value)
+        
+        # Handle birth_date specially (convert string to date)
+        if "birth_date" in payload and payload["birth_date"]:
+            from datetime import datetime
+            try:
+                date_value = datetime.strptime(payload["birth_date"], "%Y-%m-%d").date()
+                extracted.confirmed_birth_date = date_value
+                
+                # Check if edited
+                if extracted.extracted_birth_date != date_value:
+                    edited_fields.append("birth_date")
+            except ValueError:
+                print(f"   ⚠️ Invalid date format: {payload['birth_date']}")
+        
+        # Update status and metadata
+        extracted.extraction_status = "CONFIRMED"
+        extracted.confirmed_at = timezone.now()
+        extracted.user_edited_fields = edited_fields
+        extracted.save()
+        
+        print(f"   ✅ KYC data confirmed. Edited fields: {edited_fields}")
+        
+        # Check for auto-approval eligibility
+        auto_approved = False
+        auto_approval_reason = None
+        
+        try:
+            auto_approved, auto_approval_reason = _check_kyc_auto_approval(
+                kyc_record, extracted, edited_fields
+            )
+            
+            if auto_approved:
+                print(f"   🎉 KYC auto-approved! Reason: {auto_approval_reason}")
+        except Exception as e:
+            print(f"   ⚠️ Auto-approval check failed: {str(e)}")
+        
+        return {
+            "success": True,
+            "extraction_status": "CONFIRMED",
+            "edited_fields": edited_fields,
+            "confirmed_at": extracted.confirmed_at.isoformat(),
+            "auto_approved": auto_approved,
+            "auto_approval_reason": auto_approval_reason
+        }
+        
+    except Exception as e:
+        print(f"❌ [KYC CONFIRM] Error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": "Failed to save confirmed data"}
+
+
+def _check_kyc_auto_approval(kyc_record, extracted, edited_fields):
+    """
+    Check if KYC should be auto-approved based on platform settings and AI confidence.
+    
+    Auto-approval criteria:
+    1. autoApproveKYC must be enabled in platform settings
+    2. Overall confidence >= kycAutoApproveMinConfidence
+    3. Face match similarity >= kycFaceMatchMinSimilarity (if face matching was done)
+    4. User confirmation required based on kycRequireUserConfirmation
+    5. User has confirmed their data (extraction_status == CONFIRMED)
+    
+    Returns:
+        Tuple of (was_approved: bool, reason: str or None)
+    """
+    from adminpanel.models import PlatformSettings
+    from django.utils import timezone
+    from decimal import Decimal
+    
+    # Get platform settings
+    try:
+        settings = PlatformSettings.objects.first()
+        if not settings:
+            return False, None
+    except Exception:
+        return False, None
+    
+    # Check if auto-approval is enabled
+    if not settings.autoApproveKYC:
+        return False, None
+    
+    print(f"   🔍 [AUTO-APPROVAL] Checking eligibility...")
+    print(f"      - autoApproveKYC: {settings.autoApproveKYC}")
+    print(f"      - kycAutoApproveMinConfidence: {settings.kycAutoApproveMinConfidence}")
+    print(f"      - kycFaceMatchMinSimilarity: {settings.kycFaceMatchMinSimilarity}")
+    print(f"      - kycRequireUserConfirmation: {settings.kycRequireUserConfirmation}")
+    
+    # Check user confirmation requirement
+    if settings.kycRequireUserConfirmation and extracted.extraction_status != "CONFIRMED":
+        print(f"      ❌ User confirmation required but status is: {extracted.extraction_status}")
+        return False, None
+    
+    # Check overall confidence threshold
+    overall_confidence = Decimal(str(extracted.overall_confidence or 0))
+    min_confidence = settings.kycAutoApproveMinConfidence
+    
+    print(f"      - Overall confidence: {overall_confidence}")
+    
+    if overall_confidence < min_confidence:
+        print(f"      ❌ Confidence {overall_confidence} < min {min_confidence}")
+        return False, None
+    
+    # Check face match threshold (if available)
+    face_match_score = extracted.face_match_score
+    if face_match_score is not None:
+        face_match_decimal = Decimal(str(face_match_score))
+        min_face_match = settings.kycFaceMatchMinSimilarity
+        
+        print(f"      - Face match score: {face_match_decimal}")
+        
+        if face_match_decimal < min_face_match:
+            print(f"      ❌ Face match {face_match_decimal} < min {min_face_match}")
+            return False, None
+    
+    # All checks passed - auto-approve the KYC
+    print(f"      ✅ All thresholds met, auto-approving...")
+    
+    # Update KYC record status
+    kyc_record.status = "APPROVED"
+    kyc_record.reviewedBy = "AI_AUTO_APPROVAL"
+    kyc_record.reviewedAt = timezone.now()
+    kyc_record.notes = f"Auto-approved: Confidence={overall_confidence}, FaceMatch={face_match_score or 'N/A'}"
+    kyc_record.save()
+    
+    # Create notification for user
+    try:
+        from .models import Notification
+        Notification.objects.create(
+            accountFK=kyc_record.accountFK,
+            type='KYC',
+            title='KYC Verified! ✅',
+            body='Your identity has been automatically verified. You can now access all platform features.',
+        )
+    except Exception as e:
+        print(f"      ⚠️ Failed to create notification: {e}")
+    
+    reason = f"Met thresholds: confidence={overall_confidence:.2f} >= {min_confidence}, "
+    if face_match_score:
+        reason += f"face_match={face_match_score:.2f} >= {settings.kycFaceMatchMinSimilarity}"
+    else:
+        reason += "face_match=N/A"
+    
+    return True, reason
+
+
+@router.get("/kyc/comparison", auth=dual_auth)
+def get_kyc_comparison_data(request):
+    """
+    Get KYC comparison data for admin review.
+    Shows extracted values side-by-side with user-confirmed values.
+    
+    Returns:
+    - comparison: Dictionary of fields with extracted vs confirmed values
+    - user_edited_fields: List of fields user modified
+    - overall_confidence: AI confidence score
+    """
+    try:
+        from .models import kyc, KYCExtractedData
+        
+        user = request.auth
+        print(f"🔍 [KYC COMPARISON] Fetching comparison for user: {user.email}")
+        
+        # Check if admin or the user themselves
+        # (Admins will typically access via adminpanel endpoints, but allow here too)
+        
+        try:
+            kyc_record = kyc.objects.get(accountFK=user)
+        except kyc.DoesNotExist:
+            return {"success": False, "error": "No KYC submission found"}
+        
+        try:
+            extracted = KYCExtractedData.objects.get(kycID=kyc_record)
+            comparison_data = extracted.get_comparison_data()
+            
+            return {
+                "success": True,
+                "comparison": comparison_data,
+                "user_edited_fields": extracted.user_edited_fields or [],
+                "overall_confidence": extracted.overall_confidence,
+                "extraction_status": extracted.extraction_status,
+                "extraction_source": extracted.extraction_source
+            }
+            
+        except KYCExtractedData.DoesNotExist:
+            return {"success": False, "error": "No extracted data available"}
+            
+    except Exception as e:
+        print(f"❌ [KYC COMPARISON] Error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": "Failed to fetch comparison data"}
+
+
+# =============================================================================
+# NOTIFICATIONS ENDPOINTS
+# =============================================================================
+
 @router.get("/notifications", auth=dual_auth)
 def get_notifications(request, limit: int = 50, unread_only: bool = False):
     """
@@ -980,13 +1311,14 @@ def get_wallet_balance(request):
 @router.post("/wallet/deposit", auth=cookie_auth)
 def deposit_funds(request, data: DepositFundsSchema):
     """
-    Create a Xendit payment invoice for wallet deposit
-    TEST MODE: Transaction auto-approved, funds added immediately
-    Returns payment URL for user to see Xendit page
+    Create a payment invoice for wallet deposit.
+    Uses configured payment provider (PayMongo by default, Xendit for legacy).
+    TEST MODE: Transaction auto-approved, funds added immediately.
+    Returns payment URL for user to complete payment.
     """
     try:
         from .models import Wallet, Transaction, Profile
-        from .xendit_service import XenditService
+        from .payment_provider import get_payment_provider
         from decimal import Decimal
         from django.utils import timezone
         
@@ -1050,40 +1382,45 @@ def deposit_funds(request, data: DepositFundsSchema):
         print(f"   New balance: ₱{wallet.balance}")
         print(f"✅ Funds added immediately! Transaction {transaction.transactionID}")
         
-        # Create Xendit invoice for user experience
-        print(f"🔄 Creating Xendit invoice...")
-        xendit_result = XenditService.create_gcash_payment(
+        # Create payment invoice using configured provider
+        payment_provider = get_payment_provider()
+        provider_name = payment_provider.provider_name
+        print(f"🔄 Creating payment invoice via {provider_name.upper()}...")
+        
+        payment_result = payment_provider.create_gcash_payment(
             amount=amount,
             user_email=request.auth.email,
             user_name=user_name,
             transaction_id=transaction.transactionID
         )
         
-        if not xendit_result.get("success"):
-            # If Xendit fails, funds are still added but return error
+        if not payment_result.get("success"):
+            # If payment provider fails, funds are still added but return error
             return Response(
-                {"error": "Failed to create payment invoice", "details": xendit_result.get("error")},
+                {"error": "Failed to create payment invoice", "details": payment_result.get("error")},
                 status=500
             )
         
-        # Update transaction with Xendit details
-        transaction.xenditInvoiceID = xendit_result['invoice_id']
-        transaction.xenditExternalID = xendit_result['external_id']
-        transaction.invoiceURL = xendit_result['invoice_url']
+        # Update transaction with payment provider details
+        # We reuse xendit fields for backward compatibility (can rename in future migration)
+        transaction.xenditInvoiceID = payment_result.get('checkout_id') or payment_result.get('invoice_id')
+        transaction.xenditExternalID = payment_result.get('external_id')
+        transaction.invoiceURL = payment_result.get('checkout_url') or payment_result.get('invoice_url')
         transaction.xenditPaymentChannel = "GCASH"
-        transaction.xenditPaymentMethod = "EWALLET"
+        transaction.xenditPaymentMethod = provider_name.upper()
         transaction.save()
         
-        print(f"📄 Xendit invoice created: {xendit_result['invoice_id']}")
+        print(f"📄 {provider_name.upper()} invoice created: {transaction.xenditInvoiceID}")
         
         return {
             "success": True,
             "transaction_id": transaction.transactionID,
-            "payment_url": xendit_result['invoice_url'],
-            "invoice_id": xendit_result['invoice_id'],
+            "payment_url": payment_result.get('checkout_url') or payment_result.get('invoice_url'),
+            "invoice_id": transaction.xenditInvoiceID,
             "amount": amount,
             "new_balance": float(wallet.balance),
-            "expiry_date": xendit_result['expiry_date'],
+            "expiry_date": payment_result.get('expiry_date'),
+            "provider": provider_name,
             "message": "Funds added and payment invoice created"
         }
         
@@ -1424,6 +1761,141 @@ def xendit_disbursement_webhook(request):
         traceback.print_exc()
         return Response(
             {"error": "Failed to process disbursement webhook"},
+            status=500
+        )
+
+
+@router.post("/wallet/paymongo-webhook", auth=None)  # No auth for webhooks
+def paymongo_webhook(request):
+    """
+    Handle PayMongo payment webhook callbacks.
+    
+    PayMongo sends events for:
+    - checkout_session.payment.paid (payment successful)
+    - checkout_session.payment.failed (payment failed)
+    - checkout_session.payment.expired (checkout expired)
+    - payment.paid, payment.failed (direct payment events)
+    
+    This endpoint must be registered in PayMongo dashboard under Webhooks.
+    """
+    try:
+        from .models import Transaction
+        from .paymongo_service import PayMongoService
+        from django.utils import timezone
+        import json
+        
+        # Get webhook payload
+        raw_body = request.body
+        payload = json.loads(raw_body)
+        
+        print(f"📥 PayMongo Webhook received: {payload.get('data', {}).get('id', 'unknown')}")
+        
+        # Verify webhook signature
+        signature = request.headers.get('Paymongo-Signature', '')
+        paymongo = PayMongoService()
+        
+        if not paymongo.verify_webhook_signature(raw_body, signature):
+            print(f"❌ Invalid PayMongo webhook signature")
+            return Response(
+                {"error": "Invalid webhook signature"},
+                status=401
+            )
+        
+        # Parse webhook data
+        webhook_data = paymongo.parse_webhook_payload(payload)
+        if not webhook_data:
+            print(f"❌ Failed to parse PayMongo webhook payload")
+            return Response(
+                {"error": "Invalid webhook payload"},
+                status=400
+            )
+        
+        event_type = webhook_data.get('event_type', '')
+        payment_id = webhook_data.get('payment_id')
+        external_id = webhook_data.get('external_id')
+        transaction_id = webhook_data.get('transaction_id')
+        status = webhook_data.get('status', '')
+        
+        print(f"📤 PayMongo Event: {event_type}, Payment ID: {payment_id}, External ID: {external_id}")
+        
+        # Find transaction by PayMongo checkout ID or external ID
+        transaction = None
+        try:
+            if transaction_id:
+                transaction = Transaction.objects.filter(transactionID=int(transaction_id)).first()
+            if not transaction and payment_id:
+                # Try finding by checkout session ID stored in xenditInvoiceID field
+                # (we reuse this field for PayMongo checkout ID)
+                transaction = Transaction.objects.filter(xenditInvoiceID=payment_id).first()
+            if not transaction and external_id:
+                transaction = Transaction.objects.filter(xenditExternalID=external_id).first()
+        except Exception as e:
+            print(f"❌ Error finding transaction: {str(e)}")
+        
+        if not transaction:
+            print(f"❌ Transaction not found for PayMongo payment {payment_id} / {external_id}")
+            # Return 200 to prevent PayMongo from retrying for unknown transactions
+            return {"success": True, "message": "Transaction not found, skipping"}
+        
+        print(f"✅ Found transaction {transaction.transactionID} for PayMongo payment")
+        
+        # Update transaction based on status
+        if status == 'paid' or 'paid' in event_type:
+            # Payment successful
+            wallet = transaction.walletID
+            
+            # Update wallet balance based on transaction type
+            if transaction.transactionType == Transaction.TransactionType.DEPOSIT:
+                # Deposit adds to wallet
+                wallet.balance += transaction.amount
+                wallet.save()
+                print(f"💰 Added ₱{transaction.amount} to wallet (DEPOSIT via PayMongo)")
+            elif transaction.transactionType == Transaction.TransactionType.PAYMENT:
+                # Payment/Escrow - money goes to platform, not deducted from wallet
+                print(f"💸 Escrow payment of ₱{transaction.amount} received via PayMongo")
+            
+            # Update transaction
+            transaction.status = Transaction.TransactionStatus.COMPLETED
+            transaction.balanceAfter = wallet.balance
+            transaction.xenditPaymentID = payment_id  # Reuse field for PayMongo ID
+            transaction.xenditPaymentChannel = webhook_data.get('payment_channel', 'PAYMONGO')
+            transaction.xenditPaymentMethod = webhook_data.get('payment_method', 'checkout')
+            transaction.completedAt = timezone.now()
+            transaction.save()
+            
+            # If this is an escrow payment, mark the job as escrow paid
+            if transaction.relatedJobPosting:
+                job = transaction.relatedJobPosting
+                desc_lower = transaction.description.lower()
+                if "escrow" in desc_lower or "downpayment" in desc_lower:
+                    job.escrowPaid = True
+                    job.escrowPaidAt = timezone.now()
+                    job.save()
+                    print(f"✅ Job {job.jobID} escrow marked as paid (PayMongo)")
+                elif "remaining" in desc_lower or "final" in desc_lower:
+                    job.remainingPaymentPaid = True
+                    job.remainingPaymentPaidAt = timezone.now()
+                    job.status = "COMPLETED"
+                    job.save()
+                    print(f"✅ Job {job.jobID} remaining payment received - Job COMPLETED (PayMongo)")
+            
+            print(f"✅ PayMongo payment completed for transaction {transaction.transactionID}")
+            
+        elif status in ['failed', 'expired', 'cancelled'] or any(s in event_type for s in ['failed', 'expired', 'cancel']):
+            # Payment failed or expired
+            transaction.status = Transaction.TransactionStatus.FAILED
+            transaction.description = f"{transaction.description} - {status.upper()}"
+            transaction.save()
+            print(f"❌ PayMongo payment {status} for transaction {transaction.transactionID}")
+        
+        return {"success": True, "message": "PayMongo webhook processed"}
+        
+    except Exception as e:
+        print(f"❌ Error processing PayMongo webhook: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to process webhook"},
             status=500
         )
 

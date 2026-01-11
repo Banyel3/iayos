@@ -691,11 +691,29 @@ class PlatformSettings(models.Model):
     )
     autoApproveKYC = models.BooleanField(
         default=False,
-        help_text="Automatically approve KYC submissions"
+        help_text="Automatically approve KYC submissions based on AI confidence"
     )
     kycDocumentExpiryDays = models.IntegerField(
         default=365,
         help_text="Days until KYC documents expire"
+    )
+    
+    # AI-Based KYC Auto-Approval Thresholds
+    kycAutoApproveMinConfidence = models.DecimalField(
+        max_digits=3,
+        decimal_places=2,
+        default=0.90,
+        help_text="Minimum overall confidence score (0-1) for auto-approval"
+    )
+    kycFaceMatchMinSimilarity = models.DecimalField(
+        max_digits=3,
+        decimal_places=2,
+        default=0.85,
+        help_text="Minimum face match similarity (0-1) for auto-approval"
+    )
+    kycRequireUserConfirmation = models.BooleanField(
+        default=True,
+        help_text="Require user to confirm extracted data before auto-approval"
     )
     
     # System Settings

@@ -1,0 +1,69 @@
+### Test Team Worker Arrival Confirmation
+### Prerequisites:
+### - Job 166 is a team job with conversation 103
+### - Workers profile 21 and 2 are assigned
+### - Get assignment IDs from conversation messages endpoint
+
+@baseUrl = http://localhost:8000
+@clientToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjozLCJlbWFpbCI6ImNsaWVudEBleGFtcGxlLmNvbSIsInByb2ZpbGVfdHlwZSI6IkNMSUVOVCIsImV4cCI6MTc2NjA2ODcwNCwiaWF0IjoxNzM0NTMyNzA0fQ.UtZt_xp2N67gfPwp5dFf_b5pfF1cOnPSEqyJ-EXfU4k
+
+### 1. Get conversation messages to see team_worker_assignments with assignment IDs
+GET {{baseUrl}}/api/profiles/conversations/103/messages
+Authorization: Bearer {{clientToken}}
+
+###
+
+### 2. Confirm first worker arrival (replace {assignment_id} with actual ID from step 1)
+POST {{baseUrl}}/api/jobs/166/team/confirm-arrival/1
+Authorization: Bearer {{clientToken}}
+
+###
+
+### 3. Verify arrival reflected in conversation messages
+GET {{baseUrl}}/api/profiles/conversations/103/messages
+Authorization: Bearer {{clientToken}}
+
+###
+
+### 4. Try to confirm same worker again (should fail with "already confirmed")
+POST {{baseUrl}}/api/jobs/166/team/confirm-arrival/1
+Authorization: Bearer {{clientToken}}
+
+###
+
+### 5. Confirm second worker arrival (replace with second assignment_id)
+POST {{baseUrl}}/api/jobs/166/team/confirm-arrival/2
+Authorization: Bearer {{clientToken}}
+
+###
+
+### 6. Final check - both workers should show confirmed arrival
+GET {{baseUrl}}/api/profiles/conversations/103/messages
+Authorization: Bearer {{clientToken}}
+
+###
+
+### Expected Response for Confirm Arrival:
+### {
+###   "success": true,
+###   "assignment_id": 1,
+###   "worker_name": "Worker Name",
+###   "confirmed_at": "2025-12-16T03:35:00.000Z",
+###   "all_workers_arrived": false,
+###   "arrived_count": 1,
+###   "total_count": 2,
+###   "message": "Confirmed Worker Name has arrived"
+### }
+
+### Expected in conversation messages team_worker_assignments:
+### [
+###   {
+###     "worker_id": 21,
+###     "assignment_id": 1,
+###     "client_confirmed_arrival": true,
+###     "client_confirmed_arrival_at": "2025-12-16T03:35:00.000Z",
+###     "worker_marked_complete": false,
+###     "worker_marked_complete_at": null,
+###     ...
+###   }
+### ]

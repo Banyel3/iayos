@@ -1,89 +1,110 @@
-# Node modules
-node_modules
+# =============================================================================
+# iAyos Monorepo - .dockerignore
+# =============================================================================
+# Excludes files not needed in Docker build context for smaller/faster builds
+# =============================================================================
+
+# Node modules (rebuilt in container)
+node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Next.js
-.next
-out
-dist
+# Next.js build outputs (rebuilt in container)
+.next/
+out/
+dist/
 
-# Python
-__pycache__
+# Python virtual envs (rebuilt in container)
+__pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
 env/
 venv/
-ENV/
+.venv/
 *.egg-info/
 .pytest_cache/
 .coverage
 
-# IDEs
-.vscode
-.idea
+# IDEs & Editors
+.vscode/
+.idea/
 *.swp
 *.swo
 *~
+*.iml
+
+# OS files
 .DS_Store
+Thumbs.db
 
-# Environment files (security critical)
-.env*
+# Environment files (use docker-compose env_file or secrets)
+.env
+.env.local
+.env.production
+.env.staging
 !.env.docker
-*.key
-*.pem
-*.cert
-*.crt
-secrets/
-config/local/
-*.conf
-# Git
-.git
-.gitignore
+!.env.example
+!.env.*.example
 
-# Documentation
+# Git
+.git/
+.gitignore
+.github/
+
+# Documentation (not needed in runtime)
+docs/
 *.md
 !README.md
 
-# Testing
-coverage
-.nyc_output
+# Testing (not needed in production image)
+coverage/
+.nyc_output/
+htmlcov/
 
-# Misc
-.turbo
+# Turbo cache
+.turbo/
+
+# Logs
 *.log
 logs/
+
+# Temp files
 tmp/
 temp/
+*.tmp
 
-# OS specific
-Thumbs.db
-.DS_Store
-
-# Database files
+# Database files (use volumes)
 *.db
 *.sqlite
 *.sqlite3
+*.sql
 
-# Media files (uploaded by users - should be in volumes)
+# Media files (use volumes)
 media/
 uploads/
 
-# Security-sensitive files
+# Security scan outputs
 *.sarif
 vulnerability-reports/
 security-scans/
 docker-scout-*.json
-*.security
-audit-logs/
 
-# Development tools and configs
-Dockerfile*
-docker-compose*.yml
-!docker-compose.yml
-scripts/
-tests/
-.github/
+# Scripts and tests (not needed in production)
+apps/backend/scripts/
+apps/backend/backups/
+
+# Mobile app (not needed in backend/frontend images)
+apps/frontend_mobile/
+
+# Claude/AI assistant files
+.claude/
+.playwright-mcp/
+CLAUDE.md
+AGENTS.md
+.mcp.json
+
+# Datasets (large files, mount as volume if needed)
+apps/backend/scripts/ml/Datasets/
