@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useCallback } from "react";
 import { Sidebar } from "../../components";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
@@ -47,7 +46,6 @@ interface Statistics {
 }
 
 export default function WithdrawalsPage() {
-  const router = useRouter();
   const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([]);
   const [statistics, setStatistics] = useState<Statistics | null>(null);
   const [loading, setLoading] = useState(true);
@@ -61,7 +59,7 @@ export default function WithdrawalsPage() {
     pages: 0,
   });
 
-  const fetchWithdrawals = async () => {
+  const fetchWithdrawals = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({
@@ -79,87 +77,64 @@ export default function WithdrawalsPage() {
       );
 
       if (!response.ok) {
-        // Backend endpoint not yet implemented - using mock data
-        console.warn("Withdrawals API not available, using mock data");
-        
-        // Mock data for demonstration
-        const mockWithdrawals: WithdrawalRequest[] = [
-          {
-            transaction_id: 1001,
-            user_id: 45,
-            user_name: "Juan Dela Cruz",
-            user_email: "juan@example.com",
-            amount: 5000,
-            payment_method_type: "GCASH",
-            recipient_name: "Juan Dela Cruz",
-            account_number: "09171234567",
-            status: "PENDING",
-            created_at: new Date().toISOString(),
-            disbursement_id: "WD_IAYOS-WD-1001-abc123",
-            notes: "Please process urgently",
-          },
-          {
-            transaction_id: 1002,
-            user_id: 78,
-            user_name: "Maria Santos",
-            user_email: "maria@example.com",
-            amount: 12500,
-            payment_method_type: "BANK",
-            recipient_name: "Maria Santos",
-            account_number: "1234567890",
-            bank_name: "BPI",
-            status: "PENDING",
-            created_at: new Date(Date.now() - 3600000).toISOString(),
-            disbursement_id: "WD_IAYOS-WD-1002-def456",
-          },
-          {
-            transaction_id: 1003,
-            user_id: 92,
-            user_name: "Pedro Garcia",
-            user_email: "pedro@example.com",
-            amount: 8000,
-            payment_method_type: "PAYPAL",
-            recipient_name: "Pedro Garcia",
-            account_number: "pedro@paypal.com",
-            status: "PENDING",
-            created_at: new Date(Date.now() - 7200000).toISOString(),
-            disbursement_id: "WD_IAYOS-WD-1003-ghi789",
-          },
-        ];
-
-        setWithdrawals(mockWithdrawals);
-        setStatistics({
-          pending_withdrawals: 3,
-          pending_amount: 25500,
-          completed_today: 5,
-          completed_amount_today: 48000,
-        });
+        console.warn("Withdrawals API not available");
+        setWithdrawals([]);
         return;
       }
 
       const data = await response.json();
-      setWithdrawals(data.withdrawals || []);
-      setStatistics(data.statistics || null);
-      setPagination((prev) => ({
-        ...prev,
-        total: data.total || 0,
-        pages: data.total_pages || 0,
-      }));
+      if (data.success) {
+        setWithdrawals(data.withdrawals || []);
+        setPagination((prev) => ({
+          ...prev,
+          total: data.total || 0,
+          pages: data.total_pages || 0,
+        }));
+      } else {
+        console.error("Failed to fetch withdrawals:", data.error);
+        setWithdrawals([]);
+      }
     } catch (error) {
       console.error("Error:", error);
       setWithdrawals([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [pagination.page, pagination.limit, statusFilter, typeFilter, searchQuery]);
+
+  const fetchStatistics = useCallback(async () => {
+    try {
+      const response = await fetch(
+        `http://localhost:8000/api/adminpanel/withdrawals/statistics`,
+        { credentials: "include" }
+      );
+
+      if (!response.ok) {
+        console.warn("Withdrawals statistics API not available");
+        return;
+      }
+
+      const data = await response.json();
+      if (data.success) {
+        setStatistics({
+          pending_withdrawals: data.pending_withdrawals || 0,
+          pending_amount: data.pending_amount || 0,
+          completed_today: data.completed_today || 0,
+          completed_amount_today: data.completed_amount_today || 0,
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching statistics:", error);
+    }
+  }, []);
 
   useEffect(() => {
     fetchWithdrawals();
-  }, [statusFilter, typeFilter, pagination.page]);
+    fetchStatistics();
+  }, [fetchWithdrawals, fetchStatistics]);
 
   const handleSearch = () => {
     setPagination((prev) => ({ ...prev, page: 1 }));
-    fetchWithdrawals();
   };
 
   const getPaymentMethodIcon = (type: string) => {
@@ -232,7 +207,7 @@ export default function WithdrawalsPage() {
   };
 
   const handleApprove = async (transactionId: number) => {
-    if (!confirm("Mark this withdrawal as completed? Ensure you have sent the funds manually.")) {
+    if (!confirm("Mark this withdrawal as completed? Ensure you have sent the funds manually via PayMongo, bank transfer, or PayPal.")) {
       return;
     }
 
@@ -241,15 +216,19 @@ export default function WithdrawalsPage() {
         `http://localhost:8000/api/adminpanel/withdrawals/${transactionId}/approve`,
         {
           method: "POST",
+          headers: { "Content-Type": "application/json" },
           credentials: "include",
+          body: JSON.stringify({ notes: "Approved and processed manually" }),
         }
       );
 
-      if (response.ok) {
-        alert("Withdrawal marked as completed!");
+      const data = await response.json();
+      if (data.success) {
+        alert(data.message || "Withdrawal marked as completed!");
         fetchWithdrawals();
+        fetchStatistics();
       } else {
-        alert("Failed to approve withdrawal");
+        alert(data.error || "Failed to approve withdrawal");
       }
     } catch (error) {
       console.error("Error:", error);
@@ -272,11 +251,13 @@ export default function WithdrawalsPage() {
         }
       );
 
-      if (response.ok) {
-        alert("Withdrawal rejected and funds refunded to user wallet!");
+      const data = await response.json();
+      if (data.success) {
+        alert(data.message || "Withdrawal rejected and funds refunded to user wallet!");
         fetchWithdrawals();
+        fetchStatistics();
       } else {
-        alert("Failed to reject withdrawal");
+        alert(data.error || "Failed to reject withdrawal");
       }
     } catch (error) {
       console.error("Error:", error);

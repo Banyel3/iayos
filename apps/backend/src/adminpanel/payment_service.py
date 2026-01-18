@@ -20,7 +20,7 @@ from typing import Optional, Dict, List, Any
 
 from accounts.models import (
     Transaction, Job, Profile, Wallet, JobDispute, 
-    ClientProfile, WorkerProfile, Accounts
+    ClientProfile, WorkerProfile, Accounts, UserPaymentMethod
 )
 from adminpanel.audit_service import log_action
 
@@ -1653,3 +1653,357 @@ def get_top_performers(period: str = 'last_30_days') -> Dict[str, Any]:
             'top_workers': [],
             'top_categories': []
         }
+
+
+# ===============================
+# Withdrawal Management (Admin)
+# ===============================
+
+def get_withdrawals_list(
+    page: int = 1,
+    limit: int = 50,
+    status: Optional[str] = None,
+    payment_method: Optional[str] = None,
+    search: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Get paginated list of all withdrawal transactions with filtering for admin panel.
+    
+    Args:
+        page: Page number (1-indexed)
+        limit: Number of records per page
+        status: Filter by transaction status (PENDING/COMPLETED/FAILED)
+        payment_method: Filter by payment method (GCASH/BANK/PAYPAL)
+        search: Search term for user name, email, description
+        
+    Returns:
+        Dictionary with withdrawals list and metadata
+    """
+    try:
+        # Base queryset - only WITHDRAWAL transactions
+        queryset = Transaction.objects.select_related(
+            'walletID__accountFK',
+        ).filter(
+            transactionType='WITHDRAWAL'
+        )
+        
+        # Apply filters
+        if status:
+            queryset = queryset.filter(status=status)
+            
+        if payment_method:
+            if payment_method == 'GCASH':
+                queryset = queryset.filter(paymentMethod='GCASH')
+            elif payment_method == 'BANK':
+                queryset = queryset.filter(paymentMethod='BANK_TRANSFER')
+            # PayPal filter via description
+            elif payment_method == 'PAYPAL':
+                queryset = queryset.filter(description__icontains='PAYPAL')
+            
+        if search:
+            queryset = queryset.filter(
+                Q(description__icontains=search) |
+                Q(referenceNumber__icontains=search) |
+                Q(walletID__accountFK__email__icontains=search) |
+                Q(walletID__accountFK__firstName__icontains=search) |
+                Q(walletID__accountFK__lastName__icontains=search)
+            )
+        
+        # Get total count
+        total = queryset.count()
+        
+        # Apply pagination
+        offset = (page - 1) * limit
+        transactions = queryset.order_by('-createdAt')[offset:offset + limit]
+        
+        # Format withdrawals
+        withdrawals_list = []
+        for txn in transactions:
+            # Get user info
+            account = txn.walletID.accountFK if txn.walletID else None
+            user_email = account.email if account else 'N/A'
+            user_name = f"{account.firstName or ''} {account.lastName or ''}".strip() if account else user_email
+            user_id = account.id if account else 0
+            
+            # Parse payment method type from description
+            payment_method_type = "GCASH"
+            if txn.paymentMethod == 'BANK_TRANSFER':
+                payment_method_type = "BANK"
+            elif txn.description and 'PAYPAL' in txn.description.upper():
+                payment_method_type = "PAYPAL"
+            elif txn.paymentMethod == 'GCASH':
+                payment_method_type = "GCASH"
+            
+            # Try to get recipient details from payment method or description
+            recipient_name = user_name
+            account_number = ""
+            bank_name = None
+            
+            # Try to get payment method from user's saved methods
+            if account:
+                payment_method_obj = UserPaymentMethod.objects.filter(
+                    accountFK=account,
+                    methodType=payment_method_type
+                ).first()
+                if payment_method_obj:
+                    recipient_name = payment_method_obj.accountName
+                    account_number = payment_method_obj.accountNumber
+                    bank_name = payment_method_obj.bankName
+            
+            # Parse from description as fallback
+            if not account_number and txn.description:
+                # Description format: "Withdrawal to GCASH - 09171234567"
+                parts = txn.description.split(' - ')
+                if len(parts) > 1:
+                    account_number = parts[-1]
+            
+            withdrawals_list.append({
+                'transaction_id': txn.transactionID,
+                'user_id': user_id,
+                'user_name': user_name,
+                'user_email': user_email,
+                'amount': float(txn.amount),
+                'payment_method_type': payment_method_type,
+                'recipient_name': recipient_name,
+                'account_number': account_number,
+                'bank_name': bank_name,
+                'status': txn.status,
+                'created_at': txn.createdAt.isoformat() if txn.createdAt else None,
+                'completed_at': txn.completedAt.isoformat() if txn.completedAt else None,
+                'disbursement_id': txn.referenceNumber or f"WD-{txn.transactionID}",
+                'notes': txn.description,
+            })
+        
+        return {
+            'success': True,
+            'withdrawals': withdrawals_list,
+            'total': total,
+            'page': page,
+            'limit': limit,
+            'total_pages': (total + limit - 1) // limit
+        }
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {
+            'success': False,
+            'error': str(e),
+            'withdrawals': [],
+            'total': 0,
+            'page': page,
+            'limit': limit,
+            'total_pages': 0
+        }
+
+
+def get_withdrawals_statistics() -> Dict[str, Any]:
+    """
+    Get withdrawal statistics for admin dashboard.
+    
+    Returns:
+        Dictionary with pending count/amount, completed today count/amount
+    """
+    try:
+        today = timezone.now().date()
+        
+        # Pending withdrawals
+        pending_stats = Transaction.objects.filter(
+            transactionType='WITHDRAWAL',
+            status='PENDING'
+        ).aggregate(
+            count=Count('transactionID'),
+            total=Coalesce(Sum('amount'), Value(Decimal('0.00')))
+        )
+        
+        # Completed today
+        completed_today_stats = Transaction.objects.filter(
+            transactionType='WITHDRAWAL',
+            status='COMPLETED',
+            completedAt__date=today
+        ).aggregate(
+            count=Count('transactionID'),
+            total=Coalesce(Sum('amount'), Value(Decimal('0.00')))
+        )
+        
+        # Total completed this month
+        month_start = today.replace(day=1)
+        completed_month_stats = Transaction.objects.filter(
+            transactionType='WITHDRAWAL',
+            status='COMPLETED',
+            completedAt__date__gte=month_start
+        ).aggregate(
+            count=Count('transactionID'),
+            total=Coalesce(Sum('amount'), Value(Decimal('0.00')))
+        )
+        
+        # Failed this month
+        failed_month_stats = Transaction.objects.filter(
+            transactionType='WITHDRAWAL',
+            status='FAILED',
+            createdAt__date__gte=month_start
+        ).aggregate(
+            count=Count('transactionID'),
+            total=Coalesce(Sum('amount'), Value(Decimal('0.00')))
+        )
+        
+        return {
+            'success': True,
+            'pending_withdrawals': pending_stats['count'] or 0,
+            'pending_amount': float(pending_stats['total'] or 0),
+            'completed_today': completed_today_stats['count'] or 0,
+            'completed_amount_today': float(completed_today_stats['total'] or 0),
+            'completed_this_month': completed_month_stats['count'] or 0,
+            'completed_amount_month': float(completed_month_stats['total'] or 0),
+            'failed_this_month': failed_month_stats['count'] or 0,
+            'failed_amount_month': float(failed_month_stats['total'] or 0),
+        }
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {
+            'success': False,
+            'error': str(e),
+            'pending_withdrawals': 0,
+            'pending_amount': 0,
+            'completed_today': 0,
+            'completed_amount_today': 0,
+            'completed_this_month': 0,
+            'completed_amount_month': 0,
+            'failed_this_month': 0,
+            'failed_amount_month': 0,
+        }
+
+
+def process_withdrawal_approval(
+    transaction_id: int,
+    action: str,  # 'approve' or 'reject'
+    admin_notes: Optional[str] = None,
+    admin = None,
+    request = None
+) -> Dict[str, Any]:
+    """
+    Process withdrawal approval or rejection by admin.
+    
+    For approved withdrawals:
+    - Mark transaction as COMPLETED
+    - Update completedAt timestamp
+    - Admin manually processes payment via PayMongo/Bank portal
+    
+    For rejected withdrawals:
+    - Mark transaction as FAILED
+    - Refund amount back to user's wallet
+    
+    Args:
+        transaction_id: Transaction ID to process
+        action: 'approve' or 'reject'
+        admin_notes: Optional notes from admin
+        admin: Admin account performing the action
+        request: HTTP request for audit logging
+    """
+    try:
+        # Get the transaction
+        transaction = Transaction.objects.select_related(
+            'walletID__accountFK'
+        ).filter(
+            transactionID=transaction_id,
+            transactionType='WITHDRAWAL'
+        ).first()
+        
+        if not transaction:
+            return {'success': False, 'error': 'Withdrawal transaction not found'}
+        
+        if transaction.status != 'PENDING':
+            return {'success': False, 'error': f'Transaction is already {transaction.status}, cannot process'}
+        
+        wallet = transaction.walletID
+        user_account = wallet.accountFK if wallet else None
+        user_name = f"{user_account.firstName or ''} {user_account.lastName or ''}".strip() if user_account else 'Unknown'
+        
+        if action == 'approve':
+            # Mark as completed - admin will manually process the actual payment
+            transaction.status = 'COMPLETED'
+            transaction.completedAt = timezone.now()
+            if admin_notes:
+                transaction.description = f"{transaction.description} | Admin: {admin_notes}"
+            transaction.save()
+            
+            # Log action
+            if admin and request:
+                log_action(
+                    admin=admin,
+                    action='APPROVE_WITHDRAWAL',
+                    target_type='Transaction',
+                    target_id=transaction_id,
+                    details={
+                        'amount': float(transaction.amount),
+                        'user': user_name,
+                        'payment_method': transaction.paymentMethod,
+                        'notes': admin_notes
+                    },
+                    request=request
+                )
+            
+            return {
+                'success': True,
+                'message': f'Withdrawal of ₱{transaction.amount:,.2f} approved for {user_name}',
+                'transaction_id': transaction_id,
+                'new_status': 'COMPLETED'
+            }
+            
+        elif action == 'reject':
+            # Mark as failed and refund to wallet
+            transaction.status = 'FAILED'
+            if admin_notes:
+                transaction.description = f"{transaction.description} | Rejected: {admin_notes}"
+            transaction.save()
+            
+            # Refund amount back to wallet
+            if wallet:
+                wallet.balance += transaction.amount
+                wallet.save()
+                
+                # Create refund transaction record
+                Transaction.objects.create(
+                    walletID=wallet,
+                    transactionType='REFUND',
+                    amount=transaction.amount,
+                    balanceAfter=wallet.balance,
+                    status='COMPLETED',
+                    description=f"Withdrawal rejection refund - Original txn #{transaction_id}",
+                    referenceNumber=f"REFUND-WD-{transaction_id}",
+                    completedAt=timezone.now()
+                )
+            
+            # Log action
+            if admin and request:
+                log_action(
+                    admin=admin,
+                    action='REJECT_WITHDRAWAL',
+                    target_type='Transaction',
+                    target_id=transaction_id,
+                    details={
+                        'amount': float(transaction.amount),
+                        'user': user_name,
+                        'reason': admin_notes,
+                        'refunded': True
+                    },
+                    request=request
+                )
+            
+            return {
+                'success': True,
+                'message': f'Withdrawal of ₱{transaction.amount:,.2f} rejected. Amount refunded to {user_name}\'s wallet.',
+                'transaction_id': transaction_id,
+                'new_status': 'FAILED',
+                'refunded': True
+            }
+        
+        else:
+            return {'success': False, 'error': f'Invalid action: {action}. Use "approve" or "reject"'}
+            
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {'success': False, 'error': str(e)}

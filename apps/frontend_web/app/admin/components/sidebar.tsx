@@ -40,6 +40,7 @@ import {
   UserX,
   Package,
   Activity,
+  ArrowDownToLine,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -203,10 +204,10 @@ const navigation: NavItem[] = [
         description: "All payment transactions",
       },
       {
-        name: "Escrow Monitor",
-        href: "/admin/payments/escrow",
-        icon: Clock,
-        description: "Track escrow payments",
+        name: "Withdrawals",
+        href: "/admin/payments/withdrawals",
+        icon: ArrowDownToLine,
+        description: "Process withdrawal requests",
       },
       {
         name: "Worker Earnings",

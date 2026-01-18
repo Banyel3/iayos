@@ -22,7 +22,8 @@ from .payment_service import (
     bulk_release_escrow, get_worker_earnings, get_worker_earnings_statistics,
     process_payout, get_disputes_list, get_dispute_detail, resolve_dispute,
     get_disputes_statistics, get_revenue_trends, get_payment_methods_breakdown,
-    get_top_performers
+    get_top_performers, get_withdrawals_list, get_withdrawals_statistics,
+    process_withdrawal_approval
 )
 from .support_service import (
     get_tickets, get_ticket_detail, create_ticket, reply_to_ticket,
@@ -1195,6 +1196,105 @@ def refund_transaction(request, transaction_id: int):
         return result
     except Exception as e:
         print(f"❌ Error in refund_transaction: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+# ===============================
+# Withdrawal Management (Admin)
+# ===============================
+
+@router.get("/withdrawals", auth=cookie_auth)
+def get_all_withdrawals(
+    request,
+    page: int = 1,
+    limit: int = 50,
+    status: str = None,
+    payment_method: str = None,
+    search: str = None
+):
+    """
+    Get paginated list of all withdrawal requests with filtering.
+    Used by admin to view and manage pending withdrawals.
+    """
+    try:
+        result = get_withdrawals_list(
+            page=page,
+            limit=limit,
+            status=status,
+            payment_method=payment_method,
+            search=search
+        )
+        return result
+    except Exception as e:
+        print(f"❌ Error in get_all_withdrawals: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/withdrawals/statistics", auth=cookie_auth)
+def get_withdrawal_stats(request):
+    """
+    Get withdrawal statistics for admin dashboard.
+    Returns pending count/amount, completed today, etc.
+    """
+    try:
+        result = get_withdrawals_statistics()
+        return result
+    except Exception as e:
+        print(f"❌ Error in get_withdrawal_stats: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+@router.post("/withdrawals/{transaction_id}/approve", auth=cookie_auth)
+def approve_withdrawal(request, transaction_id: int):
+    """
+    Approve a pending withdrawal request.
+    Admin must manually process the actual payout via PayMongo/bank portal.
+    """
+    try:
+        body = request.data if hasattr(request, 'data') else {}
+        admin_notes = body.get('notes', '')
+        
+        result = process_withdrawal_approval(
+            transaction_id=transaction_id,
+            action='approve',
+            admin_notes=admin_notes,
+            admin=request.auth,
+            request=request
+        )
+        return result
+    except Exception as e:
+        print(f"❌ Error in approve_withdrawal: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+@router.post("/withdrawals/{transaction_id}/reject", auth=cookie_auth)
+def reject_withdrawal(request, transaction_id: int):
+    """
+    Reject a pending withdrawal request.
+    The amount will be refunded back to the user's wallet.
+    """
+    try:
+        body = request.data if hasattr(request, 'data') else {}
+        reason = body.get('reason', 'Rejected by admin')
+        
+        result = process_withdrawal_approval(
+            transaction_id=transaction_id,
+            action='reject',
+            admin_notes=reason,
+            admin=request.auth,
+            request=request
+        )
+        return result
+    except Exception as e:
+        print(f"❌ Error in reject_withdrawal: {str(e)}")
         import traceback
         traceback.print_exc()
         return {"success": False, "error": str(e)}
