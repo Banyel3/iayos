@@ -166,11 +166,13 @@ CSRF_TRUSTED_ORIGINS = [
     "http://127.0.0.1:3000",
     "http://localhost:3400",
     "http://127.0.0.1:3400",
+    "http://localhost:3500",
+    "http://127.0.0.1:3500",
     "http://localhost:8000",
     "http://127.0.0.1:8000",
     "http://10.0.2.2:8000",  # Android emulator host access
-    "http://10.102.160.98:3400",  # IP address for LAN access
-    "http://10.102.160.98:8000",  # Backend IP for LAN access
+    "http://192.168.254.116:3500",  # IP address for LAN access (port 3500)
+    "http://192.168.254.116:8000",  # Backend IP for LAN access
     FRONTEND_URL,  # Dynamic frontend URL from env
     API_URL,  # Dynamic API URL from env
 ]

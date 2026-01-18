@@ -6,7 +6,7 @@
  * - GCash account selection from saved payment methods
  * - Balance check and display
  * - Optional notes field
- * - Xendit order summary/receipt display (like deposit flow)
+ * - Payment receipt display
  * - Immediate balance deduction
  * - Success confirmation with transaction details
  */
@@ -60,7 +60,7 @@ interface WithdrawResponse {
   transaction_id: number;
   new_balance: number;
   message?: string;
-  receipt_url?: string;  // Changed from payment_url - shows Xendit order summary
+  receipt_url?: string;  // Shows payment receipt/order summary
   test_mode?: boolean;
   amount?: number;
 }
@@ -234,7 +234,7 @@ export default function WithdrawScreen() {
     );
   }
 
-  // Show Xendit receipt in WebView
+  // Show payment receipt in WebView
   if (receiptUrl) {
     const withdrawResult = withdrawMutation.data as WithdrawResponse;
     
@@ -263,7 +263,7 @@ export default function WithdrawScreen() {
           </View>
         )}
 
-        {/* Xendit Receipt WebView */}
+        {/* Payment Receipt WebView */}
         <WebView
           source={{ uri: receiptUrl }}
           style={[styles.webView, webViewLoading && { opacity: 0 }]}

@@ -85,7 +85,7 @@ export default function PrivacyPolicyScreen() {
           </Text>
           <BulletPoint text="GCash account information" />
           <BulletPoint text="Wallet transaction history" />
-          <BulletPoint text="Payment method details (stored securely via Xendit)" />
+          <BulletPoint text="Payment method details (stored securely via our payment processor)" />
           <BulletPoint text="Bank account information for withdrawals" />
 
           <Text style={styles.subsectionTitle}>1.4 Usage Data</Text>
@@ -141,7 +141,7 @@ export default function PrivacyPolicyScreen() {
             We share data with trusted third-party service providers who help us
             operate the Platform:
           </Text>
-          <BulletPoint text="Xendit (payment processing and escrow services)" />
+          <BulletPoint text="PayMongo (payment processing)" />
           <BulletPoint text="Supabase (file storage for images and documents)" />
           <BulletPoint text="Cloud hosting providers (AWS, Google Cloud, or similar)" />
           <BulletPoint text="Email service providers (for transactional emails)" />

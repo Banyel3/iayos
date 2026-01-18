@@ -53,6 +53,9 @@ export interface XenditInvoice {
   amount: number;
 }
 
+// Alias for generic naming
+export type PaymentInvoice = XenditInvoice;
+
 export interface WalletDepositResponse {
   success: boolean;
   payment_url?: string;
@@ -118,7 +121,32 @@ export const useCreateEscrowPayment = () => {
   });
 };
 
-// Hook: Create Xendit invoice for GCash payment
+// Hook: Create payment invoice (generic name)
+// Supports both PayMongo and Xendit via backend abstraction
+export const useCreatePaymentInvoice = () => {
+  return useMutation({
+    mutationFn: async (data: { jobId: number; amount: number }) => {
+      return fetchJson<PaymentInvoice>(ENDPOINTS.CREATE_PAYMENT_INVOICE || ENDPOINTS.CREATE_XENDIT_INVOICE, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+      });
+    },
+    onError: (error: Error) => {
+      Toast.show({
+        type: "error",
+        text1: "Invoice Creation Failed",
+        text2: error.message,
+        position: "top",
+      });
+    },
+  });
+};
+
+// Hook: Create Xendit invoice for GCash payment (legacy alias)
 export const useCreateXenditInvoice = () => {
   return useMutation({
     mutationFn: async (data: { jobId: number; amount: number }) => {

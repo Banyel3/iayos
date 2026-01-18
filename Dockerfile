@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.7-labs
+# syntax=docker/dockerfile:1
 # ============================================
 # Stage 1: Base Node.js Image (Debian-based)
 # ============================================
@@ -323,7 +323,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 
 # CRITICAL FIX: Patch Django Ninja UUID converter conflict with Django 5.x
 COPY apps/backend/patch_ninja.sh ./
-RUN chmod +x patch_ninja.sh && ./patch_ninja.sh && rm patch_ninja.sh
+RUN sed -i 's/\r$//' patch_ninja.sh && chmod +x patch_ninja.sh && ./patch_ninja.sh && rm patch_ninja.sh
 
 # Copy backend source (mounted in dev)
 COPY --chown=appuser:appgroup apps/backend .

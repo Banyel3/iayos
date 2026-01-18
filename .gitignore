@@ -14,6 +14,8 @@
 .env.staging
 *.env
 
+docs/
+
 # Include example files for documentation
 !.env.example
 !.env.*.example

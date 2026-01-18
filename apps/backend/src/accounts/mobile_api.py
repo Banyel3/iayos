@@ -2847,13 +2847,19 @@ def mobile_get_pending_earnings(request):
 @mobile_router.post("/wallet/deposit", auth=jwt_auth)
 def mobile_deposit_funds(request, payload: DepositFundsSchema):
     """
-    Mobile wallet deposit via Xendit GCash
+    Mobile wallet deposit via PayMongo/Xendit GCash
     Requires user to have a verified GCash payment method set up
-    TEST MODE: Transaction auto-approved, funds added immediately
+    
+    SECURE FLOW:
+    1. Create PENDING transaction (no balance change)
+    2. Redirect user to PayMongo/Xendit checkout
+    3. User pays via GCash
+    4. Webhook confirms payment
+    5. Webhook handler adds funds to wallet
     """
     try:
         from .models import Wallet, Transaction, Profile, UserPaymentMethod
-        from .xendit_service import XenditService
+        from .payment_provider import get_payment_provider
         from decimal import Decimal
         from django.utils import timezone
         
@@ -2913,57 +2919,64 @@ def mobile_deposit_funds(request, payload: DepositFundsSchema):
         
         print(f"💰 Current balance: ₱{wallet.balance}")
         
-        # TEST MODE: Add funds immediately
-        wallet.balance += Decimal(str(amount))
-        wallet.save()
-        
-        # Create completed transaction
+        # Create PENDING transaction - funds NOT added yet!
+        # Balance will be updated by webhook after payment is confirmed
         transaction = Transaction.objects.create(
             walletID=wallet,
             transactionType=Transaction.TransactionType.DEPOSIT,
             amount=Decimal(str(amount)),
-            balanceAfter=wallet.balance,
-            status=Transaction.TransactionStatus.COMPLETED,
+            balanceAfter=wallet.balance,  # Balance unchanged until payment confirmed
+            status=Transaction.TransactionStatus.PENDING,  # PENDING until webhook confirms
             description=f"TOP UP via {payment_method.upper()} - ₱{amount}",
             paymentMethod=payment_method,
-            completedAt=timezone.now()
         )
         
-        print(f"✅ New balance: ₱{wallet.balance}")
+        print(f"   Transaction {transaction.transactionID} created as PENDING")
+        print(f"   ⚠️ Funds will be added after payment confirmation")
         
-        # Create Xendit invoice
-        xendit_result = XenditService.create_gcash_payment(
+        # Create payment invoice using configured provider
+        payment_provider = get_payment_provider()
+        provider_name = payment_provider.provider_name
+        
+        payment_result = payment_provider.create_gcash_payment(
             amount=amount,
             user_email=request.auth.email,
             user_name=user_name,
             transaction_id=transaction.transactionID
         )
         
-        if not xendit_result.get("success"):
+        if not payment_result.get("success"):
+            # If payment provider fails, mark transaction as failed
+            transaction.status = Transaction.TransactionStatus.FAILED
+            transaction.description = f"TOP UP FAILED - ₱{amount} - {payment_result.get('error', 'Payment provider error')}"
+            transaction.save()
             return Response(
                 {"error": "Failed to create payment invoice"},
                 status=500
             )
         
-        # Update transaction with Xendit details
-        transaction.xenditInvoiceID = xendit_result['invoice_id']
-        transaction.xenditExternalID = xendit_result['external_id']
-        transaction.invoiceURL = xendit_result['invoice_url']
+        # Update transaction with payment provider details
+        transaction.xenditInvoiceID = payment_result.get('checkout_id') or payment_result.get('invoice_id')
+        transaction.xenditExternalID = payment_result.get('external_id')
+        transaction.invoiceURL = payment_result.get('checkout_url') or payment_result.get('invoice_url')
         transaction.xenditPaymentChannel = payment_method.upper()
-        transaction.xenditPaymentMethod = "EWALLET"
+        transaction.xenditPaymentMethod = provider_name.upper()
         transaction.save()
         
-        print(f"📄 Invoice created: {xendit_result['invoice_id']}")
+        print(f"📄 {provider_name.upper()} invoice created: {transaction.xenditInvoiceID}")
+        print(f"   ⏳ Waiting for user to complete payment...")
         
         return {
             "success": True,
             "transaction_id": transaction.transactionID,
-            "payment_url": xendit_result['invoice_url'],
-            "invoice_id": xendit_result['invoice_id'],
+            "payment_url": payment_result.get('checkout_url') or payment_result.get('invoice_url'),
+            "invoice_id": transaction.xenditInvoiceID,
             "amount": amount,
-            "new_balance": float(wallet.balance),
-            "expiry_date": xendit_result['expiry_date'],
-            "message": "Funds added successfully"
+            "current_balance": float(wallet.balance),  # Show current balance, not new
+            "expiry_date": payment_result.get('expiry_date'),
+            "provider": provider_name,
+            "status": "pending",
+            "message": "Payment invoice created. Complete payment to add funds to wallet."
         }
         
     except Exception as e:
@@ -2979,12 +2992,13 @@ def mobile_deposit_funds(request, payload: DepositFundsSchema):
 @mobile_router.post("/wallet/withdraw", auth=jwt_auth)
 def mobile_withdraw_funds(request, payload: WithdrawFundsSchema):
     """
-    Withdraw funds from wallet to GCash via Xendit Disbursement
-    Deducts balance immediately and creates disbursement request
+    Withdraw funds from wallet to GCash via PayMongo/Xendit Disbursement.
+    Uses configured payment provider (PayMongo by default, Xendit for legacy).
+    Deducts balance immediately and creates disbursement request.
     """
     try:
         from .models import Wallet, Transaction, Profile, UserPaymentMethod
-        from .xendit_service import XenditService
+        from .payment_provider import get_payment_provider
         from decimal import Decimal
         from django.utils import timezone
         from django.db import transaction as db_transaction
@@ -3084,15 +3098,21 @@ def mobile_withdraw_funds(request, payload: WithdrawFundsSchema):
             )
             
             print(f"✅ New balance: ₱{wallet.balance}")
-            print(f"📤 Creating Xendit disbursement...")
             
-            # Create Xendit disbursement
-            disbursement_result = XenditService.create_disbursement(
+            # Create disbursement using configured payment provider
+            payment_provider = get_payment_provider()
+            provider_name = payment_provider.provider_name
+            print(f"📤 Creating {provider_name.upper()} disbursement...")
+            
+            disbursement_result = payment_provider.create_disbursement(
                 amount=amount,
+                currency="PHP",
                 recipient_name=payment_method.accountName,
                 account_number=payment_method.accountNumber,
+                channel_code="GCASH",
                 transaction_id=transaction.transactionID,
-                notes=notes or f"Withdrawal from iAyos Wallet - ₱{amount}"
+                description=notes or f"Withdrawal from iAyos Wallet - ₱{amount}",
+                metadata={"user_email": request.auth.email, "user_name": user_name}
             )
             
             if not disbursement_result.get("success"):
@@ -3106,50 +3126,47 @@ def mobile_withdraw_funds(request, payload: WithdrawFundsSchema):
                     status=500
                 )
             
-            # Update transaction with Xendit details
-            transaction.xenditInvoiceID = disbursement_result['disbursement_id']
-            transaction.xenditExternalID = disbursement_result['external_id']
+            # Update transaction with provider details
+            transaction.xenditInvoiceID = disbursement_result.get('disbursement_id')
+            transaction.xenditExternalID = disbursement_result.get('external_id')
             transaction.xenditPaymentChannel = "GCASH"
-            transaction.xenditPaymentMethod = "DISBURSEMENT"
+            transaction.xenditPaymentMethod = provider_name.upper()
             
             # Store invoice URL if available (for test mode)
-            invoice_url = disbursement_result.get('invoice_url')
+            invoice_url = disbursement_result.get('invoice_url') or disbursement_result.get('receipt_url')
             if invoice_url:
                 transaction.invoiceURL = invoice_url
             
             # Mark as completed if disbursement is successful
-            if disbursement_result['status'] == 'COMPLETED':
+            if disbursement_result.get('status') == 'COMPLETED':
                 transaction.status = Transaction.TransactionStatus.COMPLETED
                 transaction.completedAt = timezone.now()
             
             transaction.save()
             
-            print(f"📄 Disbursement created: {disbursement_result['disbursement_id']}")
-            print(f"📊 Status: {disbursement_result['status']}")
+            print(f"📄 {provider_name.upper()} disbursement created: {disbursement_result.get('disbursement_id')}")
+            print(f"📊 Status: {disbursement_result.get('status')}")
             if invoice_url:
-                print(f"🔗 Invoice URL (test mode): {invoice_url}")
+                print(f"🔗 Receipt URL: {invoice_url}")
         
         # Build response
         response_data = {
             "success": True,
             "transaction_id": transaction.transactionID,
-            "disbursement_id": disbursement_result['disbursement_id'],
+            "disbursement_id": disbursement_result.get('disbursement_id'),
             "amount": amount,
             "new_balance": float(wallet.balance),
-            "status": disbursement_result['status'],
+            "status": disbursement_result.get('status', 'PENDING'),
             "recipient": payment_method.accountNumber,
             "recipient_name": payment_method.accountName,
+            "provider": provider_name,
             "message": "Withdrawal request submitted successfully. Funds will be transferred to your GCash within 1-3 business days."
         }
         
-        # Test mode: Include receipt URL so user can view Xendit receipt page
-        if disbursement_result.get('test_mode'):
-            response_data['test_mode'] = True
-            if disbursement_result.get('receipt_url'):
-                response_data['receipt_url'] = disbursement_result['receipt_url']
-                response_data['message'] = "TEST MODE: Withdrawal successful! Tap 'View Receipt' to see your transaction details on Xendit."
-            else:
-                response_data['message'] = "TEST MODE: Withdrawal successful! In production, funds would be sent to your GCash account."
+        # Include receipt URL if available
+        if disbursement_result.get('receipt_url') or disbursement_result.get('invoice_url'):
+            response_data['receipt_url'] = disbursement_result.get('receipt_url') or disbursement_result.get('invoice_url')
+            response_data['message'] = f"Withdrawal successful! View your transaction receipt."
         
         return response_data
         
@@ -3817,11 +3834,16 @@ def create_worker_profile(request):
 
 @mobile_router.get("/payment-methods", auth=jwt_auth)
 def get_payment_methods(request):
-    """Get user's payment methods for withdrawals"""
+    """Get user's verified payment methods for withdrawals"""
     try:
         from .models import UserPaymentMethod
         
-        methods = UserPaymentMethod.objects.filter(accountFK=request.auth)
+        # Only show verified payment methods
+        # Unverified methods are pending verification or were canceled
+        methods = UserPaymentMethod.objects.filter(
+            accountFK=request.auth,
+            isVerified=True
+        )
         
         payment_methods = []
         for method in methods:
@@ -3849,10 +3871,22 @@ def get_payment_methods(request):
 
 @mobile_router.post("/payment-methods", auth=jwt_auth)
 def add_payment_method(request, payload: AddPaymentMethodSchema):
-    """Add a new payment method"""
+    """
+    Add a new GCash payment method with PayMongo verification.
+    
+    Flow:
+    1. User submits GCash account details
+    2. We create a ₱1 verification checkout via PayMongo
+    3. User pays ₱1 using their GCash account
+    4. PayMongo webhook confirms payment + verifies account
+    5. ₱1 is credited to user's wallet as bonus
+    6. Payment method is marked as verified
+    """
     try:
         from .models import UserPaymentMethod
         from django.db import transaction as db_transaction
+        from .paymongo_service import PayMongoService
+        from django.conf import settings
         
         method_type = payload.type or 'GCASH'
 
@@ -3878,30 +3912,75 @@ def add_payment_method(request, payload: AddPaymentMethodSchema):
                 status=400
             )
         
+        # Check for duplicate GCash number
+        existing = UserPaymentMethod.objects.filter(
+            accountFK=request.auth,
+            accountNumber=clean_number
+        ).first()
+        
+        if existing:
+            if existing.isVerified:
+                return Response(
+                    {"error": "This GCash number is already verified on your account"},
+                    status=400
+                )
+            else:
+                # Delete unverified duplicate and create new
+                existing.delete()
+        
         with db_transaction.atomic():
-            # Check if this is the first payment method (auto-set as primary)
+            # Check if this is the first payment method
             has_existing = UserPaymentMethod.objects.filter(accountFK=request.auth).exists()
             is_first = not has_existing
             
-            # Create payment method
+            # Create payment method in PENDING state
             method = UserPaymentMethod.objects.create(
                 accountFK=request.auth,
                 methodType='GCASH',
                 accountName=payload.account_name,
                 accountNumber=clean_number,
                 bankName=None,
-                isPrimary=is_first,  # First one is automatically primary
-                isVerified=False  # Will be verified by admin
+                isPrimary=is_first,
+                isVerified=False  # Will be verified after PayMongo checkout
             )
             
-            print(f"✅ Payment method added: {method.methodType} for {request.auth.email}")
+            print(f"📱 Payment method created (pending verification): {method.id} for {request.auth.email}")
+        
+        # Create PayMongo verification checkout
+        paymongo = PayMongoService()
+        frontend_url = getattr(settings, 'EXPO_PUBLIC_API_URL', 'http://localhost:3000')
+        
+        # Use mobile deep links for app redirect
+        result = paymongo.create_verification_checkout(
+            user_email=request.auth.email,
+            user_name=payload.account_name,
+            payment_method_id=method.id,
+            account_number=clean_number,
+            success_url=f"{frontend_url}/payment-method/verify-success?method_id={method.id}",
+            failure_url=f"{frontend_url}/payment-method/verify-failed?method_id={method.id}"
+        )
+        
+        if not result.get("success"):
+            # Cleanup the pending method if checkout creation failed
+            method.delete()
+            return Response(
+                {"error": result.get("error", "Failed to create verification checkout")},
+                status=500
+            )
+        
+        print(f"✅ Verification checkout created for method {method.id}: {result.get('checkout_id')}")
         
         return {
             'success': True,
-            'message': 'Payment method added successfully',
+            'message': 'Please complete GCash verification to activate this payment method',
             'method_id': method.id,
-            'is_primary': method.isPrimary
+            'verification_required': True,
+            'checkout_url': result.get('checkout_url'),
+            'checkout_id': result.get('checkout_id'),
+            'verification_amount': 1.00,
+            'note': 'The ₱1 verification fee will be credited to your wallet after successful verification'
         }
+        
     except Exception as e:
         print(f"❌ Add payment method error: {str(e)}")
         import traceback

@@ -257,7 +257,9 @@ export const ENDPOINTS = {
 
   // Phase 3: Escrow Payment System (10 endpoints)
   CREATE_ESCROW_PAYMENT: `${API_BASE_URL.replace("/api", "")}/api/mobile/payments/escrow`,
-  CREATE_XENDIT_INVOICE: `${API_BASE_URL.replace("/api", "")}/api/mobile/payments/xendit/invoice`,
+  // Create payment invoice (generic name, same endpoint)
+  CREATE_PAYMENT_INVOICE: `${API_BASE_URL.replace("/api", "")}/api/mobile/payments/xendit/invoice`,
+  CREATE_XENDIT_INVOICE: `${API_BASE_URL.replace("/api", "")}/api/mobile/payments/xendit/invoice`, // Alias for backward compatibility
   UPLOAD_CASH_PROOF: `${API_BASE_URL.replace("/api", "")}/api/mobile/payments/cash-proof`,
   PAYMENT_STATUS: (id: number) =>
     `${API_BASE_URL.replace("/api", "")}/api/mobile/payments/status/${id}`,
@@ -267,7 +269,9 @@ export const ENDPOINTS = {
   WALLET_TRANSACTIONS: `${API_BASE_URL.replace("/api", "")}/api/mobile/wallet/transactions`,
   CREATE_JOB_WITH_PAYMENT: `${API_BASE_URL.replace("/api", "")}/api/jobs/create-mobile`, // Direct worker/agency hiring
   CREATE_JOB: `${API_BASE_URL.replace("/api", "")}/api/jobs/create-mobile`, // Direct worker/agency hiring
-  XENDIT_WEBHOOK: `${API_BASE_URL.replace("/api", "")}/api/payments/xendit/callback`,
+  // Payment webhooks
+  PAYMENT_WEBHOOK: `${API_BASE_URL.replace("/api", "")}/api/accounts/wallet/paymongo-webhook`,
+  XENDIT_WEBHOOK: `${API_BASE_URL.replace("/api", "")}/api/payments/xendit/callback`, // Legacy
   PAYMENT_RECEIPT: (id: number) =>
     `${API_BASE_URL.replace("/api", "")}/api/mobile/payments/receipt/${id}`,
 

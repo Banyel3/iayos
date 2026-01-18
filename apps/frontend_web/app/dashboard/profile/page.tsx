@@ -208,9 +208,9 @@ const ProfilePage = () => {
 
       if (response.ok && data.success && data.payment_url) {
         // Funds are added immediately in TEST MODE
-        // Redirect to Xendit page for user experience
+        // Redirect to payment page for user experience
         alert(
-          `✅ ₱${fundAmount} added to your wallet!\nYou'll be redirected to the Xendit payment page.\nYour new balance: ₱${data.new_balance}`
+          `✅ ₱${fundAmount} added to your wallet!\nYou'll be redirected to complete your payment.\nYour new balance: ₱${data.new_balance}`
         );
         // Invalidate wallet balance cache
         queryClient.invalidateQueries({ queryKey: ["walletBalance"] });
@@ -1328,7 +1328,7 @@ const ProfilePage = () => {
             </div>
 
             <p className="text-xs text-gray-500 mt-4 text-center">
-              You will be redirected to Xendit to complete the payment
+              You will be redirected to complete your payment via GCash
             </p>
           </div>
         </div>

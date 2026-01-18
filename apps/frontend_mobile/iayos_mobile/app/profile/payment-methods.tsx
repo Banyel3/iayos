@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Linking,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -18,6 +19,7 @@ import { Colors, Typography, BorderRadius } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, ENDPOINTS } from "@/lib/api/config";
+import * as WebBrowser from "expo-web-browser";
 
 interface PaymentMethod {
   id: number;
@@ -76,12 +78,46 @@ export default function PaymentMethodsScreen() {
       });
       return response.json();
     },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["payment-methods"] });
-      await refetch();
-      setShowAddForm(false);
-      resetForm();
-      Alert.alert("Success", "Payment method added successfully!");
+    onSuccess: async (data) => {
+      // Check if verification is required (production-ready flow)
+      if (data.verification_required && data.checkout_url) {
+        setShowAddForm(false);
+        resetForm();
+        
+        // Show info about the verification process
+        Alert.alert(
+          "GCash Verification Required",
+          "You'll be redirected to PayMongo to verify your GCash account. A ₱1 verification fee (credited to your wallet) will confirm you own this account.",
+          [
+            {
+              text: "Continue",
+              onPress: async () => {
+                try {
+                  // Open PayMongo checkout in browser
+                  await WebBrowser.openBrowserAsync(data.checkout_url, {
+                    dismissButtonStyle: "close",
+                    presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+                  });
+                  // Refresh payment methods after returning
+                  await queryClient.invalidateQueries({ queryKey: ["payment-methods"] });
+                  await queryClient.invalidateQueries({ queryKey: ["wallet-balance"] });
+                  await refetch();
+                } catch (error) {
+                  // Fallback to Linking if WebBrowser fails
+                  Linking.openURL(data.checkout_url);
+                }
+              },
+            },
+          ]
+        );
+      } else {
+        // Legacy success path
+        await queryClient.invalidateQueries({ queryKey: ["payment-methods"] });
+        await refetch();
+        setShowAddForm(false);
+        resetForm();
+        Alert.alert("Success", "Payment method added successfully!");
+      }
     },
     onError: (error: any) => {
       Alert.alert("Error", error.message || "Failed to add payment method");

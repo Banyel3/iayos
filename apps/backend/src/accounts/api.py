@@ -1313,7 +1313,14 @@ def deposit_funds(request, data: DepositFundsSchema):
     """
     Create a payment invoice for wallet deposit.
     Uses configured payment provider (PayMongo by default, Xendit for legacy).
-    TEST MODE: Transaction auto-approved, funds added immediately.
+    
+    SECURE FLOW:
+    1. Create PENDING transaction (no balance change)
+    2. Redirect user to PayMongo checkout
+    3. User pays via GCash/Card
+    4. PayMongo webhook confirms payment
+    5. Webhook handler adds funds to wallet
+    
     Returns payment URL for user to complete payment.
     """
     try:
@@ -1363,24 +1370,20 @@ def deposit_funds(request, data: DepositFundsSchema):
         print(f"💰 Processing deposit for {user_name}")
         print(f"   Current balance: ₱{wallet.balance}")
         
-        # TEST MODE: Add funds immediately and mark as completed
-        wallet.balance += Decimal(str(amount))
-        wallet.save()
-        
-        # Create completed transaction (auto-approved in TEST MODE)
+        # Create PENDING transaction - funds NOT added yet!
+        # Balance will be updated by webhook after PayMongo confirms payment
         transaction = Transaction.objects.create(
             walletID=wallet,
             transactionType=Transaction.TransactionType.DEPOSIT,
             amount=Decimal(str(amount)),
-            balanceAfter=wallet.balance,
-            status=Transaction.TransactionStatus.COMPLETED,
+            balanceAfter=wallet.balance,  # Balance unchanged until payment confirmed
+            status=Transaction.TransactionStatus.PENDING,  # PENDING until webhook confirms
             description=f"TOP UP via GCASH - ₱{amount}",
             paymentMethod=Transaction.PaymentMethod.GCASH,
-            completedAt=timezone.now()
         )
         
-        print(f"   New balance: ₱{wallet.balance}")
-        print(f"✅ Funds added immediately! Transaction {transaction.transactionID}")
+        print(f"   Transaction {transaction.transactionID} created as PENDING")
+        print(f"   ⚠️ Funds will be added after PayMongo payment confirmation")
         
         # Create payment invoice using configured provider
         payment_provider = get_payment_provider()
@@ -1395,7 +1398,10 @@ def deposit_funds(request, data: DepositFundsSchema):
         )
         
         if not payment_result.get("success"):
-            # If payment provider fails, funds are still added but return error
+            # If payment provider fails, mark transaction as failed and return error
+            transaction.status = Transaction.TransactionStatus.FAILED
+            transaction.description = f"TOP UP FAILED - ₱{amount} - {payment_result.get('error', 'Payment provider error')}"
+            transaction.save()
             return Response(
                 {"error": "Failed to create payment invoice", "details": payment_result.get("error")},
                 status=500
@@ -1411,6 +1417,8 @@ def deposit_funds(request, data: DepositFundsSchema):
         transaction.save()
         
         print(f"📄 {provider_name.upper()} invoice created: {transaction.xenditInvoiceID}")
+        print(f"   Payment URL: {transaction.invoiceURL}")
+        print(f"   ⏳ Waiting for user to complete payment...")
         
         return {
             "success": True,
@@ -1418,10 +1426,11 @@ def deposit_funds(request, data: DepositFundsSchema):
             "payment_url": payment_result.get('checkout_url') or payment_result.get('invoice_url'),
             "invoice_id": transaction.xenditInvoiceID,
             "amount": amount,
-            "new_balance": float(wallet.balance),
+            "current_balance": float(wallet.balance),  # Show current balance, not new
             "expiry_date": payment_result.get('expiry_date'),
             "provider": provider_name,
-            "message": "Funds added and payment invoice created"
+            "status": "pending",
+            "message": "Payment invoice created. Complete payment to add funds to wallet."
         }
         
     except Exception as e:
@@ -1435,16 +1444,37 @@ def deposit_funds(request, data: DepositFundsSchema):
 
 
 @router.post("/wallet/withdraw", auth=cookie_auth)
-def withdraw_funds(request, amount: float, payment_method: str = "GCASH"):
-    """Withdraw funds from wallet"""
+def withdraw_funds(request, amount: float, payment_method: str = "GCASH", gcash_number: str = None, gcash_name: str = None):
+    """
+    Withdraw funds from wallet via PayMongo/Xendit disbursement.
+    Uses configured payment provider (PayMongo by default, Xendit for legacy).
+    
+    In test mode: Simulates successful disbursement
+    In production: Creates actual payout to GCash/bank
+    """
     try:
-        from .models import Wallet, Transaction
+        from .models import Wallet, Transaction, Profile
+        from .payment_provider import get_payment_provider
         from decimal import Decimal
         from django.utils import timezone
         
         if amount <= 0:
             return Response(
                 {"error": "Amount must be greater than 0"},
+                status=400
+            )
+        
+        # Minimum withdrawal
+        if amount < 100:
+            return Response(
+                {"error": "Minimum withdrawal amount is ₱100"},
+                status=400
+            )
+        
+        # Require GCash details
+        if not gcash_number or not gcash_name:
+            return Response(
+                {"error": "GCash account number and name are required"},
                 status=400
             )
         
@@ -1464,27 +1494,85 @@ def withdraw_funds(request, amount: float, payment_method: str = "GCASH"):
                 status=400
             )
         
-        # Update balance
+        # Get user profile for details
+        try:
+            profile = Profile.objects.filter(accountFK=request.auth).first()
+            user_name = f"{profile.firstName} {profile.lastName}" if profile else request.auth.email.split('@')[0]
+        except Exception:
+            user_name = request.auth.email.split('@')[0]
+        
+        # Deduct balance first
+        old_balance = wallet.balance
         wallet.balance -= Decimal(str(amount))
         wallet.save()
         
-        # Create transaction record
+        # Create pending withdrawal transaction
         transaction = Transaction.objects.create(
             walletID=wallet,
             transactionType="WITHDRAWAL",
             amount=Decimal(str(amount)),
             balanceAfter=wallet.balance,
-            status="COMPLETED",
-            description=f"Withdrawal via {payment_method}",
+            status="PENDING",
+            description=f"Withdrawal to {payment_method} - {gcash_number}",
             paymentMethod=payment_method,
-            completedAt=timezone.now()
         )
+        
+        print(f"💸 Processing withdrawal for {user_name}: ₱{amount}")
+        print(f"   Old balance: ₱{old_balance} → New balance: ₱{wallet.balance}")
+        
+        # Create disbursement using configured provider
+        payment_provider = get_payment_provider()
+        provider_name = payment_provider.provider_name
+        print(f"🔄 Creating disbursement via {provider_name.upper()}...")
+        
+        disbursement_result = payment_provider.create_disbursement(
+            amount=amount,
+            currency="PHP",
+            recipient_name=gcash_name,
+            account_number=gcash_number,
+            channel_code="GCASH",
+            transaction_id=transaction.transactionID,
+            description=f"Wallet withdrawal - {user_name}",
+            metadata={"user_email": request.auth.email}
+        )
+        
+        if not disbursement_result.get("success"):
+            # Rollback balance deduction
+            wallet.balance = old_balance
+            wallet.save()
+            transaction.status = "FAILED"
+            transaction.save()
+            
+            return Response(
+                {"error": "Failed to process withdrawal", "details": disbursement_result.get("error")},
+                status=500
+            )
+        
+        # Update transaction with disbursement details
+        transaction.xenditInvoiceID = disbursement_result.get('disbursement_id')
+        transaction.xenditExternalID = disbursement_result.get('external_id')
+        transaction.xenditPaymentChannel = "GCASH"
+        transaction.xenditPaymentMethod = provider_name.upper()
+        
+        # Mark as completed if already done (test mode)
+        if disbursement_result.get('status') in ['COMPLETED', 'completed']:
+            transaction.status = "COMPLETED"
+            transaction.completedAt = timezone.now()
+        
+        transaction.save()
+        
+        print(f"📄 {provider_name.upper()} disbursement created: {transaction.xenditInvoiceID}")
+        print(f"✅ Status: {disbursement_result.get('status', 'PENDING')}")
         
         return {
             "success": True,
             "new_balance": float(wallet.balance),
             "transaction_id": transaction.transactionID,
-            "message": f"Successfully withdrew ₱{amount}"
+            "disbursement_id": disbursement_result.get('disbursement_id'),
+            "status": disbursement_result.get('status', 'PENDING'),
+            "message": disbursement_result.get('message', f"Successfully withdrew ₱{amount}"),
+            "provider": provider_name,
+            "test_mode": disbursement_result.get('test_mode', False)
         }
         
     except Exception as e:
@@ -1602,6 +1690,11 @@ def xendit_webhook(request):
         invoice_status = webhook_data['status']
         
         if invoice_status == 'PAID':
+            # IDEMPOTENCY CHECK: Skip if already completed to prevent duplicate deposits
+            if transaction.status == Transaction.TransactionStatus.COMPLETED:
+                print(f"⚠️ Transaction {transaction.transactionID} already COMPLETED - skipping duplicate webhook")
+                return {"success": True, "message": "Transaction already processed"}
+            
             # Payment successful
             wallet = transaction.walletID
             
@@ -1776,10 +1869,13 @@ def paymongo_webhook(request):
     - checkout_session.payment.expired (checkout expired)
     - payment.paid, payment.failed (direct payment events)
     
+    Also handles:
+    - gcash_verification: Verifies payment method and credits ₱1 bonus
+    
     This endpoint must be registered in PayMongo dashboard under Webhooks.
     """
     try:
-        from .models import Transaction
+        from .models import Transaction, Wallet, UserPaymentMethod
         from .paymongo_service import PayMongoService
         from django.utils import timezone
         import json
@@ -1815,8 +1911,38 @@ def paymongo_webhook(request):
         external_id = webhook_data.get('external_id')
         transaction_id = webhook_data.get('transaction_id')
         status = webhook_data.get('status', '')
+        metadata = webhook_data.get('metadata', {})
         
         print(f"📤 PayMongo Event: {event_type}, Payment ID: {payment_id}, External ID: {external_id}")
+        print(f"   Metadata: {metadata}")
+        
+        # ============================================
+        # Handle GCash Verification Checkout
+        # ============================================
+        if metadata.get('payment_type') == 'gcash_verification':
+            payment_method_id = metadata.get('payment_method_id')
+            
+            if not payment_method_id:
+                print(f"❌ Missing payment_method_id in verification metadata")
+                return {"success": True, "message": "Missing payment method ID"}
+            
+            if status == 'paid' or 'paid' in event_type:
+                return _handle_gcash_verification_success(
+                    payment_method_id=int(payment_method_id),
+                    metadata=metadata,
+                    payment_id=payment_id
+                )
+            elif status in ['failed', 'expired', 'cancelled'] or any(s in event_type for s in ['failed', 'expired', 'cancel']):
+                return _handle_gcash_verification_failed(
+                    payment_method_id=int(payment_method_id),
+                    reason=status
+                )
+            
+            return {"success": True, "message": "Verification webhook processed"}
+        
+        # ============================================
+        # Handle Regular Transaction Webhooks
+        # ============================================
         
         # Find transaction by PayMongo checkout ID or external ID
         transaction = None
@@ -1841,6 +1967,11 @@ def paymongo_webhook(request):
         
         # Update transaction based on status
         if status == 'paid' or 'paid' in event_type:
+            # IDEMPOTENCY CHECK: Skip if already completed to prevent duplicate deposits
+            if transaction.status == Transaction.TransactionStatus.COMPLETED:
+                print(f"⚠️ Transaction {transaction.transactionID} already COMPLETED - skipping duplicate webhook")
+                return {"success": True, "message": "Transaction already processed"}
+            
             # Payment successful
             wallet = transaction.walletID
             
@@ -1898,6 +2029,162 @@ def paymongo_webhook(request):
             {"error": "Failed to process webhook"},
             status=500
         )
+
+
+def _handle_gcash_verification_success(payment_method_id: int, metadata: dict, payment_id: str):
+    """
+    Handle successful GCash verification payment.
+    
+    1. Mark payment method as verified
+    2. Credit ₱1 verification amount to user's wallet as bonus
+    """
+    from .models import UserPaymentMethod, Wallet, Transaction
+    from django.utils import timezone
+    from django.db import transaction as db_transaction
+    
+    try:
+        # Find the payment method
+        payment_method = UserPaymentMethod.objects.filter(id=payment_method_id).first()
+        
+        if not payment_method:
+            print(f"❌ Payment method {payment_method_id} not found for verification")
+            return {"success": True, "message": "Payment method not found"}
+        
+        # Idempotency: Skip if already verified
+        if payment_method.isVerified:
+            print(f"⚠️ Payment method {payment_method_id} already verified - skipping duplicate")
+            return {"success": True, "message": "Already verified"}
+        
+        with db_transaction.atomic():
+            # Mark payment method as verified
+            payment_method.isVerified = True
+            payment_method.save()
+            
+            print(f"✅ Payment method {payment_method_id} verified via PayMongo!")
+            
+            # Get or create user's wallet
+            user = payment_method.accountFK
+            wallet, _ = Wallet.objects.get_or_create(
+                accountFK=user,
+                defaults={'balance': 0}
+            )
+            
+            # Credit ₱1 verification bonus
+            bonus_amount = 1.00
+            wallet.balance += bonus_amount
+            wallet.save()
+            
+            # Create transaction record for the bonus
+            verification_tx = Transaction.objects.create(
+                walletID=wallet,
+                accountFK=user,
+                transactionType=Transaction.TransactionType.DEPOSIT,
+                amount=bonus_amount,
+                balanceBefore=wallet.balance - bonus_amount,
+                balanceAfter=wallet.balance,
+                status=Transaction.TransactionStatus.COMPLETED,
+                description=f"GCash Verification Bonus - Account {payment_method.accountNumber[-4:].rjust(11, '*')}",
+                paymentMethod='GCASH',
+                xenditPaymentID=payment_id,
+                xenditPaymentMethod='VERIFICATION',
+                completedAt=timezone.now()
+            )
+            
+            print(f"💰 Credited ₱{bonus_amount} verification bonus to wallet for {user.email}")
+            print(f"   Transaction ID: {verification_tx.transactionID}")
+        
+        return {"success": True, "message": "GCash verification completed"}
+        
+    except Exception as e:
+        print(f"❌ Error processing GCash verification: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": True, "message": f"Verification error: {str(e)}"}
+
+
+def _handle_gcash_verification_failed(payment_method_id: int, reason: str):
+    """
+    Handle failed GCash verification payment.
+    
+    Delete the unverified payment method to allow user to try again.
+    """
+    from .models import UserPaymentMethod
+    
+    try:
+        payment_method = UserPaymentMethod.objects.filter(id=payment_method_id).first()
+        
+        if not payment_method:
+            print(f"⚠️ Payment method {payment_method_id} not found for failed verification")
+            return {"success": True, "message": "Payment method not found"}
+        
+        if payment_method.isVerified:
+            print(f"⚠️ Payment method {payment_method_id} is already verified - ignoring failure")
+            return {"success": True, "message": "Already verified, ignoring failure"}
+        
+        account_number = payment_method.accountNumber
+        user_email = payment_method.accountFK.email
+        
+        # Delete the unverified payment method
+        payment_method.delete()
+        
+        print(f"🗑️ Deleted unverified payment method {payment_method_id} for {user_email}")
+        print(f"   Reason: {reason}")
+        print(f"   GCash: {account_number}")
+        
+        return {"success": True, "message": "Verification failed - payment method removed"}
+        
+    except Exception as e:
+        print(f"❌ Error handling verification failure: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": True, "message": f"Error: {str(e)}"}
+
+
+def cleanup_unverified_payment_methods():
+    """
+    Cleanup task: Delete unverified payment methods older than 24 hours.
+    
+    This handles cases where:
+    - User started verification but canceled payment
+    - PayMongo webhook never arrived
+    - User abandoned the verification process
+    
+    Should be run periodically (e.g., daily cron job).
+    """
+    from .models import UserPaymentMethod
+    from django.utils import timezone
+    from datetime import timedelta
+    
+    try:
+        # Find unverified payment methods older than 24 hours
+        cutoff_time = timezone.now() - timedelta(hours=24)
+        
+        old_unverified = UserPaymentMethod.objects.filter(
+            isVerified=False,
+            createdAt__lt=cutoff_time
+        )
+        
+        count = old_unverified.count()
+        
+        if count > 0:
+            # Log before deleting
+            print(f"🧹 Cleanup: Found {count} unverified payment methods older than 24 hours")
+            for method in old_unverified:
+                print(f"   - ID {method.id}: {method.accountNumber} ({method.accountFK.email})")
+            
+            # Delete them
+            old_unverified.delete()
+            print(f"✅ Cleanup: Deleted {count} stale unverified payment methods")
+        else:
+            print(f"✅ Cleanup: No stale unverified payment methods to delete")
+        
+        return count
+        
+    except Exception as e:
+        print(f"❌ Cleanup error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return 0
 
 
 @router.post("/wallet/simulate-payment/{transaction_id}", auth=cookie_auth)

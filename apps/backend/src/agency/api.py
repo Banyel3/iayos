@@ -1497,7 +1497,7 @@ def toggle_agency_archive(request, conversation_id: int):
 
 @router.get("/payment-methods", auth=cookie_auth)
 def get_agency_payment_methods(request):
-	"""Get agency's payment methods for withdrawals"""
+	"""Get agency's verified payment methods for withdrawals"""
 	try:
 		from accounts.models import UserPaymentMethod
 		from .models import AgencyKYC
@@ -1509,7 +1509,12 @@ def get_agency_payment_methods(request):
 		if not agency:
 			return Response({"error": "Agency account not found"}, status=400)
 		
-		methods = UserPaymentMethod.objects.filter(accountFK=account)
+		# Only show verified payment methods
+		# Unverified methods are pending verification or were canceled
+		methods = UserPaymentMethod.objects.filter(
+			accountFK=account,
+			isVerified=True
+		)
 		
 		payment_methods = []
 		for method in methods:
@@ -1537,11 +1542,23 @@ def get_agency_payment_methods(request):
 
 @router.post("/payment-methods", auth=cookie_auth)
 def add_agency_payment_method(request):
-	"""Add a new payment method for agency withdrawals"""
+	"""
+	Add a new GCash payment method with PayMongo verification.
+	
+	Flow:
+	1. Agency submits GCash account details
+	2. We create a ₱1 verification checkout via PayMongo
+	3. User pays ₱1 using their GCash account
+	4. PayMongo webhook confirms payment + verifies account
+	5. ₱1 is credited to wallet as bonus
+	6. Payment method is marked as verified
+	"""
 	try:
 		from accounts.models import UserPaymentMethod
+		from accounts.paymongo_service import PayMongoService
 		from .models import AgencyKYC
 		from django.db import transaction as db_transaction
+		from django.conf import settings
 		import json
 		
 		account = request.auth
@@ -1583,30 +1600,74 @@ def add_agency_payment_method(request):
 				status=400
 			)
 		
+		# Check for duplicate GCash number
+		existing = UserPaymentMethod.objects.filter(
+			accountFK=account,
+			accountNumber=clean_number
+		).first()
+		
+		if existing:
+			if existing.isVerified:
+				return Response(
+					{"error": "This GCash number is already verified on your account"},
+					status=400
+				)
+			else:
+				# Delete unverified duplicate and create new
+				existing.delete()
+		
 		with db_transaction.atomic():
-			# Check if this is the first payment method (auto-set as primary)
+			# Check if this is the first payment method
 			has_existing = UserPaymentMethod.objects.filter(accountFK=account).exists()
 			is_first = not has_existing
 			
-			# Create payment method
+			# Create payment method in PENDING state
 			method = UserPaymentMethod.objects.create(
 				accountFK=account,
 				methodType='GCASH',
 				accountName=account_name,
 				accountNumber=clean_number,
 				bankName=None,
-				isPrimary=is_first,  # First one is automatically primary
-				isVerified=False  # Will be verified later
+				isPrimary=is_first,
+				isVerified=False  # Will be verified after PayMongo checkout
 			)
 			
-			print(f"✅ Agency payment method added: {method.methodType} for {account.email}")
+			print(f"📱 Agency payment method created (pending verification): {method.id} for {account.email}")
+		
+		# Create PayMongo verification checkout
+		paymongo = PayMongoService()
+		frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
+		
+		result = paymongo.create_verification_checkout(
+			user_email=account.email,
+			user_name=account_name,
+			payment_method_id=method.id,
+			account_number=clean_number,
+			success_url=f"{frontend_url}/agency/profile?verify=success&method_id={method.id}",
+			failure_url=f"{frontend_url}/agency/profile?verify=failed&method_id={method.id}"
+		)
+		
+		if not result.get("success"):
+			# Cleanup the pending method if checkout creation failed
+			method.delete()
+			return Response(
+				{"error": result.get("error", "Failed to create verification checkout")},
+				status=500
+			)
+		
+		print(f"✅ Verification checkout created for agency method {method.id}: {result.get('checkout_id')}")
 		
 		return {
 			'success': True,
-			'message': 'Payment method added successfully',
+			'message': 'Please complete GCash verification to activate this payment method',
 			'method_id': method.id,
-			'is_primary': method.isPrimary
+			'verification_required': True,
+			'checkout_url': result.get('checkout_url'),
+			'checkout_id': result.get('checkout_id'),
+			'verification_amount': 1.00,
+			'note': 'The ₱1 verification fee will be credited to your wallet after successful verification'
 		}
+		
 	except Exception as e:
 		print(f"❌ Add agency payment method error: {str(e)}")
 		import traceback
@@ -1736,7 +1797,6 @@ def agency_withdraw_funds(request):
 	"""
 	try:
 		from accounts.models import Wallet, Transaction, UserPaymentMethod
-		from accounts.xendit_service import XenditService
 		from .models import AgencyKYC
 		from decimal import Decimal
 		from django.utils import timezone
@@ -1844,15 +1904,22 @@ def agency_withdraw_funds(request):
 			)
 			
 			print(f"✅ New balance: ₱{wallet.balance}")
-			print(f"📤 Creating Xendit disbursement for agency...")
+			print(f"📤 Creating disbursement via payment provider...")
 			
-			# Create Xendit disbursement
-			disbursement_result = XenditService.create_disbursement(
+			# Create disbursement using configured payment provider
+			from accounts.payment_provider import get_payment_provider
+			payment_provider = get_payment_provider()
+			provider_name = payment_provider.provider_name
+			
+			disbursement_result = payment_provider.create_disbursement(
 				amount=amount,
+				currency="PHP",
 				recipient_name=payment_method.accountName,
 				account_number=payment_method.accountNumber,
+				channel_code="GCASH",
 				transaction_id=transaction.transactionID,
-				notes=notes or f"Agency withdrawal - {business_name} - ₱{amount}"
+				description=notes or f"Agency withdrawal - {business_name} - ₱{amount}",
+				metadata={"agency_name": business_name}
 			)
 			
 			if not disbursement_result.get("success"):
@@ -1861,26 +1928,26 @@ def agency_withdraw_funds(request):
 				wallet.save()
 				transaction.delete()
 				
-				print(f"❌ Xendit disbursement failed: {disbursement_result.get('error')}")
+				print(f"❌ {provider_name.upper()} disbursement failed: {disbursement_result.get('error')}")
 				return Response(
 					{"error": f"Failed to process withdrawal: {disbursement_result.get('error', 'Payment provider error')}"},
 					status=500
 				)
 			
-			# Update transaction with Xendit details
+			# Update transaction with disbursement details
 			transaction.xenditInvoiceID = disbursement_result.get('disbursement_id', '')
 			transaction.xenditExternalID = disbursement_result.get('external_id', '')
 			transaction.xenditPaymentChannel = "GCASH"
-			transaction.xenditPaymentMethod = "DISBURSEMENT"
+			transaction.xenditPaymentMethod = provider_name.upper()
 			
 			# Mark as completed if disbursement is successful
-			if disbursement_result.get('status') == 'COMPLETED':
+			if disbursement_result.get('status') in ['COMPLETED', 'completed']:
 				transaction.status = 'COMPLETED'
 				transaction.completedAt = timezone.now()
 			
 			transaction.save()
 			
-			print(f"📄 Disbursement created: {disbursement_result.get('disbursement_id')}")
+			print(f"📄 {provider_name.upper()} disbursement created: {disbursement_result.get('disbursement_id')}")
 			print(f"📊 Status: {disbursement_result.get('status')}")
 			if disbursement_result.get('invoice_url'):
 				print(f"🔗 Invoice URL: {disbursement_result.get('invoice_url')}")

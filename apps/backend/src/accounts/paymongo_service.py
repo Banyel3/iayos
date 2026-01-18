@@ -548,6 +548,118 @@ class PayMongoService(PaymentProviderInterface):
         else:
             return PaymentStatus.PENDING
     
+    def create_verification_checkout(
+        self,
+        user_email: str,
+        user_name: str,
+        payment_method_id: int,
+        account_number: str,
+        success_url: str,
+        failure_url: str
+    ) -> Dict[str, Any]:
+        """
+        Create a PayMongo checkout session for payment method verification.
+        
+        The user pays ₱1 via GCash, which verifies they own the account.
+        The ₱1 is credited to their wallet as a bonus after verification.
+        
+        Args:
+            user_email: User's email address
+            user_name: User's full name
+            payment_method_id: ID of the UserPaymentMethod to verify
+            account_number: GCash number being verified
+            success_url: URL to redirect on success
+            failure_url: URL to redirect on failure
+        
+        Returns:
+            Dict with checkout_url if successful, or error if failed
+        """
+        try:
+            external_id = self._generate_external_id("VERIFY", payment_method_id)
+            
+            logger.info(f"🔐 Creating verification checkout for payment method {payment_method_id}")
+            logger.info(f"   User: {user_name} ({user_email})")
+            logger.info(f"   GCash: {account_number}")
+            
+            # ₱1 verification amount (100 centavos)
+            verification_amount = 100
+            
+            payload = {
+                "data": {
+                    "attributes": {
+                        "send_email_receipt": False,
+                        "show_description": True,
+                        "show_line_items": True,
+                        "line_items": [
+                            {
+                                "name": "GCash Account Verification",
+                                "description": f"Verify GCash number {account_number[-4:].rjust(11, '*')}",
+                                "quantity": 1,
+                                "amount": verification_amount,
+                                "currency": "PHP"
+                            }
+                        ],
+                        "payment_method_types": ["gcash"],  # Only GCash for verification
+                        "description": f"Verify your GCash account for iAyos withdrawals. This ₱1 will be credited to your wallet.",
+                        "success_url": success_url,
+                        "cancel_url": failure_url,
+                        "reference_number": external_id,
+                        "billing": {
+                            "email": user_email,
+                            "name": user_name  # Use the GCash account name they entered
+                        },
+                        "metadata": {
+                            "payment_type": "gcash_verification",
+                            "payment_method_id": str(payment_method_id),
+                            "account_number": account_number,
+                            "user_email": user_email
+                        }
+                    }
+                }
+            }
+            
+            response = requests.post(
+                f"{self.BASE_URL}/checkout_sessions",
+                json=payload,
+                headers=self._get_headers(),
+                timeout=30
+            )
+            
+            if response.status_code in [200, 201]:
+                data = response.json()
+                checkout = data.get("data", {})
+                checkout_id = checkout.get("id", "")
+                checkout_url = checkout.get("attributes", {}).get("checkout_url", "")
+                
+                logger.info(f"✅ Verification checkout created: {checkout_id}")
+                logger.info(f"   URL: {checkout_url}")
+                
+                return {
+                    "success": True,
+                    "checkout_id": checkout_id,
+                    "checkout_url": checkout_url,
+                    "external_id": external_id,
+                    "amount": 1.00,  # ₱1 in pesos
+                    "provider": "paymongo",
+                    "message": "Pay ₱1 via GCash to verify your account. This amount will be credited to your wallet."
+                }
+            else:
+                error_message = response.json().get("errors", [{}])[0].get("detail", response.text)
+                logger.error(f"❌ Verification checkout creation failed: {error_message}")
+                return {
+                    "success": False,
+                    "error": error_message
+                }
+                
+        except Exception as e:
+            logger.error(f"❌ Verification checkout creation failed: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
     def _extract_payment_channel(self, attributes: Dict[str, Any]) -> str:
         """Extract payment channel from PayMongo response"""
         # Check payment_method_used first
