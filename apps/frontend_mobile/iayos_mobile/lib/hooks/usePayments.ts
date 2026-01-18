@@ -261,11 +261,16 @@ export const usePaymentHistory = (filters?: {
 };
 
 // Hook: Wallet deposit
+export interface WalletDepositParams {
+  amount: number;
+  payment_method_id?: number;
+}
+
 export const useWalletDeposit = () => {
   const queryClient = useQueryClient();
 
-  return useMutation<WalletDepositResponse, Error, number>({
-    mutationFn: async (amount: number) => {
+  return useMutation<WalletDepositResponse, Error, WalletDepositParams>({
+    mutationFn: async ({ amount, payment_method_id }: WalletDepositParams) => {
       return fetchJson<WalletDepositResponse>(ENDPOINTS.WALLET_DEPOSIT, {
         method: "POST",
         credentials: "include",
@@ -275,6 +280,7 @@ export const useWalletDeposit = () => {
         body: JSON.stringify({
           amount,
           payment_method: "GCASH",
+          payment_method_id,
         }),
       });
     },

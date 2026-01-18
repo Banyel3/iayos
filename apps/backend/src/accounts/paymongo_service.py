@@ -587,7 +587,7 @@ class PayMongoService(PaymentProviderInterface):
             payload = {
                 "data": {
                     "attributes": {
-                        "send_email_receipt": False,
+                        "send_email_receipt": True,
                         "show_description": True,
                         "show_line_items": True,
                         "line_items": [

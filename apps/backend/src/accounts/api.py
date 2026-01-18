@@ -2041,6 +2041,7 @@ def _handle_gcash_verification_success(payment_method_id: int, metadata: dict, p
     from .models import UserPaymentMethod, Wallet, Transaction
     from django.utils import timezone
     from django.db import transaction as db_transaction
+    from decimal import Decimal
     
     try:
         # Find the payment method
@@ -2066,32 +2067,30 @@ def _handle_gcash_verification_success(payment_method_id: int, metadata: dict, p
             user = payment_method.accountFK
             wallet, _ = Wallet.objects.get_or_create(
                 accountFK=user,
-                defaults={'balance': 0}
+                defaults={'balance': Decimal('0')}
             )
             
-            # Credit ₱1 verification bonus
-            bonus_amount = 1.00
+            # Credit ₱1 verification bonus (use Decimal for wallet operations)
+            bonus_amount = Decimal('1.00')
+            balance_before = wallet.balance
             wallet.balance += bonus_amount
             wallet.save()
             
             # Create transaction record for the bonus
             verification_tx = Transaction.objects.create(
                 walletID=wallet,
-                accountFK=user,
                 transactionType=Transaction.TransactionType.DEPOSIT,
                 amount=bonus_amount,
-                balanceBefore=wallet.balance - bonus_amount,
                 balanceAfter=wallet.balance,
                 status=Transaction.TransactionStatus.COMPLETED,
                 description=f"GCash Verification Bonus - Account {payment_method.accountNumber[-4:].rjust(11, '*')}",
                 paymentMethod='GCASH',
-                xenditPaymentID=payment_id,
-                xenditPaymentMethod='VERIFICATION',
-                completedAt=timezone.now()
+                xenditPaymentID=payment_id
             )
             
             print(f"💰 Credited ₱{bonus_amount} verification bonus to wallet for {user.email}")
             print(f"   Transaction ID: {verification_tx.transactionID}")
+            print(f"   Balance: ₱{balance_before} → ₱{wallet.balance}")
         
         return {"success": True, "message": "GCash verification completed"}
         

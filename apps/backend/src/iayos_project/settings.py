@@ -418,6 +418,13 @@ PAYMENT_PROVIDER = os.getenv("PAYMENT_PROVIDER", "paymongo")
 # Frontend URL for redirects
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
+# Ngrok URL for development webhook testing (set this when using ngrok)
+# Example: NGROK_URL=https://abcd1234.ngrok-free.app
+NGROK_URL = os.getenv("NGROK_URL", None)
+
+# Backend URL (used for payment redirects in production)
+BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
+
 # Django Channels Configuration
 ASGI_APPLICATION = "iayos_project.asgi.application"
 

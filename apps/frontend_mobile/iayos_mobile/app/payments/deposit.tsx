@@ -51,6 +51,7 @@ export default function WalletDepositScreen() {
   const [amountError, setAmountError] = useState<string | null>(null);
   const [pendingDeposit, setPendingDeposit] = useState<number | null>(null);
   const [webViewHandled, setWebViewHandled] = useState(false);
+  const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState<number | null>(null);
 
   const { data: walletBalance, refetch: refetchBalance } = useWalletBalance();
   const depositMutation = useWalletDeposit();
@@ -67,9 +68,21 @@ export default function WalletDepositScreen() {
       },
     });
 
-  const hasGCashMethod = paymentMethodsData?.payment_methods?.some(
+  // Get GCash payment methods
+  const gcashMethods = paymentMethodsData?.payment_methods?.filter(
     (method: any) => method.type === "GCASH"
-  );
+  ) || [];
+  
+  const hasGCashMethod = gcashMethods.length > 0;
+
+  // Auto-select primary or first GCash method
+  useEffect(() => {
+    if (gcashMethods.length > 0 && !selectedPaymentMethodId) {
+      // Try to find primary first, then use first available
+      const primary = gcashMethods.find((m: any) => m.is_primary);
+      setSelectedPaymentMethodId(primary?.id || gcashMethods[0]?.id);
+    }
+  }, [gcashMethods, selectedPaymentMethodId]);
 
   // Check if user has GCash payment method on mount
   useEffect(() => {
@@ -189,7 +202,10 @@ export default function WalletDepositScreen() {
 
     try {
       setIsProcessing(true);
-      const response = await depositMutation.mutateAsync(amount);
+      const response = await depositMutation.mutateAsync({
+        amount,
+        payment_method_id: selectedPaymentMethodId || undefined,
+      });
       const invoiceUrl = getInvoiceUrl(response);
       setPendingDeposit(amount);
       setAmountError(null);
@@ -411,29 +427,78 @@ export default function WalletDepositScreen() {
           </View>
         </View>
 
-        {/* Payment Method Info */}
-        <View style={styles.infoCard}>
-          <View style={styles.infoHeader}>
-            <Ionicons
-              name="information-circle"
-              size={24}
-              color={Colors.primary}
-            />
-            <Text style={styles.infoTitle}>Payment Method - GCash Only</Text>
-          </View>
-          <Text style={styles.infoText}>
-            {
-              "You will be redirected to Xendit's secure payment page to complete your deposit via GCash. Make sure you have a GCash account added to your profile."
-            }
+        {/* Payment Method Selection */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Select GCash Account</Text>
+          <Text style={styles.sectionSubtitle}>
+            Choose which account to use for this deposit
           </Text>
-          {!hasGCashMethod && !paymentMethodsLoading && (
-            <TouchableOpacity
-              style={styles.addMethodButton}
-              onPress={() => router.push("/profile/payment-methods" as any)}
-            >
-              <Ionicons name="add-circle" size={20} color={Colors.white} />
-              <Text style={styles.addMethodButtonText}>Add GCash Account</Text>
-            </TouchableOpacity>
+          
+          {paymentMethodsLoading ? (
+            <ActivityIndicator size="small" color={Colors.primary} style={{ marginTop: Spacing.md }} />
+          ) : gcashMethods.length > 0 ? (
+            <View style={styles.paymentMethodsList}>
+              {gcashMethods.map((method: any) => (
+                <TouchableOpacity
+                  key={method.id}
+                  style={[
+                    styles.paymentMethodCard,
+                    selectedPaymentMethodId === method.id && styles.paymentMethodCardSelected,
+                  ]}
+                  onPress={() => setSelectedPaymentMethodId(method.id)}
+                >
+                  <View style={styles.paymentMethodInfo}>
+                    <View style={styles.paymentMethodHeader}>
+                      <Ionicons name="wallet-outline" size={24} color={selectedPaymentMethodId === method.id ? Colors.primary : Colors.textSecondary} />
+                      <View style={styles.paymentMethodDetails}>
+                        <Text style={[
+                          styles.paymentMethodName,
+                          selectedPaymentMethodId === method.id && styles.paymentMethodNameSelected
+                        ]}>
+                          {method.account_name}
+                        </Text>
+                        <Text style={styles.paymentMethodNumber}>
+                          {method.account_number.replace(/(\d{4})(\d{3})(\d{4})/, '$1 $2 $3')}
+                        </Text>
+                      </View>
+                    </View>
+                    {method.is_primary && (
+                      <View style={styles.primaryBadge}>
+                        <Text style={styles.primaryBadgeText}>Primary</Text>
+                      </View>
+                    )}
+                    {method.is_verified && (
+                      <Ionicons name="checkmark-circle" size={20} color={Colors.success} />
+                    )}
+                  </View>
+                  <View style={[
+                    styles.radioButton,
+                    selectedPaymentMethodId === method.id && styles.radioButtonSelected
+                  ]}>
+                    {selectedPaymentMethodId === method.id && (
+                      <View style={styles.radioButtonInner} />
+                    )}
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : (
+            <View style={styles.infoCard}>
+              <View style={styles.infoHeader}>
+                <Ionicons name="alert-circle" size={24} color={Colors.warning} />
+                <Text style={styles.infoTitle}>No GCash Account Found</Text>
+              </View>
+              <Text style={styles.infoText}>
+                Please add a GCash account before making a deposit.
+              </Text>
+              <TouchableOpacity
+                style={styles.addMethodButton}
+                onPress={() => router.push("/profile/payment-methods" as any)}
+              >
+                <Ionicons name="add-circle" size={20} color={Colors.white} />
+                <Text style={styles.addMethodButtonText}>Add GCash Account</Text>
+              </TouchableOpacity>
+            </View>
           )}
         </View>
 
@@ -643,5 +708,82 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.base,
     color: Colors.textSecondary,
     marginTop: Spacing.md,
+  },
+  // Payment Method Selection Styles
+  paymentMethodsList: {
+    gap: Spacing.sm,
+    marginTop: Spacing.md,
+  },
+  paymentMethodCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    borderWidth: 2,
+    borderColor: Colors.border,
+  },
+  paymentMethodCardSelected: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primaryLight || '#e8f5e9',
+  },
+  paymentMethodInfo: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  paymentMethodHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    gap: Spacing.sm,
+  },
+  paymentMethodDetails: {
+    flex: 1,
+  },
+  paymentMethodName: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.semiBold as any,
+    color: Colors.textPrimary,
+  },
+  paymentMethodNameSelected: {
+    color: Colors.primary,
+  },
+  paymentMethodNumber: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  primaryBadge: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: Spacing.xs,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.xs,
+    marginRight: Spacing.xs,
+  },
+  primaryBadgeText: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.white,
+    fontWeight: Typography.fontWeight.medium as any,
+  },
+  radioButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: Colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  radioButtonSelected: {
+    borderColor: Colors.primary,
+  },
+  radioButtonInner: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: Colors.primary,
   },
 });

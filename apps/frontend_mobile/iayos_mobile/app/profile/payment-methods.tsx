@@ -98,10 +98,35 @@ export default function PaymentMethodsScreen() {
                     dismissButtonStyle: "close",
                     presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
                   });
-                  // Refresh payment methods after returning
-                  await queryClient.invalidateQueries({ queryKey: ["payment-methods"] });
+                  
+                  // Poll for verification status (webhook may take a moment to process)
+                  let verified = false;
+                  for (let i = 0; i < 5; i++) {
+                    await new Promise(resolve => setTimeout(resolve, 1500)); // Wait 1.5s between polls
+                    await queryClient.invalidateQueries({ queryKey: ["payment-methods"] });
+                    const result = await refetch();
+                    const methods = result.data?.payment_methods || [];
+                    const method = methods.find((m: PaymentMethod) => m.id === data.method_id);
+                    if (method?.is_verified) {
+                      verified = true;
+                      break;
+                    }
+                  }
+                  
                   await queryClient.invalidateQueries({ queryKey: ["wallet-balance"] });
-                  await refetch();
+                  
+                  if (verified) {
+                    Alert.alert(
+                      "Success! ✓",
+                      "Your GCash account has been verified and ₱1 has been credited to your wallet!"
+                    );
+                  } else {
+                    // Verification may still be processing
+                    Alert.alert(
+                      "Verification Processing",
+                      "Your payment was received. Verification will complete shortly. Please refresh if your payment method doesn't appear as verified."
+                    );
+                  }
                 } catch (error) {
                   // Fallback to Linking if WebBrowser fails
                   Linking.openURL(data.checkout_url);

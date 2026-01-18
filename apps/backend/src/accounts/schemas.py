@@ -117,6 +117,7 @@ class DepositFundsSchema(Schema):
     """Schema for wallet deposit request - GCash only"""
     amount: float
     payment_method: Optional[str] = "GCASH"  # Only GCash supported
+    payment_method_id: Optional[int] = None  # Optional: specific GCash account to use (uses primary/first if not specified)
 
 class WithdrawFundsSchema(Schema):
     """Schema for wallet withdrawal request"""

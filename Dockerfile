@@ -133,17 +133,17 @@ FROM backend-base AS backend-deps
 
 # Install build dependencies and cleanup
 RUN apk add --no-cache --virtual .build-deps \
-        gcc \
-        musl-dev \
-        postgresql-dev \
-        python3-dev \
-        libffi-dev \
-        openssl-dev \
-        cargo \
-        rust \
+    gcc \
+    musl-dev \
+    postgresql-dev \
+    python3-dev \
+    libffi-dev \
+    openssl-dev \
+    cargo \
+    rust \
     && apk add --no-cache \
-        postgresql-client \
-        libpq \
+    postgresql-client \
+    libpq \
     && rm -rf /var/cache/apk/*
 
 # Copy requirements file
@@ -227,10 +227,10 @@ RUN addgroup -g 1001 -S appgroup \
 
 # Install only runtime dependencies
 RUN apk add --no-cache \
-        postgresql-client \
-        libpq \
-        libffi \
-        openssl \
+    postgresql-client \
+    libpq \
+    libffi \
+    openssl \
     && rm -rf /var/cache/apk/*
 
 WORKDIR /app/backend
@@ -289,28 +289,28 @@ FROM backend-base AS backend-development
 # Install development dependencies with cleanup
 # Added: tesseract-ocr for OCR verification of KYC documents
 RUN apk add --no-cache --virtual .build-deps \
-        gcc \
-        musl-dev \
-        postgresql-dev \
-        python3-dev \
-        libffi-dev \
-        openssl-dev \
-        cargo \
-        rust \
+    gcc \
+    musl-dev \
+    postgresql-dev \
+    python3-dev \
+    libffi-dev \
+    openssl-dev \
+    cargo \
+    rust \
     && apk add --no-cache \
-        postgresql-client \
-        libpq \
-        dcron \
-        su-exec \
-        # Tesseract OCR for KYC document verification
-        tesseract-ocr \
-        tesseract-ocr-data-eng \
-        # Additional image processing dependencies
-        jpeg-dev \
-        zlib-dev \
-        libpng-dev \
-        # curl for CompreFace health checks
-        curl
+    postgresql-client \
+    libpq \
+    dcron \
+    su-exec \
+    # Tesseract OCR for KYC document verification
+    tesseract-ocr \
+    tesseract-ocr-data-eng \
+    # Additional image processing dependencies
+    jpeg-dev \
+    zlib-dev \
+    libpng-dev \
+    # curl for CompreFace health checks
+    curl
 
 WORKDIR /app/apps/backend
 

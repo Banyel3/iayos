@@ -258,6 +258,164 @@ def mobile_send_verification_email(request, payload: SendVerificationEmailSchema
         )
 
 
+@mobile_router.get("/payment-verified", auth=None)
+def payment_verification_redirect(request, success: bool = True, method_id: int = None):
+    """
+    Auto-redirect page for PayMongo payment verification.
+    Automatically redirects back to the app using deep link, then closes browser.
+    This page is displayed after PayMongo redirects back.
+    """
+    from django.http import HttpResponse
+    
+    if success:
+        html = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Verification Complete</title>
+            <style>
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    min-height: 100vh;
+                    margin: 0;
+                    background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+                    color: white;
+                    text-align: center;
+                }
+                .container {
+                    padding: 40px;
+                    max-width: 400px;
+                }
+                .icon { font-size: 80px; margin-bottom: 20px; }
+                h1 { font-size: 24px; margin-bottom: 10px; }
+                p { font-size: 16px; opacity: 0.9; }
+                .close-hint {
+                    margin-top: 30px;
+                    padding: 15px 30px;
+                    background: rgba(255,255,255,0.2);
+                    border-radius: 25px;
+                    font-size: 14px;
+                    cursor: pointer;
+                }
+            </style>
+            <script>
+                // Try to return to the app immediately
+                function returnToApp() {
+                    // Try Expo deep link first
+                    window.location.href = 'iayosmobile://profile/payment-methods?verified=true';
+                }
+                
+                // Auto-trigger after a short delay
+                setTimeout(function() {
+                    returnToApp();
+                    
+                    // If still here after 1 second, try to close
+                    setTimeout(function() {
+                        if (window.ReactNativeWebView) {
+                            window.ReactNativeWebView.postMessage('close');
+                        }
+                        window.close();
+                        
+                        // Update hint if still visible
+                        setTimeout(function() {
+                            var hint = document.querySelector('.close-hint');
+                            if (hint) {
+                                hint.textContent = 'Tap here or "Done" to return to the app';
+                                hint.onclick = returnToApp;
+                            }
+                        }, 500);
+                    }, 1000);
+                }, 1500);
+            </script>
+        </head>
+        <body>
+            <div class="container">
+                <div class="icon">✓</div>
+                <h1>Verification Successful!</h1>
+                <p>Your GCash account has been verified. ₱1 has been credited to your wallet.</p>
+                <div class="close-hint" onclick="returnToApp()">Returning to app...</div>
+            </div>
+        </body>
+        </html>
+        """
+    else:
+        html = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Verification Failed</title>
+            <style>
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    min-height: 100vh;
+                    margin: 0;
+                    background: linear-gradient(135deg, #f44336 0%, #d32f2f 100%);
+                    color: white;
+                    text-align: center;
+                }
+                .container {
+                    padding: 40px;
+                    max-width: 400px;
+                }
+                .icon { font-size: 80px; margin-bottom: 20px; }
+                h1 { font-size: 24px; margin-bottom: 10px; }
+                p { font-size: 16px; opacity: 0.9; }
+                .close-hint {
+                    margin-top: 30px;
+                    padding: 15px 30px;
+                    background: rgba(255,255,255,0.2);
+                    border-radius: 25px;
+                    font-size: 14px;
+                    cursor: pointer;
+                }
+            </style>
+            <script>
+                function returnToApp() {
+                    window.location.href = 'iayosmobile://profile/payment-methods?verified=false';
+                }
+                
+                setTimeout(function() {
+                    returnToApp();
+                    
+                    setTimeout(function() {
+                        if (window.ReactNativeWebView) {
+                            window.ReactNativeWebView.postMessage('close');
+                        }
+                        window.close();
+                        
+                        setTimeout(function() {
+                            var hint = document.querySelector('.close-hint');
+                            if (hint) {
+                                hint.textContent = 'Tap here or "Done" to return to the app';
+                                hint.onclick = returnToApp;
+                            }
+                        }, 500);
+                    }, 1000);
+                }, 2000);
+            </script>
+        </head>
+        <body>
+            <div class="container">
+                <div class="icon">✗</div>
+                <h1>Verification Failed</h1>
+                <p>The payment was not completed. Please try adding your payment method again.</p>
+                <div class="close-hint" onclick="returnToApp()">Returning to app...</div>
+            </div>
+        </body>
+        </html>
+        """
+    
+    return HttpResponse(html, content_type='text/html')
+
+
 @mobile_router.get("/auth/profile", auth=jwt_auth)
 def mobile_get_profile(request):
     print(f"📱 [MOBILE PROFILE] Request received for user: {request.auth.email if request.auth else 'None'}")
@@ -2868,11 +3026,38 @@ def mobile_deposit_funds(request, payload: DepositFundsSchema):
 
         print(f"📥 [Mobile] Deposit request: ₱{amount} via {payment_method} from {request.auth.email}")
         
-        # Validate user has a GCash payment method set up
-        gcash_method = UserPaymentMethod.objects.filter(
-            accountFK=request.auth,
-            methodType='GCASH'
-        ).first()
+        # Get the specified payment method, or find a GCash account
+        if payload.payment_method_id:
+            # User specified which account to use
+            gcash_method = UserPaymentMethod.objects.filter(
+                id=payload.payment_method_id,
+                accountFK=request.auth,
+                methodType='GCASH'
+            ).first()
+            
+            if not gcash_method:
+                return Response(
+                    {
+                        "error": "Payment method not found",
+                        "error_code": "PAYMENT_METHOD_NOT_FOUND",
+                        "message": "The selected GCash account was not found"
+                    },
+                    status=404
+                )
+        else:
+            # Use primary GCash method, or first available
+            gcash_method = UserPaymentMethod.objects.filter(
+                accountFK=request.auth,
+                methodType='GCASH',
+                isPrimary=True
+            ).first()
+            
+            if not gcash_method:
+                # Fallback to first GCash method
+                gcash_method = UserPaymentMethod.objects.filter(
+                    accountFK=request.auth,
+                    methodType='GCASH'
+                ).first()
         
         if not gcash_method:
             return Response(
@@ -2883,6 +3068,8 @@ def mobile_deposit_funds(request, payload: DepositFundsSchema):
                 },
                 status=400
             )
+        
+        print(f"   Using GCash account: {gcash_method.accountNumber} (ID: {gcash_method.id})")
         
         if amount <= 0:
             return Response(
@@ -3948,16 +4135,21 @@ def add_payment_method(request, payload: AddPaymentMethodSchema):
         
         # Create PayMongo verification checkout
         paymongo = PayMongoService()
-        frontend_url = getattr(settings, 'EXPO_PUBLIC_API_URL', 'http://localhost:3000')
         
-        # Use mobile deep links for app redirect
+        # Use the mobile API URL for redirects - must be accessible from user's phone
+        # Redirect to our success/failure page that shows a nice message
+        import os
+        api_url = os.getenv('EXPO_PUBLIC_API_URL', 'http://localhost:8000').strip('"').strip("'")
+        
+        print(f"📱 Using API URL for redirects: {api_url}")
+        
         result = paymongo.create_verification_checkout(
             user_email=request.auth.email,
             user_name=payload.account_name,
             payment_method_id=method.id,
             account_number=clean_number,
-            success_url=f"{frontend_url}/payment-method/verify-success?method_id={method.id}",
-            failure_url=f"{frontend_url}/payment-method/verify-failed?method_id={method.id}"
+            success_url=f"{api_url}/api/mobile/payment-verified?success=true&method_id={method.id}",
+            failure_url=f"{api_url}/api/mobile/payment-verified?success=false&method_id={method.id}"
         )
         
         if not result.get("success"):
