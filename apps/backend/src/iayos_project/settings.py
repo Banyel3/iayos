@@ -412,6 +412,9 @@ PAYMONGO_SECRET_KEY = os.getenv("PAYMONGO_SECRET_KEY", "")
 PAYMONGO_PUBLIC_KEY = os.getenv("PAYMONGO_PUBLIC_KEY", "")
 PAYMONGO_WEBHOOK_SECRET = os.getenv("PAYMONGO_WEBHOOK_SECRET", "")
 
+# Admin email for withdrawal notifications (manual processing alerts)
+ADMIN_WITHDRAWAL_EMAIL = os.getenv("ADMIN_WITHDRAWAL_EMAIL", "")
+
 # Payment provider selection: "paymongo" (default) or "xendit" (legacy rollback)
 PAYMENT_PROVIDER = os.getenv("PAYMENT_PROVIDER", "paymongo")
 

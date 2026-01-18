@@ -306,43 +306,50 @@ class PayMongoService(PaymentProviderInterface):
             logger.info(f"   External ID: {external_id}")
             logger.info(f"   Channel: {channel_code}")
             
-            # In test mode or while PayMongo payout API is not available,
-            # simulate successful disbursement
-            if self.test_mode:
-                logger.info("🧪 PayMongo TEST MODE: Simulating disbursement")
-                
-                return {
-                    "success": True,
-                    "disbursement_id": f"payout_{external_id}",
-                    "external_id": external_id,
-                    "amount": amount,
-                    "status": DisbursementStatus.COMPLETED,
-                    "channel_code": channel_code,
-                    "recipient_name": recipient_name,
-                    "recipient_number": normalized_number,
-                    "test_mode": True,
-                    "provider": "paymongo",
-                    "message": "Test mode: Disbursement simulated as completed. In production, funds would be sent via Maya Business or bank transfer."
-                }
+            # PRODUCTION-READY: All withdrawals require manual processing
+            # PayMongo does not support GCash payouts directly
+            # Options for actual payouts:
+            # 1. Maya Business API (GCash/Maya wallets)
+            # 2. DragonPay (multi-channel payouts)
+            # 3. Bank transfers (PayMongo supports for verified accounts)
+            # 4. Manual GCash send money
             
-            # Production: Log for manual processing or use Maya Business API
-            # PayMongo's official Payout API endpoint would go here when available
-            logger.warning(f"⚠️ Production disbursement requested - requires manual processing or Maya Business integration")
-            logger.warning(f"   External ID: {external_id}")
-            logger.warning(f"   Amount: ₱{amount}")
-            logger.warning(f"   Recipient: {recipient_name} ({normalized_number})")
+            disbursement_id = f"WD_{external_id}"
+            
+            # Log the withdrawal request for admin processing
+            logger.info(f"📤 WITHDRAWAL REQUEST CREATED:")
+            logger.info(f"   Disbursement ID: {disbursement_id}")
+            logger.info(f"   Amount: ₱{amount}")
+            logger.info(f"   Recipient: {recipient_name}")
+            logger.info(f"   GCash Number: {normalized_number}")
+            logger.info(f"   Transaction ID: {transaction_id}")
+            logger.info(f"   Status: PENDING (requires admin approval)")
+            
+            if self.test_mode:
+                logger.info("🧪 TEST MODE: Withdrawal will remain pending until manually approved")
+            
+            # Send admin notification email (async in production)
+            self._send_withdrawal_admin_notification(
+                disbursement_id=disbursement_id,
+                amount=amount,
+                recipient_name=recipient_name,
+                gcash_number=normalized_number,
+                user_email=metadata.get('user_email') if metadata else None,
+                transaction_id=transaction_id
+            )
             
             return {
                 "success": True,
-                "disbursement_id": f"manual_{external_id}",
+                "disbursement_id": disbursement_id,
                 "external_id": external_id,
                 "amount": amount,
-                "status": DisbursementStatus.PENDING,
+                "status": DisbursementStatus.PENDING,  # Always PENDING until manually processed
                 "channel_code": channel_code,
                 "recipient_name": recipient_name,
                 "recipient_number": normalized_number,
+                "test_mode": self.test_mode,
                 "provider": "paymongo",
-                "message": "Disbursement queued for processing. Funds will be sent within 1-3 business days.",
+                "message": "Withdrawal request submitted. Your funds will be sent to your GCash within 1-3 business days after verification.",
                 "requires_manual_processing": True
             }
             
@@ -354,6 +361,126 @@ class PayMongoService(PaymentProviderInterface):
                 "success": False,
                 "error": str(e)
             }
+    
+    def _send_withdrawal_admin_notification(
+        self,
+        disbursement_id: str,
+        amount: float,
+        recipient_name: str,
+        gcash_number: str,
+        user_email: Optional[str],
+        transaction_id: int
+    ):
+        """
+        Send email notification to admin about new withdrawal request.
+        This allows manual processing of GCash payouts.
+        """
+        try:
+            import requests
+            from django.conf import settings
+            from django.utils import timezone
+            
+            admin_email = getattr(settings, 'ADMIN_WITHDRAWAL_EMAIL', None)
+            resend_api_key = getattr(settings, 'RESEND_API_KEY', None)
+            
+            if not admin_email or not resend_api_key:
+                logger.warning("⚠️ Admin withdrawal email or Resend API key not configured - skipping notification")
+                return
+            
+            # Build email content
+            subject = f"🔔 New Withdrawal Request: ₱{amount:,.2f} - {disbursement_id}"
+            
+            html_content = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <style>
+                    body {{ font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }}
+                    .container {{ max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; padding: 30px; }}
+                    .header {{ background: linear-gradient(135deg, #ff9800, #f57c00); color: white; padding: 20px; border-radius: 8px 8px 0 0; margin: -30px -30px 20px -30px; }}
+                    .header h1 {{ margin: 0; font-size: 24px; }}
+                    .details {{ background: #f9f9f9; padding: 20px; border-radius: 8px; margin: 20px 0; }}
+                    .detail-row {{ display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #eee; }}
+                    .detail-row:last-child {{ border-bottom: none; }}
+                    .label {{ color: #666; font-weight: 500; }}
+                    .value {{ color: #333; font-weight: 600; }}
+                    .amount {{ font-size: 28px; color: #ff9800; font-weight: bold; text-align: center; padding: 20px 0; }}
+                    .action-required {{ background: #fff3e0; border-left: 4px solid #ff9800; padding: 15px; margin: 20px 0; }}
+                    .footer {{ text-align: center; color: #999; font-size: 12px; margin-top: 30px; }}
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>💸 Withdrawal Request</h1>
+                    </div>
+                    
+                    <div class="amount">₱{amount:,.2f}</div>
+                    
+                    <div class="details">
+                        <div class="detail-row">
+                            <span class="label">Disbursement ID</span>
+                            <span class="value">{disbursement_id}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="label">Transaction ID</span>
+                            <span class="value">{transaction_id}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="label">Recipient Name</span>
+                            <span class="value">{recipient_name}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="label">GCash Number</span>
+                            <span class="value">{gcash_number}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="label">User Email</span>
+                            <span class="value">{user_email or 'N/A'}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="label">Request Time</span>
+                            <span class="value">{timezone.now().strftime('%Y-%m-%d %H:%M:%S')} UTC</span>
+                        </div>
+                    </div>
+                    
+                    <div class="action-required">
+                        <strong>⚠️ Action Required:</strong><br>
+                        Please process this withdrawal manually via GCash Send Money and mark as completed in the admin panel.
+                    </div>
+                    
+                    <div class="footer">
+                        <p>iAyos Payment System</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """
+            
+            # Send via Resend
+            response = requests.post(
+                "https://api.resend.com/emails",
+                headers={
+                    "Authorization": f"Bearer {resend_api_key}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "from": "iAyos <no-reply@iayos.com>",
+                    "to": [admin_email],
+                    "subject": subject,
+                    "html": html_content
+                },
+                timeout=10
+            )
+            
+            if response.status_code in [200, 201]:
+                logger.info(f"✅ Admin withdrawal notification sent to {admin_email}")
+            else:
+                logger.warning(f"⚠️ Failed to send admin notification: {response.text}")
+                
+        except Exception as e:
+            logger.error(f"❌ Error sending admin notification: {str(e)}")
     
     def get_payment_status(self, payment_id: str) -> Dict[str, Any]:
         """

@@ -3238,10 +3238,11 @@ def mobile_withdraw_funds(request, payload: WithdrawFundsSchema):
                 status=404
             )
         
-        # Only GCash supported for now
-        if payment_method.methodType != 'GCASH':
+        # Validate payment method type
+        supported_types = ['GCASH', 'BANK', 'PAYPAL']
+        if payment_method.methodType not in supported_types:
             return Response(
-                {"error": "Only GCash withdrawals are currently supported"},
+                {"error": f"Unsupported payment method type: {payment_method.methodType}"},
                 status=400
             )
         
@@ -3274,32 +3275,55 @@ def mobile_withdraw_funds(request, payload: WithdrawFundsSchema):
             wallet.save()
             
             # Create pending withdrawal transaction
+            method_display = {
+                'GCASH': f'GCash - {payment_method.accountNumber}',
+                'BANK': f'Bank Transfer - {payment_method.bankName or "Bank"} {payment_method.accountNumber}',
+                'PAYPAL': f'PayPal - {payment_method.accountNumber}'
+            }.get(payment_method.methodType, f'{payment_method.methodType} - {payment_method.accountNumber}')
+            
             transaction = Transaction.objects.create(
                 walletID=wallet,
                 transactionType=Transaction.TransactionType.WITHDRAWAL,
                 amount=Decimal(str(amount)),
                 balanceAfter=wallet.balance,
                 status=Transaction.TransactionStatus.PENDING,
-                description=f"Withdrawal to GCash - {payment_method.accountNumber}",
-                paymentMethod="GCASH"
+                description=f"Withdrawal to {method_display}",
+                paymentMethod=payment_method.methodType
             )
             
             print(f"✅ New balance: ₱{wallet.balance}")
             
+            # Map payment method type to channel code for PayMongo
+            channel_mapping = {
+                'GCASH': 'GCASH',
+                'BANK': 'BANK_TRANSFER',  # PayMongo InstaPay/PESONet
+                'PAYPAL': 'PAYPAL'  # For manual processing
+            }
+            channel_code = channel_mapping.get(payment_method.methodType, 'GCASH')
+            
             # Create disbursement using configured payment provider
             payment_provider = get_payment_provider()
             provider_name = payment_provider.provider_name
-            print(f"📤 Creating {provider_name.upper()} disbursement...")
+            print(f"📤 Creating {provider_name.upper()} disbursement for {payment_method.methodType}...")
+            
+            # For BANK type, include bank name in metadata
+            metadata = {
+                "user_email": request.auth.email,
+                "user_name": user_name,
+                "payment_method_type": payment_method.methodType
+            }
+            if payment_method.methodType == 'BANK' and payment_method.bankName:
+                metadata["bank_name"] = payment_method.bankName
             
             disbursement_result = payment_provider.create_disbursement(
                 amount=amount,
                 currency="PHP",
                 recipient_name=payment_method.accountName,
                 account_number=payment_method.accountNumber,
-                channel_code="GCASH",
+                channel_code=channel_code,
                 transaction_id=transaction.transactionID,
                 description=notes or f"Withdrawal from iAyos Wallet - ₱{amount}",
-                metadata={"user_email": request.auth.email, "user_name": user_name}
+                metadata=metadata
             )
             
             if not disbursement_result.get("success"):
@@ -3316,25 +3340,26 @@ def mobile_withdraw_funds(request, payload: WithdrawFundsSchema):
             # Update transaction with provider details
             transaction.xenditInvoiceID = disbursement_result.get('disbursement_id')
             transaction.xenditExternalID = disbursement_result.get('external_id')
-            transaction.xenditPaymentChannel = "GCASH"
+            transaction.xenditPaymentChannel = channel_code
             transaction.xenditPaymentMethod = provider_name.upper()
             
-            # Store invoice URL if available (for test mode)
-            invoice_url = disbursement_result.get('invoice_url') or disbursement_result.get('receipt_url')
-            if invoice_url:
-                transaction.invoiceURL = invoice_url
-            
-            # Mark as completed if disbursement is successful
-            if disbursement_result.get('status') == 'COMPLETED':
-                transaction.status = Transaction.TransactionStatus.COMPLETED
-                transaction.completedAt = timezone.now()
-            
+            # Withdrawals always stay PENDING until manually processed
+            # This is production-ready: admin must manually send payment and mark complete
+            transaction.status = Transaction.TransactionStatus.PENDING
             transaction.save()
             
-            print(f"📄 {provider_name.upper()} disbursement created: {disbursement_result.get('disbursement_id')}")
-            print(f"📊 Status: {disbursement_result.get('status')}")
-            if invoice_url:
-                print(f"🔗 Receipt URL: {invoice_url}")
+            print(f"📄 {provider_name.upper()} withdrawal request created: {disbursement_result.get('disbursement_id')}")
+            print(f"📊 Status: PENDING (requires admin approval)")
+            print(f"   Recipient: {payment_method.accountName} ({payment_method.accountNumber})")
+            print(f"   Method: {payment_method.methodType}")
+        
+        # Customize message based on payment method type
+        method_messages = {
+            'GCASH': "Your funds will be transferred to your GCash within 1-3 business days after verification.",
+            'BANK': f"Your funds will be transferred to your {payment_method.bankName or 'bank'} account within 1-3 business days after verification.",
+            'PAYPAL': "Your funds will be transferred to your PayPal account within 1-3 business days after verification."
+        }
+        success_message = method_messages.get(payment_method.methodType, "Your funds will be transferred within 1-3 business days after verification.")
         
         # Build response
         response_data = {
@@ -3343,17 +3368,14 @@ def mobile_withdraw_funds(request, payload: WithdrawFundsSchema):
             "disbursement_id": disbursement_result.get('disbursement_id'),
             "amount": amount,
             "new_balance": float(wallet.balance),
-            "status": disbursement_result.get('status', 'PENDING'),
+            "status": "PENDING",
             "recipient": payment_method.accountNumber,
             "recipient_name": payment_method.accountName,
+            "payment_method_type": payment_method.methodType,
             "provider": provider_name,
-            "message": "Withdrawal request submitted successfully. Funds will be transferred to your GCash within 1-3 business days."
+            "message": f"Withdrawal request submitted successfully. {success_message}",
+            "estimated_arrival": "1-3 business days"
         }
-        
-        # Include receipt URL if available
-        if disbursement_result.get('receipt_url') or disbursement_result.get('invoice_url'):
-            response_data['receipt_url'] = disbursement_result.get('receipt_url') or disbursement_result.get('invoice_url')
-            response_data['message'] = f"Withdrawal successful! View your transaction receipt."
         
         return response_data
         
@@ -4059,28 +4081,39 @@ def get_payment_methods(request):
 @mobile_router.post("/payment-methods", auth=jwt_auth)
 def add_payment_method(request, payload: AddPaymentMethodSchema):
     """
-    Add a new GCash payment method with PayMongo verification.
+    Add a new payment method for withdrawals.
     
-    Flow:
+    Supported types:
+    - GCASH: Requires ₱1 PayMongo verification
+    - BANK: Bank account (InstaPay/PESONet via PayMongo)
+    - PAYPAL: PayPal account (manual processing)
+    
+    GCASH Flow:
     1. User submits GCash account details
     2. We create a ₱1 verification checkout via PayMongo
     3. User pays ₱1 using their GCash account
     4. PayMongo webhook confirms payment + verifies account
     5. ₱1 is credited to user's wallet as bonus
     6. Payment method is marked as verified
+    
+    BANK/PAYPAL Flow:
+    1. User submits bank/PayPal account details
+    2. Account is added in unverified state
+    3. Admin manually verifies on first withdrawal
     """
     try:
         from .models import UserPaymentMethod
         from django.db import transaction as db_transaction
         from .paymongo_service import PayMongoService
         from django.conf import settings
+        import re
         
         method_type = payload.type or 'GCASH'
 
-        # For now, only GCash is supported
-        if method_type != 'GCASH':
+        # Validate method type
+        if method_type not in ['GCASH', 'BANK', 'PAYPAL']:
             return Response(
-                {"error": "Invalid payment method type. Only GCash is supported."},
+                {"error": "Invalid payment method type. Supported: GCASH, BANK, PAYPAL"},
                 status=400
             )
         
@@ -4091,24 +4124,52 @@ def add_payment_method(request, payload: AddPaymentMethodSchema):
                 status=400
             )
 
-        # Validate and clean GCash number format
-        clean_number = payload.account_number.replace(' ', '').replace('-', '')
-        if not clean_number.startswith('09') or len(clean_number) != 11:
-            return Response(
-                {"error": "Invalid GCash number format (must be 11 digits starting with 09)"},
-                status=400
-            )
+        # Type-specific validation
+        if method_type == 'GCASH':
+            # Validate and clean GCash number format
+            clean_number = payload.account_number.replace(' ', '').replace('-', '')
+            if not clean_number.startswith('09') or len(clean_number) != 11:
+                return Response(
+                    {"error": "Invalid GCash number format (must be 11 digits starting with 09)"},
+                    status=400
+                )
+        elif method_type == 'BANK':
+            # Validate bank account number format (alphanumeric, 5-20 chars)
+            clean_number = payload.account_number.replace(' ', '').replace('-', '')
+            if not re.match(r'^[0-9]{5,20}$', clean_number):
+                return Response(
+                    {"error": "Invalid bank account number format (5-20 digits)"},
+                    status=400
+                )
+            # Bank name is required for bank accounts
+            if not payload.bank_name:
+                return Response(
+                    {"error": "Bank name is required for bank accounts"},
+                    status=400
+                )
+        elif method_type == 'PAYPAL':
+            # Validate PayPal email format
+            clean_number = payload.account_number.strip().lower()
+            email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+            if not re.match(email_regex, clean_number):
+                return Response(
+                    {"error": "Invalid PayPal email format"},
+                    status=400
+                )
+        else:
+            clean_number = payload.account_number
         
-        # Check for duplicate GCash number
+        # Check for duplicate account number
         existing = UserPaymentMethod.objects.filter(
             accountFK=request.auth,
+            methodType=method_type,
             accountNumber=clean_number
         ).first()
         
         if existing:
             if existing.isVerified:
                 return Response(
-                    {"error": "This GCash number is already verified on your account"},
+                    {"error": f"This {method_type.lower()} account is already verified on your account"},
                     status=400
                 )
             else:
@@ -4120,20 +4181,34 @@ def add_payment_method(request, payload: AddPaymentMethodSchema):
             has_existing = UserPaymentMethod.objects.filter(accountFK=request.auth).exists()
             is_first = not has_existing
             
-            # Create payment method in PENDING state
+            # Create payment method
+            # Only GCASH requires verification, BANK and PAYPAL are manually verified by admin
+            is_verified = (method_type in ['BANK', 'PAYPAL'])
+            
             method = UserPaymentMethod.objects.create(
                 accountFK=request.auth,
-                methodType='GCASH',
+                methodType=method_type,
                 accountName=payload.account_name,
                 accountNumber=clean_number,
-                bankName=None,
+                bankName=payload.bank_name if method_type == 'BANK' else None,
                 isPrimary=is_first,
-                isVerified=False  # Will be verified after PayMongo checkout
+                isVerified=is_verified
             )
             
-            print(f"📱 Payment method created (pending verification): {method.id} for {request.auth.email}")
+            print(f"📱 Payment method created ({'verified' if is_verified else 'pending verification'}): {method.id} ({method_type}) for {request.auth.email}")
         
-        # Create PayMongo verification checkout
+        # Only GCASH requires PayMongo verification
+        if method_type != 'GCASH':
+            return {
+                'success': True,
+                'message': f'{method_type} account added successfully',
+                'method_id': method.id,
+                'verification_required': False,
+                'is_verified': is_verified,
+                'note': 'Your account will be verified on your first withdrawal request' if method_type in ['BANK', 'PAYPAL'] else None
+            }
+        
+        # Create PayMongo verification checkout for GCASH
         paymongo = PayMongoService()
         
         # Use the mobile API URL for redirects - must be accessible from user's phone

@@ -2216,16 +2216,17 @@ class Barangay(models.Model):
 
 
 class UserPaymentMethod(models.Model):
-    """User's payment methods for withdrawals (GCash, Bank)"""
+    """User's payment methods for withdrawals (GCash, Bank, PayPal)"""
     
     class MethodType(models.TextChoices):
         GCASH = "GCASH", "GCash"
         BANK = "BANK", "Bank Account"
+        PAYPAL = "PAYPAL", "PayPal"
     
     accountFK = models.ForeignKey(Accounts, on_delete=models.CASCADE, related_name='payment_methods')
     methodType = models.CharField(max_length=10, choices=MethodType.choices)
     accountName = models.CharField(max_length=255)  # Name on account
-    accountNumber = models.CharField(max_length=50)  # GCash number or bank account number
+    accountNumber = models.CharField(max_length=50)  # GCash number, bank account number, or PayPal email
     bankName = models.CharField(max_length=100, null=True, blank=True)  # Only for bank accounts
     isPrimary = models.BooleanField(default=False)
     isVerified = models.BooleanField(default=False)

@@ -3,7 +3,7 @@
  *
  * Features:
  * - Amount input with validation (min ₱100)
- * - GCash account selection from saved payment methods
+ * - Payment account selection (GCash, Bank, PayPal)
  * - Balance check and display
  * - Optional notes field
  * - Payment receipt display
@@ -42,7 +42,7 @@ import { apiRequest, ENDPOINTS } from "@/lib/api/config";
 
 interface PaymentMethod {
   id: number;
-  type: "GCASH";
+  type: "GCASH" | "BANK" | "PAYPAL";
   account_name: string;
   account_number: string;
   bank_name: string | null;
@@ -99,17 +99,17 @@ export default function WithdrawScreen() {
     (m: PaymentMethod) => m.id === selectedMethodId
   );
 
-  // Only show GCash methods
-  const gcashMethods = paymentMethods.filter(
-    (m: PaymentMethod) => m.type === "GCASH"
+  // Show all verified payment methods
+  const verifiedMethods = paymentMethods.filter(
+    (m: PaymentMethod) => m.is_verified
   );
 
-  // Check if user has GCash payment method on mount
+  // Check if user has payment method on mount
   useEffect(() => {
-    if (!methodsLoading && paymentMethodsData && gcashMethods.length === 0) {
+    if (!methodsLoading && paymentMethodsData && verifiedMethods.length === 0) {
       Alert.alert(
-        "GCash Account Required",
-        "You need to add a GCash account before you can withdraw funds. Would you like to add one now?",
+        "Payment Account Required",
+        "You need to add a payment account (GCash, Bank, or PayPal) before you can withdraw funds. Would you like to add one now?",
         [
           {
             text: "Cancel",
@@ -117,7 +117,7 @@ export default function WithdrawScreen() {
             style: "cancel",
           },
           {
-            text: "Add GCash Account",
+            text: "Add Payment Account",
             onPress: () => {
               router.back();
               router.push("/profile/payment-methods" as any);
@@ -127,7 +127,7 @@ export default function WithdrawScreen() {
         { cancelable: false }
       );
     }
-  }, [paymentMethodsData, methodsLoading, gcashMethods.length]);
+  }, [paymentMethodsData, methodsLoading, verifiedMethods.length]);
 
   const handleAmountChange = (text: string) => {
     // Only allow numbers and decimal point
@@ -158,14 +158,14 @@ export default function WithdrawScreen() {
       return;
     }
 
-    // Final check: Ensure user has GCash account
-    if (gcashMethods.length === 0) {
+    // Final check: Ensure user has payment account
+    if (verifiedMethods.length === 0) {
       Alert.alert(
-        "GCash Account Required",
-        "Please add a GCash account first",
+        "Payment Account Required",
+        "Please add a payment account first",
         [
           {
-            text: "Add GCash Account",
+            text: "Add Payment Account",
             onPress: () => router.push("/profile/payment-methods" as any),
           },
         ]
@@ -174,14 +174,24 @@ export default function WithdrawScreen() {
     }
 
     if (!selectedMethodId) {
-      Alert.alert("Select Account", "Please select a GCash account");
+      Alert.alert("Select Account", "Please select a payment account");
       return;
     }
 
     // Confirm withdrawal
+    const methodLabel = selectedMethod?.type === "GCASH" 
+      ? "GCash" 
+      : selectedMethod?.type === "BANK" 
+      ? `${selectedMethod?.bank_name || "Bank"} account`
+      : "PayPal";
+    
+    const accountDisplay = selectedMethod?.type === "BANK" && selectedMethod?.bank_name
+      ? `${selectedMethod.bank_name} - ${selectedMethod.account_number}`
+      : selectedMethod?.account_number;
+    
     Alert.alert(
       "Confirm Withdrawal",
-      `Withdraw ₱${amountNum.toFixed(2)} to ${selectedMethod?.account_number}?\n\nFunds will be transferred within 1-3 business days.`,
+      `Withdraw ₱${amountNum.toFixed(2)} to ${methodLabel} (${accountDisplay})?\n\nFunds will be transferred within 1-3 business days.`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -461,10 +471,10 @@ export default function WithdrawScreen() {
             </View>
           </View>
 
-          {/* GCash Account Selection */}
+          {/* Payment Account Selection */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>GCash Account</Text>
+              <Text style={styles.sectionTitle}>Payment Account</Text>
               <TouchableOpacity
                 onPress={() => router.push("/profile/payment-methods" as any)}
               >
@@ -472,7 +482,7 @@ export default function WithdrawScreen() {
               </TouchableOpacity>
             </View>
 
-            {gcashMethods.length === 0 ? (
+            {verifiedMethods.length === 0 ? (
               <View style={styles.noMethodsCard}>
                 <Ionicons
                   name="card-outline"
@@ -480,62 +490,85 @@ export default function WithdrawScreen() {
                   color={Colors.textLight}
                 />
                 <Text style={styles.noMethodsText}>
-                  No GCash accounts found
+                  No payment accounts found
                 </Text>
                 <TouchableOpacity
                   style={styles.addMethodBtn}
                   onPress={() => router.push("/profile/payment-methods" as any)}
                 >
-                  <Text style={styles.addMethodBtnText}>Add GCash Account</Text>
+                  <Text style={styles.addMethodBtnText}>Add Payment Account</Text>
                 </TouchableOpacity>
               </View>
             ) : (
-              gcashMethods.map((method: PaymentMethod) => (
-                <TouchableOpacity
-                  key={method.id}
-                  style={[
-                    styles.methodCard,
-                    selectedMethodId === method.id && styles.methodCardSelected,
-                  ]}
-                  onPress={() => {
-                    setSelectedMethodId(method.id);
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  }}
-                >
-                  <View style={styles.methodIcon}>
-                    <Ionicons
-                      name="phone-portrait"
-                      size={24}
-                      color={Colors.primary}
-                    />
-                  </View>
-                  <View style={styles.methodInfo}>
-                    <Text style={styles.methodName}>{method.account_name}</Text>
-                    <Text style={styles.methodNumber}>
-                      {method.account_number}
-                    </Text>
-                  </View>
-                  {method.is_verified && (
-                    <View style={styles.verifiedBadge}>
+              verifiedMethods.map((method: PaymentMethod) => {
+                const methodIcon = method.type === "GCASH" 
+                  ? "phone-portrait" 
+                  : method.type === "BANK" 
+                  ? "business" 
+                  : "logo-paypal";
+                const methodLabel = method.type === "GCASH" 
+                  ? "GCash" 
+                  : method.type === "BANK" 
+                  ? method.bank_name || "Bank" 
+                  : "PayPal";
+                
+                return (
+                  <TouchableOpacity
+                    key={method.id}
+                    style={[
+                      styles.methodCard,
+                      selectedMethodId === method.id && styles.methodCardSelected,
+                    ]}
+                    onPress={() => {
+                      setSelectedMethodId(method.id);
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    }}
+                  >
+                    <View style={styles.methodIcon}>
                       <Ionicons
-                        name="checkmark-circle"
-                        size={16}
-                        color={Colors.success}
-                      />
-                      <Text style={styles.verifiedText}>Verified</Text>
-                    </View>
-                  )}
-                  {selectedMethodId === method.id && (
-                    <View style={styles.selectedIndicator}>
-                      <Ionicons
-                        name="checkmark"
-                        size={20}
-                        color={Colors.white}
+                        name={methodIcon as any}
+                        size={24}
+                        color={Colors.primary}
                       />
                     </View>
-                  )}
-                </TouchableOpacity>
-              ))
+                    <View style={styles.methodInfo}>
+                      <View style={styles.methodTypeRow}>
+                        <Text style={styles.methodType}>{methodLabel}</Text>
+                        {method.is_primary && (
+                          <View style={styles.primaryBadge}>
+                            <Text style={styles.primaryText}>Primary</Text>
+                          </View>
+                        )}
+                      </View>
+                      <Text style={styles.methodName}>{method.account_name}</Text>
+                      <Text style={styles.methodNumber}>
+                        {method.type === "GCASH"
+                          ? method.account_number.replace(/(\d{4})(\d{3})(\d{4})/, "$1 $2 $3")
+                          : method.account_number}
+                      </Text>
+                    </View>
+                    {method.is_verified && (
+                      <View style={styles.verifiedBadge}>
+                        <Ionicons
+                          name="checkmark-circle"
+                          size={16}
+                          color={Colors.success}
+                        />
+                        <Text style={styles.verifiedText}>Verified</Text>
+                      </View>
+                    )}
+                    {selectedMethodId === method.id && (
+                      <View style={styles.selectedIndicator}>
+                        <Ionicons
+                          name="checkmark"
+                          size={20}
+                          color={Colors.white}
+                        />
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })
             )}
           </View>
 
@@ -797,6 +830,29 @@ const styles = StyleSheet.create({
   },
   methodInfo: {
     flex: 1,
+  },
+  methodTypeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    marginBottom: Spacing.xs,
+  },
+  methodType: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.textSecondary,
+    textTransform: "uppercase",
+    fontWeight: Typography.fontWeight.medium,
+  },
+  primaryBadge: {
+    backgroundColor: Colors.success,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.sm,
+  },
+  primaryText: {
+    fontSize: 9,
+    color: Colors.white,
+    fontWeight: Typography.fontWeight.semiBold,
   },
   methodName: {
     fontSize: Typography.fontSize.base,

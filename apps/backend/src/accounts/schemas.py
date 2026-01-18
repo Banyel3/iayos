@@ -126,11 +126,11 @@ class WithdrawFundsSchema(Schema):
     notes: Optional[str] = None
 
 class AddPaymentMethodSchema(Schema):
-    """Schema for adding a payment method (GCash only)"""
-    type: Literal["GCASH"] = "GCASH"
+    """Schema for adding a payment method (GCash, Bank, PayPal)"""
+    type: Literal["GCASH", "BANK", "PAYPAL"]
     account_name: str
-    account_number: str
-    bank_name: Optional[str] = None
+    account_number: str  # GCash number, bank account number, or PayPal email
+    bank_name: Optional[str] = None  # Required for BANK type
 
 # ========================================
 # MOBILE-SPECIFIC SCHEMAS
