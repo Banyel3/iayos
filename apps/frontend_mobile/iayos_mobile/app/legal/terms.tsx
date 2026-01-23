@@ -130,7 +130,7 @@ export default function TermsOfServiceScreen() {
           <Text style={styles.paragraph}>
             <Text style={styles.bold}>Payment Methods:</Text> We accept GCash,
             wallet deposits, and cash payments (with admin verification). All
-            payments are processed securely through Xendit.
+            payments are processed securely through our payment partner.
           </Text>
           <Text style={styles.paragraph}>
             <Text style={styles.bold}>Worker Earnings:</Text> Workers receive

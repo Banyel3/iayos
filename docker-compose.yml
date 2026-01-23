@@ -22,6 +22,24 @@ services:
       timeout: 5s
       retries: 5
 
+  # Redis for Channel Layer, Caching, and Circuit Breaker State
+  redis:
+    image: redis:7-alpine
+    container_name: iayos-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - iayos-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    restart: unless-stopped
+
   # Django Backend
   backend:
     build:
@@ -36,13 +54,32 @@ services:
       DEBUG: ${DEBUG:-False}
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      # Payment Gateway Configuration
+      PAYMENT_PROVIDER: ${PAYMENT_PROVIDER:-paymongo}
+      PAYMONGO_SECRET_KEY: ${PAYMONGO_SECRET_KEY}
+      PAYMONGO_PUBLIC_KEY: ${PAYMONGO_PUBLIC_KEY}
+      PAYMONGO_WEBHOOK_SECRET: ${PAYMONGO_WEBHOOK_SECRET}
       XENDIT_API_KEY: ${XENDIT_API_KEY}
       XENDIT_WEBHOOK_TOKEN: ${XENDIT_WEBHOOK_TOKEN}
+      REDIS_URL: redis://redis:6379/0
+      DB_CONN_MAX_AGE: 60
+      DB_CONN_HEALTH_CHECKS: "true"
     ports:
       - "8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+        reservations:
+          cpus: "0.5"
+          memory: 256M
     volumes:
       - ./apps/backend/src:/app/backend
       - media_files:/app/backend/media
@@ -68,14 +105,23 @@ services:
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-change-me-in-production}
       DJANGO_SETTINGS_MODULE: core.settings
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      REDIS_URL: redis://redis:6379/0
     ports:
       - "8001:8001"
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - iayos-network
-    command: daphne -b 0.0.0.0 -p 8001 core.asgi:application
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+    command: daphne -b 0.0.0.0 -p 8001 iayos_project.asgi:application
 
   # Next.js Frontend
   frontend:
@@ -116,6 +162,7 @@ services:
 
 volumes:
   postgres_data:
+  redis_data:
   media_files:
   static_files:
 

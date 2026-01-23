@@ -42,7 +42,7 @@ export default function JobDetailPage() {
         `http://localhost:8000/api/adminpanel/jobs/listings/${jobId}`,
         {
           credentials: "include",
-        }
+        },
       );
       const data: JobDetailResponse = await response.json();
 
@@ -158,7 +158,7 @@ export default function JobDetailPage() {
                   <div>
                     <p className="text-xs text-muted-foreground">Budget</p>
                     <p className="font-semibold">
-                      ₱{job.budget.toLocaleString()}
+                      ₱{(job.budget ?? 0).toLocaleString()}
                     </p>
                   </div>
                 </div>
@@ -255,7 +255,7 @@ export default function JobDetailPage() {
                           </div>
                           <div className="text-right">
                             <p className="font-semibold">
-                              ₱{app.proposed_budget.toLocaleString()}
+                              ₱{(app.proposed_budget ?? 0).toLocaleString()}
                             </p>
                             <Badge variant="outline" className="text-xs">
                               {app.status}
@@ -444,7 +444,7 @@ export default function JobDetailPage() {
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Escrow (50%)</span>
                 <span className="font-semibold">
-                  ₱{job.escrow_amount.toLocaleString()}
+                  ₱{(job.escrow_amount ?? 0).toLocaleString()}
                 </span>
               </div>
               <div className="flex justify-between text-sm">
@@ -456,7 +456,7 @@ export default function JobDetailPage() {
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Remaining</span>
                 <span className="font-semibold">
-                  ₱{job.remaining_payment.toLocaleString()}
+                  ₱{(job.remaining_payment ?? 0).toLocaleString()}
                 </span>
               </div>
               <div className="flex justify-between text-sm">

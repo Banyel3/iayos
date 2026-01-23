@@ -21,6 +21,7 @@ from .schemas import (
     DepositFundsSchema,
     WithdrawFundsSchema,
     SendVerificationEmailSchema,
+    SendOTPEmailSchema,
     SwitchProfileSchema,
     AddPaymentMethodSchema,
     AddSkillSchema,
@@ -256,6 +257,286 @@ def mobile_send_verification_email(request, payload: SendVerificationEmailSchema
             {"error": "Failed to send verification email"},
             status=500
         )
+
+
+@mobile_router.post("/auth/send-otp-email")
+def mobile_send_otp_email(request, payload: SendOTPEmailSchema):
+    """
+    Send OTP verification email via Resend API.
+    This replaces the link-based verification with a 6-digit OTP code.
+    """
+    import requests
+    from django.conf import settings
+    
+    print(f"📧 [Mobile] Send OTP email request for: {payload.email}")
+    
+    try:
+        # Validate required environment variables
+        resend_api_key = settings.RESEND_API_KEY
+        if not resend_api_key:
+            print("❌ [Mobile] RESEND_API_KEY not configured")
+            return Response(
+                {"error": "Email service not configured"},
+                status=500
+            )
+        
+        # Generate OTP HTML email template
+        html_template = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Email Verification Code</title>
+        </head>
+        <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+            <table role="presentation" style="width: 100%; border-collapse: collapse;">
+                <tr>
+                    <td align="center" style="padding: 40px 0;">
+                        <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                            <tr>
+                                <td style="padding: 40px 30px; text-align: center;">
+                                    <h1 style="margin: 0 0 20px 0; color: #333333; font-size: 24px; font-weight: bold;">
+                                        Your Verification Code
+                                    </h1>
+                                    <p style="margin: 0 0 30px 0; color: #666666; font-size: 16px; line-height: 1.5;">
+                                        Use the following code to verify your email address:
+                                    </p>
+                                    <div style="display: inline-block; padding: 20px 40px; background-color: #f8f9fa; border-radius: 8px; margin-bottom: 30px;">
+                                        <span style="font-size: 36px; font-weight: bold; letter-spacing: 8px; color: #007bff;">
+                                            {payload.otp_code}
+                                        </span>
+                                    </div>
+                                    <p style="margin: 0 0 20px 0; color: #666666; font-size: 14px; line-height: 1.5;">
+                                        This code will expire in <strong>{payload.expires_in_minutes} minutes</strong>.
+                                    </p>
+                                    <p style="margin: 20px 0 0 0; color: #999999; font-size: 14px; line-height: 1.5;">
+                                        If you didn't request this code, you can safely ignore this email.
+                                    </p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 20px 30px; background-color: #f8f9fa; border-radius: 0 0 8px 8px;">
+                                    <p style="margin: 0; color: #999999; font-size: 12px; text-align: center;">
+                                        © 2026 iAyos. All rights reserved.
+                                    </p>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
+        </body>
+        </html>
+        """
+        
+        # Call Resend API
+        resend_url = f"{settings.RESEND_BASE_URL}/emails"
+        headers = {
+            "Authorization": f"Bearer {resend_api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        resend_payload = {
+            "from": "team@devante.online",
+            "to": [payload.email],
+            "subject": f"Your iAyos Verification Code: {payload.otp_code}",
+            "html": html_template
+        }
+        
+        print(f"📧 [Mobile] Sending OTP email to: {payload.email}")
+        response = requests.post(resend_url, headers=headers, json=resend_payload, timeout=10)
+        
+        if response.status_code == 200:
+            result = response.json()
+            print(f"✅ [Mobile] OTP email sent successfully. ID: {result.get('id')}")
+            return {
+                "success": True,
+                "messageId": result.get('id'),
+                "method": "resend-api-otp"
+            }
+        else:
+            print(f"❌ [Mobile] Resend API error: {response.status_code} - {response.text}")
+            return Response(
+                {
+                    "error": "Failed to send verification email",
+                    "details": response.text if settings.DEBUG else None
+                },
+                status=502
+            )
+            
+    except requests.exceptions.Timeout:
+        print("❌ [Mobile] Resend API timeout")
+        return Response(
+            {"error": "Email service timeout. Please try again."},
+            status=504
+        )
+    except Exception as e:
+        print(f"❌ [Mobile] Send OTP email exception: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to send verification email"},
+            status=500
+        )
+
+
+@mobile_router.get("/payment-verified", auth=None)
+def payment_verification_redirect(request, success: bool = True, method_id: int = None):
+    """
+    Auto-redirect page for PayMongo payment verification.
+    Automatically redirects back to the app using deep link, then closes browser.
+    This page is displayed after PayMongo redirects back.
+    """
+    from django.http import HttpResponse
+    
+    if success:
+        html = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Verification Complete</title>
+            <style>
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    min-height: 100vh;
+                    margin: 0;
+                    background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+                    color: white;
+                    text-align: center;
+                }
+                .container {
+                    padding: 40px;
+                    max-width: 400px;
+                }
+                .icon { font-size: 80px; margin-bottom: 20px; }
+                h1 { font-size: 24px; margin-bottom: 10px; }
+                p { font-size: 16px; opacity: 0.9; }
+                .close-hint {
+                    margin-top: 30px;
+                    padding: 15px 30px;
+                    background: rgba(255,255,255,0.2);
+                    border-radius: 25px;
+                    font-size: 14px;
+                    cursor: pointer;
+                }
+            </style>
+            <script>
+                // Try to return to the app immediately
+                function returnToApp() {
+                    // Try Expo deep link first
+                    window.location.href = 'iayosmobile://profile/payment-methods?verified=true';
+                }
+                
+                // Auto-trigger after a short delay
+                setTimeout(function() {
+                    returnToApp();
+                    
+                    // If still here after 1 second, try to close
+                    setTimeout(function() {
+                        if (window.ReactNativeWebView) {
+                            window.ReactNativeWebView.postMessage('close');
+                        }
+                        window.close();
+                        
+                        // Update hint if still visible
+                        setTimeout(function() {
+                            var hint = document.querySelector('.close-hint');
+                            if (hint) {
+                                hint.textContent = 'Tap here or "Done" to return to the app';
+                                hint.onclick = returnToApp;
+                            }
+                        }, 500);
+                    }, 1000);
+                }, 1500);
+            </script>
+        </head>
+        <body>
+            <div class="container">
+                <div class="icon">✓</div>
+                <h1>Verification Successful!</h1>
+                <p>Your GCash account has been verified. ₱1 has been credited to your wallet.</p>
+                <div class="close-hint" onclick="returnToApp()">Returning to app...</div>
+            </div>
+        </body>
+        </html>
+        """
+    else:
+        html = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Verification Failed</title>
+            <style>
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    min-height: 100vh;
+                    margin: 0;
+                    background: linear-gradient(135deg, #f44336 0%, #d32f2f 100%);
+                    color: white;
+                    text-align: center;
+                }
+                .container {
+                    padding: 40px;
+                    max-width: 400px;
+                }
+                .icon { font-size: 80px; margin-bottom: 20px; }
+                h1 { font-size: 24px; margin-bottom: 10px; }
+                p { font-size: 16px; opacity: 0.9; }
+                .close-hint {
+                    margin-top: 30px;
+                    padding: 15px 30px;
+                    background: rgba(255,255,255,0.2);
+                    border-radius: 25px;
+                    font-size: 14px;
+                    cursor: pointer;
+                }
+            </style>
+            <script>
+                function returnToApp() {
+                    window.location.href = 'iayosmobile://profile/payment-methods?verified=false';
+                }
+                
+                setTimeout(function() {
+                    returnToApp();
+                    
+                    setTimeout(function() {
+                        if (window.ReactNativeWebView) {
+                            window.ReactNativeWebView.postMessage('close');
+                        }
+                        window.close();
+                        
+                        setTimeout(function() {
+                            var hint = document.querySelector('.close-hint');
+                            if (hint) {
+                                hint.textContent = 'Tap here or "Done" to return to the app';
+                                hint.onclick = returnToApp;
+                            }
+                        }, 500);
+                    }, 1000);
+                }, 2000);
+            </script>
+        </head>
+        <body>
+            <div class="container">
+                <div class="icon">✗</div>
+                <h1>Verification Failed</h1>
+                <p>The payment was not completed. Please try adding your payment method again.</p>
+                <div class="close-hint" onclick="returnToApp()">Returning to app...</div>
+            </div>
+        </body>
+        </html>
+        """
+    
+    return HttpResponse(html, content_type='text/html')
 
 
 @mobile_router.get("/auth/profile", auth=jwt_auth)
@@ -2847,36 +3128,26 @@ def mobile_get_pending_earnings(request):
 @mobile_router.post("/wallet/deposit", auth=jwt_auth)
 def mobile_deposit_funds(request, payload: DepositFundsSchema):
     """
-    Mobile wallet deposit via Xendit GCash
-    Requires user to have a verified GCash payment method set up
-    TEST MODE: Transaction auto-approved, funds added immediately
+    Mobile wallet deposit via PayMongo QR PH
+    User scans QR code displayed in checkout and pays via any Philippine bank/e-wallet
+    
+    SECURE FLOW:
+    1. Create PENDING transaction (no balance change)
+    2. Redirect user to PayMongo checkout (shows QR PH code)
+    3. User scans QR and pays via any bank/e-wallet
+    4. Webhook confirms payment
+    5. Webhook handler adds funds to wallet
     """
     try:
-        from .models import Wallet, Transaction, Profile, UserPaymentMethod
-        from .xendit_service import XenditService
+        from .models import Wallet, Transaction, Profile
+        from .payment_provider import get_payment_provider
         from decimal import Decimal
         from django.utils import timezone
         
         amount = payload.amount
-        payment_method = "GCASH"  # Only GCash supported
+        payment_method = "QRPH"  # Universal QR payment - any PH bank/e-wallet
 
         print(f"📥 [Mobile] Deposit request: ₱{amount} via {payment_method} from {request.auth.email}")
-        
-        # Validate user has a GCash payment method set up
-        gcash_method = UserPaymentMethod.objects.filter(
-            accountFK=request.auth,
-            methodType='GCASH'
-        ).first()
-        
-        if not gcash_method:
-            return Response(
-                {
-                    "error": "No GCash payment method found",
-                    "error_code": "NO_PAYMENT_METHOD",
-                    "message": "Please add a GCash account before making deposits"
-                },
-                status=400
-            )
         
         if amount <= 0:
             return Response(
@@ -2913,57 +3184,64 @@ def mobile_deposit_funds(request, payload: DepositFundsSchema):
         
         print(f"💰 Current balance: ₱{wallet.balance}")
         
-        # TEST MODE: Add funds immediately
-        wallet.balance += Decimal(str(amount))
-        wallet.save()
-        
-        # Create completed transaction
+        # Create PENDING transaction - funds NOT added yet!
+        # Balance will be updated by webhook after payment is confirmed
         transaction = Transaction.objects.create(
             walletID=wallet,
             transactionType=Transaction.TransactionType.DEPOSIT,
             amount=Decimal(str(amount)),
-            balanceAfter=wallet.balance,
-            status=Transaction.TransactionStatus.COMPLETED,
+            balanceAfter=wallet.balance,  # Balance unchanged until payment confirmed
+            status=Transaction.TransactionStatus.PENDING,  # PENDING until webhook confirms
             description=f"TOP UP via {payment_method.upper()} - ₱{amount}",
             paymentMethod=payment_method,
-            completedAt=timezone.now()
         )
         
-        print(f"✅ New balance: ₱{wallet.balance}")
+        print(f"   Transaction {transaction.transactionID} created as PENDING")
+        print(f"   ⚠️ Funds will be added after payment confirmation")
         
-        # Create Xendit invoice
-        xendit_result = XenditService.create_gcash_payment(
+        # Create payment invoice using configured provider
+        payment_provider = get_payment_provider()
+        provider_name = payment_provider.provider_name
+        
+        payment_result = payment_provider.create_gcash_payment(
             amount=amount,
             user_email=request.auth.email,
             user_name=user_name,
             transaction_id=transaction.transactionID
         )
         
-        if not xendit_result.get("success"):
+        if not payment_result.get("success"):
+            # If payment provider fails, mark transaction as failed
+            transaction.status = Transaction.TransactionStatus.FAILED
+            transaction.description = f"TOP UP FAILED - ₱{amount} - {payment_result.get('error', 'Payment provider error')}"
+            transaction.save()
             return Response(
                 {"error": "Failed to create payment invoice"},
                 status=500
             )
         
-        # Update transaction with Xendit details
-        transaction.xenditInvoiceID = xendit_result['invoice_id']
-        transaction.xenditExternalID = xendit_result['external_id']
-        transaction.invoiceURL = xendit_result['invoice_url']
+        # Update transaction with payment provider details
+        transaction.xenditInvoiceID = payment_result.get('checkout_id') or payment_result.get('invoice_id')
+        transaction.xenditExternalID = payment_result.get('external_id')
+        transaction.invoiceURL = payment_result.get('checkout_url') or payment_result.get('invoice_url')
         transaction.xenditPaymentChannel = payment_method.upper()
-        transaction.xenditPaymentMethod = "EWALLET"
+        transaction.xenditPaymentMethod = provider_name.upper()
         transaction.save()
         
-        print(f"📄 Invoice created: {xendit_result['invoice_id']}")
+        print(f"📄 {provider_name.upper()} invoice created: {transaction.xenditInvoiceID}")
+        print(f"   ⏳ Waiting for user to complete payment...")
         
         return {
             "success": True,
             "transaction_id": transaction.transactionID,
-            "payment_url": xendit_result['invoice_url'],
-            "invoice_id": xendit_result['invoice_id'],
+            "payment_url": payment_result.get('checkout_url') or payment_result.get('invoice_url'),
+            "invoice_id": transaction.xenditInvoiceID,
             "amount": amount,
-            "new_balance": float(wallet.balance),
-            "expiry_date": xendit_result['expiry_date'],
-            "message": "Funds added successfully"
+            "current_balance": float(wallet.balance),  # Show current balance, not new
+            "expiry_date": payment_result.get('expiry_date'),
+            "provider": provider_name,
+            "status": "pending",
+            "message": "Payment invoice created. Complete payment to add funds to wallet."
         }
         
     except Exception as e:
@@ -2979,12 +3257,13 @@ def mobile_deposit_funds(request, payload: DepositFundsSchema):
 @mobile_router.post("/wallet/withdraw", auth=jwt_auth)
 def mobile_withdraw_funds(request, payload: WithdrawFundsSchema):
     """
-    Withdraw funds from wallet to GCash via Xendit Disbursement
-    Deducts balance immediately and creates disbursement request
+    Withdraw funds from wallet to GCash via PayMongo/Xendit Disbursement.
+    Uses configured payment provider (PayMongo by default, Xendit for legacy).
+    Deducts balance immediately and creates disbursement request.
     """
     try:
         from .models import Wallet, Transaction, Profile, UserPaymentMethod
-        from .xendit_service import XenditService
+        from .payment_provider import get_payment_provider
         from decimal import Decimal
         from django.utils import timezone
         from django.db import transaction as db_transaction
@@ -3037,10 +3316,11 @@ def mobile_withdraw_funds(request, payload: WithdrawFundsSchema):
                 status=404
             )
         
-        # Only GCash supported for now
-        if payment_method.methodType != 'GCASH':
+        # Validate payment method type
+        supported_types = ['GCASH', 'BANK', 'PAYPAL']
+        if payment_method.methodType not in supported_types:
             return Response(
-                {"error": "Only GCash withdrawals are currently supported"},
+                {"error": f"Unsupported payment method type: {payment_method.methodType}"},
                 status=400
             )
         
@@ -3073,26 +3353,61 @@ def mobile_withdraw_funds(request, payload: WithdrawFundsSchema):
             wallet.save()
             
             # Create pending withdrawal transaction
+            method_display = {
+                'GCASH': f'GCash - {payment_method.accountNumber}',
+                'BANK': f'Bank Transfer - {payment_method.bankName or "Bank"} {payment_method.accountNumber}',
+                'PAYPAL': f'PayPal - {payment_method.accountNumber}',
+                'VISA': f'Visa/Credit Card - ****{payment_method.accountNumber[-4:] if len(payment_method.accountNumber) >= 4 else payment_method.accountNumber}',
+                'GRABPAY': f'GrabPay - {payment_method.accountNumber}',
+                'MAYA': f'Maya - {payment_method.accountNumber}'
+            }.get(payment_method.methodType, f'{payment_method.methodType} - {payment_method.accountNumber}')
+            
             transaction = Transaction.objects.create(
                 walletID=wallet,
                 transactionType=Transaction.TransactionType.WITHDRAWAL,
                 amount=Decimal(str(amount)),
                 balanceAfter=wallet.balance,
                 status=Transaction.TransactionStatus.PENDING,
-                description=f"Withdrawal to GCash - {payment_method.accountNumber}",
-                paymentMethod="GCASH"
+                description=f"Withdrawal to {method_display}",
+                paymentMethod=payment_method.methodType
             )
             
             print(f"✅ New balance: ₱{wallet.balance}")
-            print(f"📤 Creating Xendit disbursement...")
             
-            # Create Xendit disbursement
-            disbursement_result = XenditService.create_disbursement(
+            # Map payment method type to channel code for PayMongo
+            channel_mapping = {
+                'GCASH': 'GCASH',
+                'BANK': 'BANK_TRANSFER',  # PayMongo InstaPay/PESONet
+                'PAYPAL': 'PAYPAL',  # For manual processing
+                'VISA': 'CARD',  # Credit/Debit card
+                'GRABPAY': 'GRABPAY',  # GrabPay e-wallet
+                'MAYA': 'PAYMAYA'  # Maya/PayMaya e-wallet
+            }
+            channel_code = channel_mapping.get(payment_method.methodType, 'GCASH')
+            
+            # Create disbursement using configured payment provider
+            payment_provider = get_payment_provider()
+            provider_name = payment_provider.provider_name
+            print(f"📤 Creating {provider_name.upper()} disbursement for {payment_method.methodType}...")
+            
+            # For BANK type, include bank name in metadata
+            metadata = {
+                "user_email": request.auth.email,
+                "user_name": user_name,
+                "payment_method_type": payment_method.methodType
+            }
+            if payment_method.methodType == 'BANK' and payment_method.bankName:
+                metadata["bank_name"] = payment_method.bankName
+            
+            disbursement_result = payment_provider.create_disbursement(
                 amount=amount,
+                currency="PHP",
                 recipient_name=payment_method.accountName,
                 account_number=payment_method.accountNumber,
+                channel_code=channel_code,
                 transaction_id=transaction.transactionID,
-                notes=notes or f"Withdrawal from iAyos Wallet - ₱{amount}"
+                description=notes or f"Withdrawal from iAyos Wallet - ₱{amount}",
+                metadata=metadata
             )
             
             if not disbursement_result.get("success"):
@@ -3106,50 +3421,45 @@ def mobile_withdraw_funds(request, payload: WithdrawFundsSchema):
                     status=500
                 )
             
-            # Update transaction with Xendit details
-            transaction.xenditInvoiceID = disbursement_result['disbursement_id']
-            transaction.xenditExternalID = disbursement_result['external_id']
-            transaction.xenditPaymentChannel = "GCASH"
-            transaction.xenditPaymentMethod = "DISBURSEMENT"
+            # Update transaction with provider details
+            transaction.xenditInvoiceID = disbursement_result.get('disbursement_id')
+            transaction.xenditExternalID = disbursement_result.get('external_id')
+            transaction.xenditPaymentChannel = channel_code
+            transaction.xenditPaymentMethod = provider_name.upper()
             
-            # Store invoice URL if available (for test mode)
-            invoice_url = disbursement_result.get('invoice_url')
-            if invoice_url:
-                transaction.invoiceURL = invoice_url
-            
-            # Mark as completed if disbursement is successful
-            if disbursement_result['status'] == 'COMPLETED':
-                transaction.status = Transaction.TransactionStatus.COMPLETED
-                transaction.completedAt = timezone.now()
-            
+            # Withdrawals always stay PENDING until manually processed
+            # This is production-ready: admin must manually send payment and mark complete
+            transaction.status = Transaction.TransactionStatus.PENDING
             transaction.save()
             
-            print(f"📄 Disbursement created: {disbursement_result['disbursement_id']}")
-            print(f"📊 Status: {disbursement_result['status']}")
-            if invoice_url:
-                print(f"🔗 Invoice URL (test mode): {invoice_url}")
+            print(f"📄 {provider_name.upper()} withdrawal request created: {disbursement_result.get('disbursement_id')}")
+            print(f"📊 Status: PENDING (requires admin approval)")
+            print(f"   Recipient: {payment_method.accountName} ({payment_method.accountNumber})")
+            print(f"   Method: {payment_method.methodType}")
+        
+        # Customize message based on payment method type
+        method_messages = {
+            'GCASH': "Your funds will be transferred to your GCash within 1-3 business days after verification.",
+            'BANK': f"Your funds will be transferred to your {payment_method.bankName or 'bank'} account within 1-3 business days after verification.",
+            'PAYPAL': "Your funds will be transferred to your PayPal account within 1-3 business days after verification."
+        }
+        success_message = method_messages.get(payment_method.methodType, "Your funds will be transferred within 1-3 business days after verification.")
         
         # Build response
         response_data = {
             "success": True,
             "transaction_id": transaction.transactionID,
-            "disbursement_id": disbursement_result['disbursement_id'],
+            "disbursement_id": disbursement_result.get('disbursement_id'),
             "amount": amount,
             "new_balance": float(wallet.balance),
-            "status": disbursement_result['status'],
+            "status": "PENDING",
             "recipient": payment_method.accountNumber,
             "recipient_name": payment_method.accountName,
-            "message": "Withdrawal request submitted successfully. Funds will be transferred to your GCash within 1-3 business days."
+            "payment_method_type": payment_method.methodType,
+            "provider": provider_name,
+            "message": f"Withdrawal request submitted successfully. {success_message}",
+            "estimated_arrival": "1-3 business days"
         }
-        
-        # Test mode: Include receipt URL so user can view Xendit receipt page
-        if disbursement_result.get('test_mode'):
-            response_data['test_mode'] = True
-            if disbursement_result.get('receipt_url'):
-                response_data['receipt_url'] = disbursement_result['receipt_url']
-                response_data['message'] = "TEST MODE: Withdrawal successful! Tap 'View Receipt' to see your transaction details on Xendit."
-            else:
-                response_data['message'] = "TEST MODE: Withdrawal successful! In production, funds would be sent to your GCash account."
         
         return response_data
         
@@ -3817,11 +4127,16 @@ def create_worker_profile(request):
 
 @mobile_router.get("/payment-methods", auth=jwt_auth)
 def get_payment_methods(request):
-    """Get user's payment methods for withdrawals"""
+    """Get user's verified payment methods for withdrawals"""
     try:
         from .models import UserPaymentMethod
         
-        methods = UserPaymentMethod.objects.filter(accountFK=request.auth)
+        # Only show verified payment methods
+        # Unverified methods are pending verification or were canceled
+        methods = UserPaymentMethod.objects.filter(
+            accountFK=request.auth,
+            isVerified=True
+        )
         
         payment_methods = []
         for method in methods:
@@ -3849,17 +4164,40 @@ def get_payment_methods(request):
 
 @mobile_router.post("/payment-methods", auth=jwt_auth)
 def add_payment_method(request, payload: AddPaymentMethodSchema):
-    """Add a new payment method"""
+    """
+    Add a new payment method for withdrawals.
+    
+    Supported types:
+    - GCASH: Requires ₱1 PayMongo verification
+    - BANK: Bank account (InstaPay/PESONet via PayMongo)
+    - PAYPAL: PayPal account (manual processing)
+    
+    GCASH Flow:
+    1. User submits GCash account details
+    2. We create a ₱1 verification checkout via PayMongo
+    3. User pays ₱1 using their GCash account
+    4. PayMongo webhook confirms payment + verifies account
+    5. ₱1 is credited to user's wallet as bonus
+    6. Payment method is marked as verified
+    
+    BANK/PAYPAL Flow:
+    1. User submits bank/PayPal account details
+    2. Account is added in unverified state
+    3. Admin manually verifies on first withdrawal
+    """
     try:
         from .models import UserPaymentMethod
         from django.db import transaction as db_transaction
+        from .paymongo_service import PayMongoService
+        from django.conf import settings
+        import re
         
         method_type = payload.type or 'GCASH'
 
-        # For now, only GCash is supported
-        if method_type != 'GCASH':
+        # Validate method type
+        if method_type not in ['GCASH', 'BANK', 'PAYPAL']:
             return Response(
-                {"error": "Invalid payment method type. Only GCash is supported."},
+                {"error": "Invalid payment method type. Supported: GCASH, BANK, PAYPAL"},
                 status=400
             )
         
@@ -3870,38 +4208,130 @@ def add_payment_method(request, payload: AddPaymentMethodSchema):
                 status=400
             )
 
-        # Validate and clean GCash number format
-        clean_number = payload.account_number.replace(' ', '').replace('-', '')
-        if not clean_number.startswith('09') or len(clean_number) != 11:
-            return Response(
-                {"error": "Invalid GCash number format (must be 11 digits starting with 09)"},
-                status=400
-            )
+        # Type-specific validation
+        if method_type == 'GCASH':
+            # Validate and clean GCash number format
+            clean_number = payload.account_number.replace(' ', '').replace('-', '')
+            if not clean_number.startswith('09') or len(clean_number) != 11:
+                return Response(
+                    {"error": "Invalid GCash number format (must be 11 digits starting with 09)"},
+                    status=400
+                )
+        elif method_type == 'BANK':
+            # Validate bank account number format (alphanumeric, 5-20 chars)
+            clean_number = payload.account_number.replace(' ', '').replace('-', '')
+            if not re.match(r'^[0-9]{5,20}$', clean_number):
+                return Response(
+                    {"error": "Invalid bank account number format (5-20 digits)"},
+                    status=400
+                )
+            # Bank name is required for bank accounts
+            if not payload.bank_name:
+                return Response(
+                    {"error": "Bank name is required for bank accounts"},
+                    status=400
+                )
+        elif method_type == 'PAYPAL':
+            # Validate PayPal email format
+            clean_number = payload.account_number.strip().lower()
+            email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+            if not re.match(email_regex, clean_number):
+                return Response(
+                    {"error": "Invalid PayPal email format"},
+                    status=400
+                )
+        else:
+            clean_number = payload.account_number
+        
+        # Check for duplicate account number
+        existing = UserPaymentMethod.objects.filter(
+            accountFK=request.auth,
+            methodType=method_type,
+            accountNumber=clean_number
+        ).first()
+        
+        if existing:
+            if existing.isVerified:
+                return Response(
+                    {"error": f"This {method_type.lower()} account is already verified on your account"},
+                    status=400
+                )
+            else:
+                # Delete unverified duplicate and create new
+                existing.delete()
         
         with db_transaction.atomic():
-            # Check if this is the first payment method (auto-set as primary)
+            # Check if this is the first payment method
             has_existing = UserPaymentMethod.objects.filter(accountFK=request.auth).exists()
             is_first = not has_existing
             
             # Create payment method
+            # Only GCASH requires verification, BANK and PAYPAL are manually verified by admin
+            is_verified = (method_type in ['BANK', 'PAYPAL'])
+            
             method = UserPaymentMethod.objects.create(
                 accountFK=request.auth,
-                methodType='GCASH',
+                methodType=method_type,
                 accountName=payload.account_name,
                 accountNumber=clean_number,
-                bankName=None,
-                isPrimary=is_first,  # First one is automatically primary
-                isVerified=False  # Will be verified by admin
+                bankName=payload.bank_name if method_type == 'BANK' else None,
+                isPrimary=is_first,
+                isVerified=is_verified
             )
             
-            print(f"✅ Payment method added: {method.methodType} for {request.auth.email}")
+            print(f"📱 Payment method created ({'verified' if is_verified else 'pending verification'}): {method.id} ({method_type}) for {request.auth.email}")
+        
+        # Only GCASH requires PayMongo verification
+        if method_type != 'GCASH':
+            return {
+                'success': True,
+                'message': f'{method_type} account added successfully',
+                'method_id': method.id,
+                'verification_required': False,
+                'is_verified': is_verified,
+                'note': 'Your account will be verified on your first withdrawal request' if method_type in ['BANK', 'PAYPAL'] else None
+            }
+        
+        # Create PayMongo verification checkout for GCASH
+        paymongo = PayMongoService()
+        
+        # Use the mobile API URL for redirects - must be accessible from user's phone
+        # Redirect to our success/failure page that shows a nice message
+        import os
+        api_url = os.getenv('EXPO_PUBLIC_API_URL', 'http://localhost:8000').strip('"').strip("'")
+        
+        print(f"📱 Using API URL for redirects: {api_url}")
+        
+        result = paymongo.create_verification_checkout(
+            user_email=request.auth.email,
+            user_name=payload.account_name,
+            payment_method_id=method.id,
+            account_number=clean_number,
+            success_url=f"{api_url}/api/mobile/payment-verified?success=true&method_id={method.id}",
+            failure_url=f"{api_url}/api/mobile/payment-verified?success=false&method_id={method.id}"
+        )
+        
+        if not result.get("success"):
+            # Cleanup the pending method if checkout creation failed
+            method.delete()
+            return Response(
+                {"error": result.get("error", "Failed to create verification checkout")},
+                status=500
+            )
+        
+        print(f"✅ Verification checkout created for method {method.id}: {result.get('checkout_id')}")
         
         return {
             'success': True,
-            'message': 'Payment method added successfully',
+            'message': 'Please complete GCash verification to activate this payment method',
             'method_id': method.id,
-            'is_primary': method.isPrimary
+            'verification_required': True,
+            'checkout_url': result.get('checkout_url'),
+            'checkout_id': result.get('checkout_id'),
+            'verification_amount': 1.00,
+            'note': 'The ₱1 verification fee will be credited to your wallet after successful verification'
         }
+        
     except Exception as e:
         print(f"❌ Add payment method error: {str(e)}")
         import traceback

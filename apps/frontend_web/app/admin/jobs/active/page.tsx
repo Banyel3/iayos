@@ -70,7 +70,7 @@ export default function ActiveJobsPage() {
         `http://localhost:8000/api/adminpanel/jobs/listings?page=${page}&page_size=20&status=IN_PROGRESS`,
         {
           credentials: "include",
-        }
+        },
       );
       const data = await response.json();
       if (data.success) {
@@ -203,7 +203,7 @@ export default function ActiveJobsPage() {
                   Total Budget
                 </p>
                 <p className="text-3xl font-bold text-purple-600">
-                  ₱{totalBudget.toLocaleString()}
+                  ₱{(totalBudget ?? 0).toLocaleString()}
                 </p>
               </CardContent>
             </Card>
@@ -335,7 +335,7 @@ export default function ActiveJobsPage() {
                             <p className="font-semibold text-gray-900">
                               {new Date(job.created_at).toLocaleDateString(
                                 "en-US",
-                                { month: "short", day: "numeric" }
+                                { month: "short", day: "numeric" },
                               )}
                             </p>
                           </div>
@@ -353,7 +353,7 @@ export default function ActiveJobsPage() {
                               {Math.ceil(
                                 (new Date().getTime() -
                                   new Date(job.created_at).getTime()) /
-                                  (1000 * 60 * 60 * 24)
+                                  (1000 * 60 * 60 * 24),
                               )}{" "}
                               days
                             </p>

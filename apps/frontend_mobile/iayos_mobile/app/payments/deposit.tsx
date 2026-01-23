@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -8,10 +8,14 @@ import {
   ActivityIndicator,
   Alert,
   TextInput,
+  Share,
+  Linking,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { WebView } from "react-native-webview";
+import * as FileSystem from "expo-file-system";
+import * as MediaLibrary from "expo-media-library";
 import {
   Colors,
   Typography,
@@ -25,16 +29,15 @@ import {
   WalletDepositResponse,
 } from "../../lib/hooks/usePayments";
 import WalletBalanceCard from "../../components/WalletBalanceCard";
-import { useQuery } from "@tanstack/react-query";
-import { apiRequest, ENDPOINTS } from "@/lib/api/config";
 
 /**
  * Wallet Deposit Screen
  *
- * Allows users to deposit funds to wallet via Xendit:
+ * Allows users to deposit funds to wallet via QR PH:
  * - Enter deposit amount
- * - Create Xendit invoice
- * - Display WebView for payment
+ * - Create PayMongo checkout session
+ * - Display WebView for payment (QR code shown)
+ * - Option to download/share QR code for mobile users
  * - Detect payment success/failure
  * - Update wallet balance
  *
@@ -54,44 +57,6 @@ export default function WalletDepositScreen() {
 
   const { data: walletBalance, refetch: refetchBalance } = useWalletBalance();
   const depositMutation = useWalletDeposit();
-
-  // Fetch payment methods to check if user has GCash set up
-  const { data: paymentMethodsData, isLoading: paymentMethodsLoading } =
-    useQuery({
-      queryKey: ["payment-methods"],
-      queryFn: async () => {
-        const response = await apiRequest(ENDPOINTS.PAYMENT_METHODS);
-        if (!response.ok) throw new Error("Failed to fetch payment methods");
-        const data = await response.json();
-        return data; // Return the full response object with payment_methods property
-      },
-    });
-
-  const hasGCashMethod = paymentMethodsData?.payment_methods?.some(
-    (method: any) => method.type === "GCASH"
-  );
-
-  // Check if user has GCash payment method on mount
-  useEffect(() => {
-    if (!paymentMethodsLoading && paymentMethodsData && !hasGCashMethod) {
-      Alert.alert(
-        "GCash Account Required",
-        "You need to add a GCash account before you can deposit funds. Would you like to add one now?",
-        [
-          {
-            text: "Cancel",
-            onPress: () => router.back(),
-            style: "cancel",
-          },
-          {
-            text: "Add GCash Account",
-            onPress: () => router.push("/profile/payment-methods" as any),
-          },
-        ],
-        { cancelable: false }
-      );
-    }
-  }, [paymentMethodsData, paymentMethodsLoading, hasGCashMethod]);
 
   // Preset amounts
   const presetAmounts = [100, 200, 500, 1000, 2000, 5000];
@@ -133,7 +98,7 @@ export default function WalletDepositScreen() {
   };
 
   const getInvoiceUrl = (
-    response: WalletDepositResponse | null | undefined
+    response: WalletDepositResponse | null | undefined,
   ) => {
     return (
       response?.payment_url ||
@@ -149,9 +114,7 @@ export default function WalletDepositScreen() {
     isNaN(parsedAmount) ||
     parsedAmount < 100 ||
     parsedAmount > 100000 ||
-    isProcessing ||
-    paymentMethodsLoading ||
-    !hasGCashMethod;
+    isProcessing;
   const formattedDepositAmount = !isNaN(parsedAmount)
     ? formatCurrency(parsedAmount)
     : formatCurrency(0);
@@ -170,26 +133,14 @@ export default function WalletDepositScreen() {
       return;
     }
 
-    // Final check before deposit
-    if (!hasGCashMethod) {
-      Alert.alert(
-        "GCash Account Required",
-        "Please add a GCash account first",
-        [
-          {
-            text: "Add GCash Account",
-            onPress: () => router.push("/profile/payment-methods" as any),
-          },
-        ]
-      );
-      return;
-    }
-
     let redirectedToWebView = false;
 
     try {
       setIsProcessing(true);
-      const response = await depositMutation.mutateAsync(amount);
+      // QR PH payment - no payment method selection needed
+      const response = await depositMutation.mutateAsync({
+        amount,
+      });
       const invoiceUrl = getInvoiceUrl(response);
       setPendingDeposit(amount);
       setAmountError(null);
@@ -216,7 +167,7 @@ export default function WalletDepositScreen() {
               router.back();
             },
           },
-        ]
+        ],
       );
     } catch (error: any) {
       const message =
@@ -264,7 +215,7 @@ export default function WalletDepositScreen() {
               router.back();
             },
           },
-        ]
+        ],
       );
       return;
     }
@@ -278,7 +229,7 @@ export default function WalletDepositScreen() {
       Alert.alert(
         "Deposit Failed",
         "Your deposit could not be processed. Please try again.",
-        [{ text: "OK" }]
+        [{ text: "OK" }],
       );
     }
   };
@@ -300,11 +251,53 @@ export default function WalletDepositScreen() {
               setWebViewHandled(false);
             },
           },
-        ]
+        ],
       );
     } else {
       router.back();
     }
+  };
+
+  const handleSharePaymentLink = async () => {
+    if (!xenditUrl) return;
+    try {
+      await Share.share({
+        message: `Please scan this QR code to complete my deposit payment:\n${xenditUrl}`,
+        url: xenditUrl,
+        title: "Share Payment Link",
+      });
+    } catch (error) {
+      console.error("Error sharing:", error);
+    }
+  };
+
+  const handleOpenInBrowser = async () => {
+    if (!xenditUrl) return;
+    try {
+      await Linking.openURL(xenditUrl);
+    } catch (error) {
+      Alert.alert("Error", "Could not open browser");
+    }
+  };
+
+  const handleSaveQROptions = () => {
+    Alert.alert("Save QR Code", "Choose how you'd like to save the QR code:", [
+      {
+        text: "Open in Browser",
+        onPress: () => {
+          // Open in browser where user can long-press to save QR image
+          handleOpenInBrowser();
+        },
+      },
+      {
+        text: "Share Link",
+        onPress: handleSharePaymentLink,
+      },
+      {
+        text: "Cancel",
+        style: "cancel",
+      },
+    ]);
   };
 
   // If WebView is active, show payment screen
@@ -316,7 +309,38 @@ export default function WalletDepositScreen() {
             <Ionicons name="close" size={24} color={Colors.textPrimary} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Complete Payment</Text>
-          <View style={{ width: 40 }} />
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              onPress={handleSaveQROptions}
+              style={styles.headerActionButton}
+            >
+              <Ionicons
+                name="download-outline"
+                size={22}
+                color={Colors.primary}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleSharePaymentLink}
+              style={styles.headerActionButton}
+            >
+              <Ionicons name="share-outline" size={22} color={Colors.primary} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Tip for mobile users */}
+        <View style={styles.mobileTipBar}>
+          <Ionicons
+            name="information-circle"
+            size={16}
+            color={Colors.primary}
+          />
+          <Text style={styles.mobileTipText}>
+            Tap <Text style={{ fontWeight: "600" }}>Download</Text> to save QR,
+            or <Text style={{ fontWeight: "600" }}>Share</Text> to send to
+            another device
+          </Text>
         </View>
 
         <WebView
@@ -411,30 +435,21 @@ export default function WalletDepositScreen() {
           </View>
         </View>
 
-        {/* Payment Method Info */}
+        {/* QR PH Payment Info */}
         <View style={styles.infoCard}>
           <View style={styles.infoHeader}>
-            <Ionicons
-              name="information-circle"
-              size={24}
-              color={Colors.primary}
-            />
-            <Text style={styles.infoTitle}>Payment Method - GCash Only</Text>
+            <Ionicons name="qr-code" size={24} color={Colors.primary} />
+            <Text style={styles.infoTitle}>QR PH Payment</Text>
           </View>
           <Text style={styles.infoText}>
-            {
-              "You will be redirected to Xendit's secure payment page to complete your deposit via GCash. Make sure you have a GCash account added to your profile."
-            }
+            You'll be shown a QR code that you can scan with any Philippine
+            banking app (GCash, Maya, BPI, BDO, UnionBank, etc.) to complete
+            your deposit.
           </Text>
-          {!hasGCashMethod && !paymentMethodsLoading && (
-            <TouchableOpacity
-              style={styles.addMethodButton}
-              onPress={() => router.push("/profile/payment-methods" as any)}
-            >
-              <Ionicons name="add-circle" size={20} color={Colors.white} />
-              <Text style={styles.addMethodButtonText}>Add GCash Account</Text>
-            </TouchableOpacity>
-          )}
+          <Text style={[styles.infoText, { marginTop: Spacing.sm }]}>
+            Since you're on your phone, you can save or share the QR code to
+            scan from another device.
+          </Text>
         </View>
 
         {/* Deposit Button */}
@@ -643,5 +658,37 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.base,
     color: Colors.textSecondary,
     marginTop: Spacing.md,
+  },
+  shareButton: {
+    padding: Spacing.xs,
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  headerActionButton: {
+    padding: Spacing.xs,
+  },
+  mobileTipBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.primary + "15",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    gap: Spacing.xs,
+  },
+  mobileTipText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.primary,
+    flex: 1,
+  },
+  backButton: {
+    padding: Spacing.xs,
+  },
+  headerTitle: {
+    fontSize: Typography.fontSize.lg,
+    fontWeight: Typography.fontWeight.semiBold as any,
+    color: Colors.textPrimary,
   },
 });

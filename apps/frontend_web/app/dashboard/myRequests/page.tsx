@@ -450,7 +450,7 @@ const MyRequestsPage = () => {
             `💰 Job Created - Payment Required\n\n` +
               `Job: ${pendingJobData.title}\n` +
               `Escrow Payment (50%): ₱${data.escrow_amount?.toFixed(2)}\n\n` +
-              `You will be redirected to Xendit to complete the payment via GCash.\n` +
+              `You will be redirected to complete your payment via GCash.\n` +
               `Your job will be activated once payment is confirmed.`
           );
 
@@ -570,7 +570,7 @@ const MyRequestsPage = () => {
         `Job: ${jobPostForm.title}\n` +
         `Total Budget: ₱${budgetAmount.toFixed(2)}\n` +
         `50% Downpayment (Escrow): ₱${downpayment.toFixed(2)}\n\n` +
-        `You will be redirected to Xendit to pay the escrow amount via GCash.\n` +
+        `You will be redirected to pay the escrow amount via GCash.\n` +
         `The downpayment will be held in escrow and released to the worker upon job completion.\n\n` +
         `Continue to payment?`
     );
@@ -617,7 +617,7 @@ const MyRequestsPage = () => {
             `💰 Job Created - Payment Required\n\n` +
               `Job: ${jobPostForm.title}\n` +
               `Escrow Payment (50%): ₱${data.escrow_amount?.toFixed(2)}\n\n` +
-              `You will be redirected to Xendit to complete the payment via GCash.\n` +
+              `You will be redirected to complete your payment via GCash.\n` +
               `Your job will be activated once payment is confirmed.`
           );
 
@@ -3543,7 +3543,7 @@ const MyRequestsPage = () => {
                           Pay with GCash
                         </span>
                         <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
-                          via Xendit
+                          Online Payment
                         </span>
                       </div>
                       <p className="text-sm text-gray-600">

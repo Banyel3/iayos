@@ -67,7 +67,7 @@ export default function DisputesPage() {
 
       const response = await fetch(
         `http://localhost:8000/api/adminpanel/transactions/disputes?${params}`,
-        { credentials: "include" }
+        { credentials: "include" },
       );
 
       if (!response.ok) throw new Error("Failed to fetch disputes");
@@ -85,7 +85,7 @@ export default function DisputesPage() {
     try {
       const response = await fetch(
         "http://localhost:8000/api/adminpanel/transactions/disputes/statistics",
-        { credentials: "include" }
+        { credentials: "include" },
       );
 
       if (!response.ok) throw new Error("Failed to fetch statistics");
@@ -345,7 +345,7 @@ export default function DisputesPage() {
                           Disputed Amount
                         </p>
                         <p className="text-xl font-bold text-orange-900">
-                          ₱{dispute.amount.toLocaleString()}
+                          ₱{(dispute.amount ?? 0).toLocaleString()}
                         </p>
                       </div>
 

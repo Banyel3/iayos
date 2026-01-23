@@ -10,7 +10,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Colors, Typography, BorderRadius, Spacing } from "../constants/theme";
 
 interface PaymentMethodButtonProps {
-  method: "gcash" | "wallet" | "cash";
+  method: "wallet" | "cash" | string; // gcash deprecated, but kept for backwards compatibility
   label: string;
   description: string;
   icon: keyof typeof Ionicons.glyphMap;

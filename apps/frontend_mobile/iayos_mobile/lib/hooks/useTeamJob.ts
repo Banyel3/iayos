@@ -83,13 +83,15 @@ export interface TeamJobApplication {
 export function useTeamJobDetail(jobId: number, enabled: boolean = true) {
   return useQuery<TeamJobDetail>({
     queryKey: ["team-job", jobId],
-    queryFn: async () => {
+    queryFn: async (): Promise<TeamJobDetail> => {
       const response = await apiRequest(ENDPOINTS.TEAM_JOB_DETAIL(jobId));
       if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
+        const error = (await response.json().catch(() => ({}))) as {
+          error?: string;
+        };
         throw new Error(error.error || "Failed to fetch team job details");
       }
-      return response.json();
+      return response.json() as Promise<TeamJobDetail>;
     },
     enabled: enabled && jobId > 0,
   });
@@ -128,10 +130,14 @@ export function useApplyToSkillSlot() {
             budget_option: budgetOption,
             estimated_duration: estimatedDuration,
           }),
-        }
+        },
       );
 
-      const data = await response.json();
+      const data = (await response.json()) as {
+        success?: boolean;
+        error?: string;
+        message?: string;
+      };
       if (!response.ok) {
         throw new Error(data.error || "Failed to submit application");
       }
@@ -140,7 +146,7 @@ export function useApplyToSkillSlot() {
     onSuccess: (data, variables) => {
       Alert.alert(
         "Application Submitted!",
-        data.message || "Your application has been submitted successfully."
+        data.message || "Your application has been submitted successfully.",
       );
       queryClient.invalidateQueries({
         queryKey: ["team-job", variables.jobId],
@@ -172,10 +178,15 @@ export function useAcceptTeamApplication() {
     }) => {
       const response = await apiRequest(
         ENDPOINTS.TEAM_ACCEPT_APPLICATION(jobId, applicationId),
-        { method: "POST" }
+        { method: "POST" },
       );
 
-      const data = await response.json();
+      const data = (await response.json()) as {
+        success?: boolean;
+        error?: string;
+        message?: string;
+        worker_name?: string;
+      };
       if (!response.ok) {
         throw new Error(data.error || "Failed to accept application");
       }
@@ -184,7 +195,8 @@ export function useAcceptTeamApplication() {
     onSuccess: (data, variables) => {
       Alert.alert(
         "Worker Assigned!",
-        data.message || `${data.worker_name} has been assigned to the team.`
+        data.message ||
+          `${data.worker_name || "Worker"} has been assigned to the team.`,
       );
       queryClient.invalidateQueries({
         queryKey: ["team-job", variables.jobId],
@@ -223,10 +235,14 @@ export function useRejectTeamApplication() {
         {
           method: "POST",
           body: JSON.stringify({ reason }),
-        }
+        },
       );
 
-      const data = await response.json();
+      const data = (await response.json()) as {
+        success?: boolean;
+        error?: string;
+        message?: string;
+      };
       if (!response.ok) {
         throw new Error(data.error || "Failed to reject application");
       }
@@ -235,7 +251,7 @@ export function useRejectTeamApplication() {
     onSuccess: (data, variables) => {
       Alert.alert(
         "Application Rejected",
-        data.message || "The application has been rejected."
+        data.message || "The application has been rejected.",
       );
       queryClient.invalidateQueries({
         queryKey: ["team-job", variables.jobId],
@@ -271,10 +287,14 @@ export function useWorkerCompleteAssignment() {
         {
           method: "POST",
           body: JSON.stringify({ completion_notes: completionNotes }),
-        }
+        },
       );
 
-      const data = await response.json();
+      const data = (await response.json()) as {
+        success?: boolean;
+        error?: string;
+        message?: string;
+      };
       if (!response.ok) {
         throw new Error(data.error || "Failed to mark assignment complete");
       }
@@ -283,7 +303,7 @@ export function useWorkerCompleteAssignment() {
     onSuccess: (data, variables) => {
       Alert.alert(
         "Marked Complete!",
-        data.message || "Your assignment has been marked as complete."
+        data.message || "Your assignment has been marked as complete.",
       );
       queryClient.invalidateQueries({
         queryKey: ["team-job", variables.jobId],
@@ -318,10 +338,14 @@ export function useClientApproveTeamJob() {
         {
           method: "POST",
           body: JSON.stringify({ ratings }),
-        }
+        },
       );
 
-      const data = await response.json();
+      const data = (await response.json()) as {
+        success?: boolean;
+        error?: string;
+        message?: string;
+      };
       if (!response.ok) {
         throw new Error(data.error || "Failed to approve team job");
       }
@@ -330,7 +354,7 @@ export function useClientApproveTeamJob() {
     onSuccess: (data, variables) => {
       Alert.alert(
         "Job Completed!",
-        data.message || "The team job has been marked as complete. Thank you!"
+        data.message || "The team job has been marked as complete. Thank you!",
       );
       queryClient.invalidateQueries({
         queryKey: ["team-job", variables.jobId],
@@ -359,7 +383,11 @@ export function useStartTeamJobWithAvailable() {
         method: "POST",
       });
 
-      const data = await response.json();
+      const data = (await response.json()) as {
+        success?: boolean;
+        error?: string;
+        message?: string;
+      };
       if (!response.ok) {
         throw new Error(data.error || "Failed to start team job");
       }
@@ -368,7 +396,7 @@ export function useStartTeamJobWithAvailable() {
     onSuccess: (data, variables) => {
       Alert.alert(
         "Team Job Started!",
-        data.message || "The team job has started with available workers."
+        data.message || "The team job has started with available workers.",
       );
       queryClient.invalidateQueries({
         queryKey: ["team-job", variables.jobId],
@@ -390,13 +418,21 @@ export function useStartTeamJobWithAvailable() {
 export function useTeamJobApplications(jobId: number, enabled: boolean = true) {
   return useQuery<{ applications: TeamJobApplication[]; total: number }>({
     queryKey: ["team-job-applications", jobId],
-    queryFn: async () => {
+    queryFn: async (): Promise<{
+      applications: TeamJobApplication[];
+      total: number;
+    }> => {
       const response = await apiRequest(ENDPOINTS.TEAM_JOB_APPLICATIONS(jobId));
       if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
+        const error = (await response.json().catch(() => ({}))) as {
+          error?: string;
+        };
         throw new Error(error.error || "Failed to fetch team job applications");
       }
-      return response.json();
+      return response.json() as Promise<{
+        applications: TeamJobApplication[];
+        total: number;
+      }>;
     },
     enabled: enabled && jobId > 0,
   });

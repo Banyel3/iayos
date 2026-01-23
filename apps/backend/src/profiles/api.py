@@ -190,12 +190,20 @@ def get_wallet_balance(request):
 @router.post("/wallet/deposit", auth=cookie_auth)
 def deposit_funds(request, data: DepositFundsSchema):
     """
-    Create a Xendit payment invoice for wallet deposit
-    TEST MODE: Transaction auto-approved, funds added immediately
-    Returns payment URL for user to see Xendit page
+    Create a payment invoice for wallet deposit.
+    Uses configured payment provider (PayMongo by default, Xendit for legacy).
+    
+    SECURE FLOW:
+    1. Create PENDING transaction (no balance change)
+    2. Redirect user to PayMongo/Xendit checkout
+    3. User pays via GCash/Card
+    4. Webhook confirms payment
+    5. Webhook handler adds funds to wallet
+    
+    Returns payment URL for user to complete payment.
     """
     try:
-        from accounts.xendit_service import XenditService
+        from accounts.payment_provider import get_payment_provider
         
         amount = data.amount
         payment_method = data.payment_method
@@ -224,60 +232,65 @@ def deposit_funds(request, data: DepositFundsSchema):
         print(f"💰 Processing deposit for {user_name}")
         print(f"   Current balance: ₱{wallet.balance}")
         
-        # TEST MODE: Add funds immediately and mark as completed
-        wallet.balance += Decimal(str(amount))
-        wallet.save()
-        
-        # Create completed transaction (auto-approved in TEST MODE)
+        # Create PENDING transaction - funds NOT added yet!
+        # Balance will be updated by webhook after payment is confirmed
         transaction = Transaction.objects.create(
             walletID=wallet,
             transactionType=Transaction.TransactionType.DEPOSIT,
             amount=Decimal(str(amount)),
-            balanceAfter=wallet.balance,
-            status=Transaction.TransactionStatus.COMPLETED,
+            balanceAfter=wallet.balance,  # Balance unchanged until payment confirmed
+            status=Transaction.TransactionStatus.PENDING,  # PENDING until webhook confirms
             description=f"TOP UP via GCASH - ₱{amount}",
             paymentMethod=Transaction.PaymentMethod.GCASH,
-            completedAt=timezone.now()
         )
         
-        print(f"   New balance: ₱{wallet.balance}")
-        print(f"✅ Funds added immediately! Transaction {transaction.transactionID}")
+        print(f"   Transaction {transaction.transactionID} created as PENDING")
+        print(f"   ⚠️ Funds will be added after payment confirmation")
         
-        # Create Xendit invoice for user experience
-        print(f"🔄 Creating Xendit invoice...")
-        xendit_result = XenditService.create_gcash_payment(
+        # Create payment invoice using configured provider
+        payment_provider = get_payment_provider()
+        provider_name = payment_provider.provider_name
+        print(f"🔄 Creating payment invoice via {provider_name.upper()}...")
+        
+        payment_result = payment_provider.create_gcash_payment(
             amount=amount,
             user_email=request.auth.email,
             user_name=user_name,
             transaction_id=transaction.transactionID
         )
         
-        if not xendit_result.get("success"):
-            # If Xendit fails, funds are still added but return error
+        if not payment_result.get("success"):
+            # If payment provider fails, mark transaction as failed
+            transaction.status = Transaction.TransactionStatus.FAILED
+            transaction.description = f"TOP UP FAILED - ₱{amount} - {payment_result.get('error', 'Payment provider error')}"
+            transaction.save()
             return Response(
-                {"error": "Failed to create payment invoice", "details": xendit_result.get("error")},
+                {"error": "Failed to create payment invoice", "details": payment_result.get("error")},
                 status=500
             )
         
-        # Update transaction with Xendit details
-        transaction.xenditInvoiceID = xendit_result['invoice_id']
-        transaction.xenditExternalID = xendit_result['external_id']
-        transaction.invoiceURL = xendit_result['invoice_url']
+        # Update transaction with payment provider details
+        transaction.xenditInvoiceID = payment_result.get('checkout_id') or payment_result.get('invoice_id')
+        transaction.xenditExternalID = payment_result.get('external_id')
+        transaction.invoiceURL = payment_result.get('checkout_url') or payment_result.get('invoice_url')
         transaction.xenditPaymentChannel = "GCASH"
-        transaction.xenditPaymentMethod = "EWALLET"
+        transaction.xenditPaymentMethod = provider_name.upper()
         transaction.save()
         
-        print(f"📄 Xendit invoice created: {xendit_result['invoice_id']}")
+        print(f"📄 {provider_name.upper()} invoice created: {transaction.xenditInvoiceID}")
+        print(f"   ⏳ Waiting for user to complete payment...")
         
         return {
             "success": True,
             "transaction_id": transaction.transactionID,
-            "payment_url": xendit_result['invoice_url'],
-            "invoice_id": xendit_result['invoice_id'],
+            "payment_url": payment_result.get('checkout_url') or payment_result.get('invoice_url'),
+            "invoice_id": transaction.xenditInvoiceID,
             "amount": amount,
-            "new_balance": float(wallet.balance),
-            "expiry_date": xendit_result['expiry_date'],
-            "message": "Funds added and payment invoice created"
+            "current_balance": float(wallet.balance),  # Show current balance, not new
+            "expiry_date": payment_result.get('expiry_date'),
+            "provider": provider_name,
+            "status": "pending",
+            "message": "Payment invoice created. Complete payment to add funds to wallet."
         }
         
     except Exception as e:
@@ -293,12 +306,11 @@ def deposit_funds(request, data: DepositFundsSchema):
 @router.post("/wallet/withdraw", auth=cookie_auth)
 def withdraw_funds(request, amount: float, payment_method_id: int, notes: str = ""):
     """
-    Withdraw funds from wallet with Xendit order summary display
-    TEST MODE: Funds deducted immediately, creates Xendit invoice for receipt/UX
-    Similar to deposit flow - shows order summary page instead of disbursement
+    Withdraw funds from wallet via PayMongo/Xendit disbursement.
+    Uses configured payment provider (PayMongo by default, Xendit for legacy).
     """
     try:
-        from accounts.xendit_service import XenditService
+        from accounts.payment_provider import get_payment_provider
         from accounts.models import PaymentMethod
         
         print(f"📤 Withdrawal request received: amount={amount}, payment_method_id={payment_method_id}")
@@ -375,50 +387,54 @@ def withdraw_funds(request, amount: float, payment_method_id: int, notes: str = 
         )
         
         print(f"   New balance: ₱{wallet.balance}")
-        print(f"✅ Funds deducted immediately! Transaction {transaction.transactionID}")
+        print(f"✅ Funds deducted! Transaction {transaction.transactionID}")
         
-        # Create Xendit invoice for order summary/receipt display
-        print(f"🔄 Creating Xendit order summary...")
-        xendit_result = XenditService.create_withdrawal_receipt(
+        # Create disbursement using configured payment provider
+        payment_provider = get_payment_provider()
+        provider_name = payment_provider.provider_name
+        print(f"🔄 Creating {provider_name.upper()} disbursement...")
+        
+        disbursement_result = payment_provider.create_disbursement(
             amount=amount,
-            user_email=request.auth.email,
-            user_name=user_name,
+            currency="PHP",
+            recipient_name=payment_method.accountName,
+            account_number=payment_method.accountNumber,
+            channel_code="GCASH",
             transaction_id=transaction.transactionID,
-            payment_method_name=payment_method.accountName,
-            payment_method_number=payment_method.accountNumber
+            description=f"Withdrawal to {payment_method.accountName}",
+            metadata={"user_email": request.auth.email}
         )
         
-        if not xendit_result.get("success"):
-            # If Xendit fails, funds are still deducted but return without receipt
-            print(f"⚠️  Xendit receipt creation failed, but withdrawal completed")
+        if not disbursement_result.get("success"):
+            # If provider fails, funds are still deducted but return without receipt
+            print(f"⚠️  {provider_name.upper()} disbursement failed, but withdrawal completed")
             return {
                 "success": True,
                 "transaction_id": transaction.transactionID,
                 "new_balance": float(wallet.balance),
                 "message": f"Successfully withdrew ₱{amount}",
-                "test_mode": True
+                "provider": provider_name
             }
         
-        # Update transaction with Xendit details
-        transaction.xenditInvoiceID = xendit_result['invoice_id']
-        transaction.xenditExternalID = xendit_result['external_id']
-        transaction.invoiceURL = xendit_result['invoice_url']
+        # Update transaction with provider details
+        transaction.xenditInvoiceID = disbursement_result.get('disbursement_id') or disbursement_result.get('invoice_id')
+        transaction.xenditExternalID = disbursement_result.get('external_id')
+        transaction.invoiceURL = disbursement_result.get('receipt_url') or disbursement_result.get('invoice_url')
         transaction.xenditPaymentChannel = "GCASH"
-        transaction.xenditPaymentMethod = "EWALLET"
+        transaction.xenditPaymentMethod = provider_name.upper()
         transaction.save()
         
-        print(f"📄 Xendit order summary created: {xendit_result['invoice_id']}")
-        print(f"🔗 Receipt URL: {xendit_result['invoice_url']}")
+        print(f"📄 {provider_name.upper()} disbursement created: {transaction.xenditInvoiceID}")
         
         return {
             "success": True,
             "transaction_id": transaction.transactionID,
-            "receipt_url": xendit_result['invoice_url'],  # Changed from payment_url for clarity
-            "invoice_id": xendit_result['invoice_id'],
+            "receipt_url": disbursement_result.get('receipt_url') or disbursement_result.get('invoice_url'),
+            "disbursement_id": transaction.xenditInvoiceID,
             "amount": amount,
             "new_balance": float(wallet.balance),
-            "message": f"Successfully withdrew ₱{amount}",
-            "test_mode": xendit_result.get('test_mode', True)
+            "provider": provider_name,
+            "message": f"Successfully withdrew ₱{amount}"
         }
         
     except Exception as e:

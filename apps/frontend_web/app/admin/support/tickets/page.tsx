@@ -154,24 +154,25 @@ export default function SupportTicketsPage() {
 
       const response = await fetch(
         `http://localhost:8000/api/adminpanel/support/tickets?${params.toString()}`,
-        { credentials: "include" }
+        { credentials: "include" },
       );
       const data: TicketsResponse = await response.json();
 
       if (data.success) {
-        setTickets(data.tickets);
-        setTotalPages(data.total_pages);
-        setTotal(data.total);
+        const ticketsArray = data.tickets || [];
+        setTickets(ticketsArray);
+        setTotalPages(data.total_pages || 1);
+        setTotal(data.total || 0);
 
         // Calculate stats
-        const openCount = data.tickets.filter(
-          (t) => t.status === "open"
+        const openCount = ticketsArray.filter(
+          (t) => t.status === "open",
         ).length;
-        const inProgressCount = data.tickets.filter(
-          (t) => t.status === "in_progress"
+        const inProgressCount = ticketsArray.filter(
+          (t) => t.status === "in_progress",
         ).length;
-        const resolvedToday = data.tickets.filter(
-          (t) => t.status === "resolved" && isToday(t.last_reply_at)
+        const resolvedToday = ticketsArray.filter(
+          (t) => t.status === "resolved" && isToday(t.last_reply_at),
         ).length;
 
         setStats({
@@ -211,7 +212,7 @@ export default function SupportTicketsPage() {
     setSelectedTickets((prev) =>
       prev.includes(ticketId)
         ? prev.filter((id) => id !== ticketId)
-        : [...prev, ticketId]
+        : [...prev, ticketId],
     );
   };
 
@@ -493,7 +494,7 @@ export default function SupportTicketsPage() {
                           checked={selectedTickets.length === tickets.length}
                           onChange={(e) =>
                             setSelectedTickets(
-                              e.target.checked ? tickets.map((t) => t.id) : []
+                              e.target.checked ? tickets.map((t) => t.id) : [],
                             )
                           }
                         />
@@ -628,7 +629,7 @@ export default function SupportTicketsPage() {
                               onClick={(e) => {
                                 e.stopPropagation();
                                 router.push(
-                                  `/admin/support/tickets/${ticket.id}`
+                                  `/admin/support/tickets/${ticket.id}`,
                                 );
                               }}
                             >

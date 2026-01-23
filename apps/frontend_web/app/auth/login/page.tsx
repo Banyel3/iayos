@@ -3,6 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { Eye, EyeOff } from "lucide-react";
+import { API_URL } from "@/lib/api-config";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -235,11 +236,10 @@ const Login = () => {
 
   const handleGoogle = async () => {
     try {
-      const googleLogin = await fetch(
-        "http://localhost:8000/accounts/api/google/login"
-      );
+      // Redirect to Django Allauth Google OAuth
+      window.location.href = `${API_URL}/auth/google/login/`;
     } catch (error) {
-      console.error("Login error:", error);
+      console.error("Google login error:", error);
     }
   };
   const handleSubmit = async (values: z.infer<typeof formSchema>) => {
@@ -254,12 +254,9 @@ const Login = () => {
       setRateLimitTime(0);
 
       // Fetch fresh user data to get the role
-      const userResponse = await fetch(
-        "http://localhost:8000/api/accounts/me",
-        {
-          credentials: "include",
-        }
-      );
+      const userResponse = await fetch(`${API_URL}/api/accounts/me`, {
+        credentials: "include",
+      });
 
       if (userResponse.ok) {
         const userData = await userResponse.json();
@@ -318,7 +315,13 @@ const Login = () => {
           <div className="hidden lg:block fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200">
             <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
               <Link href="/">
-                <Image src="/logo.png" alt="iAyos" width={120} height={40} className="h-10 w-auto" />
+                <Image
+                  src="/logo.png"
+                  alt="iAyos"
+                  width={120}
+                  height={40}
+                  className="h-10 w-auto"
+                />
               </Link>
               <Link
                 href="/auth/register"
@@ -365,7 +368,13 @@ const Login = () => {
                 )}
 
                 <div className="text-center mb-6">
-                  <Image src="/logo.png" alt="iAyos" width={100} height={33} className="h-8 w-auto mx-auto mb-4" />
+                  <Image
+                    src="/logo.png"
+                    alt="iAyos"
+                    width={100}
+                    height={33}
+                    className="h-8 w-auto mx-auto mb-4"
+                  />
                   <h1 className="font-inter text-xl font-semibold text-gray-900 mb-1">
                     Welcome back
                   </h1>
@@ -542,7 +551,13 @@ const Login = () => {
               {/* Left Side - Branding */}
               <div className="lg:w-1/2 bg-gradient-to-br from-blue-600 to-purple-700 flex items-center justify-center p-8">
                 <div className="max-w-md text-center text-white">
-                  <Image src="/logo-white.png" alt="iAyos" width={180} height={60} className="h-16 w-auto mx-auto mb-6" />
+                  <Image
+                    src="/logo-white.png"
+                    alt="iAyos"
+                    width={180}
+                    height={60}
+                    className="h-16 w-auto mx-auto mb-6"
+                  />
                   <h1 className="text-4xl font-bold mb-4">Welcome back</h1>
                   <p className="text-xl mb-8 opacity-90">
                     Sign in to your account and continue your journey
@@ -753,7 +768,7 @@ const Login = () => {
 
                   {/* Google Sign In Button (Desktop) */}
                   <a
-                    href="http://localhost:8000/api/accounts/auth/google/login"
+                    href={`${API_URL}/auth/google/login/`}
                     className="flex items-center justify-center w-full h-12 border border-gray-200 rounded-lg px-4 py-3 bg-gray-100 transition-all duration-200 font-inter font-medium"
                     aria-label="Continue with Google"
                   >

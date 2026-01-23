@@ -138,7 +138,7 @@ export default function AdminDashboardPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-3xl font-bold text-gray-900">
-                    {stats.total_users.toLocaleString()}
+                    {(stats.total_users ?? 0).toLocaleString()}
                   </div>
                   <div className="flex items-center justify-between mt-2">
                     <p className="text-xs text-green-600 flex items-center">
@@ -147,7 +147,7 @@ export default function AdminDashboardPage() {
                     </p>
                     <p className="text-xs text-gray-500">
                       {((stats.active_users / stats.total_users) * 100).toFixed(
-                        0
+                        0,
                       )}
                       % active
                     </p>
@@ -167,7 +167,7 @@ export default function AdminDashboardPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-3xl font-bold text-gray-900">
-                    {stats.total_jobs.toLocaleString()}
+                    {(stats.total_jobs ?? 0).toLocaleString()}
                   </div>
                   <div className="flex items-center justify-between mt-2">
                     <p className="text-xs text-blue-600">
@@ -218,7 +218,7 @@ export default function AdminDashboardPage() {
                 <div className="text-3xl font-bold text-purple-900">
                   {stats.total_jobs > 0
                     ? ((stats.completed_jobs / stats.total_jobs) * 100).toFixed(
-                        1
+                        1,
                       )
                     : 0}
                   %
@@ -343,7 +343,7 @@ export default function AdminDashboardPage() {
                         Clients
                       </span>
                       <span className="text-sm font-bold text-blue-600">
-                        {stats.total_clients.toLocaleString()}
+                        {(stats.total_clients ?? 0).toLocaleString()}
                       </span>
                     </div>
                     <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
@@ -372,7 +372,7 @@ export default function AdminDashboardPage() {
                         Workers
                       </span>
                       <span className="text-sm font-bold text-green-600">
-                        {stats.total_workers.toLocaleString()}
+                        {(stats.total_workers ?? 0).toLocaleString()}
                       </span>
                     </div>
                     <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
@@ -401,7 +401,7 @@ export default function AdminDashboardPage() {
                         Agencies
                       </span>
                       <span className="text-sm font-bold text-purple-600">
-                        {stats.total_agencies.toLocaleString()}
+                        {(stats.total_agencies ?? 0).toLocaleString()}
                       </span>
                     </div>
                     <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
@@ -431,7 +431,7 @@ export default function AdminDashboardPage() {
                         Verified Active
                       </span>
                       <span className="text-sm font-bold text-emerald-600">
-                        {stats.active_users.toLocaleString()}
+                        {(stats.active_users ?? 0).toLocaleString()}
                       </span>
                     </div>
                     <div className="h-3 bg-gray-100 rounded-full overflow-hidden">

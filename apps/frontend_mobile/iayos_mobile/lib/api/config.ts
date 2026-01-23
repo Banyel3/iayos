@@ -4,15 +4,10 @@
 // For Android Emulator, use 10.0.2.2
 // For physical device, use your machine's network IP
 
-// AUTOMATIC IP DETECTION: Environment variable takes precedence, then falls back to Expo auto-detect
-// Run `.\scripts\update-mobile-ip.ps1` to auto-detect and update IP
+// AUTOMATIC IP DETECTION: Expo auto-detects your network IP automatically
+// When you switch networks, Expo will automatically use the new IP
 const getDevIP = () => {
-  // Priority 1: Environment variable (set by update-ip script)
-  if (process.env.EXPO_PUBLIC_DEV_IP) {
-    return process.env.EXPO_PUBLIC_DEV_IP;
-  }
-
-  // Priority 2: Try to use Expo's detected IP from Constants
+  // Priority 1: Try to use Expo's detected IP from Constants
   // This works when running via Expo Go and detects your machine's IP automatically
   try {
     const Constants = require("expo-constants").default;
@@ -22,6 +17,11 @@ const getDevIP = () => {
     }
   } catch (e) {
     // Expo Constants not available
+  }
+
+  // Priority 2: Environment variable (manual override if needed)
+  if (process.env.EXPO_PUBLIC_DEV_IP) {
+    return process.env.EXPO_PUBLIC_DEV_IP;
   }
 
   // Priority 3: Fallback to localhost (will fail on physical devices)
@@ -51,6 +51,11 @@ const WEB_APP_URL =
 // Use backend endpoint for mobile email verification (avoids cross-server timeout issues)
 export const EMAIL_VERIFICATION_ENDPOINT = `${API_URL}/api/mobile/auth/send-verification-email`;
 
+// OTP-based email verification endpoints
+export const OTP_EMAIL_ENDPOINT = `${API_URL}/api/mobile/auth/send-otp-email`;
+export const VERIFY_OTP_ENDPOINT = `${API_URL}/api/accounts/verify-otp`;
+export const RESEND_OTP_ENDPOINT = `${API_URL}/api/accounts/resend-otp`;
+
 export const API_BASE_URL = `${API_URL}/api`;
 export const WS_BASE_URL = __DEV__
   ? `ws://${DEV_IP}:8001`
@@ -62,7 +67,7 @@ export const WS_BASE_URL = __DEV__
  * Supabase returns full URLs (https://...) which are passed through unchanged.
  */
 export const getAbsoluteMediaUrl = (
-  url: string | null | undefined
+  url: string | null | undefined,
 ): string | null => {
   if (!url) return null;
 
@@ -257,7 +262,9 @@ export const ENDPOINTS = {
 
   // Phase 3: Escrow Payment System (10 endpoints)
   CREATE_ESCROW_PAYMENT: `${API_BASE_URL.replace("/api", "")}/api/mobile/payments/escrow`,
-  CREATE_XENDIT_INVOICE: `${API_BASE_URL.replace("/api", "")}/api/mobile/payments/xendit/invoice`,
+  // Create payment invoice (generic name, same endpoint)
+  CREATE_PAYMENT_INVOICE: `${API_BASE_URL.replace("/api", "")}/api/mobile/payments/xendit/invoice`,
+  CREATE_XENDIT_INVOICE: `${API_BASE_URL.replace("/api", "")}/api/mobile/payments/xendit/invoice`, // Alias for backward compatibility
   UPLOAD_CASH_PROOF: `${API_BASE_URL.replace("/api", "")}/api/mobile/payments/cash-proof`,
   PAYMENT_STATUS: (id: number) =>
     `${API_BASE_URL.replace("/api", "")}/api/mobile/payments/status/${id}`,
@@ -267,10 +274,12 @@ export const ENDPOINTS = {
   WALLET_TRANSACTIONS: `${API_BASE_URL.replace("/api", "")}/api/mobile/wallet/transactions`,
   CREATE_JOB_WITH_PAYMENT: `${API_BASE_URL.replace("/api", "")}/api/jobs/create-mobile`, // Direct worker/agency hiring
   CREATE_JOB: `${API_BASE_URL.replace("/api", "")}/api/jobs/create-mobile`, // Direct worker/agency hiring
-  XENDIT_WEBHOOK: `${API_BASE_URL.replace("/api", "")}/api/payments/xendit/callback`,
+  // Payment webhooks
+  PAYMENT_WEBHOOK: `${API_BASE_URL.replace("/api", "")}/api/accounts/wallet/paymongo-webhook`,
+  XENDIT_WEBHOOK: `${API_BASE_URL.replace("/api", "")}/api/payments/xendit/callback`, // Legacy
   PAYMENT_RECEIPT: (id: number) =>
     `${API_BASE_URL.replace("/api", "")}/api/mobile/payments/receipt/${id}`,
-  
+
   // Job Receipt/Invoice
   JOB_RECEIPT: (jobId: number) =>
     `${API_BASE_URL.replace("/api", "")}/api/jobs/${jobId}/receipt`,
@@ -311,12 +320,14 @@ export const ENDPOINTS = {
   DELETE_NOTIFICATION: (id: number) =>
     `${API_BASE_URL.replace("/api", "")}/api/accounts/notifications/${id}/delete`,
 
-  // Phase 7: KYC Document Upload & Verification (4 endpoints)
+  // Phase 7: KYC Document Upload & Verification (7 endpoints)
   KYC_STATUS: `${API_BASE_URL.replace("/api", "")}/api/accounts/kyc-status`,
   UPLOAD_KYC: `${API_BASE_URL.replace("/api", "")}/api/accounts/upload-kyc`,
   KYC_UPLOAD: `${API_BASE_URL.replace("/api", "")}/api/accounts/upload/kyc`, // Matches Next.js endpoint
   KYC_VALIDATE_DOCUMENT: `${API_BASE_URL.replace("/api", "")}/api/accounts/kyc/validate-document`, // Per-step validation
   KYC_APPLICATION_HISTORY: `${API_BASE_URL.replace("/api", "")}/api/accounts/kyc-application-history`,
+  KYC_AUTOFILL: `${API_BASE_URL.replace("/api", "")}/api/accounts/kyc/autofill`, // Get AI-extracted data for auto-fill
+  KYC_CONFIRM: `${API_BASE_URL.replace("/api", "")}/api/accounts/kyc/confirm`, // Confirm/edit extracted data
 
   // Dual Profile Management (4 endpoints)
   DUAL_PROFILE_STATUS: `${API_BASE_URL.replace("/api", "")}/api/mobile/profile/dual-status`,
@@ -380,7 +391,7 @@ export const DEFAULT_REQUEST_TIMEOUT = 15000; // 15 seconds
 
 export const apiRequest = async (
   url: string,
-  options: RequestInit & { timeout?: number } = {}
+  options: RequestInit & { timeout?: number } = {},
 ): Promise<Response> => {
   const {
     timeout = DEFAULT_REQUEST_TIMEOUT,
@@ -416,7 +427,7 @@ export const apiRequest = async (
   };
 
   const hasContentTypeHeader = Object.keys(defaultHeaders).some(
-    (key) => key.toLowerCase() === "content-type"
+    (key) => key.toLowerCase() === "content-type",
   );
 
   const isFormDataBody =
@@ -461,7 +472,7 @@ export const apiRequest = async (
 // Typed JSON fetch helper. Use this when you expect JSON and want a typed result.
 export async function fetchJson<T = any>(
   url: string,
-  options: RequestInit & { timeout?: number } = {}
+  options: RequestInit & { timeout?: number } = {},
 ): Promise<T> {
   const resp = await apiRequest(url, options);
   const text = await resp.text();
@@ -483,7 +494,7 @@ export async function fetchJson<T = any>(
     throw new Error(
       `Failed to parse JSON response from ${url} (${resp.status} ${resp.statusText}):\n` +
         `Response body: ${text.substring(0, 500)}\n` +
-        `Parse error: ${e}`
+        `Parse error: ${e}`,
     );
   }
 
@@ -492,7 +503,7 @@ export async function fetchJson<T = any>(
     throw new Error(
       err?.message ||
         err?.error ||
-        `Request to ${url} failed with status ${resp.status}`
+        `Request to ${url} failed with status ${resp.status}`,
     );
   }
 

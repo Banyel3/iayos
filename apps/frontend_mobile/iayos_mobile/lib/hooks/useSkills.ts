@@ -73,7 +73,7 @@ export function useAvailableSkills() {
     queryFn: async (): Promise<AvailableSkill[]> => {
       const response = await apiRequest(ENDPOINTS.AVAILABLE_SKILLS);
       if (!response.ok) throw new Error("Failed to fetch available skills");
-      const data: AvailableSkillsResponse = await response.json();
+      const data = (await response.json()) as AvailableSkillsResponse;
       return data.data || [];
     },
     staleTime: 1000 * 60 * 60, // Cache for 1 hour (master data rarely changes)
@@ -89,7 +89,7 @@ export function useMySkills() {
     queryFn: async (): Promise<WorkerSkill[]> => {
       const response = await apiRequest(ENDPOINTS.MY_SKILLS);
       if (!response.ok) throw new Error("Failed to fetch your skills");
-      const data: MySkillsResponse = await response.json();
+      const data = (await response.json()) as MySkillsResponse;
       return data.data || [];
     },
     staleTime: 1000 * 60 * 5, // Cache for 5 minutes
@@ -115,13 +115,15 @@ export function useAddSkill() {
         body: JSON.stringify(payload),
       });
 
-      const data = await response.json();
+      const data = (await response.json()) as AddSkillResponse & {
+        error?: string;
+      };
 
       if (!response.ok) {
         throw new Error(data.error || "Failed to add skill");
       }
 
-      return data;
+      return data as AddSkillResponse;
     },
     onSuccess: () => {
       // Invalidate skills queries to refetch
@@ -148,16 +150,18 @@ export function useUpdateSkill() {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ experience_years: payload.experience_years }),
-        }
+        },
       );
 
-      const data = await response.json();
+      const data = (await response.json()) as UpdateSkillResponse & {
+        error?: string;
+      };
 
       if (!response.ok) {
         throw new Error(data.error || "Failed to update skill");
       }
 
-      return data;
+      return data as UpdateSkillResponse;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["my-skills"] });
@@ -178,13 +182,15 @@ export function useRemoveSkill() {
         method: "DELETE",
       });
 
-      const data = await response.json();
+      const data = (await response.json()) as RemoveSkillResponse & {
+        error?: string;
+      };
 
       if (!response.ok) {
         throw new Error(data.error || "Failed to remove skill");
       }
 
-      return data;
+      return data as RemoveSkillResponse;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["my-skills"] });

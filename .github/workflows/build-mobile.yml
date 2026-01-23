@@ -1,0 +1,109 @@
+name: Build Mobile App
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/frontend_mobile/**"
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: "Build profile (development, preview, production)"
+        required: true
+        default: "preview"
+        type: choice
+        options:
+          - development
+          - preview
+          - production
+      platform:
+        description: "Platform to build"
+        required: true
+        default: "android"
+        type: choice
+        options:
+          - android
+          - ios
+          - all
+
+jobs:
+  build:
+    name: Build Mobile App
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: apps/frontend_mobile/iayos_mobile/package-lock.json
+
+      - name: Setup Expo
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: apps/frontend_mobile/iayos_mobile
+
+      - name: Build Android (on push)
+        if: github.event_name == 'push'
+        run: eas build --platform android --profile preview --non-interactive
+        working-directory: apps/frontend_mobile/iayos_mobile
+
+      - name: Build (manual trigger)
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          PLATFORM="${{ github.event.inputs.platform }}"
+          PROFILE="${{ github.event.inputs.profile }}"
+
+          if [ "$PLATFORM" = "all" ]; then
+            eas build --platform all --profile $PROFILE --non-interactive
+          else
+            eas build --platform $PLATFORM --profile $PROFILE --non-interactive
+          fi
+        working-directory: apps/frontend_mobile/iayos_mobile
+
+      - name: Notify Success
+        if: success()
+        run: echo "✅ Mobile build completed successfully"
+
+      - name: Notify Failure
+        if: failure()
+        run: echo "❌ Mobile build failed"
+
+  submit:
+    name: Submit to Store
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.profile == 'production'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Setup Expo
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Submit to Google Play (Internal Track)
+        if: github.event.inputs.platform == 'android' || github.event.inputs.platform == 'all'
+        run: eas submit --platform android --latest --non-interactive
+        working-directory: apps/frontend_mobile/iayos_mobile
+        env:
+          # Google Play service account key should be stored in EAS secrets
+          # or as a GitHub secret and written to file
+          GOOGLE_PLAY_KEY: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_KEY }}

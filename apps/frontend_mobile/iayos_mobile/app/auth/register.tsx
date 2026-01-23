@@ -63,28 +63,28 @@ export default function RegisterScreen() {
     return new Date(
       today.getFullYear() - ADULT_AGE,
       today.getMonth(),
-      today.getDate()
+      today.getDate(),
     );
   }, []);
 
   const firstNameRef = useRef<React.ComponentRef<typeof RNTextInput> | null>(
-    null
+    null,
   );
   const middleNameRef = useRef<React.ComponentRef<typeof RNTextInput> | null>(
-    null
+    null,
   );
   const lastNameRef = useRef<React.ComponentRef<typeof RNTextInput> | null>(
-    null
+    null,
   );
   const emailRef = useRef<React.ComponentRef<typeof RNTextInput> | null>(null);
   const contactNumberRef = useRef<React.ComponentRef<
     typeof RNTextInput
   > | null>(null);
   const birthDateRef = useRef<React.ComponentRef<typeof RNTextInput> | null>(
-    null
+    null,
   );
   const passwordRef = useRef<React.ComponentRef<typeof RNTextInput> | null>(
-    null
+    null,
   );
   const confirmPasswordRef = useRef<React.ComponentRef<
     typeof RNTextInput
@@ -94,10 +94,10 @@ export default function RegisterScreen() {
   > | null>(null);
   const cityRef = useRef<React.ComponentRef<typeof RNTextInput> | null>(null);
   const provinceRef = useRef<React.ComponentRef<typeof RNTextInput> | null>(
-    null
+    null,
   );
   const postalCodeRef = useRef<React.ComponentRef<typeof RNTextInput> | null>(
-    null
+    null,
   );
   const lastFocusedRef = useRef<any>(null);
 
@@ -132,7 +132,7 @@ export default function RegisterScreen() {
 
   const handleBirthDateChange = (
     event: DateTimePickerEvent,
-    selectedDate?: Date
+    selectedDate?: Date,
   ) => {
     const isIOS = Platform.OS === "ios";
     setShowDatePicker(isIOS);
@@ -227,7 +227,7 @@ export default function RegisterScreen() {
     if (password.length < MIN_PASSWORD_LENGTH) {
       Alert.alert(
         "Error",
-        `Password must be at least ${MIN_PASSWORD_LENGTH} characters`
+        `Password must be at least ${MIN_PASSWORD_LENGTH} characters`,
       );
       return;
     }
@@ -235,7 +235,7 @@ export default function RegisterScreen() {
     if (!/[A-Z]/.test(password)) {
       Alert.alert(
         "Error",
-        "Password must include at least one uppercase letter"
+        "Password must include at least one uppercase letter",
       );
       return;
     }
@@ -248,7 +248,7 @@ export default function RegisterScreen() {
     if (!/[^A-Za-z0-9]/.test(password)) {
       Alert.alert(
         "Error",
-        "Password must include at least one special character"
+        "Password must include at least one special character",
       );
       return;
     }
@@ -265,7 +265,7 @@ export default function RegisterScreen() {
 
     setIsLoading(true);
     try {
-      await register({
+      const response = await register({
         firstName: trimmedFirst,
         middleName: trimmedMiddle,
         lastName: trimmedLast,
@@ -282,11 +282,14 @@ export default function RegisterScreen() {
         profileType,
       });
 
-      Alert.alert(
-        "Success",
-        "Registration successful! Please check your email to verify your account.",
-        [{ text: "OK", onPress: () => router.replace("/auth/login") }]
-      );
+      // Navigate to OTP verification screen
+      router.replace({
+        pathname: "/auth/verify-otp",
+        params: {
+          email: trimmedEmail,
+          expiryMinutes: response.otp_expiry_minutes?.toString() || "5",
+        },
+      } as any);
     } catch (error: any) {
       Alert.alert("Error", error.message || "Registration failed");
     } finally {

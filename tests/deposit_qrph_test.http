@@ -1,0 +1,53 @@
+### QR PH Deposit Tests
+### Test the new QR PH-only deposit flow
+
+@baseUrl = http://localhost:8000
+@adminEmail = admin@iayos.com
+@adminPassword = admin123
+@testEmail = test@client.com
+@testPassword = test1234
+
+### 1. Login as admin to get session
+# @name adminLogin
+POST {{baseUrl}}/api/accounts/token
+Content-Type: application/json
+
+{
+  "email": "{{adminEmail}}",
+  "password": "{{adminPassword}}"
+}
+
+### 2. Login as test client
+# @name clientLogin
+POST {{baseUrl}}/api/accounts/token
+Content-Type: application/json
+
+{
+  "email": "{{testEmail}}",
+  "password": "{{testPassword}}"
+}
+
+### 3. Test deposit endpoint (requires auth - use Bearer token from login)
+# @name testDeposit
+POST {{baseUrl}}/api/accounts/wallet/deposit
+Content-Type: application/json
+Authorization: Bearer {{clientLogin.response.body.access_token}}
+
+{
+  "amount": 100
+}
+
+### 4. Test deposit with mobile auth header format
+# @name testDepositMobile
+POST {{baseUrl}}/api/mobile/wallet/deposit
+Content-Type: application/json
+Authorization: Bearer {{clientLogin.response.body.access_token}}
+
+{
+  "amount": 100
+}
+
+### 5. Check wallet balance
+# @name checkBalance
+GET {{baseUrl}}/api/mobile/wallet/balance
+Authorization: Bearer {{clientLogin.response.body.access_token}}

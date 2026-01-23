@@ -178,3 +178,297 @@ class DualJWTAuth:
 
 # Create instance
 dual_auth = DualJWTAuth()
+
+
+# ==============================================================================
+# ROLE-BASED ACCESS CONTROL UTILITIES
+# ==============================================================================
+
+class ProfileType:
+    """Profile type constants matching Profile.ProfileType choices"""
+    WORKER = "WORKER"
+    CLIENT = "CLIENT"
+
+
+class AccountType:
+    """Account type constants"""
+    INDIVIDUAL = "individual"
+    AGENCY = "agency"
+
+
+class AdminRole:
+    """Admin role constants matching AdminAccount.Role choices"""
+    SUPER_ADMIN = "super_admin"
+    ADMIN = "admin"
+    MODERATOR = "moderator"
+
+
+def get_user_profile(user, profile_type: str = None):
+    """
+    Get user's profile with optional type filtering.
+    
+    Args:
+        user: Authenticated Accounts object
+        profile_type: Optional - filter by specific profile type (WORKER/CLIENT)
+        
+    Returns:
+        Profile object or None if not found
+    """
+    from .models import Profile
+    
+    try:
+        if profile_type:
+            return Profile.objects.filter(
+                accountFK=user, 
+                profileType=profile_type
+            ).first()
+        
+        # If no type specified, try to get from JWT profile_type or get any profile
+        jwt_profile_type = getattr(user, 'profile_type', None)
+        if jwt_profile_type:
+            return Profile.objects.filter(
+                accountFK=user,
+                profileType=jwt_profile_type
+            ).first()
+        
+        # Fallback: return any profile for this user
+        return Profile.objects.filter(accountFK=user).first()
+    except Exception:
+        return None
+
+
+def is_worker(user) -> bool:
+    """Check if user has a WORKER profile"""
+    profile = get_user_profile(user, ProfileType.WORKER)
+    return profile is not None
+
+
+def is_client(user) -> bool:
+    """Check if user has a CLIENT profile"""
+    profile = get_user_profile(user, ProfileType.CLIENT)
+    return profile is not None
+
+
+def is_agency(user) -> bool:
+    """Check if user has an Agency account"""
+    from .models import Agency
+    try:
+        Agency.objects.get(accountFK=user)
+        return True
+    except Agency.DoesNotExist:
+        return False
+
+
+def is_admin(user) -> bool:
+    """Check if user has admin privileges (is_staff or AdminAccount)"""
+    # Check Django staff flag
+    if getattr(user, 'is_staff', False):
+        return True
+    
+    # Check AdminAccount model
+    from adminpanel.models import AdminAccount
+    try:
+        AdminAccount.objects.get(account=user)
+        return True
+    except AdminAccount.DoesNotExist:
+        return False
+
+
+def get_admin_account(user):
+    """Get AdminAccount for user if exists"""
+    from adminpanel.models import AdminAccount
+    try:
+        return AdminAccount.objects.get(account=user)
+    except AdminAccount.DoesNotExist:
+        return None
+
+
+def get_user_account_type(user) -> str:
+    """
+    Determine user's account type.
+    
+    Returns:
+        'admin' | 'agency' | 'worker' | 'client' | 'unknown'
+    """
+    if is_admin(user):
+        return 'admin'
+    if is_agency(user):
+        return 'agency'
+    
+    profile = get_user_profile(user)
+    if profile:
+        if profile.profileType == ProfileType.WORKER:
+            return 'worker'
+        elif profile.profileType == ProfileType.CLIENT:
+            return 'client'
+    
+    return 'unknown'
+
+
+def require_profile_type(required_type: str):
+    """
+    Decorator factory for endpoints that require specific profile type.
+    
+    Usage:
+        @router.get("/worker-only")
+        @require_profile_type(ProfileType.WORKER)
+        def worker_endpoint(request):
+            ...
+    """
+    def decorator(func):
+        from functools import wraps
+        from ninja.errors import HttpError
+        
+        @wraps(func)
+        def wrapper(request, *args, **kwargs):
+            user = request.auth
+            if not user:
+                raise HttpError(401, "Authentication required")
+            
+            profile = get_user_profile(user, required_type)
+            if not profile:
+                raise HttpError(403, f"This action requires a {required_type} profile")
+            
+            # Attach profile to request for convenience
+            request.profile = profile
+            return func(request, *args, **kwargs)
+        
+        return wrapper
+    return decorator
+
+
+def require_agency():
+    """
+    Decorator for endpoints that require agency account.
+    
+    Usage:
+        @router.get("/agency-only")
+        @require_agency()
+        def agency_endpoint(request):
+            ...
+    """
+    def decorator(func):
+        from functools import wraps
+        from ninja.errors import HttpError
+        from .models import Agency
+        
+        @wraps(func)
+        def wrapper(request, *args, **kwargs):
+            user = request.auth
+            if not user:
+                raise HttpError(401, "Authentication required")
+            
+            try:
+                agency = Agency.objects.get(accountFK=user)
+                request.agency = agency
+            except Agency.DoesNotExist:
+                raise HttpError(403, "This action requires an agency account")
+            
+            return func(request, *args, **kwargs)
+        
+        return wrapper
+    return decorator
+
+
+def require_admin():
+    """
+    Decorator for endpoints that require admin privileges.
+    
+    Usage:
+        @router.get("/admin-only")
+        @require_admin()
+        def admin_endpoint(request):
+            ...
+    """
+    def decorator(func):
+        from functools import wraps
+        from ninja.errors import HttpError
+        
+        @wraps(func)
+        def wrapper(request, *args, **kwargs):
+            user = request.auth
+            if not user:
+                raise HttpError(401, "Authentication required")
+            
+            if not is_admin(user):
+                raise HttpError(403, "This action requires admin privileges")
+            
+            admin_account = get_admin_account(user)
+            if admin_account:
+                request.admin_account = admin_account
+            
+            return func(request, *args, **kwargs)
+        
+        return wrapper
+    return decorator
+
+
+def require_web_access():
+    """
+    Decorator for endpoints that should only be accessible via web (agency/admin only).
+    Workers and clients should use mobile app.
+    
+    Usage:
+        @router.get("/web-only")
+        @require_web_access()
+        def web_endpoint(request):
+            ...
+    """
+    def decorator(func):
+        from functools import wraps
+        from ninja.errors import HttpError
+        
+        @wraps(func)
+        def wrapper(request, *args, **kwargs):
+            user = request.auth
+            if not user:
+                raise HttpError(401, "Authentication required")
+            
+            # Check if admin or agency - these can use web
+            if is_admin(user) or is_agency(user):
+                return func(request, *args, **kwargs)
+            
+            # Workers and clients should use mobile app
+            account_type = get_user_account_type(user)
+            if account_type in ['worker', 'client']:
+                raise HttpError(403, "This feature is only available on the mobile app")
+            
+            return func(request, *args, **kwargs)
+        
+        return wrapper
+    return decorator
+
+
+# Feature flags for staged rollout
+import os
+
+ENABLE_WORKER_WEB_UI = os.environ.get('ENABLE_WORKER_WEB_UI', 'false').lower() == 'true'
+ENABLE_CLIENT_WEB_UI = os.environ.get('ENABLE_CLIENT_WEB_UI', 'false').lower() == 'true'
+
+
+def can_access_web_dashboard(user) -> tuple[bool, str]:
+    """
+    Check if user can access web dashboard.
+    
+    Returns:
+        (can_access: bool, reason: str)
+    """
+    if is_admin(user):
+        return True, "admin"
+    
+    if is_agency(user):
+        return True, "agency"
+    
+    account_type = get_user_account_type(user)
+    
+    if account_type == 'worker':
+        if ENABLE_WORKER_WEB_UI:
+            return True, "worker_with_flag"
+        return False, "worker_mobile_only"
+    
+    if account_type == 'client':
+        if ENABLE_CLIENT_WEB_UI:
+            return True, "client_with_flag"
+        return False, "client_mobile_only"
+    
+    return False, "unknown_account_type"

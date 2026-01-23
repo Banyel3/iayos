@@ -52,6 +52,10 @@ def get_platform_settings() -> dict:
             "maintenance_mode": settings.maintenanceMode,
             "session_timeout_minutes": settings.sessionTimeoutMinutes,
             "max_upload_size_mb": settings.maxUploadSizeMB,
+            # New KYC auto-approval threshold fields
+            "kyc_auto_approve_min_confidence": float(getattr(settings, 'kycAutoApproveMinConfidence', 0.90)),
+            "kyc_face_match_min_similarity": float(getattr(settings, 'kycFaceMatchMinSimilarity', 0.85)),
+            "kyc_require_user_confirmation": getattr(settings, 'kycRequireUserConfirmation', True),
             "last_updated": settings.lastUpdated.isoformat() if settings.lastUpdated else None,
             "updated_by": settings.updatedBy.email if settings.updatedBy else None,
         }
@@ -113,6 +117,13 @@ def update_platform_settings(
                 settings.sessionTimeoutMinutes = int(data["session_timeout_minutes"])
             if "max_upload_size_mb" in data:
                 settings.maxUploadSizeMB = int(data["max_upload_size_mb"])
+            # New KYC auto-approval threshold fields
+            if "kyc_auto_approve_min_confidence" in data:
+                settings.kycAutoApproveMinConfidence = Decimal(str(data["kyc_auto_approve_min_confidence"]))
+            if "kyc_face_match_min_similarity" in data:
+                settings.kycFaceMatchMinSimilarity = Decimal(str(data["kyc_face_match_min_similarity"]))
+            if "kyc_require_user_confirmation" in data:
+                settings.kycRequireUserConfirmation = bool(data["kyc_require_user_confirmation"])
             
             settings.updatedBy = admin
             settings.save()

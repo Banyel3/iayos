@@ -41,10 +41,24 @@ channels==4.1.0
 channels-redis==4.2.0
 daphne==4.1.2
 
+# Redis support for caching and rate limiting
+django-redis==5.4.0
+
 # Production server
 gunicorn==23.0.0
 
-# Machine Learning - Job Completion Time Prediction
+# ============================================================================
+# OBSERVABILITY & MONITORING
+# ============================================================================
+# Sentry for error tracking and performance monitoring
+sentry-sdk[django]>=1.40.0
+
+# Structured JSON logging
+python-json-logger>=2.0.0
+
+# ============================================================================
+# MACHINE LEARNING
+# ============================================================================
 # NOTE: TensorFlow requires glibc (not available on Alpine Linux)
 # Install separately on Debian/Ubuntu-based systems or use requirements-ml.txt
 # tensorflow>=2.15.0  # LSTM neural network - OPTIONAL

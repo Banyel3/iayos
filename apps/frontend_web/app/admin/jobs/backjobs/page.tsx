@@ -83,7 +83,7 @@ export default function BackJobsPage() {
         "http://localhost:8000/api/adminpanel/jobs/disputes/stats",
         {
           credentials: "include",
-        }
+        },
       );
       const data = await response.json();
       if (data.success) {
@@ -366,7 +366,7 @@ export default function BackJobsPage() {
           <div className="space-y-4">
             {filteredJobs.map((job) => (
               <Card
-                key={job.dispute_id}
+                key={job.dispute_id || job.id}
                 className="border-0 shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden group"
               >
                 <div className="absolute inset-0 bg-gradient-to-r from-blue-50/0 via-blue-50/50 to-blue-50/0 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
@@ -409,7 +409,7 @@ export default function BackJobsPage() {
                               Job Amount
                             </p>
                             <p className="font-bold text-gray-900">
-                              ₱{job.job_amount.toLocaleString()}
+                              ₱{(job.job_amount ?? 0).toLocaleString()}
                             </p>
                           </div>
                         </div>
@@ -444,7 +444,7 @@ export default function BackJobsPage() {
                             <p className="font-semibold text-gray-900">
                               {job.requested_date
                                 ? new Date(
-                                    job.requested_date
+                                    job.requested_date,
                                   ).toLocaleDateString("en-US", {
                                     month: "short",
                                     day: "numeric",

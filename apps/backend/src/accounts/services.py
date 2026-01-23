@@ -10,9 +10,15 @@ from django.conf import settings
 import uuid
 import jwt
 import hashlib
+import random
 from datetime import timedelta
 from iayos_project.utils import upload_kyc_doc
 import os
+
+
+def generate_otp():
+    """Generate a random 6-digit OTP code"""
+    return ''.join(random.choices('0123456789', k=6))
 
 
 def get_full_image_url(image_path):
@@ -76,14 +82,18 @@ def create_account_individ(data):
         
     )
 
-
+    # Generate 6-digit OTP for email verification (5-minute expiry)
+    otp_code = generate_otp()
+    user.email_otp = otp_code
+    user.email_otp_expiry = timezone.now() + timedelta(minutes=5)
+    user.email_otp_attempts = 0
+    
+    # Keep legacy token fields for backward compatibility (can be removed later)
     verifyToken = uuid.uuid4()
     strVerifyToken = str(verifyToken)
     hashed_token = hashlib.sha256(strVerifyToken.encode("utf-8")).hexdigest()
-
     user.verifyToken = hashed_token
-
-    user.verifyTokenExpiry = timezone.now() + timedelta(hours=24)  # valid for 24h
+    user.verifyTokenExpiry = timezone.now() + timedelta(hours=24)
     user.save()
 
     # 4️⃣ Create Profile with profileType (defaults to CLIENT if not specified)
@@ -101,12 +111,15 @@ def create_account_individ(data):
         profileImg=None  # NULL until user uploads a profile picture
     )
 
+    # Return OTP for email sending (frontend will trigger email)
     verifyLink = f"{settings.FRONTEND_URL}/auth/verify-email?verifyToken={verifyToken}&id={user.accountID}"
     return {
         "accountID": user.accountID,
-        "verifyLink": verifyLink,
+        "verifyLink": verifyLink,  # Legacy, kept for backward compatibility
         "verifyLinkExpire": user.verifyTokenExpiry.isoformat(),
-        "email": user.email
+        "email": user.email,
+        "otp_code": otp_code,  # New: OTP code for email
+        "otp_expiry_minutes": 5  # New: Expiry time in minutes
     }
 def create_account_agency(data):
     # 1️⃣ Check if email exists
@@ -885,6 +898,14 @@ def upload_kyc_document(payload, frontID, backID, clearance, selfie):
         
         if saved_files_count != len(uploaded_files):
             print(f"⚠️  WARNING: Mismatch between uploaded ({len(uploaded_files)}) and saved ({saved_files_count}) files!")
+
+        # Trigger KYC extraction to populate auto-fill data
+        try:
+            from .kyc_extraction_service import trigger_kyc_extraction_after_upload
+            trigger_kyc_extraction_after_upload(kyc_record)
+        except Exception as ext_error:
+            print(f"⚠️  KYC extraction failed (non-blocking): {str(ext_error)}")
+            # Don't fail KYC upload if extraction fails - admin can still verify manually
 
         return {
             "message": "KYC documents uploaded successfully",

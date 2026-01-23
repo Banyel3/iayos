@@ -14,14 +14,32 @@ The platform provides:
 
 ---
 
-🎓 About This Project
+## 📁 Repository Structure
+
+This is a **Turborepo monorepo** with the following structure:
+
+```
+iayos/
+├── apps/
+│   ├── backend/           # Django API server (Python)
+│   ├── frontend_web/      # Next.js dashboard (TypeScript)
+│   └── frontend_mobile/   # React Native/Expo app (TypeScript)
+├── docs/                  # All documentation
+└── ...                    # Config files (Docker, Turbo, etc.)
+```
+
+📖 **Full structure details:** See [REPO_STRUCTURE.md](REPO_STRUCTURE.md)
+
+---
+
+## 🎓 About This Project
 
 This project was developed as the final submission for the Software Engineering course at [Your University Name].
 It showcases full-stack development skills using Next.js (frontend) and Django (backend), including deployment best practices, environment setup, and team collaboration.
 
 ---
 
-📜 License
+## 📜 License
 
 This project is licensed under the MIT License — see the LICENSE
 file for details.

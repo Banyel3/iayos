@@ -1,0 +1,16 @@
+[build]
+builder = "dockerfile"
+dockerfilePath = "Dockerfile"
+
+[build.args]
+TARGET = "backend-production"
+
+[deploy]
+healthcheckPath = "/api/health/"
+healthcheckTimeout = 300
+startCommand = "gunicorn --bind 0.0.0.0:$PORT --workers 2 --worker-class sync --timeout 120 --max-requests 1000 --max-requests-jitter 50 src.iayos_project.wsgi:application"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+
+[service]
+internalPort = 8000

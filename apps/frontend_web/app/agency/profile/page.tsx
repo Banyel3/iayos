@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/form_button";
@@ -72,6 +73,8 @@ interface PaymentMethod {
 }
 
 export default function AgencyProfilePage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const [profile, setProfile] = useState<AgencyProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
@@ -139,6 +142,28 @@ export default function AgencyProfilePage() {
     return () => controller.abort();
   }, []);
 
+  // Handle GCash verification callback from PayMongo
+  useEffect(() => {
+    const verifyStatus = searchParams.get("verify");
+    const methodId = searchParams.get("method_id");
+    
+    if (verifyStatus === "success") {
+      toast.success("GCash account verified successfully! ₱1 has been credited to your wallet.");
+      // Switch to payment methods tab to show the verified method
+      setActiveTab("payment-methods");
+      // Clean up URL params
+      router.replace("/agency/profile");
+      // Refresh payment methods and wallet
+      fetchPaymentMethods();
+      refetchWallet();
+    } else if (verifyStatus === "failed") {
+      toast.error("GCash verification failed. Please try adding your payment method again.");
+      setActiveTab("payment-methods");
+      router.replace("/agency/profile");
+      fetchPaymentMethods();
+    }
+  }, [searchParams]);
+
   // Fetch payment methods when tab changes
   useEffect(() => {
     if (activeTab === "payment-methods") {
@@ -190,14 +215,28 @@ export default function AgencyProfilePage() {
         }),
       });
 
+      const data = await res.json();
+      
       if (res.ok) {
-        toast.success("GCash account added successfully!");
-        setShowAddPaymentModal(false);
-        setNewAccountName("");
-        setNewAccountNumber("");
-        fetchPaymentMethods();
+        // Check if verification is required (new production-ready flow)
+        if (data.verification_required && data.checkout_url) {
+          toast.info("Redirecting to PayMongo for GCash verification...");
+          setShowAddPaymentModal(false);
+          setNewAccountName("");
+          setNewAccountNumber("");
+          
+          // Redirect to PayMongo checkout for verification
+          // The ₱1 payment will verify ownership of the GCash account
+          window.location.href = data.checkout_url;
+        } else {
+          // Legacy flow (if any)
+          toast.success("GCash account added successfully!");
+          setShowAddPaymentModal(false);
+          setNewAccountName("");
+          setNewAccountNumber("");
+          fetchPaymentMethods();
+        }
       } else {
-        const data = await res.json();
         toast.error(data.error || "Failed to add payment method");
       }
     } catch (error) {
@@ -1260,6 +1299,22 @@ export default function AgencyProfilePage() {
                   )}
                 </div>
               )}
+
+              {/* Verification Info */}
+              <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 mt-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                    <CheckCircle className="h-4 w-4 text-blue-600" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-medium text-blue-900">Secure Verification</h4>
+                    <p className="text-xs text-blue-700 mt-1">
+                      After clicking "Verify Account", you'll be redirected to PayMongo to pay ₱1 
+                      via GCash. This confirms you own the account. The ₱1 will be credited to your wallet!
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div className="flex gap-3 mt-6">
@@ -1283,7 +1338,7 @@ export default function AgencyProfilePage() {
                 }
                 className="flex-1 bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-300"
               >
-                {isAddingPaymentMethod ? "Adding..." : "Add Account"}
+                {isAddingPaymentMethod ? "Verifying..." : "Verify Account"}
               </Button>
             </div>
           </div>

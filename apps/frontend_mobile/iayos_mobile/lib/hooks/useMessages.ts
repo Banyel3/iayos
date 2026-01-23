@@ -114,8 +114,19 @@ export type ConversationDetail = {
     account_id: number;
     name: string;
     avatar: string;
+    skill?: string;
   }>;
   all_team_workers_reviewed?: boolean;
+  // Backjob/dispute support
+  backjob?: {
+    has_backjob: boolean;
+    dispute_id?: number;
+    reason?: string;
+    status?: "UNDER_REVIEW" | "APPROVED" | "REJECTED" | "COMPLETED";
+    backjob_started?: boolean;
+    worker_marked_complete?: boolean;
+    client_confirmed_complete?: boolean;
+  } | null;
   my_role: "CLIENT" | "WORKER" | "AGENCY";
   messages: Message[];
   total_messages: number;
@@ -158,14 +169,18 @@ export function useMessages(conversationId: number) {
           avatar: getAbsoluteMediaUrl(emp.avatar),
         })),
         // Team worker assignments for team jobs
-        team_worker_assignments: data.team_worker_assignments?.map((worker: any) => ({
-          ...worker,
-          avatar: getAbsoluteMediaUrl(worker.avatar),
-        })),
-        pending_team_worker_reviews: data.pending_team_worker_reviews?.map((worker: any) => ({
-          ...worker,
-          avatar: getAbsoluteMediaUrl(worker.avatar),
-        })),
+        team_worker_assignments: data.team_worker_assignments?.map(
+          (worker: any) => ({
+            ...worker,
+            avatar: getAbsoluteMediaUrl(worker.avatar),
+          }),
+        ),
+        pending_team_worker_reviews: data.pending_team_worker_reviews?.map(
+          (worker: any) => ({
+            ...worker,
+            avatar: getAbsoluteMediaUrl(worker.avatar),
+          }),
+        ),
         messages: data.messages.map((msg: Message) => ({
           ...msg,
           sender_avatar: getAbsoluteMediaUrl(msg.sender_avatar),

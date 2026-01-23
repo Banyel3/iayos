@@ -66,7 +66,7 @@ export default function JobApplicationsPage() {
 
       const response = await fetch(
         `http://localhost:8000/api/adminpanel/jobs/applications?${params}`,
-        { credentials: "include" }
+        { credentials: "include" },
       );
 
       if (!response.ok) {
@@ -119,7 +119,7 @@ export default function JobApplicationsPage() {
             },
             updated_at:
               app.updated_at || app.updatedAt || new Date().toISOString(),
-          })
+          }),
         );
 
         setApplications(transformedApps);
@@ -286,7 +286,7 @@ export default function JobApplicationsPage() {
                             Proposed Rate:
                           </span>
                           <span className="font-medium">
-                            ₱{application.proposedRate.toLocaleString()}
+                            ₱{(application.proposedRate ?? 0).toLocaleString()}
                           </span>
                           <span className="text-xs text-gray-500">
                             ({application.rateType})
@@ -302,7 +302,7 @@ export default function JobApplicationsPage() {
                         <span>
                           Applied:{" "}
                           {new Date(
-                            application.appliedDate
+                            application.appliedDate,
                           ).toLocaleDateString()}
                         </span>
                         <span>Duration: {application.estimatedDuration}</span>

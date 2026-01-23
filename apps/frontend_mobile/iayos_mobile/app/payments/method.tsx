@@ -21,7 +21,7 @@ import PaymentMethodButton from "../../components/PaymentMethodButton";
 import WalletBalanceCard from "../../components/WalletBalanceCard";
 import { useWalletBalance } from "../../lib/hooks/usePayments";
 
-type PaymentMethod = "gcash" | "wallet" | "cash";
+type PaymentMethod = "wallet";
 
 export default function PaymentMethodScreen() {
   const router = useRouter();
@@ -32,8 +32,9 @@ export default function PaymentMethodScreen() {
   const jobBudget = params.budget ? parseFloat(params.budget as string) : 0;
   const jobTitle = (params.title as string) || "Untitled Job";
 
+  // Escrow payment is wallet-only
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(
-    null
+    null,
   );
 
   // Fetch wallet balance
@@ -59,7 +60,7 @@ export default function PaymentMethodScreen() {
             onPress: () => router.push("/payments/deposit" as any),
           },
           { text: "Cancel", style: "cancel" },
-        ]
+        ],
       );
       return;
     }
@@ -70,7 +71,7 @@ export default function PaymentMethodScreen() {
     if (!selectedMethod) {
       Alert.alert(
         "Select Payment Method",
-        "Please select a payment method to continue."
+        "Please select a payment method to continue.",
       );
       return;
     }
@@ -80,27 +81,11 @@ export default function PaymentMethodScreen() {
       return;
     }
 
-    // Navigate to specific payment screen
-    switch (selectedMethod) {
-      case "gcash":
-        router.push({
-          pathname: "/payments/gcash" as any,
-          params: { jobId, budget: jobBudget, title: jobTitle },
-        });
-        break;
-      case "wallet":
-        router.push({
-          pathname: "/payments/wallet" as any,
-          params: { jobId, budget: jobBudget, title: jobTitle },
-        });
-        break;
-      case "cash":
-        router.push({
-          pathname: "/payments/cash" as any,
-          params: { jobId, budget: jobBudget, title: jobTitle },
-        });
-        break;
-    }
+    // Navigate to wallet payment (escrow is wallet-only)
+    router.push({
+      pathname: "/payments/wallet" as any,
+      params: { jobId, budget: jobBudget, title: jobTitle },
+    });
   };
 
   const handleDeposit = () => {
@@ -154,19 +139,9 @@ export default function PaymentMethodScreen() {
 
         {/* Payment Methods Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Select Payment Method</Text>
+          <Text style={styles.sectionTitle}>Payment Method</Text>
 
-          {/* GCash */}
-          <PaymentMethodButton
-            method="gcash"
-            label="GCash"
-            description="Pay via GCash using Xendit"
-            icon="logo-google"
-            selected={selectedMethod === "gcash"}
-            onPress={() => handleMethodSelect("gcash")}
-          />
-
-          {/* Wallet */}
+          {/* Wallet - Only option for escrow */}
           <PaymentMethodButton
             method="wallet"
             label="Wallet"
@@ -191,8 +166,10 @@ export default function PaymentMethodScreen() {
             style={styles.infoIcon}
           />
           <Text style={styles.infoText}>
-            This is the escrow payment (50% downpayment). Online payment only.
+            This is the escrow payment (50% downpayment). Wallet payment only.
             Cash payment is available for the final 50% after job completion.
+            {"\n\n"}
+            Need to add funds? Tap "Deposit Funds" above to top up via QR PH.
           </Text>
         </View>
       </ScrollView>

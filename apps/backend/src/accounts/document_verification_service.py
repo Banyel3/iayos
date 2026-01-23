@@ -27,7 +27,8 @@ logger = logging.getLogger(__name__)
 # Inside Docker network, CompreFace runs nginx on port 80 which proxies to Java backend
 # Docker mapping: 8100:80 (external:internal)
 COMPREFACE_URL = "http://compreface:80"
-COMPREFACE_API_KEY = "9f8b2f5e-de2e-4834-8639-2e4a0f8d391f"  # Detection service API key
+# Detection service API key - from CompreFace's built-in "Detection_Demo" service
+COMPREFACE_API_KEY = "00000000-0000-0000-0000-000000000003"
 
 # Tesseract is imported conditionally to handle environments where it's not installed
 try:
@@ -272,14 +273,7 @@ class DocumentVerificationService:
                             "details": {"face_detection": face_result, "resolution": f"{width}x{height}"}
                         }
                 
-                if face_result.get("face_too_small"):
-                    error_msg = "Face is too small in the image. Please move closer or use a higher quality image."
-                    logger.warning(f"   ❌ Face too small")
-                    return {
-                        "valid": False,
-                        "error": error_msg,
-                        "details": {"face_detection": face_result, "resolution": f"{width}x{height}"}
-                    }
+                # Face size check removed - was causing issues with valid IDs
                 
                 logger.info(f"   ✅ Face detected with confidence {face_result.get('confidence', 0):.2f}")
             
@@ -374,18 +368,8 @@ class DocumentVerificationService:
                 
                 if face_result["count"] > 1:
                     warnings.append(f"Multiple faces detected ({face_result['count']})")
-                    
-                if face_result.get("face_too_small"):
-                    logger.warning(f"   ❌ Face too small in image")
-                    return VerificationResult(
-                        status=VerificationStatus.FAILED,
-                        rejection_reason=RejectionReason.FACE_TOO_SMALL,
-                        face_detected=True,
-                        face_count=face_result["count"],
-                        quality_score=quality_result["score"],
-                        details=details,
-                        warnings=warnings
-                    )
+                
+                # Face size check removed - was causing issues with valid IDs
                 
                 print(f"   ✅ Face detected: confidence={face_result['confidence']:.2f}")
             
@@ -578,6 +562,22 @@ class DocumentVerificationService:
             }
         
         try:
+            # Resize image if too large (CompreFace can struggle with very large images)
+            image = Image.open(io.BytesIO(image_data))
+            original_size = (image.width, image.height)
+            max_dimension = 1920  # Resize to max 1920px on longest side
+            
+            if max(image.width, image.height) > max_dimension:
+                ratio = max_dimension / max(image.width, image.height)
+                new_size = (int(image.width * ratio), int(image.height * ratio))
+                image = image.resize(new_size, Image.Resampling.LANCZOS)
+                logger.info(f"   📐 Resized image from {original_size} to {new_size} for face detection")
+                
+                # Convert back to bytes
+                buffer = io.BytesIO()
+                image.save(buffer, format="JPEG", quality=90)
+                image_data = buffer.getvalue()
+            
             # Call CompreFace face detection API
             headers = {"x-api-key": self.compreface_api_key}
             files = {"file": ("image.jpg", image_data, "image/jpeg")}

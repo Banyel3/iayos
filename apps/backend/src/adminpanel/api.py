@@ -15,6 +15,20 @@ from .service import get_worker_detail, get_client_detail, get_agency_detail
 from .service import get_jobs_list, get_job_applications_list, get_jobs_dashboard_stats
 from .service import get_job_categories_list, get_job_disputes_list, get_disputes_dashboard_stats
 from .service import get_all_reviews_list, get_job_reviews_list, get_reviews_dashboard_stats, get_flagged_reviews_list
+
+# Import optimized query functions for high-traffic endpoints
+from .optimized_queries import (
+    get_dashboard_stats_optimized,
+    get_kyc_list_optimized,
+    get_clients_list_optimized,
+    get_workers_list_optimized,
+    get_agencies_list_optimized,
+    get_jobs_list_optimized,
+    get_transactions_list_optimized,
+    get_transaction_stats_optimized,
+    get_reviews_list_optimized,
+    get_withdrawals_list_optimized,
+)
 from .account_actions import suspend_account, ban_account, activate_account, delete_account, get_account_status
 from .payment_service import (
     get_transactions_list, get_transaction_statistics, get_transaction_detail,
@@ -22,7 +36,8 @@ from .payment_service import (
     bulk_release_escrow, get_worker_earnings, get_worker_earnings_statistics,
     process_payout, get_disputes_list, get_dispute_detail, resolve_dispute,
     get_disputes_statistics, get_revenue_trends, get_payment_methods_breakdown,
-    get_top_performers
+    get_top_performers, get_withdrawals_list, get_withdrawals_statistics,
+    process_withdrawal_approval
 )
 from .support_service import (
     get_tickets, get_ticket_detail, create_ticket, reply_to_ticket,
@@ -44,11 +59,12 @@ from .settings_service import (
 router = Router(tags=["adminpanel"])
 
 
-@router.get("/dashboard/stats")
+@router.get("/dashboard/stats", auth=cookie_auth)
 def get_dashboard_stats(request):
-    """Get comprehensive dashboard statistics."""
+    """Get comprehensive dashboard statistics using optimized queries."""
     try:
-        stats = get_admin_dashboard_stats()
+        # Use optimized single-query aggregation
+        stats = get_dashboard_stats_optimized()
         return {"success": True, "stats": stats}
     except Exception as e:
         print(f"❌ Error in get_dashboard_stats: {str(e)}")
@@ -57,7 +73,7 @@ def get_dashboard_stats(request):
         return {"success": False, "error": str(e)}
 
 
-@router.get("/kyc/all")
+@router.get("/kyc/all", auth=cookie_auth)
 def get_all_kyc(request):
     try:
         data = fetchAll_kyc(request)
@@ -67,8 +83,90 @@ def get_all_kyc(request):
         import traceback
         traceback.print_exc()
         return {"success": False, "error": str(e)}
+
+
+@router.get("/kyc/pending", auth=cookie_auth)
+def get_pending_kyc_optimized(request, page: int = 1, page_size: int = 20):
+    """
+    Get paginated pending KYC records using optimized queries.
+    Loads faster than /kyc/all for large datasets.
     
-@router.post("/kyc/review")
+    Query params:
+    - page: Page number (default 1)
+    - page_size: Items per page (default 20)
+    """
+    try:
+        result = get_kyc_list_optimized(status_filter='PENDING', page=page, page_size=page_size)
+        return {"success": True, **result}
+    except Exception as e:
+        print(f"❌ Error in get_pending_kyc_optimized: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/kyc/{kyc_id}/extracted-data", auth=cookie_auth)
+def get_kyc_extracted_data(request, kyc_id: int):
+    """
+    Get AI-extracted KYC data for admin review.
+    Shows extracted values side-by-side with user-confirmed values.
+    
+    Path params:
+    - kyc_id: KYC record ID
+    
+    Returns:
+    - extracted: AI-extracted fields with confidence scores
+    - confirmed: User-confirmed fields
+    - user_edited_fields: List of fields user modified
+    - overall_confidence: AI confidence score
+    """
+    try:
+        from accounts.models import kyc as KYCModel, KYCExtractedData
+        
+        print(f"🔍 [ADMIN KYC] Fetching extracted data for KYC ID: {kyc_id}")
+        
+        # Get KYC record
+        try:
+            kyc_record = KYCModel.objects.get(kycID=kyc_id)
+        except KYCModel.DoesNotExist:
+            return {"success": False, "error": f"KYC record {kyc_id} not found"}
+        
+        # Get extracted data
+        try:
+            extracted = KYCExtractedData.objects.get(kycID=kyc_record)
+            comparison_data = extracted.get_comparison_data()
+            autofill_data = extracted.get_autofill_data()
+            
+            return {
+                "success": True,
+                "kyc_id": kyc_id,
+                "has_extracted_data": True,
+                "extraction_status": extracted.extraction_status,
+                "extraction_source": extracted.extraction_source,
+                "overall_confidence": extracted.overall_confidence,
+                "comparison": comparison_data,
+                "autofill_fields": autofill_data,
+                "user_edited_fields": extracted.user_edited_fields or [],
+                "extracted_at": extracted.extracted_at.isoformat() if extracted.extracted_at else None,
+                "confirmed_at": extracted.confirmed_at.isoformat() if extracted.confirmed_at else None,
+            }
+            
+        except KYCExtractedData.DoesNotExist:
+            return {
+                "success": True,
+                "kyc_id": kyc_id,
+                "has_extracted_data": False,
+                "message": "No extracted data available for this KYC record"
+            }
+            
+    except Exception as e:
+        print(f"❌ [ADMIN KYC] Error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": "Failed to fetch extracted data"}
+
+    
+@router.post("/kyc/review", auth=cookie_auth)
 def review_kyc(request):
     try:
         result = review_kyc_items(request)
@@ -80,7 +178,7 @@ def review_kyc(request):
         traceback.print_exc()
         return {"error": str(e)}
     
-@router.post("/kyc/approve")
+@router.post("/kyc/approve", auth=cookie_auth)
 def approve_kyc_verification(request):
     try:
         result = approve_kyc(request)
@@ -96,7 +194,7 @@ def approve_kyc_verification(request):
         return {"success": False, "error": str(e)}
 
 
-@router.post("/kyc/approve-agency")
+@router.post("/kyc/approve-agency", auth=cookie_auth)
 def approve_agency_kyc_verification(request):
     try:
         result = approve_agency_kyc(request)
@@ -111,7 +209,7 @@ def approve_agency_kyc_verification(request):
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
-@router.post("/kyc/reject")
+@router.post("/kyc/reject", auth=cookie_auth)
 def reject_kyc_verification(request):
     try:
         result = reject_kyc(request)
@@ -127,7 +225,7 @@ def reject_kyc_verification(request):
         return {"success": False, "error": str(e)}
 
 
-@router.post("/kyc/reject-agency")
+@router.post("/kyc/reject-agency", auth=cookie_auth)
 def reject_agency_kyc_verification(request):
     try:
         result = reject_agency_kyc(request)
@@ -143,7 +241,7 @@ def reject_agency_kyc_verification(request):
         return {"success": False, "error": str(e)}
 
 
-@router.post("/kyc/create-agency")
+@router.post("/kyc/create-agency", auth=cookie_auth)
 def create_agency_kyc_from_paths(request):
     """Admin helper: create AgencyKYC and file records from already-uploaded Supabase paths.
 
@@ -242,7 +340,7 @@ def review_agency_kyc_submission(request, agency_kyc_id: int):
         return {"success": False, "error": str(e)}
 
 
-@router.get("/kyc/logs")
+@router.get("/kyc/logs", auth=cookie_auth)
 def get_kyc_logs(request, action: str | None = None, limit: int = 100):
     """
     Get KYC audit logs with optional filtering.
@@ -266,10 +364,10 @@ def get_kyc_logs(request, action: str | None = None, limit: int = 100):
         return {"success": False, "error": str(e)}
 
 
-@router.get("/users/clients")
+@router.get("/users/clients", auth=cookie_auth)
 def get_clients(request, page: int = 1, page_size: int = 50, search: str | None = None, status: str | None = None):
     """
-    Get paginated list of client accounts.
+    Get paginated list of client accounts using optimized queries.
     
     Query params:
     - page: Page number (default 1)
@@ -278,7 +376,8 @@ def get_clients(request, page: int = 1, page_size: int = 50, search: str | None 
     - status: Filter by status (all, active, inactive)
     """
     try:
-        result = get_clients_list(page=page, page_size=page_size, search=search, status_filter=status)
+        # Use optimized query with subqueries to avoid N+1
+        result = get_clients_list_optimized(page=page, page_size=page_size, search=search, status_filter=status)
         return {"success": True, **result}
     except Exception as e:
         print(f"❌ Error fetching clients: {str(e)}")
@@ -287,7 +386,7 @@ def get_clients(request, page: int = 1, page_size: int = 50, search: str | None 
         return {"success": False, "error": str(e)}
 
 
-@router.get("/users/clients/{account_id}")
+@router.get("/users/clients/{account_id}", auth=cookie_auth)
 def get_client_by_id(request, account_id: str):
     """
     Get detailed information about a specific client.
@@ -307,10 +406,10 @@ def get_client_by_id(request, account_id: str):
         return {"success": False, "error": str(e)}
 
 
-@router.get("/users/workers")
+@router.get("/users/workers", auth=cookie_auth)
 def get_workers(request, page: int = 1, page_size: int = 50, search: str | None = None, status: str | None = None):
     """
-    Get paginated list of worker accounts.
+    Get paginated list of worker accounts using optimized queries.
     
     Query params:
     - page: Page number (default 1)
@@ -319,7 +418,8 @@ def get_workers(request, page: int = 1, page_size: int = 50, search: str | None 
     - status: Filter by status (all, active, inactive)
     """
     try:
-        result = get_workers_list(page=page, page_size=page_size, search=search, status_filter=status)
+        # Use optimized query with subqueries to avoid N+1
+        result = get_workers_list_optimized(page=page, page_size=page_size, search=search, status_filter=status)
         return {"success": True, **result}
     except Exception as e:
         print(f"❌ Error fetching workers: {str(e)}")
@@ -328,7 +428,7 @@ def get_workers(request, page: int = 1, page_size: int = 50, search: str | None 
         return {"success": False, "error": str(e)}
 
 
-@router.get("/users/workers/{account_id}")
+@router.get("/users/workers/{account_id}", auth=cookie_auth)
 def get_worker_by_id(request, account_id: str):
     """
     Get detailed information about a specific worker.
@@ -348,10 +448,10 @@ def get_worker_by_id(request, account_id: str):
         return {"success": False, "error": str(e)}
 
 
-@router.get("/users/agencies")
+@router.get("/users/agencies", auth=cookie_auth)
 def get_agencies(request, page: int = 1, page_size: int = 50, search: str | None = None, status: str | None = None):
     """
-    Get paginated list of agency accounts.
+    Get paginated list of agency accounts using optimized queries.
     
     Query params:
     - page: Page number (default 1)
@@ -360,7 +460,8 @@ def get_agencies(request, page: int = 1, page_size: int = 50, search: str | None
     - status: Filter by status (all, active, inactive)
     """
     try:
-        result = get_agencies_list(page=page, page_size=page_size, search=search, status_filter=status)
+        # Use optimized query with subqueries to avoid N+1
+        result = get_agencies_list_optimized(page=page, page_size=page_size, search=search, status_filter=status)
         return {"success": True, **result}
     except Exception as e:
         print(f"❌ Error fetching agencies: {str(e)}")
@@ -369,7 +470,7 @@ def get_agencies(request, page: int = 1, page_size: int = 50, search: str | None
         return {"success": False, "error": str(e)}
 
 
-@router.get("/users/agencies/{account_id}")
+@router.get("/users/agencies/{account_id}", auth=cookie_auth)
 def get_agency_by_id(request, account_id: str):
     """
     Get detailed information about a specific agency.
@@ -389,7 +490,7 @@ def get_agency_by_id(request, account_id: str):
         return {"success": False, "error": str(e)}
 
 
-@router.get("/users/agencies/{account_id}/employees")
+@router.get("/users/agencies/{account_id}/employees", auth=cookie_auth)
 def get_agency_employees_admin(request, account_id: str):
     """
     Get all employees for a specific agency (admin access).
@@ -423,7 +524,7 @@ def get_agency_employees_admin(request, account_id: str):
 # JOBS MANAGEMENT ENDPOINTS
 # ==========================================
 
-@router.get("/jobs/dashboard-stats")
+@router.get("/jobs/dashboard-stats", auth=cookie_auth)
 def get_jobs_dashboard_statistics(request):
     """
     Get statistics for jobs dashboard.
@@ -438,19 +539,21 @@ def get_jobs_dashboard_statistics(request):
         return {"success": False, "error": str(e)}
 
 
-@router.get("/jobs/listings")
-def get_job_listings(request, page: int = 1, page_size: int = 20, status: str | None = None, category_id: int | None = None):
+@router.get("/jobs/listings", auth=cookie_auth)
+def get_job_listings(request, page: int = 1, page_size: int = 20, status: str | None = None, category_id: int | None = None, search: str | None = None):
     """
-    Get paginated list of all job listings.
+    Get paginated list of all job listings using optimized queries.
     
     Query params:
     - page: Page number (default 1)
     - page_size: Items per page (default 20)
     - status: Filter by status (ACTIVE, IN_PROGRESS, COMPLETED, CANCELLED)
     - category_id: Filter by category ID
+    - search: Search by title or description
     """
     try:
-        result = get_jobs_list(page=page, page_size=page_size, status=status, category_id=category_id)
+        # Use optimized query with select_related and annotations
+        result = get_jobs_list_optimized(page=page, page_size=page_size, status=status, category_id=category_id, search=search)
         return {"success": True, **result}
     except Exception as e:
         print(f"❌ Error fetching jobs listings: {str(e)}")
@@ -459,7 +562,7 @@ def get_job_listings(request, page: int = 1, page_size: int = 20, status: str | 
         return {"success": False, "error": str(e)}
 
 
-@router.get("/jobs/listings/{job_id}")
+@router.get("/jobs/listings/{job_id}", auth=cookie_auth)
 def get_job_detail_endpoint(request, job_id: str):
     """
     Get detailed job information including timeline data.
@@ -497,7 +600,7 @@ def delete_job_endpoint(request, job_id: str):
         return {"success": False, "error": str(e)}
 
 
-@router.get("/jobs/applications")
+@router.get("/jobs/applications", auth=cookie_auth)
 def get_job_applications(request, page: int = 1, page_size: int = 20, status: str | None = None):
     """
     Get paginated list of all job applications.
@@ -535,7 +638,7 @@ def get_job_invoice_endpoint(request, job_id: int):
         return {"success": False, "error": str(e)}
 
 
-@router.get("/jobs/categories")
+@router.get("/jobs/categories", auth=cookie_auth)
 def get_job_categories(request):
     """
     Get list of all job categories with statistics.
@@ -550,7 +653,7 @@ def get_job_categories(request):
         return {"success": False, "error": str(e)}
 
 
-@router.get("/jobs/disputes/stats")
+@router.get("/jobs/disputes/stats", auth=cookie_auth)
 def get_disputes_stats(request):
     """
     Get dispute statistics for the dashboard.
@@ -565,7 +668,7 @@ def get_disputes_stats(request):
         return {"success": False, "error": str(e)}
 
 
-@router.get("/jobs/disputes")
+@router.get("/jobs/disputes", auth=cookie_auth)
 def get_disputes(request, page: int = 1, page_size: int = 20, status: str | None = None, priority: str | None = None):
     """
     Get paginated list of job disputes.
@@ -845,7 +948,7 @@ def reject_backjob(request, dispute_id: int):
         return {"success": False, "error": str(e)}
 
 
-@router.get("/reviews/stats")
+@router.get("/reviews/stats", auth=cookie_auth)
 def get_reviews_stats(request):
     """
     Get review statistics for the dashboard.
@@ -860,7 +963,7 @@ def get_reviews_stats(request):
         return {"success": False, "error": str(e)}
 
 
-@router.get("/reviews/all")
+@router.get("/reviews/all", auth=cookie_auth)
 def get_all_reviews(request, page: int = 1, page_size: int = 20, status: str | None = None, reviewer_type: str | None = None, min_rating: float | None = None):
     """
     Get paginated list of all general user reviews.
@@ -873,7 +976,7 @@ def get_all_reviews(request, page: int = 1, page_size: int = 20, status: str | N
     - min_rating: Minimum rating filter (1.0 - 5.0)
     """
     try:
-        result = get_all_reviews_list(page=page, page_size=page_size, status=status, reviewer_type=reviewer_type, min_rating=min_rating)
+        result = get_reviews_list_optimized(page=page, page_size=page_size, status=status, reviewer_type=reviewer_type, min_rating=min_rating)
         return {"success": True, **result}
     except Exception as e:
         print(f"❌ Error fetching all reviews: {str(e)}")
@@ -882,7 +985,7 @@ def get_all_reviews(request, page: int = 1, page_size: int = 20, status: str | N
         return {"success": False, "error": str(e)}
 
 
-@router.get("/reviews/by-job")
+@router.get("/reviews/by-job", auth=cookie_auth)
 def get_reviews_by_job(request, page: int = 1, page_size: int = 20, status: str | None = None):
     """
     Get paginated list of reviews grouped by job.
@@ -903,7 +1006,7 @@ def get_reviews_by_job(request, page: int = 1, page_size: int = 20, status: str 
         return {"success": False, "error": str(e)}
 
 
-@router.get("/reviews/flagged")
+@router.get("/reviews/flagged", auth=cookie_auth)
 def get_flagged_reviews(request, page: int = 1, page_size: int = 20):
     """
     Get paginated list of flagged reviews.
@@ -1051,9 +1154,9 @@ def get_all_transactions(
     Get paginated list of all transactions with filtering.
     """
     try:
-        result = get_transactions_list(
+        result = get_transactions_list_optimized(
             page=page,
-            limit=limit,
+            page_size=limit,
             status=status,
             payment_method=payment_method,
             date_from=date_from,
@@ -1071,11 +1174,12 @@ def get_all_transactions(
 @router.get("/transactions/statistics", auth=cookie_auth)
 def get_transactions_statistics(request):
     """
-    Get overall transaction statistics.
+    Get overall transaction statistics using optimized aggregation query.
     """
     try:
-        result = get_transaction_statistics()
-        return result
+        # Use optimized single-query aggregation
+        stats = get_transaction_stats_optimized()
+        return {"success": True, "stats": stats}
     except Exception as e:
         print(f"❌ Error in get_transactions_statistics: {str(e)}")
         import traceback
@@ -1133,6 +1237,108 @@ def refund_transaction(request, transaction_id: int):
         return result
     except Exception as e:
         print(f"❌ Error in refund_transaction: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+# ===============================
+# Withdrawal Management (Admin)
+# ===============================
+
+@router.get("/withdrawals", auth=cookie_auth)
+def get_all_withdrawals(
+    request,
+    page: int = 1,
+    limit: int = 50,
+    status: str = None,
+    payment_method: str = None,
+    search: str = None
+):
+    """
+    Get paginated list of all withdrawal requests with filtering.
+    Used by admin to view and manage pending withdrawals.
+    """
+    try:
+        result = get_withdrawals_list_optimized(
+            page=page,
+            page_size=limit,
+            status=status,
+            payment_method_filter=payment_method,
+            search=search
+        )
+        return result
+    except Exception as e:
+        print(f"❌ Error in get_all_withdrawals: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/withdrawals/statistics", auth=cookie_auth)
+def get_withdrawal_stats(request):
+    """
+    Get withdrawal statistics for admin dashboard.
+    Returns pending count/amount, completed today, etc.
+    """
+    try:
+        result = get_withdrawals_statistics()
+        return result
+    except Exception as e:
+        print(f"❌ Error in get_withdrawal_stats: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+@router.post("/withdrawals/{transaction_id}/approve", auth=cookie_auth)
+def approve_withdrawal(request, transaction_id: int):
+    """
+    Approve a pending withdrawal request.
+    Admin must manually process the actual payout via PayMongo/bank portal.
+    Accepts an optional reference_number for audit trail.
+    """
+    try:
+        body = request.data if hasattr(request, 'data') else {}
+        admin_notes = body.get('notes', '')
+        reference_number = body.get('reference_number', '')
+        
+        result = process_withdrawal_approval(
+            transaction_id=transaction_id,
+            action='approve',
+            admin_notes=admin_notes,
+            admin=request.auth,
+            request=request,
+            reference_number=reference_number
+        )
+        return result
+    except Exception as e:
+        print(f"❌ Error in approve_withdrawal: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+@router.post("/withdrawals/{transaction_id}/reject", auth=cookie_auth)
+def reject_withdrawal(request, transaction_id: int):
+    """
+    Reject a pending withdrawal request.
+    The amount will be refunded back to the user's wallet.
+    """
+    try:
+        body = request.data if hasattr(request, 'data') else {}
+        reason = body.get('reason', 'Rejected by admin')
+        
+        result = process_withdrawal_approval(
+            transaction_id=transaction_id,
+            action='reject',
+            admin_notes=reason,
+            admin=request.auth,
+            request=request
+        )
+        return result
+    except Exception as e:
+        print(f"❌ Error in reject_withdrawal: {str(e)}")
         import traceback
         traceback.print_exc()
         return {"success": False, "error": str(e)}
@@ -1521,6 +1727,10 @@ class PlatformSettingsSchema(Schema):
     maintenance_mode: Optional[bool] = None
     session_timeout_minutes: Optional[int] = None
     max_upload_size_mb: Optional[int] = None
+    # New KYC auto-approval thresholds
+    kyc_auto_approve_min_confidence: Optional[float] = None
+    kyc_face_match_min_similarity: Optional[float] = None
+    kyc_require_user_confirmation: Optional[bool] = None
 
 
 @router.put("/settings/platform", auth=cookie_auth)

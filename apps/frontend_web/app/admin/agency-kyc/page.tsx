@@ -38,7 +38,7 @@ const AdminAgencyKYC = () => {
     useState<AgencyKYCSubmission | null>(null);
   const [reviewNotes, setReviewNotes] = useState("");
   const [reviewAction, setReviewAction] = useState<"APPROVE" | "REJECT" | null>(
-    null
+    null,
   );
   const [processing, setProcessing] = useState(false);
 
@@ -58,7 +58,7 @@ const AdminAgencyKYC = () => {
         {
           method: "GET",
           credentials: "include",
-        }
+        },
       );
 
       if (!res.ok) {
@@ -87,7 +87,7 @@ const AdminAgencyKYC = () => {
   const handleReview = async (
     submissionId: number,
     action: "APPROVE" | "REJECT",
-    notes: string
+    notes: string,
   ) => {
     setProcessing(true);
     try {
@@ -101,7 +101,7 @@ const AdminAgencyKYC = () => {
             status: action === "APPROVE" ? "APPROVED" : "REJECTED",
             notes: notes || null,
           }),
-        }
+        },
       );
 
       if (!res.ok) {
@@ -406,7 +406,7 @@ const AdminAgencyKYC = () => {
                       handleReview(
                         selectedSubmission.agency_kyc_id,
                         "APPROVE",
-                        reviewNotes
+                        reviewNotes,
                       );
                     }}
                     disabled={processing}
@@ -450,7 +450,7 @@ const AdminAgencyKYC = () => {
                       handleReview(
                         selectedSubmission.agency_kyc_id,
                         "REJECT",
-                        reviewNotes
+                        reviewNotes,
                       );
                     }}
                     disabled={processing}

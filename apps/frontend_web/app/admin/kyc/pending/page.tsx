@@ -54,7 +54,7 @@ export default function PendingKYCPage() {
     "all" | "high" | "medium" | "low"
   >("all");
   const [typeFilter, setTypeFilter] = useState<"all" | "worker" | "client">(
-    "all"
+    "all",
   );
   const [kycFilesMap, setKycFilesMap] = useState<Record<string, KYCFiles>>({});
   const [loadingFiles, setLoadingFiles] = useState<Record<string, boolean>>({});
@@ -85,7 +85,7 @@ export default function PendingKYCPage() {
     const [imgError, setImgError] = useState(false);
 
     // If URL is relative (starts with /), prepend backend URL
-    const fullUrl = url.startsWith('/') ? `http://localhost:8000${url}` : url;
+    const fullUrl = url.startsWith("/") ? `http://localhost:8000${url}` : url;
 
     console.log(`KYCDocumentImage ${label} for record ${recordId}:`, fullUrl);
 
@@ -150,7 +150,7 @@ export default function PendingKYCPage() {
         {
           method: "GET",
           credentials: "include",
-        }
+        },
       );
 
       if (!response.ok) {
@@ -189,7 +189,7 @@ export default function PendingKYCPage() {
           throw new Error(`Server error: ${response.status}`);
         } else {
           throw new Error(
-            `HTTP ${response.status}: Failed to fetch pending KYC requests`
+            `HTTP ${response.status}: Failed to fetch pending KYC requests`,
           );
         }
       }
@@ -207,15 +207,15 @@ export default function PendingKYCPage() {
       const transformedData: PendingKYC[] = (backendData.kyc || [])
         .filter(
           (kycRecord: any) =>
-            (kycRecord.kycStatus || "").toUpperCase() === "PENDING"
+            (kycRecord.kycStatus || "").toUpperCase() === "PENDING",
         )
         .map((kycRecord: any) => {
           // ...existing code for user KYC...
-          const user = backendData.users.find(
-            (u: any) => u.accountID === kycRecord.accountFK_id
+          const user = (backendData.users || []).find(
+            (u: any) => u.accountID === kycRecord.accountFK_id,
           );
-          const filesCount = backendData.kyc_files.filter(
-            (f: any) => f.kycID_id === kycRecord.kycID
+          const filesCount = (backendData.kyc_files || []).filter(
+            (f: any) => f.kycID_id === kycRecord.kycID,
           ).length;
           const submissionDate = new Date(kycRecord.createdAt);
           const today = new Date();
@@ -223,7 +223,7 @@ export default function PendingKYCPage() {
             ? 0
             : Math.floor(
                 (today.getTime() - submissionDate.getTime()) /
-                  (1000 * 60 * 60 * 24)
+                  (1000 * 60 * 60 * 24),
               );
           let priority: "high" | "medium" | "low" = "low";
           if (daysPending > 14) priority = "high";
@@ -252,10 +252,10 @@ export default function PendingKYCPage() {
         .filter((rec: any) => rec.status === "PENDING")
         .map((rec: any) => {
           const agency = (backendData.agencies || []).find(
-            (a: any) => a.accountID === rec.accountFK_id
+            (a: any) => a.accountID === rec.accountFK_id,
           );
           const filesCount = (backendData.agency_kyc_files || []).filter(
-            (f: any) => f.agencyKyc_id === rec.agencyKycID
+            (f: any) => f.agencyKyc_id === rec.agencyKycID,
           ).length;
           const submissionDate = new Date(rec.createdAt);
           const today = new Date();
@@ -263,7 +263,7 @@ export default function PendingKYCPage() {
             ? 0
             : Math.floor(
                 (today.getTime() - submissionDate.getTime()) /
-                  (1000 * 60 * 60 * 24)
+                  (1000 * 60 * 60 * 24),
               );
           let priority: "high" | "medium" | "low" = "low";
           if (daysPending > 14) priority = "high";
@@ -350,17 +350,17 @@ export default function PendingKYCPage() {
       if (record?.userType === "agency") {
         isAgency = true;
         kycFiles = (backendData.agency_kyc_files || []).filter(
-          (f: any) => f.agencyKyc_id === parseInt(kycId)
+          (f: any) => f.agencyKyc_id === parseInt(kycId),
         );
       } else {
         kycFiles = (backendData.kyc_files || []).filter(
-          (f: any) => f.kycID_id === parseInt(kycId)
+          (f: any) => f.kycID_id === parseInt(kycId),
         );
       }
 
       console.log(
         `📂 Found ${kycFiles.length} files for KYC ${kycId}:`,
-        kycFiles
+        kycFiles,
       );
 
       // For agency, map fileType to keys; for user, use fileName patterns
@@ -372,20 +372,20 @@ export default function PendingKYCPage() {
         clearance = kycFiles.find((f: any) => f.fileType === "BUSINESS_PERMIT");
         selfie = kycFiles.find((f: any) => f.fileType === "AUTH_LETTER");
         addressProof = kycFiles.find(
-          (f: any) => f.fileType === "ADDRESS_PROOF"
+          (f: any) => f.fileType === "ADDRESS_PROOF",
         );
       } else {
         frontID = kycFiles.find((f: any) =>
-          f.fileName?.toLowerCase().includes("frontid")
+          f.fileName?.toLowerCase().includes("frontid"),
         );
         backID = kycFiles.find((f: any) =>
-          f.fileName?.toLowerCase().includes("backid")
+          f.fileName?.toLowerCase().includes("backid"),
         );
         clearance = kycFiles.find((f: any) =>
-          f.fileName?.toLowerCase().includes("clearance")
+          f.fileName?.toLowerCase().includes("clearance"),
         );
         selfie = kycFiles.find((f: any) =>
-          f.fileName?.toLowerCase().includes("selfie")
+          f.fileName?.toLowerCase().includes("selfie"),
         );
       }
 
@@ -412,11 +412,11 @@ export default function PendingKYCPage() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify(requestBody),
-        }
+        },
       );
 
       console.log(
-        `📡 Response status: ${response.status} ${response.statusText}`
+        `📡 Response status: ${response.status} ${response.statusText}`,
       );
 
       if (!response.ok) {
@@ -425,7 +425,7 @@ export default function PendingKYCPage() {
           .catch(() => ({ error: "Unknown error" }));
         console.error("❌ Backend error:", errorData);
         throw new Error(
-          `Failed to fetch signed URLs: ${errorData.error || response.statusText}`
+          `Failed to fetch signed URLs: ${errorData.error || response.statusText}`,
         );
       }
 
@@ -452,7 +452,7 @@ export default function PendingKYCPage() {
       setKycFilesMap((prev) => ({ ...prev, [kycId]: filesWithMetadata }));
       console.log(
         `✅ Received signed URLs for KYC ${kycId}:`,
-        filesWithMetadata
+        filesWithMetadata,
       );
     } catch (error) {
       console.error(`❌ Error fetching KYC files for ${kycId}:`, error);
@@ -557,7 +557,7 @@ export default function PendingKYCPage() {
   const handleRejectKYC = async (
     kycId: string,
     userType?: string,
-    reason?: string
+    reason?: string,
   ) => {
     try {
       console.log(`🔍 Rejecting KYC ID: ${kycId}`);
@@ -726,8 +726,7 @@ export default function PendingKYCPage() {
 
           {/* Stats Cards */}
           <div className="grid gap-6 md:grid-cols-4">
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-blue-100/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+            <Card className="border-0 shadow-lg overflow-hidden">
               <CardContent className="relative p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="p-3 bg-blue-100 rounded-xl">
@@ -744,8 +743,7 @@ export default function PendingKYCPage() {
               </CardContent>
             </Card>
 
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-              <div className="absolute inset-0 bg-gradient-to-br from-indigo-50 to-indigo-100/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+            <Card className="border-0 shadow-lg overflow-hidden">
               <CardContent className="relative p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="p-3 bg-indigo-100 rounded-xl">
@@ -762,8 +760,7 @@ export default function PendingKYCPage() {
               </CardContent>
             </Card>
 
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-              <div className="absolute inset-0 bg-gradient-to-br from-gray-50 to-gray-100/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+            <Card className="border-0 shadow-lg overflow-hidden">
               <CardContent className="relative p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="p-3 bg-gray-100 rounded-xl">
@@ -782,8 +779,7 @@ export default function PendingKYCPage() {
               </CardContent>
             </Card>
 
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-blue-100/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+            <Card className="border-0 shadow-lg overflow-hidden">
               <CardContent className="relative p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="p-3 bg-blue-100 rounded-xl">
@@ -797,7 +793,7 @@ export default function PendingKYCPage() {
                   {pendingKYC.length > 0
                     ? Math.round(
                         pendingKYC.reduce((acc, r) => acc + r.daysPending, 0) /
-                          pendingKYC.length
+                          pendingKYC.length,
                       )
                     : 0}
                 </p>
@@ -807,7 +803,7 @@ export default function PendingKYCPage() {
           </div>
 
           {/* Filters */}
-          <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300">
+          <Card className="border-0 shadow-lg">
             <CardContent className="p-6">
               <div className="flex flex-col sm:flex-row gap-4">
                 <div className="flex-1">
@@ -825,7 +821,7 @@ export default function PendingKYCPage() {
                   value={priorityFilter}
                   onChange={(e) =>
                     setPriorityFilter(
-                      e.target.value as "all" | "high" | "medium" | "low"
+                      e.target.value as "all" | "high" | "medium" | "low",
                     )
                   }
                   className="px-4 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-400 focus:outline-none focus:border-blue-500 transition-all cursor-pointer shadow-sm text-sm font-medium"
@@ -981,7 +977,7 @@ export default function PendingKYCPage() {
                           </p>
                           <p className="text-sm">
                             {new Date(
-                              record.submissionDate
+                              record.submissionDate,
                             ).toLocaleDateString()}
                           </p>
                         </div>

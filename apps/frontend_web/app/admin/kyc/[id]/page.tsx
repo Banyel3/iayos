@@ -20,6 +20,7 @@ import {
   ZoomIn,
   X,
 } from "lucide-react";
+import KYCExtractedDataComparison from "@/components/admin/KYCExtractedDataComparison";
 
 interface KYCRecord {
   id: string;
@@ -757,6 +758,14 @@ export default function KYCDetailPage() {
               </dl>
             </CardContent>
           </Card>
+
+          {/* AI Extracted Data Comparison */}
+          {record.userType !== "agency" && (
+            <KYCExtractedDataComparison
+              kycId={parseInt(record.id.replace("kyc_", ""))}
+              isAgency={false}
+            />
+          )}
         </div>
       </div>
 

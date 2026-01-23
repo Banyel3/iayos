@@ -56,6 +56,12 @@ class SendVerificationEmailSchema(Schema):
     verifyLink: str
     verifyLinkExpire: str
 
+class SendOTPEmailSchema(Schema):
+    """Schema for OTP-based email verification"""
+    email: EmailStr
+    otp_code: str  # 6-digit OTP code
+    expires_in_minutes: int = 5
+
 class KYCUploadSchema(Schema):
     accountID: int
     IDType: str
@@ -114,9 +120,10 @@ class WorkerLocationSchema(Schema):
     specializations: list
 
 class DepositFundsSchema(Schema):
-    """Schema for wallet deposit request - GCash only"""
+    """Schema for wallet deposit request - QR PH (Universal Payment)"""
     amount: float
-    payment_method: Optional[str] = "GCASH"  # Only GCash supported
+    # Note: payment_method and payment_method_id removed - QR PH is universal, 
+    # user can pay with any PH bank or e-wallet by scanning the QR code
 
 class WithdrawFundsSchema(Schema):
     """Schema for wallet withdrawal request"""
@@ -125,11 +132,11 @@ class WithdrawFundsSchema(Schema):
     notes: Optional[str] = None
 
 class AddPaymentMethodSchema(Schema):
-    """Schema for adding a payment method (GCash only)"""
-    type: Literal["GCASH"] = "GCASH"
+    """Schema for adding a payment method (GCash, Bank, PayPal)"""
+    type: Literal["GCASH", "BANK", "PAYPAL"]
     account_name: str
-    account_number: str
-    bank_name: Optional[str] = None
+    account_number: str  # GCash number, bank account number, or PayPal email
+    bank_name: Optional[str] = None  # Required for BANK type
 
 # ========================================
 # MOBILE-SPECIFIC SCHEMAS

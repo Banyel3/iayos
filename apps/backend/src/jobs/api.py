@@ -4,7 +4,7 @@ from ninja.responses import Response
 from ninja.files import UploadedFile
 from accounts.authentication import cookie_auth, jwt_auth, dual_auth
 from accounts.models import ClientProfile, Specializations, Profile, WorkerProfile, JobApplication, JobPhoto, Wallet, Transaction, Job, JobLog, Agency, JobDispute, DisputeEvidence, Notification
-from accounts.xendit_service import XenditService
+from accounts.payment_provider import get_payment_provider
 from .models import JobPosting
 # Use Job directly for type checking (JobPosting is just an alias)
 from .schemas import CreateJobPostingSchema, CreateJobPostingMobileSchema, JobPostingResponseSchema, JobApplicationSchema, SubmitReviewSchema, ApproveJobCompletionSchema
@@ -343,41 +343,44 @@ def create_job_posting(request, data: CreateJobPostingSchema):
             print(f"✅ Job posting created: ID={job_posting.jobID}, Title='{job_posting.title}'")
             print(f"📋 Pending escrow transaction created: ID={escrow_transaction.transactionID}")
         
-        # Get user profile for Xendit invoice
+        # Get user profile for payment invoice
         profile = get_user_profile(request)
         if profile:
             user_name = f"{profile.firstName or ''} {profile.lastName or ''}".strip() or request.auth.email
         else:
             user_name = request.auth.email
         
-        # Create Xendit invoice for escrow payment
-        print(f"� Creating Xendit invoice for escrow payment...")
-        xendit_result = XenditService.create_gcash_payment(
+        # Create payment invoice for escrow using configured provider
+        payment_provider = get_payment_provider()
+        provider_name = payment_provider.provider_name
+        print(f"💳 Creating {provider_name.upper()} invoice for escrow payment...")
+        
+        payment_result = payment_provider.create_gcash_payment(
             amount=float(downpayment),
             user_email=request.auth.email,
             user_name=user_name,
             transaction_id=escrow_transaction.transactionID
         )
         
-        if not xendit_result.get("success"):
-            # If Xendit fails, delete the job and transaction
+        if not payment_result.get("success"):
+            # If payment provider fails, delete the job and transaction
             job_posting.delete()
             escrow_transaction.delete()
             return Response(
-                {"error": "Failed to create payment invoice", "details": xendit_result.get("error")},
+                {"error": "Failed to create payment invoice", "details": payment_result.get("error")},
                 status=500
             )
         
-        # Update transaction with Xendit details
-        escrow_transaction.xenditInvoiceID = xendit_result['invoice_id']
-        escrow_transaction.xenditExternalID = xendit_result['external_id']
-        escrow_transaction.invoiceURL = xendit_result['invoice_url']
+        # Update transaction with payment provider details
+        escrow_transaction.xenditInvoiceID = payment_result.get('checkout_id') or payment_result.get('invoice_id')
+        escrow_transaction.xenditExternalID = payment_result.get('external_id')
+        escrow_transaction.invoiceURL = payment_result.get('checkout_url') or payment_result.get('invoice_url')
         escrow_transaction.xenditPaymentChannel = "GCASH"
-        escrow_transaction.xenditPaymentMethod = "EWALLET"
+        escrow_transaction.xenditPaymentMethod = provider_name.upper()
         escrow_transaction.save()
         
-        print(f"📄 Xendit invoice created: {xendit_result['invoice_id']}")
-        print(f"🔗 Payment URL: {xendit_result['invoice_url']}")
+        print(f"📄 {provider_name.upper()} invoice created: {escrow_transaction.xenditInvoiceID}")
+        print(f"🔗 Payment URL: {escrow_transaction.invoiceURL}")
         
         return {
             "success": True,
@@ -385,9 +388,10 @@ def create_job_posting(request, data: CreateJobPostingSchema):
             "job_posting_id": job_posting.jobID,
             "escrow_amount": float(downpayment),
             "remaining_payment": float(remaining_payment),
-            "invoice_url": xendit_result['invoice_url'],
-            "invoice_id": xendit_result['invoice_id'],
-            "message": f"Job created. Please complete the ₱{downpayment} escrow payment via Xendit."
+            "invoice_url": escrow_transaction.invoiceURL,
+            "invoice_id": escrow_transaction.xenditInvoiceID,
+            "provider": provider_name,
+            "message": f"Job created. Please complete the ₱{downpayment} escrow payment."
         }
         
     except Exception as e:
@@ -783,41 +787,44 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
                 print(f"✅ Job posting created: ID={job_posting.jobID}, Title='{job_posting.title}'")
                 print(f"📋 Pending escrow transaction created: ID={escrow_transaction.transactionID}")
             
-            # Get user profile for Xendit invoice
+            # Get user profile for payment invoice
             profile = get_user_profile(request)
             if profile:
                 user_name = f"{profile.firstName or ''} {profile.lastName or ''}".strip() or request.auth.email
             else:
                 user_name = request.auth.email
             
-            # Create Xendit invoice for escrow payment (including platform fee)
-            print(f"💳 Creating Xendit invoice for escrow payment...")
-            xendit_result = XenditService.create_gcash_payment(
+            # Create payment invoice for escrow (including platform fee) using configured provider
+            payment_provider = get_payment_provider()
+            provider_name = payment_provider.provider_name
+            print(f"💳 Creating {provider_name.upper()} invoice for escrow payment...")
+            
+            payment_result = payment_provider.create_gcash_payment(
                 amount=float(total_to_charge),  # Include 5% platform fee
                 user_email=request.auth.email,
                 user_name=user_name,
                 transaction_id=escrow_transaction.transactionID
             )
             
-            if not xendit_result.get("success"):
-                # If Xendit fails, delete the job and transaction
+            if not payment_result.get("success"):
+                # If payment provider fails, delete the job and transaction
                 job_posting.delete()
                 escrow_transaction.delete()
                 return Response(
-                    {"error": "Failed to create payment invoice", "details": xendit_result.get("error")},
+                    {"error": "Failed to create payment invoice", "details": payment_result.get("error")},
                     status=500
                 )
             
-            # Update transaction with Xendit details
-            escrow_transaction.xenditInvoiceID = xendit_result['invoice_id']
-            escrow_transaction.xenditExternalID = xendit_result['external_id']
-            escrow_transaction.invoiceURL = xendit_result['invoice_url']
+            # Update transaction with payment provider details
+            escrow_transaction.xenditInvoiceID = payment_result.get('checkout_id') or payment_result.get('invoice_id')
+            escrow_transaction.xenditExternalID = payment_result.get('external_id')
+            escrow_transaction.invoiceURL = payment_result.get('checkout_url') or payment_result.get('invoice_url')
             escrow_transaction.xenditPaymentChannel = "GCASH"
-            escrow_transaction.xenditPaymentMethod = "EWALLET"
+            escrow_transaction.xenditPaymentMethod = provider_name.upper()
             escrow_transaction.save()
             
-            print(f"📄 Xendit invoice created: {xendit_result['invoice_id']}")
-            print(f"🔗 Payment URL: {xendit_result['invoice_url']}")
+            print(f"📄 {provider_name.upper()} invoice created: {escrow_transaction.xenditInvoiceID}")
+            print(f"🔗 Payment URL: {escrow_transaction.invoiceURL}")
             
             return {
                 "success": True,
@@ -830,9 +837,10 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
                 "downpayment_amount": float(total_to_charge),  # Total amount to charge (escrow + platform fee)
                 "total_amount": float(total_to_charge),
                 "remaining_payment": float(remaining_payment),
-                "invoice_url": xendit_result['invoice_url'],
-                "invoice_id": xendit_result['invoice_id'],
+                "invoice_url": escrow_transaction.invoiceURL,
+                "invoice_id": escrow_transaction.xenditInvoiceID,
                 "transaction_id": escrow_transaction.transactionID,
+                "provider": provider_name,
                 "message": f"Job created successfully! Please complete the ₱{total_to_charge} GCash payment (₱{downpayment} escrow + ₱{platform_fee} platform fee) to confirm the job."
             }
         
@@ -4478,16 +4486,19 @@ def create_invite_job(
                     referenceNumber=f"INVITE-ESCROW-{job.jobID}-{timezone.now().strftime('%Y%m%d%H%M%S')}"
                 )
             
-            # Create Xendit invoice
+            # Create payment invoice using configured provider
             user_name = f"{profile.firstName or ''} {profile.lastName or ''}".strip() or request.auth.email
-            xendit_result = XenditService.create_gcash_payment(
+            payment_provider = get_payment_provider()
+            provider_name = payment_provider.provider_name
+            
+            payment_result = payment_provider.create_gcash_payment(
                 amount=float(downpayment),
                 user_email=request.auth.email,
                 user_name=user_name,
                 transaction_id=transaction.transactionID
             )
             
-            if not xendit_result.get("success"):
+            if not payment_result.get("success"):
                 job.delete()
                 transaction.delete()
                 return Response(
@@ -4495,15 +4506,15 @@ def create_invite_job(
                     status=500
                 )
             
-            # Update transaction with Xendit details
-            transaction.xenditInvoiceID = xendit_result['invoice_id']
-            transaction.xenditExternalID = xendit_result['external_id']
-            transaction.invoiceURL = xendit_result['invoice_url']
+            # Update transaction with payment provider details
+            transaction.xenditInvoiceID = payment_result.get('checkout_id') or payment_result.get('invoice_id')
+            transaction.xenditExternalID = payment_result.get('external_id')
+            transaction.invoiceURL = payment_result.get('checkout_url') or payment_result.get('invoice_url')
             transaction.xenditPaymentChannel = "GCASH"
-            transaction.xenditPaymentMethod = "EWALLET"
+            transaction.xenditPaymentMethod = provider_name.upper()
             transaction.save()
             
-            print(f"✅ INVITE job created: ID={job.jobID}, awaiting GCash payment")
+            print(f"✅ INVITE job created: ID={job.jobID}, awaiting GCash payment via {provider_name.upper()}")
             
             return {
                 "success": True,
@@ -4513,9 +4524,10 @@ def create_invite_job(
                 "invite_status": "PENDING",
                 "invite_target": invite_target_name,
                 "escrow_amount": float(downpayment),
-                "invoice_url": xendit_result['invoice_url'],
-                "invoice_id": xendit_result['invoice_id'],
+                "invoice_url": transaction.invoiceURL,
+                "invoice_id": transaction.xenditInvoiceID,
                 "transaction_id": transaction.transactionID,
+                "provider": provider_name,
                 "message": f"Please complete the ₱{downpayment} escrow payment via GCash."
             }
         
@@ -5760,7 +5772,7 @@ def get_job_receipt(request, job_id: int):
             worker_profile = job.assignedWorkerID.profileID
             worker_info = {
                 'type': 'WORKER',
-                'id': job.assignedWorkerID.workerID,
+                'id': job.assignedWorkerID.id,  # WorkerProfile uses 'id' as primary key
                 'name': f"{worker_profile.firstName} {worker_profile.lastName}",
                 'avatar': worker_profile.profileImg,
                 'contact': worker_profile.contactNum,

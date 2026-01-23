@@ -24,6 +24,24 @@ services:
       timeout: 5s
       retries: 5
 
+  # Redis for Channel Layer, Caching, and Circuit Breaker State
+  redis:
+    image: redis:7-alpine
+    container_name: iayos-redis-dev
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - iayos-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+
   backend:
     build:
       context: .
@@ -42,6 +60,8 @@ services:
       - iayos-network
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     sysctls:
       - net.ipv6.conf.all.disable_ipv6=1
@@ -155,4 +175,6 @@ volumes:
   ml-models:
     driver: local
   postgres-data:
+    driver: local
+  redis-data:
     driver: local

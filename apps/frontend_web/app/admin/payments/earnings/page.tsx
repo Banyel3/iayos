@@ -45,7 +45,7 @@ export default function WorkerEarningsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [showPayoutModal, setShowPayoutModal] = useState(false);
   const [selectedWorker, setSelectedWorker] = useState<WorkerEarning | null>(
-    null
+    null,
   );
   const [payoutMethod, setPayoutMethod] = useState("gcash");
   const [gcashNumber, setGcashNumber] = useState("");
@@ -64,7 +64,7 @@ export default function WorkerEarningsPage() {
 
       const response = await fetch(
         `http://localhost:8000/api/adminpanel/transactions/worker-earnings?${params}`,
-        { credentials: "include" }
+        { credentials: "include" },
       );
 
       if (!response.ok) {
@@ -86,7 +86,7 @@ export default function WorkerEarningsPage() {
     try {
       const response = await fetch(
         "http://localhost:8000/api/adminpanel/transactions/worker-earnings/statistics",
-        { credentials: "include" }
+        { credentials: "include" },
       );
 
       if (!response.ok) {
@@ -142,9 +142,9 @@ export default function WorkerEarningsPage() {
 
     if (
       !confirm(
-        `Process payout of ₱${selectedWorker.pending_payout.toLocaleString()} to ${
-          selectedWorker.worker_name
-        }?`
+        `Process payout of ₱${(selectedWorker?.pending_payout ?? 0).toLocaleString()} to ${
+          selectedWorker?.worker_name ?? "worker"
+        }?`,
       )
     )
       return;
@@ -166,7 +166,7 @@ export default function WorkerEarningsPage() {
             bank_account_name:
               payoutMethod === "bank_transfer" ? bankAccountName : null,
           }),
-        }
+        },
       );
 
       if (!response.ok) throw new Error("Failed to process payout");
@@ -256,7 +256,7 @@ export default function WorkerEarningsPage() {
                   </div>
                   <p className="text-sm text-gray-600 mb-1">Pending Payout</p>
                   <p className="text-3xl font-bold text-gray-900">
-                    ₱{statistics.total_pending_payout.toLocaleString()}
+                    ₱{(statistics.total_pending_payout ?? 0).toLocaleString()}
                   </p>
                 </CardContent>
               </Card>
@@ -271,7 +271,7 @@ export default function WorkerEarningsPage() {
                   </div>
                   <p className="text-sm text-gray-600 mb-1">Total Paid Out</p>
                   <p className="text-3xl font-bold text-gray-900">
-                    ₱{statistics.total_paid_out.toLocaleString()}
+                    ₱{(statistics.total_paid_out ?? 0).toLocaleString()}
                   </p>
                 </CardContent>
               </Card>
@@ -367,17 +367,17 @@ export default function WorkerEarningsPage() {
                           </td>
                           <td className="p-4">
                             <p className="font-semibold text-gray-900">
-                              ₱{worker.total_earnings.toLocaleString()}
+                              ₱{(worker.total_earnings ?? 0).toLocaleString()}
                             </p>
                           </td>
                           <td className="p-4">
                             <Badge className="bg-yellow-100 text-yellow-700">
-                              ₱{worker.pending_payout.toLocaleString()}
+                              ₱{(worker.pending_payout ?? 0).toLocaleString()}
                             </Badge>
                           </td>
                           <td className="p-4">
                             <p className="text-gray-900">
-                              ₱{worker.paid_out.toLocaleString()}
+                              ₱{(worker.paid_out ?? 0).toLocaleString()}
                             </p>
                           </td>
                           <td className="p-4">
@@ -455,7 +455,8 @@ export default function WorkerEarningsPage() {
                       </p>
                       <p className="text-sm text-blue-700 mt-2">Amount</p>
                       <p className="text-2xl font-bold text-blue-900">
-                        ₱{selectedWorker.pending_payout.toLocaleString()}
+                        ₱
+                        {(selectedWorker?.pending_payout ?? 0).toLocaleString()}
                       </p>
                     </div>
 

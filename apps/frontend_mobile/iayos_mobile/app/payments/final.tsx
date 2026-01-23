@@ -33,7 +33,7 @@ export default function FinalPaymentScreen() {
   const jobTitle = (params.title as string) || "Job";
 
   const [selectedMethod, setSelectedMethod] = useState<
-    "gcash" | "wallet" | "cash" | null
+    "wallet" | "cash" | null
   >(null);
 
   const {
@@ -63,7 +63,7 @@ export default function FinalPaymentScreen() {
     if (!selectedMethod) {
       Alert.alert(
         "Select Payment Method",
-        "Please select a payment method to continue."
+        "Please select a payment method to continue.",
       );
       return;
     }
@@ -79,24 +79,13 @@ export default function FinalPaymentScreen() {
             onPress: () => router.push("/payments/deposit" as any),
           },
           { text: "Cancel", style: "cancel" },
-        ]
+        ],
       );
       return;
     }
 
     // Navigate to appropriate payment screen
     switch (selectedMethod) {
-      case "gcash":
-        router.push({
-          pathname: "/payments/gcash" as any,
-          params: {
-            jobId: jobId.toString(),
-            budget: budget.toString(),
-            title: jobTitle,
-            paymentType: "final", // Mark as final payment
-          },
-        });
-        break;
       case "wallet":
         router.push({
           pathname: "/payments/wallet" as any,
@@ -235,15 +224,6 @@ export default function FinalPaymentScreen() {
           <Text style={styles.sectionTitle}>Select Payment Method</Text>
 
           <PaymentMethodButton
-            method="gcash"
-            icon="card"
-            label="GCash"
-            description="Pay via GCash (Xendit)"
-            selected={selectedMethod === "gcash"}
-            onPress={() => setSelectedMethod("gcash")}
-          />
-
-          <PaymentMethodButton
             method="wallet"
             icon="wallet"
             label="Wallet"
@@ -275,7 +255,7 @@ export default function FinalPaymentScreen() {
                 You need ₱
                 {(totalAmount - (walletBalance?.balance || 0)).toLocaleString(
                   "en-US",
-                  { minimumFractionDigits: 2 }
+                  { minimumFractionDigits: 2 },
                 )}{" "}
                 more to complete this payment
               </Text>

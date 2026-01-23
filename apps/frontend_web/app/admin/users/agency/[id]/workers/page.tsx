@@ -51,11 +51,11 @@ export default function AgencyWorkersPage() {
     const avgRating = employees.length > 0 ? totalRating / employees.length : 0;
     const totalJobs = employees.reduce(
       (sum, e) => sum + e.total_jobs_completed,
-      0
+      0,
     );
     const totalEarnings = employees.reduce(
       (sum, e) => sum + e.total_earnings,
-      0
+      0,
     );
 
     return {
@@ -247,7 +247,7 @@ export default function AgencyWorkersPage() {
         {filteredEmployees.length > 0 ? (
           filteredEmployees.map((employee) => (
             <Card
-              key={employee.employee_id}
+              key={employee.employee_id || employee.id}
               className="hover:shadow-lg transition"
             >
               <CardContent className="p-6">

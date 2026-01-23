@@ -58,6 +58,12 @@ class Accounts(AbstractBaseUser, PermissionsMixin):  # <-- include PermissionsMi
 
     verifyToken = models.CharField(max_length=255, null=True, blank=True)  # Changed to CharField for hash
     verifyTokenExpiry = models.DateTimeField(null=True, blank=True)
+    
+    # OTP-based email verification (replaces link-based verification)
+    email_otp = models.CharField(max_length=6, null=True, blank=True)  # 6-digit OTP code
+    email_otp_expiry = models.DateTimeField(null=True, blank=True)  # 5 minutes expiry
+    email_otp_attempts = models.IntegerField(default=0)  # Max 5 failed attempts
+    
     street_address = models.CharField(max_length=255, default="", blank=True)   # "123 Main St"
     city = models.CharField(max_length=100, default="", blank=True)             # "Zamboanga City"
     province = models.CharField(max_length=100, default="", blank=True)         # "Zamboanga del Sur"
@@ -618,6 +624,413 @@ class kycFiles(models.Model):
         indexes = [
             models.Index(fields=['ai_verification_status'], name='kyc_ai_status_idx'),
         ]
+
+
+class KYCExtractedData(models.Model):
+    """
+    Structured storage for KYC data extracted via AI/OCR.
+    
+    This model stores parsed, structured fields from OCR text extraction,
+    allowing for auto-fill of KYC forms and admin comparison of
+    extracted vs user-confirmed values.
+    """
+    extractedDataID = models.BigAutoField(primary_key=True)
+    kycID = models.OneToOneField(
+        kyc,
+        on_delete=models.CASCADE,
+        related_name='extracted_data',
+        help_text="Parent KYC record"
+    )
+    
+    # ============================================================
+    # EXTRACTED FIELDS (from OCR/AI)
+    # ============================================================
+    extracted_full_name = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="Full name extracted from ID document"
+    )
+    extracted_first_name = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        help_text="First name parsed from full name"
+    )
+    extracted_middle_name = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        help_text="Middle name parsed from full name"
+    )
+    extracted_last_name = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        help_text="Last name parsed from full name"
+    )
+    extracted_birth_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Birth date extracted from ID"
+    )
+    extracted_address = models.TextField(
+        blank=True,
+        default="",
+        help_text="Address extracted from ID"
+    )
+    extracted_id_number = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        help_text="ID/Document number extracted"
+    )
+    extracted_id_type = models.CharField(
+        max_length=50,
+        blank=True,
+        default="",
+        help_text="Type of ID detected (PASSPORT, NATIONALID, etc.)"
+    )
+    extracted_expiry_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Document expiry date if present"
+    )
+    extracted_nationality = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        help_text="Nationality/citizenship extracted"
+    )
+    extracted_sex = models.CharField(
+        max_length=20,
+        blank=True,
+        default="",
+        help_text="Sex/gender extracted from ID"
+    )
+    extracted_place_of_birth = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="Place of birth extracted from ID"
+    )
+    
+    # ============================================================
+    # CLEARANCE-SPECIFIC EXTRACTED FIELDS (NBI/Police)
+    # ============================================================
+    extracted_clearance_number = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        help_text="Clearance number extracted from NBI/Police clearance"
+    )
+    
+    class ClearanceType(models.TextChoices):
+        NBI = "NBI", "NBI Clearance"
+        POLICE = "POLICE", "Police Clearance"
+        NONE = "NONE", "Not a Clearance Document"
+    
+    extracted_clearance_type = models.CharField(
+        max_length=20,
+        choices=ClearanceType.choices,
+        default=ClearanceType.NONE,
+        help_text="Type of clearance document (NBI or Police)"
+    )
+    extracted_clearance_issue_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Issue date extracted from clearance document"
+    )
+    extracted_clearance_validity_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Validity/expiry date extracted from clearance document"
+    )
+    
+    # ============================================================
+    # CONFIDENCE SCORES (per field)
+    # ============================================================
+    confidence_full_name = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Confidence score for full name extraction (0-1)"
+    )
+    confidence_birth_date = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Confidence score for birth date extraction (0-1)"
+    )
+    confidence_address = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Confidence score for address extraction (0-1)"
+    )
+    confidence_id_number = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Confidence score for ID number extraction (0-1)"
+    )
+    confidence_place_of_birth = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Confidence score for place of birth extraction (0-1)"
+    )
+    confidence_clearance_number = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Confidence score for clearance number extraction (0-1)"
+    )
+    overall_confidence = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Overall extraction confidence (0-1)"
+    )
+    
+    # ============================================================
+    # USER-CONFIRMED FIELDS
+    # ============================================================
+    confirmed_full_name = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="Full name confirmed/edited by user"
+    )
+    confirmed_first_name = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        help_text="First name confirmed by user"
+    )
+    confirmed_middle_name = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        help_text="Middle name confirmed by user"
+    )
+    confirmed_last_name = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        help_text="Last name confirmed by user"
+    )
+    confirmed_birth_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Birth date confirmed by user"
+    )
+    confirmed_address = models.TextField(
+        blank=True,
+        default="",
+        help_text="Address confirmed by user"
+    )
+    confirmed_id_number = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        help_text="ID number confirmed by user"
+    )
+    confirmed_nationality = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        help_text="Nationality confirmed by user"
+    )
+    confirmed_sex = models.CharField(
+        max_length=20,
+        blank=True,
+        default="",
+        help_text="Sex/gender confirmed by user"
+    )
+    confirmed_place_of_birth = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="Place of birth confirmed by user"
+    )
+    
+    # ============================================================
+    # CLEARANCE-SPECIFIC CONFIRMED FIELDS
+    # ============================================================
+    confirmed_clearance_number = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        help_text="Clearance number confirmed by user"
+    )
+    confirmed_clearance_type = models.CharField(
+        max_length=20,
+        choices=ClearanceType.choices,
+        default=ClearanceType.NONE,
+        help_text="Type of clearance confirmed by user"
+    )
+    confirmed_clearance_issue_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Clearance issue date confirmed by user"
+    )
+    confirmed_clearance_validity_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Clearance validity date confirmed by user"
+    )
+    
+    # ============================================================
+    # STATUS & METADATA
+    # ============================================================
+    class ExtractionStatus(models.TextChoices):
+        PENDING = "PENDING", "Pending Extraction"
+        EXTRACTED = "EXTRACTED", "Data Extracted (Awaiting Confirmation)"
+        CONFIRMED = "CONFIRMED", "User Confirmed"
+        FAILED = "FAILED", "Extraction Failed"
+    
+    extraction_status = models.CharField(
+        max_length=20,
+        choices=ExtractionStatus.choices,
+        default=ExtractionStatus.PENDING,
+        help_text="Current status of data extraction/confirmation"
+    )
+    
+    extraction_source = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        help_text="Source of extraction (e.g., 'Tesseract OCR v4.1')"
+    )
+    
+    user_edited_fields = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="List of field names that user edited from extracted values"
+    )
+    
+    confirmed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When user confirmed the extracted data"
+    )
+    
+    extracted_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When AI extraction was completed"
+    )
+    
+    raw_extraction_data = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Full raw extraction output for debugging"
+    )
+    
+    createdAt = models.DateTimeField(auto_now_add=True)
+    updatedAt = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'kyc_extracted_data'
+        verbose_name = 'KYC Extracted Data'
+        verbose_name_plural = 'KYC Extracted Data'
+        indexes = [
+            models.Index(fields=['extraction_status']),
+            models.Index(fields=['kycID', 'extraction_status']),
+        ]
+    
+    def __str__(self):
+        return f"KYC Extracted Data for KYC #{self.kycID.kycID}"
+    
+    def get_autofill_data(self) -> dict:
+        """
+        Return data suitable for auto-filling KYC forms.
+        
+        Returns extracted values with confidence scores,
+        prioritizing confirmed values if available.
+        """
+        return {
+            "full_name": self.confirmed_full_name or self.extracted_full_name,
+            "first_name": self.confirmed_first_name or self.extracted_first_name,
+            "middle_name": self.confirmed_middle_name or self.extracted_middle_name,
+            "last_name": self.confirmed_last_name or self.extracted_last_name,
+            "birth_date": str(self.confirmed_birth_date or self.extracted_birth_date or ""),
+            "address": self.confirmed_address or self.extracted_address,
+            "id_number": self.confirmed_id_number or self.extracted_id_number,
+            "id_type": self.extracted_id_type,
+            "expiry_date": str(self.extracted_expiry_date or ""),
+            "nationality": self.confirmed_nationality or self.extracted_nationality,
+            "sex": self.confirmed_sex or self.extracted_sex,
+            "place_of_birth": self.confirmed_place_of_birth or self.extracted_place_of_birth,
+            # Clearance-specific fields
+            "clearance_number": self.confirmed_clearance_number or self.extracted_clearance_number,
+            "clearance_type": self.confirmed_clearance_type or self.extracted_clearance_type,
+            "clearance_issue_date": str(self.confirmed_clearance_issue_date or self.extracted_clearance_issue_date or ""),
+            "clearance_validity_date": str(self.confirmed_clearance_validity_date or self.extracted_clearance_validity_date or ""),
+            "confidence_scores": {
+                "full_name": self.confidence_full_name,
+                "birth_date": self.confidence_birth_date,
+                "address": self.confidence_address,
+                "id_number": self.confidence_id_number,
+                "place_of_birth": self.confidence_place_of_birth,
+                "clearance_number": self.confidence_clearance_number,
+                "overall": self.overall_confidence,
+            },
+            "is_confirmed": self.extraction_status == self.ExtractionStatus.CONFIRMED,
+            "user_edited_fields": self.user_edited_fields,
+        }
+    
+    def get_comparison_data(self) -> dict:
+        """
+        Return data for admin side-by-side comparison.
+        
+        Shows extracted vs confirmed values with edit indicators.
+        """
+        return {
+            "extracted": {
+                "full_name": self.extracted_full_name,
+                "first_name": self.extracted_first_name,
+                "middle_name": self.extracted_middle_name,
+                "last_name": self.extracted_last_name,
+                "birth_date": str(self.extracted_birth_date or ""),
+                "address": self.extracted_address,
+                "id_number": self.extracted_id_number,
+                "id_type": self.extracted_id_type,
+                "expiry_date": str(self.extracted_expiry_date or ""),
+                "nationality": self.extracted_nationality,
+                "sex": self.extracted_sex,
+                "place_of_birth": self.extracted_place_of_birth,
+                # Clearance fields
+                "clearance_number": self.extracted_clearance_number,
+                "clearance_type": self.extracted_clearance_type,
+                "clearance_issue_date": str(self.extracted_clearance_issue_date or ""),
+                "clearance_validity_date": str(self.extracted_clearance_validity_date or ""),
+            },
+            "confirmed": {
+                "full_name": self.confirmed_full_name,
+                "first_name": self.confirmed_first_name,
+                "middle_name": self.confirmed_middle_name,
+                "last_name": self.confirmed_last_name,
+                "birth_date": str(self.confirmed_birth_date or ""),
+                "address": self.confirmed_address,
+                "id_number": self.confirmed_id_number,
+                "nationality": self.confirmed_nationality,
+                "sex": self.confirmed_sex,
+                "place_of_birth": self.confirmed_place_of_birth,
+                # Clearance fields
+                "clearance_number": self.confirmed_clearance_number,
+                "clearance_type": self.confirmed_clearance_type,
+                "clearance_issue_date": str(self.confirmed_clearance_issue_date or ""),
+                "clearance_validity_date": str(self.confirmed_clearance_validity_date or ""),
+            },
+            "confidence_scores": {
+                "full_name": self.confidence_full_name,
+                "birth_date": self.confidence_birth_date,
+                "address": self.confidence_address,
+                "id_number": self.confidence_id_number,
+                "place_of_birth": self.confidence_place_of_birth,
+                "clearance_number": self.confidence_clearance_number,
+                "overall": self.overall_confidence,
+            },
+            "user_edited_fields": self.user_edited_fields,
+            "extraction_status": self.extraction_status,
+            "extracted_at": self.extracted_at.isoformat() if self.extracted_at else None,
+            "confirmed_at": self.confirmed_at.isoformat() if self.confirmed_at else None,
+        }
 
 
 class Notification(models.Model):
@@ -1857,6 +2270,23 @@ class Transaction(models.Model):
     createdAt = models.DateTimeField(auto_now_add=True)
     completedAt = models.DateTimeField(null=True, blank=True)
     
+    # Admin audit fields for manual withdrawal processing
+    adminReferenceNumber = models.CharField(
+        max_length=100, 
+        blank=True, 
+        null=True,
+        help_text="Reference number from admin when manually processing withdrawal (e.g., bank ref #)"
+    )
+    processedByAdmin = models.ForeignKey(
+        'Accounts',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='processed_withdrawals',
+        help_text="Admin who processed this withdrawal"
+    )
+    processedAt = models.DateTimeField(null=True, blank=True)
+    
     class Meta:
         ordering = ['-createdAt']
         indexes = [
@@ -1866,6 +2296,7 @@ class Transaction(models.Model):
             models.Index(fields=['referenceNumber']),
             models.Index(fields=['xenditInvoiceID']),
             models.Index(fields=['xenditExternalID']),
+            models.Index(fields=['adminReferenceNumber']),
         ]
     
     def __str__(self):
@@ -1927,16 +2358,20 @@ class Barangay(models.Model):
 
 
 class UserPaymentMethod(models.Model):
-    """User's payment methods for withdrawals (GCash, Bank)"""
+    """User's payment methods for withdrawals (GCash, Bank, PayPal, Visa, GrabPay, Maya)"""
     
     class MethodType(models.TextChoices):
         GCASH = "GCASH", "GCash"
         BANK = "BANK", "Bank Account"
+        PAYPAL = "PAYPAL", "PayPal"
+        VISA = "VISA", "Visa/Credit Card"
+        GRABPAY = "GRABPAY", "GrabPay"
+        MAYA = "MAYA", "Maya"
     
     accountFK = models.ForeignKey(Accounts, on_delete=models.CASCADE, related_name='payment_methods')
     methodType = models.CharField(max_length=10, choices=MethodType.choices)
     accountName = models.CharField(max_length=255)  # Name on account
-    accountNumber = models.CharField(max_length=50)  # GCash number or bank account number
+    accountNumber = models.CharField(max_length=50)  # GCash number, bank account number, or PayPal email
     bankName = models.CharField(max_length=100, null=True, blank=True)  # Only for bank accounts
     isPrimary = models.BooleanField(default=False)
     isVerified = models.BooleanField(default=False)

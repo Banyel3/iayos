@@ -29,7 +29,7 @@ export default function CertificationsScreen() {
     data: certifications = [],
     isLoading: isCertsLoading,
     refetch,
-    isRefreshing,
+    isFetching: isRefreshing,
   } = useCertifications();
   const { data: skills = [], isLoading: isSkillsLoading } = useMySkills();
   const deleteMutation = useDeleteCertification();
@@ -55,7 +55,7 @@ export default function CertificationsScreen() {
           style: "destructive",
           onPress: () => deleteMutation.mutate(cert.id),
         },
-      ]
+      ],
     );
   };
 
@@ -66,7 +66,7 @@ export default function CertificationsScreen() {
 
   const getSkillName = (
     skillId: number | null,
-    fallbackName?: string | null
+    fallbackName?: string | null,
   ): string => {
     // If backend already sent the skill name, prefer it
     if (fallbackName) return fallbackName;
@@ -189,7 +189,7 @@ export default function CertificationsScreen() {
                   <Text style={styles.skillText}>
                     {getSkillName(
                       cert.specializationId ?? null,
-                      cert.skillName
+                      cert.skillName,
                     )}
                   </Text>
                 </View>

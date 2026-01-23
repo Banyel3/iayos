@@ -51,7 +51,7 @@ export default function SkillCertificationsScreen() {
       Alert.alert(
         "Worker Feature Only",
         "Certifications are only available for worker profiles.",
-        [{ text: "OK", onPress: () => router.back() }]
+        [{ text: "OK", onPress: () => router.back() }],
       );
     }
 
@@ -73,7 +73,7 @@ export default function SkillCertificationsScreen() {
   const validSkillId = parseInt(skillId || "0");
   const certifications = allCertifications.filter(
     (cert) =>
-      cert.specializationId !== null && cert.specializationId === validSkillId
+      cert.specializationId !== null && cert.specializationId === validSkillId,
   );
 
   const deleteCertification = useDeleteCertification();
@@ -102,7 +102,7 @@ export default function SkillCertificationsScreen() {
           style: "destructive",
           onPress: () => deleteCertification.mutate(certification.id),
         },
-      ]
+      ],
     );
   };
 
@@ -302,7 +302,7 @@ export default function SkillCertificationsScreen() {
           <Ionicons
             name="ribbon-outline"
             size={64}
-            color={Colors.textTertiary}
+            color={Colors.textSecondary}
           />
           <Text style={styles.emptyTitle}>No Certifications Yet</Text>
           <Text style={styles.emptySubtitle}>
@@ -376,7 +376,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
   },
   headerTitle: {
-    ...Typography.h3,
+    ...Typography.heading.h3,
     color: Colors.textPrimary,
     flex: 1,
     textAlign: "center",
@@ -423,7 +423,7 @@ const styles = StyleSheet.create({
     marginRight: Spacing.sm,
   },
   certName: {
-    ...Typography.h4,
+    ...Typography.heading.h4,
     color: Colors.textPrimary,
     marginBottom: Spacing.xs,
   },
@@ -492,7 +492,7 @@ const styles = StyleSheet.create({
     padding: Spacing.xl,
   },
   emptyTitle: {
-    ...Typography.h3,
+    ...Typography.heading.h3,
     color: Colors.textPrimary,
     marginTop: Spacing.md,
     marginBottom: Spacing.xs,
@@ -548,7 +548,7 @@ const styles = StyleSheet.create({
     padding: Spacing.xl,
   },
   errorText: {
-    ...Typography.h4,
+    ...Typography.heading.h4,
     color: Colors.error,
     marginTop: Spacing.md,
     marginBottom: Spacing.lg,

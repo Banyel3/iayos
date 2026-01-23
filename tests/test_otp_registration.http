@@ -1,0 +1,50 @@
+### Test OTP Registration Flow
+### Step 1: Register a new account (generates OTP)
+
+POST http://localhost:8000/api/accounts/register
+Content-Type: application/json
+
+{
+    "firstName": "Test",
+    "lastName": "OTPUser",
+    "email": "testotp9999@example.com",
+    "password": "TestPass123!",
+    "confirmPassword": "TestPass123!",
+    "contactNum": "09171234567",
+    "birthDate": "1995-05-15",
+    "street_address": "123 Test Street",
+    "city": "Zamboanga City",
+    "province": "Zamboanga del Sur",
+    "postal_code": "7000",
+    "country": "Philippines"
+}
+
+### Step 2: Verify OTP (replace OTP_CODE with value from registration response)
+### The field name is "otp" NOT "otp_code"
+
+POST http://localhost:8000/api/accounts/verify-otp
+Content-Type: application/json
+
+{
+    "email": "testotp9999@example.com",
+    "otp": "REPLACE_WITH_OTP"
+}
+
+### Step 3: Login after verification
+
+POST http://localhost:8000/api/accounts/login
+Content-Type: application/json
+
+{
+    "email": "testotp9999@example.com",
+    "password": "TestPass123!"
+}
+
+### Step 4: Resend OTP (if needed) - 60 second cooldown
+
+POST http://localhost:8000/api/accounts/resend-otp
+Content-Type: application/json
+
+{
+    "email": "testotp9999@example.com"
+}

@@ -7,7 +7,7 @@
  * - Material needs checklist
  * - Urgency level selection
  * - Preferred start date picker
- * - Wallet payment only (GCash is for deposits/withdrawals)
+ * - Wallet payment only (deposits via QR PH - any bank/e-wallet)
  * - AI-powered price suggestion based on job details
  * - Validation and error handling
  */
@@ -70,7 +70,7 @@ interface CreateJobRequest {
   expected_duration?: string;
   urgency_level: "LOW" | "MEDIUM" | "HIGH";
   preferred_start_date?: string;
-  payment_method: "WALLET"; // Jobs only use Wallet payment (GCash is for deposits/withdrawals only)
+  payment_method: "WALLET"; // Jobs only use Wallet payment (deposits via QR PH)
   worker_id?: number;
   agency_id?: number;
   // Universal job fields for ML accuracy
@@ -91,7 +91,7 @@ export default function CreateJobScreen() {
     "[CreateJob] Screen loaded - workerId:",
     workerId,
     "agencyId:",
-    agencyId
+    agencyId,
   );
 
   // Form state
@@ -99,7 +99,7 @@ export default function CreateJobScreen() {
   const [description, setDescription] = useState("");
   const [categoryId, setCategoryId] = useState<number | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(
-    null
+    null,
   );
   const [budget, setBudget] = useState("");
   const [barangay, setBarangay] = useState("");
@@ -121,7 +121,7 @@ export default function CreateJobScreen() {
     "INDOOR" | "OUTDOOR" | "BOTH"
   >("INDOOR");
   const queryClient = useQueryClient();
-  // Jobs only use Wallet payment - GCash is for deposits/withdrawals only
+  // Jobs only use Wallet payment - deposits via QR PH (any bank/e-wallet)
   // No payment method selection needed - always WALLET
 
   // Fetch wallet balance
@@ -135,21 +135,7 @@ export default function CreateJobScreen() {
     walletData?.availableBalance ?? walletData?.balance ?? 0;
   const reservedBalance = walletData?.reservedBalance ?? 0;
 
-  // Fetch payment methods to check if user has GCash set up
-  const { data: paymentMethodsData, isLoading: paymentMethodsLoading } =
-    useQuery({
-      queryKey: ["payment-methods"],
-      queryFn: async () => {
-        const response = await apiRequest(ENDPOINTS.PAYMENT_METHODS);
-        if (!response.ok) throw new Error("Failed to fetch payment methods");
-        const data = await response.json();
-        return data;
-      },
-    });
-
-  const hasGCashMethod = paymentMethodsData?.payment_methods?.some(
-    (method: any) => method.type === "GCASH"
-  );
+  // Payment methods are no longer required - deposits use QR PH (any bank/e-wallet)
 
   // Calculate required downpayment (50% of budget)
   const requiredDownpayment = budget ? parseFloat(budget) * 0.5 : 0;
@@ -238,7 +224,7 @@ export default function CreateJobScreen() {
     queryKey: ["categories"],
     queryFn: async () => {
       const response = await fetchJson<{ categories: Category[] }>(
-        ENDPOINTS.GET_CATEGORIES
+        ENDPOINTS.GET_CATEGORIES,
       );
       return response.categories || [];
     },
@@ -268,7 +254,7 @@ export default function CreateJobScreen() {
     "Type:",
     typeof categories,
     "IsArray:",
-    Array.isArray(categories)
+    Array.isArray(categories),
   );
 
   // Create job mutation
@@ -310,24 +296,19 @@ export default function CreateJobScreen() {
               text: "Go to Home",
               onPress: () => router.replace("/"),
             },
-          ]
+          ],
         );
         return;
       }
 
-      // Check if payment is required (GCash payment)
+      // Check if payment is required (wallet payment)
       if (data.requires_payment && data.invoice_url) {
-        // Navigate to GCash payment screen via WebView
+        // Navigate to wallet payment screen
         // Use replace so back button doesn't return to the form
         router.replace({
-          pathname: "/payments/gcash",
+          pathname: "/payments/wallet",
           params: {
-            invoiceUrl: data.invoice_url,
             jobId: data.job_posting_id.toString(),
-            amount:
-              data.downpayment_amount?.toString() ||
-              data.total_amount?.toString() ||
-              "0", // Total amount to be paid now (escrow + platform fee)
             budget: budget || String(jobData.budget), // full job budget for breakdown
             title: title || "Job Request", // Pass title for better UX
           },
@@ -349,7 +330,7 @@ export default function CreateJobScreen() {
               text: "Back to Home",
               onPress: () => router.replace("/"),
             },
-          ]
+          ],
         );
       }
     },
@@ -383,7 +364,7 @@ export default function CreateJobScreen() {
       if (budgetValue < selectedCategory.minimum_rate) {
         Alert.alert(
           "Budget Too Low",
-          `The minimum budget for ${selectedCategory.name} is ₱${selectedCategory.minimum_rate.toFixed(2)}. Please enter a higher amount.`
+          `The minimum budget for ${selectedCategory.name} is ₱${selectedCategory.minimum_rate.toFixed(2)}. Please enter a higher amount.`,
         );
         return;
       }
@@ -397,21 +378,7 @@ export default function CreateJobScreen() {
       return;
     }
 
-    // Check if user has GCash payment method
-    if (!hasGCashMethod) {
-      Alert.alert(
-        "Payment Method Required",
-        "You need to add a GCash account to deposit funds for job payments. Would you like to add one now?",
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Add GCash Account",
-            onPress: () => router.push("/profile/payment-methods" as any),
-          },
-        ]
-      );
-      return;
-    }
+    // Wallet balance check only - deposits use QR PH (any bank/e-wallet)
 
     // Check wallet balance
     if (hasInsufficientBalance) {
@@ -428,7 +395,7 @@ export default function CreateJobScreen() {
                 params: { amount: Math.ceil(shortfallAmount).toString() },
               } as any),
           },
-        ]
+        ],
       );
       return;
     }
@@ -1028,7 +995,7 @@ export default function CreateJobScreen() {
                             setSelectedMaterials((prev) =>
                               prev.includes(material.id)
                                 ? prev.filter((id) => id !== material.id)
-                                : [...prev, material.id]
+                                : [...prev, material.id],
                             );
                           }}
                         >
@@ -1163,41 +1130,17 @@ export default function CreateJobScreen() {
                 )}
               </View>
 
-              {/* GCash Payment Method Check */}
-              {!paymentMethodsLoading && !hasGCashMethod && (
-                <View style={styles.warningBox}>
-                  <Ionicons name="warning" size={20} color={Colors.warning} />
-                  <View style={styles.warningTextContainer}>
-                    <Text style={styles.warningTitle}>
-                      GCash Account Required
-                    </Text>
-                    <Text style={styles.warningText}>
-                      Add a GCash account to deposit funds for job payments.
-                    </Text>
-                    <TouchableOpacity
-                      style={styles.addPaymentButton}
-                      onPress={() =>
-                        router.push("/profile/payment-methods" as any)
-                      }
-                    >
-                      <Text style={styles.addPaymentButtonText}>
-                        Add GCash Account
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              )}
-
-              {hasGCashMethod && (
-                <View style={styles.successBox}>
-                  <Ionicons
-                    name="checkmark-circle"
-                    size={20}
-                    color={Colors.success}
-                  />
-                  <Text style={styles.successText}>GCash account linked</Text>
-                </View>
-              )}
+              {/* Payment Info - QR PH deposits supported */}
+              <View style={styles.successBox}>
+                <Ionicons
+                  name="checkmark-circle"
+                  size={20}
+                  color={Colors.success}
+                />
+                <Text style={styles.successText}>
+                  QR PH deposits enabled (any bank/e-wallet)
+                </Text>
+              </View>
 
               {/* Info Box */}
               <View style={styles.infoBox}>

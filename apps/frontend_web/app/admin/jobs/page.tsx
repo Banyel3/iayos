@@ -46,7 +46,7 @@ export default function JobsManagementPage() {
           "http://localhost:8000/api/adminpanel/jobs/dashboard-stats",
           {
             credentials: "include",
-          }
+          },
         );
         const data = await response.json();
         if (data.success) {
@@ -387,7 +387,7 @@ export default function JobsManagementPage() {
                             {category.count} jobs
                           </span>
                           <span className="text-xs text-gray-600 ml-2">
-                            ${category.revenue.toLocaleString()}
+                            ₱{(category.revenue ?? 0).toLocaleString()}
                           </span>
                         </div>
                       </div>

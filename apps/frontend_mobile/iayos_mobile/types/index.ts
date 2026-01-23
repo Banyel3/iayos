@@ -157,12 +157,21 @@ export interface RegisterPayload {
   profileType?: "WORKER" | "CLIENT";
 }
 
+export interface RegistrationResponse {
+  accountID: number;
+  email: string;
+  otp_code?: string;
+  otp_expiry_minutes?: number;
+  verifyLink?: string;
+  verifyLinkExpire?: string;
+}
+
 export interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<User>;
-  register: (payload: RegisterPayload) => Promise<boolean>;
+  register: (payload: RegisterPayload) => Promise<RegistrationResponse>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<boolean>;
   assignRole: (profileType: "WORKER" | "CLIENT") => Promise<boolean>;

@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Linking,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -18,10 +19,11 @@ import { Colors, Typography, BorderRadius } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, ENDPOINTS } from "@/lib/api/config";
+import * as WebBrowser from "expo-web-browser";
 
 interface PaymentMethod {
   id: number;
-  type: "GCASH";
+  type: "GCASH" | "BANK" | "PAYPAL" | "VISA" | "GRABPAY" | "MAYA";
   account_name: string;
   account_number: string;
   bank_name?: string;
@@ -39,8 +41,12 @@ export default function PaymentMethodsScreen() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [showAddForm, setShowAddForm] = useState(false);
+  const [selectedType, setSelectedType] = useState<
+    "GCASH" | "BANK" | "PAYPAL" | "VISA" | "GRABPAY" | "MAYA"
+  >("GCASH");
   const [accountName, setAccountName] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
+  const [bankName, setBankName] = useState("");
 
   // Fetch payment methods
   const {
@@ -63,25 +69,104 @@ export default function PaymentMethodsScreen() {
   const paymentMethods = methodsData?.payment_methods || [];
 
   // Add payment method mutation
+  // Response type for add payment method
+  interface AddPaymentMethodResponse {
+    success?: boolean;
+    verification_required?: boolean;
+    checkout_url?: string;
+    method_id?: number;
+    message?: string;
+  }
+
   const addMethodMutation = useMutation({
     mutationFn: async (data: {
       type: string;
       account_name: string;
       account_number: string;
       bank_name?: string;
-    }) => {
+    }): Promise<AddPaymentMethodResponse> => {
       const response = await apiRequest(ENDPOINTS.ADD_PAYMENT_METHOD, {
         method: "POST",
         body: JSON.stringify(data),
       });
-      return response.json();
+      return response.json() as Promise<AddPaymentMethodResponse>;
     },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["payment-methods"] });
-      await refetch();
-      setShowAddForm(false);
-      resetForm();
-      Alert.alert("Success", "Payment method added successfully!");
+    onSuccess: async (data: AddPaymentMethodResponse) => {
+      // Check if verification is required (GCash with PayMongo)
+      if (data.verification_required && data.checkout_url) {
+        const checkoutUrl = data.checkout_url; // Store in const for type narrowing
+        setShowAddForm(false);
+        resetForm();
+
+        // Show info about the verification process
+        Alert.alert(
+          "GCash Verification Required",
+          "You'll be redirected to PayMongo to verify your GCash account. A ₱1 verification fee (credited to your wallet) will confirm you own this account.",
+          [
+            {
+              text: "Continue",
+              onPress: async () => {
+                try {
+                  // Open PayMongo checkout in browser
+                  await WebBrowser.openBrowserAsync(checkoutUrl, {
+                    dismissButtonStyle: "close",
+                    presentationStyle:
+                      WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+                  });
+
+                  // Poll for verification status (webhook may take a moment to process)
+                  let verified = false;
+                  for (let i = 0; i < 5; i++) {
+                    await new Promise((resolve) => setTimeout(resolve, 1500)); // Wait 1.5s between polls
+                    await queryClient.invalidateQueries({
+                      queryKey: ["payment-methods"],
+                    });
+                    const result = await refetch();
+                    const methods = result.data?.payment_methods || [];
+                    const method = methods.find(
+                      (m: PaymentMethod) => m.id === data.method_id,
+                    );
+                    if (method?.is_verified) {
+                      verified = true;
+                      break;
+                    }
+                  }
+
+                  await queryClient.invalidateQueries({
+                    queryKey: ["wallet-balance"],
+                  });
+
+                  if (verified) {
+                    Alert.alert(
+                      "Success! ✓",
+                      "Your GCash account has been verified and ₱1 has been credited to your wallet!",
+                    );
+                  } else {
+                    // Verification may still be processing
+                    Alert.alert(
+                      "Verification Processing",
+                      "Your payment was received. Verification will complete shortly. Please refresh if your payment method doesn't appear as verified.",
+                    );
+                  }
+                } catch (error) {
+                  // Fallback to Linking if WebBrowser fails
+                  Linking.openURL(checkoutUrl);
+                }
+              },
+            },
+          ],
+        );
+      } else {
+        // Bank/PayPal - no verification needed (instant add)
+        await queryClient.invalidateQueries({ queryKey: ["payment-methods"] });
+        await refetch();
+        setShowAddForm(false);
+        resetForm();
+        Alert.alert(
+          "Success! ✓",
+          data.message || "Payment method added successfully!",
+        );
+      }
     },
     onError: (error: any) => {
       Alert.alert("Error", error.message || "Failed to add payment method");
@@ -95,7 +180,7 @@ export default function PaymentMethodsScreen() {
         ENDPOINTS.DELETE_PAYMENT_METHOD(methodId),
         {
           method: "DELETE",
-        }
+        },
       );
       return response.json();
     },
@@ -116,7 +201,7 @@ export default function PaymentMethodsScreen() {
         ENDPOINTS.SET_PRIMARY_PAYMENT_METHOD(methodId),
         {
           method: "POST",
-        }
+        },
       );
       return response.json();
     },
@@ -130,8 +215,10 @@ export default function PaymentMethodsScreen() {
   });
 
   const resetForm = () => {
+    setSelectedType("GCASH");
     setAccountName("");
     setAccountNumber("");
+    setBankName("");
   };
 
   const handleAddMethod = () => {
@@ -144,23 +231,63 @@ export default function PaymentMethodsScreen() {
       return;
     }
 
-    // Validate GCash number format (11 digits starting with 09)
-    if (!/^09\d{9}$/.test(accountNumber.replace(/\s/g, ""))) {
-      Alert.alert("Error", "Invalid GCash number format (e.g., 09123456789)");
-      return;
+    // Type-specific validation
+    if (selectedType === "GCASH") {
+      // Validate GCash number format (11 digits starting with 09)
+      if (!/^09\d{9}$/.test(accountNumber.replace(/\s/g, ""))) {
+        Alert.alert("Error", "Invalid GCash number format (e.g., 09123456789)");
+        return;
+      }
+    } else if (selectedType === "BANK") {
+      if (!bankName.trim()) {
+        Alert.alert("Error", "Please enter bank name");
+        return;
+      }
+      // Validate bank account number (5-20 digits)
+      if (!/^\d{5,20}$/.test(accountNumber.replace(/\s/g, ""))) {
+        Alert.alert("Error", "Invalid bank account number (5-20 digits)");
+        return;
+      }
+    } else if (selectedType === "PAYPAL") {
+      // Validate email format for PayPal
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(accountNumber)) {
+        Alert.alert("Error", "Invalid PayPal email format");
+        return;
+      }
     }
 
     addMethodMutation.mutate({
-      type: "GCASH",
+      type: selectedType,
       account_name: accountName,
       account_number: accountNumber,
+      bank_name: selectedType === "BANK" ? bankName : undefined,
     });
   };
 
+  const getTypeLabel = (type: string) => {
+    switch (type) {
+      case "GCASH":
+        return "GCash account";
+      case "BANK":
+        return "bank account";
+      case "PAYPAL":
+        return "PayPal account";
+      case "VISA":
+        return "Visa/card account";
+      case "GRABPAY":
+        return "GrabPay account";
+      case "MAYA":
+        return "Maya account";
+      default:
+        return "account";
+    }
+  };
+
   const handleDelete = (method: PaymentMethod) => {
+    const typeLabel = getTypeLabel(method.type);
     Alert.alert(
       "Remove Payment Method",
-      "Are you sure you want to remove this GCash account?",
+      `Are you sure you want to remove this ${typeLabel}?`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -168,34 +295,77 @@ export default function PaymentMethodsScreen() {
           style: "destructive",
           onPress: () => deleteMethodMutation.mutate(method.id),
         },
-      ]
+      ],
     );
   };
 
   const handleSetPrimary = (method: PaymentMethod) => {
     if (method.is_primary) return;
+    const typeLabel = getTypeLabel(method.type);
     Alert.alert(
       "Set as Primary",
-      "Set this GCash account as your primary withdrawal method?",
+      `Set this ${typeLabel} as your primary withdrawal method?`,
       [
         { text: "Cancel", style: "cancel" },
         {
           text: "Set Primary",
           onPress: () => setPrimaryMutation.mutate(method.id),
         },
-      ]
+      ],
     );
+  };
+
+  const getMethodIcon = (type: string) => {
+    switch (type) {
+      case "GCASH":
+        return "phone-portrait";
+      case "BANK":
+        return "business";
+      case "PAYPAL":
+        return "logo-paypal";
+      case "VISA":
+        return "card";
+      case "GRABPAY":
+        return "phone-portrait";
+      case "MAYA":
+        return "wallet";
+      default:
+        return "card";
+    }
+  };
+
+  const getMethodLabel = (type: string) => {
+    switch (type) {
+      case "GCASH":
+        return "GCash";
+      case "BANK":
+        return "Bank Account";
+      case "PAYPAL":
+        return "PayPal";
+      case "VISA":
+        return "Visa/Card";
+      case "GRABPAY":
+        return "GrabPay";
+      case "MAYA":
+        return "Maya";
+      default:
+        return type;
+    }
   };
 
   const renderPaymentMethod = (method: PaymentMethod) => (
     <View key={method.id} style={styles.methodCard}>
       <View style={styles.methodHeader}>
         <View style={styles.methodIconContainer}>
-          <Ionicons name="phone-portrait" size={24} color={Colors.primary} />
+          <Ionicons
+            name={getMethodIcon(method.type) as any}
+            size={24}
+            color={Colors.primary}
+          />
         </View>
         <View style={styles.methodInfo}>
           <View style={styles.methodTitleRow}>
-            <Text style={styles.methodType}>GCash</Text>
+            <Text style={styles.methodType}>{getMethodLabel(method.type)}</Text>
             {method.is_primary && (
               <View style={styles.primaryBadge}>
                 <Text style={styles.primaryText}>Primary</Text>
@@ -210,8 +380,16 @@ export default function PaymentMethodsScreen() {
             )}
           </View>
           <Text style={styles.methodName}>{method.account_name}</Text>
+          {method.type === "BANK" && method.bank_name && (
+            <Text style={styles.methodBankName}>{method.bank_name}</Text>
+          )}
           <Text style={styles.methodNumber}>
-            {method.account_number.replace(/(\d{4})(\d{3})(\d{4})/, "$1 $2 $3")}
+            {method.type === "GCASH"
+              ? method.account_number.replace(
+                  /(\d{4})(\d{3})(\d{4})/,
+                  "$1 $2 $3",
+                )
+              : method.account_number}
           </Text>
         </View>
       </View>
@@ -270,8 +448,9 @@ export default function PaymentMethodsScreen() {
               color={Colors.primary}
             />
             <Text style={styles.infoText}>
-              Add your GCash account for withdrawals. Your primary method will
-              be used by default.
+              Add your payment accounts for withdrawals (GCash, Bank, PayPal,
+              Visa, GrabPay, or Maya). Your primary method will be used by
+              default.
             </Text>
           </View>
 
@@ -332,6 +511,108 @@ export default function PaymentMethodsScreen() {
                 </TouchableOpacity>
               </View>
 
+              {/* Type Selector */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Payment Type</Text>
+                <View style={styles.typeSelector}>
+                  <TouchableOpacity
+                    style={[
+                      styles.typeButton,
+                      selectedType === "GCASH" && styles.typeButtonActive,
+                    ]}
+                    onPress={() => setSelectedType("GCASH")}
+                  >
+                    <Ionicons
+                      name="phone-portrait"
+                      size={20}
+                      color={
+                        selectedType === "GCASH" ? Colors.white : Colors.primary
+                      }
+                    />
+                    <Text
+                      style={[
+                        styles.typeButtonText,
+                        selectedType === "GCASH" && styles.typeButtonTextActive,
+                      ]}
+                    >
+                      GCash
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.typeButton,
+                      selectedType === "MAYA" && styles.typeButtonActive,
+                    ]}
+                    onPress={() => setSelectedType("MAYA")}
+                  >
+                    <Ionicons
+                      name="wallet"
+                      size={20}
+                      color={
+                        selectedType === "MAYA" ? Colors.white : Colors.primary
+                      }
+                    />
+                    <Text
+                      style={[
+                        styles.typeButtonText,
+                        selectedType === "MAYA" && styles.typeButtonTextActive,
+                      ]}
+                    >
+                      Maya
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.typeButton,
+                      selectedType === "BANK" && styles.typeButtonActive,
+                    ]}
+                    onPress={() => setSelectedType("BANK")}
+                  >
+                    <Ionicons
+                      name="business"
+                      size={20}
+                      color={
+                        selectedType === "BANK" ? Colors.white : Colors.primary
+                      }
+                    />
+                    <Text
+                      style={[
+                        styles.typeButtonText,
+                        selectedType === "BANK" && styles.typeButtonTextActive,
+                      ]}
+                    >
+                      Bank
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.typeButton,
+                      selectedType === "PAYPAL" && styles.typeButtonActive,
+                    ]}
+                    onPress={() => setSelectedType("PAYPAL")}
+                  >
+                    <Ionicons
+                      name="logo-paypal"
+                      size={20}
+                      color={
+                        selectedType === "PAYPAL"
+                          ? Colors.white
+                          : Colors.primary
+                      }
+                    />
+                    <Text
+                      style={[
+                        styles.typeButtonText,
+                        selectedType === "PAYPAL" &&
+                          styles.typeButtonTextActive,
+                      ]}
+                    >
+                      PayPal
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
               {/* Form Fields */}
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Account Name</Text>
@@ -344,15 +625,61 @@ export default function PaymentMethodsScreen() {
                 />
               </View>
 
+              {selectedType === "BANK" && (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Bank Name</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="e.g., BPI, BDO, Metrobank"
+                    value={bankName}
+                    onChangeText={setBankName}
+                    autoCapitalize="words"
+                  />
+                </View>
+              )}
+
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>GCash Number</Text>
+                <Text style={styles.inputLabel}>
+                  {selectedType === "GCASH" ||
+                  selectedType === "MAYA" ||
+                  selectedType === "GRABPAY"
+                    ? "Mobile Number"
+                    : selectedType === "BANK"
+                      ? "Account Number"
+                      : selectedType === "VISA"
+                        ? "Card Number (last 4 digits)"
+                        : "PayPal Email"}
+                </Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="09123456789"
+                  placeholder={
+                    selectedType === "GCASH" ||
+                    selectedType === "MAYA" ||
+                    selectedType === "GRABPAY"
+                      ? "09123456789"
+                      : selectedType === "BANK"
+                        ? "1234567890"
+                        : selectedType === "VISA"
+                          ? "1234"
+                          : "email@example.com"
+                  }
                   value={accountNumber}
                   onChangeText={setAccountNumber}
-                  keyboardType="numeric"
-                  maxLength={11}
+                  keyboardType={
+                    selectedType === "PAYPAL" ? "email-address" : "numeric"
+                  }
+                  maxLength={
+                    selectedType === "GCASH" ||
+                    selectedType === "MAYA" ||
+                    selectedType === "GRABPAY"
+                      ? 11
+                      : selectedType === "BANK"
+                        ? 20
+                        : selectedType === "VISA"
+                          ? 4
+                          : undefined
+                  }
+                  autoCapitalize="none"
                 />
               </View>
 
@@ -540,6 +867,11 @@ const styles = StyleSheet.create({
   methodName: {
     ...Typography.body.medium,
     color: Colors.textSecondary,
+  },
+  methodBankName: {
+    ...Typography.body.small,
+    color: Colors.textHint,
+    fontStyle: "italic",
   },
   methodNumber: {
     ...Typography.body.medium,

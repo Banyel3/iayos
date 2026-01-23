@@ -1,6 +1,6 @@
 from typing import Any, Annotated, Optional, Union, cast
 
-from ninja import Router, Form as NinjaForm, File as NinjaFile
+from ninja import Router, Form as NinjaForm, File as NinjaFile, Body
 from ninja.files import UploadedFile
 from .schemas import (
     createAccountSchema, logInSchema, createAgencySchema,
@@ -40,7 +40,7 @@ from .portfolio_service import (
     upload_portfolio_image, get_portfolio, update_portfolio_caption,
     reorder_portfolio, delete_portfolio_image
 )
-from .models import Profile, WorkerProfile
+from .models import Profile, WorkerProfile, Accounts
 from .material_service import (
     add_material, list_materials, list_materials_for_client, update_material, delete_material
 )
@@ -219,6 +219,153 @@ def verify(request, verifyToken: str, accountID: int):
     except Exception as e:
         return {"error": [{"message": "Verification failed"}]}
 
+
+@router.post("/verify-otp")
+def verify_otp(request, payload: dict = Body(...)):
+    """
+    Verify email using 6-digit OTP code.
+    
+    Body:
+    - email: User's email address
+    - otp: 6-digit OTP code from email
+    
+    Returns:
+    - success: Whether verification succeeded
+    - message: Status message
+    """
+    from django.utils import timezone
+    
+    email = payload.get("email")
+    otp = payload.get("otp")
+    
+    if not email or not otp:
+        return Response({"success": False, "error": "Email and OTP are required"}, status=400)
+    
+    # Normalize OTP (strip whitespace)
+    otp = str(otp).strip()
+    
+    try:
+        user = Accounts.objects.get(email__iexact=email)
+    except Accounts.DoesNotExist:
+        return Response({"success": False, "error": "Account not found"}, status=404)
+    
+    # Check if already verified
+    if user.isVerified:
+        return {"success": True, "message": "Email already verified", "already_verified": True}
+    
+    # Check if OTP exists
+    if not user.email_otp:
+        return Response({"success": False, "error": "No OTP found. Please request a new one."}, status=400)
+    
+    # Check max attempts (5 attempts allowed)
+    if user.email_otp_attempts >= 5:
+        return Response({
+            "success": False, 
+            "error": "Too many failed attempts. Please request a new OTP.",
+            "max_attempts_reached": True
+        }, status=429)
+    
+    # Check expiry (5 minutes)
+    if user.email_otp_expiry and user.email_otp_expiry < timezone.now():
+        return Response({
+            "success": False, 
+            "error": "OTP has expired. Please request a new one.",
+            "expired": True
+        }, status=400)
+    
+    # Verify OTP
+    if user.email_otp != otp:
+        user.email_otp_attempts += 1
+        user.save()
+        remaining_attempts = 5 - user.email_otp_attempts
+        return Response({
+            "success": False, 
+            "error": f"Invalid OTP. {remaining_attempts} attempts remaining.",
+            "remaining_attempts": remaining_attempts
+        }, status=400)
+    
+    # OTP is valid - verify account
+    user.isVerified = True
+    user.email_otp = None
+    user.email_otp_expiry = None
+    user.email_otp_attempts = 0
+    user.verifyToken = None  # Clear legacy token too
+    user.verifyTokenExpiry = None
+    user.save()
+    
+    print(f"✅ [OTP VERIFY] Account verified for: {email}")
+    
+    return {
+        "success": True, 
+        "message": "Email verified successfully!",
+        "accountID": user.accountID
+    }
+
+
+@router.post("/resend-otp")
+def resend_otp(request, payload: dict = Body(...)):
+    """
+    Resend OTP verification code to email.
+    
+    Body:
+    - email: User's email address
+    
+    Rate limited: Max 3 resends per 15 minutes
+    
+    Returns:
+    - success: Whether OTP was resent
+    - otp_code: The new OTP (for email sending)
+    - expires_in_minutes: Time until expiry
+    """
+    from django.utils import timezone
+    from datetime import timedelta
+    from .services import generate_otp
+    import random
+    
+    email = payload.get("email")
+    
+    if not email:
+        return Response({"success": False, "error": "Email is required"}, status=400)
+    
+    try:
+        user = Accounts.objects.get(email__iexact=email)
+    except Accounts.DoesNotExist:
+        return Response({"success": False, "error": "Account not found"}, status=404)
+    
+    # Check if already verified
+    if user.isVerified:
+        return {"success": False, "error": "Email is already verified", "already_verified": True}
+    
+    # Rate limiting: Check if last OTP was sent within 60 seconds
+    if user.email_otp_expiry:
+        # OTP expiry is set 5 min after creation, so creation time = expiry - 5 min
+        otp_created_at = user.email_otp_expiry - timedelta(minutes=5)
+        seconds_since_last = (timezone.now() - otp_created_at).total_seconds()
+        
+        if seconds_since_last < 60:
+            wait_seconds = int(60 - seconds_since_last)
+            return Response({
+                "success": False, 
+                "error": f"Please wait {wait_seconds} seconds before requesting a new OTP.",
+                "wait_seconds": wait_seconds
+            }, status=429)
+    
+    # Generate new OTP
+    otp_code = generate_otp()
+    user.email_otp = otp_code
+    user.email_otp_expiry = timezone.now() + timedelta(minutes=5)
+    user.email_otp_attempts = 0  # Reset attempts on resend
+    user.save()
+    
+    print(f"📧 [OTP RESEND] New OTP generated for: {email}")
+    
+    return {
+        "success": True,
+        "message": "New OTP sent to your email",
+        "otp_code": otp_code,  # Frontend will use this to send email
+        "expires_in_minutes": 5
+    }
+
 @router.post("/forgot-password/send-verify")
 def forgot_password_send_verify(request, payload: forgotPasswordSchema):
     """Send password reset verification email"""
@@ -381,6 +528,363 @@ def get_kyc_status_endpoint(request):
         traceback.print_exc()
         return {"success": False, "error": "Failed to fetch KYC status"}
 
+
+# =============================================================================
+# KYC AUTO-FILL ENDPOINTS (Mobile KYC Enhancement)
+# =============================================================================
+
+@router.get("/kyc/autofill", auth=dual_auth)
+def get_kyc_autofill_data(request):
+    """
+    Get AI-extracted KYC data for mobile auto-fill.
+    
+    Returns extracted fields from OCR processing that users can review/confirm.
+    Called by mobile app after document upload to pre-populate form fields.
+    
+    Returns:
+    - has_extracted_data: Whether extraction data exists
+    - extraction_status: PENDING, EXTRACTED, CONFIRMED, FAILED
+    - fields: Dictionary of extracted fields with values and confidence scores
+    - needs_confirmation: Whether user needs to confirm/edit the data
+    """
+    try:
+        from .models import kyc, KYCExtractedData
+        
+        user = request.auth
+        print(f"🔍 [KYC AUTOFILL] Fetching auto-fill data for user: {user.email}")
+        
+        # Get user's KYC record
+        try:
+            kyc_record = kyc.objects.get(accountFK=user)
+        except kyc.DoesNotExist:
+            return {
+                "success": True,
+                "has_extracted_data": False,
+                "message": "No KYC submission found"
+            }
+        
+        # Get extracted data
+        try:
+            extracted = KYCExtractedData.objects.get(kycID=kyc_record)
+            autofill_data = extracted.get_autofill_data()
+            
+            return {
+                "success": True,
+                "has_extracted_data": True,
+                "extraction_status": extracted.extraction_status,
+                "needs_confirmation": extracted.extraction_status == "EXTRACTED",
+                "extracted_at": extracted.extracted_at.isoformat() if extracted.extracted_at else None,
+                "confirmed_at": extracted.confirmed_at.isoformat() if extracted.confirmed_at else None,
+                "fields": autofill_data,
+                "user_edited_fields": extracted.user_edited_fields or []
+            }
+            
+        except KYCExtractedData.DoesNotExist:
+            return {
+                "success": True,
+                "has_extracted_data": False,
+                "message": "No extracted data available yet"
+            }
+            
+    except Exception as e:
+        print(f"❌ [KYC AUTOFILL] Error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": "Failed to fetch auto-fill data"}
+
+
+@router.post("/kyc/confirm", auth=dual_auth)
+def confirm_kyc_extracted_data(request, payload: dict = Body(...)):
+    """
+    Confirm or edit KYC extracted data from mobile.
+    
+    Users review AI-extracted fields and can confirm or edit them.
+    This saves their confirmed values for admin verification.
+    
+    If auto-approval is enabled and confidence thresholds are met,
+    the KYC will be automatically approved without admin review.
+    
+    Body:
+    - full_name: Confirmed full name
+    - first_name: Confirmed first name
+    - middle_name: Confirmed middle name
+    - last_name: Confirmed last name
+    - birth_date: Confirmed birth date (YYYY-MM-DD)
+    - address: Confirmed address
+    - id_number: Confirmed ID number
+    
+    Returns:
+    - success: Whether confirmation was saved
+    - extraction_status: New status (CONFIRMED)
+    - auto_approved: Whether KYC was auto-approved
+    """
+    try:
+        from .models import kyc, KYCExtractedData
+        from django.utils import timezone
+        
+        user = request.auth
+        print(f"🔍 [KYC CONFIRM] Confirming data for user: {user.email}")
+        print(f"   Payload: {payload}")
+        
+        # Get user's KYC record
+        try:
+            kyc_record = kyc.objects.get(accountFK=user)
+        except kyc.DoesNotExist:
+            return {"success": False, "error": "No KYC submission found"}
+        
+        # Get or create extracted data record
+        extracted, created = KYCExtractedData.objects.get_or_create(
+            kycID=kyc_record,
+            defaults={"extraction_status": "PENDING"}
+        )
+        
+        # Track which fields were edited by user
+        edited_fields = []
+        
+        # Update confirmed fields from payload
+        field_mappings = {
+            "full_name": "confirmed_full_name",
+            "first_name": "confirmed_first_name",
+            "middle_name": "confirmed_middle_name",
+            "last_name": "confirmed_last_name",
+            "address": "confirmed_address",
+            "id_number": "confirmed_id_number",
+            "nationality": "confirmed_nationality",
+            "sex": "confirmed_sex",
+            "place_of_birth": "confirmed_place_of_birth",
+            # Clearance-specific fields
+            "clearance_number": "confirmed_clearance_number",
+            "clearance_type": "confirmed_clearance_type",
+        }
+        
+        for payload_field, model_field in field_mappings.items():
+            if payload_field in payload and payload[payload_field]:
+                new_value = payload[payload_field]
+                extracted_field = model_field.replace("confirmed_", "extracted_")
+                extracted_value = getattr(extracted, extracted_field, "")
+                
+                # Check if user edited the value
+                if new_value != extracted_value:
+                    edited_fields.append(payload_field)
+                
+                setattr(extracted, model_field, new_value)
+        
+        # Handle birth_date specially (convert string to date)
+        if "birth_date" in payload and payload["birth_date"]:
+            from datetime import datetime
+            try:
+                date_value = datetime.strptime(payload["birth_date"], "%Y-%m-%d").date()
+                extracted.confirmed_birth_date = date_value
+                
+                # Check if edited
+                if extracted.extracted_birth_date != date_value:
+                    edited_fields.append("birth_date")
+            except ValueError:
+                print(f"   ⚠️ Invalid date format: {payload['birth_date']}")
+        
+        # Handle clearance date fields (convert string to date)
+        date_field_mappings = {
+            "clearance_issue_date": ("confirmed_clearance_issue_date", "extracted_clearance_issue_date"),
+            "clearance_validity_date": ("confirmed_clearance_validity_date", "extracted_clearance_validity_date"),
+        }
+        
+        for payload_field, (confirmed_field, extracted_field) in date_field_mappings.items():
+            if payload_field in payload and payload[payload_field]:
+                from datetime import datetime
+                try:
+                    date_value = datetime.strptime(payload[payload_field], "%Y-%m-%d").date()
+                    setattr(extracted, confirmed_field, date_value)
+                    
+                    # Check if edited
+                    extracted_value = getattr(extracted, extracted_field, None)
+                    if extracted_value != date_value:
+                        edited_fields.append(payload_field)
+                except ValueError:
+                    print(f"   ⚠️ Invalid date format for {payload_field}: {payload[payload_field]}")
+        
+        # Update status and metadata
+        extracted.extraction_status = "CONFIRMED"
+        extracted.confirmed_at = timezone.now()
+        extracted.user_edited_fields = edited_fields
+        extracted.save()
+        
+        print(f"   ✅ KYC data confirmed. Edited fields: {edited_fields}")
+        
+        # Check for auto-approval eligibility
+        auto_approved = False
+        auto_approval_reason = None
+        
+        try:
+            auto_approved, auto_approval_reason = _check_kyc_auto_approval(
+                kyc_record, extracted, edited_fields
+            )
+            
+            if auto_approved:
+                print(f"   🎉 KYC auto-approved! Reason: {auto_approval_reason}")
+        except Exception as e:
+            print(f"   ⚠️ Auto-approval check failed: {str(e)}")
+        
+        return {
+            "success": True,
+            "extraction_status": "CONFIRMED",
+            "edited_fields": edited_fields,
+            "confirmed_at": extracted.confirmed_at.isoformat(),
+            "auto_approved": auto_approved,
+            "auto_approval_reason": auto_approval_reason
+        }
+        
+    except Exception as e:
+        print(f"❌ [KYC CONFIRM] Error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": "Failed to save confirmed data"}
+
+
+def _check_kyc_auto_approval(kyc_record, extracted, edited_fields):
+    """
+    Check if KYC should be auto-approved based on platform settings and AI confidence.
+    
+    Auto-approval criteria:
+    1. autoApproveKYC must be enabled in platform settings
+    2. Overall confidence >= kycAutoApproveMinConfidence
+    3. Face match similarity >= kycFaceMatchMinSimilarity (if face matching was done)
+    4. User confirmation required based on kycRequireUserConfirmation
+    5. User has confirmed their data (extraction_status == CONFIRMED)
+    
+    Returns:
+        Tuple of (was_approved: bool, reason: str or None)
+    """
+    from adminpanel.models import PlatformSettings
+    from django.utils import timezone
+    from decimal import Decimal
+    
+    # Get platform settings
+    try:
+        settings = PlatformSettings.objects.first()
+        if not settings:
+            return False, None
+    except Exception:
+        return False, None
+    
+    # Check if auto-approval is enabled
+    if not settings.autoApproveKYC:
+        return False, None
+    
+    print(f"   🔍 [AUTO-APPROVAL] Checking eligibility...")
+    print(f"      - autoApproveKYC: {settings.autoApproveKYC}")
+    print(f"      - kycAutoApproveMinConfidence: {settings.kycAutoApproveMinConfidence}")
+    print(f"      - kycFaceMatchMinSimilarity: {settings.kycFaceMatchMinSimilarity}")
+    print(f"      - kycRequireUserConfirmation: {settings.kycRequireUserConfirmation}")
+    
+    # Check user confirmation requirement
+    if settings.kycRequireUserConfirmation and extracted.extraction_status != "CONFIRMED":
+        print(f"      ❌ User confirmation required but status is: {extracted.extraction_status}")
+        return False, None
+    
+    # Check overall confidence threshold
+    overall_confidence = Decimal(str(extracted.overall_confidence or 0))
+    min_confidence = settings.kycAutoApproveMinConfidence
+    
+    print(f"      - Overall confidence: {overall_confidence}")
+    
+    if overall_confidence < min_confidence:
+        print(f"      ❌ Confidence {overall_confidence} < min {min_confidence}")
+        return False, None
+    
+    # Check face match threshold (if available)
+    face_match_score = extracted.face_match_score
+    if face_match_score is not None:
+        face_match_decimal = Decimal(str(face_match_score))
+        min_face_match = settings.kycFaceMatchMinSimilarity
+        
+        print(f"      - Face match score: {face_match_decimal}")
+        
+        if face_match_decimal < min_face_match:
+            print(f"      ❌ Face match {face_match_decimal} < min {min_face_match}")
+            return False, None
+    
+    # All checks passed - auto-approve the KYC
+    print(f"      ✅ All thresholds met, auto-approving...")
+    
+    # Update KYC record status
+    kyc_record.status = "APPROVED"
+    kyc_record.reviewedBy = "AI_AUTO_APPROVAL"
+    kyc_record.reviewedAt = timezone.now()
+    kyc_record.notes = f"Auto-approved: Confidence={overall_confidence}, FaceMatch={face_match_score or 'N/A'}"
+    kyc_record.save()
+    
+    # Create notification for user
+    try:
+        from .models import Notification
+        Notification.objects.create(
+            accountFK=kyc_record.accountFK,
+            type='KYC',
+            title='KYC Verified! ✅',
+            body='Your identity has been automatically verified. You can now access all platform features.',
+        )
+    except Exception as e:
+        print(f"      ⚠️ Failed to create notification: {e}")
+    
+    reason = f"Met thresholds: confidence={overall_confidence:.2f} >= {min_confidence}, "
+    if face_match_score:
+        reason += f"face_match={face_match_score:.2f} >= {settings.kycFaceMatchMinSimilarity}"
+    else:
+        reason += "face_match=N/A"
+    
+    return True, reason
+
+
+@router.get("/kyc/comparison", auth=dual_auth)
+def get_kyc_comparison_data(request):
+    """
+    Get KYC comparison data for admin review.
+    Shows extracted values side-by-side with user-confirmed values.
+    
+    Returns:
+    - comparison: Dictionary of fields with extracted vs confirmed values
+    - user_edited_fields: List of fields user modified
+    - overall_confidence: AI confidence score
+    """
+    try:
+        from .models import kyc, KYCExtractedData
+        
+        user = request.auth
+        print(f"🔍 [KYC COMPARISON] Fetching comparison for user: {user.email}")
+        
+        # Check if admin or the user themselves
+        # (Admins will typically access via adminpanel endpoints, but allow here too)
+        
+        try:
+            kyc_record = kyc.objects.get(accountFK=user)
+        except kyc.DoesNotExist:
+            return {"success": False, "error": "No KYC submission found"}
+        
+        try:
+            extracted = KYCExtractedData.objects.get(kycID=kyc_record)
+            comparison_data = extracted.get_comparison_data()
+            
+            return {
+                "success": True,
+                "comparison": comparison_data,
+                "user_edited_fields": extracted.user_edited_fields or [],
+                "overall_confidence": extracted.overall_confidence,
+                "extraction_status": extracted.extraction_status,
+                "extraction_source": extracted.extraction_source
+            }
+            
+        except KYCExtractedData.DoesNotExist:
+            return {"success": False, "error": "No extracted data available"}
+            
+    except Exception as e:
+        print(f"❌ [KYC COMPARISON] Error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": "Failed to fetch comparison data"}
+
+
+# =============================================================================
+# NOTIFICATIONS ENDPOINTS
+# =============================================================================
 
 @router.get("/notifications", auth=dual_auth)
 def get_notifications(request, limit: int = 50, unread_only: bool = False):
@@ -980,13 +1484,21 @@ def get_wallet_balance(request):
 @router.post("/wallet/deposit", auth=cookie_auth)
 def deposit_funds(request, data: DepositFundsSchema):
     """
-    Create a Xendit payment invoice for wallet deposit
-    TEST MODE: Transaction auto-approved, funds added immediately
-    Returns payment URL for user to see Xendit page
+    Create a payment invoice for wallet deposit.
+    Uses configured payment provider (PayMongo by default, Xendit for legacy).
+    
+    SECURE FLOW:
+    1. Create PENDING transaction (no balance change)
+    2. Redirect user to PayMongo checkout
+    3. User pays via GCash/Card
+    4. PayMongo webhook confirms payment
+    5. Webhook handler adds funds to wallet
+    
+    Returns payment URL for user to complete payment.
     """
     try:
         from .models import Wallet, Transaction, Profile
-        from .xendit_service import XenditService
+        from .payment_provider import get_payment_provider
         from decimal import Decimal
         from django.utils import timezone
         
@@ -1031,60 +1543,67 @@ def deposit_funds(request, data: DepositFundsSchema):
         print(f"💰 Processing deposit for {user_name}")
         print(f"   Current balance: ₱{wallet.balance}")
         
-        # TEST MODE: Add funds immediately and mark as completed
-        wallet.balance += Decimal(str(amount))
-        wallet.save()
-        
-        # Create completed transaction (auto-approved in TEST MODE)
+        # Create PENDING transaction - funds NOT added yet!
+        # Balance will be updated by webhook after PayMongo confirms payment
         transaction = Transaction.objects.create(
             walletID=wallet,
             transactionType=Transaction.TransactionType.DEPOSIT,
             amount=Decimal(str(amount)),
-            balanceAfter=wallet.balance,
-            status=Transaction.TransactionStatus.COMPLETED,
+            balanceAfter=wallet.balance,  # Balance unchanged until payment confirmed
+            status=Transaction.TransactionStatus.PENDING,  # PENDING until webhook confirms
             description=f"TOP UP via GCASH - ₱{amount}",
             paymentMethod=Transaction.PaymentMethod.GCASH,
-            completedAt=timezone.now()
         )
         
-        print(f"   New balance: ₱{wallet.balance}")
-        print(f"✅ Funds added immediately! Transaction {transaction.transactionID}")
+        print(f"   Transaction {transaction.transactionID} created as PENDING")
+        print(f"   ⚠️ Funds will be added after PayMongo payment confirmation")
         
-        # Create Xendit invoice for user experience
-        print(f"🔄 Creating Xendit invoice...")
-        xendit_result = XenditService.create_gcash_payment(
+        # Create payment invoice using configured provider
+        payment_provider = get_payment_provider()
+        provider_name = payment_provider.provider_name
+        print(f"🔄 Creating payment invoice via {provider_name.upper()}...")
+        
+        payment_result = payment_provider.create_gcash_payment(
             amount=amount,
             user_email=request.auth.email,
             user_name=user_name,
             transaction_id=transaction.transactionID
         )
         
-        if not xendit_result.get("success"):
-            # If Xendit fails, funds are still added but return error
+        if not payment_result.get("success"):
+            # If payment provider fails, mark transaction as failed and return error
+            transaction.status = Transaction.TransactionStatus.FAILED
+            transaction.description = f"TOP UP FAILED - ₱{amount} - {payment_result.get('error', 'Payment provider error')}"
+            transaction.save()
             return Response(
-                {"error": "Failed to create payment invoice", "details": xendit_result.get("error")},
+                {"error": "Failed to create payment invoice", "details": payment_result.get("error")},
                 status=500
             )
         
-        # Update transaction with Xendit details
-        transaction.xenditInvoiceID = xendit_result['invoice_id']
-        transaction.xenditExternalID = xendit_result['external_id']
-        transaction.invoiceURL = xendit_result['invoice_url']
+        # Update transaction with payment provider details
+        # We reuse xendit fields for backward compatibility (can rename in future migration)
+        transaction.xenditInvoiceID = payment_result.get('checkout_id') or payment_result.get('invoice_id')
+        transaction.xenditExternalID = payment_result.get('external_id')
+        transaction.invoiceURL = payment_result.get('checkout_url') or payment_result.get('invoice_url')
         transaction.xenditPaymentChannel = "GCASH"
-        transaction.xenditPaymentMethod = "EWALLET"
+        transaction.xenditPaymentMethod = provider_name.upper()
         transaction.save()
         
-        print(f"📄 Xendit invoice created: {xendit_result['invoice_id']}")
+        print(f"📄 {provider_name.upper()} invoice created: {transaction.xenditInvoiceID}")
+        print(f"   Payment URL: {transaction.invoiceURL}")
+        print(f"   ⏳ Waiting for user to complete payment...")
         
         return {
             "success": True,
             "transaction_id": transaction.transactionID,
-            "payment_url": xendit_result['invoice_url'],
-            "invoice_id": xendit_result['invoice_id'],
+            "payment_url": payment_result.get('checkout_url') or payment_result.get('invoice_url'),
+            "invoice_id": transaction.xenditInvoiceID,
             "amount": amount,
-            "new_balance": float(wallet.balance),
-            "expiry_date": xendit_result['expiry_date'],
-            "message": "Funds added and payment invoice created"
+            "current_balance": float(wallet.balance),  # Show current balance, not new
+            "expiry_date": payment_result.get('expiry_date'),
+            "provider": provider_name,
+            "status": "pending",
+            "message": "Payment invoice created. Complete payment to add funds to wallet."
         }
         
     except Exception as e:
@@ -1098,16 +1617,37 @@ def deposit_funds(request, data: DepositFundsSchema):
 
 
 @router.post("/wallet/withdraw", auth=cookie_auth)
-def withdraw_funds(request, amount: float, payment_method: str = "GCASH"):
-    """Withdraw funds from wallet"""
+def withdraw_funds(request, amount: float, payment_method: str = "GCASH", gcash_number: str = None, gcash_name: str = None):
+    """
+    Withdraw funds from wallet via PayMongo/Xendit disbursement.
+    Uses configured payment provider (PayMongo by default, Xendit for legacy).
+    
+    In test mode: Simulates successful disbursement
+    In production: Creates actual payout to GCash/bank
+    """
     try:
-        from .models import Wallet, Transaction
+        from .models import Wallet, Transaction, Profile
+        from .payment_provider import get_payment_provider
         from decimal import Decimal
         from django.utils import timezone
         
         if amount <= 0:
             return Response(
                 {"error": "Amount must be greater than 0"},
+                status=400
+            )
+        
+        # Minimum withdrawal
+        if amount < 100:
+            return Response(
+                {"error": "Minimum withdrawal amount is ₱100"},
+                status=400
+            )
+        
+        # Require GCash details
+        if not gcash_number or not gcash_name:
+            return Response(
+                {"error": "GCash account number and name are required"},
                 status=400
             )
         
@@ -1127,27 +1667,85 @@ def withdraw_funds(request, amount: float, payment_method: str = "GCASH"):
                 status=400
             )
         
-        # Update balance
+        # Get user profile for details
+        try:
+            profile = Profile.objects.filter(accountFK=request.auth).first()
+            user_name = f"{profile.firstName} {profile.lastName}" if profile else request.auth.email.split('@')[0]
+        except Exception:
+            user_name = request.auth.email.split('@')[0]
+        
+        # Deduct balance first
+        old_balance = wallet.balance
         wallet.balance -= Decimal(str(amount))
         wallet.save()
         
-        # Create transaction record
+        # Create pending withdrawal transaction
         transaction = Transaction.objects.create(
             walletID=wallet,
             transactionType="WITHDRAWAL",
             amount=Decimal(str(amount)),
             balanceAfter=wallet.balance,
-            status="COMPLETED",
-            description=f"Withdrawal via {payment_method}",
+            status="PENDING",
+            description=f"Withdrawal to {payment_method} - {gcash_number}",
             paymentMethod=payment_method,
-            completedAt=timezone.now()
         )
+        
+        print(f"💸 Processing withdrawal for {user_name}: ₱{amount}")
+        print(f"   Old balance: ₱{old_balance} → New balance: ₱{wallet.balance}")
+        
+        # Create disbursement using configured provider
+        payment_provider = get_payment_provider()
+        provider_name = payment_provider.provider_name
+        print(f"🔄 Creating disbursement via {provider_name.upper()}...")
+        
+        disbursement_result = payment_provider.create_disbursement(
+            amount=amount,
+            currency="PHP",
+            recipient_name=gcash_name,
+            account_number=gcash_number,
+            channel_code="GCASH",
+            transaction_id=transaction.transactionID,
+            description=f"Wallet withdrawal - {user_name}",
+            metadata={"user_email": request.auth.email}
+        )
+        
+        if not disbursement_result.get("success"):
+            # Rollback balance deduction
+            wallet.balance = old_balance
+            wallet.save()
+            transaction.status = "FAILED"
+            transaction.save()
+            
+            return Response(
+                {"error": "Failed to process withdrawal", "details": disbursement_result.get("error")},
+                status=500
+            )
+        
+        # Update transaction with disbursement details
+        transaction.xenditInvoiceID = disbursement_result.get('disbursement_id')
+        transaction.xenditExternalID = disbursement_result.get('external_id')
+        transaction.xenditPaymentChannel = "GCASH"
+        transaction.xenditPaymentMethod = provider_name.upper()
+        
+        # Mark as completed if already done (test mode)
+        if disbursement_result.get('status') in ['COMPLETED', 'completed']:
+            transaction.status = "COMPLETED"
+            transaction.completedAt = timezone.now()
+        
+        transaction.save()
+        
+        print(f"📄 {provider_name.upper()} disbursement created: {transaction.xenditInvoiceID}")
+        print(f"✅ Status: {disbursement_result.get('status', 'PENDING')}")
         
         return {
             "success": True,
             "new_balance": float(wallet.balance),
             "transaction_id": transaction.transactionID,
-            "message": f"Successfully withdrew ₱{amount}"
+            "disbursement_id": disbursement_result.get('disbursement_id'),
+            "status": disbursement_result.get('status', 'PENDING'),
+            "message": disbursement_result.get('message', f"Successfully withdrew ₱{amount}"),
+            "provider": provider_name,
+            "test_mode": disbursement_result.get('test_mode', False)
         }
         
     except Exception as e:
@@ -1265,6 +1863,11 @@ def xendit_webhook(request):
         invoice_status = webhook_data['status']
         
         if invoice_status == 'PAID':
+            # IDEMPOTENCY CHECK: Skip if already completed to prevent duplicate deposits
+            if transaction.status == Transaction.TransactionStatus.COMPLETED:
+                print(f"⚠️ Transaction {transaction.transactionID} already COMPLETED - skipping duplicate webhook")
+                return {"success": True, "message": "Transaction already processed"}
+            
             # Payment successful
             wallet = transaction.walletID
             
@@ -1426,6 +2029,334 @@ def xendit_disbursement_webhook(request):
             {"error": "Failed to process disbursement webhook"},
             status=500
         )
+
+
+@router.post("/wallet/paymongo-webhook", auth=None)  # No auth for webhooks
+def paymongo_webhook(request):
+    """
+    Handle PayMongo payment webhook callbacks.
+    
+    PayMongo sends events for:
+    - checkout_session.payment.paid (payment successful)
+    - checkout_session.payment.failed (payment failed)
+    - checkout_session.payment.expired (checkout expired)
+    - payment.paid, payment.failed (direct payment events)
+    
+    Also handles:
+    - gcash_verification: Verifies payment method and credits ₱1 bonus
+    
+    This endpoint must be registered in PayMongo dashboard under Webhooks.
+    """
+    try:
+        from .models import Transaction, Wallet, UserPaymentMethod
+        from .paymongo_service import PayMongoService
+        from django.utils import timezone
+        import json
+        
+        # Get webhook payload
+        raw_body = request.body
+        payload = json.loads(raw_body)
+        
+        print(f"📥 PayMongo Webhook received: {payload.get('data', {}).get('id', 'unknown')}")
+        
+        # Verify webhook signature
+        signature = request.headers.get('Paymongo-Signature', '')
+        paymongo = PayMongoService()
+        
+        if not paymongo.verify_webhook_signature(raw_body, signature):
+            print(f"❌ Invalid PayMongo webhook signature")
+            return Response(
+                {"error": "Invalid webhook signature"},
+                status=401
+            )
+        
+        # Parse webhook data
+        webhook_data = paymongo.parse_webhook_payload(payload)
+        if not webhook_data:
+            print(f"❌ Failed to parse PayMongo webhook payload")
+            return Response(
+                {"error": "Invalid webhook payload"},
+                status=400
+            )
+        
+        event_type = webhook_data.get('event_type', '')
+        payment_id = webhook_data.get('payment_id')
+        external_id = webhook_data.get('external_id')
+        transaction_id = webhook_data.get('transaction_id')
+        status = webhook_data.get('status', '')
+        metadata = webhook_data.get('metadata', {})
+        
+        print(f"📤 PayMongo Event: {event_type}, Payment ID: {payment_id}, External ID: {external_id}")
+        print(f"   Metadata: {metadata}")
+        
+        # ============================================
+        # Handle GCash Verification Checkout
+        # ============================================
+        if metadata.get('payment_type') == 'gcash_verification':
+            payment_method_id = metadata.get('payment_method_id')
+            
+            if not payment_method_id:
+                print(f"❌ Missing payment_method_id in verification metadata")
+                return {"success": True, "message": "Missing payment method ID"}
+            
+            if status == 'paid' or 'paid' in event_type:
+                return _handle_gcash_verification_success(
+                    payment_method_id=int(payment_method_id),
+                    metadata=metadata,
+                    payment_id=payment_id
+                )
+            elif status in ['failed', 'expired', 'cancelled'] or any(s in event_type for s in ['failed', 'expired', 'cancel']):
+                return _handle_gcash_verification_failed(
+                    payment_method_id=int(payment_method_id),
+                    reason=status
+                )
+            
+            return {"success": True, "message": "Verification webhook processed"}
+        
+        # ============================================
+        # Handle Regular Transaction Webhooks
+        # ============================================
+        
+        # Find transaction by PayMongo checkout ID or external ID
+        transaction = None
+        try:
+            if transaction_id:
+                transaction = Transaction.objects.filter(transactionID=int(transaction_id)).first()
+            if not transaction and payment_id:
+                # Try finding by checkout session ID stored in xenditInvoiceID field
+                # (we reuse this field for PayMongo checkout ID)
+                transaction = Transaction.objects.filter(xenditInvoiceID=payment_id).first()
+            if not transaction and external_id:
+                transaction = Transaction.objects.filter(xenditExternalID=external_id).first()
+        except Exception as e:
+            print(f"❌ Error finding transaction: {str(e)}")
+        
+        if not transaction:
+            print(f"❌ Transaction not found for PayMongo payment {payment_id} / {external_id}")
+            # Return 200 to prevent PayMongo from retrying for unknown transactions
+            return {"success": True, "message": "Transaction not found, skipping"}
+        
+        print(f"✅ Found transaction {transaction.transactionID} for PayMongo payment")
+        
+        # Update transaction based on status
+        if status == 'paid' or 'paid' in event_type:
+            # IDEMPOTENCY CHECK: Skip if already completed to prevent duplicate deposits
+            if transaction.status == Transaction.TransactionStatus.COMPLETED:
+                print(f"⚠️ Transaction {transaction.transactionID} already COMPLETED - skipping duplicate webhook")
+                return {"success": True, "message": "Transaction already processed"}
+            
+            # Payment successful
+            wallet = transaction.walletID
+            
+            # Update wallet balance based on transaction type
+            if transaction.transactionType == Transaction.TransactionType.DEPOSIT:
+                # Deposit adds to wallet
+                wallet.balance += transaction.amount
+                wallet.save()
+                print(f"💰 Added ₱{transaction.amount} to wallet (DEPOSIT via PayMongo)")
+            elif transaction.transactionType == Transaction.TransactionType.PAYMENT:
+                # Payment/Escrow - money goes to platform, not deducted from wallet
+                print(f"💸 Escrow payment of ₱{transaction.amount} received via PayMongo")
+            
+            # Update transaction
+            transaction.status = Transaction.TransactionStatus.COMPLETED
+            transaction.balanceAfter = wallet.balance
+            transaction.xenditPaymentID = payment_id  # Reuse field for PayMongo ID
+            transaction.xenditPaymentChannel = webhook_data.get('payment_channel', 'PAYMONGO')
+            transaction.xenditPaymentMethod = webhook_data.get('payment_method', 'checkout')
+            transaction.completedAt = timezone.now()
+            transaction.save()
+            
+            # If this is an escrow payment, mark the job as escrow paid
+            if transaction.relatedJobPosting:
+                job = transaction.relatedJobPosting
+                desc_lower = transaction.description.lower()
+                if "escrow" in desc_lower or "downpayment" in desc_lower:
+                    job.escrowPaid = True
+                    job.escrowPaidAt = timezone.now()
+                    job.save()
+                    print(f"✅ Job {job.jobID} escrow marked as paid (PayMongo)")
+                elif "remaining" in desc_lower or "final" in desc_lower:
+                    job.remainingPaymentPaid = True
+                    job.remainingPaymentPaidAt = timezone.now()
+                    job.status = "COMPLETED"
+                    job.save()
+                    print(f"✅ Job {job.jobID} remaining payment received - Job COMPLETED (PayMongo)")
+            
+            print(f"✅ PayMongo payment completed for transaction {transaction.transactionID}")
+            
+        elif status in ['failed', 'expired', 'cancelled'] or any(s in event_type for s in ['failed', 'expired', 'cancel']):
+            # Payment failed or expired
+            transaction.status = Transaction.TransactionStatus.FAILED
+            transaction.description = f"{transaction.description} - {status.upper()}"
+            transaction.save()
+            print(f"❌ PayMongo payment {status} for transaction {transaction.transactionID}")
+        
+        return {"success": True, "message": "PayMongo webhook processed"}
+        
+    except Exception as e:
+        print(f"❌ Error processing PayMongo webhook: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to process webhook"},
+            status=500
+        )
+
+
+def _handle_gcash_verification_success(payment_method_id: int, metadata: dict, payment_id: str):
+    """
+    Handle successful GCash verification payment.
+    
+    1. Mark payment method as verified
+    2. Credit ₱1 verification amount to user's wallet as bonus
+    """
+    from .models import UserPaymentMethod, Wallet, Transaction
+    from django.utils import timezone
+    from django.db import transaction as db_transaction
+    from decimal import Decimal
+    
+    try:
+        # Find the payment method
+        payment_method = UserPaymentMethod.objects.filter(id=payment_method_id).first()
+        
+        if not payment_method:
+            print(f"❌ Payment method {payment_method_id} not found for verification")
+            return {"success": True, "message": "Payment method not found"}
+        
+        # Idempotency: Skip if already verified
+        if payment_method.isVerified:
+            print(f"⚠️ Payment method {payment_method_id} already verified - skipping duplicate")
+            return {"success": True, "message": "Already verified"}
+        
+        with db_transaction.atomic():
+            # Mark payment method as verified
+            payment_method.isVerified = True
+            payment_method.save()
+            
+            print(f"✅ Payment method {payment_method_id} verified via PayMongo!")
+            
+            # Get or create user's wallet
+            user = payment_method.accountFK
+            wallet, _ = Wallet.objects.get_or_create(
+                accountFK=user,
+                defaults={'balance': Decimal('0')}
+            )
+            
+            # Credit ₱1 verification bonus (use Decimal for wallet operations)
+            bonus_amount = Decimal('1.00')
+            balance_before = wallet.balance
+            wallet.balance += bonus_amount
+            wallet.save()
+            
+            # Create transaction record for the bonus
+            verification_tx = Transaction.objects.create(
+                walletID=wallet,
+                transactionType=Transaction.TransactionType.DEPOSIT,
+                amount=bonus_amount,
+                balanceAfter=wallet.balance,
+                status=Transaction.TransactionStatus.COMPLETED,
+                description=f"GCash Verification Bonus - Account {payment_method.accountNumber[-4:].rjust(11, '*')}",
+                paymentMethod='GCASH',
+                xenditPaymentID=payment_id
+            )
+            
+            print(f"💰 Credited ₱{bonus_amount} verification bonus to wallet for {user.email}")
+            print(f"   Transaction ID: {verification_tx.transactionID}")
+            print(f"   Balance: ₱{balance_before} → ₱{wallet.balance}")
+        
+        return {"success": True, "message": "GCash verification completed"}
+        
+    except Exception as e:
+        print(f"❌ Error processing GCash verification: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": True, "message": f"Verification error: {str(e)}"}
+
+
+def _handle_gcash_verification_failed(payment_method_id: int, reason: str):
+    """
+    Handle failed GCash verification payment.
+    
+    Delete the unverified payment method to allow user to try again.
+    """
+    from .models import UserPaymentMethod
+    
+    try:
+        payment_method = UserPaymentMethod.objects.filter(id=payment_method_id).first()
+        
+        if not payment_method:
+            print(f"⚠️ Payment method {payment_method_id} not found for failed verification")
+            return {"success": True, "message": "Payment method not found"}
+        
+        if payment_method.isVerified:
+            print(f"⚠️ Payment method {payment_method_id} is already verified - ignoring failure")
+            return {"success": True, "message": "Already verified, ignoring failure"}
+        
+        account_number = payment_method.accountNumber
+        user_email = payment_method.accountFK.email
+        
+        # Delete the unverified payment method
+        payment_method.delete()
+        
+        print(f"🗑️ Deleted unverified payment method {payment_method_id} for {user_email}")
+        print(f"   Reason: {reason}")
+        print(f"   GCash: {account_number}")
+        
+        return {"success": True, "message": "Verification failed - payment method removed"}
+        
+    except Exception as e:
+        print(f"❌ Error handling verification failure: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": True, "message": f"Error: {str(e)}"}
+
+
+def cleanup_unverified_payment_methods():
+    """
+    Cleanup task: Delete unverified payment methods older than 24 hours.
+    
+    This handles cases where:
+    - User started verification but canceled payment
+    - PayMongo webhook never arrived
+    - User abandoned the verification process
+    
+    Should be run periodically (e.g., daily cron job).
+    """
+    from .models import UserPaymentMethod
+    from django.utils import timezone
+    from datetime import timedelta
+    
+    try:
+        # Find unverified payment methods older than 24 hours
+        cutoff_time = timezone.now() - timedelta(hours=24)
+        
+        old_unverified = UserPaymentMethod.objects.filter(
+            isVerified=False,
+            createdAt__lt=cutoff_time
+        )
+        
+        count = old_unverified.count()
+        
+        if count > 0:
+            # Log before deleting
+            print(f"🧹 Cleanup: Found {count} unverified payment methods older than 24 hours")
+            for method in old_unverified:
+                print(f"   - ID {method.id}: {method.accountNumber} ({method.accountFK.email})")
+            
+            # Delete them
+            old_unverified.delete()
+            print(f"✅ Cleanup: Deleted {count} stale unverified payment methods")
+        else:
+            print(f"✅ Cleanup: No stale unverified payment methods to delete")
+        
+        return count
+        
+    except Exception as e:
+        print(f"❌ Cleanup error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return 0
 
 
 @router.post("/wallet/simulate-payment/{transaction_id}", auth=cookie_auth)

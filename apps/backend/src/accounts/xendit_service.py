@@ -1,6 +1,11 @@
 """
 Xendit Payment Gateway Service
 Handles payment processing via Xendit API using direct HTTP requests
+
+Circuit breaker pattern implemented for fault tolerance:
+- Opens after 5 consecutive failures
+- Recovers after 60 seconds
+- Prevents cascading failures during Xendit outages
 """
 
 import requests
@@ -10,8 +15,70 @@ import uuid
 import logging
 import base64
 import copy
+import functools
 
 logger = logging.getLogger(__name__)
+
+# Import circuit breaker
+try:
+    from iayos_project.circuit_breaker import (
+        circuit_breaker, 
+        CircuitBreakerOpen,
+        get_circuit_breaker,
+        XENDIT_CB_CONFIG
+    )
+    CIRCUIT_BREAKER_AVAILABLE = True
+except ImportError:
+    CIRCUIT_BREAKER_AVAILABLE = False
+    logger.warning("Circuit breaker not available, Xendit calls will not be protected")
+
+
+def xendit_circuit_breaker(func):
+    """
+    Decorator that wraps Xendit API calls with circuit breaker protection.
+    Falls back to graceful error handling when circuit is open.
+    """
+    if not CIRCUIT_BREAKER_AVAILABLE:
+        return func
+    
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        cb = get_circuit_breaker(**XENDIT_CB_CONFIG)
+        
+        if not cb.can_execute():
+            retry_after = cb.get_retry_after()
+            logger.warning(
+                f"Xendit circuit breaker OPEN - failing fast. "
+                f"Retry after {retry_after:.1f}s"
+            )
+            return {
+                "success": False,
+                "error": f"Payment service temporarily unavailable. Please retry in {int(retry_after)} seconds.",
+                "circuit_breaker_open": True,
+                "retry_after": retry_after
+            }
+        
+        try:
+            result = func(*args, **kwargs)
+            
+            # Record success if API call succeeded
+            if result.get("success"):
+                cb.record_success()
+            else:
+                # API returned but with error - still counts as reachable
+                # Only record failure for connection/timeout issues
+                pass
+            
+            return result
+            
+        except requests.exceptions.RequestException as e:
+            cb.record_failure(e)
+            raise
+        except Exception as e:
+            # Don't count business logic errors as circuit failures
+            raise
+    
+    return wrapper
 
 
 class XenditService:
@@ -30,6 +97,7 @@ class XenditService:
         }
     
     @staticmethod
+    @xendit_circuit_breaker
     def create_gcash_payment(amount: float, user_email: str, user_name: str, transaction_id: int):
         """
         Create a GCash payment via Xendit Invoice API
@@ -234,6 +302,7 @@ class XenditService:
             }
     
     @staticmethod
+    @xendit_circuit_breaker
     def create_disbursement(amount: float, recipient_name: str, account_number: str, transaction_id: int, notes: str = ""):
         """Create a GCash disbursement (payout) via Xendit APIs."""
         try:
@@ -473,6 +542,7 @@ class XenditService:
             return {"success": False, "error": str(e)}
     
     @staticmethod
+    @xendit_circuit_breaker
     def get_invoice_status(invoice_id: str):
         """
         Get current status of a Xendit invoice
