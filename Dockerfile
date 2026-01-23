@@ -241,11 +241,18 @@ COPY --from=backend-deps --chown=appuser:appgroup /app/.local /app/.local
 # Copy application code with proper ownership
 COPY --from=backend-builder --chown=appuser:appgroup /app/backend ./
 
+# Create entrypoint script to run migrations at runtime
+RUN echo '#!/bin/sh' > /app/backend/docker-entrypoint.sh && \
+    echo 'set -e' >> /app/backend/docker-entrypoint.sh && \
+    echo 'cd /app/backend/src' >> /app/backend/docker-entrypoint.sh && \
+    echo 'echo "Running migrations..."' >> /app/backend/docker-entrypoint.sh && \
+    echo 'python manage.py migrate --noinput' >> /app/backend/docker-entrypoint.sh && \
+    echo 'echo "Starting Gunicorn..."' >> /app/backend/docker-entrypoint.sh && \
+    echo 'exec gunicorn --bind 0.0.0.0:8000 --workers 2 --worker-class sync --timeout 120 --max-requests 1000 --max-requests-jitter 50 --preload src.iayos_project.wsgi:application "$@"' >> /app/backend/docker-entrypoint.sh && \
+    chmod +x /app/backend/docker-entrypoint.sh
+
 # Switch to non-root user
 USER appuser
-
-# Run migrations on container startup (auto-migrate on deploy)
-RUN cd /app/backend/src && python manage.py migrate --noinput || true
 
 # Add health check
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
@@ -254,8 +261,8 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
 # Expose port for Django
 EXPOSE 8000
 
-# Start Django with Gunicorn (add security options)
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "2", "--worker-class", "sync", "--timeout", "120", "--max-requests", "1000", "--max-requests-jitter", "50", "--preload", "src.iayos_project.wsgi:application"]
+# Use entrypoint script that runs migrations then starts Gunicorn
+ENTRYPOINT ["/app/backend/docker-entrypoint.sh"]
 
 # ============================================
 # Stage 12: Frontend Development (Node only)
