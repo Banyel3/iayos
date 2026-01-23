@@ -1,6 +1,6 @@
 from typing import Any, Annotated, Optional, Union, cast
 
-from ninja import Router, Form as NinjaForm, File as NinjaFile
+from ninja import Router, Form as NinjaForm, File as NinjaFile, Body
 from ninja.files import UploadedFile
 from .schemas import (
     createAccountSchema, logInSchema, createAgencySchema,
@@ -447,7 +447,7 @@ def get_kyc_autofill_data(request):
 
 
 @router.post("/kyc/confirm", auth=dual_auth)
-def confirm_kyc_extracted_data(request, payload: dict):
+def confirm_kyc_extracted_data(request, payload: dict = Body(...)):
     """
     Confirm or edit KYC extracted data from mobile.
     
@@ -502,6 +502,12 @@ def confirm_kyc_extracted_data(request, payload: dict):
             "last_name": "confirmed_last_name",
             "address": "confirmed_address",
             "id_number": "confirmed_id_number",
+            "nationality": "confirmed_nationality",
+            "sex": "confirmed_sex",
+            "place_of_birth": "confirmed_place_of_birth",
+            # Clearance-specific fields
+            "clearance_number": "confirmed_clearance_number",
+            "clearance_type": "confirmed_clearance_type",
         }
         
         for payload_field, model_field in field_mappings.items():
@@ -528,6 +534,26 @@ def confirm_kyc_extracted_data(request, payload: dict):
                     edited_fields.append("birth_date")
             except ValueError:
                 print(f"   ⚠️ Invalid date format: {payload['birth_date']}")
+        
+        # Handle clearance date fields (convert string to date)
+        date_field_mappings = {
+            "clearance_issue_date": ("confirmed_clearance_issue_date", "extracted_clearance_issue_date"),
+            "clearance_validity_date": ("confirmed_clearance_validity_date", "extracted_clearance_validity_date"),
+        }
+        
+        for payload_field, (confirmed_field, extracted_field) in date_field_mappings.items():
+            if payload_field in payload and payload[payload_field]:
+                from datetime import datetime
+                try:
+                    date_value = datetime.strptime(payload[payload_field], "%Y-%m-%d").date()
+                    setattr(extracted, confirmed_field, date_value)
+                    
+                    # Check if edited
+                    extracted_value = getattr(extracted, extracted_field, None)
+                    if extracted_value != date_value:
+                        edited_fields.append(payload_field)
+                except ValueError:
+                    print(f"   ⚠️ Invalid date format for {payload_field}: {payload[payload_field]}")
         
         # Update status and metadata
         extracted.extraction_status = "CONFIRMED"

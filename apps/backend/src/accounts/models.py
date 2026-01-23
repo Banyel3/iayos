@@ -702,6 +702,44 @@ class KYCExtractedData(models.Model):
         default="",
         help_text="Sex/gender extracted from ID"
     )
+    extracted_place_of_birth = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="Place of birth extracted from ID"
+    )
+    
+    # ============================================================
+    # CLEARANCE-SPECIFIC EXTRACTED FIELDS (NBI/Police)
+    # ============================================================
+    extracted_clearance_number = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        help_text="Clearance number extracted from NBI/Police clearance"
+    )
+    
+    class ClearanceType(models.TextChoices):
+        NBI = "NBI", "NBI Clearance"
+        POLICE = "POLICE", "Police Clearance"
+        NONE = "NONE", "Not a Clearance Document"
+    
+    extracted_clearance_type = models.CharField(
+        max_length=20,
+        choices=ClearanceType.choices,
+        default=ClearanceType.NONE,
+        help_text="Type of clearance document (NBI or Police)"
+    )
+    extracted_clearance_issue_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Issue date extracted from clearance document"
+    )
+    extracted_clearance_validity_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Validity/expiry date extracted from clearance document"
+    )
     
     # ============================================================
     # CONFIDENCE SCORES (per field)
@@ -725,6 +763,16 @@ class KYCExtractedData(models.Model):
         null=True,
         blank=True,
         help_text="Confidence score for ID number extraction (0-1)"
+    )
+    confidence_place_of_birth = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Confidence score for place of birth extraction (0-1)"
+    )
+    confidence_clearance_number = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Confidence score for clearance number extraction (0-1)"
     )
     overall_confidence = models.FloatField(
         null=True,
@@ -774,6 +822,50 @@ class KYCExtractedData(models.Model):
         blank=True,
         default="",
         help_text="ID number confirmed by user"
+    )
+    confirmed_nationality = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        help_text="Nationality confirmed by user"
+    )
+    confirmed_sex = models.CharField(
+        max_length=20,
+        blank=True,
+        default="",
+        help_text="Sex/gender confirmed by user"
+    )
+    confirmed_place_of_birth = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="Place of birth confirmed by user"
+    )
+    
+    # ============================================================
+    # CLEARANCE-SPECIFIC CONFIRMED FIELDS
+    # ============================================================
+    confirmed_clearance_number = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        help_text="Clearance number confirmed by user"
+    )
+    confirmed_clearance_type = models.CharField(
+        max_length=20,
+        choices=ClearanceType.choices,
+        default=ClearanceType.NONE,
+        help_text="Type of clearance confirmed by user"
+    )
+    confirmed_clearance_issue_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Clearance issue date confirmed by user"
+    )
+    confirmed_clearance_validity_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Clearance validity date confirmed by user"
     )
     
     # ============================================================
@@ -855,13 +947,21 @@ class KYCExtractedData(models.Model):
             "id_number": self.confirmed_id_number or self.extracted_id_number,
             "id_type": self.extracted_id_type,
             "expiry_date": str(self.extracted_expiry_date or ""),
-            "nationality": self.extracted_nationality,
-            "sex": self.extracted_sex,
+            "nationality": self.confirmed_nationality or self.extracted_nationality,
+            "sex": self.confirmed_sex or self.extracted_sex,
+            "place_of_birth": self.confirmed_place_of_birth or self.extracted_place_of_birth,
+            # Clearance-specific fields
+            "clearance_number": self.confirmed_clearance_number or self.extracted_clearance_number,
+            "clearance_type": self.confirmed_clearance_type or self.extracted_clearance_type,
+            "clearance_issue_date": str(self.confirmed_clearance_issue_date or self.extracted_clearance_issue_date or ""),
+            "clearance_validity_date": str(self.confirmed_clearance_validity_date or self.extracted_clearance_validity_date or ""),
             "confidence_scores": {
                 "full_name": self.confidence_full_name,
                 "birth_date": self.confidence_birth_date,
                 "address": self.confidence_address,
                 "id_number": self.confidence_id_number,
+                "place_of_birth": self.confidence_place_of_birth,
+                "clearance_number": self.confidence_clearance_number,
                 "overall": self.overall_confidence,
             },
             "is_confirmed": self.extraction_status == self.ExtractionStatus.CONFIRMED,
@@ -885,6 +985,14 @@ class KYCExtractedData(models.Model):
                 "id_number": self.extracted_id_number,
                 "id_type": self.extracted_id_type,
                 "expiry_date": str(self.extracted_expiry_date or ""),
+                "nationality": self.extracted_nationality,
+                "sex": self.extracted_sex,
+                "place_of_birth": self.extracted_place_of_birth,
+                # Clearance fields
+                "clearance_number": self.extracted_clearance_number,
+                "clearance_type": self.extracted_clearance_type,
+                "clearance_issue_date": str(self.extracted_clearance_issue_date or ""),
+                "clearance_validity_date": str(self.extracted_clearance_validity_date or ""),
             },
             "confirmed": {
                 "full_name": self.confirmed_full_name,
@@ -894,12 +1002,22 @@ class KYCExtractedData(models.Model):
                 "birth_date": str(self.confirmed_birth_date or ""),
                 "address": self.confirmed_address,
                 "id_number": self.confirmed_id_number,
+                "nationality": self.confirmed_nationality,
+                "sex": self.confirmed_sex,
+                "place_of_birth": self.confirmed_place_of_birth,
+                # Clearance fields
+                "clearance_number": self.confirmed_clearance_number,
+                "clearance_type": self.confirmed_clearance_type,
+                "clearance_issue_date": str(self.confirmed_clearance_issue_date or ""),
+                "clearance_validity_date": str(self.confirmed_clearance_validity_date or ""),
             },
             "confidence_scores": {
                 "full_name": self.confidence_full_name,
                 "birth_date": self.confidence_birth_date,
                 "address": self.confidence_address,
                 "id_number": self.confidence_id_number,
+                "place_of_birth": self.confidence_place_of_birth,
+                "clearance_number": self.confidence_clearance_number,
                 "overall": self.overall_confidence,
             },
             "user_edited_fields": self.user_edited_fields,

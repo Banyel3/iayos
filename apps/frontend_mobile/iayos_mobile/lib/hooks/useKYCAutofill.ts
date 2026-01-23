@@ -37,6 +37,11 @@ export interface KYCAutofillResponse {
     place_of_birth?: KYCExtractedField;
     expiry_date?: KYCExtractedField;
     issue_date?: KYCExtractedField;
+    // Clearance-specific fields (NBI/Police)
+    clearance_number?: KYCExtractedField;
+    clearance_type?: KYCExtractedField;
+    clearance_issue_date?: KYCExtractedField;
+    clearance_validity_date?: KYCExtractedField;
   };
   user_edited_fields?: string[];
   message?: string;
@@ -57,6 +62,11 @@ export interface KYCConfirmPayload {
   nationality?: string;
   sex?: string;
   place_of_birth?: string;
+  // Clearance-specific fields (NBI/Police)
+  clearance_number?: string;
+  clearance_type?: "NBI" | "POLICE" | "NONE";
+  clearance_issue_date?: string;
+  clearance_validity_date?: string;
   edited_fields?: string[];
 }
 
