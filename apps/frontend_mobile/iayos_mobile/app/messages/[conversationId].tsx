@@ -359,7 +359,7 @@ export default function ChatScreen() {
 
   // Handle payment method selection
   const handlePaymentMethodSelect = async (
-    method: "WALLET" | "GCASH" | "CASH"
+    method: "WALLET" | "CASH"
   ) => {
     if (!conversation) return;
 
@@ -387,7 +387,7 @@ export default function ChatScreen() {
         ]
       );
     } else if (conversation.is_team_job) {
-      // Team job approval (wallet only, no GCASH for now)
+      // Team job approval (wallet only)
       approveTeamJobCompletionMutation.mutate({
         jobId: conversation.job.id,
         paymentMethod: "WALLET",

@@ -8,10 +8,14 @@ import {
   ActivityIndicator,
   Alert,
   TextInput,
+  Share,
+  Linking,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { WebView } from "react-native-webview";
+import * as FileSystem from "expo-file-system";
+import * as MediaLibrary from "expo-media-library";
 import {
   Colors,
   Typography,
@@ -29,10 +33,11 @@ import WalletBalanceCard from "../../components/WalletBalanceCard";
 /**
  * Wallet Deposit Screen
  *
- * Allows users to deposit funds to wallet via Xendit:
+ * Allows users to deposit funds to wallet via QR PH:
  * - Enter deposit amount
- * - Create Xendit invoice
- * - Display WebView for payment
+ * - Create PayMongo checkout session
+ * - Display WebView for payment (QR code shown)
+ * - Option to download/share QR code for mobile users
  * - Detect payment success/failure
  * - Update wallet balance
  *
@@ -253,6 +258,48 @@ export default function WalletDepositScreen() {
     }
   };
 
+  const handleSharePaymentLink = async () => {
+    if (!xenditUrl) return;
+    try {
+      await Share.share({
+        message: `Please scan this QR code to complete my deposit payment:\n${xenditUrl}`,
+        url: xenditUrl,
+        title: "Share Payment Link",
+      });
+    } catch (error) {
+      console.error("Error sharing:", error);
+    }
+  };
+
+  const handleOpenInBrowser = async () => {
+    if (!xenditUrl) return;
+    try {
+      await Linking.openURL(xenditUrl);
+    } catch (error) {
+      Alert.alert("Error", "Could not open browser");
+    }
+  };
+
+  const handleSaveQROptions = () => {
+    Alert.alert("Save QR Code", "Choose how you'd like to save the QR code:", [
+      {
+        text: "Open in Browser",
+        onPress: () => {
+          // Open in browser where user can long-press to save QR image
+          handleOpenInBrowser();
+        },
+      },
+      {
+        text: "Share Link",
+        onPress: handleSharePaymentLink,
+      },
+      {
+        text: "Cancel",
+        style: "cancel",
+      },
+    ]);
+  };
+
   // If WebView is active, show payment screen
   if (xenditUrl) {
     return (
@@ -262,7 +309,38 @@ export default function WalletDepositScreen() {
             <Ionicons name="close" size={24} color={Colors.textPrimary} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Complete Payment</Text>
-          <View style={{ width: 40 }} />
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              onPress={handleSaveQROptions}
+              style={styles.headerActionButton}
+            >
+              <Ionicons
+                name="download-outline"
+                size={22}
+                color={Colors.primary}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleSharePaymentLink}
+              style={styles.headerActionButton}
+            >
+              <Ionicons name="share-outline" size={22} color={Colors.primary} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Tip for mobile users */}
+        <View style={styles.mobileTipBar}>
+          <Ionicons
+            name="information-circle"
+            size={16}
+            color={Colors.primary}
+          />
+          <Text style={styles.mobileTipText}>
+            Tap <Text style={{ fontWeight: "600" }}>Download</Text> to save QR,
+            or <Text style={{ fontWeight: "600" }}>Share</Text> to send to
+            another device
+          </Text>
         </View>
 
         <WebView
@@ -357,111 +435,21 @@ export default function WalletDepositScreen() {
           </View>
         </View>
 
-        {/* Payment Method Selection */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Select GCash Account</Text>
-          <Text style={styles.sectionSubtitle}>
-            Choose which account to use for this deposit
+        {/* QR PH Payment Info */}
+        <View style={styles.infoCard}>
+          <View style={styles.infoHeader}>
+            <Ionicons name="qr-code" size={24} color={Colors.primary} />
+            <Text style={styles.infoTitle}>QR PH Payment</Text>
+          </View>
+          <Text style={styles.infoText}>
+            You'll be shown a QR code that you can scan with any Philippine
+            banking app (GCash, Maya, BPI, BDO, UnionBank, etc.) to complete
+            your deposit.
           </Text>
-
-          {paymentMethodsLoading ? (
-            <ActivityIndicator
-              size="small"
-              color={Colors.primary}
-              style={{ marginTop: Spacing.md }}
-            />
-          ) : gcashMethods.length > 0 ? (
-            <View style={styles.paymentMethodsList}>
-              {gcashMethods.map((method: any) => (
-                <TouchableOpacity
-                  key={method.id}
-                  style={[
-                    styles.paymentMethodCard,
-                    selectedPaymentMethodId === method.id &&
-                      styles.paymentMethodCardSelected,
-                  ]}
-                  onPress={() => setSelectedPaymentMethodId(method.id)}
-                >
-                  <View style={styles.paymentMethodInfo}>
-                    <View style={styles.paymentMethodHeader}>
-                      <Ionicons
-                        name="wallet-outline"
-                        size={24}
-                        color={
-                          selectedPaymentMethodId === method.id
-                            ? Colors.primary
-                            : Colors.textSecondary
-                        }
-                      />
-                      <View style={styles.paymentMethodDetails}>
-                        <Text
-                          style={[
-                            styles.paymentMethodName,
-                            selectedPaymentMethodId === method.id &&
-                              styles.paymentMethodNameSelected,
-                          ]}
-                        >
-                          {method.account_name}
-                        </Text>
-                        <Text style={styles.paymentMethodNumber}>
-                          {method.account_number.replace(
-                            /(\d{4})(\d{3})(\d{4})/,
-                            "$1 $2 $3",
-                          )}
-                        </Text>
-                      </View>
-                    </View>
-                    {method.is_primary && (
-                      <View style={styles.primaryBadge}>
-                        <Text style={styles.primaryBadgeText}>Primary</Text>
-                      </View>
-                    )}
-                    {method.is_verified && (
-                      <Ionicons
-                        name="checkmark-circle"
-                        size={20}
-                        color={Colors.success}
-                      />
-                    )}
-                  </View>
-                  <View
-                    style={[
-                      styles.radioButton,
-                      selectedPaymentMethodId === method.id &&
-                        styles.radioButtonSelected,
-                    ]}
-                  >
-                    {selectedPaymentMethodId === method.id && (
-                      <View style={styles.radioButtonInner} />
-                    )}
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </View>
-          ) : (
-            <View style={styles.infoCard}>
-              <View style={styles.infoHeader}>
-                <Ionicons
-                  name="alert-circle"
-                  size={24}
-                  color={Colors.warning}
-                />
-                <Text style={styles.infoTitle}>No GCash Account Found</Text>
-              </View>
-              <Text style={styles.infoText}>
-                Please add a GCash account before making a deposit.
-              </Text>
-              <TouchableOpacity
-                style={styles.addMethodButton}
-                onPress={() => router.push("/profile/payment-methods" as any)}
-              >
-                <Ionicons name="add-circle" size={20} color={Colors.white} />
-                <Text style={styles.addMethodButtonText}>
-                  Add GCash Account
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
+          <Text style={[styles.infoText, { marginTop: Spacing.sm }]}>
+            Since you're on your phone, you can save or share the QR code to
+            scan from another device.
+          </Text>
         </View>
 
         {/* Deposit Button */}
@@ -671,81 +659,36 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginTop: Spacing.md,
   },
-  // Payment Method Selection Styles
-  paymentMethodsList: {
-    gap: Spacing.sm,
-    marginTop: Spacing.md,
+  shareButton: {
+    padding: Spacing.xs,
   },
-  paymentMethodCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: Colors.white,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.md,
-    borderWidth: 2,
-    borderColor: Colors.border,
-  },
-  paymentMethodCardSelected: {
-    borderColor: Colors.primary,
-    backgroundColor: Colors.primaryLight || "#e8f5e9",
-  },
-  paymentMethodInfo: {
-    flex: 1,
+  headerActions: {
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.sm,
   },
-  paymentMethodHeader: {
+  headerActionButton: {
+    padding: Spacing.xs,
+  },
+  mobileTipBar: {
     flexDirection: "row",
     alignItems: "center",
-    flex: 1,
-    gap: Spacing.sm,
+    backgroundColor: Colors.primary + "15",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    gap: Spacing.xs,
   },
-  paymentMethodDetails: {
+  mobileTipText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.primary,
     flex: 1,
   },
-  paymentMethodName: {
-    fontSize: Typography.fontSize.base,
+  backButton: {
+    padding: Spacing.xs,
+  },
+  headerTitle: {
+    fontSize: Typography.fontSize.lg,
     fontWeight: Typography.fontWeight.semiBold as any,
     color: Colors.textPrimary,
-  },
-  paymentMethodNameSelected: {
-    color: Colors.primary,
-  },
-  paymentMethodNumber: {
-    fontSize: Typography.fontSize.sm,
-    color: Colors.textSecondary,
-    marginTop: 2,
-  },
-  primaryBadge: {
-    backgroundColor: Colors.primary,
-    paddingHorizontal: Spacing.xs,
-    paddingVertical: 2,
-    borderRadius: BorderRadius.xs,
-    marginRight: Spacing.xs,
-  },
-  primaryBadgeText: {
-    fontSize: Typography.fontSize.xs,
-    color: Colors.white,
-    fontWeight: Typography.fontWeight.medium as any,
-  },
-  radioButton: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: Colors.border,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  radioButtonSelected: {
-    borderColor: Colors.primary,
-  },
-  radioButtonInner: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: Colors.primary,
   },
 });
