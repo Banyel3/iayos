@@ -247,6 +247,8 @@ RUN echo '#!/bin/sh' > /app/backend/docker-entrypoint.sh && \
     echo 'cd /app/backend/src' >> /app/backend/docker-entrypoint.sh && \
     echo 'echo "Running migrations..."' >> /app/backend/docker-entrypoint.sh && \
     echo 'python manage.py migrate --noinput' >> /app/backend/docker-entrypoint.sh && \
+    echo 'echo "Creating admin user from env vars..."' >> /app/backend/docker-entrypoint.sh && \
+    echo 'python manage.py create_admin' >> /app/backend/docker-entrypoint.sh && \
     echo 'echo "Starting Gunicorn..."' >> /app/backend/docker-entrypoint.sh && \
     echo 'exec gunicorn --bind 0.0.0.0:8000 --workers 2 --worker-class sync --timeout 120 --max-requests 1000 --max-requests-jitter 50 --preload src.iayos_project.wsgi:application "$@"' >> /app/backend/docker-entrypoint.sh && \
     chmod +x /app/backend/docker-entrypoint.sh
