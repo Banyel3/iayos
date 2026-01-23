@@ -24,7 +24,13 @@
         "!**/node_modules/**"
       ],
       "outputs": [".next/**", "!.next/cache/**", "dist/**"],
-      "env": ["NODE_ENV", "AUTH_SECRET", "NEXT_PUBLIC_API_URL", "PRISMA_CLI_QUERY_ENGINE_TYPE", "PRISMA_CLIENT_ENGINE_TYPE"]
+      "env": [
+        "NODE_ENV",
+        "AUTH_SECRET",
+        "NEXT_PUBLIC_API_URL",
+        "PRISMA_CLI_QUERY_ENGINE_TYPE",
+        "PRISMA_CLIENT_ENGINE_TYPE"
+      ]
     },
     "iayos_final#check-types": {
       "dependsOn": ["^check-types"],
