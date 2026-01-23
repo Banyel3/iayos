@@ -217,7 +217,8 @@ class PayMongoService(PaymentProviderInterface):
         failure_url: str = None
     ) -> Dict[str, Any]:
         """
-        Convenience method for creating GCash payment.
+        Create QR PH payment for wallet deposits.
+        Uses PayMongo's QR PH which allows any Philippine bank/e-wallet to pay.
         Maintains backward compatibility with XenditService interface.
         """
         frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
@@ -229,7 +230,7 @@ class PayMongoService(PaymentProviderInterface):
             user_email=user_email,
             user_name=user_name,
             transaction_id=transaction_id,
-            payment_methods=["gcash"],
+            payment_methods=["qrph"],  # QR PH - universal for all PH banks/e-wallets
             success_url=success_url or f"{frontend_url}/dashboard/profile?payment=success",
             failure_url=failure_url or f"{frontend_url}/dashboard/profile?payment=failed",
             metadata={"payment_type": "wallet_deposit"}
@@ -638,7 +639,11 @@ class PayMongoService(PaymentProviderInterface):
             "MAYA": "paymaya",
             "PAYMAYA": "paymaya",
             "grab_pay": "grab_pay",
-            "GRAB_PAY": "grab_pay"
+            "GRAB_PAY": "grab_pay",
+            "qrph": "qrph",
+            "QRPH": "qrph",
+            "qr_ph": "qrph",
+            "QR_PH": "qrph"
         }
         return [mapping.get(m, m.lower()) for m in methods if mapping.get(m, m.lower())]
     

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -25,8 +25,6 @@ import {
   WalletDepositResponse,
 } from "../../lib/hooks/usePayments";
 import WalletBalanceCard from "../../components/WalletBalanceCard";
-import { useQuery } from "@tanstack/react-query";
-import { apiRequest, ENDPOINTS } from "@/lib/api/config";
 
 /**
  * Wallet Deposit Screen
@@ -51,60 +49,9 @@ export default function WalletDepositScreen() {
   const [amountError, setAmountError] = useState<string | null>(null);
   const [pendingDeposit, setPendingDeposit] = useState<number | null>(null);
   const [webViewHandled, setWebViewHandled] = useState(false);
-  const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState<number | null>(null);
 
   const { data: walletBalance, refetch: refetchBalance } = useWalletBalance();
   const depositMutation = useWalletDeposit();
-
-  // Fetch payment methods to check if user has GCash set up
-  const { data: paymentMethodsData, isLoading: paymentMethodsLoading } =
-    useQuery({
-      queryKey: ["payment-methods"],
-      queryFn: async () => {
-        const response = await apiRequest(ENDPOINTS.PAYMENT_METHODS);
-        if (!response.ok) throw new Error("Failed to fetch payment methods");
-        const data = await response.json();
-        return data; // Return the full response object with payment_methods property
-      },
-    });
-
-  // Get GCash payment methods
-  const gcashMethods = paymentMethodsData?.payment_methods?.filter(
-    (method: any) => method.type === "GCASH"
-  ) || [];
-  
-  const hasGCashMethod = gcashMethods.length > 0;
-
-  // Auto-select primary or first GCash method
-  useEffect(() => {
-    if (gcashMethods.length > 0 && !selectedPaymentMethodId) {
-      // Try to find primary first, then use first available
-      const primary = gcashMethods.find((m: any) => m.is_primary);
-      setSelectedPaymentMethodId(primary?.id || gcashMethods[0]?.id);
-    }
-  }, [gcashMethods, selectedPaymentMethodId]);
-
-  // Check if user has GCash payment method on mount
-  useEffect(() => {
-    if (!paymentMethodsLoading && paymentMethodsData && !hasGCashMethod) {
-      Alert.alert(
-        "GCash Account Required",
-        "You need to add a GCash account before you can deposit funds. Would you like to add one now?",
-        [
-          {
-            text: "Cancel",
-            onPress: () => router.back(),
-            style: "cancel",
-          },
-          {
-            text: "Add GCash Account",
-            onPress: () => router.push("/profile/payment-methods" as any),
-          },
-        ],
-        { cancelable: false }
-      );
-    }
-  }, [paymentMethodsData, paymentMethodsLoading, hasGCashMethod]);
 
   // Preset amounts
   const presetAmounts = [100, 200, 500, 1000, 2000, 5000];
@@ -146,7 +93,7 @@ export default function WalletDepositScreen() {
   };
 
   const getInvoiceUrl = (
-    response: WalletDepositResponse | null | undefined
+    response: WalletDepositResponse | null | undefined,
   ) => {
     return (
       response?.payment_url ||
@@ -162,9 +109,7 @@ export default function WalletDepositScreen() {
     isNaN(parsedAmount) ||
     parsedAmount < 100 ||
     parsedAmount > 100000 ||
-    isProcessing ||
-    paymentMethodsLoading ||
-    !hasGCashMethod;
+    isProcessing;
   const formattedDepositAmount = !isNaN(parsedAmount)
     ? formatCurrency(parsedAmount)
     : formatCurrency(0);
@@ -183,28 +128,13 @@ export default function WalletDepositScreen() {
       return;
     }
 
-    // Final check before deposit
-    if (!hasGCashMethod) {
-      Alert.alert(
-        "GCash Account Required",
-        "Please add a GCash account first",
-        [
-          {
-            text: "Add GCash Account",
-            onPress: () => router.push("/profile/payment-methods" as any),
-          },
-        ]
-      );
-      return;
-    }
-
     let redirectedToWebView = false;
 
     try {
       setIsProcessing(true);
+      // QR PH payment - no payment method selection needed
       const response = await depositMutation.mutateAsync({
         amount,
-        payment_method_id: selectedPaymentMethodId || undefined,
       });
       const invoiceUrl = getInvoiceUrl(response);
       setPendingDeposit(amount);
@@ -232,7 +162,7 @@ export default function WalletDepositScreen() {
               router.back();
             },
           },
-        ]
+        ],
       );
     } catch (error: any) {
       const message =
@@ -280,7 +210,7 @@ export default function WalletDepositScreen() {
               router.back();
             },
           },
-        ]
+        ],
       );
       return;
     }
@@ -294,7 +224,7 @@ export default function WalletDepositScreen() {
       Alert.alert(
         "Deposit Failed",
         "Your deposit could not be processed. Please try again.",
-        [{ text: "OK" }]
+        [{ text: "OK" }],
       );
     }
   };
@@ -316,7 +246,7 @@ export default function WalletDepositScreen() {
               setWebViewHandled(false);
             },
           },
-        ]
+        ],
       );
     } else {
       router.back();
@@ -433,9 +363,13 @@ export default function WalletDepositScreen() {
           <Text style={styles.sectionSubtitle}>
             Choose which account to use for this deposit
           </Text>
-          
+
           {paymentMethodsLoading ? (
-            <ActivityIndicator size="small" color={Colors.primary} style={{ marginTop: Spacing.md }} />
+            <ActivityIndicator
+              size="small"
+              color={Colors.primary}
+              style={{ marginTop: Spacing.md }}
+            />
           ) : gcashMethods.length > 0 ? (
             <View style={styles.paymentMethodsList}>
               {gcashMethods.map((method: any) => (
@@ -443,22 +377,37 @@ export default function WalletDepositScreen() {
                   key={method.id}
                   style={[
                     styles.paymentMethodCard,
-                    selectedPaymentMethodId === method.id && styles.paymentMethodCardSelected,
+                    selectedPaymentMethodId === method.id &&
+                      styles.paymentMethodCardSelected,
                   ]}
                   onPress={() => setSelectedPaymentMethodId(method.id)}
                 >
                   <View style={styles.paymentMethodInfo}>
                     <View style={styles.paymentMethodHeader}>
-                      <Ionicons name="wallet-outline" size={24} color={selectedPaymentMethodId === method.id ? Colors.primary : Colors.textSecondary} />
+                      <Ionicons
+                        name="wallet-outline"
+                        size={24}
+                        color={
+                          selectedPaymentMethodId === method.id
+                            ? Colors.primary
+                            : Colors.textSecondary
+                        }
+                      />
                       <View style={styles.paymentMethodDetails}>
-                        <Text style={[
-                          styles.paymentMethodName,
-                          selectedPaymentMethodId === method.id && styles.paymentMethodNameSelected
-                        ]}>
+                        <Text
+                          style={[
+                            styles.paymentMethodName,
+                            selectedPaymentMethodId === method.id &&
+                              styles.paymentMethodNameSelected,
+                          ]}
+                        >
                           {method.account_name}
                         </Text>
                         <Text style={styles.paymentMethodNumber}>
-                          {method.account_number.replace(/(\d{4})(\d{3})(\d{4})/, '$1 $2 $3')}
+                          {method.account_number.replace(
+                            /(\d{4})(\d{3})(\d{4})/,
+                            "$1 $2 $3",
+                          )}
                         </Text>
                       </View>
                     </View>
@@ -468,13 +417,20 @@ export default function WalletDepositScreen() {
                       </View>
                     )}
                     {method.is_verified && (
-                      <Ionicons name="checkmark-circle" size={20} color={Colors.success} />
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={20}
+                        color={Colors.success}
+                      />
                     )}
                   </View>
-                  <View style={[
-                    styles.radioButton,
-                    selectedPaymentMethodId === method.id && styles.radioButtonSelected
-                  ]}>
+                  <View
+                    style={[
+                      styles.radioButton,
+                      selectedPaymentMethodId === method.id &&
+                        styles.radioButtonSelected,
+                    ]}
+                  >
                     {selectedPaymentMethodId === method.id && (
                       <View style={styles.radioButtonInner} />
                     )}
@@ -485,7 +441,11 @@ export default function WalletDepositScreen() {
           ) : (
             <View style={styles.infoCard}>
               <View style={styles.infoHeader}>
-                <Ionicons name="alert-circle" size={24} color={Colors.warning} />
+                <Ionicons
+                  name="alert-circle"
+                  size={24}
+                  color={Colors.warning}
+                />
                 <Text style={styles.infoTitle}>No GCash Account Found</Text>
               </View>
               <Text style={styles.infoText}>
@@ -496,7 +456,9 @@ export default function WalletDepositScreen() {
                 onPress={() => router.push("/profile/payment-methods" as any)}
               >
                 <Ionicons name="add-circle" size={20} color={Colors.white} />
-                <Text style={styles.addMethodButtonText}>Add GCash Account</Text>
+                <Text style={styles.addMethodButtonText}>
+                  Add GCash Account
+                </Text>
               </TouchableOpacity>
             </View>
           )}
@@ -726,7 +688,7 @@ const styles = StyleSheet.create({
   },
   paymentMethodCardSelected: {
     borderColor: Colors.primary,
-    backgroundColor: Colors.primaryLight || '#e8f5e9',
+    backgroundColor: Colors.primaryLight || "#e8f5e9",
   },
   paymentMethodInfo: {
     flex: 1,

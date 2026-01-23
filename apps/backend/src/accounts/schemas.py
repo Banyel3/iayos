@@ -114,10 +114,10 @@ class WorkerLocationSchema(Schema):
     specializations: list
 
 class DepositFundsSchema(Schema):
-    """Schema for wallet deposit request - GCash only"""
+    """Schema for wallet deposit request - QR PH (Universal Payment)"""
     amount: float
-    payment_method: Optional[str] = "GCASH"  # Only GCash supported
-    payment_method_id: Optional[int] = None  # Optional: specific GCash account to use (uses primary/first if not specified)
+    # Note: payment_method and payment_method_id removed - QR PH is universal, 
+    # user can pay with any PH bank or e-wallet by scanning the QR code
 
 class WithdrawFundsSchema(Schema):
     """Schema for wallet withdrawal request"""

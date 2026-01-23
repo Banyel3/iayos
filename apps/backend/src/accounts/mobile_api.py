@@ -3005,71 +3005,26 @@ def mobile_get_pending_earnings(request):
 @mobile_router.post("/wallet/deposit", auth=jwt_auth)
 def mobile_deposit_funds(request, payload: DepositFundsSchema):
     """
-    Mobile wallet deposit via PayMongo/Xendit GCash
-    Requires user to have a verified GCash payment method set up
+    Mobile wallet deposit via PayMongo QR PH
+    User scans QR code displayed in checkout and pays via any Philippine bank/e-wallet
     
     SECURE FLOW:
     1. Create PENDING transaction (no balance change)
-    2. Redirect user to PayMongo/Xendit checkout
-    3. User pays via GCash
+    2. Redirect user to PayMongo checkout (shows QR PH code)
+    3. User scans QR and pays via any bank/e-wallet
     4. Webhook confirms payment
     5. Webhook handler adds funds to wallet
     """
     try:
-        from .models import Wallet, Transaction, Profile, UserPaymentMethod
+        from .models import Wallet, Transaction, Profile
         from .payment_provider import get_payment_provider
         from decimal import Decimal
         from django.utils import timezone
         
         amount = payload.amount
-        payment_method = "GCASH"  # Only GCash supported
+        payment_method = "QRPH"  # Universal QR payment - any PH bank/e-wallet
 
         print(f"📥 [Mobile] Deposit request: ₱{amount} via {payment_method} from {request.auth.email}")
-        
-        # Get the specified payment method, or find a GCash account
-        if payload.payment_method_id:
-            # User specified which account to use
-            gcash_method = UserPaymentMethod.objects.filter(
-                id=payload.payment_method_id,
-                accountFK=request.auth,
-                methodType='GCASH'
-            ).first()
-            
-            if not gcash_method:
-                return Response(
-                    {
-                        "error": "Payment method not found",
-                        "error_code": "PAYMENT_METHOD_NOT_FOUND",
-                        "message": "The selected GCash account was not found"
-                    },
-                    status=404
-                )
-        else:
-            # Use primary GCash method, or first available
-            gcash_method = UserPaymentMethod.objects.filter(
-                accountFK=request.auth,
-                methodType='GCASH',
-                isPrimary=True
-            ).first()
-            
-            if not gcash_method:
-                # Fallback to first GCash method
-                gcash_method = UserPaymentMethod.objects.filter(
-                    accountFK=request.auth,
-                    methodType='GCASH'
-                ).first()
-        
-        if not gcash_method:
-            return Response(
-                {
-                    "error": "No GCash payment method found",
-                    "error_code": "NO_PAYMENT_METHOD",
-                    "message": "Please add a GCash account before making deposits"
-                },
-                status=400
-            )
-        
-        print(f"   Using GCash account: {gcash_method.accountNumber} (ID: {gcash_method.id})")
         
         if amount <= 0:
             return Response(

@@ -4,15 +4,10 @@
 // For Android Emulator, use 10.0.2.2
 // For physical device, use your machine's network IP
 
-// AUTOMATIC IP DETECTION: Environment variable takes precedence, then falls back to Expo auto-detect
-// Run `.\scripts\update-mobile-ip.ps1` to auto-detect and update IP
+// AUTOMATIC IP DETECTION: Expo auto-detects your network IP automatically
+// When you switch networks, Expo will automatically use the new IP
 const getDevIP = () => {
-  // Priority 1: Environment variable (set by update-ip script)
-  if (process.env.EXPO_PUBLIC_DEV_IP) {
-    return process.env.EXPO_PUBLIC_DEV_IP;
-  }
-
-  // Priority 2: Try to use Expo's detected IP from Constants
+  // Priority 1: Try to use Expo's detected IP from Constants
   // This works when running via Expo Go and detects your machine's IP automatically
   try {
     const Constants = require("expo-constants").default;
@@ -22,6 +17,11 @@ const getDevIP = () => {
     }
   } catch (e) {
     // Expo Constants not available
+  }
+
+  // Priority 2: Environment variable (manual override if needed)
+  if (process.env.EXPO_PUBLIC_DEV_IP) {
+    return process.env.EXPO_PUBLIC_DEV_IP;
   }
 
   // Priority 3: Fallback to localhost (will fail on physical devices)
@@ -62,7 +62,7 @@ export const WS_BASE_URL = __DEV__
  * Supabase returns full URLs (https://...) which are passed through unchanged.
  */
 export const getAbsoluteMediaUrl = (
-  url: string | null | undefined
+  url: string | null | undefined,
 ): string | null => {
   if (!url) return null;
 
@@ -386,7 +386,7 @@ export const DEFAULT_REQUEST_TIMEOUT = 15000; // 15 seconds
 
 export const apiRequest = async (
   url: string,
-  options: RequestInit & { timeout?: number } = {}
+  options: RequestInit & { timeout?: number } = {},
 ): Promise<Response> => {
   const {
     timeout = DEFAULT_REQUEST_TIMEOUT,
@@ -422,7 +422,7 @@ export const apiRequest = async (
   };
 
   const hasContentTypeHeader = Object.keys(defaultHeaders).some(
-    (key) => key.toLowerCase() === "content-type"
+    (key) => key.toLowerCase() === "content-type",
   );
 
   const isFormDataBody =
@@ -467,7 +467,7 @@ export const apiRequest = async (
 // Typed JSON fetch helper. Use this when you expect JSON and want a typed result.
 export async function fetchJson<T = any>(
   url: string,
-  options: RequestInit & { timeout?: number } = {}
+  options: RequestInit & { timeout?: number } = {},
 ): Promise<T> {
   const resp = await apiRequest(url, options);
   const text = await resp.text();
@@ -489,7 +489,7 @@ export async function fetchJson<T = any>(
     throw new Error(
       `Failed to parse JSON response from ${url} (${resp.status} ${resp.statusText}):\n` +
         `Response body: ${text.substring(0, 500)}\n` +
-        `Parse error: ${e}`
+        `Parse error: ${e}`,
     );
   }
 
@@ -498,7 +498,7 @@ export async function fetchJson<T = any>(
     throw new Error(
       err?.message ||
         err?.error ||
-        `Request to ${url} failed with status ${resp.status}`
+        `Request to ${url} failed with status ${resp.status}`,
     );
   }
 
