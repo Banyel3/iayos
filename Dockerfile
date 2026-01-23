@@ -244,6 +244,9 @@ COPY --from=backend-builder --chown=appuser:appgroup /app/backend ./
 # Switch to non-root user
 USER appuser
 
+# Run migrations on container startup (auto-migrate on deploy)
+RUN cd /app/backend/src && python manage.py migrate --noinput || true
+
 # Add health check
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/', timeout=10)" || exit 1
