@@ -74,12 +74,12 @@ export default function JobRequestsPage() {
         `http://localhost:8000/api/adminpanel/jobs/listings?page=${page}&page_size=100${statusParam}`,
         {
           credentials: "include",
-        }
+        },
       );
       const data = await response.json();
       if (data.success) {
-        const inviteJobs = data.jobs.filter(
-          (job: any) => job.job_type === "INVITE" || job.jobType === "INVITE"
+        const inviteJobs = (data.jobs || []).filter(
+          (job: any) => job.job_type === "INVITE" || job.jobType === "INVITE",
         );
         setJobs(inviteJobs);
         setTotalPages(Math.ceil(inviteJobs.length / 20));
@@ -248,7 +248,7 @@ export default function JobRequestsPage() {
                     jobs.filter(
                       (job) =>
                         job.invite_status?.toUpperCase() === "PENDING" ||
-                        job.status === "ACTIVE"
+                        job.status === "ACTIVE",
                     ).length
                   }
                 </p>
@@ -272,7 +272,7 @@ export default function JobRequestsPage() {
                     jobs.filter(
                       (job) =>
                         job.invite_status?.toUpperCase() === "ACCEPTED" ||
-                        job.status === "IN_PROGRESS"
+                        job.status === "IN_PROGRESS",
                     ).length
                   }
                 </p>
@@ -294,7 +294,7 @@ export default function JobRequestsPage() {
                 <p className="text-3xl font-bold text-red-600">
                   {
                     jobs.filter(
-                      (job) => job.invite_status?.toUpperCase() === "REJECTED"
+                      (job) => job.invite_status?.toUpperCase() === "REJECTED",
                     ).length
                   }
                 </p>
@@ -376,7 +376,7 @@ export default function JobRequestsPage() {
                               Budget
                             </p>
                             <p className="font-bold text-gray-900">
-                              ₱{job.budget.toLocaleString()}
+                              ₱{(job.budget ?? 0).toLocaleString()}
                             </p>
                           </div>
                         </div>
@@ -420,7 +420,7 @@ export default function JobRequestsPage() {
                             <p className="font-semibold text-gray-900">
                               {new Date(job.created_at).toLocaleDateString(
                                 "en-US",
-                                { month: "short", day: "numeric" }
+                                { month: "short", day: "numeric" },
                               )}
                             </p>
                           </div>

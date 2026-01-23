@@ -2146,6 +2146,23 @@ class Transaction(models.Model):
     createdAt = models.DateTimeField(auto_now_add=True)
     completedAt = models.DateTimeField(null=True, blank=True)
     
+    # Admin audit fields for manual withdrawal processing
+    adminReferenceNumber = models.CharField(
+        max_length=100, 
+        blank=True, 
+        null=True,
+        help_text="Reference number from admin when manually processing withdrawal (e.g., bank ref #)"
+    )
+    processedByAdmin = models.ForeignKey(
+        'Accounts',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='processed_withdrawals',
+        help_text="Admin who processed this withdrawal"
+    )
+    processedAt = models.DateTimeField(null=True, blank=True)
+    
     class Meta:
         ordering = ['-createdAt']
         indexes = [
@@ -2155,6 +2172,7 @@ class Transaction(models.Model):
             models.Index(fields=['referenceNumber']),
             models.Index(fields=['xenditInvoiceID']),
             models.Index(fields=['xenditExternalID']),
+            models.Index(fields=['adminReferenceNumber']),
         ]
     
     def __str__(self):
@@ -2216,12 +2234,15 @@ class Barangay(models.Model):
 
 
 class UserPaymentMethod(models.Model):
-    """User's payment methods for withdrawals (GCash, Bank, PayPal)"""
+    """User's payment methods for withdrawals (GCash, Bank, PayPal, Visa, GrabPay, Maya)"""
     
     class MethodType(models.TextChoices):
         GCASH = "GCASH", "GCash"
         BANK = "BANK", "Bank Account"
         PAYPAL = "PAYPAL", "PayPal"
+        VISA = "VISA", "Visa/Credit Card"
+        GRABPAY = "GRABPAY", "GrabPay"
+        MAYA = "MAYA", "Maya"
     
     accountFK = models.ForeignKey(Accounts, on_delete=models.CASCADE, related_name='payment_methods')
     methodType = models.CharField(max_length=10, choices=MethodType.choices)

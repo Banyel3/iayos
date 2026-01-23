@@ -42,7 +42,7 @@ import { apiRequest, ENDPOINTS } from "@/lib/api/config";
 
 interface PaymentMethod {
   id: number;
-  type: "GCASH" | "BANK" | "PAYPAL";
+  type: "GCASH" | "BANK" | "PAYPAL" | "VISA" | "GRABPAY" | "MAYA";
   account_name: string;
   account_number: string;
   bank_name: string | null;
@@ -60,7 +60,7 @@ interface WithdrawResponse {
   transaction_id: number;
   new_balance: number;
   message?: string;
-  receipt_url?: string;  // Shows payment receipt/order summary
+  receipt_url?: string; // Shows payment receipt/order summary
   test_mode?: boolean;
   amount?: number;
 }
@@ -96,12 +96,12 @@ export default function WithdrawScreen() {
   const amountNum = parseFloat(amount) || 0;
   const paymentMethods = paymentMethodsData?.payment_methods || [];
   const selectedMethod = paymentMethods.find(
-    (m: PaymentMethod) => m.id === selectedMethodId
+    (m: PaymentMethod) => m.id === selectedMethodId,
   );
 
   // Show all verified payment methods
   const verifiedMethods = paymentMethods.filter(
-    (m: PaymentMethod) => m.is_verified
+    (m: PaymentMethod) => m.is_verified,
   );
 
   // Check if user has payment method on mount
@@ -124,7 +124,7 @@ export default function WithdrawScreen() {
             },
           },
         ],
-        { cancelable: false }
+        { cancelable: false },
       );
     }
   }, [paymentMethodsData, methodsLoading, verifiedMethods.length]);
@@ -153,7 +153,7 @@ export default function WithdrawScreen() {
     if (amountNum > balance) {
       Alert.alert(
         "Insufficient Balance",
-        `You only have ₱${balance.toFixed(2)} available`
+        `You only have ₱${balance.toFixed(2)} available`,
       );
       return;
     }
@@ -168,7 +168,7 @@ export default function WithdrawScreen() {
             text: "Add Payment Account",
             onPress: () => router.push("/profile/payment-methods" as any),
           },
-        ]
+        ],
       );
       return;
     }
@@ -179,16 +179,31 @@ export default function WithdrawScreen() {
     }
 
     // Confirm withdrawal
-    const methodLabel = selectedMethod?.type === "GCASH" 
-      ? "GCash" 
-      : selectedMethod?.type === "BANK" 
-      ? `${selectedMethod?.bank_name || "Bank"} account`
-      : "PayPal";
-    
-    const accountDisplay = selectedMethod?.type === "BANK" && selectedMethod?.bank_name
-      ? `${selectedMethod.bank_name} - ${selectedMethod.account_number}`
-      : selectedMethod?.account_number;
-    
+    const getMethodLabel = (type: string) => {
+      switch (type) {
+        case "GCASH":
+          return "GCash";
+        case "BANK":
+          return selectedMethod?.bank_name || "Bank";
+        case "PAYPAL":
+          return "PayPal";
+        case "VISA":
+          return "Visa/Card";
+        case "GRABPAY":
+          return "GrabPay";
+        case "MAYA":
+          return "Maya";
+        default:
+          return type;
+      }
+    };
+    const methodLabel = getMethodLabel(selectedMethod?.type || "");
+
+    const accountDisplay =
+      selectedMethod?.type === "BANK" && selectedMethod?.bank_name
+        ? `${selectedMethod.bank_name} - ${selectedMethod.account_number}`
+        : selectedMethod?.account_number;
+
     Alert.alert(
       "Confirm Withdrawal",
       `Withdraw ₱${amountNum.toFixed(2)} to ${methodLabel} (${accountDisplay})?\n\nFunds will be transferred within 1-3 business days.`,
@@ -201,14 +216,14 @@ export default function WithdrawScreen() {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
             try {
-              const result = await withdrawMutation.mutateAsync({
+              const result = (await withdrawMutation.mutateAsync({
                 amount: amountNum,
                 payment_method_id: selectedMethodId,
                 notes: notes || undefined,
-              });
+              })) as { receipt_url?: string };
 
               Haptics.notificationAsync(
-                Haptics.NotificationFeedbackType.Success
+                Haptics.NotificationFeedbackType.Success,
               );
 
               // If there's a receipt URL, show it in WebView first
@@ -224,12 +239,12 @@ export default function WithdrawScreen() {
             } catch (error: any) {
               Alert.alert(
                 "Withdrawal Failed",
-                error.message || "An error occurred"
+                error.message || "An error occurred",
               );
             }
           },
         },
-      ]
+      ],
     );
   };
 
@@ -247,7 +262,7 @@ export default function WithdrawScreen() {
   // Show payment receipt in WebView
   if (receiptUrl) {
     const withdrawResult = withdrawMutation.data as WithdrawResponse;
-    
+
     return (
       <SafeAreaView style={styles.container}>
         {/* Header */}
@@ -286,7 +301,11 @@ export default function WithdrawScreen() {
         {/* Done Button Footer */}
         <View style={styles.webViewFooter}>
           <View style={styles.successBadge}>
-            <Ionicons name="checkmark-circle" size={20} color={Colors.success} />
+            <Ionicons
+              name="checkmark-circle"
+              size={20}
+              color={Colors.success}
+            />
             <Text style={styles.successBadgeText}>
               ₱{amountNum.toFixed(2)} withdrawal processed
             </Text>
@@ -305,7 +324,7 @@ export default function WithdrawScreen() {
   if (showSuccess) {
     const withdrawResult = withdrawMutation.data as WithdrawResponse;
     const isTestMode = withdrawResult?.test_mode;
-    
+
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.successContainer}>
@@ -319,63 +338,80 @@ export default function WithdrawScreen() {
           <Text style={styles.successTitle}>
             {isTestMode ? "Withdrawal Simulated!" : "Withdrawal Successful!"}
           </Text>
-          
+
           {/* Receipt Card */}
           <View style={styles.receiptCard}>
             <View style={styles.receiptHeader}>
-              <Ionicons name="receipt-outline" size={24} color={Colors.primary} />
+              <Ionicons
+                name="receipt-outline"
+                size={24}
+                color={Colors.primary}
+              />
               <Text style={styles.receiptTitle}>Transaction Receipt</Text>
             </View>
-            
+
             <View style={styles.receiptDivider} />
-            
+
             <View style={styles.receiptRow}>
               <Text style={styles.receiptLabel}>Amount</Text>
               <Text style={styles.receiptValue}>₱{amountNum.toFixed(2)}</Text>
             </View>
-            
+
             <View style={styles.receiptRow}>
               <Text style={styles.receiptLabel}>To</Text>
-              <Text style={styles.receiptValue}>{selectedMethod?.account_name || "GCash"}</Text>
+              <Text style={styles.receiptValue}>
+                {selectedMethod?.account_name || "GCash"}
+              </Text>
             </View>
-            
+
             <View style={styles.receiptRow}>
               <Text style={styles.receiptLabel}>Account</Text>
-              <Text style={styles.receiptValue}>{selectedMethod?.account_number}</Text>
+              <Text style={styles.receiptValue}>
+                {selectedMethod?.account_number}
+              </Text>
             </View>
-            
+
             <View style={styles.receiptRow}>
               <Text style={styles.receiptLabel}>Status</Text>
               <View style={styles.statusBadge}>
-                <Ionicons name="checkmark-circle" size={14} color={Colors.success} />
+                <Ionicons
+                  name="checkmark-circle"
+                  size={14}
+                  color={Colors.success}
+                />
                 <Text style={styles.statusText}>
                   {isTestMode ? "Simulated" : "Completed"}
                 </Text>
               </View>
             </View>
-            
+
             <View style={styles.receiptDivider} />
-            
+
             <View style={styles.receiptRow}>
               <Text style={styles.receiptLabel}>Transaction ID</Text>
-              <Text style={styles.receiptValueSmall}>#{withdrawResult?.transaction_id}</Text>
+              <Text style={styles.receiptValueSmall}>
+                #{withdrawResult?.transaction_id}
+              </Text>
             </View>
-            
+
             <View style={styles.receiptRow}>
               <Text style={styles.receiptLabel}>New Balance</Text>
-              <Text style={styles.receiptValue}>₱{withdrawResult?.new_balance?.toFixed(2)}</Text>
+              <Text style={styles.receiptValue}>
+                ₱{withdrawResult?.new_balance?.toFixed(2)}
+              </Text>
             </View>
           </View>
-          
+
           {isTestMode && (
             <View style={styles.testModeBanner}>
               <Ionicons name="flask-outline" size={16} color={Colors.warning} />
               <Text style={styles.testModeText}>
-                Test Mode: In production, funds would be sent to your GCash account within 1-3 business days.
+                Test Mode: In production, funds would be sent to your GCash
+                account within 1-3 business days.
               </Text>
             </View>
           )}
-          
+
           <TouchableOpacity
             style={styles.doneButton}
             onPress={() => router.back()}
@@ -422,6 +458,18 @@ export default function WithdrawScreen() {
           <View style={styles.balanceCard}>
             <Text style={styles.balanceLabel}>Available Balance</Text>
             <Text style={styles.balanceAmount}>₱{balance.toFixed(2)}</Text>
+          </View>
+
+          {/* Processing Time Info Banner */}
+          <View style={styles.processingInfoBanner}>
+            <Ionicons name="time-outline" size={20} color="#2563eb" />
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <Text style={styles.processingInfoTitle}>Manual Processing</Text>
+              <Text style={styles.processingInfoText}>
+                Withdrawals are processed within 1-3 business days. You'll
+                receive your funds via your selected payment method.
+              </Text>
+            </View>
           </View>
 
           {/* Amount Input */}
@@ -496,28 +544,59 @@ export default function WithdrawScreen() {
                   style={styles.addMethodBtn}
                   onPress={() => router.push("/profile/payment-methods" as any)}
                 >
-                  <Text style={styles.addMethodBtnText}>Add Payment Account</Text>
+                  <Text style={styles.addMethodBtnText}>
+                    Add Payment Account
+                  </Text>
                 </TouchableOpacity>
               </View>
             ) : (
               verifiedMethods.map((method: PaymentMethod) => {
-                const methodIcon = method.type === "GCASH" 
-                  ? "phone-portrait" 
-                  : method.type === "BANK" 
-                  ? "business" 
-                  : "logo-paypal";
-                const methodLabel = method.type === "GCASH" 
-                  ? "GCash" 
-                  : method.type === "BANK" 
-                  ? method.bank_name || "Bank" 
-                  : "PayPal";
-                
+                const getMethodIcon = (type: string) => {
+                  switch (type) {
+                    case "GCASH":
+                      return "phone-portrait";
+                    case "BANK":
+                      return "business";
+                    case "PAYPAL":
+                      return "logo-paypal";
+                    case "VISA":
+                      return "card";
+                    case "GRABPAY":
+                      return "phone-portrait";
+                    case "MAYA":
+                      return "wallet";
+                    default:
+                      return "card";
+                  }
+                };
+                const getMethodLabel = (type: string) => {
+                  switch (type) {
+                    case "GCASH":
+                      return "GCash";
+                    case "BANK":
+                      return method.bank_name || "Bank";
+                    case "PAYPAL":
+                      return "PayPal";
+                    case "VISA":
+                      return "Visa/Card";
+                    case "GRABPAY":
+                      return "GrabPay";
+                    case "MAYA":
+                      return "Maya";
+                    default:
+                      return type;
+                  }
+                };
+                const methodIcon = getMethodIcon(method.type);
+                const methodLabel = getMethodLabel(method.type);
+
                 return (
                   <TouchableOpacity
                     key={method.id}
                     style={[
                       styles.methodCard,
-                      selectedMethodId === method.id && styles.methodCardSelected,
+                      selectedMethodId === method.id &&
+                        styles.methodCardSelected,
                     ]}
                     onPress={() => {
                       setSelectedMethodId(method.id);
@@ -540,10 +619,15 @@ export default function WithdrawScreen() {
                           </View>
                         )}
                       </View>
-                      <Text style={styles.methodName}>{method.account_name}</Text>
+                      <Text style={styles.methodName}>
+                        {method.account_name}
+                      </Text>
                       <Text style={styles.methodNumber}>
                         {method.type === "GCASH"
-                          ? method.account_number.replace(/(\d{4})(\d{3})(\d{4})/, "$1 $2 $3")
+                          ? method.account_number.replace(
+                              /(\d{4})(\d{3})(\d{4})/,
+                              "$1 $2 $3",
+                            )
                           : method.account_number}
                       </Text>
                     </View>
@@ -705,6 +789,27 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize["4xl"],
     fontWeight: Typography.fontWeight.bold,
     color: Colors.white,
+  },
+  processingInfoBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: "#eff6ff",
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.lg,
+    borderWidth: 1,
+    borderColor: "#bfdbfe",
+  },
+  processingInfoTitle: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.semiBold,
+    color: "#1e40af",
+    marginBottom: 2,
+  },
+  processingInfoText: {
+    fontSize: Typography.fontSize.xs,
+    color: "#3b82f6",
+    lineHeight: 18,
   },
   section: {
     marginBottom: Spacing.xl,

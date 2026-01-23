@@ -82,7 +82,7 @@ export default function AnalyticsPage() {
     try {
       const response = await fetch(
         `http://localhost:8000/api/adminpanel/transactions/statistics?period=${dateRange}`,
-        { credentials: "include" }
+        { credentials: "include" },
       );
 
       if (!response.ok) throw new Error("Failed to fetch statistics");
@@ -98,7 +98,7 @@ export default function AnalyticsPage() {
     try {
       const response = await fetch(
         `http://localhost:8000/api/adminpanel/transactions/revenue-trends?period=${dateRange}`,
-        { credentials: "include" }
+        { credentials: "include" },
       );
 
       if (!response.ok) throw new Error("Failed to fetch trends");
@@ -114,7 +114,7 @@ export default function AnalyticsPage() {
     try {
       const response = await fetch(
         `http://localhost:8000/api/adminpanel/transactions/payment-methods-breakdown?period=${dateRange}`,
-        { credentials: "include" }
+        { credentials: "include" },
       );
 
       if (!response.ok) throw new Error("Failed to fetch payment methods");
@@ -130,7 +130,7 @@ export default function AnalyticsPage() {
     try {
       const response = await fetch(
         `http://localhost:8000/api/adminpanel/transactions/top-performers?period=${dateRange}`,
-        { credentials: "include" }
+        { credentials: "include" },
       );
 
       if (!response.ok) throw new Error("Failed to fetch top performers");
@@ -262,7 +262,7 @@ export default function AnalyticsPage() {
                   </div>
                   <p className="text-sm text-gray-600 mb-1">Total Revenue</p>
                   <p className="text-3xl font-bold text-gray-900">
-                    ₱{statistics.total_revenue.toLocaleString()}
+                    ₱{(statistics.total_revenue ?? 0).toLocaleString()}
                   </p>
                 </CardContent>
               </Card>
@@ -287,7 +287,7 @@ export default function AnalyticsPage() {
                         <TrendingDown className="h-3 w-3 mr-1" />
                       )}
                       {Math.abs(statistics.transactions_change_percent).toFixed(
-                        1
+                        1,
                       )}
                       %
                     </Badge>
@@ -323,7 +323,7 @@ export default function AnalyticsPage() {
                   </div>
                   <p className="text-sm text-gray-600 mb-1">Escrow Held</p>
                   <p className="text-3xl font-bold text-gray-900">
-                    ₱{statistics.total_escrow_held.toLocaleString()}
+                    ₱{(statistics.total_escrow_held ?? 0).toLocaleString()}
                   </p>
                 </CardContent>
               </Card>
@@ -347,7 +347,7 @@ export default function AnalyticsPage() {
                   </div>
                   <p className="text-sm text-gray-600 mb-1">Refunded</p>
                   <p className="text-3xl font-bold text-gray-900">
-                    ₱{statistics.total_refunded.toLocaleString()}
+                    ₱{(statistics.total_refunded ?? 0).toLocaleString()}
                   </p>
                 </CardContent>
               </Card>
@@ -376,7 +376,7 @@ export default function AnalyticsPage() {
                   </div>
                   <p className="text-sm text-gray-600 mb-1">Platform Fees</p>
                   <p className="text-3xl font-bold text-gray-900">
-                    ₱{statistics.platform_fees.toLocaleString()}
+                    ₱{(statistics.platform_fees ?? 0).toLocaleString()}
                   </p>
                 </CardContent>
               </Card>
@@ -401,14 +401,14 @@ export default function AnalyticsPage() {
                         <TrendingDown className="h-3 w-3 mr-1" />
                       )}
                       {Math.abs(
-                        statistics.avg_transaction_change_percent
+                        statistics.avg_transaction_change_percent,
                       ).toFixed(1)}
                       %
                     </Badge>
                   </div>
                   <p className="text-sm text-gray-600 mb-1">Avg Transaction</p>
                   <p className="text-3xl font-bold text-gray-900">
-                    ₱{statistics.average_transaction.toLocaleString()}
+                    ₱{(statistics.average_transaction ?? 0).toLocaleString()}
                   </p>
                 </CardContent>
               </Card>
@@ -489,7 +489,7 @@ export default function AnalyticsPage() {
                         <div className="w-full bg-gray-200 rounded-full h-3">
                           <div
                             className={`${getPaymentMethodColor(
-                              method.method
+                              method.method,
                             )} h-3 rounded-full transition-all duration-500`}
                             style={{ width: `${method.percentage}%` }}
                           ></div>

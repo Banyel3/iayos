@@ -43,6 +43,7 @@ interface Statistics {
   escrow_held: number;
   refunded_amount: number;
   platform_fees: number;
+  pending_count?: number;
 }
 
 export default function TransactionsPage() {
@@ -79,7 +80,7 @@ export default function TransactionsPage() {
 
       const response = await fetch(
         `http://localhost:8000/api/adminpanel/transactions/all?${params}`,
-        { credentials: "include" }
+        { credentials: "include" },
       );
 
       if (!response.ok) {
@@ -108,7 +109,7 @@ export default function TransactionsPage() {
     try {
       const response = await fetch(
         `http://localhost:8000/api/adminpanel/transactions/statistics`,
-        { credentials: "include" }
+        { credentials: "include" },
       );
 
       if (!response.ok) {
@@ -132,7 +133,7 @@ export default function TransactionsPage() {
           escrow_held: 0,
           refunded_amount: 0,
           platform_fees: 0,
-        }
+        },
       );
     } catch (error) {
       console.error("Error:", error);
@@ -272,11 +273,10 @@ export default function TransactionsPage() {
           {/* Statistics Cards */}
           {statistics && (
             <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
-              <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-                <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-indigo-500/10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+              <Card className="border-0 shadow-lg overflow-hidden">
                 <CardContent className="p-6 relative">
                   <div className="flex items-center justify-between">
-                    <div className="p-3 bg-blue-100 rounded-xl group-hover:scale-110 transition-transform">
+                    <div className="p-3 bg-blue-100 rounded-xl">
                       <DollarSign className="h-6 w-6 text-blue-600" />
                     </div>
                   </div>
@@ -289,11 +289,10 @@ export default function TransactionsPage() {
                 </CardContent>
               </Card>
 
-              <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-                <div className="absolute inset-0 bg-gradient-to-br from-green-500/10 to-emerald-500/10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+              <Card className="border-0 shadow-lg overflow-hidden">
                 <CardContent className="p-6 relative">
                   <div className="flex items-center justify-between">
-                    <div className="p-3 bg-green-100 rounded-xl group-hover:scale-110 transition-transform">
+                    <div className="p-3 bg-green-100 rounded-xl">
                       <TrendingUp className="h-6 w-6 text-green-600" />
                     </div>
                   </div>
@@ -304,11 +303,10 @@ export default function TransactionsPage() {
                 </CardContent>
               </Card>
 
-              <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-                <div className="absolute inset-0 bg-gradient-to-br from-yellow-500/10 to-orange-500/10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+              <Card className="border-0 shadow-lg overflow-hidden">
                 <CardContent className="p-6 relative">
                   <div className="flex items-center justify-between">
-                    <div className="p-3 bg-yellow-100 rounded-xl group-hover:scale-110 transition-transform">
+                    <div className="p-3 bg-yellow-100 rounded-xl">
                       <Clock className="h-6 w-6 text-yellow-600" />
                     </div>
                   </div>
@@ -319,11 +317,10 @@ export default function TransactionsPage() {
                 </CardContent>
               </Card>
 
-              <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-                <div className="absolute inset-0 bg-gradient-to-br from-orange-500/10 to-red-500/10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+              <Card className="border-0 shadow-lg overflow-hidden">
                 <CardContent className="p-6 relative">
                   <div className="flex items-center justify-between">
-                    <div className="p-3 bg-orange-100 rounded-xl group-hover:scale-110 transition-transform">
+                    <div className="p-3 bg-orange-100 rounded-xl">
                       <RefreshCcw className="h-6 w-6 text-orange-600" />
                     </div>
                   </div>
@@ -334,18 +331,17 @@ export default function TransactionsPage() {
                 </CardContent>
               </Card>
 
-              <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-                <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-pink-500/10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+              <Card className="border-0 shadow-lg overflow-hidden">
                 <CardContent className="p-6 relative">
                   <div className="flex items-center justify-between">
-                    <div className="p-3 bg-purple-100 rounded-xl group-hover:scale-110 transition-transform">
+                    <div className="p-3 bg-purple-100 rounded-xl">
                       <Wallet className="h-6 w-6 text-purple-600" />
                     </div>
                   </div>
                   <p className="text-3xl font-bold text-gray-900 mt-4">
-                    ₱{statistics.platform_fees.toLocaleString()}
+                    {statistics?.pending_count?.toLocaleString() ?? "0"}
                   </p>
-                  <p className="text-sm text-gray-600 mt-1">Platform Fees</p>
+                  <p className="text-sm text-gray-600 mt-1">Pending</p>
                 </CardContent>
               </Card>
             </div>
@@ -484,7 +480,7 @@ export default function TransactionsPage() {
                           className="hover:bg-blue-50 transition-colors cursor-pointer"
                           onClick={() =>
                             router.push(
-                              `/admin/payments/transactions/${transaction.id}`
+                              `/admin/payments/transactions/${transaction.id}`,
                             )
                           }
                         >
@@ -501,7 +497,7 @@ export default function TransactionsPage() {
                             {transaction.payee_name}
                           </td>
                           <td className="px-6 py-4 text-sm font-semibold text-gray-900">
-                            ₱{transaction.amount.toLocaleString()}
+                            ₱{(transaction.amount ?? 0).toLocaleString()}
                           </td>
                           <td className="px-6 py-4">
                             {getPaymentMethodBadge(transaction.payment_method)}
@@ -511,7 +507,7 @@ export default function TransactionsPage() {
                           </td>
                           <td className="px-6 py-4 text-sm text-gray-600">
                             {new Date(
-                              transaction.created_at
+                              transaction.created_at,
                             ).toLocaleDateString()}
                           </td>
                           <td className="px-6 py-4">
@@ -520,7 +516,7 @@ export default function TransactionsPage() {
                               onClick={(e) => {
                                 e.stopPropagation();
                                 router.push(
-                                  `/admin/payments/transactions/${transaction.id}`
+                                  `/admin/payments/transactions/${transaction.id}`,
                                 );
                               }}
                               className="bg-blue-600 hover:bg-blue-700 text-white"

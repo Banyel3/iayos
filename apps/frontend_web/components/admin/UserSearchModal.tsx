@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   Search,
@@ -51,6 +51,7 @@ export default function UserSearchModal({
   const [loading, setLoading] = useState(false);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
 
   // Load recent searches from localStorage
   useEffect(() => {
@@ -63,6 +64,30 @@ export default function UserSearchModal({
       }
     }
   }, []);
+
+  // Handle Escape key press
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
+
+  // Handle click outside modal
+  const handleBackdropClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (modalRef.current && !modalRef.current.contains(e.target as Node)) {
+        onClose();
+      }
+    },
+    [onClose],
+  );
 
   // Focus input when modal opens
   useEffect(() => {
@@ -94,19 +119,19 @@ export default function UserSearchModal({
           `http://localhost:8000/api/adminpanel/users/clients?search=${encodeURIComponent(query)}&page_size=5`,
           {
             credentials: "include",
-          }
+          },
         ),
         fetch(
           `http://localhost:8000/api/adminpanel/users/workers?search=${encodeURIComponent(query)}&page_size=5`,
           {
             credentials: "include",
-          }
+          },
         ),
         fetch(
           `http://localhost:8000/api/adminpanel/users/agencies?search=${encodeURIComponent(query)}&page_size=5`,
           {
             credentials: "include",
-          }
+          },
         ),
       ]);
 
@@ -194,8 +219,14 @@ export default function UserSearchModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 pt-20">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[600px] overflow-hidden flex flex-col">
+    <div
+      className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-start justify-center z-50 pt-20"
+      onClick={handleBackdropClick}
+    >
+      <div
+        ref={modalRef}
+        className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[600px] overflow-hidden flex flex-col"
+      >
         {/* Search Header */}
         <div className="p-4 border-b">
           <div className="relative">

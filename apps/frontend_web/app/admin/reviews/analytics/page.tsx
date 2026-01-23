@@ -52,7 +52,7 @@ export default function AnalyticsPage() {
     try {
       const response = await fetch(
         `http://localhost:8000/api/adminpanel/app-reviews/statistics`,
-        { credentials: "include" }
+        { credentials: "include" },
       );
 
       if (!response.ok) throw new Error("Failed to fetch statistics");
@@ -68,7 +68,7 @@ export default function AnalyticsPage() {
     try {
       const response = await fetch(
         `http://localhost:8000/api/adminpanel/app-reviews/trends?period=${period}`,
-        { credentials: "include" }
+        { credentials: "include" },
       );
 
       if (!response.ok) throw new Error("Failed to fetch trends");
@@ -170,7 +170,7 @@ export default function AnalyticsPage() {
                     Total Reviews
                   </p>
                   <p className="text-3xl font-bold text-gray-900">
-                    {statistics.total_reviews.toLocaleString()}
+                    {(statistics.total_reviews ?? 0).toLocaleString()}
                   </p>
                 </CardContent>
               </Card>
@@ -327,7 +327,7 @@ export default function AnalyticsPage() {
                           className={`text-2xl font-bold ${getTrendColor(trends.comparison.change_percent)}`}
                         >
                           {Math.abs(trends.comparison.change_percent).toFixed(
-                            1
+                            1,
                           )}
                           %
                         </p>

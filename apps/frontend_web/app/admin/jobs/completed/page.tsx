@@ -70,7 +70,7 @@ export default function CompletedJobsPage() {
         `http://localhost:8000/api/adminpanel/jobs/listings?page=${page}&page_size=20&status=COMPLETED`,
         {
           credentials: "include",
-        }
+        },
       );
       const data = await response.json();
       if (data.success) {
@@ -195,7 +195,7 @@ export default function CompletedJobsPage() {
                   Total Paid
                 </p>
                 <p className="text-3xl font-bold text-purple-600">
-                  ₱{totalPaid.toLocaleString()}
+                  ₱{(totalPaid ?? 0).toLocaleString()}
                 </p>
               </CardContent>
             </Card>
@@ -280,7 +280,7 @@ export default function CompletedJobsPage() {
                               Paid
                             </p>
                             <p className="font-bold text-gray-900">
-                              ₱{job.budget.toLocaleString()}
+                              ₱{(job.budget ?? 0).toLocaleString()}
                             </p>
                           </div>
                         </div>
@@ -311,11 +311,11 @@ export default function CompletedJobsPage() {
                               {job.completed_at
                                 ? new Date(job.completed_at).toLocaleDateString(
                                     "en-US",
-                                    { month: "short", day: "numeric" }
+                                    { month: "short", day: "numeric" },
                                   )
                                 : new Date(job.updated_at).toLocaleDateString(
                                     "en-US",
-                                    { month: "short", day: "numeric" }
+                                    { month: "short", day: "numeric" },
                                   )}
                             </p>
                           </div>

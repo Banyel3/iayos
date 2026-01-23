@@ -47,7 +47,7 @@ interface VerificationStats {
 export default function PendingCertificationsPage() {
   const router = useRouter();
   const [certifications, setCertifications] = useState<PendingCertification[]>(
-    []
+    [],
   );
   const [stats, setStats] = useState<VerificationStats>({
     pending_count: 0,
@@ -74,8 +74,8 @@ export default function PendingCertificationsPage() {
             0,
             Math.round(
               (Date.now() - new Date(submittedAt).getTime()) /
-                (1000 * 60 * 60 * 24)
-            )
+                (1000 * 60 * 60 * 24),
+            ),
           )
         : 0);
 
@@ -118,7 +118,7 @@ export default function PendingCertificationsPage() {
     try {
       const response = await fetch(
         `${API_BASE}/api/adminpanel/certifications/stats`,
-        { credentials: "include" }
+        { credentials: "include" },
       );
 
       if (!response.ok) {
@@ -150,7 +150,7 @@ export default function PendingCertificationsPage() {
 
       const response = await fetch(
         `${API_BASE}/api/adminpanel/certifications/pending?${params}`,
-        { credentials: "include" }
+        { credentials: "include" },
       );
 
       if (!response.ok) {
@@ -164,7 +164,7 @@ export default function PendingCertificationsPage() {
         : [];
 
       const normalizedCerts = rawCerts.map((item: any) =>
-        normalizePendingCertification(item)
+        normalizePendingCertification(item),
       );
 
       setCertifications(normalizedCerts);
@@ -452,7 +452,7 @@ export default function PendingCertificationsPage() {
                             onClick={(e) => {
                               e.stopPropagation();
                               router.push(
-                                `/admin/certifications/${cert.cert_id}`
+                                `/admin/certifications/${cert.cert_id}`,
                               );
                             }}
                           >

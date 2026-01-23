@@ -46,7 +46,7 @@ export default function SkillsScreen() {
     useState(false);
   const [justAddedSkillId, setJustAddedSkillId] = useState<number | null>(null);
   const [selectedSkill, setSelectedSkill] = useState<AvailableSkill | null>(
-    null
+    null,
   );
   const [editingSkill, setEditingSkill] = useState<WorkerSkill | null>(null);
   const [experienceYears, setExperienceYears] = useState("0");
@@ -95,7 +95,7 @@ export default function SkillsScreen() {
       {
         onSuccess: (data) => {
           setShowAddModal(false);
-          const addedSkillId = data.skill?.id; // Store the skill ID
+          const addedSkillId = data.data?.id; // Store the skill ID
           setJustAddedSkillId(addedSkillId || null);
           setSelectedSkill(null);
           setExperienceYears("0");
@@ -106,7 +106,7 @@ export default function SkillsScreen() {
         onError: (error) => {
           Alert.alert("Error", error.message);
         },
-      }
+      },
     );
   };
 
@@ -137,7 +137,7 @@ export default function SkillsScreen() {
         onError: (error) => {
           Alert.alert("Error", error.message);
         },
-      }
+      },
     );
   };
 
@@ -157,7 +157,7 @@ export default function SkillsScreen() {
                 if (data.deletedCertifications > 0) {
                   Alert.alert(
                     "Skill Removed",
-                    `${data.message}\n\n${data.deletedCertifications} linked certification(s) were also removed.`
+                    `${data.message}\n\n${data.deletedCertifications} linked certification(s) were also removed.`,
                   );
                 } else {
                   Alert.alert("Success", data.message);
@@ -169,7 +169,7 @@ export default function SkillsScreen() {
             });
           },
         },
-      ]
+      ],
     );
   };
 
@@ -243,7 +243,7 @@ export default function SkillsScreen() {
             <Ionicons
               name="construct-outline"
               size={48}
-              color={Colors.textTertiary}
+              color={Colors.textSecondary}
             />
             <Text style={styles.emptyTitle}>No Skills Added</Text>
             <Text style={styles.emptyText}>
@@ -539,7 +539,7 @@ export default function SkillsScreen() {
                   // Navigate with skill ID as query parameter
                   if (justAddedSkillId) {
                     router.push(
-                      `/profile/skills/${justAddedSkillId}/certifications` as any
+                      `/profile/skills/${justAddedSkillId}/certifications` as any,
                     );
                   }
                 }}
@@ -576,7 +576,7 @@ const styles = StyleSheet.create({
     padding: Spacing.xs,
   },
   headerTitle: {
-    ...Typography.h3,
+    ...Typography.heading.h3,
     color: Colors.textPrimary,
   },
   addButton: {
@@ -616,7 +616,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   sectionTitle: {
-    ...Typography.h4,
+    ...Typography.heading.h4,
     color: Colors.textPrimary,
     marginBottom: Spacing.md,
   },
@@ -628,7 +628,7 @@ const styles = StyleSheet.create({
     ...Shadows.sm,
   },
   emptyTitle: {
-    ...Typography.h4,
+    ...Typography.heading.h4,
     color: Colors.textPrimary,
     marginTop: Spacing.md,
   },
@@ -700,7 +700,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.lg,
   },
   modalTitle: {
-    ...Typography.h3,
+    ...Typography.heading.h3,
     color: Colors.textPrimary,
   },
   modalLabel: {
@@ -718,7 +718,7 @@ const styles = StyleSheet.create({
     padding: Spacing.xl,
   },
   modalEmptyTitle: {
-    ...Typography.h4,
+    ...Typography.heading.h4,
     color: Colors.textPrimary,
     marginTop: Spacing.md,
   },
@@ -788,7 +788,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   modalButtonDisabled: {
-    backgroundColor: Colors.textTertiary,
+    backgroundColor: Colors.textSecondary,
   },
   modalButtonText: {
     ...Typography.body.medium,
@@ -803,7 +803,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   editSkillName: {
-    ...Typography.h4,
+    ...Typography.heading.h4,
     color: Colors.textPrimary,
   },
   // Certification Suggestion Modal Styles
@@ -833,7 +833,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
   suggestionTitle: {
-    ...Typography.h3,
+    ...Typography.heading.h3,
     color: Colors.textPrimary,
     marginBottom: Spacing.sm,
     textAlign: "center",

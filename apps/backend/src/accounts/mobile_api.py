@@ -3233,7 +3233,10 @@ def mobile_withdraw_funds(request, payload: WithdrawFundsSchema):
             method_display = {
                 'GCASH': f'GCash - {payment_method.accountNumber}',
                 'BANK': f'Bank Transfer - {payment_method.bankName or "Bank"} {payment_method.accountNumber}',
-                'PAYPAL': f'PayPal - {payment_method.accountNumber}'
+                'PAYPAL': f'PayPal - {payment_method.accountNumber}',
+                'VISA': f'Visa/Credit Card - ****{payment_method.accountNumber[-4:] if len(payment_method.accountNumber) >= 4 else payment_method.accountNumber}',
+                'GRABPAY': f'GrabPay - {payment_method.accountNumber}',
+                'MAYA': f'Maya - {payment_method.accountNumber}'
             }.get(payment_method.methodType, f'{payment_method.methodType} - {payment_method.accountNumber}')
             
             transaction = Transaction.objects.create(
@@ -3252,7 +3255,10 @@ def mobile_withdraw_funds(request, payload: WithdrawFundsSchema):
             channel_mapping = {
                 'GCASH': 'GCASH',
                 'BANK': 'BANK_TRANSFER',  # PayMongo InstaPay/PESONet
-                'PAYPAL': 'PAYPAL'  # For manual processing
+                'PAYPAL': 'PAYPAL',  # For manual processing
+                'VISA': 'CARD',  # Credit/Debit card
+                'GRABPAY': 'GRABPAY',  # GrabPay e-wallet
+                'MAYA': 'PAYMAYA'  # Maya/PayMaya e-wallet
             }
             channel_code = channel_mapping.get(payment_method.methodType, 'GCASH')
             

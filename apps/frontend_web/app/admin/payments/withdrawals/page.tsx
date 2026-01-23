@@ -20,22 +20,45 @@ import {
   Phone,
   Building,
   CreditCard,
+  Smartphone,
 } from "lucide-react";
 
 interface WithdrawalRequest {
-  transaction_id: number;
-  user_id: number;
-  user_name: string;
-  user_email: string;
+  id: string;
+  transaction_id?: number;  // Legacy field
+  user_id?: number;
+  user_name?: string;
+  user_email?: string;
+  user?: {
+    id: string;
+    email: string;
+    name: string;
+  };
   amount: number;
-  payment_method_type: "GCASH" | "BANK" | "PAYPAL";
-  recipient_name: string;
-  account_number: string;
+  currency?: string;
+  payment_method_type?:
+    | "GCASH"
+    | "BANK"
+    | "PAYPAL"
+    | "VISA"
+    | "GRABPAY"
+    | "MAYA";
+  payment_method?: {
+    type: string;
+    account_name: string;
+    account_number: string;
+  };
+  recipient_name?: string;
+  account_number?: string;
   bank_name?: string;
   status: "PENDING" | "COMPLETED" | "FAILED";
   created_at: string;
-  disbursement_id: string;
+  processed_at?: string;
+  disbursement_id?: string;
+  reference_number?: string;
+  description?: string;
   notes?: string;
+  admin_reference_number?: string;
 }
 
 interface Statistics {
@@ -45,6 +68,13 @@ interface Statistics {
   completed_amount_today: number;
 }
 
+interface ApproveModalState {
+  isOpen: boolean;
+  transactionId: string | number | null;
+  userName: string;
+  amount: number;
+}
+
 export default function WithdrawalsPage() {
   const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([]);
   const [statistics, setStatistics] = useState<Statistics | null>(null);
@@ -52,6 +82,15 @@ export default function WithdrawalsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("PENDING");
   const [typeFilter, setTypeFilter] = useState("all");
+  const [referenceNumber, setReferenceNumber] = useState("");
+  const [approveNotes, setApproveNotes] = useState("");
+  const [approving, setApproving] = useState(false);
+  const [approveModal, setApproveModal] = useState<ApproveModalState>({
+    isOpen: false,
+    transactionId: null,
+    userName: "",
+    amount: 0,
+  });
   const [pagination, setPagination] = useState({
     page: 1,
     limit: 50,
@@ -73,7 +112,7 @@ export default function WithdrawalsPage() {
 
       const response = await fetch(
         `http://localhost:8000/api/adminpanel/withdrawals?${params}`,
-        { credentials: "include" }
+        { credentials: "include" },
       );
 
       if (!response.ok) {
@@ -100,13 +139,19 @@ export default function WithdrawalsPage() {
     } finally {
       setLoading(false);
     }
-  }, [pagination.page, pagination.limit, statusFilter, typeFilter, searchQuery]);
+  }, [
+    pagination.page,
+    pagination.limit,
+    statusFilter,
+    typeFilter,
+    searchQuery,
+  ]);
 
   const fetchStatistics = useCallback(async () => {
     try {
       const response = await fetch(
         `http://localhost:8000/api/adminpanel/withdrawals/statistics`,
-        { credentials: "include" }
+        { credentials: "include" },
       );
 
       if (!response.ok) {
@@ -145,6 +190,12 @@ export default function WithdrawalsPage() {
         return <Building className="h-4 w-4" />;
       case "PAYPAL":
         return <CreditCard className="h-4 w-4" />;
+      case "VISA":
+        return <CreditCard className="h-4 w-4" />;
+      case "GRABPAY":
+        return <Smartphone className="h-4 w-4" />;
+      case "MAYA":
+        return <Wallet className="h-4 w-4" />;
       default:
         return <Wallet className="h-4 w-4" />;
     }
@@ -171,6 +222,27 @@ export default function WithdrawalsPage() {
           <Badge className="bg-purple-100 text-purple-700 border-purple-200">
             {getPaymentMethodIcon(type)}
             <span className="ml-1">PayPal</span>
+          </Badge>
+        );
+      case "VISA":
+        return (
+          <Badge className="bg-indigo-100 text-indigo-700 border-indigo-200">
+            {getPaymentMethodIcon(type)}
+            <span className="ml-1">Visa</span>
+          </Badge>
+        );
+      case "GRABPAY":
+        return (
+          <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200">
+            {getPaymentMethodIcon(type)}
+            <span className="ml-1">GrabPay</span>
+          </Badge>
+        );
+      case "MAYA":
+        return (
+          <Badge className="bg-teal-100 text-teal-700 border-teal-200">
+            {getPaymentMethodIcon(type)}
+            <span className="ml-1">Maya</span>
           </Badge>
         );
       default:
@@ -206,25 +278,72 @@ export default function WithdrawalsPage() {
     }
   };
 
-  const handleApprove = async (transactionId: number) => {
-    if (!confirm("Mark this withdrawal as completed? Ensure you have sent the funds manually via PayMongo, bank transfer, or PayPal.")) {
+  // Open approve modal instead of confirm
+  const openApproveModal = (withdrawal: WithdrawalRequest) => {
+    setReferenceNumber("");
+    setApproveNotes("");
+    setApproveModal({
+      isOpen: true,
+      transactionId: withdrawal.id || withdrawal.transaction_id,
+      userName: withdrawal.user?.name || withdrawal.user_name || '',
+      amount: withdrawal.amount,
+    });
+  };
+
+  const closeApproveModal = () => {
+    setApproveModal({
+      isOpen: false,
+      transactionId: null,
+      userName: "",
+      amount: 0,
+    });
+    setReferenceNumber("");
+    setApproveNotes("");
+  };
+
+  const handleApprove = async () => {
+    if (!approveModal.transactionId) return;
+
+    if (!referenceNumber.trim()) {
+      alert(
+        "Please enter a reference number for audit purposes (e.g., bank transaction ID, GCash reference)",
+      );
       return;
     }
 
+    // Final confirmation dialog
+    const confirmed = confirm(
+      `⚠️ FINAL CONFIRMATION\n\n` +
+      `You are about to approve a withdrawal of ₱${(approveModal.amount ?? 0).toLocaleString()} to ${approveModal.userName}.\n\n` +
+      `Reference: ${referenceNumber.trim()}\n` +
+      `Notes: ${approveNotes || '(none)'}\n\n` +
+      `This action CANNOT be undone. The funds will be marked as paid.\n\n` +
+      `Are you absolutely sure you want to proceed?`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setApproving(true);
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/withdrawals/${transactionId}/approve`,
+        `http://localhost:8000/api/adminpanel/withdrawals/${approveModal.transactionId}/approve`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
-          body: JSON.stringify({ notes: "Approved and processed manually" }),
-        }
+          body: JSON.stringify({
+            notes: approveNotes || "Approved and processed manually",
+            reference_number: referenceNumber.trim(),
+          }),
+        },
       );
 
       const data = await response.json();
       if (data.success) {
         alert(data.message || "Withdrawal marked as completed!");
+        closeApproveModal();
         fetchWithdrawals();
         fetchStatistics();
       } else {
@@ -233,12 +352,30 @@ export default function WithdrawalsPage() {
     } catch (error) {
       console.error("Error:", error);
       alert("An error occurred");
+    } finally {
+      setApproving(false);
     }
   };
 
-  const handleReject = async (transactionId: number) => {
+  const handleReject = async (transactionId: string | number) => {
     const reason = prompt("Enter rejection reason:");
     if (!reason) return;
+
+    // Final confirmation dialog
+    const confirmed = confirm(
+      `⚠️ FINAL CONFIRMATION\n\n` +
+      `You are about to REJECT this withdrawal request.\n\n` +
+      `Rejection Reason: ${reason}\n\n` +
+      `This will:\n` +
+      `• Refund the amount back to the user's wallet\n` +
+      `• Notify the user of the rejection\n` +
+      `• This action CANNOT be undone\n\n` +
+      `Are you absolutely sure you want to proceed?`
+    );
+
+    if (!confirmed) {
+      return;
+    }
 
     try {
       const response = await fetch(
@@ -248,12 +385,15 @@ export default function WithdrawalsPage() {
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({ reason }),
-        }
+        },
       );
 
       const data = await response.json();
       if (data.success) {
-        alert(data.message || "Withdrawal rejected and funds refunded to user wallet!");
+        alert(
+          data.message ||
+            "Withdrawal rejected and funds refunded to user wallet!",
+        );
         fetchWithdrawals();
         fetchStatistics();
       } else {
@@ -303,7 +443,8 @@ export default function WithdrawalsPage() {
                 <h1 className="text-4xl font-bold">Withdrawal Requests</h1>
               </div>
               <p className="text-orange-100 text-lg">
-                Manually process pending withdrawal requests - GCash, Bank Transfers, and PayPal
+                Manually process pending withdrawal requests - GCash, Bank
+                Transfers, and PayPal
               </p>
             </div>
           </div>
@@ -318,14 +459,30 @@ export default function WithdrawalsPage() {
                     Manual Processing Required
                   </h3>
                   <p className="text-amber-800 mb-4">
-                    All withdrawal requests require manual approval and fund transfer. Follow these steps:
+                    All withdrawal requests require manual approval and fund
+                    transfer. Follow these steps:
                   </p>
                   <ol className="list-decimal list-inside space-y-2 text-amber-800 text-sm">
-                    <li><strong>GCash:</strong> Send money via GCash app to the recipient's number</li>
-                    <li><strong>Bank Transfer:</strong> Use InstaPay/PESONet to transfer funds to the bank account</li>
-                    <li><strong>PayPal:</strong> Send payment via PayPal to the recipient's email</li>
-                    <li>After sending funds, click "Mark as Completed" to update the status</li>
-                    <li>If there's an issue, click "Reject" to refund the amount to user's wallet</li>
+                    <li>
+                      <strong>GCash:</strong> Send money via GCash app to the
+                      recipient's number
+                    </li>
+                    <li>
+                      <strong>Bank Transfer:</strong> Use InstaPay/PESONet to
+                      transfer funds to the bank account
+                    </li>
+                    <li>
+                      <strong>PayPal:</strong> Send payment via PayPal to the
+                      recipient's email
+                    </li>
+                    <li>
+                      After sending funds, click "Mark as Completed" to update
+                      the status
+                    </li>
+                    <li>
+                      If there's an issue, click "Reject" to refund the amount
+                      to user's wallet
+                    </li>
                   </ol>
                 </div>
               </div>
@@ -335,63 +492,62 @@ export default function WithdrawalsPage() {
           {/* Statistics Cards */}
           {statistics && (
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-                <div className="absolute inset-0 bg-gradient-to-br from-amber-500/10 to-orange-500/10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+              <Card className="border-0 shadow-lg overflow-hidden">
                 <CardContent className="p-6 relative">
                   <div className="flex items-center justify-between">
-                    <div className="p-3 bg-amber-100 rounded-xl group-hover:scale-110 transition-transform">
+                    <div className="p-3 bg-amber-100 rounded-xl">
                       <Clock className="h-6 w-6 text-amber-600" />
                     </div>
                   </div>
                   <p className="text-3xl font-bold text-gray-900 mt-4">
-                    {statistics.pending_withdrawals.toLocaleString()}
+                    {(statistics?.pending_withdrawals ?? 0).toLocaleString()}
                   </p>
                   <p className="text-sm text-gray-600 mt-1">Pending Requests</p>
                 </CardContent>
               </Card>
 
-              <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-                <div className="absolute inset-0 bg-gradient-to-br from-orange-500/10 to-red-500/10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+              <Card className="border-0 shadow-lg overflow-hidden">
                 <CardContent className="p-6 relative">
                   <div className="flex items-center justify-between">
-                    <div className="p-3 bg-orange-100 rounded-xl group-hover:scale-110 transition-transform">
+                    <div className="p-3 bg-orange-100 rounded-xl">
                       <Wallet className="h-6 w-6 text-orange-600" />
                     </div>
                   </div>
                   <p className="text-3xl font-bold text-gray-900 mt-4">
-                    ₱{statistics.pending_amount.toLocaleString()}
+                    ₱{(statistics?.pending_amount ?? 0).toLocaleString()}
                   </p>
                   <p className="text-sm text-gray-600 mt-1">Pending Amount</p>
                 </CardContent>
               </Card>
 
-              <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-                <div className="absolute inset-0 bg-gradient-to-br from-green-500/10 to-emerald-500/10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+              <Card className="border-0 shadow-lg overflow-hidden">
                 <CardContent className="p-6 relative">
                   <div className="flex items-center justify-between">
-                    <div className="p-3 bg-green-100 rounded-xl group-hover:scale-110 transition-transform">
+                    <div className="p-3 bg-green-100 rounded-xl">
                       <CheckCircle className="h-6 w-6 text-green-600" />
                     </div>
                   </div>
                   <p className="text-3xl font-bold text-gray-900 mt-4">
-                    {statistics.completed_today.toLocaleString()}
+                    {(statistics?.completed_today ?? 0).toLocaleString()}
                   </p>
                   <p className="text-sm text-gray-600 mt-1">Completed Today</p>
                 </CardContent>
               </Card>
 
-              <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-                <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 to-teal-500/10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+              <Card className="border-0 shadow-lg overflow-hidden">
                 <CardContent className="p-6 relative">
                   <div className="flex items-center justify-between">
-                    <div className="p-3 bg-emerald-100 rounded-xl group-hover:scale-110 transition-transform">
+                    <div className="p-3 bg-emerald-100 rounded-xl">
                       <Download className="h-6 w-6 text-emerald-600" />
                     </div>
                   </div>
                   <p className="text-3xl font-bold text-gray-900 mt-4">
-                    ₱{statistics.completed_amount_today.toLocaleString()}
+                    ₱
+                    {(statistics?.completed_amount_today ?? 0).toLocaleString()}
                   </p>
-                  <p className="text-sm text-gray-600 mt-1">Completed Amount Today</p>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Completed Amount Today
+                  </p>
                 </CardContent>
               </Card>
             </div>
@@ -431,8 +587,14 @@ export default function WithdrawalsPage() {
                   <option value="GCASH">GCash</option>
                   <option value="BANK">Bank Transfer</option>
                   <option value="PAYPAL">PayPal</option>
+                  <option value="VISA">Visa/Credit Card</option>
+                  <option value="GRABPAY">GrabPay</option>
+                  <option value="MAYA">Maya</option>
                 </select>
-                <Button onClick={fetchWithdrawals} className="flex items-center gap-2">
+                <Button
+                  onClick={fetchWithdrawals}
+                  className="flex items-center gap-2"
+                >
                   <RefreshCcw className="h-4 w-4" />
                   Refresh
                 </Button>
@@ -450,7 +612,7 @@ export default function WithdrawalsPage() {
                     No withdrawal requests found
                   </h3>
                   <p className="text-gray-500">
-                    {statusFilter === "PENDING" 
+                    {statusFilter === "PENDING"
                       ? "All pending withdrawals have been processed!"
                       : "Try adjusting your filters"}
                   </p>
@@ -459,7 +621,7 @@ export default function WithdrawalsPage() {
             ) : (
               withdrawals.map((withdrawal) => (
                 <Card
-                  key={withdrawal.transaction_id}
+                  key={withdrawal.id || withdrawal.transaction_id}
                   className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group"
                 >
                   <CardContent className="p-6">
@@ -467,53 +629,78 @@ export default function WithdrawalsPage() {
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-3">
                           <h3 className="text-lg font-semibold text-gray-900">
-                            {withdrawal.user_name}
+                            {withdrawal.user?.name || withdrawal.user_name || 'Unknown'}
                           </h3>
                           {getStatusBadge(withdrawal.status)}
-                          {getPaymentMethodBadge(withdrawal.payment_method_type)}
+                          {getPaymentMethodBadge(
+                            withdrawal.payment_method?.type || withdrawal.payment_method_type,
+                          )}
                         </div>
-                        
+
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                           <div>
                             <p className="text-gray-600">Email</p>
-                            <p className="font-medium text-gray-900">{withdrawal.user_email}</p>
+                            <p className="font-medium text-gray-900">
+                              {withdrawal.user?.email || withdrawal.user_email || 'N/A'}
+                            </p>
                           </div>
                           <div>
                             <p className="text-gray-600">Recipient Name</p>
-                            <p className="font-medium text-gray-900">{withdrawal.recipient_name}</p>
+                            <p className="font-medium text-gray-900">
+                              {withdrawal.payment_method?.account_name || withdrawal.recipient_name || 'N/A'}
+                            </p>
                           </div>
                           <div>
                             <p className="text-gray-600">
-                              {withdrawal.payment_method_type === "GCASH" 
-                                ? "GCash Number" 
-                                : withdrawal.payment_method_type === "BANK"
-                                ? "Account Number"
-                                : "PayPal Email"}
+                              {(withdrawal.payment_method?.type || withdrawal.payment_method_type) === "GCASH"
+                                ? "GCash Number"
+                                : (withdrawal.payment_method?.type || withdrawal.payment_method_type) === "BANK"
+                                  ? "Account Number"
+                                  : "Account Number"}
                             </p>
-                            <p className="font-medium text-gray-900">{withdrawal.account_number}</p>
+                            <p className="font-medium text-gray-900">
+                              {withdrawal.payment_method?.account_number || withdrawal.account_number || 'N/A'}
+                            </p>
                           </div>
                           {withdrawal.bank_name && (
                             <div>
                               <p className="text-gray-600">Bank Name</p>
-                              <p className="font-medium text-gray-900">{withdrawal.bank_name}</p>
+                              <p className="font-medium text-gray-900">
+                                {withdrawal.bank_name}
+                              </p>
                             </div>
                           )}
                           <div>
-                            <p className="text-gray-600">Disbursement ID</p>
-                            <p className="font-mono text-xs text-gray-700">{withdrawal.disbursement_id}</p>
+                            <p className="text-gray-600">Reference Number</p>
+                            <p className="font-mono text-xs text-gray-700">
+                              {withdrawal.reference_number || withdrawal.disbursement_id || 'N/A'}
+                            </p>
                           </div>
                           <div>
                             <p className="text-gray-600">Created At</p>
                             <p className="font-medium text-gray-900">
-                              {new Date(withdrawal.created_at).toLocaleString()}
+                              {withdrawal.created_at ? new Date(withdrawal.created_at).toLocaleString() : 'N/A'}
                             </p>
                           </div>
                         </div>
 
-                        {withdrawal.notes && (
+                        {(withdrawal.notes || withdrawal.description) && (
                           <div className="mt-4 p-3 bg-gray-50 rounded-lg">
                             <p className="text-xs text-gray-600 mb-1">Notes</p>
-                            <p className="text-sm text-gray-900">{withdrawal.notes}</p>
+                            <p className="text-sm text-gray-900">
+                              {withdrawal.notes || withdrawal.description}
+                            </p>
+                          </div>
+                        )}
+
+                        {withdrawal.admin_reference_number && (
+                          <div className="mt-2 p-3 bg-green-50 rounded-lg border border-green-200">
+                            <p className="text-xs text-green-600 mb-1">
+                              Admin Reference #
+                            </p>
+                            <p className="text-sm font-mono text-green-800">
+                              {withdrawal.admin_reference_number}
+                            </p>
                           </div>
                         )}
                       </div>
@@ -522,21 +709,23 @@ export default function WithdrawalsPage() {
                         <div className="text-right">
                           <p className="text-sm text-gray-600">Amount</p>
                           <p className="text-3xl font-bold text-gray-900">
-                            ₱{withdrawal.amount.toLocaleString()}
+                            ₱{(withdrawal.amount ?? 0).toLocaleString()}
                           </p>
                         </div>
 
                         {withdrawal.status === "PENDING" && (
                           <div className="flex gap-2">
                             <Button
-                              onClick={() => handleApprove(withdrawal.transaction_id)}
+                              onClick={() => openApproveModal(withdrawal)}
                               className="bg-green-600 hover:bg-green-700 text-white flex items-center gap-2"
                             >
                               <CheckCircle className="h-4 w-4" />
                               Mark Completed
                             </Button>
                             <Button
-                              onClick={() => handleReject(withdrawal.transaction_id)}
+                              onClick={() =>
+                                handleReject(withdrawal.id || withdrawal.transaction_id)
+                              }
                               className="bg-red-600 hover:bg-red-700 text-white flex items-center gap-2"
                             >
                               <XCircle className="h-4 w-4" />
@@ -582,6 +771,95 @@ export default function WithdrawalsPage() {
           )}
         </div>
       </main>
+
+      {/* Approve Modal with Reference Number */}
+      {approveModal.isOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-lg mx-4 bg-white shadow-2xl">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-3 bg-green-100 rounded-full">
+                  <CheckCircle className="h-6 w-6 text-green-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    Approve Withdrawal
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    Confirm payment sent to {approveModal.userName}
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+                <p className="text-sm text-green-700">Amount to be paid:</p>
+                <p className="text-2xl font-bold text-green-800">
+                  ₱{(approveModal.amount ?? 0).toLocaleString()}
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Payment Reference Number{" "}
+                    <span className="text-red-500">*</span>
+                  </label>
+                  <Input
+                    value={referenceNumber}
+                    onChange={(e) => setReferenceNumber(e.target.value)}
+                    placeholder="e.g., GCash ref #, Bank txn ID, PayPal ID..."
+                    className="w-full"
+                    autoFocus
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Enter the reference number from your payment (required for
+                    audit)
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Notes (optional)
+                  </label>
+                  <Input
+                    value={approveNotes}
+                    onChange={(e) => setApproveNotes(e.target.value)}
+                    placeholder="Any additional notes..."
+                    className="w-full"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <Button
+                  onClick={closeApproveModal}
+                  className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700"
+                  disabled={approving}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleApprove}
+                  className="flex-1 bg-green-600 hover:bg-green-700 text-white flex items-center justify-center gap-2"
+                  disabled={approving || !referenceNumber.trim()}
+                >
+                  {approving ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="h-4 w-4" />
+                      Confirm & Approve
+                    </>
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

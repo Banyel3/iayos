@@ -78,17 +78,17 @@ export default function JobListingsPage() {
         `http://localhost:8000/api/adminpanel/jobs/listings?page=${page}&page_size=20${statusParam}`,
         {
           credentials: "include",
-        }
+        },
       );
       const data = await response.json();
       if (data.success) {
         // Filter out INVITE-type jobs (direct hire requests)
         // Only show LISTING-type jobs (open posts accepting applications)
-        const listingJobs = data.jobs.filter(
+        const listingJobs = (data.jobs || []).filter(
           (job: any) =>
             job.job_type === "LISTING" ||
             job.jobType === "LISTING" ||
-            !job.job_type
+            !job.job_type,
         );
         setJobs(listingJobs);
         setTotalPages(data.total_pages);
@@ -103,7 +103,7 @@ export default function JobListingsPage() {
   const deleteJob = async (jobId: string, jobTitle: string) => {
     if (
       !confirm(
-        `Are you sure you want to delete the job "${jobTitle}"? This action cannot be undone.`
+        `Are you sure you want to delete the job "${jobTitle}"? This action cannot be undone.`,
       )
     ) {
       return;
@@ -115,7 +115,7 @@ export default function JobListingsPage() {
         {
           method: "DELETE",
           credentials: "include",
-        }
+        },
       );
       const data = await response.json();
 
@@ -377,7 +377,7 @@ export default function JobListingsPage() {
                               Budget
                             </p>
                             <p className="font-bold text-gray-900">
-                              ₱{job.budget.toLocaleString()}
+                              ₱{(job.budget ?? 0).toLocaleString()}
                             </p>
                           </div>
                         </div>
@@ -421,7 +421,7 @@ export default function JobListingsPage() {
                             <p className="font-semibold text-gray-900">
                               {new Date(job.created_at).toLocaleDateString(
                                 "en-US",
-                                { month: "short", day: "numeric" }
+                                { month: "short", day: "numeric" },
                               )}
                             </p>
                           </div>

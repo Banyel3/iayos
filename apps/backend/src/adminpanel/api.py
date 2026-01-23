@@ -15,6 +15,20 @@ from .service import get_worker_detail, get_client_detail, get_agency_detail
 from .service import get_jobs_list, get_job_applications_list, get_jobs_dashboard_stats
 from .service import get_job_categories_list, get_job_disputes_list, get_disputes_dashboard_stats
 from .service import get_all_reviews_list, get_job_reviews_list, get_reviews_dashboard_stats, get_flagged_reviews_list
+
+# Import optimized query functions for high-traffic endpoints
+from .optimized_queries import (
+    get_dashboard_stats_optimized,
+    get_kyc_list_optimized,
+    get_clients_list_optimized,
+    get_workers_list_optimized,
+    get_agencies_list_optimized,
+    get_jobs_list_optimized,
+    get_transactions_list_optimized,
+    get_transaction_stats_optimized,
+    get_reviews_list_optimized,
+    get_withdrawals_list_optimized,
+)
 from .account_actions import suspend_account, ban_account, activate_account, delete_account, get_account_status
 from .payment_service import (
     get_transactions_list, get_transaction_statistics, get_transaction_detail,
@@ -47,9 +61,10 @@ router = Router(tags=["adminpanel"])
 
 @router.get("/dashboard/stats", auth=cookie_auth)
 def get_dashboard_stats(request):
-    """Get comprehensive dashboard statistics."""
+    """Get comprehensive dashboard statistics using optimized queries."""
     try:
-        stats = get_admin_dashboard_stats()
+        # Use optimized single-query aggregation
+        stats = get_dashboard_stats_optimized()
         return {"success": True, "stats": stats}
     except Exception as e:
         print(f"❌ Error in get_dashboard_stats: {str(e)}")
@@ -65,6 +80,26 @@ def get_all_kyc(request):
         return {"success": True, **data}
     except Exception as e:
         print(f"❌ Error in get_all_kyc: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/kyc/pending", auth=cookie_auth)
+def get_pending_kyc_optimized(request, page: int = 1, page_size: int = 20):
+    """
+    Get paginated pending KYC records using optimized queries.
+    Loads faster than /kyc/all for large datasets.
+    
+    Query params:
+    - page: Page number (default 1)
+    - page_size: Items per page (default 20)
+    """
+    try:
+        result = get_kyc_list_optimized(status_filter='PENDING', page=page, page_size=page_size)
+        return {"success": True, **result}
+    except Exception as e:
+        print(f"❌ Error in get_pending_kyc_optimized: {str(e)}")
         import traceback
         traceback.print_exc()
         return {"success": False, "error": str(e)}
@@ -332,7 +367,7 @@ def get_kyc_logs(request, action: str | None = None, limit: int = 100):
 @router.get("/users/clients", auth=cookie_auth)
 def get_clients(request, page: int = 1, page_size: int = 50, search: str | None = None, status: str | None = None):
     """
-    Get paginated list of client accounts.
+    Get paginated list of client accounts using optimized queries.
     
     Query params:
     - page: Page number (default 1)
@@ -341,7 +376,8 @@ def get_clients(request, page: int = 1, page_size: int = 50, search: str | None 
     - status: Filter by status (all, active, inactive)
     """
     try:
-        result = get_clients_list(page=page, page_size=page_size, search=search, status_filter=status)
+        # Use optimized query with subqueries to avoid N+1
+        result = get_clients_list_optimized(page=page, page_size=page_size, search=search, status_filter=status)
         return {"success": True, **result}
     except Exception as e:
         print(f"❌ Error fetching clients: {str(e)}")
@@ -373,7 +409,7 @@ def get_client_by_id(request, account_id: str):
 @router.get("/users/workers", auth=cookie_auth)
 def get_workers(request, page: int = 1, page_size: int = 50, search: str | None = None, status: str | None = None):
     """
-    Get paginated list of worker accounts.
+    Get paginated list of worker accounts using optimized queries.
     
     Query params:
     - page: Page number (default 1)
@@ -382,7 +418,8 @@ def get_workers(request, page: int = 1, page_size: int = 50, search: str | None 
     - status: Filter by status (all, active, inactive)
     """
     try:
-        result = get_workers_list(page=page, page_size=page_size, search=search, status_filter=status)
+        # Use optimized query with subqueries to avoid N+1
+        result = get_workers_list_optimized(page=page, page_size=page_size, search=search, status_filter=status)
         return {"success": True, **result}
     except Exception as e:
         print(f"❌ Error fetching workers: {str(e)}")
@@ -414,7 +451,7 @@ def get_worker_by_id(request, account_id: str):
 @router.get("/users/agencies", auth=cookie_auth)
 def get_agencies(request, page: int = 1, page_size: int = 50, search: str | None = None, status: str | None = None):
     """
-    Get paginated list of agency accounts.
+    Get paginated list of agency accounts using optimized queries.
     
     Query params:
     - page: Page number (default 1)
@@ -423,7 +460,8 @@ def get_agencies(request, page: int = 1, page_size: int = 50, search: str | None
     - status: Filter by status (all, active, inactive)
     """
     try:
-        result = get_agencies_list(page=page, page_size=page_size, search=search, status_filter=status)
+        # Use optimized query with subqueries to avoid N+1
+        result = get_agencies_list_optimized(page=page, page_size=page_size, search=search, status_filter=status)
         return {"success": True, **result}
     except Exception as e:
         print(f"❌ Error fetching agencies: {str(e)}")
@@ -502,18 +540,20 @@ def get_jobs_dashboard_statistics(request):
 
 
 @router.get("/jobs/listings", auth=cookie_auth)
-def get_job_listings(request, page: int = 1, page_size: int = 20, status: str | None = None, category_id: int | None = None):
+def get_job_listings(request, page: int = 1, page_size: int = 20, status: str | None = None, category_id: int | None = None, search: str | None = None):
     """
-    Get paginated list of all job listings.
+    Get paginated list of all job listings using optimized queries.
     
     Query params:
     - page: Page number (default 1)
     - page_size: Items per page (default 20)
     - status: Filter by status (ACTIVE, IN_PROGRESS, COMPLETED, CANCELLED)
     - category_id: Filter by category ID
+    - search: Search by title or description
     """
     try:
-        result = get_jobs_list(page=page, page_size=page_size, status=status, category_id=category_id)
+        # Use optimized query with select_related and annotations
+        result = get_jobs_list_optimized(page=page, page_size=page_size, status=status, category_id=category_id, search=search)
         return {"success": True, **result}
     except Exception as e:
         print(f"❌ Error fetching jobs listings: {str(e)}")
@@ -936,7 +976,7 @@ def get_all_reviews(request, page: int = 1, page_size: int = 20, status: str | N
     - min_rating: Minimum rating filter (1.0 - 5.0)
     """
     try:
-        result = get_all_reviews_list(page=page, page_size=page_size, status=status, reviewer_type=reviewer_type, min_rating=min_rating)
+        result = get_reviews_list_optimized(page=page, page_size=page_size, status=status, reviewer_type=reviewer_type, min_rating=min_rating)
         return {"success": True, **result}
     except Exception as e:
         print(f"❌ Error fetching all reviews: {str(e)}")
@@ -1114,9 +1154,9 @@ def get_all_transactions(
     Get paginated list of all transactions with filtering.
     """
     try:
-        result = get_transactions_list(
+        result = get_transactions_list_optimized(
             page=page,
-            limit=limit,
+            page_size=limit,
             status=status,
             payment_method=payment_method,
             date_from=date_from,
@@ -1134,11 +1174,12 @@ def get_all_transactions(
 @router.get("/transactions/statistics", auth=cookie_auth)
 def get_transactions_statistics(request):
     """
-    Get overall transaction statistics.
+    Get overall transaction statistics using optimized aggregation query.
     """
     try:
-        result = get_transaction_statistics()
-        return result
+        # Use optimized single-query aggregation
+        stats = get_transaction_stats_optimized()
+        return {"success": True, "stats": stats}
     except Exception as e:
         print(f"❌ Error in get_transactions_statistics: {str(e)}")
         import traceback
@@ -1219,11 +1260,11 @@ def get_all_withdrawals(
     Used by admin to view and manage pending withdrawals.
     """
     try:
-        result = get_withdrawals_list(
+        result = get_withdrawals_list_optimized(
             page=page,
-            limit=limit,
+            page_size=limit,
             status=status,
-            payment_method=payment_method,
+            payment_method_filter=payment_method,
             search=search
         )
         return result
@@ -1255,17 +1296,20 @@ def approve_withdrawal(request, transaction_id: int):
     """
     Approve a pending withdrawal request.
     Admin must manually process the actual payout via PayMongo/bank portal.
+    Accepts an optional reference_number for audit trail.
     """
     try:
         body = request.data if hasattr(request, 'data') else {}
         admin_notes = body.get('notes', '')
+        reference_number = body.get('reference_number', '')
         
         result = process_withdrawal_approval(
             transaction_id=transaction_id,
             action='approve',
             admin_notes=admin_notes,
             admin=request.auth,
-            request=request
+            request=request,
+            reference_number=reference_number
         )
         return result
     except Exception as e:

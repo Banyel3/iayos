@@ -20,7 +20,7 @@ from typing import Optional, Dict, List, Any
 
 from accounts.models import (
     Transaction, Job, Profile, Wallet, JobDispute, 
-    ClientProfile, WorkerProfile, Accounts, UserPaymentMethod
+    ClientProfile, WorkerProfile, Accounts, UserPaymentMethod, Notification
 )
 from adminpanel.audit_service import log_action
 
@@ -1722,8 +1722,13 @@ def get_withdrawals_list(
             # Get user info
             account = txn.walletID.accountFK if txn.walletID else None
             user_email = account.email if account else 'N/A'
-            user_name = f"{account.firstName or ''} {account.lastName or ''}".strip() if account else user_email
-            user_id = account.id if account else 0
+            # Get profile for name (Profile has firstName/lastName, not Accounts)
+            profile = None
+            if account:
+                from accounts.models import Profile
+                profile = Profile.objects.filter(accountFK=account).first()
+            user_name = f"{profile.firstName or ''} {profile.lastName or ''}".strip() if profile else user_email
+            user_id = account.accountID if account else 0
             
             # Parse payment method type from description
             payment_method_type = "GCASH"
@@ -1881,7 +1886,8 @@ def process_withdrawal_approval(
     action: str,  # 'approve' or 'reject'
     admin_notes: Optional[str] = None,
     admin = None,
-    request = None
+    request = None,
+    reference_number: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Process withdrawal approval or rejection by admin.
@@ -1889,6 +1895,7 @@ def process_withdrawal_approval(
     For approved withdrawals:
     - Mark transaction as COMPLETED
     - Update completedAt timestamp
+    - Store admin reference number for audit trail
     - Admin manually processes payment via PayMongo/Bank portal
     
     For rejected withdrawals:
@@ -1901,6 +1908,7 @@ def process_withdrawal_approval(
         admin_notes: Optional notes from admin
         admin: Admin account performing the action
         request: HTTP request for audit logging
+        reference_number: Bank/payment reference number from admin (for audit)
     """
     try:
         # Get the transaction
@@ -1919,15 +1927,51 @@ def process_withdrawal_approval(
         
         wallet = transaction.walletID
         user_account = wallet.accountFK if wallet else None
-        user_name = f"{user_account.firstName or ''} {user_account.lastName or ''}".strip() if user_account else 'Unknown'
+        user_email = user_account.email if user_account else 'unknown@email.com'
+        
+        # Get profile for name (Profile has firstName/lastName, not Accounts)
+        profile = None
+        if user_account:
+            profile = Profile.objects.filter(accountFK=user_account).first()
+        user_name = f"{profile.firstName or ''} {profile.lastName or ''}".strip() if profile else user_email
         
         if action == 'approve':
             # Mark as completed - admin will manually process the actual payment
             transaction.status = 'COMPLETED'
             transaction.completedAt = timezone.now()
+            transaction.processedAt = timezone.now()
+            
+            # Store admin reference number for audit trail
+            if reference_number:
+                transaction.adminReferenceNumber = reference_number
+            
+            # Store which admin processed this
+            if admin:
+                transaction.processedByAdmin = admin
+            
             if admin_notes:
                 transaction.description = f"{transaction.description} | Admin: {admin_notes}"
             transaction.save()
+            
+            # Send notification to user about approved withdrawal
+            if user_account:
+                Notification.objects.create(
+                    accountFK=user_account,
+                    notificationType='PAYMENT_RELEASED',
+                    title='Withdrawal Approved! 💸',
+                    message=f'Your withdrawal of ₱{transaction.amount:,.2f} has been approved and processed. Reference: {reference_number or f"WD-{transaction_id}"}. Funds have been sent to your {transaction.paymentMethod} account.'
+                )
+            
+            # Send email receipt to user
+            _send_withdrawal_receipt_email(
+                user_email=user_email,
+                user_name=user_name,
+                amount=float(transaction.amount),
+                payment_method=transaction.paymentMethod,
+                reference_number=reference_number or f"WD-{transaction_id}",
+                transaction_id=transaction_id,
+                completed_at=transaction.completedAt
+            )
             
             # Log action
             if admin and request:
@@ -1940,7 +1984,8 @@ def process_withdrawal_approval(
                         'amount': float(transaction.amount),
                         'user': user_name,
                         'payment_method': transaction.paymentMethod,
-                        'notes': admin_notes
+                        'notes': admin_notes,
+                        'reference_number': reference_number
                     },
                     request=request
                 )
@@ -1949,7 +1994,8 @@ def process_withdrawal_approval(
                 'success': True,
                 'message': f'Withdrawal of ₱{transaction.amount:,.2f} approved for {user_name}',
                 'transaction_id': transaction_id,
-                'new_status': 'COMPLETED'
+                'new_status': 'COMPLETED',
+                'reference_number': reference_number
             }
             
         elif action == 'reject':
@@ -1958,6 +2004,15 @@ def process_withdrawal_approval(
             if admin_notes:
                 transaction.description = f"{transaction.description} | Rejected: {admin_notes}"
             transaction.save()
+            
+            # Send notification to user about rejected withdrawal
+            if user_account:
+                Notification.objects.create(
+                    accountFK=user_account,
+                    notificationType='SYSTEM',
+                    title='Withdrawal Rejected',
+                    message=f'Your withdrawal request of ₱{transaction.amount:,.2f} was not approved. Reason: {admin_notes or "No reason provided"}. The amount has been refunded to your wallet.'
+                )
             
             # Refund amount back to wallet
             if wallet:
@@ -2007,3 +2062,143 @@ def process_withdrawal_approval(
         import traceback
         traceback.print_exc()
         return {'success': False, 'error': str(e)}
+
+
+def _send_withdrawal_receipt_email(
+    user_email: str,
+    user_name: str,
+    amount: float,
+    payment_method: str,
+    reference_number: str,
+    transaction_id: int,
+    completed_at: datetime
+) -> bool:
+    """
+    Send withdrawal receipt/confirmation email to user after admin approval.
+    
+    Args:
+        user_email: User's email address
+        user_name: User's full name
+        amount: Withdrawal amount in PHP
+        payment_method: Payment method used (GCASH, BANK, MAYA, etc.)
+        reference_number: Admin-provided reference number
+        transaction_id: Transaction ID
+        completed_at: Completion timestamp
+    
+    Returns:
+        bool: True if email sent successfully, False otherwise
+    """
+    import requests
+    
+    # Payment method display names
+    method_names = {
+        'GCASH': 'GCash',
+        'BANK': 'Bank Transfer',
+        'BANK_TRANSFER': 'Bank Transfer',
+        'PAYPAL': 'PayPal',
+        'VISA': 'Visa/Credit Card',
+        'GRABPAY': 'GrabPay',
+        'MAYA': 'Maya',
+        'PAYMAYA': 'Maya'
+    }
+    method_display = method_names.get(payment_method, payment_method)
+    
+    # Format date
+    date_str = completed_at.strftime('%B %d, %Y at %I:%M %p') if completed_at else 'N/A'
+    
+    try:
+        resend_api_key = getattr(settings, 'RESEND_API_KEY', None)
+        if not resend_api_key:
+            print("⚠️ RESEND_API_KEY not configured, skipping withdrawal receipt email")
+            return False
+        
+        email_html = f'''
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>Withdrawal Confirmation</title>
+        </head>
+        <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f5f5f5;">
+            <div style="background: linear-gradient(135deg, #10B981 0%, #059669 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+                <h1 style="color: white; margin: 0; font-size: 24px;">💸 Withdrawal Successful!</h1>
+            </div>
+            
+            <div style="background: white; padding: 30px; border-radius: 0 0 12px 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                <p style="color: #333; font-size: 16px;">Hi {user_name},</p>
+                
+                <p style="color: #666; font-size: 14px;">
+                    Great news! Your withdrawal request has been approved and processed. Here are the details:
+                </p>
+                
+                <div style="background: #f9fafb; border-radius: 8px; padding: 20px; margin: 20px 0;">
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                            <td style="padding: 10px 0; color: #666; font-size: 14px;">Amount:</td>
+                            <td style="padding: 10px 0; color: #10B981; font-size: 20px; font-weight: bold; text-align: right;">₱{amount:,.2f}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 10px 0; color: #666; font-size: 14px; border-top: 1px solid #e5e7eb;">Payment Method:</td>
+                            <td style="padding: 10px 0; color: #333; font-size: 14px; text-align: right; border-top: 1px solid #e5e7eb;">{method_display}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 10px 0; color: #666; font-size: 14px; border-top: 1px solid #e5e7eb;">Reference Number:</td>
+                            <td style="padding: 10px 0; color: #333; font-size: 14px; font-weight: bold; text-align: right; border-top: 1px solid #e5e7eb;">{reference_number}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 10px 0; color: #666; font-size: 14px; border-top: 1px solid #e5e7eb;">Transaction ID:</td>
+                            <td style="padding: 10px 0; color: #333; font-size: 14px; text-align: right; border-top: 1px solid #e5e7eb;">#{transaction_id}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 10px 0; color: #666; font-size: 14px; border-top: 1px solid #e5e7eb;">Processed On:</td>
+                            <td style="padding: 10px 0; color: #333; font-size: 14px; text-align: right; border-top: 1px solid #e5e7eb;">{date_str}</td>
+                        </tr>
+                    </table>
+                </div>
+                
+                <div style="background: #ecfdf5; border-left: 4px solid #10B981; padding: 15px; margin: 20px 0; border-radius: 4px;">
+                    <p style="margin: 0; color: #065f46; font-size: 14px;">
+                        <strong>✅ Funds Sent</strong><br>
+                        The funds have been sent to your {method_display} account. Please allow 1-3 business days for the transfer to reflect, depending on your payment provider.
+                    </p>
+                </div>
+                
+                <p style="color: #666; font-size: 14px;">
+                    Keep this email as your receipt. If you have any questions about this transaction, please contact our support team.
+                </p>
+                
+                <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+                
+                <p style="color: #9ca3af; font-size: 12px; text-align: center;">
+                    This is an automated email from iAyos. Please do not reply directly to this email.
+                </p>
+            </div>
+        </body>
+        </html>
+        '''
+        
+        response = requests.post(
+            "https://api.resend.com/emails",
+            headers={
+                "Authorization": f"Bearer {resend_api_key}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "from": "iAyos <noreply@iayos.com>",
+                "to": [user_email],
+                "subject": f"✅ Withdrawal of ₱{amount:,.2f} Approved - Reference: {reference_number}",
+                "html": email_html
+            },
+            timeout=10
+        )
+        
+        if response.status_code in [200, 201]:
+            print(f"✅ Withdrawal receipt email sent to {user_email}")
+            return True
+        else:
+            print(f"⚠️ Failed to send withdrawal email: {response.status_code} - {response.text}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Error sending withdrawal receipt email: {str(e)}")
+        return False

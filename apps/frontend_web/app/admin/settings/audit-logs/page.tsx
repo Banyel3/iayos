@@ -73,9 +73,9 @@ export default function AuditLogsPage() {
   const [lastRefresh, setLastRefresh] = useState(new Date());
 
   // Unique admins for filter
-  const [admins, setAdmins] = useState<Array<{ id: string; email: string }>>(
-    []
-  );
+  const [admins, setAdmins] = useState<
+    Array<{ id: string | number; email: string }>
+  >([]);
 
   useEffect(() => {
     fetchLogs();
@@ -112,21 +112,22 @@ export default function AuditLogsPage() {
         `http://localhost:8000/api/adminpanel/settings/audit-logs?${params.toString()}`,
         {
           credentials: "include",
-        }
+        },
       );
       const data: AuditLogsResponse = await response.json();
 
       if (data.success) {
-        setLogs(data.logs);
-        setTotalPages(data.total_pages);
-        setTotal(data.total);
+        setLogs(data.logs || []);
+        setTotalPages(data.total_pages || 1);
+        setTotal(data.total || 0);
 
         // Extract unique admins
+        const logsArray = data.logs || [];
         const uniqueAdmins = Array.from(
-          new Set(data.logs.map((log) => log.admin_email))
+          new Set(logsArray.map((log) => log.admin_email)),
         ).map((email) => {
-          const log = data.logs.find((l) => l.admin_email === email);
-          return { id: log!.admin_id, email };
+          const log = logsArray.find((l) => l.admin_email === email);
+          return { id: log?.admin_id || 0, email };
         });
         setAdmins(uniqueAdmins);
       }
@@ -467,7 +468,7 @@ export default function AuditLogsPage() {
                         <td className="px-6 py-4">
                           <span
                             className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${getActionBadgeColor(
-                              log.action
+                              log.action,
                             )}`}
                           >
                             {formatActionLabel(log.action)}
@@ -564,7 +565,7 @@ export default function AuditLogsPage() {
                     </label>
                     <span
                       className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${getActionBadgeColor(
-                        selectedLog.action
+                        selectedLog.action,
                       )}`}
                     >
                       {formatActionLabel(selectedLog.action)}

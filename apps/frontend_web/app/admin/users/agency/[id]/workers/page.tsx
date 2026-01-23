@@ -247,7 +247,7 @@ export default function AgencyWorkersPage() {
         {filteredEmployees.length > 0 ? (
           filteredEmployees.map((employee) => (
             <Card
-              key={employee.employee_id}
+              key={employee.employee_id || employee.id}
               className="hover:shadow-lg transition"
             >
               <CardContent className="p-6">

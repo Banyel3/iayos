@@ -91,7 +91,7 @@ export default function CreateJobScreen() {
     "[CreateJob] Screen loaded - workerId:",
     workerId,
     "agencyId:",
-    agencyId
+    agencyId,
   );
 
   // Form state
@@ -99,7 +99,7 @@ export default function CreateJobScreen() {
   const [description, setDescription] = useState("");
   const [categoryId, setCategoryId] = useState<number | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(
-    null
+    null,
   );
   const [budget, setBudget] = useState("");
   const [barangay, setBarangay] = useState("");
@@ -224,7 +224,7 @@ export default function CreateJobScreen() {
     queryKey: ["categories"],
     queryFn: async () => {
       const response = await fetchJson<{ categories: Category[] }>(
-        ENDPOINTS.GET_CATEGORIES
+        ENDPOINTS.GET_CATEGORIES,
       );
       return response.categories || [];
     },
@@ -254,7 +254,7 @@ export default function CreateJobScreen() {
     "Type:",
     typeof categories,
     "IsArray:",
-    Array.isArray(categories)
+    Array.isArray(categories),
   );
 
   // Create job mutation
@@ -296,7 +296,7 @@ export default function CreateJobScreen() {
               text: "Go to Home",
               onPress: () => router.replace("/"),
             },
-          ]
+          ],
         );
         return;
       }
@@ -330,7 +330,7 @@ export default function CreateJobScreen() {
               text: "Back to Home",
               onPress: () => router.replace("/"),
             },
-          ]
+          ],
         );
       }
     },
@@ -364,7 +364,7 @@ export default function CreateJobScreen() {
       if (budgetValue < selectedCategory.minimum_rate) {
         Alert.alert(
           "Budget Too Low",
-          `The minimum budget for ${selectedCategory.name} is ₱${selectedCategory.minimum_rate.toFixed(2)}. Please enter a higher amount.`
+          `The minimum budget for ${selectedCategory.name} is ₱${selectedCategory.minimum_rate.toFixed(2)}. Please enter a higher amount.`,
         );
         return;
       }
@@ -395,7 +395,7 @@ export default function CreateJobScreen() {
                 params: { amount: Math.ceil(shortfallAmount).toString() },
               } as any),
           },
-        ]
+        ],
       );
       return;
     }
@@ -995,7 +995,7 @@ export default function CreateJobScreen() {
                             setSelectedMaterials((prev) =>
                               prev.includes(material.id)
                                 ? prev.filter((id) => id !== material.id)
-                                : [...prev, material.id]
+                                : [...prev, material.id],
                             );
                           }}
                         >
@@ -1137,7 +1137,9 @@ export default function CreateJobScreen() {
                   size={20}
                   color={Colors.success}
                 />
-                <Text style={styles.successText}>QR PH deposits enabled (any bank/e-wallet)</Text>
+                <Text style={styles.successText}>
+                  QR PH deposits enabled (any bank/e-wallet)
+                </Text>
               </View>
 
               {/* Info Box */}

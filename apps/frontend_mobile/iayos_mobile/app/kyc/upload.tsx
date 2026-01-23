@@ -92,7 +92,7 @@ export default function KYCUploadScreen() {
             text: "View Status",
             onPress: () => router.replace("/kyc/status"),
           },
-        ]
+        ],
       );
     }
   }, [hasSubmittedKYC, isPending, kycLoading, router]);
@@ -106,7 +106,7 @@ export default function KYCUploadScreen() {
     if (cameraStatus !== "granted") {
       Alert.alert(
         "Camera Permission Required",
-        "Camera access is required to capture your documents for verification."
+        "Camera access is required to capture your documents for verification.",
       );
       return false;
     }
@@ -123,7 +123,7 @@ export default function KYCUploadScreen() {
   };
 
   const captureImage = async (
-    type: "front" | "back" | "clearance" | "selfie"
+    type: "front" | "back" | "clearance" | "selfie",
   ) => {
     const result = await ImagePicker.launchCameraAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -138,7 +138,7 @@ export default function KYCUploadScreen() {
 
   const handleImageSelected = (
     type: "front" | "back" | "clearance" | "selfie",
-    asset: ImagePicker.ImagePickerAsset
+    asset: ImagePicker.ImagePickerAsset,
   ) => {
     const imageFile: ImageFile = {
       uri: asset.uri,
@@ -165,7 +165,7 @@ export default function KYCUploadScreen() {
   // Helper function to validate a single document
   const validateDocument = async (
     file: ImageFile,
-    documentType: string
+    documentType: string,
   ): Promise<{ valid: boolean; error?: string }> => {
     try {
       const token = await AsyncStorage.getItem("access_token");
@@ -235,7 +235,7 @@ export default function KYCUploadScreen() {
         if (!frontResult.valid) {
           Alert.alert(
             "Front ID Issue",
-            frontResult.error || "Please retake the front of your ID"
+            frontResult.error || "Please retake the front of your ID",
           );
           setIsValidating(false);
           return;
@@ -246,7 +246,7 @@ export default function KYCUploadScreen() {
         if (!backResult.valid) {
           Alert.alert(
             "Back ID Issue",
-            backResult.error || "Please retake the back of your ID"
+            backResult.error || "Please retake the back of your ID",
           );
           setIsValidating(false);
           return;
@@ -257,12 +257,12 @@ export default function KYCUploadScreen() {
       if (currentStep === 3) {
         const clearanceResult = await validateDocument(
           clearanceFile!,
-          "CLEARANCE"
+          "CLEARANCE",
         );
         if (!clearanceResult.valid) {
           Alert.alert(
             "Clearance Issue",
-            clearanceResult.error || "Please retake your clearance document"
+            clearanceResult.error || "Please retake your clearance document",
           );
           setIsValidating(false);
           return;
@@ -275,7 +275,7 @@ export default function KYCUploadScreen() {
         if (!selfieResult.valid) {
           Alert.alert(
             "Selfie Issue",
-            selfieResult.error || "Please retake your selfie"
+            selfieResult.error || "Please retake your selfie",
           );
           setIsValidating(false);
           return;
@@ -285,7 +285,7 @@ export default function KYCUploadScreen() {
       console.error("Validation error:", error);
       Alert.alert(
         "Validation Error",
-        "Failed to validate your document. Please try again."
+        "Failed to validate your document. Please try again.",
       );
       setIsValidating(false);
       return;
@@ -377,7 +377,7 @@ export default function KYCUploadScreen() {
         Alert.alert(
           "Verification Failed",
           `Your documents could not be verified automatically:\n\n${formattedReasons}\n\nPlease resubmit with clearer images.`,
-          [{ text: "OK", onPress: () => router.replace("/kyc/status") }]
+          [{ text: "OK", onPress: () => router.replace("/kyc/status" as any) }],
         );
       } else {
         // Success - offer to review extracted data
@@ -387,18 +387,21 @@ export default function KYCUploadScreen() {
             ? "Your KYC documents have been resubmitted. Would you like to review the extracted information?"
             : "Your KYC documents are being processed. Would you like to review the extracted information?",
           [
-            { text: "Skip", onPress: () => router.replace("/kyc/status") },
+            {
+              text: "Skip",
+              onPress: () => router.replace("/kyc/status" as any),
+            },
             {
               text: "Review Details",
-              onPress: () => router.replace("/kyc/confirm"),
+              onPress: () => router.replace("/kyc/confirm" as any),
             },
-          ]
+          ],
         );
       }
     } catch (error) {
       Alert.alert(
         "Upload Failed",
-        error instanceof Error ? error.message : "Failed to upload"
+        error instanceof Error ? error.message : "Failed to upload",
       );
     } finally {
       setIsSubmitting(false);

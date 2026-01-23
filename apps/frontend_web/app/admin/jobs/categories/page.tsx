@@ -43,7 +43,7 @@ export default function JobCategoriesPage() {
         "http://localhost:8000/api/adminpanel/jobs/categories",
         {
           credentials: "include",
-        }
+        },
       );
       const data = await response.json();
       if (data.success) {
@@ -90,16 +90,16 @@ export default function JobCategoriesPage() {
     categories.length > 0
       ? Math.round(
           categories.reduce((sum, cat) => sum + cat.minimum_rate, 0) /
-            totalCategories
+            totalCategories,
         )
       : 0;
   const expertCategories = categories.filter(
-    (cat) => cat.skill_level === "expert"
+    (cat) => cat.skill_level === "expert",
   ).length;
   const totalJobs = categories.reduce((sum, cat) => sum + cat.jobs_count, 0);
   const totalWorkers = categories.reduce(
     (sum, cat) => sum + cat.workers_count,
-    0
+    0,
   );
 
   if (isLoading) {
@@ -282,9 +282,13 @@ export default function JobCategoriesPage() {
                             </p>
                             <p className="font-semibold text-gray-900 truncate">
                               ₱
-                              {category.average_project_cost_min.toLocaleString()}
+                              {(
+                                category.average_project_cost_min ?? 0
+                              ).toLocaleString()}
                               -
-                              {category.average_project_cost_max.toLocaleString()}
+                              {(
+                                category.average_project_cost_max ?? 0
+                              ).toLocaleString()}
                             </p>
                           </div>
                         </div>

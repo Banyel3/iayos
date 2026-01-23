@@ -325,6 +325,8 @@ export default function Sidebar({ className }: SidebarProps) {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [pendingKYCCount, setPendingKYCCount] = useState<number>(0);
   const [pendingCertsCount, setPendingCertsCount] = useState<number>(0);
+  const [pendingWithdrawalsCount, setPendingWithdrawalsCount] =
+    useState<number>(0);
   const [showSearchModal, setShowSearchModal] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
@@ -346,10 +348,10 @@ export default function Sidebar({ className }: SidebarProps) {
             // Count pending KYC records
             const pendingCount =
               (data.kyc || []).filter(
-                (kyc: any) => kyc.kycStatus?.toLowerCase() === "pending"
+                (kyc: any) => kyc.kycStatus?.toLowerCase() === "pending",
               ).length +
               (data.agency_kyc || []).filter(
-                (kyc: any) => kyc.status?.toLowerCase() === "pending"
+                (kyc: any) => kyc.status?.toLowerCase() === "pending",
               ).length;
 
             setPendingKYCCount(pendingCount);
@@ -364,7 +366,7 @@ export default function Sidebar({ className }: SidebarProps) {
       try {
         const response = await fetch(
           `${API_BASE}/api/adminpanel/certifications/stats`,
-          { credentials: "include" }
+          { credentials: "include" },
         );
 
         if (response.ok) {
@@ -376,13 +378,33 @@ export default function Sidebar({ className }: SidebarProps) {
       }
     };
 
+    const fetchPendingWithdrawalsCount = async () => {
+      try {
+        const response = await fetch(
+          `${API_BASE}/api/adminpanel/withdrawals/statistics`,
+          { credentials: "include" },
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            setPendingWithdrawalsCount(data.pending_withdrawals || 0);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching pending withdrawals count:", error);
+      }
+    };
+
     fetchPendingCount();
     fetchPendingCertsCount();
+    fetchPendingWithdrawalsCount();
 
     // Refresh counts every 30 seconds
     const interval = setInterval(() => {
       fetchPendingCount();
       fetchPendingCertsCount();
+      fetchPendingWithdrawalsCount();
     }, 30000);
 
     return () => clearInterval(interval);
@@ -415,6 +437,12 @@ export default function Sidebar({ className }: SidebarProps) {
         count: pendingCertsCount > 0 ? pendingCertsCount : null,
       };
     }
+    if (item.name === "Payments") {
+      return {
+        ...item,
+        count: pendingWithdrawalsCount > 0 ? pendingWithdrawalsCount : null,
+      };
+    }
     return item;
   });
 
@@ -422,7 +450,7 @@ export default function Sidebar({ className }: SidebarProps) {
     setExpandedItems((prev) =>
       prev.includes(name)
         ? prev.filter((item) => item !== name)
-        : [...prev, name]
+        : [...prev, name],
     );
   };
 
@@ -435,7 +463,7 @@ export default function Sidebar({ className }: SidebarProps) {
 
   const isChildActive = (
     parentHref: string,
-    children: { name: string; href: string; icon: React.ComponentType }[]
+    children: { name: string; href: string; icon: React.ComponentType }[],
   ) => {
     if (!children) return false;
     return children.some((child) => pathname.startsWith(child.href));
@@ -457,7 +485,7 @@ export default function Sidebar({ className }: SidebarProps) {
       className={cn(
         "flex flex-col h-screen bg-sidebar border-r border-sidebar-border transition-all duration-300 ease-in-out",
         collapsed ? "w-16" : "w-64",
-        className
+        className,
       )}
     >
       {/* Header */}
@@ -510,14 +538,14 @@ export default function Sidebar({ className }: SidebarProps) {
                       "w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
                       hasActiveChild
                         ? "bg-blue-50 text-blue-600"
-                        : "text-gray-700 hover:bg-gray-100"
+                        : "text-gray-700 hover:bg-gray-100",
                     )}
                   >
                     <div className="flex items-center space-x-3">
                       <Icon
                         className={cn(
                           "h-4 w-4",
-                          hasActiveChild ? "text-blue-600" : "text-gray-400"
+                          hasActiveChild ? "text-blue-600" : "text-gray-400",
                         )}
                       />
                       {!collapsed && (
@@ -536,7 +564,7 @@ export default function Sidebar({ className }: SidebarProps) {
                         <ChevronRight
                           className={cn(
                             "h-4 w-4 text-gray-400 transition-transform",
-                            isExpanded && "rotate-90"
+                            isExpanded && "rotate-90",
                           )}
                         />
                       </div>
@@ -549,14 +577,14 @@ export default function Sidebar({ className }: SidebarProps) {
                       "flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
                       isItemActive
                         ? "bg-blue-50 text-blue-600"
-                        : "text-gray-700 hover:bg-gray-100"
+                        : "text-gray-700 hover:bg-gray-100",
                     )}
                   >
                     <div className="flex items-center space-x-3">
                       <Icon
                         className={cn(
                           "h-4 w-4",
-                          isItemActive ? "text-blue-600" : "text-gray-400"
+                          isItemActive ? "text-blue-600" : "text-gray-400",
                         )}
                       />
                       {!collapsed && <span>{item.name}</span>}
@@ -588,7 +616,7 @@ export default function Sidebar({ className }: SidebarProps) {
                           "group flex items-center space-x-2 px-2 py-2 rounded-md text-sm transition-all duration-200 relative",
                           isChildActiveItem
                             ? "bg-blue-50 text-blue-600 font-medium"
-                            : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                            : "text-gray-600 hover:bg-gray-100 hover:text-gray-900",
                         )}
                         title={child.description || child.name}
                       >
@@ -597,7 +625,7 @@ export default function Sidebar({ className }: SidebarProps) {
                             "h-3.5 w-3.5 transition-colors",
                             isChildActiveItem
                               ? "text-blue-600"
-                              : "text-gray-400 group-hover:text-gray-600"
+                              : "text-gray-400 group-hover:text-gray-600",
                           )}
                         />
                         <span className="flex-1">{child.name}</span>
@@ -618,7 +646,7 @@ export default function Sidebar({ className }: SidebarProps) {
           onClick={() => setShowUserMenu(!showUserMenu)}
           className={cn(
             "w-full flex items-center justify-between p-2 rounded-md transition-all duration-200",
-            showUserMenu ? "bg-blue-50" : "hover:bg-gray-100"
+            showUserMenu ? "bg-blue-50" : "hover:bg-gray-100",
           )}
         >
           <div className="flex items-center space-x-2">
@@ -638,7 +666,7 @@ export default function Sidebar({ className }: SidebarProps) {
             <ChevronDown
               className={cn(
                 "h-4 w-4 text-gray-400 transition-transform",
-                showUserMenu && "rotate-180"
+                showUserMenu && "rotate-180",
               )}
             />
           )}
