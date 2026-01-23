@@ -40,7 +40,7 @@ from .portfolio_service import (
     upload_portfolio_image, get_portfolio, update_portfolio_caption,
     reorder_portfolio, delete_portfolio_image
 )
-from .models import Profile, WorkerProfile
+from .models import Profile, WorkerProfile, Accounts
 from .material_service import (
     add_material, list_materials, list_materials_for_client, update_material, delete_material
 )
@@ -218,6 +218,153 @@ def verify(request, verifyToken: str, accountID: int):
         return {"error": [{"message": str(e)}]}
     except Exception as e:
         return {"error": [{"message": "Verification failed"}]}
+
+
+@router.post("/verify-otp")
+def verify_otp(request, payload: dict = Body(...)):
+    """
+    Verify email using 6-digit OTP code.
+    
+    Body:
+    - email: User's email address
+    - otp: 6-digit OTP code from email
+    
+    Returns:
+    - success: Whether verification succeeded
+    - message: Status message
+    """
+    from django.utils import timezone
+    
+    email = payload.get("email")
+    otp = payload.get("otp")
+    
+    if not email or not otp:
+        return Response({"success": False, "error": "Email and OTP are required"}, status=400)
+    
+    # Normalize OTP (strip whitespace)
+    otp = str(otp).strip()
+    
+    try:
+        user = Accounts.objects.get(email__iexact=email)
+    except Accounts.DoesNotExist:
+        return Response({"success": False, "error": "Account not found"}, status=404)
+    
+    # Check if already verified
+    if user.isVerified:
+        return {"success": True, "message": "Email already verified", "already_verified": True}
+    
+    # Check if OTP exists
+    if not user.email_otp:
+        return Response({"success": False, "error": "No OTP found. Please request a new one."}, status=400)
+    
+    # Check max attempts (5 attempts allowed)
+    if user.email_otp_attempts >= 5:
+        return Response({
+            "success": False, 
+            "error": "Too many failed attempts. Please request a new OTP.",
+            "max_attempts_reached": True
+        }, status=429)
+    
+    # Check expiry (5 minutes)
+    if user.email_otp_expiry and user.email_otp_expiry < timezone.now():
+        return Response({
+            "success": False, 
+            "error": "OTP has expired. Please request a new one.",
+            "expired": True
+        }, status=400)
+    
+    # Verify OTP
+    if user.email_otp != otp:
+        user.email_otp_attempts += 1
+        user.save()
+        remaining_attempts = 5 - user.email_otp_attempts
+        return Response({
+            "success": False, 
+            "error": f"Invalid OTP. {remaining_attempts} attempts remaining.",
+            "remaining_attempts": remaining_attempts
+        }, status=400)
+    
+    # OTP is valid - verify account
+    user.isVerified = True
+    user.email_otp = None
+    user.email_otp_expiry = None
+    user.email_otp_attempts = 0
+    user.verifyToken = None  # Clear legacy token too
+    user.verifyTokenExpiry = None
+    user.save()
+    
+    print(f"✅ [OTP VERIFY] Account verified for: {email}")
+    
+    return {
+        "success": True, 
+        "message": "Email verified successfully!",
+        "accountID": user.accountID
+    }
+
+
+@router.post("/resend-otp")
+def resend_otp(request, payload: dict = Body(...)):
+    """
+    Resend OTP verification code to email.
+    
+    Body:
+    - email: User's email address
+    
+    Rate limited: Max 3 resends per 15 minutes
+    
+    Returns:
+    - success: Whether OTP was resent
+    - otp_code: The new OTP (for email sending)
+    - expires_in_minutes: Time until expiry
+    """
+    from django.utils import timezone
+    from datetime import timedelta
+    from .services import generate_otp
+    import random
+    
+    email = payload.get("email")
+    
+    if not email:
+        return Response({"success": False, "error": "Email is required"}, status=400)
+    
+    try:
+        user = Accounts.objects.get(email__iexact=email)
+    except Accounts.DoesNotExist:
+        return Response({"success": False, "error": "Account not found"}, status=404)
+    
+    # Check if already verified
+    if user.isVerified:
+        return {"success": False, "error": "Email is already verified", "already_verified": True}
+    
+    # Rate limiting: Check if last OTP was sent within 60 seconds
+    if user.email_otp_expiry:
+        # OTP expiry is set 5 min after creation, so creation time = expiry - 5 min
+        otp_created_at = user.email_otp_expiry - timedelta(minutes=5)
+        seconds_since_last = (timezone.now() - otp_created_at).total_seconds()
+        
+        if seconds_since_last < 60:
+            wait_seconds = int(60 - seconds_since_last)
+            return Response({
+                "success": False, 
+                "error": f"Please wait {wait_seconds} seconds before requesting a new OTP.",
+                "wait_seconds": wait_seconds
+            }, status=429)
+    
+    # Generate new OTP
+    otp_code = generate_otp()
+    user.email_otp = otp_code
+    user.email_otp_expiry = timezone.now() + timedelta(minutes=5)
+    user.email_otp_attempts = 0  # Reset attempts on resend
+    user.save()
+    
+    print(f"📧 [OTP RESEND] New OTP generated for: {email}")
+    
+    return {
+        "success": True,
+        "message": "New OTP sent to your email",
+        "otp_code": otp_code,  # Frontend will use this to send email
+        "expires_in_minutes": 5
+    }
 
 @router.post("/forgot-password/send-verify")
 def forgot_password_send_verify(request, payload: forgotPasswordSchema):

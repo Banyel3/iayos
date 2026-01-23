@@ -51,6 +51,11 @@ const WEB_APP_URL =
 // Use backend endpoint for mobile email verification (avoids cross-server timeout issues)
 export const EMAIL_VERIFICATION_ENDPOINT = `${API_URL}/api/mobile/auth/send-verification-email`;
 
+// OTP-based email verification endpoints
+export const OTP_EMAIL_ENDPOINT = `${API_URL}/api/mobile/auth/send-otp-email`;
+export const VERIFY_OTP_ENDPOINT = `${API_URL}/api/accounts/verify-otp`;
+export const RESEND_OTP_ENDPOINT = `${API_URL}/api/accounts/resend-otp`;
+
 export const API_BASE_URL = `${API_URL}/api`;
 export const WS_BASE_URL = __DEV__
   ? `ws://${DEV_IP}:8001`

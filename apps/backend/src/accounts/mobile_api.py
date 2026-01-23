@@ -21,6 +21,7 @@ from .schemas import (
     DepositFundsSchema,
     WithdrawFundsSchema,
     SendVerificationEmailSchema,
+    SendOTPEmailSchema,
     SwitchProfileSchema,
     AddPaymentMethodSchema,
     AddSkillSchema,
@@ -250,6 +251,128 @@ def mobile_send_verification_email(request, payload: SendVerificationEmailSchema
         )
     except Exception as e:
         print(f"❌ [Mobile] Send email exception: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"error": "Failed to send verification email"},
+            status=500
+        )
+
+
+@mobile_router.post("/auth/send-otp-email")
+def mobile_send_otp_email(request, payload: SendOTPEmailSchema):
+    """
+    Send OTP verification email via Resend API.
+    This replaces the link-based verification with a 6-digit OTP code.
+    """
+    import requests
+    from django.conf import settings
+    
+    print(f"📧 [Mobile] Send OTP email request for: {payload.email}")
+    
+    try:
+        # Validate required environment variables
+        resend_api_key = settings.RESEND_API_KEY
+        if not resend_api_key:
+            print("❌ [Mobile] RESEND_API_KEY not configured")
+            return Response(
+                {"error": "Email service not configured"},
+                status=500
+            )
+        
+        # Generate OTP HTML email template
+        html_template = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Email Verification Code</title>
+        </head>
+        <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+            <table role="presentation" style="width: 100%; border-collapse: collapse;">
+                <tr>
+                    <td align="center" style="padding: 40px 0;">
+                        <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                            <tr>
+                                <td style="padding: 40px 30px; text-align: center;">
+                                    <h1 style="margin: 0 0 20px 0; color: #333333; font-size: 24px; font-weight: bold;">
+                                        Your Verification Code
+                                    </h1>
+                                    <p style="margin: 0 0 30px 0; color: #666666; font-size: 16px; line-height: 1.5;">
+                                        Use the following code to verify your email address:
+                                    </p>
+                                    <div style="display: inline-block; padding: 20px 40px; background-color: #f8f9fa; border-radius: 8px; margin-bottom: 30px;">
+                                        <span style="font-size: 36px; font-weight: bold; letter-spacing: 8px; color: #007bff;">
+                                            {payload.otp_code}
+                                        </span>
+                                    </div>
+                                    <p style="margin: 0 0 20px 0; color: #666666; font-size: 14px; line-height: 1.5;">
+                                        This code will expire in <strong>{payload.expires_in_minutes} minutes</strong>.
+                                    </p>
+                                    <p style="margin: 20px 0 0 0; color: #999999; font-size: 14px; line-height: 1.5;">
+                                        If you didn't request this code, you can safely ignore this email.
+                                    </p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 20px 30px; background-color: #f8f9fa; border-radius: 0 0 8px 8px;">
+                                    <p style="margin: 0; color: #999999; font-size: 12px; text-align: center;">
+                                        © 2026 iAyos. All rights reserved.
+                                    </p>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
+        </body>
+        </html>
+        """
+        
+        # Call Resend API
+        resend_url = f"{settings.RESEND_BASE_URL}/emails"
+        headers = {
+            "Authorization": f"Bearer {resend_api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        resend_payload = {
+            "from": "team@devante.online",
+            "to": [payload.email],
+            "subject": f"Your iAyos Verification Code: {payload.otp_code}",
+            "html": html_template
+        }
+        
+        print(f"📧 [Mobile] Sending OTP email to: {payload.email}")
+        response = requests.post(resend_url, headers=headers, json=resend_payload, timeout=10)
+        
+        if response.status_code == 200:
+            result = response.json()
+            print(f"✅ [Mobile] OTP email sent successfully. ID: {result.get('id')}")
+            return {
+                "success": True,
+                "messageId": result.get('id'),
+                "method": "resend-api-otp"
+            }
+        else:
+            print(f"❌ [Mobile] Resend API error: {response.status_code} - {response.text}")
+            return Response(
+                {
+                    "error": "Failed to send verification email",
+                    "details": response.text if settings.DEBUG else None
+                },
+                status=502
+            )
+            
+    except requests.exceptions.Timeout:
+        print("❌ [Mobile] Resend API timeout")
+        return Response(
+            {"error": "Email service timeout. Please try again."},
+            status=504
+        )
+    except Exception as e:
+        print(f"❌ [Mobile] Send OTP email exception: {str(e)}")
         import traceback
         traceback.print_exc()
         return Response(

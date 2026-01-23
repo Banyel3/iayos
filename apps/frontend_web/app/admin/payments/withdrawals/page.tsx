@@ -25,7 +25,7 @@ import {
 
 interface WithdrawalRequest {
   id: string;
-  transaction_id?: number;  // Legacy field
+  transaction_id?: number; // Legacy field
   user_id?: number;
   user_name?: string;
   user_email?: string;
@@ -285,7 +285,7 @@ export default function WithdrawalsPage() {
     setApproveModal({
       isOpen: true,
       transactionId: withdrawal.id || withdrawal.transaction_id,
-      userName: withdrawal.user?.name || withdrawal.user_name || '',
+      userName: withdrawal.user?.name || withdrawal.user_name || "",
       amount: withdrawal.amount,
     });
   };
@@ -314,11 +314,11 @@ export default function WithdrawalsPage() {
     // Final confirmation dialog
     const confirmed = confirm(
       `⚠️ FINAL CONFIRMATION\n\n` +
-      `You are about to approve a withdrawal of ₱${(approveModal.amount ?? 0).toLocaleString()} to ${approveModal.userName}.\n\n` +
-      `Reference: ${referenceNumber.trim()}\n` +
-      `Notes: ${approveNotes || '(none)'}\n\n` +
-      `This action CANNOT be undone. The funds will be marked as paid.\n\n` +
-      `Are you absolutely sure you want to proceed?`
+        `You are about to approve a withdrawal of ₱${(approveModal.amount ?? 0).toLocaleString()} to ${approveModal.userName}.\n\n` +
+        `Reference: ${referenceNumber.trim()}\n` +
+        `Notes: ${approveNotes || "(none)"}\n\n` +
+        `This action CANNOT be undone. The funds will be marked as paid.\n\n` +
+        `Are you absolutely sure you want to proceed?`,
     );
 
     if (!confirmed) {
@@ -364,13 +364,13 @@ export default function WithdrawalsPage() {
     // Final confirmation dialog
     const confirmed = confirm(
       `⚠️ FINAL CONFIRMATION\n\n` +
-      `You are about to REJECT this withdrawal request.\n\n` +
-      `Rejection Reason: ${reason}\n\n` +
-      `This will:\n` +
-      `• Refund the amount back to the user's wallet\n` +
-      `• Notify the user of the rejection\n` +
-      `• This action CANNOT be undone\n\n` +
-      `Are you absolutely sure you want to proceed?`
+        `You are about to REJECT this withdrawal request.\n\n` +
+        `Rejection Reason: ${reason}\n\n` +
+        `This will:\n` +
+        `• Refund the amount back to the user's wallet\n` +
+        `• Notify the user of the rejection\n` +
+        `• This action CANNOT be undone\n\n` +
+        `Are you absolutely sure you want to proceed?`,
     );
 
     if (!confirmed) {
@@ -629,11 +629,14 @@ export default function WithdrawalsPage() {
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-3">
                           <h3 className="text-lg font-semibold text-gray-900">
-                            {withdrawal.user?.name || withdrawal.user_name || 'Unknown'}
+                            {withdrawal.user?.name ||
+                              withdrawal.user_name ||
+                              "Unknown"}
                           </h3>
                           {getStatusBadge(withdrawal.status)}
                           {getPaymentMethodBadge(
-                            withdrawal.payment_method?.type || withdrawal.payment_method_type,
+                            withdrawal.payment_method?.type ||
+                              withdrawal.payment_method_type,
                           )}
                         </div>
 
@@ -641,25 +644,33 @@ export default function WithdrawalsPage() {
                           <div>
                             <p className="text-gray-600">Email</p>
                             <p className="font-medium text-gray-900">
-                              {withdrawal.user?.email || withdrawal.user_email || 'N/A'}
+                              {withdrawal.user?.email ||
+                                withdrawal.user_email ||
+                                "N/A"}
                             </p>
                           </div>
                           <div>
                             <p className="text-gray-600">Recipient Name</p>
                             <p className="font-medium text-gray-900">
-                              {withdrawal.payment_method?.account_name || withdrawal.recipient_name || 'N/A'}
+                              {withdrawal.payment_method?.account_name ||
+                                withdrawal.recipient_name ||
+                                "N/A"}
                             </p>
                           </div>
                           <div>
                             <p className="text-gray-600">
-                              {(withdrawal.payment_method?.type || withdrawal.payment_method_type) === "GCASH"
+                              {(withdrawal.payment_method?.type ||
+                                withdrawal.payment_method_type) === "GCASH"
                                 ? "GCash Number"
-                                : (withdrawal.payment_method?.type || withdrawal.payment_method_type) === "BANK"
+                                : (withdrawal.payment_method?.type ||
+                                      withdrawal.payment_method_type) === "BANK"
                                   ? "Account Number"
                                   : "Account Number"}
                             </p>
                             <p className="font-medium text-gray-900">
-                              {withdrawal.payment_method?.account_number || withdrawal.account_number || 'N/A'}
+                              {withdrawal.payment_method?.account_number ||
+                                withdrawal.account_number ||
+                                "N/A"}
                             </p>
                           </div>
                           {withdrawal.bank_name && (
@@ -673,13 +684,19 @@ export default function WithdrawalsPage() {
                           <div>
                             <p className="text-gray-600">Reference Number</p>
                             <p className="font-mono text-xs text-gray-700">
-                              {withdrawal.reference_number || withdrawal.disbursement_id || 'N/A'}
+                              {withdrawal.reference_number ||
+                                withdrawal.disbursement_id ||
+                                "N/A"}
                             </p>
                           </div>
                           <div>
                             <p className="text-gray-600">Created At</p>
                             <p className="font-medium text-gray-900">
-                              {withdrawal.created_at ? new Date(withdrawal.created_at).toLocaleString() : 'N/A'}
+                              {withdrawal.created_at
+                                ? new Date(
+                                    withdrawal.created_at,
+                                  ).toLocaleString()
+                                : "N/A"}
                             </p>
                           </div>
                         </div>
@@ -724,7 +741,9 @@ export default function WithdrawalsPage() {
                             </Button>
                             <Button
                               onClick={() =>
-                                handleReject(withdrawal.id || withdrawal.transaction_id)
+                                handleReject(
+                                  withdrawal.id || withdrawal.transaction_id,
+                                )
                               }
                               className="bg-red-600 hover:bg-red-700 text-white flex items-center gap-2"
                             >

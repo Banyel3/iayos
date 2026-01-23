@@ -58,6 +58,12 @@ class Accounts(AbstractBaseUser, PermissionsMixin):  # <-- include PermissionsMi
 
     verifyToken = models.CharField(max_length=255, null=True, blank=True)  # Changed to CharField for hash
     verifyTokenExpiry = models.DateTimeField(null=True, blank=True)
+    
+    # OTP-based email verification (replaces link-based verification)
+    email_otp = models.CharField(max_length=6, null=True, blank=True)  # 6-digit OTP code
+    email_otp_expiry = models.DateTimeField(null=True, blank=True)  # 5 minutes expiry
+    email_otp_attempts = models.IntegerField(default=0)  # Max 5 failed attempts
+    
     street_address = models.CharField(max_length=255, default="", blank=True)   # "123 Main St"
     city = models.CharField(max_length=100, default="", blank=True)             # "Zamboanga City"
     province = models.CharField(max_length=100, default="", blank=True)         # "Zamboanga del Sur"

@@ -56,6 +56,12 @@ class SendVerificationEmailSchema(Schema):
     verifyLink: str
     verifyLinkExpire: str
 
+class SendOTPEmailSchema(Schema):
+    """Schema for OTP-based email verification"""
+    email: EmailStr
+    otp_code: str  # 6-digit OTP code
+    expires_in_minutes: int = 5
+
 class KYCUploadSchema(Schema):
     accountID: int
     IDType: str

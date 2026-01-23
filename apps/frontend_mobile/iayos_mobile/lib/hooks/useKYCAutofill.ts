@@ -161,7 +161,7 @@ export const useKYCAutofill = () => {
    * Get a field's confidence score (0-100%)
    */
   const getFieldConfidence = (
-    fieldName: keyof typeof extractedFields
+    fieldName: keyof typeof extractedFields,
   ): number => {
     const field = extractedFields[fieldName];
     return Math.round((field?.confidence ?? 0) * 100);
@@ -172,7 +172,7 @@ export const useKYCAutofill = () => {
    */
   const isLowConfidence = (
     fieldName: keyof typeof extractedFields,
-    threshold = 0.7
+    threshold = 0.7,
   ): boolean => {
     const field = extractedFields[fieldName];
     return (field?.confidence ?? 0) < threshold;
@@ -182,7 +182,7 @@ export const useKYCAutofill = () => {
    * Get confidence color for UI (red/yellow/green)
    */
   const getConfidenceColor = (
-    fieldName: keyof typeof extractedFields
+    fieldName: keyof typeof extractedFields,
   ): string => {
     const confidence = extractedFields[fieldName]?.confidence ?? 0;
     if (confidence >= 0.9) return "#22c55e"; // green-500
@@ -247,7 +247,7 @@ export const validateKYCFields = (
     "date_of_birth",
     "address",
     "id_number",
-  ]
+  ],
 ): { valid: boolean; missingFields: string[] } => {
   const missingFields: string[] = [];
 

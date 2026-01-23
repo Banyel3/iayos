@@ -14,9 +14,22 @@ import {
   ENDPOINTS,
   apiRequest,
   EMAIL_VERIFICATION_ENDPOINT,
+  OTP_EMAIL_ENDPOINT,
+  VERIFY_OTP_ENDPOINT,
+  RESEND_OTP_ENDPOINT,
 } from "../lib/api/config";
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+// Registration response type with OTP data
+type RegistrationResponse = {
+  accountID: number;
+  email: string;
+  otp_code?: string;
+  otp_expiry_minutes?: number;
+  verifyLink?: string;
+  verifyLinkExpire?: string;
+};
 
 type VerificationPayload = {
   email?: string;
@@ -25,12 +38,12 @@ type VerificationPayload = {
 };
 
 const triggerVerificationEmail = async (
-  payload: VerificationPayload
+  payload: VerificationPayload,
 ): Promise<boolean> => {
   console.log("📧 [triggerVerificationEmail] Called with payload:", payload);
   console.log(
     "📧 [triggerVerificationEmail] Endpoint:",
-    EMAIL_VERIFICATION_ENDPOINT
+    EMAIL_VERIFICATION_ENDPOINT,
   );
 
   if (
@@ -46,7 +59,7 @@ const triggerVerificationEmail = async (
         hasVerifyLink: !!payload?.verifyLink,
         hasVerifyLinkExpire: !!payload?.verifyLinkExpire,
         hasEndpoint: !!EMAIL_VERIFICATION_ENDPOINT,
-      }
+      },
     );
     return false;
   }
@@ -54,7 +67,7 @@ const triggerVerificationEmail = async (
   try {
     console.log(
       "📧 [triggerVerificationEmail] Sending request to:",
-      EMAIL_VERIFICATION_ENDPOINT
+      EMAIL_VERIFICATION_ENDPOINT,
     );
     console.log("📧 [triggerVerificationEmail] Request body:", {
       email: payload.email,
@@ -74,7 +87,7 @@ const triggerVerificationEmail = async (
 
     console.log(
       "📧 [triggerVerificationEmail] Response status:",
-      response.status
+      response.status,
     );
 
     if (!response.ok) {
@@ -84,7 +97,7 @@ const triggerVerificationEmail = async (
         {
           status: response.status,
           body: errorText,
-        }
+        },
       );
       return false;
     }
@@ -92,11 +105,52 @@ const triggerVerificationEmail = async (
     const responseData = await response.json();
     console.log(
       "✅ Verification email dispatched via Resend endpoint.",
-      responseData
+      responseData,
     );
     return true;
   } catch (error) {
     console.error("❌ Error while sending verification email:", error);
+    return false;
+  }
+};
+
+// Send OTP email for new registration flow
+const sendOTPEmail = async (
+  email: string,
+  otpCode: string,
+  expiresInMinutes: number = 5,
+): Promise<boolean> => {
+  console.log("📧 [sendOTPEmail] Sending OTP to:", email);
+
+  if (!email || !otpCode || !OTP_EMAIL_ENDPOINT) {
+    console.warn("⚠️ Missing OTP email parameters");
+    return false;
+  }
+
+  try {
+    const response = await fetch(OTP_EMAIL_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email,
+        otp_code: otpCode,
+        expires_in_minutes: expiresInMinutes,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("❌ Failed to send OTP email:", {
+        status: response.status,
+        body: errorText,
+      });
+      return false;
+    }
+
+    console.log("✅ OTP email sent successfully");
+    return true;
+  } catch (error) {
+    console.error("❌ Error sending OTP email:", error);
     return false;
   }
 };
@@ -126,7 +180,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     websocketService.reset();
 
     console.log(
-      "🗑️ Cleared all caches (AsyncStorage + React Query + CacheManager + WebSocket)"
+      "🗑️ Cleared all caches (AsyncStorage + React Query + CacheManager + WebSocket)",
     );
   };
 
@@ -146,7 +200,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           JSON.stringify({
             user: userData,
             timestamp: Date.now(),
-          })
+          }),
         );
         return true;
       } else {
@@ -212,7 +266,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           JSON.stringify({
             user: userData,
             timestamp: Date.now(),
-          })
+          }),
         );
 
         // Return user data for immediate access (before state update completes)
@@ -229,8 +283,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // Register function
-  const register = async (payload: RegisterPayload): Promise<boolean> => {
+  // Register function - returns registration data with OTP for email verification
+  const register = async (
+    payload: RegisterPayload,
+  ): Promise<RegistrationResponse> => {
     try {
       const { confirmPassword, ...rest } = payload;
       const requestPayload = {
@@ -261,23 +317,34 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         throw new Error(message);
       }
 
-      // Mobile backend wraps result in data: { email, verifyLink, verifyLinkExpire }
-      const verificationPayload = responseBody?.data;
-      console.log("📧 Registration response body:", responseBody);
-      console.log("📧 Verification payload:", verificationPayload);
+      // Backend returns registration data with OTP
+      const registrationData: RegistrationResponse =
+        responseBody?.data || responseBody;
+      console.log("📧 Registration response:", registrationData);
 
-      if (verificationPayload) {
-        const emailSent = await triggerVerificationEmail(verificationPayload);
+      // Send OTP email if OTP code is present (new flow)
+      if (registrationData.otp_code) {
+        const emailSent = await sendOTPEmail(
+          registrationData.email,
+          registrationData.otp_code,
+          registrationData.otp_expiry_minutes || 5,
+        );
+        if (!emailSent) {
+          console.warn("⚠️ OTP email was not sent successfully");
+        }
+      } else if (registrationData.verifyLink) {
+        // Fallback to old verification link flow
+        const emailSent = await triggerVerificationEmail({
+          email: registrationData.email,
+          verifyLink: registrationData.verifyLink,
+          verifyLinkExpire: registrationData.verifyLinkExpire,
+        });
         if (!emailSent) {
           console.warn("⚠️ Verification email was not sent successfully");
         }
-      } else {
-        console.warn(
-          "⚠️ Registration succeeded but verification payload missing in response"
-        );
       }
 
-      return true;
+      return registrationData;
     } catch (error) {
       throw error;
     }
@@ -285,7 +352,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // Assign role (WORKER or CLIENT)
   const assignRole = async (
-    profileType: "WORKER" | "CLIENT"
+    profileType: "WORKER" | "CLIENT",
   ): Promise<boolean> => {
     try {
       const response = await apiRequest(ENDPOINTS.ASSIGN_ROLE, {
@@ -314,7 +381,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // Switch profile without logging out
   const switchProfile = async (
-    profileType: "WORKER" | "CLIENT"
+    profileType: "WORKER" | "CLIENT",
   ): Promise<void> => {
     try {
       console.log(`🔄 Attempting to switch profile to ${profileType}...`);
@@ -330,7 +397,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const errorBody = await response.json().catch(() => null);
         console.log(
           "📡 Switch profile error body:",
-          JSON.stringify(errorBody, null, 2)
+          JSON.stringify(errorBody, null, 2),
         );
 
         const errorMessage =
@@ -347,7 +414,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const switchData = await response.json();
       console.log(
         "✅ Switch profile response data:",
-        JSON.stringify(switchData, null, 2)
+        JSON.stringify(switchData, null, 2),
       );
 
       const newAccessToken = switchData?.access || switchData?.access_token;
@@ -370,10 +437,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         // Detailed logging to verify profile type is in the data
         console.log(
           `📊 User data received after switch:`,
-          JSON.stringify(userData, null, 2)
+          JSON.stringify(userData, null, 2),
         );
         console.log(
-          `📊 Profile type in userData: ${userData?.profile_data?.profileType}`
+          `📊 Profile type in userData: ${userData?.profile_data?.profileType}`,
         );
 
         setUser(userData);
@@ -383,12 +450,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           JSON.stringify({
             user: userData,
             timestamp: Date.now(),
-          })
+          }),
         );
 
         console.log(`✅ Profile switched to ${profileType}, user data updated`);
         console.log(
-          `✅ User state now has profileType: ${userData?.profile_data?.profileType}`
+          `✅ User state now has profileType: ${userData?.profile_data?.profileType}`,
         );
       } else {
         const userError = await userDataResponse.json().catch(() => null);
@@ -403,7 +470,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       } else {
         console.error(
           "❌ Switch profile error (unknown type):",
-          JSON.stringify(error, null, 2)
+          JSON.stringify(error, null, 2),
         );
       }
       throw error;

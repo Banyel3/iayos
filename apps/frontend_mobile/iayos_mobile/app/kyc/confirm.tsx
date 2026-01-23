@@ -175,7 +175,7 @@ export default function KYCConfirmScreen() {
 
   const [fields, setFields] = useState<EditableField[]>([]);
   const [editedFieldKeys, setEditedFieldKeys] = useState<Set<string>>(
-    new Set()
+    new Set(),
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -212,8 +212,8 @@ export default function KYCConfirmScreen() {
               value: newValue,
               edited: newValue !== field.originalValue,
             }
-          : field
-      )
+          : field,
+      ),
     );
 
     // Track edited fields
@@ -253,7 +253,7 @@ export default function KYCConfirmScreen() {
         .join(", ");
       Alert.alert(
         "Missing Required Fields",
-        `Please fill in the following fields: ${missingLabels}`
+        `Please fill in the following fields: ${missingLabels}`,
       );
       return;
     }
@@ -266,12 +266,12 @@ export default function KYCConfirmScreen() {
       Alert.alert(
         "Data Confirmed",
         "Your KYC information has been saved successfully.",
-        [{ text: "OK", onPress: () => router.replace("/kyc/status") }]
+        [{ text: "OK", onPress: () => router.replace("/kyc/status") }],
       );
     } catch (err) {
       Alert.alert(
         "Error",
-        err instanceof Error ? err.message : "Failed to save KYC data"
+        err instanceof Error ? err.message : "Failed to save KYC data",
       );
     } finally {
       setIsSubmitting(false);
