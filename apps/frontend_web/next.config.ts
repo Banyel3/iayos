@@ -8,10 +8,6 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  devIndicators: {
-    buildActivity: false,
-    appIsrStatus: false,
-  },
   reactStrictMode: true,
   outputFileTracingRoot: path.join(__dirname, "../../"),
   // Enable experimental features for better caching

@@ -45,8 +45,6 @@ const WorkerProfileViewPage = () => {
     total_count: totalReviews,
     total_pages: totalReviewPages,
   } = useWorkerReviews(workerId, reviewsPage, 5);
-  const [isLoadingWorker, setIsLoadingWorker] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   // Fetch worker profile by ID
   useEffect(() => {

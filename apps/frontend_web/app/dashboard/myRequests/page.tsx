@@ -2569,7 +2569,6 @@ const MyRequestsPage = () => {
                                 </div>
                               </div>
                             )}
-                            </div>
                           </div>
 
                           {/* Action Buttons */}
