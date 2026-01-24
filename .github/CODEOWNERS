@@ -1,0 +1,11 @@
+# CODEOWNERS - Require owner approval for all changes
+# This ensures all PRs require approval from the repository owner
+
+# Owner must approve all changes
+* @Banyel3
+
+# Specific paths that definitely require owner review
+/.github/ @Banyel3
+/apps/backend/ @Banyel3
+/apps/frontend_web/ @Banyel3
+/apps/frontend_mobile/ @Banyel3
