@@ -21,19 +21,19 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.iayos.com"
+        "EXPO_PUBLIC_API_URL": "https://api.iayos.online"
       }
     },
     "production": {
       "autoIncrement": true,
       "android": {
-        "buildType": "app-bundle"
+        "buildType": "apk"
       },
       "ios": {
         "resourceClass": "m1-medium"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.iayos.com"
+        "EXPO_PUBLIC_API_URL": "https://api.iayos.online"
       }
     }
   },

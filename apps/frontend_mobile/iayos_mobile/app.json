@@ -22,7 +22,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.iayos.mobile"
+      "package": "com.devante.iayos"
     },
     "notification": {
       "icon": "./assets/images/notification-icon.png",
