@@ -7,9 +7,8 @@ services:
     branch: main
     dockerfilePath: ./Dockerfile
     dockerContext: .
-    # Let Docker ENTRYPOINT handle the startup
-    # If this doesn't work, uncomment the line below:
-    # dockerCommand: /app/backend/start.sh
+    # CRITICAL: Explicitly run start.sh to ensure migrations run before Daphne
+    dockerCommand: /app/backend/start.sh
     healthCheckPath: /health/status
     envVars:
       - key: WEB_CONCURRENCY
