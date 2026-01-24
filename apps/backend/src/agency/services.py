@@ -8,10 +8,28 @@ import uuid
 import os
 import math
 
+# Import AI verification service
+from accounts.document_verification_service import (
+	DocumentVerificationService,
+	VerificationStatus,
+	RejectionReason
+)
+
 
 def upload_agency_kyc(payload, business_permit, rep_front, rep_back, address_proof, auth_letter):
-	"""Handle file uploads for agency KYC submissions."""
+	"""
+	Handle file uploads for agency KYC submissions with AI verification.
+	
+	Uses DocumentVerificationService for:
+	- Image quality checks (resolution, blur)
+	- Face detection on representative ID (front/back)
+	- OCR text extraction on business permit
+	- Auto-rejection for documents that fail validation
+	
+	Note: No face matching (selfie) required for agency KYC - just face detection on rep ID.
+	"""
 	try:
+		print(f"🔍 Starting Agency KYC upload for accountID: {payload.accountID}")
 		user = Accounts.objects.get(accountID=payload.accountID)
 
 		files_map = {
@@ -21,6 +39,10 @@ def upload_agency_kyc(payload, business_permit, rep_front, rep_back, address_pro
 			'ADDRESS_PROOF': address_proof,
 			'AUTH_LETTER': auth_letter,
 		}
+		
+		# Log which files were received
+		received_files = [key for key, file in files_map.items() if file]
+		print(f"📎 Files received: {', '.join(received_files) if received_files else 'NONE'}")
 
 		allowed_mime_types = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf']
 		max_size = 15 * 1024 * 1024  # 15 MB (frontend allowed)
@@ -33,57 +55,228 @@ def upload_agency_kyc(payload, business_permit, rep_front, rep_back, address_pro
 
 		if not created:
 			# Remove previous files and reset status
+			old_files_count = AgencyKycFile.objects.filter(agencyKyc=kyc_record).count()
 			AgencyKycFile.objects.filter(agencyKyc=kyc_record).delete()
 			kyc_record.status = 'PENDING'
 			kyc_record.notes = 'Re-submitted'
+			kyc_record.resubmissionCount = kyc_record.resubmissionCount + 1
 			kyc_record.save()
+			print(f"♻️ KYC status reset to PENDING (resubmission #{kyc_record.resubmissionCount}), deleted {old_files_count} old files")
 
 		uploaded_files = []
+		verification_results = []
+		any_failed = False
+		failure_messages = []
+		
+		# Initialize AI verification service
+		verification_service = DocumentVerificationService()
+		
+		# Define which documents require face detection
+		# REP_ID_FRONT and REP_ID_BACK require face detection (representative ID)
+		face_required_docs = ['REP_ID_FRONT', 'REP_ID_BACK']
+		
+		# Define which documents require OCR keyword validation
+		# BUSINESS_PERMIT requires OCR to extract and validate business keywords
+		ocr_required_docs = ['BUSINESS_PERMIT']
 
 		for key, file in files_map.items():
 			if not file:
 				continue
 
 			if file.content_type not in allowed_mime_types:
-				raise ValueError(f"{key}: Invalid file type")
+				raise ValueError(f"{key}: Invalid file type. Allowed: JPEG, PNG, PDF")
 
 			if file.size > max_size:
-				raise ValueError(f"{key}: File too large")
+				raise ValueError(f"{key}: File too large. Maximum size is 15MB")
 
 			ext = os.path.splitext(file.name)[1]
 			unique_name = f"{key.lower()}_{uuid.uuid4().hex}{ext}"
-
+			
+			print(f"📤 Uploading {key}: filename={unique_name}, size={file.size} bytes")
+			
+			# Read file data for AI verification (before upload)
+			file_data = file.read()
+			file.seek(0)  # Reset file pointer for Supabase upload
+			
+			# Upload to Supabase
 			file_url = upload_agency_doc(file=file, file_name=unique_name, user_id=user.accountID)
-
-			# Defensive: ensure fileType is a valid choice (should be all-caps, matches FileType)
+			
+			if not file_url:
+				print(f"❌ CRITICAL: File upload failed for {key}! No URL returned from Supabase.")
+				raise ValueError(f"Failed to upload {key} to storage. Please try again.")
+			
+			print(f"✅ Upload successful for {key}: {file_url}")
+			
+			# ==========================
+			# AI VERIFICATION PIPELINE
+			# ==========================
+			ai_status = 'PENDING'
+			ai_rejection_reason = None
+			ai_rejection_message = None
+			face_detected = None
+			face_count = None
+			face_confidence = None
+			ocr_text = None
+			ocr_confidence = None
+			quality_score = None
+			ai_confidence_score = None
+			ai_warnings = []
+			ai_details = {}
+			verified_at = None
+			
+			# Skip AI verification for PDFs (can't do image analysis)
+			is_pdf = file.content_type == 'application/pdf'
+			
+			if not is_pdf:
+				print(f"🤖 Running AI verification for {key}...")
+				
+				# Map agency document types to verification service document types
+				doc_type_mapping = {
+					'BUSINESS_PERMIT': 'BUSINESS_PERMIT',
+					'REP_ID_FRONT': 'FRONTID',  # Map to FRONTID for face detection
+					'REP_ID_BACK': 'BACKID',    # Map to BACKID (optional face on back)
+					'ADDRESS_PROOF': 'ADDRESS_PROOF',
+					'AUTH_LETTER': 'AUTH_LETTER',
+				}
+				verification_doc_type = doc_type_mapping.get(key, key)
+				
+				# Run full verification
+				verification_result = verification_service.verify_document(
+					file_data=file_data,
+					document_type=verification_doc_type,
+					file_name=unique_name
+				)
+				
+				# Extract verification results
+				ai_status = verification_result.status.value
+				quality_score = verification_result.quality_score
+				ai_confidence_score = verification_result.confidence_score
+				ai_warnings = verification_result.warnings or []
+				ai_details = verification_result.details or {}
+				verified_at = timezone.now()
+				
+				# Face detection results (for rep ID)
+				if key in face_required_docs:
+					face_detected = verification_result.face_detected
+					face_count = verification_result.face_count
+					face_confidence = ai_details.get('face_detection', {}).get('confidence', 0)
+					
+					# Check if face detection failed (required for rep ID)
+					if not face_detected:
+						ai_status = 'FAILED'
+						ai_rejection_reason = 'NO_FACE_DETECTED'
+						ai_rejection_message = f"No face detected in {key.replace('_', ' ').title()}. Please upload a clear photo of your ID with your face visible."
+						any_failed = True
+						failure_messages.append(ai_rejection_message)
+						print(f"   ❌ Face detection FAILED for {key}")
+				
+				# OCR results (for business permit)
+				if key in ocr_required_docs:
+					ocr_text = verification_result.extracted_text[:2000] if verification_result.extracted_text else None
+					ocr_confidence = ai_details.get('ocr', {}).get('confidence', 0)
+					
+					# Check keyword validation for business permit
+					keyword_check = ai_details.get('keyword_check', {})
+					if key == 'BUSINESS_PERMIT' and keyword_check and not keyword_check.get('passed'):
+						ai_status = 'FAILED'
+						ai_rejection_reason = 'MISSING_REQUIRED_TEXT'
+						missing_groups = keyword_check.get('missing_groups', [])
+						ai_rejection_message = f"Business permit does not contain required text. Missing: {', '.join(missing_groups)}. Please upload a valid business permit."
+						any_failed = True
+						failure_messages.append(ai_rejection_message)
+						print(f"   ❌ OCR keyword check FAILED for {key}: missing {missing_groups}")
+				
+				# Check for other rejection reasons
+				if verification_result.rejection_reason:
+					ai_rejection_reason = verification_result.rejection_reason.value
+					if not ai_rejection_message:
+						ai_rejection_message = f"{key.replace('_', ' ').title()}: {ai_rejection_reason.replace('_', ' ').title()}"
+						if ai_status == 'FAILED':
+							any_failed = True
+							failure_messages.append(ai_rejection_message)
+				
+				print(f"   🤖 AI Result for {key}: status={ai_status}, confidence={ai_confidence_score:.2f if ai_confidence_score else 0}")
+			else:
+				# PDF files skip AI verification
+				ai_status = 'SKIPPED'
+				ai_details = {'reason': 'PDF file - image verification not applicable'}
+				verified_at = timezone.now()
+				print(f"   ⏭️ Skipped AI verification for {key} (PDF)")
+			
+			# Defensive: ensure fileType is a valid choice
 			valid_types = {c[0] for c in AgencyKycFile.FileType.choices}
 			if key not in valid_types:
 				raise ValueError(f"{key} is not a valid fileType. Valid: {valid_types}")
+			
+			# Create AgencyKycFile with AI verification results
 			AgencyKycFile.objects.create(
 				agencyKyc=kyc_record,
-				fileType=key,  # must match FileType choices
+				fileType=key,
 				fileURL=file_url,
 				fileName=unique_name,
-				fileSize=file.size
+				fileSize=file.size,
+				# AI Verification Fields
+				ai_verification_status=ai_status,
+				face_detected=face_detected,
+				face_count=face_count,
+				face_confidence=face_confidence,
+				ocr_text=ocr_text,
+				ocr_confidence=ocr_confidence,
+				quality_score=quality_score,
+				ai_confidence_score=ai_confidence_score,
+				ai_rejection_reason=ai_rejection_reason,
+				ai_rejection_message=ai_rejection_message,
+				ai_warnings=ai_warnings,
+				ai_details=ai_details,
+				verified_at=verified_at,
 			)
 
 			uploaded_files.append({
 				"file_type": key.lower(),
 				"file_url": file_url,
 				"file_name": unique_name,
-				"file_size": file.size
+				"file_size": file.size,
+				"ai_status": ai_status,
+				"ai_confidence": ai_confidence_score,
 			})
-
+		
+		# Auto-reject if any document failed AI verification
+		if any_failed:
+			kyc_record.status = 'REJECTED'
+			kyc_record.rejectionCategory = 'INVALID_DOCUMENT'
+			kyc_record.rejectionReason = '\n'.join(failure_messages)
+			kyc_record.notes = 'Auto-rejected by AI verification'
+			kyc_record.save()
+			print(f"❌ Agency KYC auto-rejected: {failure_messages}")
+			
+			# Create notification for the agency
+			Notification.objects.create(
+				accountFK=user,
+				title="KYC Documents Rejected",
+				message=f"Your agency KYC documents were automatically rejected. Reason: {failure_messages[0]}",
+				notificationType="KYC_REJECTED"
+			)
+			
+			return {
+				"message": "Agency KYC documents rejected - AI verification failed",
+				"agency_kyc_id": kyc_record.agencyKycID,
+				"status": "REJECTED",
+				"rejection_reasons": failure_messages,
+				"files": uploaded_files
+			}
+		
+		print(f"✅ Agency KYC uploaded successfully with AI verification passed")
 		return {
 			"message": "Agency KYC uploaded successfully",
 			"agency_kyc_id": kyc_record.agencyKycID,
+			"status": "PENDING",
 			"files": uploaded_files
 		}
 
 	except Accounts.DoesNotExist:
 		raise ValueError("User not found")
 	except Exception as e:
-		print(f"Agency KYC upload error: {str(e)}")
+		print(f"❌ Agency KYC upload error: {str(e)}")
 		raise
 
 

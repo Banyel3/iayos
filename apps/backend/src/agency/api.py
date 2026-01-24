@@ -53,6 +53,246 @@ def agency_kyc_status(request):
         return Response({"error": "Internal server error"}, status=500)
 
 
+# ============================================
+# KYC AI VERIFICATION ENDPOINTS
+# ============================================
+
+@router.post("/kyc/validate-document", auth=cookie_auth)
+def validate_agency_document(request):
+    """
+    Per-step validation for agency KYC uploads.
+    Validates document quality (resolution, blur) and face detection (for rep ID).
+    Call this before allowing user to proceed to next step.
+    
+    Request: multipart/form-data with:
+    - file: The document to validate
+    - document_type: BUSINESS_PERMIT, REP_ID_FRONT, REP_ID_BACK, ADDRESS_PROOF, AUTH_LETTER
+    
+    Response:
+    - valid: bool - whether document passes validation
+    - error: str - user-friendly error message if invalid
+    - details: dict - validation details (resolution, quality_score, face_detected, etc.)
+    """
+    try:
+        from accounts.document_verification_service import DocumentVerificationService
+        
+        # Get uploaded file
+        file = request.FILES.get("file")
+        document_type = request.POST.get("document_type", "").upper()
+        
+        if not file:
+            return Response({"valid": False, "error": "No file provided"}, status=400)
+        
+        if not document_type:
+            return Response({"valid": False, "error": "document_type is required"}, status=400)
+        
+        valid_types = ['BUSINESS_PERMIT', 'REP_ID_FRONT', 'REP_ID_BACK', 'ADDRESS_PROOF', 'AUTH_LETTER']
+        if document_type not in valid_types:
+            return Response({"valid": False, "error": f"Invalid document_type. Must be one of: {', '.join(valid_types)}"}, status=400)
+        
+        # Check file type
+        allowed_types = ['image/jpeg', 'image/png', 'image/jpg']
+        if file.content_type not in allowed_types:
+            # PDFs skip validation
+            if file.content_type == 'application/pdf':
+                return {
+                    "valid": True,
+                    "error": None,
+                    "details": {"skipped": True, "reason": "PDF files skip image validation"}
+                }
+            return Response({"valid": False, "error": "Only JPEG and PNG images are supported for validation"}, status=400)
+        
+        # Read file data
+        file_data = file.read()
+        
+        # Determine if face detection is required
+        # Face required for representative ID (front and back)
+        require_face = document_type in ['REP_ID_FRONT', 'REP_ID_BACK']
+        
+        # Map to verification service document type
+        doc_type_mapping = {
+            'BUSINESS_PERMIT': 'BUSINESS_PERMIT',
+            'REP_ID_FRONT': 'FRONTID',
+            'REP_ID_BACK': 'BACKID',
+            'ADDRESS_PROOF': 'ADDRESS_PROOF',
+            'AUTH_LETTER': 'AUTH_LETTER',
+        }
+        verification_doc_type = doc_type_mapping.get(document_type, document_type)
+        
+        # Run quick validation (resolution + blur + face)
+        service = DocumentVerificationService()
+        result = service.validate_document_quick(
+            file_data=file_data,
+            document_type=verification_doc_type,
+            require_face=require_face
+        )
+        
+        return result
+        
+    except Exception as e:
+        print(f"Error in validate_agency_document: {str(e)}")
+        return Response({"valid": False, "error": "Validation failed. Please try again."}, status=500)
+
+
+@router.get("/kyc/autofill", auth=cookie_auth)
+def get_agency_kyc_autofill(request):
+    """
+    Get auto-filled business data from OCR extraction.
+    
+    Returns extracted text from business permit and other documents
+    that can be used to pre-fill agency profile fields.
+    
+    Response:
+    - success: bool
+    - fields: dict with extracted field values and confidence scores
+        - business_name: {value: str, confidence: float, source: str}
+        - registration_number: {value: str, confidence: float, source: str}
+        - address: {value: str, confidence: float, source: str}
+    - raw_text: dict with raw OCR text per document
+    """
+    try:
+        from .models import AgencyKYC, AgencyKycFile
+        
+        account_id = request.auth.accountID
+        
+        # Get KYC record
+        try:
+            kyc_record = AgencyKYC.objects.get(accountFK_id=account_id)
+        except AgencyKYC.DoesNotExist:
+            return Response({"success": False, "error": "No KYC record found"}, status=404)
+        
+        # Get all files with OCR text
+        files = AgencyKycFile.objects.filter(agencyKyc=kyc_record)
+        
+        extracted_fields = {
+            "business_name": {"value": None, "confidence": 0, "source": None},
+            "registration_number": {"value": None, "confidence": 0, "source": None},
+            "address": {"value": None, "confidence": 0, "source": None},
+        }
+        raw_text = {}
+        
+        for file in files:
+            if file.ocr_text:
+                raw_text[file.fileType] = {
+                    "text": file.ocr_text[:1000],  # Truncate for response
+                    "confidence": file.ocr_confidence or 0,
+                }
+                
+                # Try to extract structured fields from business permit
+                if file.fileType == 'BUSINESS_PERMIT':
+                    text = file.ocr_text.upper()
+                    
+                    # Try to extract business name (usually near "BUSINESS NAME" label)
+                    import re
+                    business_name_match = re.search(r'BUSINESS\s*NAME[:\s]*([A-Z0-9\s&.,]+?)(?:\n|OWNER|ADDRESS|REG)', text)
+                    if business_name_match:
+                        extracted_fields["business_name"] = {
+                            "value": business_name_match.group(1).strip(),
+                            "confidence": file.ocr_confidence or 0.5,
+                            "source": "BUSINESS_PERMIT"
+                        }
+                    
+                    # Try to extract registration number
+                    reg_num_match = re.search(r'(?:REG|REGISTRATION|LICENSE|PERMIT)\s*(?:NO|NUMBER|#)[.:\s]*([A-Z0-9-]+)', text)
+                    if reg_num_match:
+                        extracted_fields["registration_number"] = {
+                            "value": reg_num_match.group(1).strip(),
+                            "confidence": file.ocr_confidence or 0.5,
+                            "source": "BUSINESS_PERMIT"
+                        }
+                    
+                    # Try to extract address
+                    address_match = re.search(r'(?:ADDRESS|LOCATION)[:\s]*([A-Z0-9\s,.-]+?)(?:\n|OWNER|BUSINESS|REG)', text)
+                    if address_match:
+                        extracted_fields["address"] = {
+                            "value": address_match.group(1).strip(),
+                            "confidence": file.ocr_confidence or 0.5,
+                            "source": "BUSINESS_PERMIT"
+                        }
+        
+        # Try to extract address from ADDRESS_PROOF if not found in business permit
+        if not extracted_fields["address"]["value"]:
+            for file in files:
+                if file.fileType == 'ADDRESS_PROOF' and file.ocr_text:
+                    # For address proof, the entire text might be the address
+                    # Just take first 200 chars as address hint
+                    extracted_fields["address"] = {
+                        "value": file.ocr_text[:200].strip(),
+                        "confidence": (file.ocr_confidence or 0.3) * 0.5,  # Lower confidence
+                        "source": "ADDRESS_PROOF"
+                    }
+                    break
+        
+        return {
+            "success": True,
+            "fields": extracted_fields,
+            "raw_text": raw_text,
+            "kyc_status": kyc_record.status,
+        }
+        
+    except Exception as e:
+        print(f"Error in get_agency_kyc_autofill: {str(e)}")
+        return Response({"success": False, "error": "Failed to get autofill data"}, status=500)
+
+
+@router.post("/kyc/confirm", auth=cookie_auth)
+def confirm_agency_kyc_data(request):
+    """
+    Confirm or edit OCR-extracted business data.
+    
+    Request body (JSON):
+    - business_name: str
+    - registration_number: str
+    - business_description: str
+    
+    This updates the agency profile with user-confirmed data.
+    """
+    try:
+        import json
+        from accounts.models import Agency as AgencyProfile
+        
+        account_id = request.auth.accountID
+        
+        # Parse JSON body
+        try:
+            body = json.loads(request.body)
+        except:
+            body = {}
+        
+        business_name = body.get("business_name") or request.POST.get("business_name")
+        registration_number = body.get("registration_number") or request.POST.get("registration_number")
+        business_description = body.get("business_description") or request.POST.get("business_description")
+        
+        # Get agency profile
+        try:
+            agency = AgencyProfile.objects.get(accountFK_id=account_id)
+        except AgencyProfile.DoesNotExist:
+            return Response({"success": False, "error": "Agency profile not found"}, status=404)
+        
+        # Update agency profile with confirmed data
+        if business_name:
+            agency.businessName = business_name
+        if business_description:
+            agency.businessDesc = business_description
+        # Note: registration_number might need a new field in Agency model
+        # For now, we'll store it in businessDesc if no dedicated field exists
+        
+        agency.save()
+        
+        return {
+            "success": True,
+            "message": "Agency data confirmed successfully",
+            "updated_fields": {
+                "business_name": business_name,
+                "business_description": business_description,
+            }
+        }
+        
+    except Exception as e:
+        print(f"Error in confirm_agency_kyc_data: {str(e)}")
+        return Response({"success": False, "error": "Failed to confirm data"}, status=500)
+
+
 # Employee management endpoints
 
 @router.get("/employees", auth=cookie_auth)

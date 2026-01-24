@@ -67,7 +67,7 @@ class AgencyKYC(models.Model):
 
 
 class AgencyKycFile(models.Model):
-	"""Files uploaded for agency KYC submissions."""
+	"""Files uploaded for agency KYC submissions with AI verification."""
 	fileID = models.BigAutoField(primary_key=True)
 	agencyKyc = models.ForeignKey(AgencyKYC, on_delete=models.CASCADE)
 
@@ -78,11 +78,55 @@ class AgencyKycFile(models.Model):
 		ADDRESS_PROOF = "ADDRESS_PROOF", "address_proof"
 		AUTH_LETTER = "AUTH_LETTER", "authorization_letter"
 
+	class AIVerificationStatus(models.TextChoices):
+		PENDING = "PENDING", "Pending Verification"
+		PASSED = "PASSED", "AI Verification Passed"
+		FAILED = "FAILED", "AI Verification Failed"
+		WARNING = "WARNING", "Needs Manual Review"
+		SKIPPED = "SKIPPED", "Verification Skipped"
+	
+	class AIRejectionReason(models.TextChoices):
+		NO_FACE_DETECTED = "NO_FACE_DETECTED", "No Face Detected"
+		MULTIPLE_FACES = "MULTIPLE_FACES", "Multiple Faces"
+		FACE_TOO_SMALL = "FACE_TOO_SMALL", "Face Too Small"
+		MISSING_REQUIRED_TEXT = "MISSING_REQUIRED_TEXT", "Missing Required Text"
+		IMAGE_TOO_BLURRY = "IMAGE_TOO_BLURRY", "Image Too Blurry"
+		RESOLUTION_TOO_LOW = "RESOLUTION_TOO_LOW", "Resolution Too Low"
+		INVALID_ORIENTATION = "INVALID_ORIENTATION", "Invalid Orientation"
+		UNREADABLE_DOCUMENT = "UNREADABLE_DOCUMENT", "Unreadable Document"
+
+	# Core file fields
 	fileType = models.CharField(max_length=30, choices=FileType.choices, null=True, blank=True)
 	fileURL = models.CharField(max_length=1000)
 	fileName = models.CharField(max_length=255, null=True, blank=True)
 	fileSize = models.IntegerField(null=True, blank=True)
 	uploadedAt = models.DateTimeField(auto_now_add=True)
+	
+	# AI Verification Fields (CompreFace + Tesseract OCR)
+	ai_verification_status = models.CharField(
+		max_length=20,
+		choices=AIVerificationStatus.choices,
+		default=AIVerificationStatus.PENDING,
+		help_text='Result of automated AI verification'
+	)
+	face_detected = models.BooleanField(null=True, blank=True, help_text='Face detected in document')
+	face_count = models.IntegerField(null=True, blank=True, help_text='Number of faces detected')
+	face_confidence = models.FloatField(null=True, blank=True, help_text='Face detection confidence (0-1)')
+	ocr_text = models.TextField(null=True, blank=True, help_text='Extracted text via OCR')
+	ocr_confidence = models.FloatField(null=True, blank=True, help_text='OCR confidence (0-1)')
+	quality_score = models.FloatField(null=True, blank=True, help_text='Image quality score (0-1)')
+	ai_confidence_score = models.FloatField(null=True, blank=True, help_text='Overall AI confidence (0-1)')
+	ai_rejection_reason = models.CharField(
+		max_length=50,
+		choices=AIRejectionReason.choices,
+		null=True,
+		blank=True,
+		help_text='Reason for AI rejection'
+	)
+	ai_rejection_message = models.CharField(max_length=500, null=True, blank=True, help_text='User-facing rejection message')
+	ai_warnings = models.JSONField(null=True, blank=True, default=list, help_text='Warnings from AI')
+	ai_details = models.JSONField(null=True, blank=True, default=dict, help_text='Full AI verification details')
+	verified_at = models.DateTimeField(null=True, blank=True, help_text='When AI verification completed')
 
 	def clean(self):
 		# Basic validation: ensure fileName exists for images
@@ -92,6 +136,11 @@ class AgencyKycFile(models.Model):
 	def save(self, *args, **kwargs):
 		self.full_clean()
 		super().save(*args, **kwargs)
+	
+	class Meta:
+		indexes = [
+			models.Index(fields=['ai_verification_status'], name='agency_kyc_ai_status_idx'),
+		]
 
 
 class AgencyEmployee(models.Model):
