@@ -21,42 +21,44 @@ import { Input } from "@/components/ui/input";
 import { useRouter } from "next/navigation";
 
 // Agency registration form schema
-const agencyFormSchema = z.object({
-  businessName: z
-    .string()
-    .min(2, "Business name must be at least 2 characters")
-    .max(100, "Business name must be less than 100 characters"),
-  email: z.string().email("Invalid email address"),
-  password: z
-    .string()
-    .min(8, "Password must be at least 8 characters")
-    .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
-    .regex(/[0-9]/, "Password must contain at least one number")
-    .regex(
-      /[^A-Za-z0-9]/,
-      "Password must contain at least one special character"
-    ),
-  confirmPassword: z.string().min(1, "Please confirm your password"),
-  street_address: z
-    .string()
-    .min(5, "Street address must be at least 5 characters")
-    .max(255, "Street address must be less than 255 characters"),
-  city: z
-    .string()
-    .min(2, "City must be at least 2 characters")
-    .max(100, "City must be less than 100 characters"),
-  province: z
-    .string()
-    .min(2, "Province must be at least 2 characters")
-    .max(100, "Province must be less than 100 characters"),
-  postal_code: z
-    .string()
-    .min(4, "Postal code must be at least 4 characters")
-    .max(20, "Postal code must be less than 20 characters"),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: "Passwords do not match",
-  path: ["confirmPassword"],
-});
+const agencyFormSchema = z
+  .object({
+    businessName: z
+      .string()
+      .min(2, "Business name must be at least 2 characters")
+      .max(100, "Business name must be less than 100 characters"),
+    email: z.string().email("Invalid email address"),
+    password: z
+      .string()
+      .min(8, "Password must be at least 8 characters")
+      .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+      .regex(/[0-9]/, "Password must contain at least one number")
+      .regex(
+        /[^A-Za-z0-9]/,
+        "Password must contain at least one special character",
+      ),
+    confirmPassword: z.string().min(1, "Please confirm your password"),
+    street_address: z
+      .string()
+      .min(5, "Street address must be at least 5 characters")
+      .max(255, "Street address must be less than 255 characters"),
+    city: z
+      .string()
+      .min(2, "City must be at least 2 characters")
+      .max(100, "City must be less than 100 characters"),
+    province: z
+      .string()
+      .min(2, "Province must be at least 2 characters")
+      .max(100, "Province must be less than 100 characters"),
+    postal_code: z
+      .string()
+      .min(4, "Postal code must be at least 4 characters")
+      .max(20, "Postal code must be less than 20 characters"),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords do not match",
+    path: ["confirmPassword"],
+  });
 
 const AgencyRegister = () => {
   const router = useRouter();
@@ -198,7 +200,9 @@ const AgencyRegister = () => {
   // Handler to resend verification email
   const handleResendEmail = async () => {
     if (!verificationData) {
-      setEmailSendError("Verification data not available. Please register again.");
+      setEmailSendError(
+        "Verification data not available. Please register again.",
+      );
       return;
     }
 
@@ -225,12 +229,14 @@ const AgencyRegister = () => {
         setEmailSendError(
           data.error?.[0]?.message ||
             data?.message ||
-            "Failed to resend verification email. Please try again."
+            "Failed to resend verification email. Please try again.",
         );
       }
     } catch (error) {
       console.error("Error resending verification email:", error);
-      setEmailSendError("Network error. Please check your connection and try again.");
+      setEmailSendError(
+        "Network error. Please check your connection and try again.",
+      );
     } finally {
       setIsResendingEmail(false);
     }
@@ -271,13 +277,13 @@ const AgencyRegister = () => {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(submissionData),
-        }
+        },
       );
 
       console.log("API Response status:", agencyReg.status);
       console.log(
         "API Response headers:",
-        Object.fromEntries(agencyReg.headers)
+        Object.fromEntries(agencyReg.headers),
       );
 
       let data;
@@ -301,7 +307,7 @@ const AgencyRegister = () => {
           setRateLimitTime(backendRemainingTime);
           setAgencyError(
             data.error ||
-              "Too many registration attempts. Please wait before trying again."
+              "Too many registration attempts. Please wait before trying again.",
           );
         } else {
           // Handle other error responses
@@ -332,7 +338,9 @@ const AgencyRegister = () => {
           }
 
           // Redirect to OTP verification page
-          router.push(`/auth/verify-otp?email=${encodeURIComponent(data.email)}`);
+          router.push(
+            `/auth/verify-otp?email=${encodeURIComponent(data.email)}`,
+          );
           return;
         }
 
@@ -342,10 +350,10 @@ const AgencyRegister = () => {
         if (!data?.email || !data?.verifyLink || !data?.verifyLinkExpire) {
           console.error(
             "Missing fields from agency registration response:",
-            data
+            data,
           );
           setAgencyError(
-            `Registration succeeded but verification data is missing. Response: ${JSON.stringify(data)}`
+            `Registration succeeded but verification data is missing. Response: ${JSON.stringify(data)}`,
           );
           return; // Don't proceed with verification email sending
         }
@@ -378,7 +386,7 @@ const AgencyRegister = () => {
               verifyResponseData.error?.[0]?.message ||
               verifyResponseData?.message ||
               "Failed to send verification email";
-            
+
             // Registration succeeded but email failed - still show success but with warning
             setRegistrationSuccess(true);
             setAgencyError("");
@@ -389,7 +397,9 @@ const AgencyRegister = () => {
           // Registration succeeded but email failed - still show success but with warning
           setRegistrationSuccess(true);
           setAgencyError("");
-          setEmailSendError("Failed to send verification email. Please use the resend button below.");
+          setEmailSendError(
+            "Failed to send verification email. Please use the resend button below.",
+          );
         }
       }
     } catch (err) {
@@ -405,7 +415,13 @@ const AgencyRegister = () => {
       <div className="hidden lg:block fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
           <Link href="/">
-            <Image src="/logo.png" alt="iAyos" width={120} height={40} className="h-10 w-auto" />
+            <Image
+              src="/logo.png"
+              alt="iAyos"
+              width={120}
+              height={40}
+              className="h-10 w-auto"
+            />
           </Link>
           <Link
             href="/auth/register"
@@ -472,7 +488,13 @@ const AgencyRegister = () => {
           {/* Left Side - Branding/Image */}
           <div className="lg:w-1/2 bg-gradient-to-br from-blue-600 to-purple-700 flex items-center justify-center p-8">
             <div className="max-w-md text-center text-white">
-              <Image src="/logo-white.png" alt="iAyos" width={180} height={60} className="h-16 w-auto mx-auto mb-6" />
+              <Image
+                src="/logo-white.png"
+                alt="iAyos"
+                width={180}
+                height={60}
+                className="h-16 w-auto mx-auto mb-6"
+              />
               <h1 className="text-4xl font-bold mb-4">
                 Find Contracts for Your Agency
               </h1>
@@ -537,12 +559,18 @@ const AgencyRegister = () => {
                   </h3>
                   <p className="text-green-700 mb-4">
                     {emailSendError ? (
-                      <>Your account has been created for <strong>{registeredEmail}</strong></>
+                      <>
+                        Your account has been created for{" "}
+                        <strong>{registeredEmail}</strong>
+                      </>
                     ) : (
-                      <>We've sent a verification email to <strong>{registeredEmail}</strong></>
+                      <>
+                        We've sent a verification email to{" "}
+                        <strong>{registeredEmail}</strong>
+                      </>
                     )}
                   </p>
-                  
+
                   {/* Email status messages */}
                   {emailSendError && (
                     <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg mb-4">
@@ -558,7 +586,8 @@ const AgencyRegister = () => {
                   {resendSuccess && (
                     <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg mb-4">
                       <p className="text-blue-700 text-sm">
-                        ✓ Verification email sent successfully! Please check your inbox.
+                        ✓ Verification email sent successfully! Please check
+                        your inbox.
                       </p>
                     </div>
                   )}
@@ -567,7 +596,7 @@ const AgencyRegister = () => {
                     Please check your email and click the verification link to
                     activate your agency account.
                   </p>
-                  
+
                   <div className="space-y-3">
                     {/* Resend Verification Email Button */}
                     {verificationData && (
@@ -605,7 +634,7 @@ const AgencyRegister = () => {
                         )}
                       </button>
                     )}
-                    
+
                     <Link
                       href="/auth/login"
                       className="block w-full px-4 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors"
@@ -697,7 +726,9 @@ const AgencyRegister = () => {
                                   />
                                   <button
                                     type="button"
-                                    onClick={() => setShowPassword(!showPassword)}
+                                    onClick={() =>
+                                      setShowPassword(!showPassword)
+                                    }
                                     className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors"
                                   >
                                     {showPassword ? (
@@ -725,14 +756,20 @@ const AgencyRegister = () => {
                               <FormControl>
                                 <div className="relative">
                                   <Input
-                                    type={showConfirmPassword ? "text" : "password"}
+                                    type={
+                                      showConfirmPassword ? "text" : "password"
+                                    }
                                     placeholder="Confirm your password"
                                     className="h-12 pr-10"
                                     {...field}
                                   />
                                   <button
                                     type="button"
-                                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                    onClick={() =>
+                                      setShowConfirmPassword(
+                                        !showConfirmPassword,
+                                      )
+                                    }
                                     className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors"
                                   >
                                     {showConfirmPassword ? (

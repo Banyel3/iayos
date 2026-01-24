@@ -43,7 +43,7 @@ const TempDashboard = () => {
       // Admin users should go to admin dashboard
       if (role === "ADMIN") {
         console.log(
-          "🔐 Dashboard: Admin user detected, redirecting to admin panel"
+          "🔐 Dashboard: Admin user detected, redirecting to admin panel",
         );
         router.replace("/admin/dashboard");
         return;
@@ -52,7 +52,7 @@ const TempDashboard = () => {
       // Agency users should go to agency dashboard
       if (accountType === "agency" || role === "AGENCY") {
         console.log(
-          "🏢 Dashboard: Agency user detected, redirecting to agency dashboard"
+          "🏢 Dashboard: Agency user detected, redirecting to agency dashboard",
         );
         router.replace("/agency/dashboard");
         return;

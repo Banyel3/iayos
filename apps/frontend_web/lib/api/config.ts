@@ -4,7 +4,10 @@
 // Production (Vercel): Falls back to https://api.iayos.online
 
 // Helper to ensure URL has protocol
-function ensureProtocol(url: string | undefined, defaultProtocol = "https://"): string | undefined {
+function ensureProtocol(
+  url: string | undefined,
+  defaultProtocol = "https://",
+): string | undefined {
   if (!url) return undefined;
   if (url.startsWith("http://") || url.startsWith("https://")) return url;
   return `${defaultProtocol}${url}`;

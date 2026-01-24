@@ -1,0 +1,84 @@
+name: "Deploy Backend to Render"
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      # Only deploy when backend code changes
+      - "apps/backend/**"
+      - "Dockerfile"
+      - "docker-compose.yml"
+      - "requirements.txt"
+      - ".env.docker.example"
+      # Exclude documentation changes
+      - "!apps/backend/**/*.md"
+      - "!apps/backend/README.md"
+  workflow_dispatch:
+    inputs:
+      force_deploy:
+        description: "Force deployment regardless of changes"
+        required: false
+        default: "false"
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy to Render
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: ${{ secrets.BACKEND_URL }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Get changed files
+        id: changes
+        run: |
+          echo "Files changed in backend:"
+          git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep "^apps/backend/" || echo "No backend changes"
+
+      - name: Trigger Render deployment
+        env:
+          RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$RENDER_DEPLOY_HOOK" ]; then
+            echo "❌ Error: RENDER_DEPLOY_HOOK secret not set"
+            echo "Please add your Render deploy hook URL to GitHub Secrets"
+            exit 1
+          fi
+
+          echo "🚀 Triggering Render deployment..."
+
+          response=$(curl -s -w "\n%{http_code}" -X POST "$RENDER_DEPLOY_HOOK")
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | head -n-1)
+
+          echo "Response: $body"
+          echo "HTTP Status: $http_code"
+
+          if [ "$http_code" -eq 200 ] || [ "$http_code" -eq 201 ]; then
+            echo "✅ Deployment triggered successfully!"
+            echo "🔗 Check status at: https://dashboard.render.com"
+          else
+            echo "❌ Deployment trigger failed with status $http_code"
+            exit 1
+          fi
+
+      - name: Wait for deployment (optional)
+        run: |
+          echo "⏳ Deployment initiated. This may take 5-10 minutes."
+          echo "Monitor progress at: https://dashboard.render.com"
+
+      - name: Notify deployment started
+        if: success()
+        run: |
+          echo "::notice::Backend deployment to Render initiated successfully"
+
+      - name: Notify deployment failed
+        if: failure()
+        run: |
+          echo "::error::Backend deployment to Render failed"
