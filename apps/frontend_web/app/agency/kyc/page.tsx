@@ -51,8 +51,12 @@ const AgencyKYCPage = () => {
   // AI Validation States
   const [isValidatingRepFront, setIsValidatingRepFront] = useState(false);
   const [isValidatingRepBack, setIsValidatingRepBack] = useState(false);
-  const [repFrontValidationError, setRepFrontValidationError] = useState<string | null>(null);
-  const [repBackValidationError, setRepBackValidationError] = useState<string | null>(null);
+  const [repFrontValidationError, setRepFrontValidationError] = useState<
+    string | null
+  >(null);
+  const [repBackValidationError, setRepBackValidationError] = useState<
+    string | null
+  >(null);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -111,18 +115,21 @@ const AgencyKYCPage = () => {
   // AI Document Validation - validates ID photos have detectable face
   const validateDocumentWithAI = async (
     file: File,
-    documentType: string
+    documentType: string,
   ): Promise<{ valid: boolean; error?: string; details?: any }> => {
     try {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("document_type", documentType);
 
-      const response = await fetch(`${API_BASE}/api/agency/kyc/validate-document`, {
-        method: "POST",
-        credentials: "include",
-        body: formData,
-      });
+      const response = await fetch(
+        `${API_BASE}/api/agency/kyc/validate-document`,
+        {
+          method: "POST",
+          credentials: "include",
+          body: formData,
+        },
+      );
 
       const data = await response.json();
       return data;
@@ -152,80 +159,97 @@ const AgencyKYCPage = () => {
     handleFilePreview(f, setPermitPreview);
   };
 
-  const handleRepFrontChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleRepFrontChange = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
     const f = e.target.files?.[0];
     if (!f) return;
     const err = validateFile(f);
     if (err)
       return showToast({ type: "error", title: "Invalid file", message: err });
-    
+
     // Show preview immediately
     handleFilePreview(f, setRepFrontPreview);
     setRepFrontValidationError(null);
-    
+
     // Skip AI validation for PDFs (ID should be image)
     if (f.type === "application/pdf") {
       setRepIDFront(f);
       return;
     }
-    
+
     // Run AI validation for face detection
     setIsValidatingRepFront(true);
     const result = await validateDocumentWithAI(f, "REP_ID_FRONT");
     setIsValidatingRepFront(false);
-    
+
     if (!result.valid) {
-      setRepFrontValidationError(result.error || "Face not detected in ID photo");
+      setRepFrontValidationError(
+        result.error || "Face not detected in ID photo",
+      );
       showToast({
         type: "error",
         title: "ID Validation Failed",
-        message: result.error || "Please upload a clear photo of your ID with your face visible",
+        message:
+          result.error ||
+          "Please upload a clear photo of your ID with your face visible",
       });
       // Clear preview on failure
       setRepFrontPreview("");
       return;
     }
-    
+
     setRepIDFront(f);
-    showToast({ type: "success", title: "ID Validated", message: "Face detected successfully" });
+    showToast({
+      type: "success",
+      title: "ID Validated",
+      message: "Face detected successfully",
+    });
   };
 
-  const handleRepBackChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleRepBackChange = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
     const f = e.target.files?.[0];
     if (!f) return;
     const err = validateFile(f);
     if (err)
       return showToast({ type: "error", title: "Invalid file", message: err });
-    
+
     // Show preview immediately
     handleFilePreview(f, setRepBackPreview);
     setRepBackValidationError(null);
-    
+
     // Skip AI validation for PDFs
     if (f.type === "application/pdf") {
       setRepIDBack(f);
       return;
     }
-    
+
     // Run AI validation for back of ID (face detection optional but quality check)
     setIsValidatingRepBack(true);
     const result = await validateDocumentWithAI(f, "REP_ID_BACK");
     setIsValidatingRepBack(false);
-    
+
     if (!result.valid) {
       setRepBackValidationError(result.error || "ID back validation failed");
       showToast({
         type: "error",
         title: "ID Validation Failed",
-        message: result.error || "Please upload a clear photo of the back of your ID",
+        message:
+          result.error || "Please upload a clear photo of the back of your ID",
       });
       // Clear preview on failure
       setRepBackPreview("");
       return;
     }
-    
+
     setRepIDBack(f);
-    showToast({ type: "success", title: "ID Back Validated", message: "Document accepted" });
+    showToast({
+      type: "success",
+      title: "ID Back Validated",
+      message: "Document accepted",
+    });
   };
 
   const handleAddressChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -594,14 +618,22 @@ const AgencyKYCPage = () => {
 
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Front side {isValidatingRepFront && <span className="text-blue-500 text-xs ml-2">Validating...</span>}
+              Front side{" "}
+              {isValidatingRepFront && (
+                <span className="text-blue-500 text-xs ml-2">
+                  Validating...
+                </span>
+              )}
             </label>
             <label
               htmlFor="repFront"
               className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors bg-gray-50 min-h-[150px] flex items-center justify-center ${
-                repFrontValidationError ? 'border-red-400 bg-red-50' : 
-                repIDFront ? 'border-green-400' : 'border-gray-300 hover:border-blue-500'
-              } ${isValidatingRepFront ? 'opacity-60 pointer-events-none' : ''}`}
+                repFrontValidationError
+                  ? "border-red-400 bg-red-50"
+                  : repIDFront
+                    ? "border-green-400"
+                    : "border-gray-300 hover:border-blue-500"
+              } ${isValidatingRepFront ? "opacity-60 pointer-events-none" : ""}`}
             >
               {isValidatingRepFront ? (
                 <div className="flex flex-col items-center">
@@ -619,8 +651,16 @@ const AgencyKYCPage = () => {
                   />
                   {repIDFront && (
                     <div className="absolute -top-2 -right-2 bg-green-500 text-white rounded-full p-1">
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      <svg
+                        className="w-4 h-4"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                          clipRule="evenodd"
+                        />
                       </svg>
                     </div>
                   )}
@@ -635,7 +675,9 @@ const AgencyKYCPage = () => {
               )}
             </label>
             {repFrontValidationError && (
-              <p className="text-red-500 text-xs mt-1">{repFrontValidationError}</p>
+              <p className="text-red-500 text-xs mt-1">
+                {repFrontValidationError}
+              </p>
             )}
             <input
               id="repFront"
@@ -649,19 +691,29 @@ const AgencyKYCPage = () => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Back side {isValidatingRepBack && <span className="text-blue-500 text-xs ml-2">Validating...</span>}
+              Back side{" "}
+              {isValidatingRepBack && (
+                <span className="text-blue-500 text-xs ml-2">
+                  Validating...
+                </span>
+              )}
             </label>
             <label
               htmlFor="repBack"
               className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors bg-gray-50 min-h-[150px] flex items-center justify-center ${
-                repBackValidationError ? 'border-red-400 bg-red-50' : 
-                repIDBack ? 'border-green-400' : 'border-gray-300 hover:border-blue-500'
-              } ${isValidatingRepBack ? 'opacity-60 pointer-events-none' : ''}`}
+                repBackValidationError
+                  ? "border-red-400 bg-red-50"
+                  : repIDBack
+                    ? "border-green-400"
+                    : "border-gray-300 hover:border-blue-500"
+              } ${isValidatingRepBack ? "opacity-60 pointer-events-none" : ""}`}
             >
               {isValidatingRepBack ? (
                 <div className="flex flex-col items-center">
                   <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-2"></div>
-                  <p className="text-sm text-blue-600">Validating document...</p>
+                  <p className="text-sm text-blue-600">
+                    Validating document...
+                  </p>
                 </div>
               ) : repBackPreview ? (
                 <div className="relative">
@@ -674,8 +726,16 @@ const AgencyKYCPage = () => {
                   />
                   {repIDBack && (
                     <div className="absolute -top-2 -right-2 bg-green-500 text-white rounded-full p-1">
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      <svg
+                        className="w-4 h-4"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                          clipRule="evenodd"
+                        />
                       </svg>
                     </div>
                   )}
@@ -690,7 +750,9 @@ const AgencyKYCPage = () => {
               )}
             </label>
             {repBackValidationError && (
-              <p className="text-red-500 text-xs mt-1">{repBackValidationError}</p>
+              <p className="text-red-500 text-xs mt-1">
+                {repBackValidationError}
+              </p>
             )}
             <input
               id="repBack"

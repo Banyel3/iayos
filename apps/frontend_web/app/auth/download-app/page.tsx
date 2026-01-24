@@ -38,31 +38,31 @@ export default function DownloadAppPage() {
             {/* QR Code */}
             <div className="flex justify-center mb-8">
               <div className="bg-white p-4 rounded-xl border-2 border-gray-200">
-                <div className="w-48 h-48 bg-gray-100 rounded-lg flex items-center justify-center">
-                  <p className="text-gray-400 text-sm text-center px-4">
-                    QR Code
-                    <br />
-                    Scan to Download
-                  </p>
-                </div>
+                <Image
+                  src="https://api.qrserver.com/v1/create-qr-code/?size=192x192&data=https://github.com/Banyel3/iayos/releases/download/v0.1.0-qa1/iayos-qa-build-release.apk"
+                  alt="Download iAyos APK"
+                  width={192}
+                  height={192}
+                  className="rounded-lg"
+                />
               </div>
             </div>
 
             {/* Download Button */}
             <a
-              href="https://play.google.com/store/apps/details?id=com.iayos"
+              href="https://github.com/Banyel3/iayos/releases/download/v0.1.0-qa1/iayos-qa-build-release.apk"
               target="_blank"
               rel="noopener noreferrer"
               className="block mb-4"
             >
               <Button className="w-full h-12 bg-gray-900 hover:bg-gray-800 text-white font-semibold rounded-xl flex items-center justify-center gap-2">
                 <Download className="w-5 h-5" />
-                Download on Google Play
+                Download APK (Android)
               </Button>
             </a>
 
             <p className="text-center text-sm text-gray-500">
-              Coming soon to iOS App Store
+              v0.1.0-qa1 • QA Test Build
             </p>
           </div>
 
