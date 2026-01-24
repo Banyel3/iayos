@@ -164,6 +164,8 @@ else:
         _frontend_url,
         "https://iayos.online",           # Custom domain
         "https://www.iayos.online",       # www subdomain
+        "https://api.iayos.online",       # Backend API domain
+        "https://iayos.onrender.com",     # Render subdomain
         "https://iayos.vercel.app",       # Vercel production
         # Add other production domains as needed
     ]
@@ -187,10 +189,11 @@ CSRF_TRUSTED_ORIGINS = [
     "http://192.168.254.116:3500",  # IP address for LAN access (port 3500)
     "http://192.168.254.116:8000",  # Backend IP for LAN access
     # Production domains (HTTPS)
-    "https://iayos.online",               # Custom domain
+    "https://iayos.online",               # Custom domain (frontend)
     "https://www.iayos.online",           # www subdomain  
+    "https://api.iayos.online",           # Custom domain (backend API)
+    "https://iayos.onrender.com",         # Render subdomain
     "https://iayos.vercel.app",           # Vercel production
-    "https://iayos-backend.onrender.com", # Render production backend
     FRONTEND_URL,  # Dynamic frontend URL from env
     API_URL,  # Dynamic API URL from env
 ]
