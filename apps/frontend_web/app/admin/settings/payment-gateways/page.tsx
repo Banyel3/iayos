@@ -1,5 +1,6 @@
 "use client";
 
+import { API_BASE } from "@/lib/api/config";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -56,7 +57,7 @@ export default function PaymentGatewaysPage() {
     setLoading(true);
     try {
       const response = await fetch(
-        "http://localhost:8000/api/adminpanel/settings/payment-gateways",
+        `${API_BASE}/api/adminpanel/settings/payment-gateways`,
         {
           credentials: "include",
         }
@@ -88,7 +89,7 @@ export default function PaymentGatewaysPage() {
 
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/settings/payment-gateways/${gateway}`,
+        `${API_BASE}/api/adminpanel/settings/payment-gateways/${gateway}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -132,7 +133,7 @@ export default function PaymentGatewaysPage() {
 
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/settings/payment-gateways/${selectedGateway}`,
+        `${API_BASE}/api/adminpanel/settings/payment-gateways/${selectedGateway}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -162,7 +163,7 @@ export default function PaymentGatewaysPage() {
     setTesting(true);
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/settings/payment-gateways/${selectedGateway}/test`,
+        `${API_BASE}/api/adminpanel/settings/payment-gateways/${selectedGateway}/test`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

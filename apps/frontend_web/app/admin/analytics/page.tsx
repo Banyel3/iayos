@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { Sidebar } from "../components";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
@@ -78,7 +79,7 @@ export default function AnalyticsDashboard() {
     setLoading(true);
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/analytics/overview?period=${dateRange}`,
+        `${API_BASE}/api/adminpanel/analytics/overview?period=${dateRange}`,
         { credentials: "include" }
       );
       const data = await response.json();

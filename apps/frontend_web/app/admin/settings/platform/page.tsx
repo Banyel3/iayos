@@ -1,5 +1,6 @@
 "use client";
 
+import { API_BASE } from "@/lib/api/config";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -80,7 +81,7 @@ export default function PlatformSettingsPage() {
     setLoading(true);
     try {
       const response = await fetch(
-        "http://localhost:8000/api/adminpanel/settings/platform",
+        `${API_BASE}/api/adminpanel/settings/platform`,
         {
           credentials: "include",
         }
@@ -158,7 +159,7 @@ export default function PlatformSettingsPage() {
     setSaving(true);
     try {
       const response = await fetch(
-        "http://localhost:8000/api/adminpanel/settings/platform",
+        `${API_BASE}/api/adminpanel/settings/platform`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },

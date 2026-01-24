@@ -6,8 +6,9 @@ import {
   ChatMessage,
   ConversationFilter,
 } from "@/lib/api/chat";
+import { API_BASE } from "@/lib/api/config";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_BASE_URL = API_BASE;
 
 export type { ConversationFilter };
 

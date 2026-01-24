@@ -211,21 +211,22 @@ test.describe('Authentication Flows', () => {
       await expect(page).toHaveURL('/auth/register');
     });
   });
-});  test.describe('Session Persistence', () => {
-    test('should maintain session after page reload', async ({ page }) => {
-      // Login
-      await page.goto('/auth/login');
-      await page.fill('input[name="email"]', 'client@test.com');
-      await page.fill('input[type="password"]', 'Test123!');
-      await page.click('button[type="submit"]');
-      
-      await expect(page).toHaveURL(/\/dashboard/, { timeout: 10000 });
-      
-      // Reload page
-      await page.reload();
-      
-      // Should still be logged in
-      await expect(page).toHaveURL(/\/dashboard/);
-    });
+});
+
+test.describe('Session Persistence', () => {
+  test('should maintain session after page reload', async ({ page }) => {
+    // Login
+    await page.goto('/auth/login');
+    await page.fill('input[name="email"]', 'client@test.com');
+    await page.fill('input[type="password"]', 'Test123!');
+    await page.click('button[type="submit"]');
+    
+    await expect(page).toHaveURL(/\/dashboard/, { timeout: 10000 });
+    
+    // Reload page
+    await page.reload();
+    
+    // Should still be logged in
+    await expect(page).toHaveURL(/\/dashboard/);
   });
 });

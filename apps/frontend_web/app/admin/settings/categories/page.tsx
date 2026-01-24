@@ -1,5 +1,6 @@
 "use client";
 
+import { API_BASE } from "@/lib/api/config";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -76,7 +77,7 @@ export default function CategoryManagementPage() {
     setLoading(true);
     try {
       const response = await fetch(
-        "http://localhost:8000/api/adminpanel/settings/categories",
+        `${API_BASE}/api/adminpanel/settings/categories`,
         {
           credentials: "include",
         }
@@ -167,8 +168,8 @@ export default function CategoryManagementPage() {
     try {
       const url =
         modalMode === "add"
-          ? "http://localhost:8000/api/adminpanel/settings/categories"
-          : `http://localhost:8000/api/adminpanel/settings/categories/${selectedCategory?.id}`;
+          ? `${API_BASE}/api/adminpanel/settings/categories`
+          : `${API_BASE}/api/adminpanel/settings/categories/${selectedCategory?.id}`;
 
       const method = modalMode === "add" ? "POST" : "PUT";
 
@@ -201,7 +202,7 @@ export default function CategoryManagementPage() {
   const handleToggleStatus = async (category: Category) => {
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/settings/categories/${category.id}`,
+        `${API_BASE}/api/adminpanel/settings/categories/${category.id}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -235,7 +236,7 @@ export default function CategoryManagementPage() {
     }
 
     try {
-      const url = `http://localhost:8000/api/adminpanel/settings/categories/${categoryToDelete.id}`;
+      const url = `${API_BASE}/api/adminpanel/settings/categories/${categoryToDelete.id}`;
       const params = reassignCategoryId
         ? `?reassign_to=${reassignCategoryId}`
         : "";

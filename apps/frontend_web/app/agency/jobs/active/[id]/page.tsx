@@ -1,5 +1,6 @@
 "use client";
 
+import { API_BASE } from "@/lib/api/config";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -42,8 +43,7 @@ export default function JobDetailPage() {
   const { data: job, isLoading } = useQuery({
     queryKey: ["agency-job-detail", jobId],
     queryFn: async () => {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      const response = await fetch(`${apiUrl}/api/agency/jobs/${jobId}`, {
+      const response = await fetch(`${API_BASE}/api/agency/jobs/${jobId}`, {
         credentials: "include",
       });
       if (!response.ok) throw new Error("Failed to fetch job");

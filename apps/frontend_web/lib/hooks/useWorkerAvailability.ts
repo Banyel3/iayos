@@ -5,8 +5,9 @@
  */
 
 import { useState, useEffect } from "react";
+import { API_BASE } from "@/lib/api/config";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_BASE_URL = API_BASE;
 const CACHE_KEY = "cached_worker_availability";
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 

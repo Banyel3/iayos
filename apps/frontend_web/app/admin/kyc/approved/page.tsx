@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { API_BASE } from "@/lib/api/config";
 import {
   Card,
   CardContent,
@@ -53,7 +54,7 @@ export default function ApprovedKYCPage() {
     setIsLoading(true);
     try {
       const response = await fetch(
-        "http://localhost:8000/api/adminpanel/kyc/logs?action=APPROVED&limit=500",
+        `${API_BASE}/api/adminpanel/kyc/logs?action=APPROVED&limit=500`,
         {
           credentials: "include",
         }

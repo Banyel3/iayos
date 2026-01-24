@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/form_button";
@@ -97,9 +98,6 @@ export default function EmployeesPage() {
   const [activeTab, setActiveTab] = useState<
     "employees" | "leaderboard" | "performance"
   >("employees");
-
-  const API_BASE =
-    process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
 
   const fetchEmployees = async () => {
     try {

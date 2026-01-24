@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { X, User, Briefcase, AlertCircle, CheckCircle } from "lucide-react";
+import { API_BASE } from "@/lib/api/config";
 
 interface Employee {
   employeeId: number;
@@ -37,8 +38,6 @@ interface AssignEmployeeModalProps {
   employees: Employee[];
   onAssign: (employeeId: number, notes: string) => Promise<void>;
 }
-
-const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
 
 export default function AssignEmployeeModal({
   isOpen,

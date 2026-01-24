@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { useBarangays } from "@/lib/hooks/useLocations";
@@ -62,7 +63,7 @@ export default function CreateListingJobPage() {
     const fetchCategories = async () => {
       try {
         const response = await fetch(
-          "http://localhost:8000/api/adminpanel/jobs/categories",
+          `${API_BASE}/api/adminpanel/jobs/categories`,
           { credentials: "include" }
         );
         const data = await response.json();
@@ -148,7 +149,7 @@ export default function CreateListingJobPage() {
       console.log("[CreateListing] Submitting:", payload);
 
       const response = await fetch(
-        "http://localhost:8000/api/jobs/create-mobile",
+        `${API_BASE}/api/jobs/create-mobile`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

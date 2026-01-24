@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { useRouter } from "next/navigation";
 import { Sidebar } from "../components";
 import { Card, CardContent } from "@/components/ui/card";
@@ -72,7 +73,7 @@ export default function ReviewsPage() {
       if (userTypeFilter !== "all") params.append("user_type", userTypeFilter);
 
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/app-reviews/all?${params}`,
+        `${API_BASE}/api/adminpanel/app-reviews/all?${params}`,
         { credentials: "include" }
       );
 

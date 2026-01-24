@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { useParams, useRouter } from "next/navigation";
 import { Sidebar } from "../../../components";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -113,7 +114,7 @@ export default function DisputeDetailPage() {
     setError(null);
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/transactions/disputes/${disputeId}`,
+        `${API_BASE}/api/adminpanel/transactions/disputes/${disputeId}`,
         { credentials: "include" }
       );
 
@@ -833,7 +834,7 @@ export default function DisputeDetailPage() {
                               return;
                             try {
                               const res = await fetch(
-                                `http://localhost:8000/api/adminpanel/jobs/disputes/${disputeId}/approve-backjob`,
+                                `${API_BASE}/api/adminpanel/jobs/disputes/${disputeId}/approve-backjob`,
                                 {
                                   method: "POST",
                                   credentials: "include",
@@ -871,7 +872,7 @@ export default function DisputeDetailPage() {
                             if (!reason) return;
                             try {
                               const res = await fetch(
-                                `http://localhost:8000/api/adminpanel/jobs/disputes/${disputeId}/reject-backjob`,
+                                `${API_BASE}/api/adminpanel/jobs/disputes/${disputeId}/reject-backjob`,
                                 {
                                   method: "POST",
                                   credentials: "include",

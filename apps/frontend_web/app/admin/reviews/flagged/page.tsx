@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { useRouter } from "next/navigation";
 import { Sidebar } from "../../components";
 import { Card, CardContent } from "@/components/ui/card";
@@ -64,7 +65,7 @@ export default function FlaggedReviewsPage() {
       if (severityFilter !== "all") params.append("severity", severityFilter);
 
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/app-reviews/flagged?${params}`,
+        `${API_BASE}/api/adminpanel/app-reviews/flagged?${params}`,
         { credentials: "include" }
       );
 
@@ -94,7 +95,7 @@ export default function FlaggedReviewsPage() {
 
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/reviews/${reviewId}/hide`,
+        `${API_BASE}/api/adminpanel/reviews/${reviewId}/hide`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -125,7 +126,7 @@ export default function FlaggedReviewsPage() {
 
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/reviews/${reviewId}`,
+        `${API_BASE}/api/adminpanel/reviews/${reviewId}`,
         {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
@@ -151,7 +152,7 @@ export default function FlaggedReviewsPage() {
 
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/app-reviews/${reviewId}/restore`,
+        `${API_BASE}/api/adminpanel/app-reviews/${reviewId}/restore`,
         {
           method: "POST",
           credentials: "include",
@@ -188,7 +189,7 @@ export default function FlaggedReviewsPage() {
     for (const reviewId of selectedReviews) {
       try {
         await fetch(
-          `http://localhost:8000/api/adminpanel/reviews/${reviewId}/hide`,
+          `${API_BASE}/api/adminpanel/reviews/${reviewId}/hide`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -226,7 +227,7 @@ export default function FlaggedReviewsPage() {
     for (const reviewId of selectedReviews) {
       try {
         await fetch(
-          `http://localhost:8000/api/adminpanel/reviews/${reviewId}`,
+          `${API_BASE}/api/adminpanel/reviews/${reviewId}`,
           {
             method: "DELETE",
             headers: { "Content-Type": "application/json" },

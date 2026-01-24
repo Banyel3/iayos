@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { useParams, useRouter } from "next/navigation";
 import { Sidebar } from "../../../components";
 import { Card, CardContent } from "@/components/ui/card";
@@ -71,7 +72,7 @@ export default function DisputeDetailPage() {
   const fetchDetail = async () => {
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/transactions/disputes/${disputeId}`,
+        `${API_BASE}/api/adminpanel/transactions/disputes/${disputeId}`,
         { credentials: "include" }
       );
 
@@ -109,7 +110,7 @@ export default function DisputeDetailPage() {
 
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/transactions/disputes/${disputeId}/resolve`,
+        `${API_BASE}/api/adminpanel/transactions/disputes/${disputeId}/resolve`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

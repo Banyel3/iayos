@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { useRouter } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { PendingInviteCard, RejectReasonModal } from "@/components/agency";
@@ -153,9 +154,8 @@ export default function AgencyJobsPage() {
       setLoading(true);
       setError(null);
 
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
       const response = await fetch(
-        `${apiUrl}/api/agency/jobs?invite_status=PENDING`,
+        `${API_BASE}/api/agency/jobs?invite_status=PENDING`,
         {
           credentials: "include",
           headers: {
@@ -187,12 +187,10 @@ export default function AgencyJobsPage() {
       setLoading(true);
       setError(null);
 
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-
       // Fetch both ACTIVE and IN_PROGRESS jobs - we'll filter by employee assignment
       const [activeResponse, inProgressResponse] = await Promise.all([
         fetch(
-          `${apiUrl}/api/agency/jobs?invite_status=ACCEPTED&status=ACTIVE`,
+          `${API_BASE}/api/agency/jobs?invite_status=ACCEPTED&status=ACTIVE`,
           {
             credentials: "include",
             headers: { "Content-Type": "application/json" },
@@ -248,9 +246,8 @@ export default function AgencyJobsPage() {
   const fetchInProgressJobs = async () => {
     try {
       setLoading(true);
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
       const response = await fetch(
-        `${apiUrl}/api/agency/jobs?status=IN_PROGRESS`,
+        `${API_BASE}/api/agency/jobs?status=IN_PROGRESS`,
         {
           credentials: "include",
           headers: {
@@ -282,9 +279,8 @@ export default function AgencyJobsPage() {
   const fetchCompletedJobs = async () => {
     try {
       setLoading(true);
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
       const response = await fetch(
-        `${apiUrl}/api/agency/jobs?status=COMPLETED`,
+        `${API_BASE}/api/agency/jobs?status=COMPLETED`,
         {
           credentials: "include",
           headers: {
@@ -311,9 +307,8 @@ export default function AgencyJobsPage() {
   const fetchCancelledJobs = async () => {
     try {
       setLoading(true);
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
       const response = await fetch(
-        `${apiUrl}/api/agency/jobs?status=CANCELLED`,
+        `${API_BASE}/api/agency/jobs?status=CANCELLED`,
         {
           credentials: "include",
           headers: {
@@ -339,8 +334,7 @@ export default function AgencyJobsPage() {
 
   const fetchEmployees = async () => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      const response = await fetch(`${apiUrl}/api/agency/employees`, {
+      const response = await fetch(`${API_BASE}/api/agency/employees`, {
         credentials: "include",
         headers: {
           "Content-Type": "application/json",
@@ -367,9 +361,8 @@ export default function AgencyJobsPage() {
       setError(null);
       setSuccessMessage(null);
 
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
       const response = await fetch(
-        `${apiUrl}/api/agency/jobs/${jobId}/accept`,
+        `${API_BASE}/api/agency/jobs/${jobId}/accept`,
         {
           method: "POST",
           credentials: "include",
@@ -432,9 +425,8 @@ export default function AgencyJobsPage() {
       setError(null);
       setSuccessMessage(null);
 
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
       const response = await fetch(
-        `${apiUrl}/api/agency/jobs/${selectedJobForReject.jobID}/reject`,
+        `${API_BASE}/api/agency/jobs/${selectedJobForReject.jobID}/reject`,
         {
           method: "POST",
           credentials: "include",
@@ -488,10 +480,8 @@ export default function AgencyJobsPage() {
       setError(null);
       setSuccessMessage(null);
 
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-
       const response = await fetch(
-        `${apiUrl}/api/agency/jobs/${selectedJobForAssignment.jobID}/assign-employees`,
+        `${API_BASE}/api/agency/jobs/${selectedJobForAssignment.jobID}/assign-employees`,
         {
           method: "POST",
           credentials: "include",

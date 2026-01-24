@@ -1,15 +1,12 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { API_BASE } from "@/lib/api/config";
 
 const verifySchema = z.object({
   email: z.string().email(),
   verifyLink: z.string().url(),
   verifyLinkExpire: z.string(), // since Django sends ISO string
 });
-
-// Backend API URL - use SERVER_API_URL for server-side requests (Docker internal network)
-// NEXT_PUBLIC_API_URL is for client-side and uses localhost, which doesn't work in Docker containers
-const BACKEND_API_URL = process.env.SERVER_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export async function POST(req: Request) {
   try {
@@ -22,7 +19,7 @@ export async function POST(req: Request) {
 
     // Proxy the request to the backend's send-verification-email endpoint
     const backendResponse = await fetch(
-      `${BACKEND_API_URL}/api/mobile/auth/send-verification-email`,
+      `${API_BASE}/api/mobile/auth/send-verification-email`,
       {
         method: "POST",
         headers: {

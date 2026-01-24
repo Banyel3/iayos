@@ -1,14 +1,13 @@
 "use client";
 
 import React, { useState, useEffect, useRef, Suspense } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/form_button";
 import { Input } from "@/components/ui/input";
 import { Loader2, CheckCircle2, AlertCircle, RefreshCw } from "lucide-react";
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 function VerifyOTPContent() {
   const router = useRouter();
@@ -108,7 +107,7 @@ function VerifyOTPContent() {
     setError("");
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/accounts/verify-otp`, {
+      const res = await fetch(`${API_BASE}/api/accounts/verify-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, otp: code }),
@@ -147,7 +146,7 @@ function VerifyOTPContent() {
 
     try {
       // First, call resend-otp to generate new OTP
-      const resendRes = await fetch(`${API_BASE_URL}/api/accounts/resend-otp`, {
+      const resendRes = await fetch(`${API_BASE}/api/accounts/resend-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),

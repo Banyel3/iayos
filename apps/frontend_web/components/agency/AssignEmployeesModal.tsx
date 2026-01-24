@@ -10,6 +10,7 @@ import {
   Users,
   Crown,
 } from "lucide-react";
+import { API_BASE } from "@/lib/api/config";
 
 interface Employee {
   employeeId: number;
@@ -49,8 +50,6 @@ interface AssignEmployeesModalProps {
     notes: string
   ) => Promise<void>;
 }
-
-const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
 
 export default function AssignEmployeesModal({
   isOpen,

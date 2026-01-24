@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
@@ -54,7 +55,7 @@ export default function KYCAuditLogPage() {
 
       // Use the real KYC logs endpoint
       const response = await fetch(
-        "http://localhost:8000/api/adminpanel/kyc/logs",
+        `${API_BASE}/api/adminpanel/kyc/logs`,
         {
           credentials: "include",
         }

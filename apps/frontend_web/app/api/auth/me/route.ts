@@ -1,11 +1,6 @@
 // app/api/auth/me/route.ts
 import { NextRequest, NextResponse } from "next/server";
-
-// Allow both public and server-only API base envs; default to local backend
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  process.env.API_URL ||
-  "http://localhost:8000";
+import { API_BASE } from "@/lib/api/config";
 
 export async function GET(request: NextRequest) {
   try {
@@ -28,7 +23,7 @@ export async function GET(request: NextRequest) {
       `[/api/auth/me] Forwarding ${cookies.length} cookies to backend`,
     );
 
-    const backendResponse = await fetch(`${API_BASE_URL}/api/accounts/me`, {
+    const backendResponse = await fetch(`${API_BASE}/api/accounts/me`, {
       method: "GET",
       headers,
       credentials: "include",

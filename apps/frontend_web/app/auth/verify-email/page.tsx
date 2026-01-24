@@ -1,11 +1,10 @@
 "use client";
 
 import React, { useEffect, useState, Suspense } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { useSearchParams } from "next/navigation";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { CircleX, SquareCheckBig, Loader2, AlertTriangle } from "lucide-react";
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 const VerifyEmail = () => {
   const initialized = React.useRef(false);
@@ -29,7 +28,7 @@ const VerifyEmail = () => {
 
     try {
       const res = await fetch(
-        `${API_BASE_URL}/api/accounts/verify?verifyToken=${verifyToken}&accountID=${id}`,
+        `${API_BASE}/api/accounts/verify?verifyToken=${verifyToken}&accountID=${id}`,
         {
           method: "GET",
           headers: { "Content-Type": "application/json" },

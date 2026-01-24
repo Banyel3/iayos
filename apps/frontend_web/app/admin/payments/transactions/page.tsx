@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Sidebar } from "../../components";
+import { API_BASE } from "@/lib/api/config";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Input } from "@/components/ui/input";
@@ -79,7 +80,7 @@ export default function TransactionsPage() {
       if (searchQuery) params.append("search", searchQuery);
 
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/transactions/all?${params}`,
+        `${API_BASE}/api/adminpanel/transactions/all?${params}`,
         { credentials: "include" },
       );
 
@@ -108,7 +109,7 @@ export default function TransactionsPage() {
   const fetchStatistics = async () => {
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/transactions/statistics`,
+        `${API_BASE}/api/adminpanel/transactions/statistics`,
         { credentials: "include" },
       );
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import {
@@ -42,9 +43,8 @@ export default function ActiveJobsPage() {
   const { data, isLoading } = useQuery({
     queryKey: ["agency-active-jobs"],
     queryFn: async () => {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
       const response = await fetch(
-        `${apiUrl}/api/agency/jobs?status=IN_PROGRESS`,
+        `${API_BASE}/api/agency/jobs?status=IN_PROGRESS`,
         {
           credentials: "include",
         }

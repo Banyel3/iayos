@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { useParams, useRouter } from "next/navigation";
 import { Sidebar } from "../../../components";
 import { Card, CardContent } from "@/components/ui/card";
@@ -77,7 +78,7 @@ export default function TransactionDetailPage() {
   const fetchDetail = async () => {
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/transactions/${transactionId}/detail`,
+        `${API_BASE}/api/adminpanel/transactions/${transactionId}/detail`,
         { credentials: "include" }
       );
 
@@ -106,7 +107,7 @@ export default function TransactionDetailPage() {
 
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/transactions/${transactionId}/release-escrow`,
+        `${API_BASE}/api/adminpanel/transactions/${transactionId}/release-escrow`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -136,7 +137,7 @@ export default function TransactionDetailPage() {
 
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/transactions/${transactionId}/refund`,
+        `${API_BASE}/api/adminpanel/transactions/${transactionId}/refund`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

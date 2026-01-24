@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { useParams, useRouter } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
@@ -167,7 +168,7 @@ export default function KYCDetailPage() {
 
       // Fetch all KYC data
       const response = await fetch(
-        "http://localhost:8000/api/adminpanel/kyc/all",
+        `${API_BASE}/api/adminpanel/kyc/all`,
         { credentials: "include" }
       );
 
@@ -228,7 +229,7 @@ export default function KYCDetailPage() {
       }
 
       const response = await fetch(
-        "http://localhost:8000/api/adminpanel/kyc/review",
+        `${API_BASE}/api/adminpanel/kyc/review`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -326,7 +327,7 @@ export default function KYCDetailPage() {
         ? { agencyKycID: kycId, notes }
         : { kycID: kycId, notes };
 
-      const response = await fetch(`http://localhost:8000${endpoint}`, {
+      const response = await fetch(`${API_BASE}${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -372,7 +373,7 @@ export default function KYCDetailPage() {
         ? { agencyKycID: kycId, notes }
         : { kycID: kycId, notes };
 
-      const response = await fetch(`http://localhost:8000${endpoint}`, {
+      const response = await fetch(`${API_BASE}${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Sidebar } from "../../components";
+import { API_BASE } from "@/lib/api/config";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Badge } from "@/components/ui/badge";
@@ -66,7 +67,7 @@ export default function DisputesPage() {
       if (searchTerm) params.append("search", searchTerm);
 
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/transactions/disputes?${params}`,
+        `${API_BASE}/api/adminpanel/transactions/disputes?${params}`,
         { credentials: "include" },
       );
 
@@ -84,7 +85,7 @@ export default function DisputesPage() {
   const fetchStatistics = async () => {
     try {
       const response = await fetch(
-        "http://localhost:8000/api/adminpanel/transactions/disputes/statistics",
+        `${API_BASE}/api/adminpanel/transactions/disputes/statistics`,
         { credentials: "include" },
       );
 

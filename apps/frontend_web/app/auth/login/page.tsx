@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { Eye, EyeOff } from "lucide-react";
-import { API_URL } from "@/lib/api-config";
+import { API_BASE } from "@/lib/api/config";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -519,7 +519,7 @@ const Login = () => {
 
                 {/* Google Sign In Button */}
                 <a
-                  href="http://localhost:8000/api/accounts/auth/google/login"
+                  href={`${API_BASE}/api/accounts/auth/google/login`}
                   className="flex items-center justify-center w-full h-11 border border-gray-200 rounded-lg px-4 py-3 bg-gray-100 transition-all duration-200 font-inter font-medium"
                 >
                   <Image

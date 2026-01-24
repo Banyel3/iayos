@@ -1,5 +1,6 @@
 "use client";
 
+import { API_BASE } from "@/lib/api/config";
 import { useState, useEffect } from "react";
 import {
   Card,
@@ -88,8 +89,6 @@ export default function WorkersPage() {
     null
   );
   const [bulkActionReason, setBulkActionReason] = useState("");
-
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
   const fetchWorkers = async () => {
     setLoading(true);

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Sidebar } from "../../components";
+import { API_BASE } from "@/lib/api/config";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -40,7 +41,7 @@ export default function JobCategoriesPage() {
     try {
       setIsLoading(true);
       const response = await fetch(
-        "http://localhost:8000/api/adminpanel/jobs/categories",
+        `${API_BASE}/api/adminpanel/jobs/categories`,
         {
           credentials: "include",
         },

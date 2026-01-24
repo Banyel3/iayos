@@ -4,8 +4,9 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSendMessage } from "./useWebSocketHooks";
+import { API_BASE } from "@/lib/api/config";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_BASE_URL = API_BASE;
 
 export type MessageAttachment = {
   attachment_id: number;

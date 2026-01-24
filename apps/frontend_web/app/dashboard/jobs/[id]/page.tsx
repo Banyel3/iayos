@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import MobileNav from "@/components/ui/mobile-nav";
@@ -79,7 +80,7 @@ export default function JobDetailsPage() {
     const fetchJobDetails = async () => {
       try {
         setIsLoading(true);
-        const response = await fetch(`http://localhost:8000/api/jobs/${id}`, {
+        const response = await fetch(`${API_BASE}/api/jobs/${id}`, {
           method: "GET",
           credentials: "include",
         });
@@ -112,7 +113,7 @@ export default function JobDetailsPage() {
     try {
       setIsLoadingApplications(true);
       const response = await fetch(
-        `http://localhost:8000/api/jobs/${id}/applications`,
+        `${API_BASE}/api/jobs/${id}/applications`,
         {
           method: "GET",
           credentials: "include",
@@ -144,7 +145,7 @@ export default function JobDetailsPage() {
     try {
       setProcessingApplicationId(applicationId);
       const response = await fetch(
-        `http://localhost:8000/api/jobs/${id}/applications/${applicationId}/accept`,
+        `${API_BASE}/api/jobs/${id}/applications/${applicationId}/accept`,
         {
           method: "POST",
           credentials: "include",
@@ -176,7 +177,7 @@ export default function JobDetailsPage() {
     try {
       setProcessingApplicationId(applicationId);
       const response = await fetch(
-        `http://localhost:8000/api/jobs/${id}/applications/${applicationId}/reject`,
+        `${API_BASE}/api/jobs/${id}/applications/${applicationId}/reject`,
         {
           method: "POST",
           credentials: "include",
@@ -234,7 +235,7 @@ export default function JobDetailsPage() {
           : parseFloat(proposedBudget);
 
       const response = await fetch(
-        "http://localhost:8000/api/accounts/job-applications/create",
+        `${API_BASE}/api/accounts/job-applications/create`,
         {
           method: "POST",
           headers: {

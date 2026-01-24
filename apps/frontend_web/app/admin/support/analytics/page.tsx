@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Badge } from "@/components/ui/badge";
@@ -76,7 +77,7 @@ export default function SupportAnalyticsPage() {
     setLoading(true);
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/support/statistics?range=${dateRange}`,
+        `${API_BASE}/api/adminpanel/support/statistics?range=${dateRange}`,
         { credentials: "include" }
       );
       const data = await response.json();

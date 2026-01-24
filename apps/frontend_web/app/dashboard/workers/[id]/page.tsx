@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { API_BASE } from "@/lib/api/config";
 import Image from "next/image";
 import { useRouter, useParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
@@ -61,7 +62,7 @@ const WorkerProfileViewPage = () => {
 
         try {
           const locationResponse = await fetch(
-            "http://localhost:8000/api/accounts/location/me",
+            `${API_BASE}/api/accounts/location/me`,
             {
               method: "GET",
               headers: {
@@ -113,7 +114,7 @@ const WorkerProfileViewPage = () => {
         }
 
         // Build URL with location parameters if available
-        let url = `http://localhost:8000/api/accounts/users/workers/${workerId}`;
+        let url = `${API_BASE}/api/accounts/users/workers/${workerId}`;
         if (userLatitude !== null && userLongitude !== null) {
           url += `?latitude=${userLatitude}&longitude=${userLongitude}`;
         }

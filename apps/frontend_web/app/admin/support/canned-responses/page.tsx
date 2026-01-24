@@ -1,5 +1,6 @@
 "use client";
 
+import { API_BASE } from "@/lib/api/config";
 import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
@@ -60,7 +61,7 @@ export default function CannedResponsesPage() {
     setLoading(true);
     try {
       const response = await fetch(
-        "http://localhost:8000/api/adminpanel/support/canned-responses",
+        `${API_BASE}/api/adminpanel/support/canned-responses`,
         { credentials: "include" }
       );
       const data = await response.json();
@@ -130,8 +131,8 @@ export default function CannedResponsesPage() {
       };
 
       const url = editingResponse
-        ? `http://localhost:8000/api/adminpanel/support/canned-responses/${editingResponse.id}`
-        : "http://localhost:8000/api/adminpanel/support/canned-responses";
+        ? `${API_BASE}/api/adminpanel/support/canned-responses/${editingResponse.id}`
+        : `${API_BASE}/api/adminpanel/support/canned-responses`;
 
       await fetch(url, {
         method: editingResponse ? "PUT" : "POST",
@@ -152,7 +153,7 @@ export default function CannedResponsesPage() {
 
     try {
       await fetch(
-        `http://localhost:8000/api/adminpanel/support/canned-responses/${id}`,
+        `${API_BASE}/api/adminpanel/support/canned-responses/${id}`,
         {
           method: "DELETE",
           credentials: "include",

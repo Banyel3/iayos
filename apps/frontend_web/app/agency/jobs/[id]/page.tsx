@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { useRouter, useParams } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/form_button";
@@ -93,8 +94,7 @@ export default function JobDetailPage() {
       setLoading(true);
       setError(null);
 
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      const response = await fetch(`${apiUrl}/api/agency/jobs/${jobId}`, {
+      const response = await fetch(`${API_BASE}/api/agency/jobs/${jobId}`, {
         credentials: "include",
         headers: {
           "Content-Type": "application/json",

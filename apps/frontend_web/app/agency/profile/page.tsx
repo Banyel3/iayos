@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -109,9 +110,6 @@ export default function AgencyProfilePage() {
   } = useWalletBalance(true);
   const { data: transactions = [], isLoading: isLoadingTransactions } =
     useWalletTransactions(activeTab === "transactions");
-
-  const API_BASE =
-    process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
 
   const fetchProfile = async () => {
     try {

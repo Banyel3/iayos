@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { useRouter } from "next/navigation";
 import {
   Card,
@@ -119,7 +120,7 @@ export default function AgencyPage() {
       if (sortBy !== "newest") params.append("sort", sortBy);
 
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/users/agencies?${params}`,
+        `${API_BASE}/api/adminpanel/users/agencies?${params}`,
         {
           credentials: "include",
         }
@@ -248,7 +249,7 @@ export default function AgencyPage() {
             ? { reason: bulkActionReason }
             : {};
 
-        const response = await fetch(`http://localhost:8000${endpoint}`, {
+        const response = await fetch(`${API_BASE}${endpoint}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",

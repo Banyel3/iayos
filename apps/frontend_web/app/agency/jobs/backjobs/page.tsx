@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -61,8 +62,8 @@ export default function AgencyBackjobsPage() {
     try {
       const url =
         filter === "all"
-          ? `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/jobs/my-backjobs`
-          : `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/jobs/my-backjobs?status=${filter}`;
+          ? `${API_BASE}/api/jobs/my-backjobs`
+          : `${API_BASE}/api/jobs/my-backjobs?status=${filter}`;
 
       const response = await fetch(url, {
         credentials: "include",

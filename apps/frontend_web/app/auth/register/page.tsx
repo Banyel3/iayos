@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { API_BASE } from "@/lib/api/config";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -342,7 +343,7 @@ function RegisterContent() {
 
       console.log("📤 Sending registration payload:", payload); // Debug log
 
-      const res = await fetch("http://localhost:8000/api/accounts/register", {
+      const res = await fetch(`${API_BASE}/api/accounts/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

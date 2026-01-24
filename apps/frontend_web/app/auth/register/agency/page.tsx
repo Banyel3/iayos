@@ -1,5 +1,6 @@
 "use client";
 
+import { API_BASE } from "@/lib/api/config";
 import React from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -272,7 +273,7 @@ const AgencyRegister = () => {
     setAgencyError(""); // Clear previous errors
     try {
       const agencyReg = await fetch(
-        "http://localhost:8000/api/accounts/register/agency",
+        `${API_BASE}/api/accounts/register/agency`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

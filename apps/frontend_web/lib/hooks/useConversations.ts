@@ -3,8 +3,9 @@
 // Ported from React Native mobile app
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { API_BASE } from "@/lib/api/config";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_BASE_URL = API_BASE;
 
 export type Conversation = {
   id: number;
@@ -126,7 +127,7 @@ export function useArchiveConversation() {
 
       // Call backend toggle archive endpoint
       const response = await fetch(
-        `http://localhost:8000/api/profiles/conversations/${conversationId}/toggle-archive`,
+        `${API_BASE_URL}/api/profiles/conversations/${conversationId}/toggle-archive`,
         {
           method: "POST",
           credentials: "include",

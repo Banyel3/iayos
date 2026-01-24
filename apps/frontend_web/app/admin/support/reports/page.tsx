@@ -1,5 +1,6 @@
 "use client";
 
+import { API_BASE } from "@/lib/api/config";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
@@ -120,7 +121,7 @@ export default function UserReportsPage() {
       if (typeFilter !== "all") params.append("type", typeFilter);
 
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/support/reports?${params.toString()}`,
+        `${API_BASE}/api/adminpanel/support/reports?${params.toString()}`,
         { credentials: "include" }
       );
       const data = await response.json();
@@ -138,7 +139,7 @@ export default function UserReportsPage() {
   const handleViewDetail = async (reportId: string) => {
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/support/reports/${reportId}`,
+        `${API_BASE}/api/adminpanel/support/reports/${reportId}`,
         { credentials: "include" }
       );
       const data = await response.json();
@@ -158,7 +159,7 @@ export default function UserReportsPage() {
 
     try {
       await fetch(
-        `http://localhost:8000/api/adminpanel/support/reports/${selectedReport.id}/review`,
+        `${API_BASE}/api/adminpanel/support/reports/${selectedReport.id}/review`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -184,7 +185,7 @@ export default function UserReportsPage() {
 
     try {
       await fetch(
-        `http://localhost:8000/api/adminpanel/support/reports/${selectedReport.id}/review`,
+        `${API_BASE}/api/adminpanel/support/reports/${selectedReport.id}/review`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -211,7 +212,7 @@ export default function UserReportsPage() {
 
     try {
       await fetch(
-        `http://localhost:8000/api/adminpanel/support/reports/${selectedReport.id}/review`,
+        `${API_BASE}/api/adminpanel/support/reports/${selectedReport.id}/review`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -237,7 +238,7 @@ export default function UserReportsPage() {
 
     try {
       await fetch(
-        `http://localhost:8000/api/adminpanel/support/reports/${selectedReport.id}/review`,
+        `${API_BASE}/api/adminpanel/support/reports/${selectedReport.id}/review`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

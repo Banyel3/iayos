@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { useParams, useRouter } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
@@ -97,7 +98,7 @@ export default function ClientDetailPage() {
         setLoading(true);
         setError(null);
         const res = await fetch(
-          `http://localhost:8000/api/adminpanel/users/clients/${id}`,
+          `${API_BASE}/api/adminpanel/users/clients/${id}`,
           {
             credentials: "include",
           }

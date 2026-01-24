@@ -9,9 +9,10 @@
  *   fetch(`${API_URL}/api/jobs/${jobId}`);
  */
 
-// Base API URL - uses environment variable in production, localhost in development
-export const API_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+import { API_BASE } from "@/lib/api/config";
+
+// Base API URL - uses centralized config from @/lib/api/config
+export const API_URL = API_BASE;
 
 // WebSocket URL - for real-time features
 export const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000";

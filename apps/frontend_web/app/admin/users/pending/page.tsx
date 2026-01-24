@@ -1,5 +1,6 @@
 "use client";
 
+import { API_BASE } from "@/lib/api/config";
 import { useState, useEffect } from "react";
 import {
   Card,
@@ -57,9 +58,7 @@ export default function PendingVerificationPage() {
         setLoading(true);
         setError(null);
 
-        const apiUrl =
-          process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-        const response = await fetch(`${apiUrl}/api/adminpanel/kyc/all`, {
+        const response = await fetch(`${API_BASE}/api/adminpanel/kyc/all`, {
           credentials: "include",
         });
 

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Sidebar } from "../../components";
+import { API_BASE } from "@/lib/api/config";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -81,7 +82,7 @@ export default function AnalyticsPage() {
   const fetchStatistics = async () => {
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/transactions/statistics?period=${dateRange}`,
+        `${API_BASE}/api/adminpanel/transactions/statistics?period=${dateRange}`,
         { credentials: "include" },
       );
 
@@ -97,7 +98,7 @@ export default function AnalyticsPage() {
   const fetchRevenueTrends = async () => {
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/transactions/revenue-trends?period=${dateRange}`,
+        `${API_BASE}/api/adminpanel/transactions/revenue-trends?period=${dateRange}`,
         { credentials: "include" },
       );
 
@@ -113,7 +114,7 @@ export default function AnalyticsPage() {
   const fetchPaymentMethods = async () => {
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/transactions/payment-methods-breakdown?period=${dateRange}`,
+        `${API_BASE}/api/adminpanel/transactions/payment-methods-breakdown?period=${dateRange}`,
         { credentials: "include" },
       );
 
@@ -129,7 +130,7 @@ export default function AnalyticsPage() {
   const fetchTopPerformers = async () => {
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/transactions/top-performers?period=${dateRange}`,
+        `${API_BASE}/api/adminpanel/transactions/top-performers?period=${dateRange}`,
         { credentials: "include" },
       );
 

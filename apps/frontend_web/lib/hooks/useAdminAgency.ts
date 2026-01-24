@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { API_BASE } from "@/lib/api/config";
 
 interface AgencyEmployee {
   employee_id: number;
@@ -58,7 +59,7 @@ export function useAgencyEmployees(agencyId: number) {
   return useQuery<AgencyEmployee[]>({
     queryKey: ["admin-agency-employees", agencyId],
     queryFn: async () => {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const apiUrl = API_BASE;
 
       // Fetch via dedicated admin endpoint
       const response = await fetch(
@@ -108,7 +109,7 @@ export function useEmployeePerformance(employeeId: number) {
   return useQuery<EmployeePerformance>({
     queryKey: ["employee-performance", employeeId],
     queryFn: async () => {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const apiUrl = API_BASE;
 
       const response = await fetch(
         `${apiUrl}/api/agency/employees/${employeeId}/performance`,
@@ -143,7 +144,7 @@ export function useBulkUpdateEmployees() {
       action: "activate" | "deactivate";
       agencyId: number;
     }) => {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const apiUrl = API_BASE;
 
       // This endpoint may need to be created on backend
       // For now, we'll make individual requests

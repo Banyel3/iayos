@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { useParams, useRouter } from "next/navigation";
 import { Sidebar } from "../../components";
 import { Card, CardContent } from "@/components/ui/card";
@@ -66,7 +67,7 @@ export default function ReviewDetailPage() {
   const fetchDetail = async () => {
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/app-reviews/${reviewId}/detail`,
+        `${API_BASE}/api/adminpanel/app-reviews/${reviewId}/detail`,
         { credentials: "include" }
       );
 
@@ -88,7 +89,7 @@ export default function ReviewDetailPage() {
   const handleFlag = async (reason: string, severity: string) => {
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/app-reviews/${reviewId}/flag`,
+        `${API_BASE}/api/adminpanel/app-reviews/${reviewId}/flag`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -111,7 +112,7 @@ export default function ReviewDetailPage() {
   const handleHide = async (reason: string) => {
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/app-reviews/${reviewId}/hide`,
+        `${API_BASE}/api/adminpanel/app-reviews/${reviewId}/hide`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -134,7 +135,7 @@ export default function ReviewDetailPage() {
   const handleDelete = async (reason: string) => {
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/app-reviews/${reviewId}`,
+        `${API_BASE}/api/adminpanel/app-reviews/${reviewId}`,
         {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
@@ -156,7 +157,7 @@ export default function ReviewDetailPage() {
   const handleRestore = async () => {
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/app-reviews/${reviewId}/restore`,
+        `${API_BASE}/api/adminpanel/app-reviews/${reviewId}/restore`,
         {
           method: "POST",
           credentials: "include",

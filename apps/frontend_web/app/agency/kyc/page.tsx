@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { API_BASE } from "@/lib/api/config";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
@@ -46,9 +47,6 @@ const AgencyKYCPage = () => {
   const [agencyKycStatus, setAgencyKycStatus] = useState<string | null>(null);
   const [agencyKycFiles, setAgencyKycFiles] = useState<any[]>([]);
   const [agencyKycNotes, setAgencyKycNotes] = useState<string | null>(null);
-
-  const API_BASE =
-    process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -257,8 +255,6 @@ const AgencyKYCPage = () => {
       formData.append("address_proof", addressProof as Blob);
       formData.append("auth_letter", authLetterFile as Blob);
 
-      const API_BASE =
-        process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
       const upload = await fetch(`${API_BASE}/api/agency/upload`, {
         method: "POST",
         credentials: "include",

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { Sidebar } from "../../components";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
@@ -40,7 +41,7 @@ export default function UserAnalytics() {
     setLoading(true);
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/analytics/users?period=${dateRange}&segment=${segment}`,
+        `${API_BASE}/api/adminpanel/analytics/users?period=${dateRange}&segment=${segment}`,
         { credentials: "include" }
       );
       const data = await response.json();

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { useRouter } from "next/navigation";
 import {
   Card,
@@ -126,7 +127,7 @@ export default function KYCManagementPage() {
       setError(null);
 
       const response = await fetch(
-        "http://localhost:8000/api/adminpanel/kyc/all",
+        `${API_BASE}/api/adminpanel/kyc/all`,
         {
           credentials: "include",
         }

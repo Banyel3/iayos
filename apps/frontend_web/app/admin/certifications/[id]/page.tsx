@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { API_BASE } from "@/lib/api/config";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Badge } from "@/components/ui/badge";
@@ -68,8 +69,6 @@ export default function CertificationDetailPage() {
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [notes, setNotes] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
-
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
   const transformCertificationDetail = (raw: any): CertificationDetail => {
     const cert = raw?.certification ?? {};

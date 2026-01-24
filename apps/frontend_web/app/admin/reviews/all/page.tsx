@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Input } from "@/components/ui/input";
@@ -71,7 +72,7 @@ export default function AllReviewsPage() {
   const fetchStats = async () => {
     try {
       const response = await fetch(
-        "http://localhost:8000/api/adminpanel/reviews/stats",
+        `${API_BASE}/api/adminpanel/reviews/stats`,
         {
           credentials: "include",
         }
@@ -88,7 +89,7 @@ export default function AllReviewsPage() {
   const fetchReviews = async () => {
     try {
       setIsLoading(true);
-      let url = `http://localhost:8000/api/adminpanel/reviews/all?page=${page}&page_size=20`;
+      let url = `${API_BASE}/api/adminpanel/reviews/all?page=${page}&page_size=20`;
       
       if (statusFilter && statusFilter !== "ALL") {
         url += `&status=${statusFilter}`;

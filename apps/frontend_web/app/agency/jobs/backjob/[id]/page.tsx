@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -95,7 +96,7 @@ export default function AgencyBackjobDetailPage({
     try {
       // Fetch backjob status
       const backjobResponse = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/jobs/${jobId}/backjob-status`,
+        `${API_BASE}/api/jobs/${jobId}/backjob-status`,
         { credentials: "include" }
       );
       if (backjobResponse.ok) {
@@ -105,7 +106,7 @@ export default function AgencyBackjobDetailPage({
 
       // Fetch job details
       const jobResponse = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/jobs/${jobId}`,
+        `${API_BASE}/api/jobs/${jobId}`,
         { credentials: "include" }
       );
       if (jobResponse.ok) {
@@ -133,7 +134,7 @@ export default function AgencyBackjobDetailPage({
 
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/jobs/${jobId}/backjob/mark-complete`,
+        `${API_BASE}/api/jobs/${jobId}/backjob/mark-complete`,
         {
           method: "POST",
           credentials: "include",

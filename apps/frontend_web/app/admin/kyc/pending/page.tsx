@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { API_BASE } from "@/lib/api/config";
 import {
   Card,
   CardContent,
@@ -85,7 +86,7 @@ export default function PendingKYCPage() {
     const [imgError, setImgError] = useState(false);
 
     // If URL is relative (starts with /), prepend backend URL
-    const fullUrl = url.startsWith("/") ? `http://localhost:8000${url}` : url;
+    const fullUrl = url.startsWith("/") ? `${API_BASE}${url}` : url;
 
     console.log(`KYCDocumentImage ${label} for record ${recordId}:`, fullUrl);
 
@@ -146,7 +147,7 @@ export default function PendingKYCPage() {
     setIsLoading(true);
     try {
       const response = await fetch(
-        "http://localhost:8000/api/adminpanel/kyc/all",
+        `${API_BASE}/api/adminpanel/kyc/all`,
         {
           method: "GET",
           credentials: "include",
@@ -404,7 +405,7 @@ export default function PendingKYCPage() {
 
       // Call backend API to get signed URLs
       const response = await fetch(
-        "http://localhost:8000/api/adminpanel/kyc/review",
+        `${API_BASE}/api/adminpanel/kyc/review`,
         {
           method: "POST",
           credentials: "include",
@@ -483,8 +484,8 @@ export default function PendingKYCPage() {
 
       const isAgency = userType === "agency";
       const endpoint = isAgency
-        ? "http://localhost:8000/api/adminpanel/kyc/approve-agency"
-        : "http://localhost:8000/api/adminpanel/kyc/approve";
+        ? `${API_BASE}/api/adminpanel/kyc/approve-agency`
+        : `${API_BASE}/api/adminpanel/kyc/approve`;
 
       const payload = isAgency
         ? { agencyKycID: parseInt(kycId) }
@@ -564,8 +565,8 @@ export default function PendingKYCPage() {
 
       const isAgency = userType === "agency";
       const endpoint = isAgency
-        ? "http://localhost:8000/api/adminpanel/kyc/reject-agency"
-        : "http://localhost:8000/api/adminpanel/kyc/reject";
+        ? `${API_BASE}/api/adminpanel/kyc/reject-agency`
+        : `${API_BASE}/api/adminpanel/kyc/reject`;
 
       const payload = isAgency
         ? {

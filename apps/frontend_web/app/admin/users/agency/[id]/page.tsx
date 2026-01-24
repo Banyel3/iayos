@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { useParams, useRouter } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
@@ -102,7 +103,7 @@ export default function AgencyDetailPage() {
         setLoading(true);
         setError(null);
         const res = await fetch(
-          `http://localhost:8000/api/adminpanel/users/agencies/${id}`,
+          `${API_BASE}/api/adminpanel/users/agencies/${id}`,
           {
             credentials: "include",
           }
@@ -132,7 +133,7 @@ export default function AgencyDetailPage() {
   const refetchAgency = async () => {
     try {
       const res = await fetch(
-        `http://localhost:8000/api/adminpanel/users/agencies/${id}`,
+        `${API_BASE}/api/adminpanel/users/agencies/${id}`,
         {
           credentials: "include",
         }
@@ -157,7 +158,7 @@ export default function AgencyDetailPage() {
     setActionLoading(true);
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/users/${id}/suspend`,
+        `${API_BASE}/api/adminpanel/users/${id}/suspend`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -189,7 +190,7 @@ export default function AgencyDetailPage() {
     setActionLoading(true);
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/users/${id}/ban`,
+        `${API_BASE}/api/adminpanel/users/${id}/ban`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -217,7 +218,7 @@ export default function AgencyDetailPage() {
     setActionLoading(true);
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/users/${id}/activate`,
+        `${API_BASE}/api/adminpanel/users/${id}/activate`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -247,7 +248,7 @@ export default function AgencyDetailPage() {
     setActionLoading(true);
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/users/${id}/delete`,
+        `${API_BASE}/api/adminpanel/users/${id}/delete`,
         {
           method: "DELETE",
           credentials: "include",

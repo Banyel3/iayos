@@ -1,5 +1,6 @@
 "use client";
 
+import { API_BASE } from "@/lib/api/config";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -62,7 +63,7 @@ export default function NotificationTemplatesPage() {
     setLoading(true);
     try {
       const response = await fetch(
-        "http://localhost:8000/api/adminpanel/settings/notifications",
+        `${API_BASE}/api/adminpanel/settings/notifications`,
         {
           credentials: "include",
         }
@@ -103,7 +104,7 @@ export default function NotificationTemplatesPage() {
 
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/settings/notifications/${selectedTemplate.id}`,
+        `${API_BASE}/api/adminpanel/settings/notifications/${selectedTemplate.id}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },

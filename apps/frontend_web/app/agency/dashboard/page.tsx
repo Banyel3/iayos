@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/form_button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -43,9 +44,6 @@ export default function AgencyDashboardPage() {
   const [recentActivity, setRecentActivity] = useState<RecentJob[]>([]);
   const [pendingAssignments, setPendingAssignments] = useState<RecentJob[]>([]);
   const [loading, setLoading] = useState(true);
-
-  const API_BASE =
-    process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
 
   const fetchStats = async () => {
     try {

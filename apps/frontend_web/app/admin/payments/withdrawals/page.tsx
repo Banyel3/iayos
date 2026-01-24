@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { API_BASE } from "@/lib/api/config";
 import { Sidebar } from "../../components";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
@@ -111,7 +112,7 @@ export default function WithdrawalsPage() {
       if (searchQuery) params.append("search", searchQuery);
 
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/withdrawals?${params}`,
+        `${API_BASE}/api/adminpanel/withdrawals?${params}`,
         { credentials: "include" },
       );
 
@@ -150,7 +151,7 @@ export default function WithdrawalsPage() {
   const fetchStatistics = useCallback(async () => {
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/withdrawals/statistics`,
+        `${API_BASE}/api/adminpanel/withdrawals/statistics`,
         { credentials: "include" },
       );
 
@@ -328,7 +329,7 @@ export default function WithdrawalsPage() {
     setApproving(true);
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/withdrawals/${approveModal.transactionId}/approve`,
+        `${API_BASE}/api/adminpanel/withdrawals/${approveModal.transactionId}/approve`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -379,7 +380,7 @@ export default function WithdrawalsPage() {
 
     try {
       const response = await fetch(
-        `http://localhost:8000/api/adminpanel/withdrawals/${transactionId}/reject`,
+        `${API_BASE}/api/adminpanel/withdrawals/${transactionId}/reject`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

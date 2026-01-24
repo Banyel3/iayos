@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import { API_BASE } from "@/lib/api/config";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
@@ -140,7 +141,7 @@ const KYCPage = () => {
       console.log("📤 Uploading KYC documents...");
 
       const upload = await fetch(
-        "http://localhost:8000/api/accounts/upload/kyc",
+        `${API_BASE}/api/accounts/upload/kyc`,
         {
           method: "POST",
           credentials: "include",

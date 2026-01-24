@@ -4,8 +4,7 @@
 // Agencies act as "worker entities" in the backjob workflow
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+import { API_BASE } from "@/lib/api/config";
 
 /**
  * Client confirms backjob work has started
