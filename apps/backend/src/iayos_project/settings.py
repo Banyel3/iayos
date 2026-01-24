@@ -155,13 +155,22 @@ if DEBUG:
     CORS_ALLOW_ALL_ORIGINS = True  # Allow all origins in development
 else:
     CORS_ALLOW_ALL_ORIGINS = False
+    # Get frontend URL and ensure it has https:// prefix
+    _frontend_url = os.getenv('FRONTEND_URL', 'https://iayos.online')
+    if not _frontend_url.startswith(('http://', 'https://')):
+        _frontend_url = f'https://{_frontend_url}'
+    
     CORS_ALLOWED_ORIGINS = [
-        os.getenv('FRONTEND_URL', 'https://iayos.vercel.app'),  # Vercel production
+        _frontend_url,
+        "https://iayos.online",           # Custom domain
+        "https://www.iayos.online",       # www subdomain
+        "https://iayos.vercel.app",       # Vercel production
         # Add other production domains as needed
     ]
 
 # Get the frontend URL from environment for CSRF trust
-FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3400')
+_raw_frontend = os.getenv('FRONTEND_URL', 'http://localhost:3400')
+FRONTEND_URL = _raw_frontend if _raw_frontend.startswith(('http://', 'https://')) else f'https://{_raw_frontend}'
 API_URL = os.getenv('EXPO_PUBLIC_API_URL', 'http://localhost:8000').strip('"')
 
 CSRF_TRUSTED_ORIGINS = [
@@ -178,6 +187,8 @@ CSRF_TRUSTED_ORIGINS = [
     "http://192.168.254.116:3500",  # IP address for LAN access (port 3500)
     "http://192.168.254.116:8000",  # Backend IP for LAN access
     # Production domains (HTTPS)
+    "https://iayos.online",               # Custom domain
+    "https://www.iayos.online",           # www subdomain  
     "https://iayos.vercel.app",           # Vercel production
     "https://iayos-backend.onrender.com", # Render production backend
     FRONTEND_URL,  # Dynamic frontend URL from env
