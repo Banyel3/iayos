@@ -68,7 +68,7 @@ const WorkerProfileViewPage = () => {
                 "Content-Type": "application/json",
               },
               credentials: "include",
-            }
+            },
           );
 
           if (locationResponse.ok) {
@@ -79,13 +79,13 @@ const WorkerProfileViewPage = () => {
               console.log(
                 "✅ Got client location from profile:",
                 userLatitude,
-                userLongitude
+                userLongitude,
               );
             }
           }
         } catch (locError) {
           console.log(
-            "Client location not available from profile, will try browser location"
+            "Client location not available from profile, will try browser location",
           );
         }
 
@@ -98,14 +98,14 @@ const WorkerProfileViewPage = () => {
                   timeout: 5000,
                   enableHighAccuracy: false,
                 });
-              }
+              },
             );
             userLatitude = position.coords.latitude;
             userLongitude = position.coords.longitude;
             console.log(
               "✅ Got client location from browser:",
               userLatitude,
-              userLongitude
+              userLongitude,
             );
           } catch (geoError) {
             console.log("Browser location not available");
@@ -466,7 +466,7 @@ const WorkerProfileViewPage = () => {
                         <button
                           onClick={() =>
                             setReviewsPage(
-                              Math.min(totalReviewPages, reviewsPage + 1)
+                              Math.min(totalReviewPages, reviewsPage + 1),
                             )
                           }
                           disabled={reviewsPage === totalReviewPages}

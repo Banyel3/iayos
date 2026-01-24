@@ -6,15 +6,13 @@ export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
-    const hasSeenOnboard = localStorage.getItem("hasSeenOnboard");
-
-    if (hasSeenOnboard) {
-      // Already visited before → go to login
-      router.replace("/auth/login");
-    } else {
-      // First time → mark as seen and go to onboard
-      router.replace("/onboard");
+    // Clean up old onboarding localStorage
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("hasSeenOnboard");
     }
+    
+    // Always redirect to login page
+    router.replace("/auth/login");
   }, [router]);
 
   return null;
