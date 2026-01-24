@@ -17,6 +17,7 @@ def patch_django_converters():
         return
 
     try:
+        from django import urls
         from django.urls import converters
 
         _original_register = converters.register_converter
@@ -31,7 +32,9 @@ def patch_django_converters():
                     return
                 raise
 
+        # Patch both django.urls.converters and django.urls module-level reference
         converters.register_converter = patched_register_converter
+        urls.register_converter = patched_register_converter
         sys._django_ninja_patched = True
         print("[SITEPATCH] Django URL converter patch applied at startup")
 
