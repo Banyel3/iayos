@@ -80,7 +80,7 @@ jobs:
         if: failure()
         run: |
           echo "::error title=❌ Deployment Failed::Backend deployment to Render failed. Check logs for details."
-      
+
       - name: Create deployment summary
         if: always()
         run: |
@@ -118,7 +118,7 @@ jobs:
       #   env:
       #     SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
 
-      # Optional: Uncomment to enable Discord notifications  
+      # Optional: Uncomment to enable Discord notifications
       # - name: Send Discord notification
       #   if: always()
       #   uses: sarisia/actions-status-discord@v1

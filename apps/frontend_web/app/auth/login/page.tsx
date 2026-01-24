@@ -800,7 +800,10 @@ const Login = () => {
                     {/* Worker/Client App Download */}
                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                       <p className="text-sm font-inter text-blue-900 mb-2">
-                        <strong>Are you looking to get something done or looking for work as a freelance worker?</strong>
+                        <strong>
+                          Are you looking to get something done or looking for
+                          work as a freelance worker?
+                        </strong>
                       </p>
                       <p className="text-xs text-blue-700 mb-3">
                         Download our mobile app to get started

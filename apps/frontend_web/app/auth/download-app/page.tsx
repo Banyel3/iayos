@@ -30,7 +30,8 @@ export default function DownloadAppPage() {
                 Download the Mobile App
               </h1>
               <p className="text-gray-600">
-                Workers and Clients must use our mobile app to register and access iAyos.
+                Workers and Clients must use our mobile app to register and
+                access iAyos.
               </p>
             </div>
 

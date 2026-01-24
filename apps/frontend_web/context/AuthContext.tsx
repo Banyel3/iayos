@@ -30,13 +30,10 @@ const clearAllAuthCaches = () => {
   localStorageKeys.forEach((key) => {
     localStorage.removeItem(key);
   });
-  
+
   // Clear all sessionStorage auth-related items
-  const sessionStorageKeys = [
-    "IAYOS_SESSION_CACHE",
-    "last_login_redirect",
-  ];
-  
+  const sessionStorageKeys = ["IAYOS_SESSION_CACHE", "last_login_redirect"];
+
   sessionStorageKeys.forEach((key) => {
     sessionStorage.removeItem(key);
   });

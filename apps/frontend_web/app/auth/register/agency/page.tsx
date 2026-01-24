@@ -429,12 +429,6 @@ const AgencyRegister = () => {
               className="h-10 w-auto"
             />
           </Link>
-          <Link
-            href="/auth/register"
-            className="px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
-          >
-            Freelancer Registration
-          </Link>
         </div>
       </div>
 
