@@ -180,10 +180,10 @@ def refresh(request):
     except ValueError as e:
         return {"error": [{"message": str(e)}]}
 
-@router.get("/me", auth=cookie_auth)
+@router.get("/me", auth=dual_auth)
 def get_user_profile(request):
     try:
-        user = request.auth  # This comes from our cookie_auth
+        user = request.auth  # This comes from our dual_auth (cookie or JWT Bearer)
         print(f"✅ /me - Authenticated user: {user.email}")
         result = fetch_currentUser(user.accountID)
         return result
@@ -192,7 +192,7 @@ def get_user_profile(request):
         return {"error": [{"message": "Failed to fetch user profile"}]}
 
 
-@router.get("/profile/metrics", auth=cookie_auth)
+@router.get("/profile/metrics", auth=dual_auth)
 def get_profile_metrics_endpoint(request):
     """Return payment verification, response rate, and rating stats."""
     try:

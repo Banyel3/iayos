@@ -1,8 +1,10 @@
 // Centralized API utility for worker materials
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
 export async function fetchWorkerMaterials() {
   try {
     const res = await fetch(
-      "http://localhost:8000/api/profiles/profile/products/",
+      `${API_BASE_URL}/api/profiles/profile/products/`,
       {
         method: "GET",
         credentials: "include",
@@ -36,7 +38,7 @@ export async function addWorkerMaterial(data: {
   price?: number;
 }) {
   const res = await fetch(
-    "http://localhost:8000/api/profiles/profile/products/add",
+    `${API_BASE_URL}/api/profiles/profile/products/add`,
     {
       method: "POST",
       credentials: "include",
@@ -50,7 +52,7 @@ export async function addWorkerMaterial(data: {
 
 export async function deleteWorkerMaterial(productID: number) {
   const res = await fetch(
-    `http://localhost:8000/api/profiles/profile/products/${productID}`,
+    `${API_BASE_URL}/api/profiles/profile/products/${productID}`,
     {
       method: "DELETE",
       credentials: "include",

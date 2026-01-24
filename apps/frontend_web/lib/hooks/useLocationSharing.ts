@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
 interface LocationSharingState {
   isLocationEnabled: boolean;
   isLoading: boolean;
@@ -28,7 +30,7 @@ export const useLocationSharing = (isAuthenticated: boolean) => {
       setState((prev) => ({ ...prev, isLoading: true }));
 
       const response = await fetch(
-        "http://localhost:8000/api/accounts/location/me",
+        `${API_BASE_URL}/api/accounts/location/me`,
         {
           credentials: "include",
           headers: {
@@ -121,7 +123,7 @@ export const useLocationSharing = (isAuthenticated: boolean) => {
     longitude: number
   ) => {
     const response = await fetch(
-      "http://localhost:8000/api/accounts/location/update",
+      `${API_BASE_URL}/api/accounts/location/update`,
       {
         method: "POST",
         credentials: "include",
@@ -141,7 +143,7 @@ export const useLocationSharing = (isAuthenticated: boolean) => {
 
   const toggleLocationSharing = async (enabled: boolean) => {
     const response = await fetch(
-      "http://localhost:8000/api/accounts/location/toggle-sharing",
+      `${API_BASE_URL}/api/accounts/location/toggle-sharing`,
       {
         method: "POST",
         credentials: "include",

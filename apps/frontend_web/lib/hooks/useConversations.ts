@@ -4,6 +4,8 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
 export type Conversation = {
   id: number;
   job: {
@@ -50,7 +52,7 @@ export function useConversations(
   return useQuery({
     queryKey: ["conversations", filter],
     queryFn: async (): Promise<ConversationsResponse> => {
-      const url = `http://localhost:8000/api/profiles/conversations?filter=${filter}`;
+      const url = `${API_BASE_URL}/api/profiles/conversations?filter=${filter}`;
       const response = await fetch(url, {
         method: "GET",
         credentials: "include",

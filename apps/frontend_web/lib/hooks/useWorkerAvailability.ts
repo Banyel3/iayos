@@ -6,6 +6,7 @@
 
 import { useState, useEffect } from "react";
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const CACHE_KEY = "cached_worker_availability";
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
@@ -48,7 +49,7 @@ export const useWorkerAvailability = (
       // Fetch from API if no valid cache
       try {
         const response = await fetch(
-          "http://localhost:8000/api/accounts/workers/availability",
+          `${API_BASE_URL}/api/accounts/workers/availability`,
           {
             method: "GET",
             credentials: "include",
@@ -109,7 +110,7 @@ export const useWorkerAvailability = (
     }
 
     try {
-      const url = `http://localhost:8000/api/accounts/workers/availability?is_available=${newAvailability}`;
+      const url = `${API_BASE_URL}/api/accounts/workers/availability?is_available=${newAvailability}`;
       console.log(" Fetching URL:", url);
 
       const response = await fetch(url, {

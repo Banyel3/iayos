@@ -5,6 +5,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSendMessage } from "./useWebSocketHooks";
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
 export type MessageAttachment = {
   attachment_id: number;
   file_url: string;
@@ -62,7 +64,7 @@ export function useMessages(conversationId: number | null) {
   return useQuery({
     queryKey: ["messages", conversationId],
     queryFn: async (): Promise<ConversationDetail> => {
-      const url = `http://localhost:8000/api/profiles/conversations/${conversationId}/messages`;
+      const url = `${API_BASE_URL}/api/profiles/conversations/${conversationId}/messages`;
       const response = await fetch(url, {
         method: "GET",
         credentials: "include",
@@ -135,7 +137,7 @@ export function useUploadImageMessage() {
       const formData = new FormData();
       formData.append("image", imageFile);
 
-      const url = `http://localhost:8000/api/profiles/conversations/${conversationId}/upload-image`;
+      const url = `${API_BASE_URL}/api/profiles/conversations/${conversationId}/upload-image`;
       const response = await fetch(url, {
         method: "POST",
         credentials: "include",

@@ -10,6 +10,8 @@ import websocketService, {
   ConnectionState,
 } from "../services/websocket";
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
 /**
  * Hook to manage WebSocket connection state
  * Automatically connects on mount and disconnects on unmount
@@ -98,7 +100,7 @@ export function useSendMessage() {
       );
       try {
         const response = await fetch(
-          "http://localhost:8000/api/profiles/send-message",
+          `${API_BASE_URL}/api/profiles/send-message`,
           {
             method: "POST",
             credentials: "include",
