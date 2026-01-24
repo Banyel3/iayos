@@ -63,8 +63,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
-          cache: "npm"
-          cache-dependency-path: ${{ matrix.path }}/package-lock.json
 
       - name: Install frontend dependencies
         if: matrix.component == 'frontend'
@@ -100,6 +98,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pytest pytest-cov pytest-django
+
+      - name: Apply Django Ninja UUID patch
+        if: matrix.component == 'backend'
+        working-directory: ${{ matrix.path }}
+        run: bash patch_ninja.sh
 
       - name: Run backend tests
         if: matrix.component == 'backend'
