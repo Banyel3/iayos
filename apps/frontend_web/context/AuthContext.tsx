@@ -35,7 +35,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const initializeAuth = async () => {
-      // Always verify with server on mount - don't trust cache alone
+      // 🔥 Optimization: Use cached user immediately, then verify in background
+      const cached = localStorage.getItem("cached_user");
+      if (cached) {
+        try {
+          const { user: cachedUser, timestamp } = JSON.parse(cached);
+          const cacheAge = Date.now() - timestamp;
+          const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+          
+          if (cacheAge < CACHE_TTL && cachedUser) {
+            console.log("🚀 Using cached user for instant load");
+            setUser(cachedUser);
+            setIsLoading(false);
+            
+            // Verify in background (don't await)
+            checkAuthWithServer().catch(console.error);
+            return;
+          }
+        } catch (e) {
+          console.error("Cache parse error:", e);
+        }
+      }
+      
+      // No valid cache - must verify with server
       await checkAuthWithServer();
     };
 
@@ -45,12 +67,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const checkAuthWithServer = async (): Promise<boolean> => {
     setIsLoading(true);
     try {
+      // 🔥 Add timeout for cold starts (Render free tier can be slow)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
+      
       const response = await fetch(
         `${API_BASE_URL.replace("/api", "")}/api/accounts/me`,
         {
           credentials: "include", // 🔥 HTTP-only cookies sent automatically
+          signal: controller.signal,
         }
       );
+      
+      clearTimeout(timeoutId);
 
       if (response.ok) {
         const userData = await response.json();
