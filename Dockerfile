@@ -150,10 +150,11 @@ RUN apk add --no-cache --virtual .build-deps \
 COPY apps/backend/requirements.txt .
 
 # Install Python dependencies with security checks
+# Note: --user installs to ~/.local (root's home is /root), so we use --prefix instead
 RUN --mount=type=cache,target=/root/.cache/pip \
     mkdir -p /app/.local \
     && python -m pip install --upgrade 'pip>=25.3' setuptools wheel \
-    && pip install --no-cache-dir --user -r requirements.txt \
+    && pip install --no-cache-dir --prefix=/app/.local -r requirements.txt \
     && apk del .build-deps \
     && find /app/.local -name "*.pyc" -delete 2>/dev/null || true \
     && find /app/.local -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
@@ -311,7 +312,8 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PATH="/app/.local/bin:$PATH"
+    PATH="/app/.local/bin:$PATH" \
+    PYTHONPATH="/app/.local/lib/python3.12/site-packages:$PYTHONPATH"
 
 # Create non-root user
 RUN addgroup -g 1001 -S appgroup \
