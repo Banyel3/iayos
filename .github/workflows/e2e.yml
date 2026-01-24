@@ -73,8 +73,33 @@ jobs:
           pip install -r requirements.txt
 
       - name: Apply Django Ninja UUID patch
-        working-directory: apps/backend
-        run: bash patch_ninja.sh
+        run: |
+          python -c '
+import sys
+try:
+    import ninja.signature.utils as utils_module
+    utils_file = utils_module.__file__
+    
+    with open(utils_file, "r") as f:
+        content = f.read()
+    
+    old_code = "register_converter(NinjaUUIDConverter, \"uuid\")"
+    new_code = """try:
+        register_converter(NinjaUUIDConverter, \"uuid\")
+    except ValueError:
+        pass  # Already registered by Django 5.x"""
+    
+    if old_code in content:
+        content = content.replace(old_code, new_code)
+        with open(utils_file, "w") as f:
+            f.write(content)
+        print("[PATCH] Django Ninja UUID patch applied")
+    else:
+        print("[PATCH] Already patched or code changed")
+except Exception as e:
+    print(f"[PATCH] Warning: {e}")
+    sys.exit(0)  # Continue anyway
+'
 
       - name: Run database migrations
         working-directory: apps/backend/src
