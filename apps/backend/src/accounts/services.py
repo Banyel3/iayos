@@ -434,6 +434,11 @@ def fetch_currentUser(accountID, profile_type=None):
         # Check if a SystemRole exists for this account
         role_obj = SystemRoles.objects.filter(accountID=account).first()
         user_role = role_obj.systemRole if role_obj else None
+        
+        # Fallback: If no SystemRole but user is staff/superuser, treat as ADMIN
+        if not user_role and (account.is_staff or account.is_superuser):
+            user_role = "ADMIN"
+            print(f"✅ fetch_currentUser: User {account.email} is staff/superuser, setting role to ADMIN")
 
         try:
             # If profile_type is specified (from JWT), fetch that specific profile
