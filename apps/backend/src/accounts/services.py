@@ -131,29 +131,37 @@ def create_account_agency(data):
         password=data.password,
     )
     
+    # Generate 6-digit OTP for email verification (5-minute expiry)
+    otp_code = generate_otp()
+    user.email_otp = otp_code
+    user.email_otp_expiry = timezone.now() + timedelta(minutes=5)
+    user.email_otp_attempts = 0
+    
+    # Keep legacy token fields for backward compatibility (can be removed later)
     verifyToken = uuid.uuid4()
     strVerifyToken = str(verifyToken)
     hashed_token = hashlib.sha256(strVerifyToken.encode("utf-8")).hexdigest()
-
     user.verifyToken = hashed_token
-
-    user.verifyTokenExpiry = timezone.now() + timedelta(hours=24)  # valid for 24h
+    user.verifyTokenExpiry = timezone.now() + timedelta(hours=24)
     user.save()
 
-    # 4️⃣ Create Profile
+    # 4️⃣ Create Agency
     profile = Agency.objects.create(
         accountFK=user,
         businessName=data.businessName,
         businessDesc=""  # Provide empty string for required field
     )
 
+    # Return OTP for email sending (frontend will trigger email)
     verifyLink = f"{settings.FRONTEND_URL}/auth/verify-email?verifyToken={verifyToken}&id={user.accountID}"
     
     result = {
         "accountID": user.accountID,
-        "verifyLink": verifyLink,
+        "verifyLink": verifyLink,  # Legacy, kept for backward compatibility
         "verifyLinkExpire": user.verifyTokenExpiry.isoformat(),
-        "email": user.email
+        "email": user.email,
+        "otp_code": otp_code,  # New: OTP code for email
+        "otp_expiry_minutes": 5  # New: Expiry time in minutes
     }
     return result
 

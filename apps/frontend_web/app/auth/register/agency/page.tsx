@@ -311,7 +311,32 @@ const AgencyRegister = () => {
         setIsRateLimited(false);
         setRateLimitTime(0);
 
-        // Only call the send endpoint if the backend returned the expected
+        // Check if OTP response (new flow) or legacy verification link
+        if (data?.otp_code && data?.email) {
+          // New OTP flow: Send OTP email and redirect to verify-otp page
+          try {
+            const otpEmailResponse = await fetch("/api/auth/send-otp", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                email: data.email,
+                otp_code: data.otp_code,
+              }),
+            });
+
+            if (!otpEmailResponse.ok) {
+              console.error("Failed to send OTP email");
+            }
+          } catch (emailError) {
+            console.error("Error sending OTP email:", emailError);
+          }
+
+          // Redirect to OTP verification page
+          router.push(`/auth/verify-otp?email=${encodeURIComponent(data.email)}`);
+          return;
+        }
+
+        // Legacy flow: Only call the send endpoint if the backend returned the expected
         // verification fields. Otherwise surface an error and avoid POSTing
         // undefined values which trigger zod validation errors in the API.
         if (!data?.email || !data?.verifyLink || !data?.verifyLinkExpire) {
