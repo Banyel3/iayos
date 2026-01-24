@@ -10,7 +10,7 @@ export default function Home() {
     if (typeof window !== "undefined") {
       localStorage.removeItem("hasSeenOnboard");
     }
-    
+
     // Always redirect to login page
     router.replace("/auth/login");
   }, [router]);

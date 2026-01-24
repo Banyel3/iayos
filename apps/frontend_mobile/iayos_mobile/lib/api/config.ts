@@ -29,7 +29,7 @@ const getDevIP = () => {
 };
 
 const DEV_IP = getDevIP();
-const API_URL = __DEV__ ? `http://${DEV_IP}:8000` : "https://api.iayos.com";
+const API_URL = __DEV__ ? `http://${DEV_IP}:8000` : "https://api.iayos.online";
 
 const deriveDevWebUrl = () => {
   try {
