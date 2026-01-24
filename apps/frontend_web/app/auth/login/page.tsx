@@ -237,7 +237,7 @@ const Login = () => {
   const handleGoogle = async () => {
     try {
       // Redirect to Django Allauth Google OAuth
-      window.location.href = `${API_URL}/auth/google/login/`;
+      window.location.href = `${API_BASE}/auth/google/login/`;
     } catch (error) {
       console.error("Google login error:", error);
     }
@@ -254,7 +254,7 @@ const Login = () => {
       setRateLimitTime(0);
 
       // Fetch fresh user data to get the role
-      const userResponse = await fetch(`${API_URL}/api/accounts/me`, {
+      const userResponse = await fetch(`${API_BASE}/api/accounts/me`, {
         credentials: "include",
       });
 
@@ -768,7 +768,7 @@ const Login = () => {
 
                   {/* Google Sign In Button (Desktop) */}
                   <a
-                    href={`${API_URL}/auth/google/login/`}
+                    href={`${API_BASE}/auth/google/login/`}
                     className="flex items-center justify-center w-full h-12 border border-gray-200 rounded-lg px-4 py-3 bg-gray-100 transition-all duration-200 font-inter font-medium"
                     aria-label="Continue with Google"
                   >

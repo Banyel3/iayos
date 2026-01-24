@@ -1,8 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { API_BASE } from "@/lib/api/config";
 
-const API_URL = API_BASE;
-
 interface AgencyStats {
   total_jobs: number;
   completed_jobs: number;
@@ -37,7 +35,7 @@ export function useAgencyStats() {
   return useQuery<AgencyStats>({
     queryKey: ["agency", "stats"],
     queryFn: async () => {
-      const response = await fetch(`${API_URL}/api/agency/profile`, {
+      const response = await fetch(`${API_BASE}/api/agency/profile`, {
         credentials: "include",
         headers: { "Content-Type": "application/json" },
       });
@@ -85,7 +83,7 @@ export function useLeaderboard(
       });
 
       const response = await fetch(
-        `${API_URL}/api/agency/employees/leaderboard?${params}`,
+        `${API_BASE}/api/agency/employees/leaderboard?${params}`,
         {
           credentials: "include",
           headers: { "Content-Type": "application/json" },
