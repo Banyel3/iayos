@@ -29,15 +29,12 @@ export const useLocationSharing = (isAuthenticated: boolean) => {
     try {
       setState((prev) => ({ ...prev, isLoading: true }));
 
-      const response = await fetch(
-        `${API_BASE_URL}/api/accounts/location/me`,
-        {
-          credentials: "include",
-          headers: {
-            Accept: "application/json",
-          },
-        }
-      );
+      const response = await fetch(`${API_BASE_URL}/api/accounts/location/me`, {
+        credentials: "include",
+        headers: {
+          Accept: "application/json",
+        },
+      });
 
       if (response.ok) {
         const data = await response.json();
@@ -113,14 +110,14 @@ export const useLocationSharing = (isAuthenticated: boolean) => {
           enableHighAccuracy: true,
           timeout: 10000,
           maximumAge: 0,
-        }
+        },
       );
     });
   };
 
   const updateLocationInBackend = async (
     latitude: number,
-    longitude: number
+    longitude: number,
   ) => {
     const response = await fetch(
       `${API_BASE_URL}/api/accounts/location/update`,
@@ -131,7 +128,7 @@ export const useLocationSharing = (isAuthenticated: boolean) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ latitude, longitude }),
-      }
+      },
     );
 
     if (!response.ok) {
@@ -151,7 +148,7 @@ export const useLocationSharing = (isAuthenticated: boolean) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ enabled }),
-      }
+      },
     );
 
     if (!response.ok) {
@@ -162,7 +159,7 @@ export const useLocationSharing = (isAuthenticated: boolean) => {
   };
 
   const handleLocationToggle = async (
-    onLocationUpdate?: (latitude: number, longitude: number) => void
+    onLocationUpdate?: (latitude: number, longitude: number) => void,
   ) => {
     setState((prev) => ({ ...prev, isLoading: true, error: null }));
 
@@ -221,7 +218,7 @@ export const useLocationSharing = (isAuthenticated: boolean) => {
   };
 
   const refreshLocation = async (
-    onLocationUpdate?: (latitude: number, longitude: number) => void
+    onLocationUpdate?: (latitude: number, longitude: number) => void,
   ) => {
     if (!state.isLocationEnabled) return;
 

@@ -1,0 +1,201 @@
+name: Mobile App Release
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+    paths:
+      - "apps/frontend_mobile/iayos_mobile/**"
+      - "!apps/frontend_mobile/iayos_mobile/**/*.md"
+
+env:
+  MOBILE_DIR: apps/frontend_mobile/iayos_mobile
+
+jobs:
+  analyze-and-build:
+    name: Analyze Changes & Build
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.new_version }}
+      version_type: ${{ steps.analyze.outputs.version_type }}
+      should_release: ${{ steps.analyze.outputs.should_release }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: ${{ env.MOBILE_DIR }}/package-lock.json
+
+      - name: Setup EAS CLI
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Analyze commit messages
+        id: analyze
+        run: |
+          # Get commit messages since last tag
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+
+          if [ -z "$LAST_TAG" ]; then
+            COMMITS=$(git log --oneline --format="%s" -20)
+          else
+            COMMITS=$(git log ${LAST_TAG}..HEAD --oneline --format="%s" -- ${{ env.MOBILE_DIR }})
+          fi
+
+          echo "Analyzing commits:"
+          echo "$COMMITS"
+
+          # Determine version bump type based on commit messages
+          # Major: BREAKING CHANGE or feat! or fix!
+          # Minor: feat, feature, add, new
+          # Patch: fix, bugfix, patch, hotfix, chore, docs, style, refactor
+
+          VERSION_TYPE="patch"
+          SHOULD_RELEASE="true"
+
+          if echo "$COMMITS" | grep -qiE "BREAKING|feat!|fix!"; then
+            VERSION_TYPE="major"
+          elif echo "$COMMITS" | grep -qiE "^feat|^feature|^add|^new"; then
+            VERSION_TYPE="minor"
+          elif echo "$COMMITS" | grep -qiE "^fix|^bugfix|^patch|^hotfix|^chore|^docs|^style|^refactor"; then
+            VERSION_TYPE="patch"
+          else
+            # Check if there are any mobile-related changes
+            MOBILE_CHANGES=$(git diff --name-only ${LAST_TAG:-HEAD~5}..HEAD -- ${{ env.MOBILE_DIR }} | wc -l)
+            if [ "$MOBILE_CHANGES" -eq 0 ]; then
+              SHOULD_RELEASE="false"
+            fi
+          fi
+
+          echo "version_type=$VERSION_TYPE" >> $GITHUB_OUTPUT
+          echo "should_release=$SHOULD_RELEASE" >> $GITHUB_OUTPUT
+          echo "Determined version type: $VERSION_TYPE"
+          echo "Should release: $SHOULD_RELEASE"
+
+      - name: Get current version
+        id: current_version
+        if: steps.analyze.outputs.should_release == 'true'
+        working-directory: ${{ env.MOBILE_DIR }}
+        run: |
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          echo "Current version: $CURRENT_VERSION"
+
+      - name: Bump version
+        id: version
+        if: steps.analyze.outputs.should_release == 'true'
+        working-directory: ${{ env.MOBILE_DIR }}
+        run: |
+          VERSION_TYPE="${{ steps.analyze.outputs.version_type }}"
+          CURRENT="${{ steps.current_version.outputs.current_version }}"
+
+          # Parse version
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+
+          case $VERSION_TYPE in
+            major)
+              MAJOR=$((MAJOR + 1))
+              MINOR=0
+              PATCH=0
+              ;;
+            minor)
+              MINOR=$((MINOR + 1))
+              PATCH=0
+              ;;
+            patch)
+              PATCH=$((PATCH + 1))
+              ;;
+          esac
+
+          NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "New version: $NEW_VERSION"
+
+          # Update package.json
+          npm version $NEW_VERSION --no-git-tag-version
+
+          # Update app.json version
+          node -e "
+            const fs = require('fs');
+            const appJson = JSON.parse(fs.readFileSync('app.json', 'utf8'));
+            appJson.expo.version = '$NEW_VERSION';
+            fs.writeFileSync('app.json', JSON.stringify(appJson, null, 2) + '\n');
+          "
+
+      - name: Install dependencies
+        if: steps.analyze.outputs.should_release == 'true'
+        working-directory: ${{ env.MOBILE_DIR }}
+        run: npm ci
+
+      - name: Build Android APK
+        if: steps.analyze.outputs.should_release == 'true'
+        working-directory: ${{ env.MOBILE_DIR }}
+        run: |
+          eas build --platform android --profile production --non-interactive --wait
+
+      - name: Download APK artifact
+        if: steps.analyze.outputs.should_release == 'true'
+        working-directory: ${{ env.MOBILE_DIR }}
+        run: |
+          # Get the latest build URL
+          BUILD_URL=$(eas build:list --platform android --limit 1 --json --non-interactive | jq -r '.[0].artifacts.buildUrl')
+          echo "Downloading APK from: $BUILD_URL"
+          curl -L -o iayos-${{ steps.version.outputs.new_version }}.apk "$BUILD_URL"
+
+      - name: Commit version bump
+        if: steps.analyze.outputs.should_release == 'true'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add ${{ env.MOBILE_DIR }}/package.json ${{ env.MOBILE_DIR }}/app.json
+          git commit -m "chore(mobile): bump version to ${{ steps.version.outputs.new_version }}"
+          git push
+
+      - name: Create Release
+        if: steps.analyze.outputs.should_release == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: mobile-v${{ steps.version.outputs.new_version }}
+          name: iAyos Mobile v${{ steps.version.outputs.new_version }}
+          body: |
+            ## iAyos Mobile App Release v${{ steps.version.outputs.new_version }}
+
+            **Version Type:** ${{ steps.analyze.outputs.version_type }}
+            **Branch:** ${{ github.ref_name }}
+
+            ### Changes
+            See commit history for detailed changes.
+
+            ### Installation
+            Download the APK file below and install on your Android device.
+
+            > ⚠️ You may need to enable "Install from unknown sources" in your device settings.
+          files: |
+            ${{ env.MOBILE_DIR }}/iayos-${{ steps.version.outputs.new_version }}.apk
+          draft: false
+          prerelease: ${{ github.ref_name != 'main' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Mobile Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.analyze.outputs.should_release }}" == "true" ]; then
+            echo "✅ **Version:** ${{ steps.version.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
+            echo "📦 **Type:** ${{ steps.analyze.outputs.version_type }}" >> $GITHUB_STEP_SUMMARY
+            echo "🔗 **Release:** mobile-v${{ steps.version.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⏭️ No mobile release needed - no relevant changes detected" >> $GITHUB_STEP_SUMMARY
+          fi

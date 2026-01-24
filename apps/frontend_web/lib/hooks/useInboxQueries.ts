@@ -32,7 +32,7 @@ export const CONVERSATION_FILTERS: ConversationFilter[] = [
  */
 export function useConversations(
   filter: ConversationFilter,
-  options?: { enabled?: boolean }
+  options?: { enabled?: boolean },
 ) {
   return useQuery({
     queryKey: inboxKeys.conversations(filter),
@@ -75,7 +75,7 @@ export function useMarkJobComplete() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
-        }
+        },
       );
 
       if (!response.ok) {
@@ -90,7 +90,7 @@ export function useMarkJobComplete() {
       CONVERSATION_FILTERS.forEach((filter) =>
         queryClient.invalidateQueries({
           queryKey: inboxKeys.conversations(filter),
-        })
+        }),
       );
       queryClient.invalidateQueries({ queryKey: inboxKeys.messages(jobId) });
     },
@@ -118,7 +118,7 @@ export function useApproveJobCompletion() {
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({ payment_method: paymentMethod }),
-        }
+        },
       );
 
       if (!response.ok) {
@@ -132,7 +132,7 @@ export function useApproveJobCompletion() {
       CONVERSATION_FILTERS.forEach((filter) =>
         queryClient.invalidateQueries({
           queryKey: inboxKeys.conversations(filter),
-        })
+        }),
       );
       queryClient.invalidateQueries({
         queryKey: inboxKeys.messages(variables.jobId),
@@ -162,20 +162,17 @@ export function useSubmitReview() {
       review_target?: "EMPLOYEE" | "AGENCY"; // For agency jobs
       employee_id?: number; // For multi-employee agency jobs
     }) => {
-      const response = await fetch(
-        `${API_BASE_URL}/api/jobs/${jobId}/review`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({
-            rating,
-            message: message.trim() || null,
-            review_target,
-            employee_id,
-          }),
-        }
-      );
+      const response = await fetch(`${API_BASE_URL}/api/jobs/${jobId}/review`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          rating,
+          message: message.trim() || null,
+          review_target,
+          employee_id,
+        }),
+      });
 
       if (!response.ok) {
         const error = await response.json();
@@ -189,7 +186,7 @@ export function useSubmitReview() {
       CONVERSATION_FILTERS.forEach((filter) =>
         queryClient.invalidateQueries({
           queryKey: inboxKeys.conversations(filter),
-        })
+        }),
       );
       queryClient.invalidateQueries({
         queryKey: inboxKeys.messages(variables.jobId),
@@ -214,7 +211,7 @@ export function useOptimisticMessageUpdate() {
           ...old,
           messages: [...old.messages, newMessage],
         };
-      }
+      },
     );
 
     // Update conversation's last message
@@ -230,9 +227,9 @@ export function useOptimisticMessageUpdate() {
                   last_message: newMessage.message_text,
                   last_message_time: newMessage.created_at,
                 }
-              : conv
+              : conv,
           );
-        }
+        },
       );
     });
   };

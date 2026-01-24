@@ -3,16 +3,13 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export async function fetchWorkerMaterials() {
   try {
-    const res = await fetch(
-      `${API_BASE_URL}/api/profiles/profile/products/`,
-      {
-        method: "GET",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      }
-    );
+    const res = await fetch(`${API_BASE_URL}/api/profiles/profile/products/`, {
+      method: "GET",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
     if (res.ok) {
       return await res.json();
     } else {
@@ -37,15 +34,12 @@ export async function addWorkerMaterial(data: {
   unit?: string;
   price?: number;
 }) {
-  const res = await fetch(
-    `${API_BASE_URL}/api/profiles/profile/products/add`,
-    {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    }
-  );
+  const res = await fetch(`${API_BASE_URL}/api/profiles/profile/products/add`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
   if (!res.ok) throw new Error("Failed to add material");
   return res.json();
 }
@@ -56,7 +50,7 @@ export async function deleteWorkerMaterial(productID: number) {
     {
       method: "DELETE",
       credentials: "include",
-    }
+    },
   );
   if (!res.ok) throw new Error("Failed to delete material");
   return res.json();

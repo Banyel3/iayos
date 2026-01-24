@@ -18,7 +18,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
  */
 export function useWebSocketConnection() {
   const [connectionState, setConnectionState] = useState<ConnectionState>(
-    websocketService.getConnectionState()
+    websocketService.getConnectionState(),
   );
   const [isConnected, setIsConnected] = useState(false);
 
@@ -80,7 +80,7 @@ export function useSendMessage() {
     async (
       conversationId: number,
       text: string,
-      type: "TEXT" | "IMAGE" = "TEXT"
+      type: "TEXT" | "IMAGE" = "TEXT",
     ): Promise<boolean> => {
       // Try WebSocket first
       const sent = websocketService.sendMessage(conversationId, text, type);
@@ -96,7 +96,7 @@ export function useSendMessage() {
 
       // WebSocket failed - fall back to HTTP
       console.warn(
-        "[useSendMessage] WebSocket unavailable, using HTTP fallback"
+        "[useSendMessage] WebSocket unavailable, using HTTP fallback",
       );
       try {
         const response = await fetch(
@@ -110,7 +110,7 @@ export function useSendMessage() {
               message_text: text,
               message_type: type,
             }),
-          }
+          },
         );
 
         if (response.ok) {
@@ -123,7 +123,7 @@ export function useSendMessage() {
 
         console.error(
           "[useSendMessage] HTTP fallback failed:",
-          response.status
+          response.status,
         );
         return false;
       } catch (error) {
@@ -131,7 +131,7 @@ export function useSendMessage() {
         return false;
       }
     },
-    [queryClient]
+    [queryClient],
   );
 
   return { sendMessage };
@@ -246,7 +246,7 @@ export function useMarkAsRead() {
       });
       queryClient.invalidateQueries({ queryKey: ["conversations"] });
     },
-    [queryClient]
+    [queryClient],
   );
 
   return { markAsRead };

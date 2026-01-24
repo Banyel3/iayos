@@ -47,7 +47,7 @@ export type ConversationsResponse = {
  * @param filter - 'all', 'unread', or 'archived'
  */
 export function useConversations(
-  filter: "all" | "unread" | "archived" = "all"
+  filter: "all" | "unread" | "archived" = "all",
 ) {
   return useQuery({
     queryKey: ["conversations", filter],
@@ -60,7 +60,7 @@ export function useConversations(
 
       if (!response.ok) {
         throw new Error(
-          `Failed to fetch conversations: ${response.statusText}`
+          `Failed to fetch conversations: ${response.statusText}`,
         );
       }
 
@@ -121,7 +121,7 @@ export function useArchiveConversation() {
       archive: boolean;
     }) => {
       console.log(
-        `[useArchiveConversation] ${archive ? "Archiving" : "Unarchiving"} conversation ${conversationId}`
+        `[useArchiveConversation] ${archive ? "Archiving" : "Unarchiving"} conversation ${conversationId}`,
       );
 
       // Call backend toggle archive endpoint
@@ -130,7 +130,7 @@ export function useArchiveConversation() {
         {
           method: "POST",
           credentials: "include",
-        }
+        },
       );
 
       if (!response.ok) {

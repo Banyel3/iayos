@@ -12,7 +12,7 @@ const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 export const useWorkerAvailability = (
   isWorker: boolean,
-  isAuthenticated: boolean
+  isAuthenticated: boolean,
 ) => {
   const [isAvailable, setIsAvailable] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -56,7 +56,7 @@ export const useWorkerAvailability = (
             headers: {
               "Content-Type": "application/json",
             },
-          }
+          },
         );
 
         if (response.ok) {
@@ -71,7 +71,7 @@ export const useWorkerAvailability = (
               JSON.stringify({
                 availability,
                 timestamp: Date.now(),
-              })
+              }),
             );
           }
         }
@@ -103,7 +103,7 @@ export const useWorkerAvailability = (
         JSON.stringify({
           availability: newAvailability,
           timestamp: Date.now(),
-        })
+        }),
       );
     } catch (error) {
       console.error("Error updating availability cache:", error);
@@ -135,12 +135,12 @@ export const useWorkerAvailability = (
           JSON.stringify({
             availability: !newAvailability,
             timestamp: Date.now(),
-          })
+          }),
         );
 
         console.error("Failed to update availability:", data);
         alert(
-          `Failed to update availability: ${data.error || "Unknown error"}`
+          `Failed to update availability: ${data.error || "Unknown error"}`,
         );
       } else {
         console.log(" Availability updated successfully:", data);
@@ -155,7 +155,7 @@ export const useWorkerAvailability = (
         JSON.stringify({
           availability: !newAvailability,
           timestamp: Date.now(),
-        })
+        }),
       );
 
       console.error("Error updating availability:", error);
