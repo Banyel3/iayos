@@ -14,8 +14,6 @@
 .env.staging
 *.env
 
-docs/
-
 # Include example files for documentation
 !.env.example
 !.env.*.example
@@ -23,6 +21,28 @@ docs/
 # Cookie/session files
 cookies.txt
 admin_cookies.txt
+test_email.txt
+
+# =============================================================================
+# DOCUMENTATION & AI ASSISTANTS (DEV ONLY)
+# =============================================================================
+docs/
+CLAUDE.md
+AGENTS.md
+REPO_STRUCTURE.md
+.claude/
+.playwright-mcp/
+.mcp.json
+
+# =============================================================================
+# DEPLOYMENT CONFIGS (PROJECT-SPECIFIC)
+# =============================================================================
+railway.toml
+render.yaml
+
+# Keep Docker configs (needed for deployment)
+!docker-compose*.yml
+!Dockerfile*
 
 # =============================================================================
 # OS & EDITOR FILES
@@ -38,13 +58,16 @@ Thumbs.db
 *.iml
 *.ipr
 *.iws
+.vscode/
 
-# VS Code (keep config but ignore local settings)
-.vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
+# Playwright/Testing artifacts
+.playwright-mcp/
+*.png
+*.jpg
+*.jpeg
+!**/public/**/*.png
+!**/public/**/*.jpg
+!**/public/**/*.jpeg
 
 # =============================================================================
 # NODE.JS / JAVASCRIPT / TYPESCRIPT
@@ -238,3 +261,14 @@ AGENTS.md
 # =============================================================================
 # MCP config (may contain local paths)
 .mcp.json
+
+# Development/deployment configs (keep docker files)
+railway.toml
+
+# Test artifacts
+test_email.txt
+
+# Keep render.yaml and docker files for production
+!render.yaml
+!docker-compose*.yml
+!Dockerfile*
