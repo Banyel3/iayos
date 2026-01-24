@@ -68,6 +68,9 @@ Thumbs.db
 !**/public/**/*.png
 !**/public/**/*.jpg
 !**/public/**/*.jpeg
+!**/assets/**/*.png
+!**/assets/**/*.jpg
+!**/assets/**/*.jpeg
 
 # =============================================================================
 # NODE.JS / JAVASCRIPT / TYPESCRIPT
