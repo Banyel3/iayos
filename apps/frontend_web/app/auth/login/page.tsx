@@ -815,17 +815,6 @@ const Login = () => {
                         </Button>
                       </Link>
                     </div>
-
-                    {/* Agency Registration */}
-                    <p className="text-sm font-inter text-gray-600">
-                      Want to hire workers as an agency?{" "}
-                      <Link
-                        href="/auth/register/agency"
-                        className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
-                      >
-                        Register here
-                      </Link>
-                    </p>
                   </div>
                 </div>
               </div>
