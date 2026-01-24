@@ -74,9 +74,57 @@ jobs:
       - name: Notify deployment started
         if: success()
         run: |
-          echo "::notice::Backend deployment to Render initiated successfully"
+          echo "::notice title=🚀 Deployment Started::Backend deployment to Render initiated successfully. Monitor at https://dashboard.render.com"
 
       - name: Notify deployment failed
         if: failure()
         run: |
-          echo "::error::Backend deployment to Render failed"
+          echo "::error title=❌ Deployment Failed::Backend deployment to Render failed. Check logs for details."
+      
+      - name: Create deployment summary
+        if: always()
+        run: |
+          echo "## 🚀 Backend Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Repository**: \`${{ github.repository }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch**: \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit**: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Triggered by**: @${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "### ✅ Deployment Triggered Successfully" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "🔗 [Monitor deployment on Render Dashboard](https://dashboard.render.com)" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "⏱️ **Estimated time**: 5-10 minutes" >> $GITHUB_STEP_SUMMARY
+            echo "🌐 **Live URL**: https://api.iayos.online" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### ❌ Deployment Failed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Please check the workflow logs for details." >> $GITHUB_STEP_SUMMARY
+          fi
+
+      # Optional: Uncomment to enable Slack notifications
+      # - name: Send Slack notification
+      #   if: always()
+      #   uses: 8398a7/action-slack@v3
+      #   with:
+      #     status: ${{ job.status }}
+      #     text: |
+      #       Backend deployment to Render ${{ job.status }}
+      #       Commit: ${{ github.sha }}
+      #       Author: ${{ github.actor }}
+      #     webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+      #   env:
+      #     SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+
+      # Optional: Uncomment to enable Discord notifications  
+      # - name: Send Discord notification
+      #   if: always()
+      #   uses: sarisia/actions-status-discord@v1
+      #   with:
+      #     webhook: ${{ secrets.DISCORD_WEBHOOK }}
+      #     status: ${{ job.status }}
+      #     title: "Backend Deployment"
+      #     description: "Deployment to Render ${{ job.status }}"
+      #     url: https://dashboard.render.com
