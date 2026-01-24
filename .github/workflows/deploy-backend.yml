@@ -27,9 +27,7 @@ jobs:
   deploy:
     name: Deploy to Render
     runs-on: ubuntu-latest
-    environment:
-      name: production
-      url: ${{ secrets.BACKEND_URL }}
+    environment: production
 
     steps:
       - name: Checkout repository

@@ -74,26 +74,19 @@ jobs:
 
       - name: Apply Django Ninja UUID patch
         run: |
-          cat > /tmp/patch_ninja.py << 'PYSCRIPT'
-          import sys
-          try:
-              import ninja.signature.utils as utils_module
-              utils_file = utils_module.__file__
-              with open(utils_file, 'r') as f:
-                  content = f.read()
-              old_code = 'register_converter(NinjaUUIDConverter, "uuid")'
-              new_code = 'try:\n    register_converter(NinjaUUIDConverter, "uuid")\nexcept ValueError:\n    pass'
-              if old_code in content:
-                  content = content.replace(old_code, new_code)
-                  with open(utils_file, 'w') as f:
-                      f.write(content)
-                  print('[PATCH] Django Ninja UUID patch applied')
-              else:
-                  print('[PATCH] Already patched')
-          except Exception as e:
-              print(f'[PATCH] Warning: {e}')
-          PYSCRIPT
-          python /tmp/patch_ninja.py || true
+          NINJA_PATH=$(pip show django-ninja | grep -i "^Location:" | cut -d' ' -f2)
+          UTILS_FILE="$NINJA_PATH/ninja/signature/utils.py"
+          echo "[PATCH] Looking for: $UTILS_FILE"
+          if [ -f "$UTILS_FILE" ]; then
+            if grep -q "except ValueError" "$UTILS_FILE"; then
+              echo "[PATCH] Already patched"
+            else
+              sed -i 's/register_converter(NinjaUUIDConverter, "uuid")/try:\n    register_converter(NinjaUUIDConverter, "uuid")\nexcept ValueError:\n    pass/' "$UTILS_FILE"
+              echo "[PATCH] Django Ninja UUID patch applied"
+            fi
+          else
+            echo "[PATCH] Warning: File not found"
+          fi
 
       - name: Run database migrations
         working-directory: apps/backend/src
