@@ -238,11 +238,10 @@ WORKDIR /app/backend
 # Copy Python dependencies from deps stage
 COPY --from=backend-deps --chown=appuser:appgroup /app/.local /app/.local
 
-# Copy application code with proper ownership
+# Copy application code with proper ownership (includes start.sh)
 COPY --from=backend-builder --chown=appuser:appgroup /app/backend ./
 
-# Copy the start script and make it executable
-COPY --chown=appuser:appgroup apps/backend/start.sh /app/backend/start.sh
+# Make start.sh executable (it's already copied from backend-builder)
 RUN chmod +x /app/backend/start.sh
 
 # Switch to non-root user
