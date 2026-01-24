@@ -27,7 +27,7 @@ export default async function AgencyLayout({
   // In Docker: http://backend:8000, On Vercel: https://api.iayos.online
   const serverApiUrl =
     ensureProtocol(process.env.SERVER_API_URL) ||
-    ensureProtocol(process.env.NEXT_PUBLIC_API_BASE) ||
+    ensureProtocol(process.env.NEXT_PUBLIC_API_URL) ||
     "https://api.iayos.online";
 
   let user: any = null;

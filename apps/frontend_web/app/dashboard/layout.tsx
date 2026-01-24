@@ -40,7 +40,7 @@ export default async function DashboardLayout({
   // On Vercel: https://api.iayos.online (shared domain with frontend for cookies)
   const serverApiUrl =
     ensureProtocol(process.env.SERVER_API_URL) ||
-    ensureProtocol(process.env.NEXT_PUBLIC_API_BASE) ||
+    ensureProtocol(process.env.NEXT_PUBLIC_API_URL) ||
     "https://api.iayos.online";
 
   try {

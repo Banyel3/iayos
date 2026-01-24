@@ -387,7 +387,8 @@ function RegisterContent() {
       router.push(`/auth/verify-otp?email=${encodeURIComponent(data.email)}`);
     } catch (err) {
       console.error("Registration error:", err);
-      setError("Network error. Please check your connection and try again.");
+      const errorMessage = err instanceof Error ? err.message : "Unknown error occurred";
+      setError(`Registration failed: ${errorMessage}. Please try again or contact support.`);
     } finally {
       setIsLoading(false);
     }

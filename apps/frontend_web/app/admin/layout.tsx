@@ -22,10 +22,11 @@ export default async function AdminLayout({
 
   // Use SERVER_API_URL for server-side requests
   // In Docker: http://backend:8000, On Vercel: https://api.iayos.online
+  const isProduction = process.env.NODE_ENV === "production" || process.env.VERCEL === "1";
   const serverApiUrl =
     ensureProtocol(process.env.SERVER_API_URL) ||
-    ensureProtocol(process.env.NEXT_PUBLIC_API_BASE) ||
-    "https://api.iayos.online";
+    ensureProtocol(process.env.NEXT_PUBLIC_API_URL) ||
+    (isProduction ? "https://api.iayos.online" : "http://localhost:8000");
 
   // Server-side validate session with backend to avoid client-only cookie checks
   try {

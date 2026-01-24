@@ -404,7 +404,9 @@ const AgencyRegister = () => {
         }
       }
     } catch (err) {
-      setAgencyError("Something went wrong. Try again.");
+      console.error("Agency registration error:", err);
+      const errorMessage = err instanceof Error ? err.message : "Unknown error occurred";
+      setAgencyError(`Registration failed: ${errorMessage}. Please try again or contact support.`);
     } finally {
       setIsAgencyLoading(false);
     }
