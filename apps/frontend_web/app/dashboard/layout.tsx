@@ -14,8 +14,8 @@ import { redirect } from "next/navigation";
  */
 
 // Feature flags - match the middleware settings
-const ENABLE_WORKER_WEB_UI = false; // Set to true to allow workers on web
-const ENABLE_CLIENT_WEB_UI = false; // Set to true to allow clients on web
+const ENABLE_WORKER_WEB_UI = true; // Set to true to allow workers on web
+const ENABLE_CLIENT_WEB_UI = true; // Set to true to allow clients on web
 
 export default async function DashboardLayout({
   children,

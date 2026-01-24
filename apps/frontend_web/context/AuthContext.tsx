@@ -9,7 +9,7 @@ import React, {
 } from "react";
 import { User, AuthContextType } from "@/types";
 import { useRouter } from "next/navigation";
-import { API_BASE_URL } from "@/lib/api/config";
+import { API_BASE } from "@/lib/api/config";
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -42,12 +42,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           const { user: cachedUser, timestamp } = JSON.parse(cached);
           const cacheAge = Date.now() - timestamp;
           const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-          
+
           if (cacheAge < CACHE_TTL && cachedUser) {
             console.log("🚀 Using cached user for instant load");
             setUser(cachedUser);
             setIsLoading(false);
-            
+
             // Verify in background (don't await)
             checkAuthWithServer().catch(console.error);
             return;
@@ -56,7 +56,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           console.error("Cache parse error:", e);
         }
       }
-      
+
       // No valid cache - must verify with server
       await checkAuthWithServer();
     };
@@ -70,15 +70,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // 🔥 Add timeout for cold starts (Render free tier can be slow)
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
-      
+
       const response = await fetch(
-        `${API_BASE_URL.replace("/api", "")}/api/accounts/me`,
+        `${API_BASE}/api/accounts/me`,
         {
           credentials: "include", // 🔥 HTTP-only cookies sent automatically
           signal: controller.signal,
-        }
+        },
       );
-      
+
       clearTimeout(timeoutId);
 
       if (response.ok) {
@@ -91,7 +91,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           JSON.stringify({
             user: userData,
             timestamp: Date.now(),
-          })
+          }),
         );
         return true;
       } else {
@@ -117,13 +117,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUser(null);
 
       const response = await fetch(
-        `${API_BASE_URL.replace("/api", "")}/api/accounts/login`,
+        `${API_BASE}/api/accounts/login`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email, password }),
           credentials: "include", // 🔥 Cookies handled automatically
-        }
+        },
       );
 
       if (!response.ok) {
@@ -144,10 +144,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       // Login successful - now fetch user data
       const userDataResponse = await fetch(
-        `${API_BASE_URL.replace("/api", "")}/api/accounts/me`,
+        `${API_BASE}/api/accounts/me`,
         {
           credentials: "include",
-        }
+        },
       );
 
       if (userDataResponse.ok) {
@@ -160,7 +160,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           JSON.stringify({
             user: userData,
             timestamp: Date.now(),
-          })
+          }),
         );
 
         return true;
@@ -185,7 +185,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       clearAllAuthCaches();
 
       // Call backend to clear cookies
-      await fetch(`${API_BASE_URL.replace("/api", "")}/api/accounts/logout`, {
+      await fetch(`${API_BASE}/api/accounts/logout`, {
         method: "POST",
         credentials: "include",
       });
