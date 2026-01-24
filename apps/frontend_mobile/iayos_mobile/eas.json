@@ -18,7 +18,8 @@
     "preview": {
       "distribution": "internal",
       "android": {
-        "buildType": "apk"
+        "buildType": "apk",
+        "prebuildCommand": "npx expo prebuild --clean"
       },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://api.iayos.online"
@@ -27,7 +28,8 @@
     "production": {
       "autoIncrement": true,
       "android": {
-        "buildType": "apk"
+        "buildType": "apk",
+        "prebuildCommand": "npx expo prebuild --clean"
       },
       "ios": {
         "resourceClass": "m1-medium"
