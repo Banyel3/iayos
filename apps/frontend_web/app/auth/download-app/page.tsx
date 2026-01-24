@@ -38,7 +38,8 @@ export default function DownloadAppPage() {
             {/* QR Code */}
             <div className="flex justify-center mb-8">
               <div className="bg-white p-4 rounded-xl border-2 border-gray-200">
-                <Image
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
                   src="https://api.qrserver.com/v1/create-qr-code/?size=192x192&data=https://github.com/Banyel3/iayos/releases/download/v0.1.0-qa1/iayos-qa-build-release.apk"
                   alt="Download iAyos APK"
                   width={192}
