@@ -391,9 +391,32 @@ def reset_password_verify(verifyToken, userID, data, request=None):
     return {"message": "Password updated successfully"}
 
 def logout_account():
+    """
+    Logout user by deleting authentication cookies.
+    CRITICAL: Must match the cookie parameters used in set_cookie() to properly delete them.
+    """
     response = JsonResponse({"Message": "Logged Out successfully"})
-    response.delete_cookie("access")
-    response.delete_cookie("refresh")
+    
+    # Production (Vercel/Render): secure=True, samesite='Lax', domain=.iayos.online
+    # Development (localhost): secure=False, samesite='Lax', domain=None
+    is_production = not settings.DEBUG
+    cookie_domain = ".iayos.online" if is_production else None
+    
+    # Delete cookies with EXACT same parameters used in set_cookie
+    # Without matching domain/path/secure/samesite, cookies won't be deleted
+    response.delete_cookie(
+        key="access",
+        path="/",
+        domain=cookie_domain,
+        samesite='Lax'
+    )
+    response.delete_cookie(
+        key="refresh",
+        path="/",
+        domain=cookie_domain,
+        samesite='Lax'
+    )
+    
     return response
 
 def refresh_token(expired_token):
