@@ -66,10 +66,9 @@ export default function FAQManagementPage() {
   const fetchFaqs = async () => {
     setLoading(true);
     try {
-      const response = await fetch(
-        `${API_BASE}/api/adminpanel/support/faqs`,
-        { credentials: "include" }
-      );
+      const response = await fetch(`${API_BASE}/api/adminpanel/support/faqs`, {
+        credentials: "include",
+      });
       const data = await response.json();
 
       if (data.success) {
@@ -100,7 +99,7 @@ export default function FAQManagementPage() {
       filtered = filtered.filter(
         (f) =>
           f.question.toLowerCase().includes(search) ||
-          f.answer.toLowerCase().includes(search)
+          f.answer.toLowerCase().includes(search),
       );
     }
 
@@ -205,13 +204,13 @@ export default function FAQManagementPage() {
 
   const toggleExpanded = (id: string) => {
     setExpandedFaqs((prev) =>
-      prev.includes(id) ? prev.filter((fid) => fid !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((fid) => fid !== id) : [...prev, id],
     );
   };
 
   const toggleSelectFaq = (id: string) => {
     setSelectedFaqs((prev) =>
-      prev.includes(id) ? prev.filter((fid) => fid !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((fid) => fid !== id) : [...prev, id],
     );
   };
 

@@ -132,7 +132,7 @@ export default function AdminManagementPage() {
         `${API_BASE}/api/adminpanel/settings/admins`,
         {
           credentials: "include",
-        }
+        },
       );
       const data: AdminsResponse = await response.json();
 
@@ -247,7 +247,7 @@ export default function AdminManagementPage() {
         alert(
           modalMode === "add"
             ? "Admin created successfully!"
-            : "Admin updated successfully!"
+            : "Admin updated successfully!",
         );
         setShowModal(false);
         fetchAdmins();
@@ -275,7 +275,7 @@ export default function AdminManagementPage() {
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({ is_active: !admin.is_active }),
-        }
+        },
       );
 
       const data = await response.json();
@@ -488,7 +488,7 @@ export default function AdminManagementPage() {
                         <td className="px-6 py-4">
                           <span
                             className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${getRoleBadgeColor(
-                              admin.role
+                              admin.role,
                             )}`}
                           >
                             {ROLES[admin.role].label}
@@ -695,7 +695,7 @@ export default function AdminManagementPage() {
                   <div className="space-y-2 max-h-64 overflow-y-auto border border-gray-200 rounded-lg p-4">
                     {ALL_PERMISSIONS.map((permission) => {
                       const isChecked = formData.permissions.includes(
-                        permission.id
+                        permission.id,
                       );
                       const isDisabled =
                         permission.id === "manage_admins" &&

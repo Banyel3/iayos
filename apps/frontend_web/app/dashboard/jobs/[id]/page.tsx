@@ -112,13 +112,10 @@ export default function JobDetailsPage() {
   const fetchApplications = async () => {
     try {
       setIsLoadingApplications(true);
-      const response = await fetch(
-        `${API_BASE}/api/jobs/${id}/applications`,
-        {
-          method: "GET",
-          credentials: "include",
-        }
-      );
+      const response = await fetch(`${API_BASE}/api/jobs/${id}/applications`, {
+        method: "GET",
+        credentials: "include",
+      });
 
       const data = await response.json();
 
@@ -136,7 +133,7 @@ export default function JobDetailsPage() {
   const handleAcceptApplication = async (applicationId: number) => {
     if (
       !confirm(
-        "Are you sure you want to accept this application? This will reject all other pending applications and start the job."
+        "Are you sure you want to accept this application? This will reject all other pending applications and start the job.",
       )
     ) {
       return;
@@ -149,7 +146,7 @@ export default function JobDetailsPage() {
         {
           method: "POST",
           credentials: "include",
-        }
+        },
       );
 
       const data = await response.json();
@@ -181,7 +178,7 @@ export default function JobDetailsPage() {
         {
           method: "POST",
           credentials: "include",
-        }
+        },
       );
 
       const data = await response.json();
@@ -190,8 +187,8 @@ export default function JobDetailsPage() {
         // Update local state
         setApplications((prev) =>
           prev.map((app) =>
-            app.id === applicationId ? { ...app, status: "REJECTED" } : app
-          )
+            app.id === applicationId ? { ...app, status: "REJECTED" } : app,
+          ),
         );
         alert("Application rejected");
       } else {
@@ -249,7 +246,7 @@ export default function JobDetailsPage() {
             budget_option: budgetOption,
             estimated_duration: estimatedDuration || null,
           }),
-        }
+        },
       );
 
       const data = await response.json();
@@ -705,11 +702,11 @@ export default function JobDetailsPage() {
                         <p className="text-xs text-gray-400 mt-3">
                           Applied{" "}
                           {new Date(
-                            application.created_at
+                            application.created_at,
                           ).toLocaleDateString()}{" "}
                           at{" "}
                           {new Date(
-                            application.created_at
+                            application.created_at,
                           ).toLocaleTimeString()}
                         </p>
                       </div>

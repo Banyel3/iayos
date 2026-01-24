@@ -15,20 +15,17 @@ export async function POST(request: NextRequest) {
     }
 
     // Proxy the request to the backend's send-otp-email endpoint
-    const response = await fetch(
-      `${API_BASE}/api/mobile/auth/send-otp-email`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          email,
-          otp_code,
-          expires_in_minutes: expires_in_minutes || 5,
-        }),
+    const response = await fetch(`${API_BASE}/api/mobile/auth/send-otp-email`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
       },
-    );
+      body: JSON.stringify({
+        email,
+        otp_code,
+        expires_in_minutes: expires_in_minutes || 5,
+      }),
+    });
 
     const data = await response.json();
 

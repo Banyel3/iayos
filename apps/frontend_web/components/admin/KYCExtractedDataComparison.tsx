@@ -119,7 +119,7 @@ export default function KYCExtractedDataComparison({
 
       const response = await fetch(
         `${API_BASE}/api/adminpanel/kyc/${kycId}/extracted-data`,
-        { credentials: "include" }
+        { credentials: "include" },
       );
 
       if (!response.ok) {

@@ -60,7 +60,7 @@ export default function PaymentGatewaysPage() {
         `${API_BASE}/api/adminpanel/settings/payment-gateways`,
         {
           credentials: "include",
-        }
+        },
       );
       const data: GatewaysResponse = await response.json();
 
@@ -76,12 +76,12 @@ export default function PaymentGatewaysPage() {
 
   const handleToggleGateway = async (
     gateway: string,
-    currentEnabled: boolean
+    currentEnabled: boolean,
   ) => {
     if (
       currentEnabled &&
       !confirm(
-        "Disable this payment gateway? Users will not be able to use it for payments."
+        "Disable this payment gateway? Users will not be able to use it for payments.",
       )
     ) {
       return;
@@ -95,7 +95,7 @@ export default function PaymentGatewaysPage() {
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({ enabled: !currentEnabled }),
-        }
+        },
       );
 
       const data = await response.json();
@@ -139,7 +139,7 @@ export default function PaymentGatewaysPage() {
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify(formData),
-        }
+        },
       );
 
       const data = await response.json();
@@ -169,7 +169,7 @@ export default function PaymentGatewaysPage() {
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify(formData),
-        }
+        },
       );
 
       const data = await response.json();
@@ -494,7 +494,7 @@ export default function PaymentGatewaysPage() {
                   onClick={() =>
                     handleToggleGateway(
                       "bank_transfer",
-                      gateways.bank_transfer.enabled
+                      gateways.bank_transfer.enabled,
                     )
                   }
                   className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${

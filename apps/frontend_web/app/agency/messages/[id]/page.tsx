@@ -66,7 +66,8 @@ export default function AgencyChatScreen() {
 
   // Backjob action state
   const [showBackjobConfirmModal, setShowBackjobConfirmModal] = useState(false);
-  const [showBackjobCompleteModal, setShowBackjobCompleteModal] = useState(false);
+  const [showBackjobCompleteModal, setShowBackjobCompleteModal] =
+    useState(false);
   const [showBackjobApproveModal, setShowBackjobApproveModal] = useState(false);
   const [backjobNotes, setBackjobNotes] = useState("");
 
@@ -145,7 +146,7 @@ export default function AgencyChatScreen() {
           method: "POST",
           body: formData,
           credentials: "include",
-        }
+        },
       );
 
       if (!response.ok) {
@@ -191,7 +192,7 @@ export default function AgencyChatScreen() {
         onError: (error) => {
           alert(error.message || "Failed to mark job as complete");
         },
-      }
+      },
     );
   };
 
@@ -211,7 +212,7 @@ export default function AgencyChatScreen() {
         onError: (error) => {
           alert(error.message || "Failed to submit review");
         },
-      }
+      },
     );
   };
 
@@ -245,7 +246,7 @@ export default function AgencyChatScreen() {
         onError: (error) => {
           alert(error.message || "Failed to mark backjob complete");
         },
-      }
+      },
     );
   };
 
@@ -264,7 +265,7 @@ export default function AgencyChatScreen() {
         onError: (error) => {
           alert(error.message || "Failed to approve backjob completion");
         },
-      }
+      },
     );
   };
 

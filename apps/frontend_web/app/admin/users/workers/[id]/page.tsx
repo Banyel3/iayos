@@ -116,7 +116,7 @@ export default function WorkerDetailPage() {
         `${API_BASE}/api/adminpanel/users/workers/${id}`,
         {
           credentials: "include",
-        }
+        },
       );
 
       if (!res.ok) {
@@ -157,7 +157,7 @@ export default function WorkerDetailPage() {
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({ reason: actionReason }),
-        }
+        },
       );
       const data = await response.json();
       if (data.success) {
@@ -190,7 +190,7 @@ export default function WorkerDetailPage() {
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({ reason: actionReason }),
-        }
+        },
       );
       const data = await response.json();
       if (data.success) {
@@ -218,7 +218,7 @@ export default function WorkerDetailPage() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
-        }
+        },
       );
       const data = await response.json();
       if (data.success) {
@@ -248,7 +248,7 @@ export default function WorkerDetailPage() {
         {
           method: "DELETE",
           credentials: "include",
-        }
+        },
       );
       const data = await response.json();
       if (data.success) {

@@ -81,7 +81,7 @@ export default function EmployeesPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(
-    null
+    null,
   );
   const [performanceStats, setPerformanceStats] =
     useState<PerformanceStats | null>(null);
@@ -145,7 +145,7 @@ export default function EmployeesPage() {
         `${API_BASE}/api/agency/employees/${employeeId}/performance`,
         {
           credentials: "include",
-        }
+        },
       );
       if (res.ok) {
         const data = await res.json();
@@ -178,7 +178,7 @@ export default function EmployeesPage() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({ reason: eotmReason }),
-        }
+        },
       );
 
       if (res.ok) {
@@ -422,7 +422,7 @@ export default function EmployeesPage() {
                             src={
                               eotm.avatar ||
                               `https://api.dicebear.com/6.x/initials/svg?seed=${encodeURIComponent(
-                                eotm.name
+                                eotm.name,
                               )}`
                             }
                             alt={eotm.name}
@@ -463,7 +463,7 @@ export default function EmployeesPage() {
                 <CardContent>
                   {(() => {
                     const rated = employees.filter(
-                      (e) => typeof e.rating === "number" && e.rating > 0
+                      (e) => typeof e.rating === "number" && e.rating > 0,
                     );
                     if (rated.length === 0) {
                       return (
@@ -473,7 +473,7 @@ export default function EmployeesPage() {
                       );
                     }
                     const top = rated.reduce((a, b) =>
-                      a.rating! >= b.rating! ? a : b
+                      a.rating! >= b.rating! ? a : b,
                     );
                     return (
                       <div className="space-y-3">
@@ -482,7 +482,7 @@ export default function EmployeesPage() {
                             src={
                               top.avatar ||
                               `https://api.dicebear.com/6.x/initials/svg?seed=${encodeURIComponent(
-                                top.name
+                                top.name,
                               )}`
                             }
                             alt={top.name}
@@ -575,7 +575,7 @@ export default function EmployeesPage() {
                               src={
                                 emp.avatar ||
                                 `https://api.dicebear.com/6.x/initials/svg?seed=${encodeURIComponent(
-                                  emp.name
+                                  emp.name,
                                 )}`
                               }
                               alt={emp.name}
@@ -834,7 +834,7 @@ export default function EmployeesPage() {
                     src={
                       selectedEmployee.avatar ||
                       `https://api.dicebear.com/6.x/initials/svg?seed=${encodeURIComponent(
-                        selectedEmployee.name
+                        selectedEmployee.name,
                       )}`
                     }
                     alt={selectedEmployee.name}
@@ -905,7 +905,7 @@ export default function EmployeesPage() {
                       src={
                         selectedEmployee.avatar ||
                         `https://api.dicebear.com/6.x/initials/svg?seed=${encodeURIComponent(
-                          selectedEmployee.name
+                          selectedEmployee.name,
                         )}`
                       }
                       alt={selectedEmployee.name}

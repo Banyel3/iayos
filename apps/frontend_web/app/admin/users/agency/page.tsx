@@ -84,13 +84,13 @@ export default function AgencyPage() {
 
   // Bulk selection state
   const [selectedAgencies, setSelectedAgencies] = useState<Set<string>>(
-    new Set()
+    new Set(),
   );
   const [selectAll, setSelectAll] = useState(false);
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
   const [showBulkActionModal, setShowBulkActionModal] = useState(false);
   const [bulkAction, setBulkAction] = useState<"suspend" | "activate" | null>(
-    null
+    null,
   );
   const [bulkActionReason, setBulkActionReason] = useState("");
 
@@ -123,7 +123,7 @@ export default function AgencyPage() {
         `${API_BASE}/api/adminpanel/users/agencies?${params}`,
         {
           credentials: "include",
-        }
+        },
       );
 
       if (!response.ok) {
@@ -274,7 +274,7 @@ export default function AgencyPage() {
     setSelectAll(false);
 
     alert(
-      `${bulkAction === "suspend" ? "Suspended" : "Activated"} ${successCount} agencies successfully. ${failCount > 0 ? `${failCount} failed.` : ""}`
+      `${bulkAction === "suspend" ? "Suspended" : "Activated"} ${successCount} agencies successfully. ${failCount > 0 ? `${failCount} failed.` : ""}`,
     );
 
     fetchAgencies();
@@ -438,7 +438,7 @@ export default function AgencyPage() {
                   value={statusFilter}
                   onChange={(e) =>
                     setStatusFilter(
-                      e.target.value as "all" | "active" | "inactive"
+                      e.target.value as "all" | "active" | "inactive",
                     )
                   }
                   className="px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700"
@@ -648,7 +648,7 @@ export default function AgencyPage() {
                                   size="sm"
                                   onClick={() =>
                                     router.push(
-                                      `/admin/users/agency/${agency.account_id}`
+                                      `/admin/users/agency/${agency.account_id}`,
                                     )
                                   }
                                 >
@@ -699,7 +699,7 @@ export default function AgencyPage() {
                                                     <Star className="h-3 w-3 text-yellow-500 mr-1" />
                                                     <span className="text-xs font-medium">
                                                       {employee.rating.toFixed(
-                                                        1
+                                                        1,
                                                       )}
                                                     </span>
                                                   </div>

@@ -47,7 +47,7 @@ export default function AssignEmployeeModal({
   onAssign,
 }: AssignEmployeeModalProps) {
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(
-    null
+    null,
   );
   const [assignmentNotes, setAssignmentNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -62,7 +62,7 @@ export default function AssignEmployeeModal({
         try {
           const response = await fetch(
             `${API_BASE}/api/agency/employees/${employee.employeeId}/workload`,
-            { credentials: "include" }
+            { credentials: "include" },
           );
 
           if (response.ok) {
@@ -75,7 +75,7 @@ export default function AssignEmployeeModal({
         } catch (error) {
           console.error(
             `Failed to fetch workload for employee ${employee.employeeId}:`,
-            error
+            error,
           );
         }
       });

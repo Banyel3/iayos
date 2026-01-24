@@ -72,7 +72,7 @@ export default function AgencyDashboardPage() {
         `${API_BASE}/api/agency/jobs?status=IN_PROGRESS&limit=5`,
         {
           credentials: "include",
-        }
+        },
       );
 
       if (res.ok) {
@@ -88,7 +88,7 @@ export default function AgencyDashboardPage() {
             updatedAt: job.updatedAt,
             assignedEmployeeId: job.assignedEmployee?.employeeId,
             assignedEmployeeName: job.assignedEmployee?.name,
-          }))
+          })),
         );
       }
     } catch (error) {
@@ -104,7 +104,7 @@ export default function AgencyDashboardPage() {
         `${API_BASE}/api/agency/jobs?invite_status=ACCEPTED&status=ACTIVE&limit=10`,
         {
           credentials: "include",
-        }
+        },
       );
 
       if (res.ok) {
@@ -113,7 +113,7 @@ export default function AgencyDashboardPage() {
         // Filter to only show unassigned jobs (jobs without an assigned employee)
         // Backend returns assignedEmployee in camelCase
         const unassigned = jobs.filter(
-          (job: any) => !job.assignedEmployee && !job.assignedEmployeeID
+          (job: any) => !job.assignedEmployee && !job.assignedEmployeeID,
         );
         setPendingAssignments(
           unassigned.slice(0, 5).map((job: any) => ({
@@ -123,7 +123,7 @@ export default function AgencyDashboardPage() {
             inviteStatus: job.inviteStatus,
             budget: job.budget,
             updatedAt: job.updatedAt,
-          }))
+          })),
         );
       }
     } catch (error) {

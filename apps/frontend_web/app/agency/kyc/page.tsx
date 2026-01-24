@@ -104,7 +104,7 @@ const AgencyKYCPage = () => {
 
   const handleFilePreview = (
     file: File | null,
-    setter: (s: string) => void
+    setter: (s: string) => void,
   ) => {
     if (!file) return;
     const reader = new FileReader();
@@ -164,7 +164,7 @@ const AgencyKYCPage = () => {
 
   const handleFileChange = (
     e: React.ChangeEvent<HTMLInputElement>,
-    type: "front" | "back" | "permit" | "address" | "authLetter"
+    type: "front" | "back" | "permit" | "address" | "authLetter",
   ) => {
     const file = e.target.files?.[0];
     if (!file) return;

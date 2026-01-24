@@ -66,7 +66,7 @@ export function useAgencyStats() {
  */
 export function useLeaderboard(
   sortBy: "rating" | "jobs" | "earnings" = "rating",
-  limit: number = 10
+  limit: number = 10,
 ) {
   return useQuery<LeaderboardEmployee[]>({
     queryKey: ["agency", "leaderboard", sortBy, limit],
@@ -87,7 +87,7 @@ export function useLeaderboard(
         {
           credentials: "include",
           headers: { "Content-Type": "application/json" },
-        }
+        },
       );
 
       if (!response.ok) {
@@ -129,7 +129,7 @@ export function useRevenueTrends(startDate: Date, endDate: Date) {
  */
 function generateMockRevenueTrends(
   startDate: Date,
-  endDate: Date
+  endDate: Date,
 ): RevenueTrendData[] {
   const data: RevenueTrendData[] = [];
   const currentDate = new Date(startDate);
@@ -152,7 +152,7 @@ function generateMockRevenueTrends(
 export function exportAnalyticsCSV(
   leaderboard: LeaderboardEmployee[],
   stats: AgencyStats,
-  filename?: string
+  filename?: string,
 ) {
   const timestamp = new Date().toISOString().split("T")[0];
   const fname = filename || `agency-analytics-${timestamp}.csv`;

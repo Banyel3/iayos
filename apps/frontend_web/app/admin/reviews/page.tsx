@@ -74,7 +74,7 @@ export default function ReviewsPage() {
 
       const response = await fetch(
         `${API_BASE}/api/adminpanel/app-reviews/all?${params}`,
-        { credentials: "include" }
+        { credentials: "include" },
       );
 
       if (!response.ok) throw new Error("Failed to fetch reviews");

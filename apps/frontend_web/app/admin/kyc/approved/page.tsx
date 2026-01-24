@@ -39,7 +39,7 @@ export default function ApprovedKYCPage() {
   const [approvedKYC, setApprovedKYC] = useState<ApprovedKYC[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | "worker" | "client">(
-    "all"
+    "all",
   );
   const [reviewerFilter, setReviewerFilter] = useState<string>("all");
   const { showToast } = useToast();
@@ -57,7 +57,7 @@ export default function ApprovedKYCPage() {
         `${API_BASE}/api/adminpanel/kyc/logs?action=APPROVED&limit=500`,
         {
           credentials: "include",
-        }
+        },
       );
 
       if (!response.ok) {
@@ -98,7 +98,7 @@ export default function ApprovedKYCPage() {
         const approvalDate = new Date(log.reviewedAt);
         const processingDays = Math.floor(
           (approvalDate.getTime() - submissionDate.getTime()) /
-            (1000 * 60 * 60 * 24)
+            (1000 * 60 * 60 * 24),
         );
         // Map backend kycType to frontend userType
         let userType: "worker" | "client" | "agency" = "worker";
@@ -151,7 +151,7 @@ export default function ApprovedKYCPage() {
   });
 
   const uniqueReviewers = Array.from(
-    new Set(approvedKYC.map((record) => record.reviewedBy))
+    new Set(approvedKYC.map((record) => record.reviewedBy)),
   );
 
   if (isLoading) {
@@ -246,7 +246,7 @@ export default function ApprovedKYCPage() {
                     approvedKYC.filter(
                       (r) =>
                         new Date(r.approvalDate).getMonth() ===
-                        new Date().getMonth()
+                        new Date().getMonth(),
                     ).length
                   }
                 </p>
@@ -272,8 +272,8 @@ export default function ApprovedKYCPage() {
                     ? Math.round(
                         approvedKYC.reduce(
                           (acc, r) => acc + r.processingDays,
-                          0
-                        ) / approvedKYC.length
+                          0,
+                        ) / approvedKYC.length,
                       )
                     : 0}{" "}
                   days

@@ -146,13 +146,10 @@ export default function PendingKYCPage() {
   const fetchPendingKYC = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(
-        `${API_BASE}/api/adminpanel/kyc/all`,
-        {
-          method: "GET",
-          credentials: "include",
-        },
-      );
+      const response = await fetch(`${API_BASE}/api/adminpanel/kyc/all`, {
+        method: "GET",
+        credentials: "include",
+      });
 
       if (!response.ok) {
         // Handle specific HTTP errors
@@ -404,17 +401,14 @@ export default function PendingKYCPage() {
       console.log("📤 Sending file URLs to backend:", requestBody);
 
       // Call backend API to get signed URLs
-      const response = await fetch(
-        `${API_BASE}/api/adminpanel/kyc/review`,
-        {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(requestBody),
+      const response = await fetch(`${API_BASE}/api/adminpanel/kyc/review`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
         },
-      );
+        body: JSON.stringify(requestBody),
+      });
 
       console.log(
         `📡 Response status: ${response.status} ${response.statusText}`,

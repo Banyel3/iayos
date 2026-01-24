@@ -146,7 +146,7 @@ function VerifyOTPContent() {
 
     try {
       console.log("🔄 Resending OTP for:", email);
-      
+
       // First, call resend-otp to generate new OTP
       const resendRes = await fetch(`${API_BASE}/api/accounts/resend-otp`, {
         method: "POST",
@@ -160,7 +160,10 @@ function VerifyOTPContent() {
       if (!resendRes.ok) {
         if (resendData.wait_seconds) {
           setResendCooldown(resendData.wait_seconds);
-          setError(resendData.error || `Please wait ${resendData.wait_seconds} seconds before requesting a new OTP.`);
+          setError(
+            resendData.error ||
+              `Please wait ${resendData.wait_seconds} seconds before requesting a new OTP.`,
+          );
         } else {
           setError(resendData.error || "Failed to resend OTP");
         }
@@ -187,10 +190,11 @@ function VerifyOTPContent() {
         setResendCooldown(60); // 60 second cooldown between resends
         setOtp(["", "", "", "", "", ""]); // Clear inputs
         inputRefs.current[0]?.focus();
-        
+
         // Show success message
         const successMsg = document.createElement("div");
-        successMsg.className = "fixed top-4 right-4 bg-green-50 border border-green-200 text-green-700 px-6 py-3 rounded-lg shadow-lg z-50";
+        successMsg.className =
+          "fixed top-4 right-4 bg-green-50 border border-green-200 text-green-700 px-6 py-3 rounded-lg shadow-lg z-50";
         successMsg.textContent = "✅ New code sent to your email!";
         document.body.appendChild(successMsg);
         setTimeout(() => successMsg.remove(), 3000);

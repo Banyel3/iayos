@@ -71,12 +71,9 @@ export default function AllReviewsPage() {
 
   const fetchStats = async () => {
     try {
-      const response = await fetch(
-        `${API_BASE}/api/adminpanel/reviews/stats`,
-        {
-          credentials: "include",
-        }
-      );
+      const response = await fetch(`${API_BASE}/api/adminpanel/reviews/stats`, {
+        credentials: "include",
+      });
       const data = await response.json();
       if (data.success) {
         setStats(data.stats);
@@ -90,7 +87,7 @@ export default function AllReviewsPage() {
     try {
       setIsLoading(true);
       let url = `${API_BASE}/api/adminpanel/reviews/all?page=${page}&page_size=20`;
-      
+
       if (statusFilter && statusFilter !== "ALL") {
         url += `&status=${statusFilter}`;
       }
@@ -121,7 +118,7 @@ export default function AllReviewsPage() {
       review.reviewer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       review.reviewee.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       review.job_title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      review.comment.toLowerCase().includes(searchTerm.toLowerCase())
+      review.comment.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
   const renderStars = (rating: number) => {
@@ -193,7 +190,9 @@ export default function AllReviewsPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{stats.total_reviews}</div>
+                  <div className="text-2xl font-bold">
+                    {stats.total_reviews}
+                  </div>
                   <p className="text-xs text-gray-500">All reviews</p>
                 </CardContent>
               </Card>

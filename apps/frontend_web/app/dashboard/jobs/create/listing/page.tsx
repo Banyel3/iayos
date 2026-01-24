@@ -64,7 +64,7 @@ export default function CreateListingJobPage() {
       try {
         const response = await fetch(
           `${API_BASE}/api/adminpanel/jobs/categories`,
-          { credentials: "include" }
+          { credentials: "include" },
         );
         const data = await response.json();
         if (data.success) {
@@ -148,15 +148,12 @@ export default function CreateListingJobPage() {
 
       console.log("[CreateListing] Submitting:", payload);
 
-      const response = await fetch(
-        `${API_BASE}/api/jobs/create-mobile`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify(payload),
-        }
-      );
+      const response = await fetch(`${API_BASE}/api/jobs/create-mobile`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(payload),
+      });
 
       const data = await response.json();
 
@@ -465,7 +462,7 @@ export default function CreateListingJobPage() {
                             <SelectItem key={brgy.barangayID} value={brgy.name}>
                               {brgy.name}
                             </SelectItem>
-                          )
+                          ),
                         )}
                       </SelectContent>
                     </Select>

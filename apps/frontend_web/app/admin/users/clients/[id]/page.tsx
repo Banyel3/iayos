@@ -101,7 +101,7 @@ export default function ClientDetailPage() {
           `${API_BASE}/api/adminpanel/users/clients/${id}`,
           {
             credentials: "include",
-          }
+          },
         );
 
         if (!res.ok) {

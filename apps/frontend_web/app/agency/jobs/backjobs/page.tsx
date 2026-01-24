@@ -48,7 +48,7 @@ export default function AgencyBackjobsPage() {
   const [backjobs, setBackjobs] = useState<BackjobItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "UNDER_REVIEW" | "RESOLVED">(
-    "all"
+    "all",
   );
   const [error, setError] = useState<string | null>(null);
 
@@ -281,7 +281,7 @@ export default function AgencyBackjobsPage() {
               className="hover:shadow-md transition-shadow cursor-pointer"
               onClick={() =>
                 router.push(
-                  `/agency/jobs/backjob/${backjob.dispute_id}?jobId=${backjob.job_id}`
+                  `/agency/jobs/backjob/${backjob.dispute_id}?jobId=${backjob.job_id}`,
                 )
               }
             >

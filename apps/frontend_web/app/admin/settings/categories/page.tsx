@@ -48,11 +48,11 @@ export default function CategoryManagementPage() {
   const [showModal, setShowModal] = useState(false);
   const [modalMode, setModalMode] = useState<"add" | "edit">("add");
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(
-    null
+    null,
   );
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(
-    null
+    null,
   );
   const [reassignCategoryId, setReassignCategoryId] = useState("");
 
@@ -80,7 +80,7 @@ export default function CategoryManagementPage() {
         `${API_BASE}/api/adminpanel/settings/categories`,
         {
           credentials: "include",
-        }
+        },
       );
       const data: CategoriesResponse = await response.json();
 
@@ -102,14 +102,14 @@ export default function CategoryManagementPage() {
       filtered = filtered.filter(
         (cat) =>
           cat.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          cat.description?.toLowerCase().includes(searchTerm.toLowerCase())
+          cat.description?.toLowerCase().includes(searchTerm.toLowerCase()),
       );
     }
 
     // Status filter
     if (statusFilter !== "all") {
       filtered = filtered.filter((cat) =>
-        statusFilter === "active" ? cat.is_active : !cat.is_active
+        statusFilter === "active" ? cat.is_active : !cat.is_active,
       );
     }
 
@@ -186,7 +186,7 @@ export default function CategoryManagementPage() {
         alert(
           modalMode === "add"
             ? "Category created successfully!"
-            : "Category updated successfully!"
+            : "Category updated successfully!",
         );
         setShowModal(false);
         fetchCategories();
@@ -208,7 +208,7 @@ export default function CategoryManagementPage() {
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({ is_active: !category.is_active }),
-        }
+        },
       );
 
       const data = await response.json();
@@ -392,7 +392,7 @@ export default function CategoryManagementPage() {
                 value={statusFilter}
                 onChange={(e) =>
                   setStatusFilter(
-                    e.target.value as "all" | "active" | "inactive"
+                    e.target.value as "all" | "active" | "inactive",
                   )
                 }
                 className="px-4 h-12 rounded-xl border border-gray-200 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-200"
@@ -693,7 +693,7 @@ export default function CategoryManagementPage() {
                       <option value="">Select category...</option>
                       {categories
                         .filter(
-                          (c) => c.id !== categoryToDelete.id && c.is_active
+                          (c) => c.id !== categoryToDelete.id && c.is_active,
                         )
                         .map((cat) => (
                           <option key={cat.id} value={cat.id}>

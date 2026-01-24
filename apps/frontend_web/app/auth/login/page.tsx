@@ -187,12 +187,12 @@ const Login = () => {
 
       if (accountType === "agency") {
         console.log(
-          "🏢 Login Page: Account type 'agency' detected, redirecting to agency dashboard"
+          "🏢 Login Page: Account type 'agency' detected, redirecting to agency dashboard",
         );
         router.replace("/agency/dashboard"); // Use replace instead of push
       } else if (role === "ADMIN") {
         console.log(
-          "🔐 Login Page: Admin user detected, redirecting to admin panel"
+          "🔐 Login Page: Admin user detected, redirecting to admin panel",
         );
         router.replace("/admin/dashboard");
       } else {
@@ -201,7 +201,7 @@ const Login = () => {
       }
     } else if (!authLoading && isAuthenticated && !user) {
       console.log(
-        "⚠️ Login Page: Authenticated but no user data - staying on login"
+        "⚠️ Login Page: Authenticated but no user data - staying on login",
       );
     } else if (!authLoading && !isAuthenticated) {
       console.log("ℹ️ Login Page: Not authenticated - showing login form");
@@ -261,34 +261,48 @@ const Login = () => {
       if (userResponse.ok) {
         const userData = await userResponse.json();
 
-        // Prefer authoritative accountType from backend (set in /me)
+        // Check if user is a worker or client - redirect to download app
+        const backendRole = (userData.role || "").toString().toUpperCase();
         const accountType = (userData.accountType || "")
           .toString()
           .toLowerCase();
+
+        // Workers and Clients must use mobile app
+        if (backendRole === "WORKER" || backendRole === "CLIENT") {
+          console.log(
+            `⚠️ ${backendRole} login detected - redirecting to download app`,
+          );
+          // Logout immediately
+          await fetch(`${API_BASE}/api/accounts/logout`, {
+            method: "POST",
+            credentials: "include",
+          });
+          router.replace("/auth/download-app");
+          return;
+        }
+
+        // Agency users
         if (accountType === "agency") {
           console.log(
-            "🏢 Account type 'agency' detected, redirecting to agency dashboard"
+            "🏢 Account type 'agency' detected, redirecting to agency dashboard",
           );
           sessionStorage.setItem("last_login_redirect", Date.now().toString());
           router.replace("/agency/dashboard");
-        } else {
-          // Fallback to role-based redirect (role may be ADMIN)
-          const backendRole = (userData.role || "").toString().toUpperCase();
-          if (backendRole === "ADMIN") {
-            console.log("🔐 Admin login, redirecting to admin panel");
-            sessionStorage.setItem(
-              "last_login_redirect",
-              Date.now().toString()
-            );
-            router.replace("/admin/dashboard");
-          } else {
-            console.log("👤 User login, redirecting to dashboard");
-            sessionStorage.setItem(
-              "last_login_redirect",
-              Date.now().toString()
-            );
-            router.replace("/dashboard");
-          }
+        }
+        // Admin users
+        else if (backendRole === "ADMIN") {
+          console.log("🔐 Admin login, redirecting to admin panel");
+          sessionStorage.setItem("last_login_redirect", Date.now().toString());
+          router.replace("/admin/dashboard");
+        }
+        // Unknown role - should not happen
+        else {
+          console.log("⚠️ Unknown role, redirecting to download app");
+          await fetch(`${API_BASE}/api/accounts/logout`, {
+            method: "POST",
+            credentials: "include",
+          });
+          router.replace("/auth/download-app");
         }
       } else {
         // Fallback to regular dashboard if can't fetch user data
@@ -782,15 +796,37 @@ const Login = () => {
                     <span className="text-sm">Continue with Google</span>
                   </a>
 
-                  <div className="mt-6 text-center">
+                  <div className="mt-6 text-center space-y-4">
+                    {/* Worker/Client App Download */}
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                      <p className="text-sm font-inter text-blue-900 mb-2">
+                        <strong>Are you a Worker or Client?</strong>
+                      </p>
+                      <p className="text-xs text-blue-700 mb-3">
+                        Download our mobile app to get started
+                      </p>
+                      <Link href="/auth/download-app">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-full border-blue-600 text-blue-600 hover:bg-blue-50"
+                        >
+                          📱 Download Mobile App
+                        </Button>
+                      </Link>
+                    </div>
+
+                    {/* Agency Registration */}
                     <p className="text-sm font-inter text-gray-600">
-                      Don&apos;t have an account?{" "}
+                      Want to hire workers as an agency?{" "}
                       <Link
-                        href="/auth/register"
+                        href="/auth/register/agency"
                         className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
                       >
-                        Sign up
+                        Register here
                       </Link>
+                    </p>
+                  </div>
                     </p>
                   </div>
                 </div>

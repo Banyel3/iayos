@@ -106,7 +106,7 @@ export default function AgencyDetailPage() {
           `${API_BASE}/api/adminpanel/users/agencies/${id}`,
           {
             credentials: "include",
-          }
+          },
         );
 
         if (!res.ok) {
@@ -136,7 +136,7 @@ export default function AgencyDetailPage() {
         `${API_BASE}/api/adminpanel/users/agencies/${id}`,
         {
           credentials: "include",
-        }
+        },
       );
       if (res.ok) {
         const data = await res.json();
@@ -164,7 +164,7 @@ export default function AgencyDetailPage() {
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({ reason: actionReason }),
-        }
+        },
       );
       if (response.ok) {
         alert("Agency suspended successfully");
@@ -196,7 +196,7 @@ export default function AgencyDetailPage() {
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({ reason: actionReason }),
-        }
+        },
       );
       if (response.ok) {
         alert("Agency banned successfully");
@@ -223,7 +223,7 @@ export default function AgencyDetailPage() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
-        }
+        },
       );
       if (response.ok) {
         alert("Agency activated successfully");
@@ -252,7 +252,7 @@ export default function AgencyDetailPage() {
         {
           method: "DELETE",
           credentials: "include",
-        }
+        },
       );
       if (response.ok) {
         alert("Agency deleted successfully");
@@ -731,7 +731,7 @@ export default function AgencyDetailPage() {
                             </div>
                           )}
                         </div>
-                      )
+                      ),
                     )
                   ) : (
                     <div className="text-center py-12 text-gray-500">

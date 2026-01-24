@@ -47,7 +47,7 @@ interface AssignEmployeesModalProps {
   onAssign: (
     employeeIds: number[],
     primaryContactId: number,
-    notes: string
+    notes: string,
   ) => Promise<void>;
 }
 
@@ -59,7 +59,7 @@ export default function AssignEmployeesModal({
   onAssign,
 }: AssignEmployeesModalProps) {
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<Set<number>>(
-    new Set()
+    new Set(),
   );
   const [primaryContactId, setPrimaryContactId] = useState<number | null>(null);
   const [assignmentNotes, setAssignmentNotes] = useState("");
@@ -75,7 +75,7 @@ export default function AssignEmployeesModal({
         try {
           const response = await fetch(
             `${API_BASE}/api/agency/employees/${employee.employeeId}/workload`,
-            { credentials: "include" }
+            { credentials: "include" },
           );
 
           if (response.ok) {
@@ -88,7 +88,7 @@ export default function AssignEmployeesModal({
         } catch (error) {
           console.error(
             `Failed to fetch workload for employee ${employee.employeeId}:`,
-            error
+            error,
           );
         }
       });
@@ -140,7 +140,7 @@ export default function AssignEmployeesModal({
       await onAssign(
         Array.from(selectedEmployeeIds),
         finalPrimaryContact,
-        assignmentNotes
+        assignmentNotes,
       );
       onClose();
     } catch (error) {
@@ -272,7 +272,7 @@ export default function AssignEmployeesModal({
                 {activeEmployees.map((employee, index) => {
                   const workload = employeeWorkloads[employee.employeeId];
                   const isSelected = selectedEmployeeIds.has(
-                    employee.employeeId
+                    employee.employeeId,
                   );
                   const isPrimary = primaryContactId === employee.employeeId;
 

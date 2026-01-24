@@ -157,7 +157,7 @@ export default function CertificationDetailPage() {
 
       const response = await fetch(
         `${API_BASE}/api/adminpanel/certifications/${rawId}`,
-        { credentials: "include" }
+        { credentials: "include" },
       );
 
       if (!response.ok) {
@@ -170,7 +170,7 @@ export default function CertificationDetailPage() {
     } catch (err) {
       console.error("Error fetching certification detail:", err);
       setError(
-        err instanceof Error ? err.message : "Failed to load certification"
+        err instanceof Error ? err.message : "Failed to load certification",
       );
     } finally {
       setLoading(false);
@@ -193,7 +193,7 @@ export default function CertificationDetailPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ notes: notes || undefined }),
           credentials: "include",
-        }
+        },
       );
 
       if (!response.ok) {
@@ -206,7 +206,7 @@ export default function CertificationDetailPage() {
     } catch (err) {
       console.error("Error approving certification:", err);
       toast.error(
-        err instanceof Error ? err.message : "Failed to approve certification"
+        err instanceof Error ? err.message : "Failed to approve certification",
       );
     } finally {
       setActionLoading(false);
@@ -235,7 +235,7 @@ export default function CertificationDetailPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ reason: notes }),
           credentials: "include",
-        }
+        },
       );
 
       if (!response.ok) {
@@ -248,7 +248,7 @@ export default function CertificationDetailPage() {
     } catch (err) {
       console.error("Error rejecting certification:", err);
       toast.error(
-        err instanceof Error ? err.message : "Failed to reject certification"
+        err instanceof Error ? err.message : "Failed to reject certification",
       );
     } finally {
       setActionLoading(false);
@@ -595,7 +595,7 @@ export default function CertificationDetailPage() {
                   onClick={() => {
                     if (detail.worker.account_id) {
                       router.push(
-                        `/admin/users/workers/${detail.worker.account_id}`
+                        `/admin/users/workers/${detail.worker.account_id}`,
                       );
                     } else {
                       toast.error("Worker profile unavailable");

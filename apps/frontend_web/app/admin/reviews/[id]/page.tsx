@@ -68,7 +68,7 @@ export default function ReviewDetailPage() {
     try {
       const response = await fetch(
         `${API_BASE}/api/adminpanel/app-reviews/${reviewId}/detail`,
-        { credentials: "include" }
+        { credentials: "include" },
       );
 
       if (!response.ok) throw new Error("Failed to fetch review");
@@ -95,7 +95,7 @@ export default function ReviewDetailPage() {
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({ reason, severity }),
-        }
+        },
       );
 
       if (!response.ok) throw new Error("Failed to flag review");
@@ -118,7 +118,7 @@ export default function ReviewDetailPage() {
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({ reason }),
-        }
+        },
       );
 
       if (!response.ok) throw new Error("Failed to hide review");
@@ -141,7 +141,7 @@ export default function ReviewDetailPage() {
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({ reason }),
-        }
+        },
       );
 
       if (!response.ok) throw new Error("Failed to delete review");
@@ -161,7 +161,7 @@ export default function ReviewDetailPage() {
         {
           method: "POST",
           credentials: "include",
-        }
+        },
       );
 
       if (!response.ok) throw new Error("Failed to restore review");

@@ -22,7 +22,8 @@ export default async function AdminLayout({
 
   // Use SERVER_API_URL for server-side requests
   // In Docker: http://backend:8000, On Vercel: https://api.iayos.online
-  const isProduction = process.env.NODE_ENV === "production" || process.env.VERCEL === "1";
+  const isProduction =
+    process.env.NODE_ENV === "production" || process.env.VERCEL === "1";
   const serverApiUrl =
     ensureProtocol(process.env.SERVER_API_URL) ||
     ensureProtocol(process.env.NEXT_PUBLIC_API_URL) ||

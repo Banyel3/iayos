@@ -80,13 +80,13 @@ export default function WorkersPage() {
 
   // Bulk selection state
   const [selectedWorkers, setSelectedWorkers] = useState<Set<string>>(
-    new Set()
+    new Set(),
   );
   const [selectAll, setSelectAll] = useState(false);
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
   const [showBulkActionModal, setShowBulkActionModal] = useState(false);
   const [bulkAction, setBulkAction] = useState<"suspend" | "activate" | null>(
-    null
+    null,
   );
   const [bulkActionReason, setBulkActionReason] = useState("");
 
@@ -108,7 +108,7 @@ export default function WorkersPage() {
         `${API_BASE}/api/adminpanel/users/workers?${params}`,
         {
           credentials: "include",
-        }
+        },
       );
 
       if (!response.ok) {
@@ -259,7 +259,7 @@ export default function WorkersPage() {
     setSelectAll(false);
 
     alert(
-      `${bulkAction === "suspend" ? "Suspended" : "Activated"} ${successCount} workers successfully. ${failCount > 0 ? `${failCount} failed.` : ""}`
+      `${bulkAction === "suspend" ? "Suspended" : "Activated"} ${successCount} workers successfully. ${failCount > 0 ? `${failCount} failed.` : ""}`,
     );
 
     fetchWorkers();
@@ -268,7 +268,7 @@ export default function WorkersPage() {
   const activeWorkers = workers.filter((w) => w.status === "active").length;
   const totalCompletedJobs = workers.reduce(
     (sum, w) => sum + (w.jobs_completed || 0),
-    0
+    0,
   );
 
   if (loading) {
@@ -419,7 +419,7 @@ export default function WorkersPage() {
                   value={statusFilter}
                   onChange={(e) =>
                     setStatusFilter(
-                      e.target.value as "all" | "active" | "inactive"
+                      e.target.value as "all" | "active" | "inactive",
                     )
                   }
                   className="px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700"
@@ -661,7 +661,7 @@ export default function WorkersPage() {
                                 size="sm"
                                 onClick={() =>
                                   router.push(
-                                    `/admin/users/workers/${worker.id}`
+                                    `/admin/users/workers/${worker.id}`,
                                   )
                                 }
                               >

@@ -158,7 +158,7 @@ const EditProfilePage = () => {
           method: "POST",
           credentials: "include",
           body: formData,
-        }
+        },
       );
 
       if (!response.ok) {
@@ -175,7 +175,7 @@ const EditProfilePage = () => {
       alert(
         error instanceof Error
           ? error.message
-          : "Failed to upload profile image"
+          : "Failed to upload profile image",
       );
       return null;
     } finally {

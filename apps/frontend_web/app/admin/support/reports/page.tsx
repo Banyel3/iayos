@@ -90,7 +90,7 @@ export default function UserReportsPage() {
   const [loading, setLoading] = useState(true);
   const [reports, setReports] = useState<UserReport[]>([]);
   const [selectedReport, setSelectedReport] = useState<ReportDetail | null>(
-    null
+    null,
   );
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showWarningModal, setShowWarningModal] = useState(false);
@@ -122,7 +122,7 @@ export default function UserReportsPage() {
 
       const response = await fetch(
         `${API_BASE}/api/adminpanel/support/reports?${params.toString()}`,
-        { credentials: "include" }
+        { credentials: "include" },
       );
       const data = await response.json();
 
@@ -140,7 +140,7 @@ export default function UserReportsPage() {
     try {
       const response = await fetch(
         `${API_BASE}/api/adminpanel/support/reports/${reportId}`,
-        { credentials: "include" }
+        { credentials: "include" },
       );
       const data = await response.json();
 
@@ -168,7 +168,7 @@ export default function UserReportsPage() {
             action: "warning",
             notes: warningMessage,
           }),
-        }
+        },
       );
 
       setShowWarningModal(false);
@@ -195,7 +195,7 @@ export default function UserReportsPage() {
             duration: parseInt(suspendDuration),
             notes: suspendReason,
           }),
-        }
+        },
       );
 
       setShowSuspendModal(false);
@@ -221,7 +221,7 @@ export default function UserReportsPage() {
             action: "ban",
             notes: banReason,
           }),
-        }
+        },
       );
 
       setShowBanModal(false);
@@ -247,7 +247,7 @@ export default function UserReportsPage() {
             action: "dismiss",
             notes: adminNotes,
           }),
-        }
+        },
       );
 
       setShowDetailModal(false);

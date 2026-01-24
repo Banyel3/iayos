@@ -66,7 +66,7 @@ export function useAgencyEmployees(agencyId: number) {
         `${apiUrl}/api/adminpanel/users/agencies/${agencyId}/employees`,
         {
           credentials: "include",
-        }
+        },
       );
 
       if (!response.ok) {
@@ -115,7 +115,7 @@ export function useEmployeePerformance(employeeId: number) {
         `${apiUrl}/api/agency/employees/${employeeId}/performance`,
         {
           credentials: "include",
-        }
+        },
       );
 
       if (!response.ok) {
@@ -159,7 +159,7 @@ export function useBulkUpdateEmployees() {
               is_active: action === "activate",
               agency_id: agencyId,
             }),
-          }
+          },
         );
 
         if (!response.ok) {
@@ -187,7 +187,7 @@ export function useBulkUpdateEmployees() {
  */
 export function exportEmployeesToCSV(
   employees: AgencyEmployee[],
-  agencyName: string
+  agencyName: string,
 ) {
   const headers = [
     "Employee ID",

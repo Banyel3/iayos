@@ -99,11 +99,11 @@ function combineKYCData(data: any): KYCRecord[] {
   if (data.agency_kyc && Array.isArray(data.agency_kyc)) {
     data.agency_kyc.forEach((agencyKyc: any) => {
       const agency = data.agencies?.find(
-        (a: any) => a.agencyID === agencyKyc.agencyID
+        (a: any) => a.agencyID === agencyKyc.agencyID,
       );
       const files =
         data.files?.filter(
-          (f: any) => f.agencyKycID === agencyKyc.agencyKycID
+          (f: any) => f.agencyKycID === agencyKyc.agencyKycID,
         ) || [];
 
       if (agency) {
@@ -167,10 +167,9 @@ export default function KYCDetailPage() {
       setError(null);
 
       // Fetch all KYC data
-      const response = await fetch(
-        `${API_BASE}/api/adminpanel/kyc/all`,
-        { credentials: "include" }
-      );
+      const response = await fetch(`${API_BASE}/api/adminpanel/kyc/all`, {
+        credentials: "include",
+      });
 
       if (!response.ok) {
         throw new Error(`Failed to fetch KYC data: ${response.status}`);
@@ -228,15 +227,12 @@ export default function KYCDetailPage() {
         return;
       }
 
-      const response = await fetch(
-        `${API_BASE}/api/adminpanel/kyc/review`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(requestBody),
-          credentials: "include",
-        }
-      );
+      const response = await fetch(`${API_BASE}/api/adminpanel/kyc/review`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestBody),
+        credentials: "include",
+      });
 
       console.log("Signed URLs response status:", response.status);
 
@@ -321,7 +317,7 @@ export default function KYCDetailPage() {
         : "/api/adminpanel/kyc/approve";
 
       const kycId = parseInt(
-        record.id.replace("kyc_", "").replace("agency_", "")
+        record.id.replace("kyc_", "").replace("agency_", ""),
       );
       const body = isAgency
         ? { agencyKycID: kycId, notes }
@@ -367,7 +363,7 @@ export default function KYCDetailPage() {
         : "/api/adminpanel/kyc/reject";
 
       const kycId = parseInt(
-        record.id.replace("kyc_", "").replace("agency_", "")
+        record.id.replace("kyc_", "").replace("agency_", ""),
       );
       const body = isAgency
         ? { agencyKycID: kycId, notes }
@@ -529,7 +525,7 @@ export default function KYCDetailPage() {
                 className="mt-3"
                 onClick={() =>
                   router.push(
-                    `/admin/users/${record.userType === "worker" ? "workers" : "clients"}/${record.userId}`
+                    `/admin/users/${record.userType === "worker" ? "workers" : "clients"}/${record.userId}`,
                   )
                 }
               >

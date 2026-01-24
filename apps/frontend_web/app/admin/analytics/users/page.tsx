@@ -42,7 +42,7 @@ export default function UserAnalytics() {
     try {
       const response = await fetch(
         `${API_BASE}/api/adminpanel/analytics/users?period=${dateRange}&segment=${segment}`,
-        { credentials: "include" }
+        { credentials: "include" },
       );
       const data = await response.json();
       if (data.success) {

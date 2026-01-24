@@ -79,7 +79,7 @@ export default function TransactionDetailPage() {
     try {
       const response = await fetch(
         `${API_BASE}/api/adminpanel/transactions/${transactionId}/detail`,
-        { credentials: "include" }
+        { credentials: "include" },
       );
 
       if (!response.ok) {
@@ -113,7 +113,7 @@ export default function TransactionDetailPage() {
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({ reason: releaseNote }),
-        }
+        },
       );
 
       if (!response.ok) throw new Error("Failed to release escrow");
@@ -147,7 +147,7 @@ export default function TransactionDetailPage() {
             reason: refundReason,
             refund_to: refundTo,
           }),
-        }
+        },
       );
 
       if (!response.ok) throw new Error("Failed to process refund");
@@ -275,7 +275,7 @@ export default function TransactionDetailPage() {
                       <p className="text-sm text-gray-600 mb-1">Created</p>
                       <p className="font-semibold text-gray-900">
                         {new Date(
-                          detail.transaction.created_at
+                          detail.transaction.created_at,
                         ).toLocaleString()}
                       </p>
                     </div>
@@ -320,7 +320,7 @@ export default function TransactionDetailPage() {
                         <p className="text-sm text-green-700">
                           Released on:{" "}
                           {new Date(
-                            detail.escrow_details.released_at
+                            detail.escrow_details.released_at,
                           ).toLocaleString()}
                         </p>
                       </div>

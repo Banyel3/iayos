@@ -115,7 +115,7 @@ export default function DisputeDetailPage() {
     try {
       const response = await fetch(
         `${API_BASE}/api/adminpanel/transactions/disputes/${disputeId}`,
-        { credentials: "include" }
+        { credentials: "include" },
       );
 
       if (!response.ok) {
@@ -301,7 +301,7 @@ export default function DisputeDetailPage() {
               <div className="flex items-center gap-2">
                 <span
                   className={`px-3 py-1 text-sm font-medium rounded-full flex items-center gap-2 ${getStatusColor(
-                    dispute.status
+                    dispute.status,
                   )}`}
                 >
                   {getStatusIcon(dispute.status)}
@@ -309,7 +309,7 @@ export default function DisputeDetailPage() {
                 </span>
                 <span
                   className={`px-3 py-1 text-sm font-bold rounded ${getPriorityColor(
-                    dispute.priority
+                    dispute.priority,
                   )}`}
                 >
                   {dispute.priority.toUpperCase()} PRIORITY
@@ -533,7 +533,7 @@ export default function DisputeDetailPage() {
                               {new Date(message.timestamp).toLocaleDateString()}{" "}
                               {new Date(message.timestamp).toLocaleTimeString(
                                 [],
-                                { hour: "2-digit", minute: "2-digit" }
+                                { hour: "2-digit", minute: "2-digit" },
                               )}
                             </span>
                           </div>
@@ -582,16 +582,20 @@ export default function DisputeDetailPage() {
                   <CardContent>
                     <div className="space-y-4">
                       {/* Step 1: Client confirms work started */}
-                      <div className={`flex items-start gap-3 p-3 rounded-lg border ${
-                        dispute.backjobWorkflow.backjob_started 
-                          ? "bg-green-50 border-green-200" 
-                          : "bg-gray-50 border-gray-200"
-                      }`}>
-                        <div className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center ${
-                          dispute.backjobWorkflow.backjob_started 
-                            ? "bg-green-500 text-white" 
-                            : "bg-gray-300 text-gray-600"
-                        }`}>
+                      <div
+                        className={`flex items-start gap-3 p-3 rounded-lg border ${
+                          dispute.backjobWorkflow.backjob_started
+                            ? "bg-green-50 border-green-200"
+                            : "bg-gray-50 border-gray-200"
+                        }`}
+                      >
+                        <div
+                          className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center ${
+                            dispute.backjobWorkflow.backjob_started
+                              ? "bg-green-500 text-white"
+                              : "bg-gray-300 text-gray-600"
+                          }`}
+                        >
                           {dispute.backjobWorkflow.backjob_started ? (
                             <CheckCircle2 className="h-4 w-4" />
                           ) : (
@@ -599,37 +603,50 @@ export default function DisputeDetailPage() {
                           )}
                         </div>
                         <div className="flex-1">
-                          <p className={`text-sm font-medium ${
-                            dispute.backjobWorkflow.backjob_started ? "text-green-800" : "text-gray-600"
-                          }`}>
+                          <p
+                            className={`text-sm font-medium ${
+                              dispute.backjobWorkflow.backjob_started
+                                ? "text-green-800"
+                                : "text-gray-600"
+                            }`}
+                          >
                             Client Confirms Work Started
                           </p>
                           {dispute.backjobWorkflow.backjob_started_at && (
                             <p className="text-xs text-green-600 mt-1">
-                              ✓ {new Date(dispute.backjobWorkflow.backjob_started_at).toLocaleString()}
+                              ✓{" "}
+                              {new Date(
+                                dispute.backjobWorkflow.backjob_started_at,
+                              ).toLocaleString()}
                             </p>
                           )}
                           {!dispute.backjobWorkflow.backjob_started && (
-                            <p className="text-xs text-gray-500 mt-1">Waiting for client...</p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              Waiting for client...
+                            </p>
                           )}
                         </div>
                       </div>
 
                       {/* Step 2: Worker marks complete */}
-                      <div className={`flex items-start gap-3 p-3 rounded-lg border ${
-                        dispute.backjobWorkflow.worker_marked_complete 
-                          ? "bg-green-50 border-green-200" 
-                          : dispute.backjobWorkflow.backjob_started
-                            ? "bg-yellow-50 border-yellow-200"
-                            : "bg-gray-50 border-gray-200"
-                      }`}>
-                        <div className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center ${
-                          dispute.backjobWorkflow.worker_marked_complete 
-                            ? "bg-green-500 text-white" 
+                      <div
+                        className={`flex items-start gap-3 p-3 rounded-lg border ${
+                          dispute.backjobWorkflow.worker_marked_complete
+                            ? "bg-green-50 border-green-200"
                             : dispute.backjobWorkflow.backjob_started
-                              ? "bg-yellow-500 text-white"
-                              : "bg-gray-300 text-gray-600"
-                        }`}>
+                              ? "bg-yellow-50 border-yellow-200"
+                              : "bg-gray-50 border-gray-200"
+                        }`}
+                      >
+                        <div
+                          className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center ${
+                            dispute.backjobWorkflow.worker_marked_complete
+                              ? "bg-green-500 text-white"
+                              : dispute.backjobWorkflow.backjob_started
+                                ? "bg-yellow-500 text-white"
+                                : "bg-gray-300 text-gray-600"
+                          }`}
+                        >
                           {dispute.backjobWorkflow.worker_marked_complete ? (
                             <CheckCircle2 className="h-4 w-4" />
                           ) : (
@@ -637,44 +654,59 @@ export default function DisputeDetailPage() {
                           )}
                         </div>
                         <div className="flex-1">
-                          <p className={`text-sm font-medium ${
-                            dispute.backjobWorkflow.worker_marked_complete 
-                              ? "text-green-800" 
-                              : dispute.backjobWorkflow.backjob_started
-                                ? "text-yellow-800"
-                                : "text-gray-600"
-                          }`}>
+                          <p
+                            className={`text-sm font-medium ${
+                              dispute.backjobWorkflow.worker_marked_complete
+                                ? "text-green-800"
+                                : dispute.backjobWorkflow.backjob_started
+                                  ? "text-yellow-800"
+                                  : "text-gray-600"
+                            }`}
+                          >
                             Worker Marks Complete
                           </p>
-                          {dispute.backjobWorkflow.worker_marked_complete_at && (
+                          {dispute.backjobWorkflow
+                            .worker_marked_complete_at && (
                             <p className="text-xs text-green-600 mt-1">
-                              ✓ {new Date(dispute.backjobWorkflow.worker_marked_complete_at).toLocaleString()}
+                              ✓{" "}
+                              {new Date(
+                                dispute.backjobWorkflow.worker_marked_complete_at,
+                              ).toLocaleString()}
                             </p>
                           )}
-                          {dispute.backjobWorkflow.backjob_started && !dispute.backjobWorkflow.worker_marked_complete && (
-                            <p className="text-xs text-yellow-600 mt-1">⏳ In progress...</p>
-                          )}
+                          {dispute.backjobWorkflow.backjob_started &&
+                            !dispute.backjobWorkflow.worker_marked_complete && (
+                              <p className="text-xs text-yellow-600 mt-1">
+                                ⏳ In progress...
+                              </p>
+                            )}
                           {!dispute.backjobWorkflow.backjob_started && (
-                            <p className="text-xs text-gray-500 mt-1">Pending step 1</p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              Pending step 1
+                            </p>
                           )}
                         </div>
                       </div>
 
                       {/* Step 3: Client confirms completion */}
-                      <div className={`flex items-start gap-3 p-3 rounded-lg border ${
-                        dispute.backjobWorkflow.client_confirmed 
-                          ? "bg-green-50 border-green-200" 
-                          : dispute.backjobWorkflow.worker_marked_complete
-                            ? "bg-yellow-50 border-yellow-200"
-                            : "bg-gray-50 border-gray-200"
-                      }`}>
-                        <div className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center ${
-                          dispute.backjobWorkflow.client_confirmed 
-                            ? "bg-green-500 text-white" 
+                      <div
+                        className={`flex items-start gap-3 p-3 rounded-lg border ${
+                          dispute.backjobWorkflow.client_confirmed
+                            ? "bg-green-50 border-green-200"
                             : dispute.backjobWorkflow.worker_marked_complete
-                              ? "bg-yellow-500 text-white"
-                              : "bg-gray-300 text-gray-600"
-                        }`}>
+                              ? "bg-yellow-50 border-yellow-200"
+                              : "bg-gray-50 border-gray-200"
+                        }`}
+                      >
+                        <div
+                          className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center ${
+                            dispute.backjobWorkflow.client_confirmed
+                              ? "bg-green-500 text-white"
+                              : dispute.backjobWorkflow.worker_marked_complete
+                                ? "bg-yellow-500 text-white"
+                                : "bg-gray-300 text-gray-600"
+                          }`}
+                        >
                           {dispute.backjobWorkflow.client_confirmed ? (
                             <CheckCircle2 className="h-4 w-4" />
                           ) : (
@@ -682,25 +714,35 @@ export default function DisputeDetailPage() {
                           )}
                         </div>
                         <div className="flex-1">
-                          <p className={`text-sm font-medium ${
-                            dispute.backjobWorkflow.client_confirmed 
-                              ? "text-green-800" 
-                              : dispute.backjobWorkflow.worker_marked_complete
-                                ? "text-yellow-800"
-                                : "text-gray-600"
-                          }`}>
+                          <p
+                            className={`text-sm font-medium ${
+                              dispute.backjobWorkflow.client_confirmed
+                                ? "text-green-800"
+                                : dispute.backjobWorkflow.worker_marked_complete
+                                  ? "text-yellow-800"
+                                  : "text-gray-600"
+                            }`}
+                          >
                             Client Confirms Completion
                           </p>
                           {dispute.backjobWorkflow.client_confirmed_at && (
                             <p className="text-xs text-green-600 mt-1">
-                              ✓ {new Date(dispute.backjobWorkflow.client_confirmed_at).toLocaleString()}
+                              ✓{" "}
+                              {new Date(
+                                dispute.backjobWorkflow.client_confirmed_at,
+                              ).toLocaleString()}
                             </p>
                           )}
-                          {dispute.backjobWorkflow.worker_marked_complete && !dispute.backjobWorkflow.client_confirmed && (
-                            <p className="text-xs text-yellow-600 mt-1">⏳ Waiting for client approval...</p>
-                          )}
+                          {dispute.backjobWorkflow.worker_marked_complete &&
+                            !dispute.backjobWorkflow.client_confirmed && (
+                              <p className="text-xs text-yellow-600 mt-1">
+                                ⏳ Waiting for client approval...
+                              </p>
+                            )}
                           {!dispute.backjobWorkflow.worker_marked_complete && (
-                            <p className="text-xs text-gray-500 mt-1">Pending step 2</p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              Pending step 2
+                            </p>
                           )}
                         </div>
                       </div>
@@ -731,25 +773,30 @@ export default function DisputeDetailPage() {
                         >
                           <div className="flex items-start justify-between mb-1">
                             <div className="flex items-center gap-2">
-                              <span className={`text-xs px-2 py-0.5 rounded font-medium ${
-                                log.is_backjob_event
-                                  ? "bg-orange-200 text-orange-800"
-                                  : "bg-gray-200 text-gray-700"
-                              }`}>
+                              <span
+                                className={`text-xs px-2 py-0.5 rounded font-medium ${
+                                  log.is_backjob_event
+                                    ? "bg-orange-200 text-orange-800"
+                                    : "bg-gray-200 text-gray-700"
+                                }`}
+                              >
                                 {log.new_status.replace(/_/g, " ")}
                               </span>
-                              {log.old_status && log.old_status !== log.new_status && (
-                                <span className="text-xs text-gray-400">
-                                  from {log.old_status.replace(/_/g, " ")}
-                                </span>
-                              )}
+                              {log.old_status &&
+                                log.old_status !== log.new_status && (
+                                  <span className="text-xs text-gray-400">
+                                    from {log.old_status.replace(/_/g, " ")}
+                                  </span>
+                                )}
                             </div>
                             <span className="text-xs text-gray-400">
                               {new Date(log.created_at).toLocaleString()}
                             </span>
                           </div>
                           {log.notes && (
-                            <p className="text-sm text-gray-700 mt-1">{log.notes}</p>
+                            <p className="text-sm text-gray-700 mt-1">
+                              {log.notes}
+                            </p>
                           )}
                           <p className="text-xs text-gray-500 mt-1">
                             By: {log.changed_by}
@@ -828,7 +875,7 @@ export default function DisputeDetailPage() {
                           onClick={async () => {
                             if (
                               !confirm(
-                                "Approve this backjob request? The worker/agency will be notified."
+                                "Approve this backjob request? The worker/agency will be notified.",
                               )
                             )
                               return;
@@ -844,17 +891,17 @@ export default function DisputeDetailPage() {
                                   body: JSON.stringify({
                                     priority: dispute.priority,
                                   }),
-                                }
+                                },
                               );
                               const data = await res.json();
                               if (data.success) {
                                 alert(
-                                  "Backjob approved! Worker/agency has been notified."
+                                  "Backjob approved! Worker/agency has been notified.",
                                 );
                                 fetchDisputeDetail();
                               } else {
                                 alert(
-                                  data.error || "Failed to approve backjob"
+                                  data.error || "Failed to approve backjob",
                                 );
                               }
                             } catch (err) {
@@ -880,12 +927,12 @@ export default function DisputeDetailPage() {
                                     "Content-Type": "application/json",
                                   },
                                   body: JSON.stringify({ reason }),
-                                }
+                                },
                               );
                               const data = await res.json();
                               if (data.success) {
                                 alert(
-                                  "Backjob rejected. Client has been notified."
+                                  "Backjob rejected. Client has been notified.",
                                 );
                                 fetchDisputeDetail();
                               } else {

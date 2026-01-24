@@ -77,7 +77,7 @@ export default function CertificationHistoryPage() {
 
       const response = await fetch(
         `${API_BASE}/api/adminpanel/certifications/history?${params.toString()}`,
-        { credentials: "include" }
+        { credentials: "include" },
       );
 
       if (!response.ok) {
@@ -321,7 +321,7 @@ export default function CertificationHistoryPage() {
                 value={actionFilter}
                 onChange={(e) =>
                   setActionFilter(
-                    e.target.value as "all" | "APPROVED" | "REJECTED"
+                    e.target.value as "all" | "APPROVED" | "REJECTED",
                   )
                 }
                 className="px-4 py-2 border rounded-lg"

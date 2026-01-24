@@ -40,7 +40,7 @@ export default function EngagementMetrics() {
     try {
       const response = await fetch(
         `${API_BASE}/api/adminpanel/analytics/engagement?period=${dateRange}`,
-        { credentials: "include" }
+        { credentials: "include" },
       );
       const data = await response.json();
       if (data.success) {

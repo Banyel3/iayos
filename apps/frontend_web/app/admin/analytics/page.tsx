@@ -80,7 +80,7 @@ export default function AnalyticsDashboard() {
     try {
       const response = await fetch(
         `${API_BASE}/api/adminpanel/analytics/overview?period=${dateRange}`,
-        { credentials: "include" }
+        { credentials: "include" },
       );
       const data = await response.json();
 

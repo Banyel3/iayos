@@ -47,7 +47,7 @@ export default function ActiveJobsPage() {
         `${API_BASE}/api/agency/jobs?status=IN_PROGRESS`,
         {
           credentials: "include",
-        }
+        },
       );
       if (!response.ok) throw new Error("Failed to fetch jobs");
       return response.json();
@@ -129,10 +129,10 @@ export default function ActiveJobsPage() {
   });
 
   const inProgressCount = jobs.filter(
-    (j) => j.clientConfirmedWorkStarted && !j.workerMarkedComplete
+    (j) => j.clientConfirmedWorkStarted && !j.workerMarkedComplete,
   ).length;
   const pendingCount = jobs.filter(
-    (j) => j.workerMarkedComplete && !j.clientMarkedComplete
+    (j) => j.workerMarkedComplete && !j.clientMarkedComplete,
   ).length;
 
   if (isLoading) {

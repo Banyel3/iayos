@@ -44,7 +44,7 @@ export default function SupportPage() {
     try {
       const response = await fetch(
         `${API_BASE}/api/adminpanel/support/tickets/stats`,
-        { credentials: "include" }
+        { credentials: "include" },
       );
       const data = await response.json();
 

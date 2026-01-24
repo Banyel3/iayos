@@ -47,7 +47,7 @@ export type ReviewTypeFilter = "ALL" | "AGENCY" | "EMPLOYEE";
 async function fetchAgencyReviews(
   page: number = 1,
   limit: number = 10,
-  reviewType: ReviewTypeFilter = "ALL"
+  reviewType: ReviewTypeFilter = "ALL",
 ): Promise<AgencyReviewsResponse> {
   const params = new URLSearchParams({
     page: page.toString(),
@@ -66,7 +66,7 @@ async function fetchAgencyReviews(
       headers: {
         "Content-Type": "application/json",
       },
-    }
+    },
   );
 
   if (!response.ok) {
@@ -84,7 +84,7 @@ async function fetchAgencyReviews(
 export function useAgencyReviews(
   page: number = 1,
   limit: number = 10,
-  reviewType: ReviewTypeFilter = "ALL"
+  reviewType: ReviewTypeFilter = "ALL",
 ) {
   return useQuery({
     queryKey: ["agencyReviews", page, limit, reviewType],

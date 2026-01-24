@@ -30,7 +30,7 @@ export async function POST(req: Request) {
           verifyLink: parsed.verifyLink,
           verifyLinkExpire: parsed.verifyLinkExpire,
         }),
-      }
+      },
     );
 
     const backendData = await backendResponse.json();
@@ -44,7 +44,7 @@ export async function POST(req: Request) {
           error: backendData.error || "Failed to send verification email",
           details: backendData.details,
         },
-        { status: backendResponse.status }
+        { status: backendResponse.status },
       );
     }
 
@@ -56,18 +56,18 @@ export async function POST(req: Request) {
     });
   } catch (error) {
     console.error("📧 Email sending failed:", error);
-    
+
     // Handle Zod validation errors
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: "Invalid request data", details: error.errors },
-        { status: 400 }
+        { status: 400 },
       );
     }
-    
+
     return NextResponse.json(
       { error: "Something went wrong", details: (error as Error).message },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

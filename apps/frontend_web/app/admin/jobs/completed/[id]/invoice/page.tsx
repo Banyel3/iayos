@@ -68,7 +68,7 @@ export default function InvoicePage() {
     try {
       const response = await fetch(
         `${API_BASE}/api/adminpanel/jobs/${jobId}/invoice`,
-        { credentials: "include" }
+        { credentials: "include" },
       );
 
       if (!response.ok) {
@@ -190,7 +190,7 @@ export default function InvoicePage() {
                             year: "numeric",
                             month: "long",
                             day: "numeric",
-                          }
+                          },
                         )
                       : "Pending"}
                   </p>

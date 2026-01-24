@@ -33,7 +33,7 @@ const VerifyEmail = () => {
           method: "GET",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
-        }
+        },
       );
 
       const data = await res.json();
@@ -45,7 +45,7 @@ const VerifyEmail = () => {
         setLoading(false);
         setError(true);
         setErrorMessage(
-          data.error?.[0]?.message || "Email verification failed."
+          data.error?.[0]?.message || "Email verification failed.",
         );
       }
     } catch (error) {
@@ -53,7 +53,7 @@ const VerifyEmail = () => {
       setLoading(false);
       setError(true);
       setErrorMessage(
-        "Network error. Please check your connection and try again."
+        "Network error. Please check your connection and try again.",
       );
     }
   };

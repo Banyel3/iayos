@@ -32,14 +32,14 @@ const CATEGORIES = ["all", "account", "payment", "technical", "general"];
 export default function CannedResponsesPage() {
   const [responses, setResponses] = useState<CannedResponse[]>([]);
   const [filteredResponses, setFilteredResponses] = useState<CannedResponse[]>(
-    []
+    [],
   );
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [showModal, setShowModal] = useState(false);
   const [editingResponse, setEditingResponse] = useState<CannedResponse | null>(
-    null
+    null,
   );
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -62,7 +62,7 @@ export default function CannedResponsesPage() {
     try {
       const response = await fetch(
         `${API_BASE}/api/adminpanel/support/canned-responses`,
-        { credentials: "include" }
+        { credentials: "include" },
       );
       const data = await response.json();
 
@@ -88,7 +88,7 @@ export default function CannedResponsesPage() {
       filtered = filtered.filter(
         (r) =>
           r.title.toLowerCase().includes(search) ||
-          r.content.toLowerCase().includes(search)
+          r.content.toLowerCase().includes(search),
       );
     }
 
@@ -152,13 +152,10 @@ export default function CannedResponsesPage() {
     if (!confirm("Delete this canned response?")) return;
 
     try {
-      await fetch(
-        `${API_BASE}/api/adminpanel/support/canned-responses/${id}`,
-        {
-          method: "DELETE",
-          credentials: "include",
-        }
-      );
+      await fetch(`${API_BASE}/api/adminpanel/support/canned-responses/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
       fetchResponses();
     } catch (error) {
       console.error("Error deleting response:", error);
@@ -171,7 +168,7 @@ export default function CannedResponsesPage() {
     preview = preview.replace(/\{\{ticket_subject\}\}/g, "Sample Ticket");
     preview = preview.replace(
       /\{\{current_date\}\}/g,
-      new Date().toLocaleDateString()
+      new Date().toLocaleDateString(),
     );
     return preview;
   };

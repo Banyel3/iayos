@@ -77,10 +77,10 @@ export default function PendingVerificationPage() {
           .filter((kyc: any) => kyc.kycStatus === "PENDING")
           .map((kyc: any) => {
             const user = (data.users || []).find(
-              (u: any) => u.accountID === kyc.accountFK_id
+              (u: any) => u.accountID === kyc.accountFK_id,
             );
             const files = (data.kyc_files || []).filter(
-              (f: any) => f.kycID_id === kyc.kycID
+              (f: any) => f.kycID_id === kyc.kycID,
             );
 
             return {
@@ -113,10 +113,10 @@ export default function PendingVerificationPage() {
           .filter((kyc: any) => kyc.status === "PENDING")
           .map((kyc: any) => {
             const agency = (data.agencies || []).find(
-              (a: any) => a.accountID === kyc.accountFK_id
+              (a: any) => a.accountID === kyc.accountFK_id,
             );
             const files = (data.agency_kyc_files || []).filter(
-              (f: any) => f.agencyKyc_id === kyc.agencyKycID
+              (f: any) => f.agencyKyc_id === kyc.agencyKycID,
             );
 
             return {
@@ -162,7 +162,7 @@ export default function PendingVerificationPage() {
         setError(
           err instanceof Error
             ? err.message
-            : "Failed to load pending verifications"
+            : "Failed to load pending verifications",
         );
       } finally {
         setLoading(false);
@@ -330,7 +330,7 @@ export default function PendingVerificationPage() {
                   value={typeFilter}
                   onChange={(e) =>
                     setTypeFilter(
-                      e.target.value as "all" | "worker" | "client" | "agency"
+                      e.target.value as "all" | "worker" | "client" | "agency",
                     )
                   }
                   className="px-3 py-2 border rounded-md"
@@ -344,7 +344,7 @@ export default function PendingVerificationPage() {
                   value={priorityFilter}
                   onChange={(e) =>
                     setPriorityFilter(
-                      e.target.value as "all" | "high" | "medium" | "low"
+                      e.target.value as "all" | "high" | "medium" | "low",
                     )
                   }
                   className="px-3 py-2 border rounded-md"

@@ -78,7 +78,7 @@ export default function SupportAnalyticsPage() {
     try {
       const response = await fetch(
         `${API_BASE}/api/adminpanel/support/statistics?range=${dateRange}`,
-        { credentials: "include" }
+        { credentials: "include" },
       );
       const data = await response.json();
 
@@ -399,7 +399,7 @@ export default function SupportAnalyticsPage() {
                   {(stats.tickets_by_category ?? []).map((item) => {
                     const total = (stats.tickets_by_category ?? []).reduce(
                       (sum, i) => sum + i.count,
-                      0
+                      0,
                     );
                     const percentage =
                       total > 0 ? ((item.count / total) * 100).toFixed(1) : "0";
@@ -498,7 +498,7 @@ export default function SupportAnalyticsPage() {
                 {(stats.response_time_trend ?? []).map((item, index) => {
                   const maxTime = Math.max(
                     ...(stats.response_time_trend ?? []).map((t) => t.time),
-                    1
+                    1,
                   );
                   const height = (item.time / maxTime) * 100;
                   return (

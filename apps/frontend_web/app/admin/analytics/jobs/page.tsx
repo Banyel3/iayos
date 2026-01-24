@@ -40,7 +40,7 @@ export default function JobAnalytics() {
     try {
       const response = await fetch(
         `${API_BASE}/api/adminpanel/analytics/jobs?period=${dateRange}`,
-        { credentials: "include" }
+        { credentials: "include" },
       );
       const data = await response.json();
       if (data.success) {

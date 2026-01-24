@@ -73,7 +73,7 @@ export default function DisputeDetailPage() {
     try {
       const response = await fetch(
         `${API_BASE}/api/adminpanel/transactions/disputes/${disputeId}`,
-        { credentials: "include" }
+        { credentials: "include" },
       );
 
       if (!response.ok) {
@@ -125,7 +125,7 @@ export default function DisputeDetailPage() {
                   ? detail?.dispute.amount
                   : 0,
           }),
-        }
+        },
       );
 
       if (!response.ok) throw new Error("Failed to resolve dispute");
@@ -279,7 +279,7 @@ export default function DisputeDetailPage() {
                         </p>
                         <p className="font-semibold text-green-900">
                           {new Date(
-                            detail.dispute.resolved_at
+                            detail.dispute.resolved_at,
                           ).toLocaleString()}
                         </p>
                         {detail.dispute.resolution && (

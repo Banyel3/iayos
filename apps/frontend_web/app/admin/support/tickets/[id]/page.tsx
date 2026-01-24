@@ -109,7 +109,7 @@ export default function TicketDetailPage() {
     try {
       const response = await fetch(
         `${API_BASE}/api/adminpanel/support/tickets/${ticketId}`,
-        { credentials: "include" }
+        { credentials: "include" },
       );
       const data = await response.json();
 
@@ -139,7 +139,7 @@ export default function TicketDetailPage() {
             message: replyMessage,
             is_internal_note: isInternalNote,
           }),
-        }
+        },
       );
 
       if (response.ok) {
@@ -164,7 +164,7 @@ export default function TicketDetailPage() {
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({ status: newStatus }),
-        }
+        },
       );
       fetchTicketDetail();
     } catch (error) {
@@ -181,7 +181,7 @@ export default function TicketDetailPage() {
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({ priority: newPriority }),
-        }
+        },
       );
       fetchTicketDetail();
     } catch (error) {
@@ -201,7 +201,7 @@ export default function TicketDetailPage() {
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({ resolution_note: resolution }),
-        }
+        },
       );
       fetchTicketDetail();
     } catch (error) {
