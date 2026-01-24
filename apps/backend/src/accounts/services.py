@@ -234,27 +234,28 @@ def generateCookie(user, profile_type=None):
     })
     
     # Set cookies for Next.js web app compatibility
-    # Production (Vercel/Render): secure=True, samesite='None' for cross-origin HTTPS
-    # Development (localhost): secure=False, samesite='Lax' for same-origin HTTP
+    # Production (Vercel/Render): secure=True, samesite='Lax', domain=.iayos.online
+    # Development (localhost): secure=False, samesite='Lax', domain=None
     is_production = not settings.DEBUG
+    cookie_domain = ".iayos.online" if is_production else None  # Shared domain for frontend/backend
     
     response.set_cookie(
         key="access",
         value=access_token,
         httponly=True,
         secure=is_production,           # True for HTTPS in production
-        samesite='None' if is_production else 'Lax',  # Cross-origin in production
+        samesite='Lax',                 # Lax is sufficient when same parent domain
         max_age=3600,                   # 1 hour (matches token expiry)
-        domain=None,
+        domain=cookie_domain,           # .iayos.online in production
     )
     response.set_cookie(
         key="refresh",
         value=refresh_token,
         httponly=True,
         secure=is_production,           # True for HTTPS in production
-        samesite='None' if is_production else 'Lax',  # Cross-origin in production
+        samesite='Lax',                 # Lax is sufficient when same parent domain
         max_age=604800,                 # 7 days (matches token expiry)
-        domain=None,
+        domain=cookie_domain,           # .iayos.online in production
     )
     return response
 
@@ -407,12 +408,14 @@ def refresh_token(expired_token):
 
         response = JsonResponse({"Message": "Token Refreshed"})
         is_production = not settings.DEBUG
+        cookie_domain = ".iayos.online" if is_production else None
         response.set_cookie(
             "access",
             access_token,
             httponly=True,
             secure=is_production,
-            samesite='None' if is_production else 'Lax'
+            samesite='Lax',
+            domain=cookie_domain,
         )
         return response
 

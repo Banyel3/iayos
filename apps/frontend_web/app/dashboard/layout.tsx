@@ -30,8 +30,8 @@ export default async function DashboardLayout({
 
   // Use SERVER_API_URL for server-side requests
   // In Docker: http://backend:8000
-  // On Vercel: https://iayos.onrender.com (must be set in Vercel env vars)
-  const serverApiUrl = process.env.SERVER_API_URL || process.env.NEXT_PUBLIC_API_BASE || "https://iayos.onrender.com";
+  // On Vercel: https://api.iayos.online (shared domain with frontend for cookies)
+  const serverApiUrl = process.env.SERVER_API_URL || process.env.NEXT_PUBLIC_API_BASE || "https://api.iayos.online";
 
   try {
     // Validate session with backend

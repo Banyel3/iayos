@@ -14,8 +14,8 @@ export default async function AdminLayout({
     .join("; ");
 
   // Use SERVER_API_URL for server-side requests
-  // In Docker: http://backend:8000, On Vercel: https://iayos.onrender.com
-  const serverApiUrl = process.env.SERVER_API_URL || process.env.NEXT_PUBLIC_API_BASE || "https://iayos.onrender.com";
+  // In Docker: http://backend:8000, On Vercel: https://api.iayos.online
+  const serverApiUrl = process.env.SERVER_API_URL || process.env.NEXT_PUBLIC_API_BASE || "https://api.iayos.online";
 
   // Server-side validate session with backend to avoid client-only cookie checks
   try {
