@@ -210,55 +210,7 @@ EXPOSE 3000
 CMD ["npm", "start"]
 
 # ============================================
-# Stage 11: Backend Production (Secure)
-# ============================================
-FROM python:3.12-alpine AS backend-production
-
-# Set secure environment variables
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PATH="/app/.local/bin:$PATH"
-
-# Create non-root user
-RUN addgroup -g 1001 -S appgroup \
-    && adduser -S -D -H -u 1001 -h /app -s /sbin/nologin -G appgroup appuser
-
-# Install only runtime dependencies
-RUN apk add --no-cache \
-    postgresql-client \
-    libpq \
-    libffi \
-    openssl \
-    && rm -rf /var/cache/apk/*
-
-WORKDIR /app/backend
-
-# Copy Python dependencies from deps stage
-COPY --from=backend-deps --chown=appuser:appgroup /app/.local /app/.local
-
-# Copy application code with proper ownership (includes start.sh)
-COPY --from=backend-builder --chown=appuser:appgroup /app/backend ./
-
-# Make start.sh executable (it's already copied from backend-builder)
-RUN chmod +x /app/backend/start.sh
-
-# Switch to non-root user
-USER appuser
-
-# Add health check
-HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/', timeout=10)" || exit 1
-
-# Expose port for Django
-EXPOSE 8000
-
-# Use the start script that runs migrations then starts Daphne
-ENTRYPOINT ["/app/backend/start.sh"]
-
-# ============================================
-# Stage 12: Frontend Development (Node only)
+# Stage 11: Frontend Development (Node only)
 # ============================================
 FROM base AS frontend-development
 
@@ -347,3 +299,52 @@ EXPOSE 8000
 
 # Default dev command (compose overrides)
 CMD ["python", "src/manage.py", "runserver", "0.0.0.0:8000"]
+
+# ============================================
+# Stage 14: Backend Production (LAST - for Render)
+# ============================================
+# This MUST be the last stage for Render to build it by default
+FROM python:3.12-alpine AS backend-production
+
+# Set secure environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PATH="/app/.local/bin:$PATH"
+
+# Create non-root user
+RUN addgroup -g 1001 -S appgroup \
+    && adduser -S -D -H -u 1001 -h /app -s /sbin/nologin -G appgroup appuser
+
+# Install only runtime dependencies
+RUN apk add --no-cache \
+    postgresql-client \
+    libpq \
+    libffi \
+    openssl \
+    && rm -rf /var/cache/apk/*
+
+WORKDIR /app/backend
+
+# Copy Python dependencies from deps stage
+COPY --from=backend-deps --chown=appuser:appgroup /app/.local /app/.local
+
+# Copy application code with proper ownership (includes start.sh)
+COPY --from=backend-builder --chown=appuser:appgroup /app/backend ./
+
+# Make start.sh executable (it's already copied from backend-builder)
+RUN chmod +x /app/backend/start.sh
+
+# Switch to non-root user
+USER appuser
+
+# Add health check
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/', timeout=10)" || exit 1
+
+# Expose port for Django
+EXPOSE 8000
+
+# Use the start script that runs migrations then starts Daphne
+ENTRYPOINT ["/app/backend/start.sh"]
