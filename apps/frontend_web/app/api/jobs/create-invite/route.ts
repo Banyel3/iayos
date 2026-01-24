@@ -3,8 +3,8 @@ import { cookies } from "next/headers";
 
 const API_BASE_URL =
   process.env.SERVER_API_URL ||
-  process.env.NEXT_PUBLIC_API_URL ||
-  "http://backend:8000";
+  process.env.NEXT_PUBLIC_API_BASE ||
+  "https://iayos.onrender.com";
 
 export async function POST(request: Request) {
   try {

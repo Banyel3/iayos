@@ -16,9 +16,9 @@ export default async function AgencyLayout({
     .map((c) => `${c.name}=${c.value}`)
     .join("; ");
 
-  // Use internal Docker network for server-side requests
-  // In Docker: backend:8000, Outside Docker: localhost:8000
-  const serverApiUrl = process.env.SERVER_API_URL || "http://backend:8000";
+  // Use SERVER_API_URL for server-side requests
+  // In Docker: http://backend:8000, On Vercel: https://iayos.onrender.com
+  const serverApiUrl = process.env.SERVER_API_URL || process.env.NEXT_PUBLIC_API_BASE || "https://iayos.onrender.com";
 
   let user: any = null;
 
