@@ -47,10 +47,11 @@ jobs:
         with:
           category: "/language:${{ matrix.language }}"
           output: sarif-results
-          upload: true
+          upload: false
 
       - name: Upload SARIF results as artifact
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: codeql-results-${{ matrix.language }}
           path: sarif-results
@@ -58,5 +59,7 @@ jobs:
 
       - name: Upload SARIF to code-scanning
         uses: github/codeql-action/upload-sarif@v3
+        if: always()
         with:
           sarif_file: sarif-results/${{ matrix.language }}.sarif
+          category: "/language:${{ matrix.language }}"
