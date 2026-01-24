@@ -827,8 +827,6 @@ const Login = () => {
                       </Link>
                     </p>
                   </div>
-                    </p>
-                  </div>
                 </div>
               </div>
             </div>
