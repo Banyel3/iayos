@@ -337,11 +337,13 @@ def resend_otp(request, payload: dict = Body(...)):
         return {"success": False, "error": "Email is already verified", "already_verified": True}
     
     # Rate limiting: Check if last OTP was sent within 60 seconds
-    if user.email_otp_expiry:
-        # OTP expiry is set 5 min after creation, so creation time = expiry - 5 min
+    # Only enforce rate limit if there's an existing unexpired OTP
+    if user.email_otp_expiry and user.email_otp_expiry > timezone.now():
+        # Calculate time since OTP creation (expiry - 5 minutes)
         otp_created_at = user.email_otp_expiry - timedelta(minutes=5)
         seconds_since_last = (timezone.now() - otp_created_at).total_seconds()
         
+        # Only apply rate limit if this is a recent OTP (within last 60 seconds)
         if seconds_since_last < 60:
             wait_seconds = int(60 - seconds_since_last)
             return Response({

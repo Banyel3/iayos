@@ -273,10 +273,16 @@ def mobile_send_otp_email(request, payload: SendOTPEmailSchema):
     try:
         # Validate required environment variables
         resend_api_key = settings.RESEND_API_KEY
+        resend_base_url = getattr(settings, 'RESEND_BASE_URL', 'https://api.resend.com')
+        
+        print(f"🔍 [Mobile] Checking email service configuration...")
+        print(f"🔍 [Mobile] RESEND_API_KEY configured: {bool(resend_api_key)}")
+        print(f"🔍 [Mobile] RESEND_BASE_URL: {resend_base_url}")
+        
         if not resend_api_key:
-            print("❌ [Mobile] RESEND_API_KEY not configured")
+            print("❌ [Mobile] RESEND_API_KEY not configured in environment")
             return Response(
-                {"error": "Email service not configured"},
+                {"error": "Email service not configured. Please contact support."},
                 status=500
             )
         
@@ -331,7 +337,7 @@ def mobile_send_otp_email(request, payload: SendOTPEmailSchema):
         """
         
         # Call Resend API
-        resend_url = f"{settings.RESEND_BASE_URL}/emails"
+        resend_url = f"{resend_base_url}/emails"
         headers = {
             "Authorization": f"Bearer {resend_api_key}",
             "Content-Type": "application/json"
@@ -345,7 +351,9 @@ def mobile_send_otp_email(request, payload: SendOTPEmailSchema):
         }
         
         print(f"📧 [Mobile] Sending OTP email to: {payload.email}")
+        print(f"📧 [Mobile] Using Resend URL: {resend_url}")
         response = requests.post(resend_url, headers=headers, json=resend_payload, timeout=10)
+        print(f"📧 [Mobile] Resend API Response Status: {response.status_code}")
         
         if response.status_code == 200:
             result = response.json()
