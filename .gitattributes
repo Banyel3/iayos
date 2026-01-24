@@ -1,0 +1,23 @@
+# Ensure shell scripts always use LF line endings (Unix style)
+*.sh text eol=lf
+
+# Ensure Python files use LF
+*.py text eol=lf
+
+# Docker-related files should use LF
+Dockerfile text eol=lf
+docker-compose*.yml text eol=lf
+
+# Environment files can be platform-specific
+*.env text
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
