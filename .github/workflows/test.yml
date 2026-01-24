@@ -120,7 +120,7 @@ jobs:
         if: matrix.component == 'backend'
         working-directory: ${{ matrix.path }}/src
         env:
-          DATABASE_URL: postgresql://iayos_user:test_password@localhost:5432/iayos_test_db
+          DATABASE_URL: postgresql://iayos_user:test_password@localhost:5432/iayos_test_db?sslmode=disable
           REDIS_URL: redis://localhost:6379/0
           DJANGO_SECRET_KEY: test-secret-key-for-ci
           DEBUG: "False"
