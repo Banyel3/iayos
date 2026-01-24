@@ -7,26 +7,22 @@ const API_BASE_URL =
 
 export async function GET(request: NextRequest) {
   try {
-    const authHeader = request.headers.get("authorization");
-    const cookieHeader = request.headers.get("cookie") || "";
-    const accessCookie = request.cookies.get("access")?.value;
+    // Get all cookies from Next.js request and build Cookie header
+    const cookies = request.cookies.getAll();
+    const cookieHeader = cookies
+      .map((cookie) => `${cookie.name}=${cookie.value}`)
+      .join("; ");
 
     const headers: HeadersInit = {
       Accept: "application/json",
     };
 
-    // Forward Authorization header from the client if present
-    if (authHeader) {
-      headers["Authorization"] = authHeader;
-    } else if (accessCookie) {
-      // Fallback: promote httpOnly access cookie to Bearer for backend dual_auth
-      headers["Authorization"] = `Bearer ${accessCookie}`;
-    }
-
-    // Forward cookies for cookie-based auth
+    // Forward cookies for cookie-based auth (dual_auth will handle it)
     if (cookieHeader) {
       headers["Cookie"] = cookieHeader;
     }
+
+    console.log(`[/api/auth/me] Forwarding ${cookies.length} cookies to backend`);
 
     const backendResponse = await fetch(`${API_BASE_URL}/api/accounts/me`, {
       method: "GET",
