@@ -149,23 +149,23 @@ SOCIALACCOUNT_PROVIDERS = {
     }
 }
 
-# CORS Settings - Allow frontend during dev
-# settings.py
-CORS_ALLOW_ALL_ORIGINS = True  # Allow all origins in development (restrict in production)
-
-# Legacy CORS settings (kept for reference)
-# CORS_ALLOWED_ORIGINS = [
-#     "http://localhost:3000",
-#     "http://127.0.0.1:3000",
-#     "http://localhost:8000",
-#     "http://127.0.0.1:8000",
-# ]
+# CORS Settings - Environment-aware configuration
+# Production: Restrict to specific origins | Development: Allow all
+if DEBUG:
+    CORS_ALLOW_ALL_ORIGINS = True  # Allow all origins in development
+else:
+    CORS_ALLOW_ALL_ORIGINS = False
+    CORS_ALLOWED_ORIGINS = [
+        os.getenv('FRONTEND_URL', 'https://iayos.vercel.app'),  # Vercel production
+        # Add other production domains as needed
+    ]
 
 # Get the frontend URL from environment for CSRF trust
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3400')
 API_URL = os.getenv('EXPO_PUBLIC_API_URL', 'http://localhost:8000').strip('"')
 
 CSRF_TRUSTED_ORIGINS = [
+    # Local development
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "http://localhost:3400",
@@ -177,6 +177,9 @@ CSRF_TRUSTED_ORIGINS = [
     "http://10.0.2.2:8000",  # Android emulator host access
     "http://192.168.254.116:3500",  # IP address for LAN access (port 3500)
     "http://192.168.254.116:8000",  # Backend IP for LAN access
+    # Production domains (HTTPS)
+    "https://iayos.vercel.app",           # Vercel production
+    "https://iayos-backend.onrender.com", # Render production backend
     FRONTEND_URL,  # Dynamic frontend URL from env
     API_URL,  # Dynamic API URL from env
 ]
@@ -207,11 +210,7 @@ CORS_ALLOW_METHODS = [
     "PUT",
 ]
 
-# CSRF Settings - Exempt API endpoints since we're using JWT
-CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-]
+# CSRF Settings - JWT-based APIs are exempt; cookies handled above
 
 ROOT_URLCONF = 'iayos_project.urls'
 

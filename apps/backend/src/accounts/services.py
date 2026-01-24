@@ -234,23 +234,26 @@ def generateCookie(user, profile_type=None):
     })
     
     # Set cookies for Next.js web app compatibility
-    # Use SameSite=None for cross-origin localhost development (different ports)
+    # Production (Vercel/Render): secure=True, samesite='None' for cross-origin HTTPS
+    # Development (localhost): secure=False, samesite='Lax' for same-origin HTTP
+    is_production = not settings.DEBUG
+    
     response.set_cookie(
         key="access",
         value=access_token,
         httponly=True,
-        secure=False,      # Must be False for http://localhost
-        samesite=None,     # Allow cross-origin between localhost:3000 and localhost:8000
-        max_age=3600,      # 1 hour (matches token expiry)
+        secure=is_production,           # True for HTTPS in production
+        samesite='None' if is_production else 'Lax',  # Cross-origin in production
+        max_age=3600,                   # 1 hour (matches token expiry)
         domain=None,
     )
     response.set_cookie(
         key="refresh",
         value=refresh_token,
         httponly=True,
-        secure=False,      # Must be False for http://localhost
-        samesite=None,     # Allow cross-origin between localhost:3000 and localhost:8000
-        max_age=604800,    # 7 days (matches token expiry)
+        secure=is_production,           # True for HTTPS in production
+        samesite='None' if is_production else 'Lax',  # Cross-origin in production
+        max_age=604800,                 # 7 days (matches token expiry)
         domain=None,
     )
     return response
@@ -403,7 +406,14 @@ def refresh_token(expired_token):
         access_token = jwt.encode(access_payload, settings.SECRET_KEY, algorithm='HS256')
 
         response = JsonResponse({"Message": "Token Refreshed"})
-        response.set_cookie("access", access_token, httponly=True, secure=False, samesite="Lax")
+        is_production = not settings.DEBUG
+        response.set_cookie(
+            "access",
+            access_token,
+            httponly=True,
+            secure=is_production,
+            samesite='None' if is_production else 'Lax'
+        )
         return response
 
     except jwt.ExpiredSignatureError:

@@ -3,7 +3,9 @@ import { NextRequest, NextResponse } from "next/server";
 
 // Allow both public and server-only API base envs; default to local backend
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || process.env.API_URL || "http://localhost:8000";
+  process.env.NEXT_PUBLIC_API_URL ||
+  process.env.API_URL ||
+  "http://localhost:8000";
 
 export async function GET(request: NextRequest) {
   try {
@@ -22,7 +24,9 @@ export async function GET(request: NextRequest) {
       headers["Cookie"] = cookieHeader;
     }
 
-    console.log(`[/api/auth/me] Forwarding ${cookies.length} cookies to backend`);
+    console.log(
+      `[/api/auth/me] Forwarding ${cookies.length} cookies to backend`,
+    );
 
     const backendResponse = await fetch(`${API_BASE_URL}/api/accounts/me`, {
       method: "GET",
@@ -34,7 +38,10 @@ export async function GET(request: NextRequest) {
     if (!backendResponse.ok) {
       const errorBody = await backendResponse.text();
       const message = errorBody || "Unauthorized";
-      return NextResponse.json({ error: message }, { status: backendResponse.status });
+      return NextResponse.json(
+        { error: message },
+        { status: backendResponse.status },
+      );
     }
 
     const userData = await backendResponse.json();
