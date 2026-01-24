@@ -58,13 +58,30 @@ if not SECRET_KEY:
 DEBUG = os.environ.get('DEBUG', 'false').lower() == 'true'
 
 # SECURITY: In production, ALLOWED_HOSTS must be explicitly set
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '').split(',')
-if not any(ALLOWED_HOSTS) or ALLOWED_HOSTS == ['']:
+# Parse from environment variable (comma-separated)
+_env_hosts = os.environ.get('ALLOWED_HOSTS', '').strip()
+ALLOWED_HOSTS = [h.strip() for h in _env_hosts.split(',') if h.strip()]
+
+# Always include production domains to prevent deployment issues
+PRODUCTION_HOSTS = [
+    'iayos.onrender.com',      # Render subdomain
+    'api.iayos.online',        # Custom API domain
+    'iayos.online',            # Custom frontend domain
+    'www.iayos.online',        # www subdomain
+]
+
+# Merge with production hosts
+for host in PRODUCTION_HOSTS:
+    if host not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(host)
+
+# Fallback for development
+if not ALLOWED_HOSTS:
     if DEBUG:
         ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0']
     else:
-        print("⚠ ALLOWED_HOSTS not set - defaulting to localhost only")
-        ALLOWED_HOSTS = ['localhost']
+        print("⚠ ALLOWED_HOSTS not set - using production defaults")
+        ALLOWED_HOSTS = PRODUCTION_HOSTS.copy()
 
 
 # Application definition
