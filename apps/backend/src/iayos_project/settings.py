@@ -10,6 +10,10 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
+# CRITICAL: Import ninja_patch FIRST to prevent UUID converter conflict
+# This MUST be before any other imports
+from . import ninja_patch  # noqa: F401 (imported for side effects)
+
 from pathlib import Path
 import datetime
 import os
