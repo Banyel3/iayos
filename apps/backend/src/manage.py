@@ -3,6 +3,9 @@
 import os
 import sys
 
+# Ensure the UUID converter patch is applied before Django loads anything
+from iayos_project import ninja_patch  # noqa: F401
+
 
 def main():
     """Run administrative tasks."""
