@@ -338,10 +338,10 @@ const Login = () => {
                 />
               </Link>
               <Link
-                href="/auth/register"
+                href="/auth/register/agency"
                 className="px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
               >
-                Don&apos;t have an account? Sign up
+                Register as Agency
               </Link>
             </div>
           </div>
@@ -548,12 +548,12 @@ const Login = () => {
 
                 <div className="mt-4 text-center">
                   <p className="text-xs font-inter text-gray-600">
-                    Don&apos;t have an account?{" "}
+                    Looking to hire workers?{" "}
                     <Link
-                      href="/auth/register"
+                      href="/auth/register/agency"
                       className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
                     >
-                      Sign up
+                      Register as Agency
                     </Link>
                   </p>
                 </div>
@@ -800,7 +800,7 @@ const Login = () => {
                     {/* Worker/Client App Download */}
                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                       <p className="text-sm font-inter text-blue-900 mb-2">
-                        <strong>Are you a Worker or Client?</strong>
+                        <strong>Are you looking to get something done or looking for work as a freelance worker?</strong>
                       </p>
                       <p className="text-xs text-blue-700 mb-3">
                         Download our mobile app to get started
