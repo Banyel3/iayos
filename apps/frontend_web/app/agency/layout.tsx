@@ -16,16 +16,26 @@ export default async function AgencyLayout({
     .map((c) => `${c.name}=${c.value}`)
     .join("; ");
 
+  // Helper to ensure URL has protocol
+  const ensureProtocol = (url: string | undefined): string | undefined => {
+    if (!url) return undefined;
+    if (url.startsWith("http://") || url.startsWith("https://")) return url;
+    return `https://${url}`;
+  };
+
   // Use SERVER_API_URL for server-side requests
   // In Docker: http://backend:8000, On Vercel: https://api.iayos.online
-  const serverApiUrl = process.env.SERVER_API_URL || process.env.NEXT_PUBLIC_API_BASE || "https://api.iayos.online";
+  const serverApiUrl =
+    ensureProtocol(process.env.SERVER_API_URL) ||
+    ensureProtocol(process.env.NEXT_PUBLIC_API_BASE) ||
+    "https://api.iayos.online";
 
   let user: any = null;
 
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
-    
+
     const res = await fetch(`${serverApiUrl}/api/accounts/me`, {
       headers: {
         cookie: cookieHeader,
@@ -34,7 +44,7 @@ export default async function AgencyLayout({
       cache: "no-store", // Don't cache auth checks to prevent stale data
       signal: controller.signal,
     });
-    
+
     clearTimeout(timeoutId);
 
     if (!res.ok) {

@@ -1,9 +1,16 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
+// Helper to ensure URL has protocol
+const ensureProtocol = (url: string | undefined): string | undefined => {
+  if (!url) return undefined;
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+  return `https://${url}`;
+};
+
 const API_BASE_URL =
-  process.env.SERVER_API_URL ||
-  process.env.NEXT_PUBLIC_API_BASE ||
+  ensureProtocol(process.env.SERVER_API_URL) ||
+  ensureProtocol(process.env.NEXT_PUBLIC_API_BASE) ||
   "https://api.iayos.online";
 
 export async function GET() {
@@ -25,14 +32,14 @@ export async function GET() {
         method: "GET",
         headers,
         credentials: "include",
-      }
+      },
     );
 
     if (!response.ok) {
       const error = await response.text();
       return NextResponse.json(
         { error: "Failed to fetch wallet balance" },
-        { status: response.status }
+        { status: response.status },
       );
     }
 
@@ -42,7 +49,7 @@ export async function GET() {
     console.error("Error proxying wallet balance request:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

@@ -71,13 +71,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
 
-      const response = await fetch(
-        `${API_BASE}/api/accounts/me`,
-        {
-          credentials: "include", // 🔥 HTTP-only cookies sent automatically
-          signal: controller.signal,
-        },
-      );
+      const response = await fetch(`${API_BASE}/api/accounts/me`, {
+        credentials: "include", // 🔥 HTTP-only cookies sent automatically
+        signal: controller.signal,
+      });
 
       clearTimeout(timeoutId);
 
@@ -116,15 +113,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       clearAllAuthCaches();
       setUser(null);
 
-      const response = await fetch(
-        `${API_BASE}/api/accounts/login`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password }),
-          credentials: "include", // 🔥 Cookies handled automatically
-        },
-      );
+      const response = await fetch(`${API_BASE}/api/accounts/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+        credentials: "include", // 🔥 Cookies handled automatically
+      });
 
       if (!response.ok) {
         // Login failed - ensure everything is cleared
@@ -143,12 +137,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
 
       // Login successful - now fetch user data
-      const userDataResponse = await fetch(
-        `${API_BASE}/api/accounts/me`,
-        {
-          credentials: "include",
-        },
-      );
+      const userDataResponse = await fetch(`${API_BASE}/api/accounts/me`, {
+        credentials: "include",
+      });
 
       if (userDataResponse.ok) {
         const userData = await userDataResponse.json();

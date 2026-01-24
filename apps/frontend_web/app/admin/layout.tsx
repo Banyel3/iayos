@@ -13,9 +13,19 @@ export default async function AdminLayout({
     .map((c) => `${c.name}=${c.value}`)
     .join("; ");
 
+  // Helper to ensure URL has protocol
+  const ensureProtocol = (url: string | undefined): string | undefined => {
+    if (!url) return undefined;
+    if (url.startsWith("http://") || url.startsWith("https://")) return url;
+    return `https://${url}`;
+  };
+
   // Use SERVER_API_URL for server-side requests
   // In Docker: http://backend:8000, On Vercel: https://api.iayos.online
-  const serverApiUrl = process.env.SERVER_API_URL || process.env.NEXT_PUBLIC_API_BASE || "https://api.iayos.online";
+  const serverApiUrl =
+    ensureProtocol(process.env.SERVER_API_URL) ||
+    ensureProtocol(process.env.NEXT_PUBLIC_API_BASE) ||
+    "https://api.iayos.online";
 
   // Server-side validate session with backend to avoid client-only cookie checks
   try {
