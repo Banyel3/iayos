@@ -1,10 +1,11 @@
-import { device, cleanup } from "detox";
+const detox = require('detox');
 
 /**
  * Setup after environment - runs before each test file
+ * Using CommonJS require to avoid ESM import issues with Jest
  */
 beforeAll(async () => {
-  await device.launchApp({
+  await detox.device.launchApp({
     newInstance: true,
     launchArgs: {
       detoxPrintBusyIdleResources: "YES",
@@ -16,7 +17,7 @@ beforeAll(async () => {
  * Cleanup after each test file
  */
 afterAll(async () => {
-  await cleanup();
+  await detox.cleanup();
 });
 
 /**

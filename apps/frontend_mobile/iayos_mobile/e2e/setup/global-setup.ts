@@ -1,7 +1,6 @@
-import { device } from "detox";
-
 /**
  * Global setup - runs once before all tests
+ * Note: Detox 'device' is only available during test runtime, not in globalSetup
  */
 export default async function globalSetup() {
   console.log("🚀 Starting Detox E2E Test Suite...");

@@ -3,6 +3,18 @@ module.exports = {
   testMatch: ["<rootDir>/e2e/**/*.e2e.ts"],
   testTimeout: 120000,
   maxWorkers: 1,
+  preset: "ts-jest",
+  testEnvironment: "node",
+  transform: {
+    "^.+\\.tsx?$": ["ts-jest", {
+      tsconfig: {
+        module: "commonjs",
+        esModuleInterop: true,
+        allowSyntheticDefaultImports: true,
+      }
+    }]
+  },
+  moduleFileExtensions: ["ts", "tsx", "js", "jsx", "json"],
   globalSetup: "<rootDir>/e2e/setup/global-setup.ts",
   globalTeardown: "<rootDir>/e2e/setup/global-teardown.ts",
   setupFilesAfterEnv: ["<rootDir>/e2e/setup/setup-after-env.ts"],
