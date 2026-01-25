@@ -278,7 +278,7 @@ jobs:
         timeout-minutes: 15
 
       - name: 🐛 Create GitHub Issues for Test Failures
-        if: always() && steps.detox_tests.outcome == 'failure'
+        if: always()
         uses: actions/github-script@v7
         with:
           script: |
@@ -289,38 +289,15 @@ jobs:
             let testResults;
             try {
               const resultsPath = 'apps/frontend_mobile/iayos_mobile/e2e/reports/jest-test-results.json';
-              if (fs.existsSync(resultsPath)) {
-                testResults = JSON.parse(fs.readFileSync(resultsPath, 'utf8'));
-              } else {
-                console.log('❌ No test results file found at:', resultsPath);
-                console.log('Creating generic failure issue...');
-                
-                // Create a generic issue if results file is missing
-                await github.rest.issues.create({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  title: '🔴 Mobile E2E Tests Failed (No Results File)',
-                  body: `## Test Execution Failed
-            
-            The mobile E2E test run failed but no results file was generated.
-            
-            **Workflow Run:** [${context.runNumber}](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})
-            **Platform:** Android
-            **Triggered by:** ${context.actor}
-            **Branch:** ${context.ref}
-            
-            ### Possible Causes:
-            - Test execution crashed before results could be written
-            - Jest configuration issue
-            - Detox configuration issue
-            
-            Please check the [workflow logs](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}) for details.`,
-                  labels: ['bug', 'e2e-test', 'automated', 'mobile', 'android', 'needs-investigation']
-                });
+              if (!fs.existsSync(resultsPath)) {
+                console.log('ℹ️  No test results file found - tests may not have run or workflow failed');
+                console.log('   Not creating issues for workflow/infrastructure failures');
                 return;
               }
+              testResults = JSON.parse(fs.readFileSync(resultsPath, 'utf8'));
             } catch (error) {
-              console.error('Error reading test results:', error);
+              console.log('ℹ️  Could not read test results:', error.message);
+              console.log('   Not creating issues for workflow/infrastructure failures');
               return;
             }
             
