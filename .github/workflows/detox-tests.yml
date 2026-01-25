@@ -230,8 +230,26 @@ jobs:
         working-directory: apps/frontend_mobile/iayos_mobile
         run: |
           cd android
-          ./gradlew assembleDebug assembleAndroidTest -DtestBuildType=debug --no-daemon
-        timeout-minutes: 15
+          
+          echo "Configuring Gradle for CI build..."
+          export GRADLE_OPTS="-Xmx4g -Xms512m -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8"
+          
+          echo "Building debug APK and test APK..."
+          ./gradlew assembleDebug assembleAndroidTest \
+            -DtestBuildType=debug \
+            --no-daemon \
+            --max-workers=2 \
+            --parallel \
+            -Dorg.gradle.jvmargs="-Xmx4g -XX:MaxMetaspaceSize=1g" \
+            || {
+              echo "❌ Build failed, retrying with --stacktrace..."
+              ./gradlew assembleDebug assembleAndroidTest \
+                -DtestBuildType=debug \
+                --no-daemon \
+                --stacktrace \
+                --max-workers=1
+            }
+        timeout-minutes: 20
 
       - name: 🧪 Run Detox E2E tests (Android)
         working-directory: apps/frontend_mobile/iayos_mobile
