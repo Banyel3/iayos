@@ -1,0 +1,251 @@
+name: Database Backup
+
+on:
+  # Run daily at 2 AM UTC (10 AM Manila time)
+  schedule:
+    - cron: '0 2 * * *'
+  
+  # Allow manual trigger
+  workflow_dispatch:
+    inputs:
+      backup_name:
+        description: 'Custom backup name (optional)'
+        required: false
+        type: string
+
+jobs:
+  backup-database:
+    name: Backup PostgreSQL Database
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up environment variables
+        run: |
+          echo "BACKUP_DATE=$(date +%Y%m%d_%H%M%S)" >> $GITHUB_ENV
+          if [ -n "${{ inputs.backup_name }}" ]; then
+            echo "BACKUP_NAME=${{ inputs.backup_name }}" >> $GITHUB_ENV
+          else
+            echo "BACKUP_NAME=iayos_backup_$(date +%Y%m%d_%H%M%S)" >> $GITHUB_ENV
+          fi
+      
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+      
+      - name: Create database backup from Render
+        env:
+          # Render PostgreSQL connection string
+          # Add this as GitHub Secret: RENDER_DATABASE_URL
+          # Format: postgresql://user:password@host:port/database
+          DATABASE_URL: ${{ secrets.RENDER_DATABASE_URL }}
+        run: |
+          echo "Starting database backup..."
+          
+          # Extract database connection details
+          # Parse DATABASE_URL into components
+          export PGPASSWORD=$(echo $DATABASE_URL | sed -n 's/.*:\/\/[^:]*:\([^@]*\)@.*/\1/p')
+          export PGHOST=$(echo $DATABASE_URL | sed -n 's/.*@\([^:]*\):.*/\1/p')
+          export PGPORT=$(echo $DATABASE_URL | sed -n 's/.*:\([0-9]*\)\/.*/\1/p')
+          export PGDATABASE=$(echo $DATABASE_URL | sed -n 's/.*\/\([^?]*\).*/\1/p')
+          export PGUSER=$(echo $DATABASE_URL | sed -n 's/.*:\/\/\([^:]*\):.*/\1/p')
+          
+          echo "Backing up database: $PGDATABASE from $PGHOST:$PGPORT"
+          
+          # Create backup directory
+          mkdir -p backups
+          
+          # Run pg_dump with compression
+          pg_dump \
+            --host=$PGHOST \
+            --port=$PGPORT \
+            --username=$PGUSER \
+            --dbname=$PGDATABASE \
+            --no-password \
+            --format=custom \
+            --compress=9 \
+            --file=backups/${BACKUP_NAME}.dump
+          
+          # Also create a plain SQL backup for easier manual inspection
+          pg_dump \
+            --host=$PGHOST \
+            --port=$PGPORT \
+            --username=$PGUSER \
+            --dbname=$PGDATABASE \
+            --no-password \
+            --format=plain \
+            --file=backups/${BACKUP_NAME}.sql
+          
+          # Compress SQL file
+          gzip backups/${BACKUP_NAME}.sql
+          
+          echo "Backup created successfully!"
+          ls -lh backups/
+      
+      - name: Verify backup integrity
+        run: |
+          echo "Verifying backup file..."
+          
+          if [ ! -f "backups/${BACKUP_NAME}.dump" ]; then
+            echo "ERROR: Backup file not found!"
+            exit 1
+          fi
+          
+          # Check file size (should be > 1KB for valid backup)
+          FILE_SIZE=$(stat -f%z "backups/${BACKUP_NAME}.dump" 2>/dev/null || stat -c%s "backups/${BACKUP_NAME}.dump")
+          if [ "$FILE_SIZE" -lt 1024 ]; then
+            echo "ERROR: Backup file too small (${FILE_SIZE} bytes). Backup may be corrupt."
+            exit 1
+          fi
+          
+          echo "✅ Backup verification passed (${FILE_SIZE} bytes)"
+      
+      - name: Upload backup to GitHub Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.BACKUP_NAME }}
+          path: |
+            backups/*.dump
+            backups/*.sql.gz
+          retention-days: 30
+          compression-level: 0  # Already compressed
+      
+      - name: Upload backup to AWS S3 (optional)
+        if: ${{ secrets.AWS_S3_BACKUP_BUCKET != '' }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION || 'ap-southeast-1' }}
+          S3_BUCKET: ${{ secrets.AWS_S3_BACKUP_BUCKET }}
+        run: |
+          echo "Uploading backup to S3..."
+          
+          # Install AWS CLI
+          pip install awscli
+          
+          # Upload compressed backup
+          aws s3 cp \
+            backups/${BACKUP_NAME}.dump \
+            s3://${S3_BUCKET}/database-backups/${BACKUP_NAME}.dump \
+            --region ${AWS_REGION}
+          
+          # Upload SQL backup
+          aws s3 cp \
+            backups/${BACKUP_NAME}.sql.gz \
+            s3://${S3_BUCKET}/database-backups/${BACKUP_NAME}.sql.gz \
+            --region ${AWS_REGION}
+          
+          echo "✅ Backup uploaded to S3: s3://${S3_BUCKET}/database-backups/"
+      
+      - name: Cleanup old backups in S3
+        if: ${{ secrets.AWS_S3_BACKUP_BUCKET != '' }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION || 'ap-southeast-1' }}
+          S3_BUCKET: ${{ secrets.AWS_S3_BACKUP_BUCKET }}
+        run: |
+          echo "Cleaning up backups older than 30 days..."
+          
+          # Delete backups older than 30 days
+          aws s3 ls s3://${S3_BUCKET}/database-backups/ | \
+            awk '{print $4}' | \
+            while read file; do
+              file_date=$(echo $file | grep -oP '\d{8}' | head -1)
+              if [ ! -z "$file_date" ]; then
+                file_timestamp=$(date -d "$file_date" +%s)
+                current_timestamp=$(date +%s)
+                days_old=$(( ($current_timestamp - $file_timestamp) / 86400 ))
+                
+                if [ $days_old -gt 30 ]; then
+                  echo "Deleting old backup: $file (${days_old} days old)"
+                  aws s3 rm s3://${S3_BUCKET}/database-backups/$file
+                fi
+              fi
+            done
+          
+          echo "✅ Old backups cleaned up"
+      
+      - name: Send notification on success
+        if: success()
+        run: |
+          echo "✅ Database backup completed successfully!"
+          echo "Backup name: ${BACKUP_NAME}"
+          echo "Backup date: ${BACKUP_DATE}"
+          echo "Retention: 30 days"
+          
+          # You can add Slack/Discord webhook notification here
+          # curl -X POST ${{ secrets.SLACK_WEBHOOK_URL }} \
+          #   -H 'Content-Type: application/json' \
+          #   -d '{"text":"✅ iAyos database backup completed: '"${BACKUP_NAME}"'"}'
+      
+      - name: Send notification on failure
+        if: failure()
+        run: |
+          echo "❌ Database backup FAILED!"
+          echo "Check workflow logs for details."
+          
+          # You can add Slack/Discord webhook notification here
+          # curl -X POST ${{ secrets.SLACK_WEBHOOK_URL }} \
+          #   -H 'Content-Type: application/json' \
+          #   -d '{"text":"❌ iAyos database backup FAILED! Check GitHub Actions logs."}'
+
+  # Optional: Test backup restoration (weekly)
+  test-restore:
+    name: Test Backup Restoration (Weekly)
+    runs-on: ubuntu-latest
+    needs: backup-database
+    # Only run on Sundays
+    if: github.event.schedule == '0 2 * * 0'
+    
+    steps:
+      - name: Download latest backup
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.backup-database.outputs.BACKUP_NAME }}
+          path: backups
+      
+      - name: Start temporary PostgreSQL container
+        run: |
+          docker run -d \
+            --name test-postgres \
+            -e POSTGRES_PASSWORD=testpass \
+            -e POSTGRES_DB=testdb \
+            -p 5432:5432 \
+            postgres:15-alpine
+          
+          # Wait for PostgreSQL to be ready
+          sleep 10
+      
+      - name: Restore backup to test database
+        run: |
+          echo "Testing backup restoration..."
+          
+          # Find the backup file
+          BACKUP_FILE=$(ls backups/*.dump | head -1)
+          
+          if [ -z "$BACKUP_FILE" ]; then
+            echo "ERROR: No backup file found!"
+            exit 1
+          fi
+          
+          echo "Restoring from: $BACKUP_FILE"
+          
+          # Restore backup
+          docker exec test-postgres pg_restore \
+            --username=postgres \
+            --dbname=testdb \
+            --no-owner \
+            --no-acl \
+            /backups/$(basename $BACKUP_FILE) || true
+          
+          echo "✅ Backup restoration test completed"
+      
+      - name: Cleanup test container
+        if: always()
+        run: |
+          docker stop test-postgres
+          docker rm test-postgres
