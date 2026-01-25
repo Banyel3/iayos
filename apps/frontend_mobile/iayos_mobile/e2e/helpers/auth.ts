@@ -2,6 +2,7 @@ import { device, element, by, waitFor } from 'detox';
 
 /**
  * Test user credentials for staging backend
+ * NOTE: These users must exist in the staging database
  */
 export const TEST_USERS = {
   worker: {
@@ -26,9 +27,6 @@ export const TEST_USERS = {
  */
 export async function loginAsWorker() {
   await loginWithCredentials(TEST_USERS.worker.email, TEST_USERS.worker.password);
-  await waitFor(element(by.id('tab-home')))
-    .toBeVisible()
-    .withTimeout(10000);
 }
 
 /**
@@ -36,9 +34,6 @@ export async function loginAsWorker() {
  */
 export async function loginAsClient() {
   await loginWithCredentials(TEST_USERS.client.email, TEST_USERS.client.password);
-  await waitFor(element(by.id('tab-home')))
-    .toBeVisible()
-    .withTimeout(10000);
 }
 
 /**
@@ -46,32 +41,31 @@ export async function loginAsClient() {
  */
 export async function loginAsAgency() {
   await loginWithCredentials(TEST_USERS.agency.email, TEST_USERS.agency.password);
-  await waitFor(element(by.id('tab-home')))
-    .toBeVisible()
-    .withTimeout(10000);
 }
 
 /**
  * Generic login with email and password
+ * Does NOT navigate to login - assumes already on login screen
  */
 export async function loginWithCredentials(email: string, password: string) {
-  // Navigate to login from welcome
-  await waitFor(element(by.id('login-button')))
-    .toBeVisible()
-    .withTimeout(5000);
-  await element(by.id('login-button')).tap();
-  
-  // Wait for login screen
-  await waitFor(element(by.id('login-screen')))
+  // Wait for login screen inputs
+  await waitFor(element(by.id('login-email-input')))
     .toBeVisible()
     .withTimeout(3000);
   
   // Fill credentials
-  await element(by.id('email-input')).typeText(email);
-  await element(by.id('password-input')).typeText(password);
+  await element(by.id('login-email-input')).clearText();
+  await element(by.id('login-email-input')).typeText(email);
+  await element(by.id('login-password-input')).clearText();
+  await element(by.id('login-password-input')).typeText(password);
   
   // Submit
   await element(by.id('login-submit-button')).tap();
+  
+  // Wait for navigation away from login screen
+  await waitFor(element(by.id('login-screen')))
+    .not.toBeVisible()
+    .withTimeout(10000);
 }
 
 /**
@@ -79,22 +73,28 @@ export async function loginWithCredentials(email: string, password: string) {
  */
 export async function logout() {
   // Navigate to profile tab
-  await element(by.id('tab-profile')).tap();
-  await waitFor(element(by.id('profile-screen')))
+  try {
+    await element(by.id('tab-profile')).tap();
+  } catch (e) {
+    // If no tab bar, try scrolling to find profile
+    console.log('⚠️ Tab bar not found, looking for profile button');
+  }
+  
+  await waitFor(element(by.id('profile-logout-button')))
     .toBeVisible()
-    .withTimeout(3000);
+    .withTimeout(5000);
   
   // Tap logout button
-  await element(by.id('logout-button')).tap();
+  await element(by.id('profile-logout-button')).tap();
   
-  // Confirm logout if modal appears
+  // Handle confirmation alert
   try {
-    await waitFor(element(by.id('logout-confirm-button')))
+    await waitFor(element(by.text('Logout')))
       .toBeVisible()
       .withTimeout(2000);
-    await element(by.id('logout-confirm-button')).tap();
+    await element(by.text('Logout')).atIndex(1).tap(); // Second "Logout" is confirm button
   } catch (e) {
-    // No confirmation modal
+    console.log('⚠️ No logout confirmation modal');
   }
   
   // Wait for welcome screen
@@ -116,10 +116,10 @@ export async function registerUser(userData: {
   address: string;
 }) {
   // Navigate to register from welcome
-  await waitFor(element(by.id('get-started-button')))
+  await waitFor(element(by.id('welcome-get-started-button')))
     .toBeVisible()
     .withTimeout(5000);
-  await element(by.id('get-started-button')).tap();
+  await element(by.id('welcome-get-started-button')).tap();
   
   // Wait for register screen
   await waitFor(element(by.id('register-screen')))
@@ -127,14 +127,14 @@ export async function registerUser(userData: {
     .withTimeout(3000);
   
   // Fill registration form
-  await element(by.id('firstName-input')).typeText(userData.firstName);
-  await element(by.id('lastName-input')).typeText(userData.lastName);
-  await element(by.id('email-input')).typeText(userData.email);
-  await element(by.id('phone-input')).typeText(userData.phone);
-  await element(by.id('birthDate-input')).typeText(userData.birthDate);
-  await element(by.id('address-input')).typeText(userData.address);
-  await element(by.id('password-input')).typeText(userData.password);
-  await element(by.id('confirmPassword-input')).typeText(userData.password);
+  await element(by.id('register-first-name-input')).typeText(userData.firstName);
+  await element(by.id('register-last-name-input')).typeText(userData.lastName);
+  await element(by.id('register-email-input')).typeText(userData.email);
+  await element(by.id('register-phone-input')).typeText(userData.phone);
+  await element(by.id('register-birthdate-input')).typeText(userData.birthDate);
+  await element(by.id('register-address-input')).typeText(userData.address);
+  await element(by.id('register-password-input')).typeText(userData.password);
+  await element(by.id('register-confirm-password-input')).typeText(userData.password);
   
   // Submit registration
   await element(by.id('register-submit-button')).tap();

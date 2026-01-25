@@ -768,6 +768,7 @@ export default function ProfileScreen() {
             style={styles.logoutButton}
             onPress={handleLogout}
             activeOpacity={0.8}
+            testID="profile-logout-button"
           >
             <Ionicons name="log-out-outline" size={22} color={Colors.error} />
             <Text style={styles.logoutText}>Logout</Text>

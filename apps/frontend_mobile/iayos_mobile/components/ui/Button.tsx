@@ -49,6 +49,9 @@ interface ButtonProps {
   // Custom styles
   style?: ViewStyle;
   textStyle?: TextStyle;
+
+  // Testing
+  testID?: string;
 }
 
 export default function Button({
@@ -64,6 +67,7 @@ export default function Button({
   hapticFeedback = true,
   style,
   textStyle,
+  testID,
 }: ButtonProps) {
 
   const handlePress = () => {
@@ -204,6 +208,7 @@ export default function Button({
       onPress={handlePress}
       disabled={isDisabled}
       activeOpacity={0.7}
+      testID={testID}
       style={[
         styles.container,
         variantStyles.container,

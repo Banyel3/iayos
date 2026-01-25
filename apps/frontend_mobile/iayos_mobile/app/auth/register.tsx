@@ -298,7 +298,7 @@ export default function RegisterScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} testID="register-screen">
       <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -445,6 +445,7 @@ export default function RegisterScreen() {
             {/* First Name */}
             <Input
               ref={firstNameRef}
+              testID="register-first-name-input"
               label="First Name"
               placeholder="Juan"
               value={firstName}
@@ -488,6 +489,7 @@ export default function RegisterScreen() {
             {/* Last Name */}
             <Input
               ref={lastNameRef}
+              testID="register-last-name-input"
               label="Last Name"
               placeholder="Dela Cruz"
               value={lastName}
@@ -510,6 +512,7 @@ export default function RegisterScreen() {
             {/* Email */}
             <Input
               ref={emailRef}
+              testID="register-email-input"
               label="Email Address"
               placeholder="juan@example.com"
               value={email}
@@ -534,6 +537,7 @@ export default function RegisterScreen() {
             {/* Contact Number */}
             <Input
               ref={contactNumberRef}
+              testID="register-phone-input"
               label="Contact Number"
               placeholder="09XXXXXXXXX"
               value={contactNumber}
@@ -602,6 +606,7 @@ export default function RegisterScreen() {
             {/* Password */}
             <Input
               ref={passwordRef}
+              testID="register-password-input"
               label="Password"
               placeholder="Minimum 8 characters"
               value={password}
@@ -625,6 +630,7 @@ export default function RegisterScreen() {
             {/* Confirm Password */}
             <Input
               ref={confirmPasswordRef}
+              testID="register-confirm-password-input"
               label="Confirm Password"
               placeholder="Re-enter password"
               value={confirmPassword}
@@ -754,6 +760,7 @@ export default function RegisterScreen() {
 
             {/* Register Button */}
             <Button
+              testID="register-submit-button"
               onPress={handleRegister}
               disabled={isLoading}
               loading={isLoading}
@@ -769,6 +776,7 @@ export default function RegisterScreen() {
 
             {/* Login Link */}
             <TouchableOpacity
+              testID="register-login-link"
               style={styles.loginLink}
               onPress={() => router.push("/auth/login")}
               disabled={isLoading}
