@@ -69,53 +69,35 @@ jobs:
       - name: 🤖 Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: 📱 Create Android Emulator
+      - name: 📱 Install Android System Image
         run: |
-          echo "Installing system image..."
-          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "system-images;android-31;google_apis;x86_64"
+          echo "Installing Android 31 system image..."
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "system-images;android-31;google_apis;x86_64"
+          echo "✅ System image installed"
           
-          echo "Available device definitions:"
-          $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager list device | grep -i pixel || echo "No Pixel devices found"
-          
-          echo "Creating AVD..."
-          # Try with pixel_5 device, if that fails, create without device specification
+      - name: 🔧 Create Android AVD
+        run: |
+          echo "Creating AVD without device profile (generic)..."
           echo "no" | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager create avd \
-            -n Pixel_5_API_31 \
-            -k "system-images;android-31;google_apis;x86_64" \
-            -d "pixel_5" \
-            --force || \
-          echo "no" | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager create avd \
-            -n Pixel_5_API_31 \
+            -n test_avd \
             -k "system-images;android-31;google_apis;x86_64" \
             --force
           
-          echo "Verifying AVD was created..."
+          echo "Listing created AVDs..."
           $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager list avd
           
-          if [ ! -f "$HOME/.android/avd/Pixel_5_API_31.ini" ]; then
-            echo "ERROR: AVD was not created successfully"
-            echo "Available AVDs:"
-            $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager list avd
-            exit 1
-          fi
-          echo "✅ AVD created successfully"
-
+          echo "Checking AVD directory..."
+          ls -la $HOME/.android/avd/ || echo "AVD directory doesn't exist"
+          
       - name: 🚀 Start Android Emulator
         run: |
-          echo "Starting emulator..."
-          $ANDROID_HOME/emulator/emulator -avd Pixel_5_API_31 -no-snapshot-save -no-window -gpu swiftshader_indirect -no-audio -no-boot-anim &
-          # Wait for device with timeout
-          timeout 120 adb wait-for-device || (echo "Emulator failed to start" && exit 1)
-          # Wait for boot complete
-          for i in {1..60}; do
-            BOOT=$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
-            if [ "$BOOT" = "1" ]; then
-              echo "Emulator booted successfully"
-              break
-            fi
-            echo "Waiting for boot... ($i/60)"
-            sleep 2
-          done
+          echo "Starting emulator in background..."
+          nohup $ANDROID_HOME/emulator/emulator -avd test_avd -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim > /tmp/emulator.log 2>&1 &
+          
+          echo "Waiting for emulator to start (max 5 minutes)..."
+          timeout 300 adb wait-for-device shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
+          
+          echo "✅ Emulator started and booted"
           adb devices
 
       - name: 🔨 Build Android app for testing

@@ -70,7 +70,7 @@ module.exports = {
     emulator: {
       type: "android.emulator",
       device: {
-        avdName: "Pixel_5_API_31",
+        avdName: "test_avd",
       },
     },
     attached: {
