@@ -1,13 +1,18 @@
-import { element, by, expect } from 'detox';
+import { element, by, expect } from "detox";
 
 /**
  * Assert job card is visible with correct data
  */
-export async function assertJobCardVisible(jobId: number, expectedTitle?: string) {
+export async function assertJobCardVisible(
+  jobId: number,
+  expectedTitle?: string,
+) {
   await expect(element(by.id(`job-card-${jobId}`))).toBeVisible();
-  
+
   if (expectedTitle) {
-    await expect(element(by.id(`job-title-${jobId}`))).toHaveText(expectedTitle);
+    await expect(element(by.id(`job-title-${jobId}`))).toHaveText(
+      expectedTitle,
+    );
   }
 }
 
@@ -15,7 +20,7 @@ export async function assertJobCardVisible(jobId: number, expectedTitle?: string
  * Assert status badge has correct status
  */
 export async function assertStatusBadge(
-  status: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'WITHDRAWN' | 'COMPLETED'
+  status: "PENDING" | "ACCEPTED" | "REJECTED" | "WITHDRAWN" | "COMPLETED",
 ) {
   await expect(element(by.id(`status-${status.toLowerCase()}`))).toBeVisible();
 }
@@ -24,9 +29,11 @@ export async function assertStatusBadge(
  * Assert payment status
  */
 export async function assertPaymentStatus(
-  status: 'PENDING' | 'COMPLETED' | 'FAILED' | 'VERIFYING' | 'REFUNDED'
+  status: "PENDING" | "COMPLETED" | "FAILED" | "VERIFYING" | "REFUNDED",
 ) {
-  await expect(element(by.id(`payment-status-${status.toLowerCase()}`))).toBeVisible();
+  await expect(
+    element(by.id(`payment-status-${status.toLowerCase()}`)),
+  ).toBeVisible();
 }
 
 /**
@@ -34,7 +41,7 @@ export async function assertPaymentStatus(
  */
 export async function assertWalletBalance(expectedBalance: number) {
   const balanceText = `₱${expectedBalance.toLocaleString()}`;
-  await expect(element(by.id('wallet-balance'))).toHaveText(balanceText);
+  await expect(element(by.id("wallet-balance"))).toHaveText(balanceText);
 }
 
 /**

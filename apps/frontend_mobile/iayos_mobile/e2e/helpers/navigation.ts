@@ -1,9 +1,11 @@
-import { element, by, waitFor } from 'detox';
+import { element, by, waitFor } from "detox";
 
 /**
  * Navigate to specific tab
  */
-export async function navigateToTab(tabId: 'home' | 'jobs' | 'myjobs' | 'messages' | 'profile') {
+export async function navigateToTab(
+  tabId: "home" | "jobs" | "myjobs" | "messages" | "profile",
+) {
   await element(by.id(`tab-${tabId}`)).tap();
   await waitFor(element(by.id(`${tabId}-screen`)))
     .toBeVisible()
@@ -14,7 +16,7 @@ export async function navigateToTab(tabId: 'home' | 'jobs' | 'myjobs' | 'message
  * Go back using device back button (Android) or navigation
  */
 export async function goBack() {
-  await element(by.id('back-button')).tap();
+  await element(by.id("back-button")).tap();
 }
 
 /**
@@ -23,8 +25,8 @@ export async function goBack() {
 export async function scrollToElement(
   scrollViewId: string,
   elementId: string,
-  direction: 'up' | 'down' = 'down',
-  distance: number = 300
+  direction: "up" | "down" = "down",
+  distance: number = 300,
 ) {
   await waitFor(element(by.id(elementId)))
     .toBeVisible()
@@ -37,8 +39,8 @@ export async function scrollToElement(
  */
 export async function swipe(
   elementId: string,
-  direction: 'left' | 'right' | 'up' | 'down',
-  speed: 'fast' | 'slow' = 'fast'
+  direction: "left" | "right" | "up" | "down",
+  speed: "fast" | "slow" = "fast",
 ) {
   await element(by.id(elementId)).swipe(direction, speed);
 }

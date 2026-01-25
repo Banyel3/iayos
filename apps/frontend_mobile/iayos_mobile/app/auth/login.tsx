@@ -35,7 +35,7 @@ export default function LoginScreen() {
   // Refs for inputs so we can programmatically focus and check isFocused
   const emailRef = useRef<React.ComponentRef<typeof RNTextInput> | null>(null);
   const passwordRef = useRef<React.ComponentRef<typeof RNTextInput> | null>(
-    null
+    null,
   );
   // Track the last focused field's ref object
   const lastFocusedRef = useRef<any>(null);
@@ -176,7 +176,10 @@ export default function LoginScreen() {
             </Button>
 
             {/* Register Link */}
-            <View style={styles.registerContainer} testID="login-register-container">
+            <View
+              style={styles.registerContainer}
+              testID="login-register-container"
+            >
               <Text style={styles.registerText}>
                 {"Don't have an account? "}
               </Text>

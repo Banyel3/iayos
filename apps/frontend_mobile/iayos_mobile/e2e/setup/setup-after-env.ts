@@ -1,4 +1,4 @@
-import { device, cleanup } from 'detox';
+import { device, cleanup } from "detox";
 
 /**
  * Setup after environment - runs before each test file
@@ -7,8 +7,8 @@ beforeAll(async () => {
   await device.launchApp({
     newInstance: true,
     launchArgs: {
-      detoxPrintBusyIdleResources: 'YES'
-    }
+      detoxPrintBusyIdleResources: "YES",
+    },
   });
 }, 120000);
 
@@ -27,7 +27,7 @@ expect.extend({
     const pass = received !== null && received !== undefined;
     return {
       pass,
-      message: () => `Expected element to be visible and enabled`
+      message: () => `Expected element to be visible and enabled`,
     };
-  }
+  },
 });

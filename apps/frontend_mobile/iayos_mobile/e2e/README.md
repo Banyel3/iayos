@@ -7,6 +7,7 @@ Comprehensive end-to-end testing setup using Detox for React Native mobile app.
 ## 🎯 Features Implemented
 
 ### ✅ Core Setup (Complete)
+
 - Detox configuration for iOS & Android
 - Jest test runner with custom config
 - Global setup/teardown hooks
@@ -15,6 +16,7 @@ Comprehensive end-to-end testing setup using Detox for React Native mobile app.
 - GitHub Actions CI/CD with auto-issue creation
 
 ### 🧪 Test Coverage (Phase 1)
+
 - **Authentication Flow**: Login, logout, session persistence
 - More tests to be added in Phase 2-3
 
@@ -66,6 +68,7 @@ e2e/
 ### Local Development
 
 **iOS (Mac only)**:
+
 ```bash
 cd apps/frontend_mobile/iayos_mobile
 
@@ -80,6 +83,7 @@ npm run test:e2e
 ```
 
 **Android (Linux/Mac/Windows with WSL)**:
+
 ```bash
 cd apps/frontend_mobile/iayos_mobile
 
@@ -100,11 +104,13 @@ npm run test:e2e:android
 ### CI/CD (GitHub Actions)
 
 Tests run automatically on:
+
 - Pull requests to `main` or `dev` branches
 - Pushes to `main` or `dev` branches
 - Manual workflow dispatch
 
 **Workflow Features**:
+
 - ✅ Parallel execution (iOS + Android)
 - ✅ Test reports uploaded as artifacts
 - ✅ Screenshots on failure
@@ -197,19 +203,19 @@ When tests fail in CI/CD:
 
 ```typescript
 // e2e/tests/jobs/browse.e2e.ts
-import { device, element, by, expect, waitFor } from 'detox';
-import { loginAsWorker } from '../../helpers/auth';
-import { navigateToTab } from '../../helpers/navigation';
+import { device, element, by, expect, waitFor } from "detox";
+import { loginAsWorker } from "../../helpers/auth";
+import { navigateToTab } from "../../helpers/navigation";
 
-describe('Jobs: Browse Flow', () => {
+describe("Jobs: Browse Flow", () => {
   beforeAll(async () => {
     await device.launchApp({ newInstance: true });
     await loginAsWorker();
   });
 
-  it('should display job listings', async () => {
-    await navigateToTab('jobs');
-    await expect(element(by.id('job-list'))).toBeVisible();
+  it("should display job listings", async () => {
+    await navigateToTab("jobs");
+    await expect(element(by.id("job-list"))).toBeVisible();
   });
 });
 ```
@@ -219,7 +225,7 @@ describe('Jobs: Browse Flow', () => {
 ```tsx
 // app/jobs/index.tsx
 <View testID="job-list">
-  {jobs.map(job => (
+  {jobs.map((job) => (
     <TouchableOpacity key={job.id} testID={`job-card-${job.id}`}>
       <Text testID={`job-title-${job.id}`}>{job.title}</Text>
     </TouchableOpacity>
@@ -244,18 +250,21 @@ npm run test:e2e -- e2e/tests/jobs/browse.e2e.ts
 ## 📈 Roadmap
 
 ### Phase 1 (Current)
+
 - ✅ Core setup complete
 - ✅ Authentication tests
 - ✅ CI/CD workflow with auto-issue creation
 - ⏳ Add testIDs to screens (20+ critical components)
 
 ### Phase 2 (2-4 weeks)
+
 - Job browsing & search tests
 - Application submission tests
 - Payment flow tests
 - Profile management tests
 
 ### Phase 3 (1-2 months)
+
 - Real-time messaging tests
 - KYC document upload tests
 - Review submission tests
