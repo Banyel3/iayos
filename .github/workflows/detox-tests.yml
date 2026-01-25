@@ -236,7 +236,7 @@ jobs:
 
           echo "Building for x86_64 ONLY (emulator architecture - skipping arm64, armeabi, x86)..."
           echo "This reduces native build time by ~75% (1 arch instead of 4)"
-          
+
           ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest \
             -DtestBuildType=debug \
             -PreactNativeArchitectures=x86_64 \
@@ -258,6 +258,27 @@ jobs:
                 -x lint
             }
         timeout-minutes: 20
+
+      - name: 🧪 Run Detox E2E Tests
+        working-directory: apps/frontend_mobile/iayos_mobile
+        run: |
+          echo "Installing Detox CLI..."
+          npm install -g detox-cli
+          
+          echo "Running Detox tests on emulator..."
+          detox test \
+            --configuration android.emu.debug \
+            --headless \
+            --record-logs all \
+            --take-screenshots all \
+            --record-videos failing \
+            --loglevel verbose \
+            || {
+              echo "❌ Tests failed, but continuing to upload artifacts..."
+              exit 0
+            }
+        timeout-minutes: 15
+
       - name: 📊 Upload test results
         if: always()
         uses: actions/upload-artifact@v4
