@@ -1,7 +1,7 @@
-name: 🧪 Mobile E2E Tests (Detox)
+name: Mobile E2E Tests
 
 on:
-  # Only manual trigger for now until CI is stable
+  # Manual trigger - stable for Android, iOS still experimental
   workflow_dispatch:
     inputs:
       platform:
