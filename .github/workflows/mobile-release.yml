@@ -167,7 +167,7 @@ jobs:
           "
 
       - name: Install dependencies
-        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.use_latest_build != 'true'
+        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true'
         working-directory: ${{ env.MOBILE_DIR }}
         run: npm ci
 
