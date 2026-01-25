@@ -1,9 +1,10 @@
 name: Database Backup
 
 on:
-  # Run daily at 2 AM UTC (10 AM Manila time)
-  schedule:
-    - cron: '0 2 * * *'
+  # DISABLED: Run daily at 2 AM UTC (10 AM Manila time)
+  # Uncomment when ready for production
+  # schedule:
+  #   - cron: '0 2 * * *'
   
   # Allow manual trigger
   workflow_dispatch:
