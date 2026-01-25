@@ -53,6 +53,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          token: ${{ secrets.MOBILE_RELEASE_PAT }}
+          persist-credentials: true
+        with:
           fetch-depth: 0
 
       - name: Setup Node.js
@@ -245,7 +248,7 @@ jobs:
           git config --local user.name "github-actions[bot]"
           git add ${{ env.MOBILE_DIR }}/package.json ${{ env.MOBILE_DIR }}/app.json
           git commit -m "chore(mobile): bump version to ${{ steps.version.outputs.new_version }}"
-          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:${{ github.ref }}
+          git push
 
       - name: Create Release
         if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true'
