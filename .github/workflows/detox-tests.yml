@@ -83,6 +83,12 @@ jobs:
           echo "ANDROID_AVD_HOME: ${ANDROID_AVD_HOME:-not set}"
           
           echo ""
+          echo "Setting ANDROID_AVD_HOME to ensure emulator can find AVD..."
+          export ANDROID_AVD_HOME=$HOME/.android/avd
+          mkdir -p $ANDROID_AVD_HOME
+          echo "ANDROID_AVD_HOME set to: $ANDROID_AVD_HOME"
+          
+          echo ""
           echo "Creating AVD without device profile (generic)..."
           echo "no" | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager create avd \
             -n test_avd \
@@ -105,7 +111,10 @@ jobs:
           echo "=== Emulator startup diagnostics ==="
           echo "ANDROID_HOME: $ANDROID_HOME"
           echo "HOME: $HOME"
-          echo "ANDROID_AVD_HOME: ${ANDROID_AVD_HOME:-not set}"
+          
+          echo "Setting ANDROID_AVD_HOME for emulator..."
+          export ANDROID_AVD_HOME=$HOME/.android/avd
+          echo "ANDROID_AVD_HOME: $ANDROID_AVD_HOME"
           
           echo ""
           echo "Listing available AVDs before starting..."

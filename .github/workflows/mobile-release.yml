@@ -1,5 +1,9 @@
 name: Mobile App Release
 
+permissions:
+  contents: write  # Required for creating releases and pushing version commits
+  packages: write  # Required for package operations
+
 on:
   # Automatic trigger on mobile code changes
   push:
@@ -241,7 +245,7 @@ jobs:
           git config --local user.name "github-actions[bot]"
           git add ${{ env.MOBILE_DIR }}/package.json ${{ env.MOBILE_DIR }}/app.json
           git commit -m "chore(mobile): bump version to ${{ steps.version.outputs.new_version }}"
-          git push
+          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:${{ github.ref }}
 
       - name: Create Release
         if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true'
