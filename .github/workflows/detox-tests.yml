@@ -74,7 +74,7 @@ jobs:
           echo "Installing Android 31 system image..."
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "system-images;android-31;google_apis;x86_64"
           echo "✅ System image installed"
-          
+
       - name: 🔧 Create Android AVD
         run: |
           echo "Creating AVD without device profile (generic)..."
@@ -82,22 +82,81 @@ jobs:
             -n test_avd \
             -k "system-images;android-31;google_apis;x86_64" \
             --force
-          
+
           echo "Listing created AVDs..."
           $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager list avd
-          
+
           echo "✅ AVD created successfully"
-          
+
       - name: 🚀 Start Android Emulator
         run: |
-          echo "Starting emulator in background..."
-          nohup $ANDROID_HOME/emulator/emulator -avd test_avd -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -memory 2048 > /tmp/emulator.log 2>&1 &
-          EMULATOR_PID=$!
-          echo "Emulator PID: $EMULATOR_PID"
+          echo "=== Emulator startup diagnostics ==="
+          echo "ADB version:"
+          adb version
+          echo "Emulator location: $ANDROID_HOME/emulator/emulator"
+          ls -la $ANDROID_HOME/emulator/emulator
           
-          echo "Waiting for emulator device to appear..."
+          echo ""
+          echo "Starting adb server explicitly..."
+          adb start-server
+          sleep 2
+          adb devices
+          
+          echo ""
+          echo "Starting emulator with verbose logging..."
+          nohup $ANDROID_HOME/emulator/emulator -avd test_avd \
+            -no-snapshot-save \
+            -no-window \
+            -gpu swiftshader_indirect \
+            -noaudio \
+            -no-boot-anim \
+            -camera-back none \
+            -camera-front none \
+            -memory 2048 \
+            -partition-size 2048 \
+            -verbose \
+            -qemu -enable-kvm > /tmp/emulator.log 2>&1 &
+          
+          EMULATOR_PID=$!
+          echo "Emulator started with PID: $EMULATOR_PID"
+          
+          echo ""
+          echo "Waiting for emulator device to appear (max 2 minutes)..."
+          DEVICE_FOUND=false
+          for i in {1..24}; do
+            ADB_DEVICES=$(adb devices | grep -v "List of devices" | grep "emulator" || echo "")
+            if [ -n "$ADB_DEVICES" ]; then
+              DEVICE_FOUND=true
+              echo "✅ Device appeared after ~$((i*5)) seconds"
+              echo "Devices: $ADB_DEVICES"
+              break
+            fi
+            echo "Attempt $i/24: No device yet..."
+            if [ $i -eq 12 ]; then
+              echo "=== Checking emulator process ==="
+              ps aux | grep emulator | grep -v grep || echo "Emulator process not found!"
+              echo "=== First 50 lines of emulator log ==="
+              head -50 /tmp/emulator.log || true
+            fi
+            sleep 5
+          done
+          
+          if [ "$DEVICE_FOUND" = "false" ]; then
+            echo ""
+            echo "❌ Emulator device never appeared in adb devices"
+            echo "=== Full emulator log ==="
+            cat /tmp/emulator.log || true
+            echo ""
+            echo "=== Emulator process check ==="
+            ps aux | grep emulator | grep -v grep || echo "Process not running"
+            exit 1
+          fi
+          
+          echo ""
+          echo "Waiting for device to be online..."
           adb wait-for-device
           
+          echo ""
           echo "Waiting for boot to complete (max 5 minutes)..."
           BOOT_COMPLETED=false
           for i in {1..60}; do
@@ -107,26 +166,35 @@ jobs:
               echo "✅ Boot completed after ~$((i*5)) seconds"
               break
             fi
-            echo "Waiting for boot... attempt $i/60 (status: '$BOOT_STATUS')"
+            if [ $((i % 6)) -eq 0 ]; then
+              echo "Still waiting... attempt $i/60 (boot_completed='$BOOT_STATUS')"
+            fi
             sleep 5
           done
           
           if [ "$BOOT_COMPLETED" = "false" ]; then
+            echo ""
             echo "❌ Emulator failed to boot within timeout"
+            echo "=== Device properties ==="
+            adb shell getprop || true
+            echo ""
             echo "=== Emulator log ==="
             cat /tmp/emulator.log || true
             exit 1
           fi
+          
+          echo ""
+          echo "Unlocking screen..."
+          adb shell input keyevent 82
           
           echo "Disabling animations for faster tests..."
           adb shell settings put global window_animation_scale 0
           adb shell settings put global transition_animation_scale 0
           adb shell settings put global animator_duration_scale 0
           
-          echo "✅ Emulator ready"
-          adb devices
-
-      - name: 🔨 Build Android app for testing
+          echo ""
+          echo "✅ Emulator fully ready"
+          adb devices -l
         working-directory: apps/frontend_mobile/iayos_mobile
         run: |
           cd android
