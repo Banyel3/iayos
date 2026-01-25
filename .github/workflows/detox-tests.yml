@@ -20,7 +20,7 @@ env:
 
 jobs:
   test-android:
-    if: ${{ github.event.inputs.platform == 'android' || github.event.inputs.platform == 'both' }}
+    if: github.event.inputs.platform == 'android' || github.event.inputs.platform == 'both'
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
@@ -220,7 +220,7 @@ jobs:
           if-no-files-found: warn
 
   test-ios:
-    if: ${{ github.event.inputs.platform == 'ios' || github.event.inputs.platform == 'both' }}
+    if: github.event.inputs.platform == 'ios' || github.event.inputs.platform == 'both'
     runs-on: macos-14
     timeout-minutes: 45
 
