@@ -36,6 +36,16 @@ on:
         required: false
         default: false
         type: boolean
+      is_qa:
+        description: "Mark as QA release (adds -qa suffix to tag)"
+        required: false
+        default: false
+        type: boolean
+      is_prerelease:
+        description: "Mark as prerelease (draft/beta release)"
+        required: false
+        default: false
+        type: boolean
 
 env:
   MOBILE_DIR: apps/frontend_mobile/iayos_mobile
@@ -253,14 +263,15 @@ jobs:
         if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: mobile-v${{ steps.version.outputs.new_version }}
-          name: iAyos Mobile v${{ steps.version.outputs.new_version }}
+          tag_name: mobile-v${{ steps.version.outputs.new_version }}${{ github.event.inputs.is_qa == 'true' && '-qa' || '' }}
+          name: iAyos Mobile v${{ steps.version.outputs.new_version }}${{ github.event.inputs.is_qa == 'true' && ' (QA)' || '' }}${{ github.event.inputs.is_prerelease == 'true' && ' (Pre-release)' || '' }}
           body: |
             ## iAyos Mobile App Release v${{ steps.version.outputs.new_version }}
 
             **Version Type:** ${{ steps.analyze.outputs.version_type }}
             **Branch:** ${{ github.ref_name }}
             **Build Type:** ${{ github.event.inputs.use_latest_build == 'true' && 'Latest Existing Build' || 'Newly Built' }}
+            **Release Type:** ${{ github.event.inputs.is_qa == 'true' && '🧪 QA Testing' || github.event.inputs.is_prerelease == 'true' && '🚧 Pre-release' || '✅ Production' }}
 
             ### Changes
             See commit history for detailed changes.
@@ -269,10 +280,11 @@ jobs:
             Download the APK file below and install on your Android device.
 
             > ⚠️ You may need to enable "Install from unknown sources" in your device settings.
+            ${{ github.event.inputs.is_qa == 'true' && '> 🧪 **QA Build** - For internal testing only' || '' }}
           files: |
             ${{ env.MOBILE_DIR }}/iayos-${{ steps.version.outputs.new_version }}.apk
           draft: false
-          prerelease: ${{ github.ref_name != 'main' }}
+          prerelease: ${{ github.event.inputs.is_prerelease == 'true' || github.ref_name != 'main' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
