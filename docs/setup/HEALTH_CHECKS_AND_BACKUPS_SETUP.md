@@ -87,13 +87,14 @@ Response: {
 ### What Happens on Failure
 
 1. **Slack Notification** (if configured):
+
    ```
    🚨 iAyos Health Check FAILED
-   
+
    Failed checks:
    ❌ Backend Liveness
    ❌ Database Connection
-   
+
    Time: 2026-01-25 12:34:56 UTC
    ```
 
@@ -129,6 +130,7 @@ Response: {
 #### 1. Get Render Database URL
 
 In your Render dashboard:
+
 1. Go to your PostgreSQL database
 2. Click "Connect" → "External Connection"
 3. Copy the **External Database URL**
@@ -156,6 +158,7 @@ AWS_S3_BACKUP_BUCKET=iayos-database-backups
 ```
 
 To create S3 bucket:
+
 1. Go to AWS S3 console
 2. Create bucket: `iayos-database-backups`
 3. Enable versioning (recommended)
@@ -165,6 +168,7 @@ To create S3 bucket:
 #### 4. Enable the Workflow
 
 The workflow runs automatically, but you can also:
+
 - **Manual trigger**: Go to Actions → Database Backup → Run workflow
 - **Custom backup name**: Click "Run workflow" → Enter custom name
 
@@ -274,12 +278,14 @@ psql -U your_user -d your_database < backup_file.sql
 **Frequency**: Every 5 minutes
 
 **Alert Triggers**:
+
 - Backend liveness failure (app down)
 - Backend readiness failure (database/cache issue)
 - Database connection failure (critical)
 - Frontend inaccessibility (warning)
 
 **Alert Channels**:
+
 1. Slack webhook (if configured)
 2. GitHub issue (critical failures only)
 3. Email (GitHub workflow notifications)
@@ -289,11 +295,13 @@ psql -U your_user -d your_database < backup_file.sql
 **Frequency**: Daily at 2 AM UTC
 
 **Alert Triggers**:
+
 - Backup creation failure
 - Backup verification failure
 - S3 upload failure (if configured)
 
 **Alert Channels**:
+
 1. Slack webhook (if configured)
 2. Email (workflow failure notification)
 
@@ -306,6 +314,7 @@ psql -U your_user -d your_database < backup_file.sql
 **Problem**: Backend not accessible
 
 **Solutions**:
+
 1. Check Render dashboard - is service running?
 2. Verify `BACKEND_URL` secret is correct
 3. Check if Render service is sleeping (free tier)
@@ -316,6 +325,7 @@ psql -U your_user -d your_database < backup_file.sql
 **Problem**: Database connection issue
 
 **Solutions**:
+
 1. Check Render database status
 2. Verify database isn't sleeping (free tier)
 3. Check connection limits (max connections)
@@ -326,6 +336,7 @@ psql -U your_user -d your_database < backup_file.sql
 **Problem**: Invalid database credentials
 
 **Solutions**:
+
 1. Regenerate Render database URL (it may rotate)
 2. Update `RENDER_DATABASE_URL` secret
 3. Ensure URL format is correct: `postgresql://user:pass@host:port/db`
@@ -335,6 +346,7 @@ psql -U your_user -d your_database < backup_file.sql
 **Problem**: PostgreSQL client not installed (shouldn't happen in GitHub Actions)
 
 **Solutions**:
+
 1. Workflow already installs `postgresql-client`
 2. Check workflow logs for installation errors
 
@@ -343,6 +355,7 @@ psql -U your_user -d your_database < backup_file.sql
 **Problem**: AWS credentials or permissions issue
 
 **Solutions**:
+
 1. Verify IAM user has S3 write permissions
 2. Check bucket policy allows uploads
 3. Verify AWS credentials are correct
