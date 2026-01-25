@@ -77,20 +77,41 @@ jobs:
 
       - name: 🔧 Create Android AVD
         run: |
+          echo "=== AVD Creation Diagnostics ==="
+          echo "ANDROID_HOME: $ANDROID_HOME"
+          echo "HOME: $HOME"
+          echo "ANDROID_AVD_HOME: ${ANDROID_AVD_HOME:-not set}"
+          
+          echo ""
           echo "Creating AVD without device profile (generic)..."
           echo "no" | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager create avd \
             -n test_avd \
             -k "system-images;android-31;google_apis;x86_64" \
             --force
 
+          echo ""
           echo "Listing created AVDs..."
           $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager list avd
-
+          
+          echo ""
+          echo "Checking AVD files..."
+          ls -la $HOME/.android/avd/ || echo "Directory does not exist"
+          
+          echo ""
           echo "✅ AVD created successfully"
 
       - name: 🚀 Start Android Emulator
         run: |
           echo "=== Emulator startup diagnostics ==="
+          echo "ANDROID_HOME: $ANDROID_HOME"
+          echo "HOME: $HOME"
+          echo "ANDROID_AVD_HOME: ${ANDROID_AVD_HOME:-not set}"
+          
+          echo ""
+          echo "Listing available AVDs before starting..."
+          $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager list avd || echo "Failed to list AVDs"
+          
+          echo ""
           echo "ADB version:"
           adb version
           echo "Emulator location: $ANDROID_HOME/emulator/emulator"
