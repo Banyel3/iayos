@@ -91,7 +91,8 @@ jobs:
       - name: Run database migrations
         working-directory: apps/backend/src
         env:
-          DATABASE_URL: postgresql://iayos_user:e2e_test_password@localhost:5432/iayos_e2e_db?sslmode=disable
+          USE_LOCAL_DB: "true"
+          DATABASE_URL_LOCAL: postgresql://iayos_user:e2e_test_password@localhost:5432/iayos_e2e_db
           REDIS_URL: redis://localhost:6379/0
           DJANGO_SECRET_KEY: e2e-test-secret-key
           DEBUG: "True"
@@ -101,7 +102,8 @@ jobs:
       - name: Create test users
         working-directory: apps/backend/src
         env:
-          DATABASE_URL: postgresql://iayos_user:e2e_test_password@localhost:5432/iayos_e2e_db?sslmode=disable
+          USE_LOCAL_DB: "true"
+          DATABASE_URL_LOCAL: postgresql://iayos_user:e2e_test_password@localhost:5432/iayos_e2e_db
           REDIS_URL: redis://localhost:6379/0
           DJANGO_SECRET_KEY: e2e-test-secret-key
         run: |
@@ -141,7 +143,8 @@ jobs:
       - name: Start backend server
         working-directory: apps/backend/src
         env:
-          DATABASE_URL: postgresql://iayos_user:e2e_test_password@localhost:5432/iayos_e2e_db?sslmode=disable
+          USE_LOCAL_DB: "true"
+          DATABASE_URL_LOCAL: postgresql://iayos_user:e2e_test_password@localhost:5432/iayos_e2e_db
           REDIS_URL: redis://localhost:6379/0
           DJANGO_SECRET_KEY: e2e-test-secret-key
           DEBUG: "True"
