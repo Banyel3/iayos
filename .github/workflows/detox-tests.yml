@@ -195,6 +195,8 @@ jobs:
           echo ""
           echo "✅ Emulator fully ready"
           adb devices -l
+
+      - name: 🏗️ Build Android app for testing
         working-directory: apps/frontend_mobile/iayos_mobile
         run: |
           cd android
