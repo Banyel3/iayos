@@ -7,6 +7,7 @@ module.exports = {
   globalTeardown: '<rootDir>/e2e/setup/global-teardown.ts',
   setupFilesAfterEnv: ['<rootDir>/e2e/setup/setup-after-env.ts'],
   reporters: [
+    'default',
     'detox/runners/jest/reporter',
     [
       'jest-html-reporters',
@@ -14,11 +15,17 @@ module.exports = {
         publicPath: './e2e/reports',
         filename: 'test-report.html',
         pageTitle: 'iAyos E2E Test Report',
-        expand: true
+        expand: true,
+        openReport: false,
+        includeConsoleLog: true,
+        includeFailureMsg: true
       }
     ]
   ],
   verbose: true,
   bail: false,  // Continue on failure
-  collectCoverage: false
+  collectCoverage: false,
+  testEnvironmentOptions: {
+    url: 'http://localhost'
+  }
 };
