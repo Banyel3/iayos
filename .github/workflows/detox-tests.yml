@@ -86,8 +86,7 @@ jobs:
           echo "Listing created AVDs..."
           $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager list avd
           
-          echo "Checking AVD directory..."
-          ls -la $HOME/.android/avd/ || echo "AVD directory doesn't exist"
+          echo "✅ AVD created successfully"
           
       - name: 🚀 Start Android Emulator
         run: |
