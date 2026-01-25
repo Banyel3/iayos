@@ -147,10 +147,55 @@ jobs:
         if: steps.analyze.outputs.should_release == 'true'
         working-directory: ${{ env.MOBILE_DIR }}
         run: |
-          # Get the latest build URL
-          BUILD_URL=$(eas build:list --platform android --limit 1 --json --non-interactive | jq -r '.[0].artifacts.buildUrl')
+          echo "Fetching latest build info..."
+          
+          # Wait a bit for artifacts to be available
+          sleep 10
+          
+          # Get build info with retry logic
+          MAX_RETRIES=10
+          RETRY_COUNT=0
+          BUILD_URL=""
+          
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            echo "Attempt $((RETRY_COUNT + 1))/$MAX_RETRIES: Checking for build artifacts..."
+            
+            # Get full build info
+            BUILD_INFO=$(eas build:list --platform android --limit 1 --json --non-interactive 2>/dev/null || echo "[]")
+            echo "Build info: $BUILD_INFO"
+            
+            # Check build status
+            BUILD_STATUS=$(echo "$BUILD_INFO" | jq -r '.[0].status // "unknown"')
+            echo "Build status: $BUILD_STATUS"
+            
+            if [ "$BUILD_STATUS" = "finished" ]; then
+              BUILD_URL=$(echo "$BUILD_INFO" | jq -r '.[0].artifacts.buildUrl // empty')
+              if [ -n "$BUILD_URL" ] && [ "$BUILD_URL" != "null" ]; then
+                echo "✅ Found build URL: $BUILD_URL"
+                break
+              fi
+            elif [ "$BUILD_STATUS" = "errored" ] || [ "$BUILD_STATUS" = "canceled" ]; then
+              echo "❌ Build failed with status: $BUILD_STATUS"
+              exit 1
+            fi
+            
+            echo "Build not ready yet (status: $BUILD_STATUS), waiting 30 seconds..."
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            sleep 30
+          done
+          
+          if [ -z "$BUILD_URL" ] || [ "$BUILD_URL" = "null" ]; then
+            echo "❌ Failed to get build URL after $MAX_RETRIES attempts"
+            echo "Last build info:"
+            eas build:list --platform android --limit 1 --json --non-interactive || true
+            exit 1
+          fi
+          
           echo "Downloading APK from: $BUILD_URL"
-          curl -L -o iayos-${{ steps.version.outputs.new_version }}.apk "$BUILD_URL"
+          curl -L --fail --retry 3 -o iayos-${{ steps.version.outputs.new_version }}.apk "$BUILD_URL"
+          
+          echo "✅ APK downloaded successfully"
+          ls -la iayos-${{ steps.version.outputs.new_version }}.apk
 
       - name: Commit version bump
         if: steps.analyze.outputs.should_release == 'true'

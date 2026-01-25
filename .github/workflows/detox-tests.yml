@@ -91,12 +91,39 @@ jobs:
       - name: 🚀 Start Android Emulator
         run: |
           echo "Starting emulator in background..."
-          nohup $ANDROID_HOME/emulator/emulator -avd test_avd -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim > /tmp/emulator.log 2>&1 &
+          nohup $ANDROID_HOME/emulator/emulator -avd test_avd -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -memory 2048 > /tmp/emulator.log 2>&1 &
+          EMULATOR_PID=$!
+          echo "Emulator PID: $EMULATOR_PID"
           
-          echo "Waiting for emulator to start (max 5 minutes)..."
-          timeout 300 adb wait-for-device shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
+          echo "Waiting for emulator device to appear..."
+          adb wait-for-device
           
-          echo "✅ Emulator started and booted"
+          echo "Waiting for boot to complete (max 5 minutes)..."
+          BOOT_COMPLETED=false
+          for i in {1..60}; do
+            BOOT_STATUS=$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || echo "")
+            if [ "$BOOT_STATUS" = "1" ]; then
+              BOOT_COMPLETED=true
+              echo "✅ Boot completed after ~$((i*5)) seconds"
+              break
+            fi
+            echo "Waiting for boot... attempt $i/60 (status: '$BOOT_STATUS')"
+            sleep 5
+          done
+          
+          if [ "$BOOT_COMPLETED" = "false" ]; then
+            echo "❌ Emulator failed to boot within timeout"
+            echo "=== Emulator log ==="
+            cat /tmp/emulator.log || true
+            exit 1
+          fi
+          
+          echo "Disabling animations for faster tests..."
+          adb shell settings put global window_animation_scale 0
+          adb shell settings put global transition_animation_scale 0
+          adb shell settings put global animator_duration_scale 0
+          
+          echo "✅ Emulator ready"
           adb devices
 
       - name: 🔨 Build Android app for testing
