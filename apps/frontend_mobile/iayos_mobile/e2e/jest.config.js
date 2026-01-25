@@ -6,13 +6,16 @@ module.exports = {
   preset: "ts-jest",
   testEnvironment: "node",
   transform: {
-    "^.+\\.tsx?$": ["ts-jest", {
-      tsconfig: {
-        module: "commonjs",
-        esModuleInterop: true,
-        allowSyntheticDefaultImports: true,
-      }
-    }]
+    "^.+\\.tsx?$": [
+      "ts-jest",
+      {
+        tsconfig: {
+          module: "commonjs",
+          esModuleInterop: true,
+          allowSyntheticDefaultImports: true,
+        },
+      },
+    ],
   },
   moduleFileExtensions: ["ts", "tsx", "js", "jsx", "json"],
   globalSetup: "<rootDir>/e2e/setup/global-setup.ts",
@@ -33,14 +36,8 @@ module.exports = {
         includeFailureMsg: true,
       },
     ],
-    [
-      "jest-json-reporter",
-      {
-        outputPath: "./e2e/reports/jest-test-results.json",
-        includeConsoleOutput: true,
-        includeShortConsoleOutput: false,
-      },
-    ],
+    // Note: JSON output is generated via --json --outputFile CLI flags
+    // instead of jest-json-reporter which is incompatible with Jest's API
   ],
   verbose: true,
   bail: false, // Continue on failure
