@@ -1,24 +1,17 @@
-const detox = require('detox');
-
 /**
  * Setup after environment - runs before each test file
- * Using CommonJS require to avoid ESM import issues with Jest
+ * Note: Detox provides global 'device' object via its Jest environment
+ * Do NOT import or require detox here - it's handled by the environment
  */
 beforeAll(async () => {
-  await detox.device.launchApp({
+  // The 'device' global is provided by Detox's Jest environment
+  await device.launchApp({
     newInstance: true,
     launchArgs: {
       detoxPrintBusyIdleResources: "YES",
     },
   });
 }, 120000);
-
-/**
- * Cleanup after each test file
- */
-afterAll(async () => {
-  await detox.cleanup();
-});
 
 /**
  * Custom matchers for better assertions

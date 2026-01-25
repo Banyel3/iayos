@@ -4,13 +4,13 @@ module.exports = {
   testTimeout: 120000,
   maxWorkers: 1,
   preset: "ts-jest",
-  testEnvironment: "node",
+  testEnvironment: "./e2e/environment.js",
   transform: {
     "^.+\\.tsx?$": [
       "ts-jest",
       {
         tsconfig: {
-          module: "commonjs",
+          module: "esnext",
           esModuleInterop: true,
           allowSyntheticDefaultImports: true,
         },
