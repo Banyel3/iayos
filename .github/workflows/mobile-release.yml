@@ -22,6 +22,11 @@ on:
           - major
           - minor
           - patch
+      use_latest_build:
+        description: "Use latest build instead of creating new build"
+        required: false
+        default: false
+        type: boolean
       skip_build:
         description: "Skip build (for testing workflow only)"
         required: false
@@ -162,12 +167,12 @@ jobs:
           "
 
       - name: Install dependencies
-        if: steps.analyze.outputs.should_release == 'true'
+        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.use_latest_build != 'true'
         working-directory: ${{ env.MOBILE_DIR }}
         run: npm ci
 
       - name: Build Android APK
-        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true'
+        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true'
         working-directory: ${{ env.MOBILE_DIR }}
         run: |
           eas build --platform android --profile production --non-interactive --wait
@@ -178,8 +183,10 @@ jobs:
         run: |
           echo "Fetching latest build info..."
 
-          # Wait a bit for artifacts to be available
-          sleep 10
+          # Wait a bit for artifacts to be available (skip if using existing build)
+          if [ "${{ github.event.inputs.use_latest_build }}" != "true" ]; then
+            sleep 10
+          fi
 
           # Get build info with retry logic
           MAX_RETRIES=10
@@ -237,7 +244,7 @@ jobs:
           git push
 
       - name: Create Release
-        if: steps.analyze.outputs.should_release == 'true'
+        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: mobile-v${{ steps.version.outputs.new_version }}
@@ -247,6 +254,7 @@ jobs:
 
             **Version Type:** ${{ steps.analyze.outputs.version_type }}
             **Branch:** ${{ github.ref_name }}
+            **Build Type:** ${{ github.event.inputs.use_latest_build == 'true' && 'Latest Existing Build' || 'Newly Built' }}
 
             ### Changes
             See commit history for detailed changes.
@@ -270,7 +278,15 @@ jobs:
           if [ "${{ steps.analyze.outputs.should_release }}" == "true" ]; then
             echo "✅ **Version:** ${{ steps.version.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
             echo "📦 **Type:** ${{ steps.analyze.outputs.version_type }}" >> $GITHUB_STEP_SUMMARY
-            echo "🔗 **Release:** mobile-v${{ steps.version.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
+            if [ "${{ github.event.inputs.skip_build }}" == "true" ]; then
+              echo "⚠️ **Build:** Skipped (testing mode)" >> $GITHUB_STEP_SUMMARY
+            elif [ "${{ github.event.inputs.use_latest_build }}" == "true" ]; then
+              echo "♻️ **Build:** Using latest existing build" >> $GITHUB_STEP_SUMMARY
+              echo "🔗 **Release:** mobile-v${{ steps.version.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "🏗️ **Build:** Newly built" >> $GITHUB_STEP_SUMMARY
+              echo "🔗 **Release:** mobile-v${{ steps.version.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
+            fi
           else
             echo "⏭️ No mobile release needed - no relevant changes detected" >> $GITHUB_STEP_SUMMARY
           fi
