@@ -234,9 +234,12 @@ jobs:
           echo "Configuring Gradle for CI build..."
           export GRADLE_OPTS="-Xmx4g -Xms512m -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8"
 
-          echo "Building only main app debug and test APKs (skipping dependency test APKs)..."
+          echo "Building for x86_64 ONLY (emulator architecture - skipping arm64, armeabi, x86)..."
+          echo "This reduces native build time by ~75% (1 arch instead of 4)"
+          
           ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest \
             -DtestBuildType=debug \
+            -PreactNativeArchitectures=x86_64 \
             --no-daemon \
             --max-workers=2 \
             --parallel \
@@ -248,12 +251,13 @@ jobs:
               echo "❌ Build failed, retrying with --stacktrace..."
               ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest \
                 -DtestBuildType=debug \
+                -PreactNativeArchitectures=x86_64 \
                 --no-daemon \
                 --stacktrace \
                 --max-workers=1 \
                 -x lint
             }
-        timeout-minutes: 15
+        timeout-minutes: 20
       - name: 📊 Upload test results
         if: always()
         uses: actions/upload-artifact@v4
