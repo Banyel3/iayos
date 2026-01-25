@@ -4,7 +4,7 @@ module.exports = {
   testTimeout: 120000,
   maxWorkers: 1,
   preset: "ts-jest",
-  testEnvironment: "./e2e/environment.js",
+  testEnvironment: "detox/runners/jest/testEnvironment",
   transform: {
     "^.+\\.tsx?$": [
       "ts-jest",
