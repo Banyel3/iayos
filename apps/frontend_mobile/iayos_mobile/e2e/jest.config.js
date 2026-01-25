@@ -21,6 +21,14 @@ module.exports = {
         includeFailureMsg: true,
       },
     ],
+    [
+      "jest-json-reporter",
+      {
+        outputPath: "./e2e/reports/jest-test-results.json",
+        includeConsoleOutput: true,
+        includeShortConsoleOutput: false,
+      },
+    ],
   ],
   verbose: true,
   bail: false, // Continue on failure

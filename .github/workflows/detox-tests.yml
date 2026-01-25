@@ -260,24 +260,184 @@ jobs:
         timeout-minutes: 20
 
       - name: 🧪 Run Detox E2E Tests
+        id: detox_tests
         working-directory: apps/frontend_mobile/iayos_mobile
+        continue-on-error: true
         run: |
           echo "Installing Detox CLI..."
           npm install -g detox-cli
           
-          echo "Running Detox tests on emulator..."
+          echo "Running Detox tests on emulator with JSON reporter..."
           detox test \
             --configuration android.emu.debug \
             --headless \
             --record-logs all \
             --take-screenshots all \
             --record-videos failing \
-            --loglevel verbose \
-            || {
-              echo "❌ Tests failed, but continuing to upload artifacts..."
-              exit 0
-            }
+            --loglevel verbose
         timeout-minutes: 15
+
+      - name: 🐛 Create GitHub Issues for Test Failures
+        if: always() && steps.detox_tests.outcome == 'failure'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            
+            // Parse Jest test results (Detox uses Jest)
+            let testResults;
+            try {
+              const resultsPath = 'apps/frontend_mobile/iayos_mobile/e2e/reports/jest-test-results.json';
+              if (fs.existsSync(resultsPath)) {
+                testResults = JSON.parse(fs.readFileSync(resultsPath, 'utf8'));
+              } else {
+                console.log('❌ No test results file found at:', resultsPath);
+                console.log('Creating generic failure issue...');
+                
+                // Create a generic issue if results file is missing
+                await github.rest.issues.create({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  title: '🔴 Mobile E2E Tests Failed (No Results File)',
+                  body: `## Test Execution Failed
+            
+            The mobile E2E test run failed but no results file was generated.
+            
+            **Workflow Run:** [${context.runNumber}](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})
+            **Platform:** Android
+            **Triggered by:** ${context.actor}
+            **Branch:** ${context.ref}
+            
+            ### Possible Causes:
+            - Test execution crashed before results could be written
+            - Jest configuration issue
+            - Detox configuration issue
+            
+            Please check the [workflow logs](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}) for details.`,
+                  labels: ['bug', 'e2e-test', 'automated', 'mobile', 'android', 'needs-investigation']
+                });
+                return;
+              }
+            } catch (error) {
+              console.error('Error reading test results:', error);
+              return;
+            }
+            
+            // Extract failed tests
+            const failedTests = [];
+            testResults.testResults?.forEach(testFile => {
+              testFile.assertionResults?.forEach(test => {
+                if (test.status === 'failed') {
+                  failedTests.push({
+                    testFile: testFile.name,
+                    testName: test.fullName || test.title,
+                    error: test.failureMessages?.join('\n') || 'No error message',
+                    duration: test.duration
+                  });
+                }
+              });
+            });
+            
+            if (failedTests.length === 0) {
+              console.log('✅ No failed tests found in results (tests may have passed on retry)');
+              return;
+            }
+            
+            console.log(`Found ${failedTests.length} failed test(s)`);
+            
+            // Get existing issues to avoid duplicates
+            const existingIssues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'e2e-test,automated',
+              per_page: 100
+            });
+            
+            // Create issues for each failed test (limit to 10 to avoid spam)
+            const maxIssues = Math.min(failedTests.length, 10);
+            let createdCount = 0;
+            
+            for (let i = 0; i < maxIssues; i++) {
+              const test = failedTests[i];
+              const issueTitle = `🔴 E2E Test Failed: ${test.testName}`;
+              
+              // Check if issue already exists
+              const isDuplicate = existingIssues.data.some(issue => 
+                issue.title === issueTitle
+              );
+              
+              if (isDuplicate) {
+                console.log(`⏭️  Skipping duplicate issue: ${issueTitle}`);
+                continue;
+              }
+              
+              // Format error message
+              const errorLines = test.error.split('\n');
+              const errorPreview = errorLines.slice(0, 50).join('\n');
+              const isTruncated = errorLines.length > 50;
+              
+              const issueBody = `## Test Failure Details
+            
+            **Test File:** \`${test.testFile}\`
+            **Test Name:** ${test.testName}
+            **Duration:** ${test.duration}ms
+            
+            ### Error Message
+            
+            \`\`\`
+            ${errorPreview}${isTruncated ? '\n\n... (truncated, see workflow logs for full error)' : ''}
+            \`\`\`
+            
+            ### Test Run Information
+            
+            - **Workflow Run:** [#${context.runNumber}](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})
+            - **Platform:** Android (x86_64 emulator)
+            - **Configuration:** android.emu.debug
+            - **Triggered by:** @${context.actor}
+            - **Branch:** ${context.ref.replace('refs/heads/', '')}
+            - **Commit:** ${context.sha.substring(0, 7)}
+            
+            ### Artifacts
+            
+            Check the workflow run for:
+            - 📸 Screenshots
+            - 📝 Test logs
+            - 📹 Videos (if available)
+            
+            ### Next Steps
+            
+            1. Review the error message and stack trace
+            2. Check if this is a flaky test (search for previous occurrences)
+            3. Reproduce locally: \`npm run test:e2e:android\`
+            4. Fix the test or the underlying code
+            5. Close this issue once resolved
+            
+            ---
+            
+            **Auto-generated by Mobile E2E Tests workflow**`;
+              
+              try {
+                await github.rest.issues.create({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  title: issueTitle,
+                  body: issueBody,
+                  labels: ['bug', 'e2e-test', 'automated', 'mobile', 'android']
+                });
+                createdCount++;
+                console.log(`✅ Created issue: ${issueTitle}`);
+              } catch (error) {
+                console.error(`❌ Failed to create issue for ${test.testName}:`, error.message);
+              }
+            }
+            
+            if (failedTests.length > maxIssues) {
+              console.log(`⚠️  Only created ${maxIssues} issues out of ${failedTests.length} failures to avoid spam`);
+            }
+            
+            console.log(`📊 Summary: Created ${createdCount} new issue(s) for failed tests`);
 
       - name: 📊 Upload test results
         if: always()
