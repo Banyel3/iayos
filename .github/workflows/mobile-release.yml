@@ -193,17 +193,18 @@ jobs:
             BUILD_INFO=$(eas build:list --platform android --limit 1 --json --non-interactive 2>/dev/null || echo "[]")
             echo "Build info: $BUILD_INFO"
             
-            # Check build status
+            # Check build status (case-insensitive comparison)
             BUILD_STATUS=$(echo "$BUILD_INFO" | jq -r '.[0].status // "unknown"')
+            BUILD_STATUS_LOWER=$(echo "$BUILD_STATUS" | tr '[:upper:]' '[:lower:]')
             echo "Build status: $BUILD_STATUS"
             
-            if [ "$BUILD_STATUS" = "finished" ]; then
+            if [ "$BUILD_STATUS_LOWER" = "finished" ]; then
               BUILD_URL=$(echo "$BUILD_INFO" | jq -r '.[0].artifacts.buildUrl // empty')
               if [ -n "$BUILD_URL" ] && [ "$BUILD_URL" != "null" ]; then
                 echo "✅ Found build URL: $BUILD_URL"
                 break
               fi
-            elif [ "$BUILD_STATUS" = "errored" ] || [ "$BUILD_STATUS" = "canceled" ]; then
+            elif [ "$BUILD_STATUS_LOWER" = "errored" ] || [ "$BUILD_STATUS_LOWER" = "canceled" ]; then
               echo "❌ Build failed with status: $BUILD_STATUS"
               exit 1
             fi
