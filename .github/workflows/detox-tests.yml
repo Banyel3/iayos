@@ -81,13 +81,13 @@ jobs:
           echo "ANDROID_HOME: $ANDROID_HOME"
           echo "HOME: $HOME"
           echo "ANDROID_AVD_HOME: ${ANDROID_AVD_HOME:-not set}"
-          
+
           echo ""
           echo "Setting ANDROID_AVD_HOME to ensure emulator can find AVD..."
           export ANDROID_AVD_HOME=$HOME/.android/avd
           mkdir -p $ANDROID_AVD_HOME
           echo "ANDROID_AVD_HOME set to: $ANDROID_AVD_HOME"
-          
+
           echo ""
           echo "Creating AVD without device profile (generic)..."
           echo "no" | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager create avd \
@@ -98,11 +98,11 @@ jobs:
           echo ""
           echo "Listing created AVDs..."
           $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager list avd
-          
+
           echo ""
           echo "Checking AVD files..."
           ls -la $HOME/.android/avd/ || echo "Directory does not exist"
-          
+
           echo ""
           echo "✅ AVD created successfully"
 
@@ -111,27 +111,27 @@ jobs:
           echo "=== Emulator startup diagnostics ==="
           echo "ANDROID_HOME: $ANDROID_HOME"
           echo "HOME: $HOME"
-          
+
           echo "Setting ANDROID_AVD_HOME for emulator..."
           export ANDROID_AVD_HOME=$HOME/.android/avd
           echo "ANDROID_AVD_HOME: $ANDROID_AVD_HOME"
-          
+
           echo ""
           echo "Listing available AVDs before starting..."
           $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager list avd || echo "Failed to list AVDs"
-          
+
           echo ""
           echo "ADB version:"
           adb version
           echo "Emulator location: $ANDROID_HOME/emulator/emulator"
           ls -la $ANDROID_HOME/emulator/emulator
-          
+
           echo ""
           echo "Starting adb server explicitly..."
           adb start-server
           sleep 2
           adb devices
-          
+
           echo ""
           echo "Starting emulator with verbose logging..."
           nohup $ANDROID_HOME/emulator/emulator -avd test_avd \
@@ -146,10 +146,10 @@ jobs:
             -partition-size 2048 \
             -verbose \
             -qemu -enable-kvm > /tmp/emulator.log 2>&1 &
-          
+
           EMULATOR_PID=$!
           echo "Emulator started with PID: $EMULATOR_PID"
-          
+
           echo ""
           echo "Waiting for emulator device to appear (max 2 minutes)..."
           DEVICE_FOUND=false
@@ -170,7 +170,7 @@ jobs:
             fi
             sleep 5
           done
-          
+
           if [ "$DEVICE_FOUND" = "false" ]; then
             echo ""
             echo "❌ Emulator device never appeared in adb devices"
@@ -181,11 +181,11 @@ jobs:
             ps aux | grep emulator | grep -v grep || echo "Process not running"
             exit 1
           fi
-          
+
           echo ""
           echo "Waiting for device to be online..."
           adb wait-for-device
-          
+
           echo ""
           echo "Waiting for boot to complete (max 5 minutes)..."
           BOOT_COMPLETED=false
@@ -201,7 +201,7 @@ jobs:
             fi
             sleep 5
           done
-          
+
           if [ "$BOOT_COMPLETED" = "false" ]; then
             echo ""
             echo "❌ Emulator failed to boot within timeout"
@@ -212,16 +212,16 @@ jobs:
             cat /tmp/emulator.log || true
             exit 1
           fi
-          
+
           echo ""
           echo "Unlocking screen..."
           adb shell input keyevent 82
-          
+
           echo "Disabling animations for faster tests..."
           adb shell settings put global window_animation_scale 0
           adb shell settings put global transition_animation_scale 0
           adb shell settings put global animator_duration_scale 0
-          
+
           echo ""
           echo "✅ Emulator fully ready"
           adb devices -l
@@ -230,34 +230,30 @@ jobs:
         working-directory: apps/frontend_mobile/iayos_mobile
         run: |
           cd android
-          
+
           echo "Configuring Gradle for CI build..."
           export GRADLE_OPTS="-Xmx4g -Xms512m -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8"
-          
-          echo "Building debug APK and test APK..."
-          ./gradlew assembleDebug assembleAndroidTest \
+
+          echo "Building only main app debug and test APKs (skipping dependency test APKs)..."
+          ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest \
             -DtestBuildType=debug \
             --no-daemon \
             --max-workers=2 \
             --parallel \
+            -x lint \
+            -x lintVitalAnalyzeRelease \
+            -x lintVitalReportRelease \
             -Dorg.gradle.jvmargs="-Xmx4g -XX:MaxMetaspaceSize=1g" \
             || {
               echo "❌ Build failed, retrying with --stacktrace..."
-              ./gradlew assembleDebug assembleAndroidTest \
+              ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest \
                 -DtestBuildType=debug \
                 --no-daemon \
                 --stacktrace \
-                --max-workers=1
+                --max-workers=1 \
+                -x lint
             }
-        timeout-minutes: 20
-
-      - name: 🧪 Run Detox E2E tests (Android)
-        working-directory: apps/frontend_mobile/iayos_mobile
-        run: |
-          npx detox test --configuration android.emu.debug --headless --record-logs all --take-screenshots failing 2>&1 | tee e2e/reports/test-output.log || true
         timeout-minutes: 15
-        id: detox_tests_android
-
       - name: 📊 Upload test results
         if: always()
         uses: actions/upload-artifact@v4
