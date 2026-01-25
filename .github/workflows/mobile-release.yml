@@ -55,7 +55,6 @@ jobs:
         with:
           token: ${{ secrets.MOBILE_RELEASE_PAT }}
           persist-credentials: true
-        with:
           fetch-depth: 0
 
       - name: Setup Node.js
