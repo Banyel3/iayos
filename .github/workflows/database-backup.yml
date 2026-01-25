@@ -115,7 +115,7 @@ jobs:
           compression-level: 0  # Already compressed
       
       - name: Upload backup to AWS S3 (optional)
-        if: ${{ secrets.AWS_S3_BACKUP_BUCKET != '' }}
+        if: ${{ env.S3_BUCKET != '' }}
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -142,7 +142,7 @@ jobs:
           echo "✅ Backup uploaded to S3: s3://${S3_BUCKET}/database-backups/"
       
       - name: Cleanup old backups in S3
-        if: ${{ secrets.AWS_S3_BACKUP_BUCKET != '' }}
+        if: ${{ env.S3_BUCKET != '' }}
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
