@@ -516,7 +516,7 @@ jobs:
 
           echo "✅ Test APK built"
           ls -lh app/build/outputs/apk/androidTest/debug/
-        timeout-minutes: 10
+        timeout-minutes: 15
 
       - name: 🏗️ Build Android app for testing
         if: github.event.inputs.use_release_apk != 'true'
