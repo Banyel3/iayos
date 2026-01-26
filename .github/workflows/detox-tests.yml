@@ -282,7 +282,24 @@ jobs:
             -- --json --outputFile=e2e/reports/jest-test-results.json
         timeout-minutes: 15
 
-      - name: 🐛 Create GitHub Issues for Test Failures
+      - name: � Debug: Check test results file
+        if: always()
+        working-directory: apps/frontend_mobile/iayos_mobile
+        run: |
+          echo "Checking for test results file..."
+          if [ -f "e2e/reports/jest-test-results.json" ]; then
+            echo "✅ Test results file exists"
+            echo "File size: $(wc -c < e2e/reports/jest-test-results.json) bytes"
+            echo "First 500 characters:"
+            head -c 500 e2e/reports/jest-test-results.json
+            echo ""
+          else
+            echo "❌ Test results file not found"
+            echo "Contents of e2e/reports directory:"
+            ls -la e2e/reports/ || echo "Directory doesn't exist"
+          fi
+
+      - name: �🐛 Create GitHub Issues for Test Failures
         if: always()
         uses: actions/github-script@v7
         with:
