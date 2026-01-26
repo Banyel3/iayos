@@ -139,100 +139,61 @@ def get_agency_kyc_autofill(request):
     """
     Get auto-filled business data from OCR extraction.
     
-    Returns extracted text from business permit and other documents
+    Returns structured extracted data from business permit and representative ID
     that can be used to pre-fill agency profile fields.
     
     Response:
     - success: bool
+    - has_extracted_data: bool
+    - extraction_status: PENDING | EXTRACTED | CONFIRMED | FAILED
     - fields: dict with extracted field values and confidence scores
-        - business_name: {value: str, confidence: float, source: str}
-        - registration_number: {value: str, confidence: float, source: str}
-        - address: {value: str, confidence: float, source: str}
-    - raw_text: dict with raw OCR text per document
+        - Each field: {value: str, confidence: float, source: str}
     """
     try:
-        from .models import AgencyKYC, AgencyKycFile
+        from .models import AgencyKYC, AgencyKYCExtractedData
         
         account_id = request.auth.accountID
+        print(f"🔍 [AGENCY KYC AUTOFILL] Fetching auto-fill data for accountID: {account_id}")
         
-        # Get KYC record
+        # Get AgencyKYC record
         try:
             kyc_record = AgencyKYC.objects.get(accountFK_id=account_id)
         except AgencyKYC.DoesNotExist:
-            return Response({"success": False, "error": "No KYC record found"}, status=404)
+            return {
+                "success": True,
+                "has_extracted_data": False,
+                "message": "No Agency KYC submission found"
+            }
         
-        # Get all files with OCR text
-        files = AgencyKycFile.objects.filter(agencyKyc=kyc_record)
-        
-        extracted_fields = {
-            "business_name": {"value": None, "confidence": 0, "source": None},
-            "registration_number": {"value": None, "confidence": 0, "source": None},
-            "address": {"value": None, "confidence": 0, "source": None},
-        }
-        raw_text = {}
-        
-        for file in files:
-            if file.ocr_text:
-                raw_text[file.fileType] = {
-                    "text": file.ocr_text[:1000],  # Truncate for response
-                    "confidence": file.ocr_confidence or 0,
-                }
-                
-                # Try to extract structured fields from business permit
-                if file.fileType == 'BUSINESS_PERMIT':
-                    text = file.ocr_text.upper()
-                    
-                    # Try to extract business name (usually near "BUSINESS NAME" label)
-                    import re
-                    business_name_match = re.search(r'BUSINESS\s*NAME[:\s]*([A-Z0-9\s&.,]+?)(?:\n|OWNER|ADDRESS|REG)', text)
-                    if business_name_match:
-                        extracted_fields["business_name"] = {
-                            "value": business_name_match.group(1).strip(),
-                            "confidence": file.ocr_confidence or 0.5,
-                            "source": "BUSINESS_PERMIT"
-                        }
-                    
-                    # Try to extract registration number
-                    reg_num_match = re.search(r'(?:REG|REGISTRATION|LICENSE|PERMIT)\s*(?:NO|NUMBER|#)[.:\s]*([A-Z0-9-]+)', text)
-                    if reg_num_match:
-                        extracted_fields["registration_number"] = {
-                            "value": reg_num_match.group(1).strip(),
-                            "confidence": file.ocr_confidence or 0.5,
-                            "source": "BUSINESS_PERMIT"
-                        }
-                    
-                    # Try to extract address
-                    address_match = re.search(r'(?:ADDRESS|LOCATION)[:\s]*([A-Z0-9\s,.-]+?)(?:\n|OWNER|BUSINESS|REG)', text)
-                    if address_match:
-                        extracted_fields["address"] = {
-                            "value": address_match.group(1).strip(),
-                            "confidence": file.ocr_confidence or 0.5,
-                            "source": "BUSINESS_PERMIT"
-                        }
-        
-        # Try to extract address from ADDRESS_PROOF if not found in business permit
-        if not extracted_fields["address"]["value"]:
-            for file in files:
-                if file.fileType == 'ADDRESS_PROOF' and file.ocr_text:
-                    # For address proof, the entire text might be the address
-                    # Just take first 200 chars as address hint
-                    extracted_fields["address"] = {
-                        "value": file.ocr_text[:200].strip(),
-                        "confidence": (file.ocr_confidence or 0.3) * 0.5,  # Lower confidence
-                        "source": "ADDRESS_PROOF"
-                    }
-                    break
-        
-        return {
-            "success": True,
-            "fields": extracted_fields,
-            "raw_text": raw_text,
-            "kyc_status": kyc_record.status,
-        }
-        
+        # Get extracted data
+        try:
+            extracted = AgencyKYCExtractedData.objects.get(agencyKyc=kyc_record)
+            autofill_data = extracted.get_autofill_data()
+            
+            return {
+                "success": True,
+                "has_extracted_data": True,
+                "extraction_status": extracted.extraction_status,
+                "needs_confirmation": extracted.extraction_status == "EXTRACTED",
+                "extracted_at": extracted.extracted_at.isoformat() if extracted.extracted_at else None,
+                "confirmed_at": extracted.confirmed_at.isoformat() if extracted.confirmed_at else None,
+                "fields": autofill_data,
+                "user_edited_fields": extracted.user_edited_fields or []
+            }
+            
+        except AgencyKYCExtractedData.DoesNotExist:
+            return {
+                "success": True,
+                "has_extracted_data": False,
+                "message": "No extracted data available yet"
+            }
+            
     except Exception as e:
-        print(f"Error in get_agency_kyc_autofill: {str(e)}")
-        return Response({"success": False, "error": "Failed to get autofill data"}, status=500)
+        print(f"❌ [AGENCY KYC AUTOFILL] Error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": "Failed to fetch auto-fill data"}
+
 
 
 @router.post("/kyc/confirm", auth=cookie_auth)

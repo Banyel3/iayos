@@ -274,3 +274,338 @@ class AgencyEmployee(models.Model):
 		if job_payment:
 			self.totalEarnings += job_payment
 		self.save(update_fields=['totalJobsCompleted', 'totalEarnings', 'updatedAt'])
+
+
+class AgencyKYCExtractedData(models.Model):
+	"""
+	Structured storage for Agency KYC data extracted via AI/OCR from business documents.
+	Similar to accounts.KYCExtractedData but for agency-specific fields.
+	"""
+	extractedDataID = models.BigAutoField(primary_key=True)
+	agencyKyc = models.OneToOneField(
+		AgencyKYC,
+		on_delete=models.CASCADE,
+		related_name='extracted_data',
+		help_text="Parent AgencyKYC record"
+	)
+	
+	# ============================================================
+	# BUSINESS INFORMATION (from Business Permit)
+	# ============================================================
+	extracted_business_name = models.CharField(
+		max_length=255,
+		blank=True,
+		default="",
+		help_text="Business name extracted from permit"
+	)
+	extracted_business_type = models.CharField(
+		max_length=100,
+		blank=True,
+		default="",
+		help_text="Type of business (e.g., Sole Proprietorship, Corporation)"
+	)
+	extracted_business_address = models.TextField(
+		blank=True,
+		default="",
+		help_text="Business address extracted from permit"
+	)
+	extracted_permit_number = models.CharField(
+		max_length=100,
+		blank=True,
+		default="",
+		help_text="Business permit number"
+	)
+	extracted_permit_issue_date = models.DateField(
+		null=True,
+		blank=True,
+		help_text="Permit issue date"
+	)
+	extracted_permit_expiry_date = models.DateField(
+		null=True,
+		blank=True,
+		help_text="Permit expiry date"
+	)
+	extracted_dti_number = models.CharField(
+		max_length=100,
+		blank=True,
+		default="",
+		help_text="DTI registration number if present"
+	)
+	extracted_sec_number = models.CharField(
+		max_length=100,
+		blank=True,
+		default="",
+		help_text="SEC registration number if corporation"
+	)
+	extracted_tin = models.CharField(
+		max_length=50,
+		blank=True,
+		default="",
+		help_text="Tax Identification Number (TIN)"
+	)
+	
+	# ============================================================
+	# REPRESENTATIVE INFORMATION (from Rep ID)
+	# ============================================================
+	extracted_rep_full_name = models.CharField(
+		max_length=255,
+		blank=True,
+		default="",
+		help_text="Representative's full name from ID"
+	)
+	extracted_rep_id_number = models.CharField(
+		max_length=100,
+		blank=True,
+		default="",
+		help_text="Representative's ID number"
+	)
+	extracted_rep_id_type = models.CharField(
+		max_length=50,
+		blank=True,
+		default="",
+		help_text="Type of representative's ID"
+	)
+	extracted_rep_birth_date = models.DateField(
+		null=True,
+		blank=True,
+		help_text="Representative's birth date"
+	)
+	extracted_rep_address = models.TextField(
+		blank=True,
+		default="",
+		help_text="Representative's address from ID"
+	)
+	
+	# ============================================================
+	# CONFIRMED FIELDS (user-edited values)
+	# ============================================================
+	confirmed_business_name = models.CharField(
+		max_length=255,
+		blank=True,
+		default="",
+		help_text="User-confirmed business name"
+	)
+	confirmed_business_type = models.CharField(
+		max_length=100,
+		blank=True,
+		default=""
+	)
+	confirmed_business_address = models.TextField(
+		blank=True,
+		default=""
+	)
+	confirmed_permit_number = models.CharField(
+		max_length=100,
+		blank=True,
+		default=""
+	)
+	confirmed_permit_issue_date = models.DateField(
+		null=True,
+		blank=True
+	)
+	confirmed_permit_expiry_date = models.DateField(
+		null=True,
+		blank=True
+	)
+	confirmed_dti_number = models.CharField(
+		max_length=100,
+		blank=True,
+		default=""
+	)
+	confirmed_sec_number = models.CharField(
+		max_length=100,
+		blank=True,
+		default=""
+	)
+	confirmed_tin = models.CharField(
+		max_length=50,
+		blank=True,
+		default=""
+	)
+	confirmed_rep_full_name = models.CharField(
+		max_length=255,
+		blank=True,
+		default=""
+	)
+	confirmed_rep_id_number = models.CharField(
+		max_length=100,
+		blank=True,
+		default=""
+	)
+	confirmed_rep_birth_date = models.DateField(
+		null=True,
+		blank=True
+	)
+	confirmed_rep_address = models.TextField(
+		blank=True,
+		default=""
+	)
+	
+	# ============================================================
+	# CONFIDENCE SCORES (0.0 to 1.0)
+	# ============================================================
+	confidence_business_name = models.FloatField(
+		default=0.0,
+		help_text="Confidence in extracted business name"
+	)
+	confidence_business_address = models.FloatField(
+		default=0.0,
+		help_text="Confidence in extracted business address"
+	)
+	confidence_permit_number = models.FloatField(
+		default=0.0,
+		help_text="Confidence in extracted permit number"
+	)
+	confidence_rep_name = models.FloatField(
+		default=0.0,
+		help_text="Confidence in extracted representative name"
+	)
+	overall_confidence = models.FloatField(
+		default=0.0,
+		help_text="Overall extraction confidence score"
+	)
+	
+	# ============================================================
+	# METADATA
+	# ============================================================
+	class ExtractionStatus(models.TextChoices):
+		PENDING = "PENDING", "Pending Extraction"
+		EXTRACTED = "EXTRACTED", "Data Extracted"
+		CONFIRMED = "CONFIRMED", "User Confirmed"
+		FAILED = "FAILED", "Extraction Failed"
+	
+	extraction_status = models.CharField(
+		max_length=20,
+		choices=ExtractionStatus.choices,
+		default=ExtractionStatus.PENDING,
+		help_text="Current status of extraction process"
+	)
+	extraction_source = models.CharField(
+		max_length=100,
+		default="Tesseract OCR",
+		help_text="Source of extraction (OCR engine used)"
+	)
+	extracted_at = models.DateTimeField(
+		null=True,
+		blank=True,
+		help_text="When extraction completed"
+	)
+	confirmed_at = models.DateTimeField(
+		null=True,
+		blank=True,
+		help_text="When user confirmed the data"
+	)
+	user_edited_fields = models.JSONField(
+		default=list,
+		blank=True,
+		help_text="List of field names that user edited"
+	)
+	raw_extraction_data = models.JSONField(
+		default=dict,
+		blank=True,
+		help_text="Raw extraction output for debugging"
+	)
+	
+	createdAt = models.DateTimeField(auto_now_add=True)
+	updatedAt = models.DateTimeField(auto_now=True)
+	
+	class Meta:
+		db_table = "agency_kyc_extracted_data"
+		verbose_name = "Agency KYC Extracted Data"
+		verbose_name_plural = "Agency KYC Extracted Data"
+	
+	def __str__(self):
+		return f"Extracted Data for AgencyKYC #{self.agencyKyc.agencyKycID} - {self.extraction_status}"
+	
+	def get_autofill_data(self) -> dict:
+		"""
+		Return data suitable for auto-filling agency KYC forms.
+		Returns extracted values with confidence scores in the format expected by mobile app.
+		"""
+		def _make_field(confirmed_val, extracted_val, confidence, default=""):
+			"""Helper to create field object with value, confidence, and source"""
+			is_confirmed = confirmed_val is not None and str(confirmed_val).strip() != ""
+			value = confirmed_val if is_confirmed else (extracted_val if extracted_val else default)
+			# Convert to string for consistency
+			if value is not None:
+				value = str(value) if value else default
+			return {
+				"value": value,
+				"confidence": confidence or 0.0,
+				"source": "confirmed" if is_confirmed else "ocr"
+			}
+		
+		return {
+			# Business Information
+			"business_name": _make_field(
+				self.confirmed_business_name,
+				self.extracted_business_name,
+				self.confidence_business_name
+			),
+			"business_type": _make_field(
+				self.confirmed_business_type,
+				self.extracted_business_type,
+				0.7
+			),
+			"business_address": _make_field(
+				self.confirmed_business_address,
+				self.extracted_business_address,
+				self.confidence_business_address
+			),
+			"permit_number": _make_field(
+				self.confirmed_permit_number,
+				self.extracted_permit_number,
+				self.confidence_permit_number
+			),
+			"permit_issue_date": _make_field(
+				self.confirmed_permit_issue_date,
+				self.extracted_permit_issue_date,
+				0.7
+			),
+			"permit_expiry_date": _make_field(
+				self.confirmed_permit_expiry_date,
+				self.extracted_permit_expiry_date,
+				0.7
+			),
+			"dti_number": _make_field(
+				self.confirmed_dti_number,
+				self.extracted_dti_number,
+				0.8
+			),
+			"sec_number": _make_field(
+				self.confirmed_sec_number,
+				self.extracted_sec_number,
+				0.8
+			),
+			"tin": _make_field(
+				self.confirmed_tin,
+				self.extracted_tin,
+				0.8
+			),
+			# Representative Information
+			"rep_full_name": _make_field(
+				self.confirmed_rep_full_name,
+				self.extracted_rep_full_name,
+				self.confidence_rep_name
+			),
+			"rep_id_number": _make_field(
+				self.confirmed_rep_id_number,
+				self.extracted_rep_id_number,
+				0.8
+			),
+			"rep_id_type": _make_field(
+				None,
+				self.extracted_rep_id_type,
+				0.9
+			),
+			"rep_birth_date": _make_field(
+				self.confirmed_rep_birth_date,
+				self.extracted_rep_birth_date,
+				0.7
+			),
+			"rep_address": _make_field(
+				self.confirmed_rep_address,
+				self.extracted_rep_address,
+				0.7
+			),
+		}
