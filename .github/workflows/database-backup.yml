@@ -160,7 +160,7 @@ jobs:
                 file_timestamp=$(date -d "$file_date" +%s)
                 current_timestamp=$(date +%s)
                 days_old=$(( ($current_timestamp - $file_timestamp) / 86400 ))
-                
+
                 if [ $days_old -gt 30 ]; then
                   echo "Deleting old backup: $file (${days_old} days old)"
                   aws s3 rm s3://${S3_BUCKET}/database-backups/$file

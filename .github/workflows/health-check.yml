@@ -56,11 +56,11 @@ jobs:
           if [ "$HTTP_CODE" -eq 200 ]; then
             echo "✅ Backend is ready"
             echo "status=success" >> $GITHUB_OUTPUT
-            
+
             # Parse database and cache status
             DB_STATUS=$(echo "$BODY" | jq -r '.checks.database // "unknown"')
             CACHE_STATUS=$(echo "$BODY" | jq -r '.checks.cache // "unknown"')
-            
+
             echo "Database: $DB_STATUS"
             echo "Cache: $CACHE_STATUS"
           else
@@ -183,8 +183,8 @@ jobs:
 
       - name: Send Slack notification on failure
         if: |
-          failure() && 
-          (steps.backend_live.outputs.status == 'failure' || 
+          failure() &&
+          (steps.backend_live.outputs.status == 'failure' ||
            steps.backend_ready.outputs.status == 'failure' ||
            steps.database_check.outputs.status == 'failure')
         env:
@@ -192,29 +192,29 @@ jobs:
         run: |
           if [ -n "$SLACK_WEBHOOK_URL" ]; then
             FAILED_CHECKS=""
-            
+
             if [ "${{ steps.backend_live.outputs.status }}" = "failure" ]; then
               FAILED_CHECKS="${FAILED_CHECKS}\n❌ Backend Liveness"
             fi
-            
+
             if [ "${{ steps.backend_ready.outputs.status }}" = "failure" ]; then
               FAILED_CHECKS="${FAILED_CHECKS}\n❌ Backend Readiness"
             fi
-            
+
             if [ "${{ steps.database_check.outputs.status }}" = "failure" ]; then
               FAILED_CHECKS="${FAILED_CHECKS}\n❌ Database Connection"
             fi
-            
+
             if [ "${{ steps.frontend_check.outputs.status }}" = "failure" ]; then
               FAILED_CHECKS="${FAILED_CHECKS}\n⚠️ Frontend Accessibility"
             fi
-            
+
             MESSAGE="🚨 *iAyos Health Check FAILED*\n\nFailed checks:${FAILED_CHECKS}\n\nTime: $(date -u +'%Y-%m-%d %H:%M:%S UTC')\n\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Workflow>"
-            
+
             curl -X POST "$SLACK_WEBHOOK_URL" \
               -H 'Content-Type: application/json' \
               -d "{\"text\":\"${MESSAGE}\"}"
-            
+
             echo "📨 Slack notification sent"
           else
             echo "⚠️ SLACK_WEBHOOK_URL not configured - skipping notification"
@@ -279,7 +279,7 @@ jobs:
                 body: body,
                 labels: ['health-check', 'automated', 'critical']
               });
-              
+
               console.log('✅ GitHub issue created');
             } else {
               // Add comment to existing issue
@@ -290,7 +290,7 @@ jobs:
                 issue_number: issue.number,
                 body: `## Another Health Check Failure\n\n${body}`
               });
-              
+
               console.log('✅ Comment added to existing issue #' + issue.number);
             }
 
