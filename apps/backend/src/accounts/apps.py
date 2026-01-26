@@ -11,7 +11,7 @@ class AccountsConfig(AppConfig):
     def ready(self):
         """
         Called when Django starts up. 
-        Performs health checks for AI services (CompreFace, Tesseract).
+        Performs health checks for AI services (MediaPipe, Azure Face, Tesseract).
         """
         # Only run in main process, not in migrations/tests
         import os
@@ -20,33 +20,55 @@ class AccountsConfig(AppConfig):
         
         # Delay import to avoid circular imports
         try:
-            from accounts.document_verification_service import DocumentVerificationService, COMPREFACE_URL
-            import httpx
+            from accounts.face_detection_service import check_face_services_available
             
             print("\n" + "="*60)
             print("🔍 AI SERVICES HEALTH CHECK")
             print("="*60)
             
-            # Check CompreFace
+            # Check Face Detection Services (MediaPipe/OpenCV/Azure)
             try:
-                response = httpx.get(f"{COMPREFACE_URL}/api/v1/detection/detect", timeout=5.0)
-                if response.status_code in [200, 400, 401, 403, 404, 405]:
-                    print(f"✅ CompreFace: AVAILABLE at {COMPREFACE_URL}")
+                status = check_face_services_available()
+                
+                # MediaPipe
+                if status.get('mediapipe_available'):
+                    print("✅ MediaPipe Face Detection: AVAILABLE")
                 else:
-                    print(f"⚠️  CompreFace: UNEXPECTED STATUS {response.status_code} at {COMPREFACE_URL}")
+                    print("⚠️  MediaPipe: NOT AVAILABLE")
+                
+                # OpenCV (fallback)
+                if status.get('opencv_available'):
+                    print("✅ OpenCV Haar Cascade: AVAILABLE (fallback)")
+                else:
+                    print("⚠️  OpenCV: NOT AVAILABLE")
+                
+                # Azure Face API (optional, for face comparison)
+                if status.get('azure_available'):
+                    print("✅ Azure Face API: AVAILABLE (face comparison enabled)")
+                else:
+                    azure_endpoint = os.getenv('AZURE_FACE_ENDPOINT', '')
+                    if azure_endpoint:
+                        print("⚠️  Azure Face API: CONFIGURED BUT UNAVAILABLE")
+                    else:
+                        print("ℹ️  Azure Face API: NOT CONFIGURED (face comparison uses manual review)")
+                
+                # Overall face detection status
+                if status.get('face_detection_available'):
+                    print("✅ Face Detection: ENABLED")
+                else:
+                    print("❌ Face Detection: DISABLED - all documents will require manual review!")
+                    
             except Exception as e:
-                print(f"❌ CompreFace: UNAVAILABLE at {COMPREFACE_URL}")
-                print(f"   Error: {e}")
-                print(f"   Face detection will be SKIPPED - documents will require manual review!")
+                print(f"❌ Face Services: ERROR checking availability - {e}")
             
             # Check Tesseract
             try:
                 import pytesseract
                 pytesseract.get_tesseract_version()
-                print(f"✅ Tesseract OCR: AVAILABLE")
+                print("✅ Tesseract OCR: AVAILABLE")
             except Exception as e:
                 print(f"❌ Tesseract OCR: UNAVAILABLE - {e}")
-                print(f"   OCR text extraction will be DISABLED!")
+                print("   OCR text extraction will be DISABLED!")
             
             print("="*60 + "\n")
             

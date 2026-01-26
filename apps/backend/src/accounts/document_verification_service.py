@@ -2,13 +2,19 @@
 Document Verification Service for KYC Uploads
 
 This service provides automated verification of KYC documents using:
-1. CompreFace - Face detection for government IDs
-2. Tesseract OCR - Text extraction for clearances and permits
-3. Image quality checks - Blur detection, resolution, orientation
+1. MediaPipe/OpenCV - Face detection for government IDs (via face_detection_service)
+2. Azure Face API - Face comparison for ID ↔ selfie matching (via face_detection_service)
+3. Tesseract OCR - Text extraction for clearances and permits
+4. Image quality checks - Blur detection, resolution, orientation
 
 Integration points:
 - Called during upload_kyc_document() after Supabase upload
 - Returns verification results that can auto-reject or flag for manual review
+
+Migration from CompreFace (Jan 2026):
+- Replaced CompreFace Docker container with MediaPipe (local, ~100MB)
+- Added Azure Face API for face comparison (30K free/month)
+- Service now runs on Render free tier (512MB)
 """
 
 import io
@@ -23,12 +29,13 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-# CompreFace configuration
-# Inside Docker network, CompreFace runs nginx on port 80 which proxies to Java backend
-# Docker mapping: 8100:80 (external:internal)
-COMPREFACE_URL = "http://compreface:80"
-# Detection service API key - from CompreFace's built-in "Detection_Demo" service
-COMPREFACE_API_KEY = "00000000-0000-0000-0000-000000000003"
+# Import new face detection service (replaces CompreFace)
+from accounts.face_detection_service import (
+    get_face_service,
+    check_face_services_available,
+    FaceDetectionResult,
+    FaceComparisonResult
+)
 
 # Tesseract is imported conditionally to handle environments where it's not installed
 try:
@@ -222,40 +229,32 @@ MIN_CONFIDENCE_FACE = 0.85  # Minimum confidence for face detection
 class DocumentVerificationService:
     """
     Service for automated document verification using AI/ML
+    
+    Uses:
+    - MediaPipe for local face detection
+    - Azure Face API for face comparison (optional)
+    - Tesseract OCR for text extraction
     """
 
-    def __init__(self, compreface_url: str = None, compreface_api_key: str = None):
+    def __init__(self):
         """
         Initialize the verification service
-        
-        Args:
-            compreface_url: URL of CompreFace service (default: http://compreface:8100)
-            compreface_api_key: API key for CompreFace
         """
         import os
-        self.compreface_url = compreface_url or os.getenv("COMPREFACE_URL", COMPREFACE_URL)
-        self.compreface_api_key = compreface_api_key or os.getenv("COMPREFACE_API_KEY", COMPREFACE_API_KEY)
-        self._compreface_available = None  # Lazy check
+        self._face_service = get_face_service()
         
-        logger.info(f"DocumentVerificationService initialized - CompreFace URL: {self.compreface_url}")
+        # Log service status
+        status = check_face_services_available()
+        logger.info(f"DocumentVerificationService initialized:")
+        logger.info(f"  - MediaPipe: {'✅' if status['mediapipe_available'] else '❌'}")
+        logger.info(f"  - OpenCV: {'✅' if status['opencv_available'] else '❌'}")
+        logger.info(f"  - Azure Face: {'✅' if status['azure_available'] else '❌'}")
+        logger.info(f"  - Face Detection: {'✅' if status['face_detection_available'] else '❌'}")
 
-    def _check_compreface_available(self) -> bool:
-        """Check if CompreFace service is available"""
-        if self._compreface_available is not None:
-            return self._compreface_available
-            
-        try:
-            # Try to reach CompreFace Detection API endpoint
-            # Detection service uses /api/v1/detection/detect
-            response = httpx.get(f"{self.compreface_url}/api/v1/detection/detect", timeout=5.0)
-            # Service is up if we get any HTTP response (400/401/404 means it's running but needs auth/params)
-            self._compreface_available = response.status_code in [200, 400, 401, 403, 404, 405]
-            logger.info(f"CompreFace availability check: status={response.status_code}, available={self._compreface_available}")
-        except Exception as e:
-            logger.warning(f"CompreFace not available: {e}")
-            self._compreface_available = False
-            
-        return self._compreface_available
+    def _check_face_detection_available(self) -> bool:
+        """Check if face detection is available (MediaPipe or OpenCV)"""
+        status = check_face_services_available()
+        return status.get("face_detection_available", False)
 
     def validate_document_quick(
         self, 
@@ -613,191 +612,35 @@ class DocumentVerificationService:
 
     def _detect_face(self, image_data: bytes) -> Dict[str, Any]:
         """
-        Detect faces in image using CompreFace
+        Detect faces in image using MediaPipe/OpenCV
         
         Returns dict with:
             - detected: bool
             - count: number of faces
             - confidence: highest face confidence
             - face_too_small: bool if face is too small
+            - skipped: bool if detection was skipped
+            - error: str if error occurred
         """
-        if not self._check_compreface_available():
-            logger.warning("CompreFace not available, skipping face detection")
+        if not self._check_face_detection_available():
+            logger.warning("Face detection not available (no MediaPipe/OpenCV)")
             return {
                 "detected": False,
                 "count": 0,
                 "confidence": 0,
                 "skipped": True,
-                "reason": "CompreFace service not available"
+                "reason": "Face detection service not available"
             }
         
         try:
-            # Resize image if too large (CompreFace can struggle with very large images)
-            image = Image.open(io.BytesIO(image_data))
-            original_size = (image.width, image.height)
-            max_dimension = 1920  # Resize to max 1920px on longest side
-            
-            if max(image.width, image.height) > max_dimension:
-                ratio = max_dimension / max(image.width, image.height)
-                new_size = (int(image.width * ratio), int(image.height * ratio))
-                image = image.resize(new_size, Image.Resampling.LANCZOS)
-                logger.info(f"   📐 Resized image from {original_size} to {new_size} for face detection")
-                
-                # Convert back to bytes
-                buffer = io.BytesIO()
-                image.save(buffer, format="JPEG", quality=90)
-                image_data = buffer.getvalue()
-            
-            # Call CompreFace face detection API
-            headers = {"x-api-key": self.compreface_api_key}
-            files = {"file": ("image.jpg", image_data, "image/jpeg")}
-            
-            response = httpx.post(
-                f"{self.compreface_url}/api/v1/detection/detect",
-                headers=headers,
-                files=files,
-                params={"limit": 5, "det_prob_threshold": 0.5},
-                timeout=30.0
-            )
-            
-            if response.status_code != 200:
-                logger.warning(f"CompreFace returned {response.status_code}: {response.text}")
-                return {
-                    "detected": False,
-                    "count": 0,
-                    "confidence": 0,
-                    "error": f"API error: {response.status_code}"
-                }
-            
-            result = response.json()
-            faces = result.get("result", [])
-            
-            if not faces:
-                return {
-                    "detected": False,
-                    "count": 0,
-                    "confidence": 0
-                }
-            
-            # Get image dimensions for size check
-            image = Image.open(io.BytesIO(image_data))
-            img_area = image.width * image.height
-            
-            # Check face size
-            max_confidence = 0
-            face_too_small = True
-            
-            for face in faces:
-                box = face.get("box", {})
-                face_width = box.get("x_max", 0) - box.get("x_min", 0)
-                face_height = box.get("y_max", 0) - box.get("y_min", 0)
-                face_area = face_width * face_height
-                
-                if face_area / img_area >= MIN_FACE_SIZE_RATIO:
-                    face_too_small = False
-                
-                probability = face.get("box", {}).get("probability", 0)
-                if probability > max_confidence:
-                    max_confidence = probability
-            
-            return {
-                "detected": True,
-                "count": len(faces),
-                "confidence": max_confidence,
-                "face_too_small": face_too_small,
-                "faces": [
-                    {
-                        "box": f.get("box", {}),
-                        "probability": f.get("box", {}).get("probability", 0)
-                    }
-                    for f in faces
-                ]
-            }
-            
-        except httpx.TimeoutException:
-            logger.error("CompreFace request timed out")
-            return {
-                "detected": False,
-                "count": 0,
-                "confidence": 0,
-                "error": "Face detection timed out"
-            }
+            result = self._face_service.detect_face(image_data)
+            return result.to_dict()
         except Exception as e:
             logger.error(f"Face detection error: {e}", exc_info=True)
             return {
                 "detected": False,
                 "count": 0,
                 "confidence": 0,
-                "error": str(e)
-            }
-
-    def _extract_face_embedding(self, image_data: bytes) -> Dict[str, Any]:
-        """
-        Extract face embedding from image using CompreFace recognition API
-        
-        Returns dict with:
-            - success: bool
-            - embedding: list of floats (face vector)
-            - box: face bounding box
-            - confidence: detection confidence
-        """
-        if not self._check_compreface_available():
-            logger.warning("CompreFace not available, skipping embedding extraction")
-            return {
-                "success": False,
-                "embedding": None,
-                "error": "CompreFace service not available"
-            }
-        
-        try:
-            headers = {"x-api-key": self.compreface_api_key}
-            files = {"file": ("image.jpg", image_data, "image/jpeg")}
-            
-            # Use detection endpoint (Detection service API)
-            # Detection API: /api/v1/detection/detect
-            response = httpx.post(
-                f"{self.compreface_url}/api/v1/detection/detect",
-                headers=headers,
-                files=files,
-                params={"limit": 1, "det_prob_threshold": 0.5},
-                timeout=30.0
-            )
-            
-            if response.status_code != 200:
-                logger.warning(f"CompreFace embedding API returned {response.status_code}: {response.text}")
-                return {
-                    "success": False,
-                    "embedding": None,
-                    "error": f"API error: {response.status_code}"
-                }
-            
-            result = response.json()
-            faces = result.get("result", [])
-            
-            if not faces:
-                return {
-                    "success": False,
-                    "embedding": None,
-                    "error": "No face found for embedding"
-                }
-            
-            # Get the first (largest/most prominent) face
-            face = faces[0]
-            embedding = face.get("embedding", [])
-            box = face.get("box", {})
-            
-            return {
-                "success": True,
-                "embedding": embedding,
-                "box": box,
-                "confidence": box.get("probability", 0)
-            }
-            
-        except Exception as e:
-            logger.error(f"Face embedding extraction error: {e}", exc_info=True)
-            return {
-                "success": False,
-                "embedding": None,
                 "error": str(e)
             }
 
@@ -805,97 +648,41 @@ class DocumentVerificationService:
         self, 
         id_image_data: bytes, 
         selfie_image_data: bytes,
-        similarity_threshold: float = 0.85
+        similarity_threshold: float = 0.80
     ) -> Dict[str, Any]:
         """
-        Verify faces exist in both ID document and selfie images.
-        Face comparison will be done manually by admin.
+        Compare faces between ID document and selfie using Azure Face API.
+        Falls back to local detection + manual review if Azure unavailable.
         
         Args:
             id_image_data: Raw bytes of ID document image
             selfie_image_data: Raw bytes of selfie image
-            similarity_threshold: Not used (kept for backward compatibility)
+            similarity_threshold: Minimum similarity for match (0-1)
             
         Returns dict with:
-            - faces_detected: bool - whether faces were found in both images
+            - match: bool - whether faces match (or need manual review)
+            - similarity: float - similarity score (0 if Azure unavailable)
             - id_has_face: bool - whether ID has a detectable face
             - selfie_has_face: bool - whether selfie has a detectable face
+            - needs_manual_review: bool - whether admin should verify
             - error: str - error message if failed
         """
-        logger.info("🔍 Checking for faces in ID and selfie images...")
-        
-        if not self._check_compreface_available():
-            logger.warning("CompreFace not available, skipping face detection")
-            return {
-                "faces_detected": None,
-                "skipped": True,
-                "reason": "CompreFace service not available - manual verification required"
-            }
+        logger.info("🔍 Comparing faces in ID and selfie images...")
         
         try:
-            # Detect face in ID document
-            id_result = self._detect_face(id_image_data)
-            id_has_face = id_result.get("detected", False) and id_result.get("count", 0) > 0
-            
-            if not id_has_face and not id_result.get("skipped"):
-                logger.warning("No face detected in ID document")
-                return {
-                    "faces_detected": False,
-                    "id_has_face": False,
-                    "selfie_has_face": None,
-                    "error": "No face detected in ID document. Please upload a clear photo of your ID showing your face."
-                }
-            
-            # Detect face in selfie
-            selfie_result = self._detect_face(selfie_image_data)
-            selfie_has_face = selfie_result.get("detected", False) and selfie_result.get("count", 0) > 0
-            
-            if not selfie_has_face and not selfie_result.get("skipped"):
-                logger.warning("No face detected in selfie")
-                return {
-                    "faces_detected": False,
-                    "id_has_face": id_has_face,
-                    "selfie_has_face": False,
-                    "error": "No face detected in selfie. Please upload a clear photo of your face."
-                }
-            
-            # Both have faces - success! Manual comparison will be done by admin
-            logger.info(f"   ✅ Face detection result: ID has face={id_has_face}, Selfie has face={selfie_has_face}")
-            
-            return {
-                "faces_detected": True,
-                "id_has_face": id_has_face,
-                "selfie_has_face": selfie_has_face,
-                "id_confidence": id_result.get("confidence", 0),
-                "selfie_confidence": selfie_result.get("confidence", 0),
-                "note": "Face comparison will be done manually by admin"
-            }
-            
+            result = self._face_service.compare_faces(
+                id_image_data, 
+                selfie_image_data, 
+                similarity_threshold
+            )
+            return result.to_dict()
         except Exception as e:
-            logger.error(f"Face detection error: {e}", exc_info=True)
+            logger.error(f"Face comparison error: {e}", exc_info=True)
             return {
-                "faces_detected": False,
+                "match": False,
+                "similarity": 0,
                 "error": str(e)
             }
-
-    def _cosine_similarity(self, vec1: List[float], vec2: List[float]) -> float:
-        """Calculate cosine similarity between two vectors"""
-        if len(vec1) != len(vec2):
-            logger.warning(f"Embedding dimension mismatch: {len(vec1)} vs {len(vec2)}")
-            return 0.0
-        
-        # Convert to numpy for efficient computation
-        arr1 = np.array(vec1)
-        arr2 = np.array(vec2)
-        
-        dot_product = np.dot(arr1, arr2)
-        norm1 = np.linalg.norm(arr1)
-        norm2 = np.linalg.norm(arr2)
-        
-        if norm1 == 0 or norm2 == 0:
-            return 0.0
-        
-        return float(dot_product / (norm1 * norm2))
 
     def _extract_text(self, image: Image.Image) -> Dict[str, Any]:
         """

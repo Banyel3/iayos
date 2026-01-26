@@ -71,6 +71,11 @@ pytesseract>=0.3.10  # Python wrapper for Tesseract OCR
 Pillow>=10.0.0  # Image processing for quality checks
 scipy>=1.11.0  # Image processing (blur detection via Laplacian)
 
+# Face Detection - MediaPipe (replaces CompreFace)
+# MediaPipe is ~100MB and runs locally, perfect for Render free tier
+mediapipe>=0.10.0  # Google's ML framework for face detection
+opencv-python-headless>=4.8.0  # OpenCV without GUI (smaller, for servers)
+
 # Security updates for Alpine packages
 # Force pip upgrade to fix CVE-2025-8869  
 pip>=25.3
