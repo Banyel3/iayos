@@ -169,11 +169,31 @@ jobs:
           REDIS_URL: redis://localhost:6379/0
           DJANGO_SECRET_KEY: e2e-test-secret-key
           DEBUG: "True"
-          ALLOWED_HOSTS: localhost,127.0.0.1
+          # Include 10.0.2.2 and 0.0.0.0 for Android emulator access
+          ALLOWED_HOSTS: localhost,127.0.0.1,10.0.2.2,0.0.0.0
         run: |
-          python manage.py runserver 8000 &
+          # Bind to 0.0.0.0 so it's accessible from Android emulator via ADB reverse
+          python manage.py runserver 0.0.0.0:8000 &
           echo $! > backend.pid
-          sleep 5
+          
+          # Wait for backend to be ready
+          echo "Waiting for backend to start..."
+          for i in {1..30}; do
+            if curl -s http://localhost:8000/health/live > /dev/null 2>&1; then
+              echo "✅ Backend is ready!"
+              break
+            fi
+            echo "  Attempt $i/30 - waiting..."
+            sleep 1
+          done
+          
+          # Verify backend is running (check if process is alive)
+          if kill -0 $(cat backend.pid) 2>/dev/null; then
+            echo "✅ Backend process is running"
+          else
+            echo "❌ Backend process failed to start"
+            exit 1
+          fi
 
       - name: 📱 Enable KVM (for Android Emulator)
         run: |
@@ -405,6 +425,29 @@ jobs:
                 -x lint
             }
         timeout-minutes: 20
+
+      - name: 🔌 Setup ADB port forwarding for backend
+        run: |
+          echo "Setting up ADB reverse port forwarding..."
+          echo "This allows the Android emulator to reach host services via localhost"
+          
+          # Port 8000: Backend API
+          adb reverse tcp:8000 tcp:8000
+          echo "✅ Forwarded tcp:8000 (Backend API)"
+          
+          # Port 8081: Metro bundler (usually set by Detox, but let's ensure it)
+          adb reverse tcp:8081 tcp:8081
+          echo "✅ Forwarded tcp:8081 (Metro bundler)"
+          
+          # Verify the reverse forwarding is active
+          echo ""
+          echo "Active ADB reverse ports:"
+          adb reverse --list
+          
+          # Test backend connectivity from host
+          echo ""
+          echo "Testing backend connectivity from host..."
+          curl -s http://localhost:8000/health/live && echo " - Backend health check passed" || echo " - No /health/live endpoint (may be normal)"
 
       - name: 🧪 Run Detox E2E Tests
         id: detox_tests

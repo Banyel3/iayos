@@ -11,8 +11,8 @@ class CustomPathBuilder {
 
   buildPathForTestArtifact(artifactName, testSummary) {
     // Add null safety to prevent crashes during early test failures
-    if (!testSummary || typeof testSummary !== 'object') {
-      return path.join(this._rootDir, 'unknown', artifactName);
+    if (!testSummary || typeof testSummary !== "object") {
+      return path.join(this._rootDir, "unknown", artifactName);
     }
 
     const { title, fullName, status } = testSummary;

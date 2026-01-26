@@ -495,9 +495,39 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // Initialize auth on mount
+  // Initialize auth on mount with timeout for E2E testing
+  // If backend is unreachable, we still want the app to become interactive
   useEffect(() => {
-    checkAuth();
+    let isMounted = true;
+    const AUTH_TIMEOUT_MS = 10000; // 10 seconds max for auth check
+
+    const initializeAuth = async () => {
+      // Create a timeout promise that resolves (not rejects) to allow app to continue
+      const timeoutPromise = new Promise<void>((resolve) => {
+        setTimeout(() => {
+          if (isMounted) {
+            console.warn('⏰ Auth check timeout - continuing without authentication');
+            setIsLoading(false);
+          }
+          resolve();
+        }, AUTH_TIMEOUT_MS);
+      });
+
+      // Race between auth check and timeout
+      await Promise.race([
+        checkAuth().catch((err) => {
+          console.warn('Auth check failed:', err);
+          if (isMounted) setIsLoading(false);
+        }),
+        timeoutPromise,
+      ]);
+    };
+
+    initializeAuth();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const isAuthenticated = !!user;
