@@ -12,16 +12,3 @@ beforeAll(async () => {
     },
   });
 }, 120000);
-
-/**
- * Custom matchers for better assertions
- */
-expect.extend({
-  toBeVisibleAndEnabled(received) {
-    const pass = received !== null && received !== undefined;
-    return {
-      pass,
-      message: () => `Expected element to be visible and enabled`,
-    };
-  },
-});
