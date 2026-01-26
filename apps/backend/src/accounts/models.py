@@ -940,38 +940,109 @@ class KYCExtractedData(models.Model):
         """
         Return data suitable for auto-filling KYC forms.
         
-        Returns extracted values with confidence scores,
-        prioritizing confirmed values if available.
+        Returns extracted values with confidence scores in the format expected by mobile app.
+        Each field is an object with: value, confidence, and source.
         """
+        def _make_field(confirmed_val, extracted_val, confidence, default=""):
+            """Helper to create field object with value, confidence, and source"""
+            is_confirmed = confirmed_val is not None and str(confirmed_val).strip() != ""
+            value = confirmed_val if is_confirmed else (extracted_val if extracted_val else default)
+            # Convert to string for consistency, except for None/empty
+            if value is not None:
+                value = str(value) if value else default
+            return {
+                "value": value,
+                "confidence": confidence or 0.0,
+                "source": "confirmed" if is_confirmed else "ocr"
+            }
+        
         return {
-            "full_name": self.confirmed_full_name or self.extracted_full_name,
-            "first_name": self.confirmed_first_name or self.extracted_first_name,
-            "middle_name": self.confirmed_middle_name or self.extracted_middle_name,
-            "last_name": self.confirmed_last_name or self.extracted_last_name,
-            "birth_date": str(self.confirmed_birth_date or self.extracted_birth_date or ""),
-            "address": self.confirmed_address or self.extracted_address,
-            "id_number": self.confirmed_id_number or self.extracted_id_number,
-            "id_type": self.extracted_id_type,
-            "expiry_date": str(self.extracted_expiry_date or ""),
-            "nationality": self.confirmed_nationality or self.extracted_nationality,
-            "sex": self.confirmed_sex or self.extracted_sex,
-            "place_of_birth": self.confirmed_place_of_birth or self.extracted_place_of_birth,
+            "full_name": _make_field(
+                self.confirmed_full_name, 
+                self.extracted_full_name, 
+                self.confidence_full_name
+            ),
+            "first_name": _make_field(
+                self.confirmed_first_name, 
+                self.extracted_first_name, 
+                self.confidence_full_name
+            ),
+            "middle_name": _make_field(
+                self.confirmed_middle_name, 
+                self.extracted_middle_name, 
+                self.confidence_full_name
+            ),
+            "last_name": _make_field(
+                self.confirmed_last_name, 
+                self.extracted_last_name, 
+                self.confidence_full_name
+            ),
+            "date_of_birth": _make_field(
+                self.confirmed_birth_date, 
+                self.extracted_birth_date, 
+                self.confidence_birth_date
+            ),
+            "address": _make_field(
+                self.confirmed_address, 
+                self.extracted_address, 
+                self.confidence_address
+            ),
+            "id_number": _make_field(
+                self.confirmed_id_number, 
+                self.extracted_id_number, 
+                self.confidence_id_number
+            ),
+            "nationality": _make_field(
+                self.confirmed_nationality, 
+                self.extracted_nationality, 
+                0.8  # Default confidence for nationality
+            ),
+            "sex": _make_field(
+                self.confirmed_sex, 
+                self.extracted_sex, 
+                0.8  # Default confidence for sex
+            ),
+            "place_of_birth": _make_field(
+                self.confirmed_place_of_birth, 
+                self.extracted_place_of_birth, 
+                self.confidence_place_of_birth
+            ),
+            "document_type": _make_field(
+                None,  # No confirmed version
+                self.extracted_id_type, 
+                0.9  # High confidence for detected ID type
+            ),
+            "expiry_date": _make_field(
+                None,  # No confirmed version
+                self.extracted_expiry_date, 
+                0.7  # Medium confidence for expiry date
+            ),
+            "issue_date": _make_field(
+                None,  # No confirmed version
+                None,  # Not extracted yet
+                0.0
+            ),
             # Clearance-specific fields
-            "clearance_number": self.confirmed_clearance_number or self.extracted_clearance_number,
-            "clearance_type": self.confirmed_clearance_type or self.extracted_clearance_type,
-            "clearance_issue_date": str(self.confirmed_clearance_issue_date or self.extracted_clearance_issue_date or ""),
-            "clearance_validity_date": str(self.confirmed_clearance_validity_date or self.extracted_clearance_validity_date or ""),
-            "confidence_scores": {
-                "full_name": self.confidence_full_name,
-                "birth_date": self.confidence_birth_date,
-                "address": self.confidence_address,
-                "id_number": self.confidence_id_number,
-                "place_of_birth": self.confidence_place_of_birth,
-                "clearance_number": self.confidence_clearance_number,
-                "overall": self.overall_confidence,
-            },
-            "is_confirmed": self.extraction_status == self.ExtractionStatus.CONFIRMED,
-            "user_edited_fields": self.user_edited_fields,
+            "clearance_number": _make_field(
+                self.confirmed_clearance_number, 
+                self.extracted_clearance_number, 
+                self.confidence_clearance_number
+            ),
+            "clearance_type": _make_field(
+                self.confirmed_clearance_type, 
+                self.extracted_clearance_type, 
+                0.9  # High confidence for clearance type
+            ),
+            "clearance_issue_date": _make_field(
+                self.confirmed_clearance_issue_date, 
+                self.extracted_clearance_issue_date, 
+                0.7
+            ),
+            "clearance_validity_date": _make_field(
+                self.confirmed_clearance_validity_date, 
+                self.extracted_clearance_validity_date, 
+                0.7
+            ),
         }
     
     def get_comparison_data(self) -> dict:
