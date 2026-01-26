@@ -363,19 +363,25 @@ jobs:
       - name: 🏗️ Build Android app for testing
         working-directory: apps/frontend_mobile/iayos_mobile
         env:
-          EXPO_PUBLIC_API_URL: ${{ secrets.STAGING_BACKEND_URL || 'http://localhost:8000' }}
+          # CRITICAL: This must be exported for Metro bundler to embed it in JS bundle
+          EXPO_PUBLIC_API_URL: ${{ secrets.STAGING_BACKEND_URL || 'http://10.0.2.2:8000' }}
         run: |
+          # Export again to ensure it's available to all subprocesses
+          export EXPO_PUBLIC_API_URL="${EXPO_PUBLIC_API_URL}"
+          
+          echo "Configuring build with backend URL for Detox tests..."
+          echo "EXPO_PUBLIC_API_URL: ${EXPO_PUBLIC_API_URL}"
+          echo "Note: 10.0.2.2 is Android emulator's host machine loopback"
+
           cd android
 
-          echo "Configuring Gradle for CI build with staging backend URL..."
-          echo "EXPO_PUBLIC_API_URL: ${EXPO_PUBLIC_API_URL}"
           export GRADLE_OPTS="-Xmx4g -Xms512m -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8"
 
-          # Clean build to ensure config.ts changes are picked up
-          echo "Cleaning previous build artifacts to pick up environment variable changes..."
+          # Clean build to ensure config.ts changes and env vars are picked up
+          echo "Cleaning previous build artifacts..."
           ./gradlew clean --no-daemon
 
-          echo "Building for x86_64 ONLY (emulator architecture - skipping arm64, armeabi, x86)..."
+          echo "Building for x86_64 ONLY (emulator architecture)..."
           echo "This reduces native build time by ~75% (1 arch instead of 4)"
 
           ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest \

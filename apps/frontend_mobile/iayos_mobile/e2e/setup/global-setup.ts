@@ -9,7 +9,10 @@ export default async function globalSetup() {
   console.log("");
 
   // Wait for staging backend to be ready (REQUIRED - fail fast if unavailable)
-  const backendUrl = process.env.STAGING_BACKEND_URL || "http://localhost:8000";
+  const backendUrl =
+    process.env.STAGING_BACKEND_URL ||
+    process.env.EXPO_PUBLIC_API_URL ||
+    "http://localhost:8000";
   console.log(`🔌 Connecting to staging backend: ${backendUrl}`);
 
   try {
@@ -32,7 +35,9 @@ export default async function globalSetup() {
   } catch (error) {
     console.error("❌ Could not reach staging backend:", error.message);
     console.error("❌ Tests cannot proceed without backend");
-    console.error(`❌ Ensure STAGING_BACKEND_URL is set correctly: ${backendUrl}`);
+    console.error(
+      `❌ Ensure STAGING_BACKEND_URL is set correctly: ${backendUrl}`,
+    );
     process.exit(1);
   }
 
