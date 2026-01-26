@@ -16,7 +16,7 @@ export default async function globalSetup() {
     process.env.STAGING_BACKEND_URL ||
     process.env.EXPO_PUBLIC_API_URL ||
     "http://localhost:8000";
-  
+
   // Normalize URL for host-side check (10.0.2.2 → localhost)
   const hostCheckUrl = backendUrl.replace("10.0.2.2", "localhost");
   console.log(`🔌 Checking backend from host: ${hostCheckUrl}`);

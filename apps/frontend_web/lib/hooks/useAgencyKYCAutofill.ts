@@ -1,9 +1,9 @@
 /**
  * useAgencyKYCAutofill Hook
- * 
+ *
  * Fetches OCR-extracted business data for Agency KYC and provides
  * methods to confirm/edit the extracted data.
- * 
+ *
  * Mirrors the mobile useKYCAutofill hook for consistency.
  */
 
@@ -184,7 +184,7 @@ async function fetchAgencyKYCAutofill(): Promise<AgencyKYCAutofillResponse> {
 
 // Confirm autofill data
 async function confirmAgencyKYCData(
-  payload: AgencyKYCConfirmPayload
+  payload: AgencyKYCConfirmPayload,
 ): Promise<{ success: boolean; message?: string; error?: string }> {
   const response = await fetch(`${API_BASE}/api/agency/kyc/confirm`, {
     method: "POST",

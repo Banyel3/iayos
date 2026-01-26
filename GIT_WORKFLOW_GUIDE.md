@@ -32,7 +32,7 @@ Before you start, make sure you have:
 ### Initial Setup
 
 1. **Clone the repository** (if you haven't already):
-   
+
    **GitHub Desktop:**
    - Open GitHub Desktop
    - File → Clone Repository
@@ -41,18 +41,20 @@ Before you start, make sure you have:
    - Click **Clone**
 
    **Git CLI:**
+
    ```bash
    git clone https://github.com/Banyel3/iayos.git
    cd iayos
    ```
 
 2. **Make sure you're on the main branch:**
-   
+
    **GitHub Desktop:**
    - Look at the top-left branch dropdown
    - Should say `main` (if not, click and select `main`)
 
    **Git CLI:**
+
    ```bash
    git checkout main
    git pull origin main
@@ -127,6 +129,7 @@ Now you can edit files in your code editor (VS Code recommended).
 ### 1. Open the Project
 
 **VS Code:**
+
 - File → Open Folder
 - Navigate to your `iayos` folder
 - Click **Select Folder**
@@ -140,11 +143,13 @@ Now you can edit files in your code editor (VS Code recommended).
 ### 3. Check What Changed
 
 **GitHub Desktop:**
+
 - Look at the **Changes** tab on the left
 - You'll see a list of all modified files
 - Click on a file to see the diff (what changed)
 
 **Git CLI:**
+
 ```bash
 # See which files were changed
 git status
@@ -201,6 +206,7 @@ Follow the **Conventional Commits** format:
 ```
 
 **Types:**
+
 - `feat`: New feature
 - `fix`: Bug fix
 - `docs`: Documentation changes
@@ -210,6 +216,7 @@ Follow the **Conventional Commits** format:
 - `chore`: Maintenance tasks
 
 **Examples:**
+
 ```bash
 git commit -m "feat: Add user authentication with JWT"
 git commit -m "fix: Resolve login button not responding"
@@ -258,7 +265,7 @@ Make sure you've pushed all your commits (see previous section).
 2. You should see a yellow banner: **"your-branch-name had recent pushes"**
 3. Click **"Compare & pull request"** button
 
-   *If you don't see the banner:*
+   _If you don't see the banner:_
    - Click the **"Pull requests"** tab
    - Click **"New pull request"** button
    - Select your branch from the dropdown
@@ -266,11 +273,13 @@ Make sure you've pushed all your commits (see previous section).
 ### Step 3: Fill Out PR Details
 
 **Title:** (auto-filled from your last commit, but you can change it)
+
 ```
 Add payment integration feature
 ```
 
 **Description:** Explain what you did and why
+
 ```
 ## What Changed
 - Integrated Xendit payment gateway
@@ -285,10 +294,12 @@ Tested with test API keys, payments working correctly
 ```
 
 **Reviewers:** (on the right side)
+
 - Click the gear icon next to "Reviewers"
 - Select team members to review your code
 
 **Labels:** (optional)
+
 - Add labels like `feature`, `bug`, `documentation`
 
 ### Step 4: Create the Pull Request
@@ -315,6 +326,7 @@ Tested with test API keys, payments working correctly
 **Update your branch with latest `main` changes:**
 
 **GitHub Desktop:**
+
 1. Switch to `main` branch
 2. Click **"Fetch origin"** then **"Pull origin"**
 3. Switch back to your feature branch
@@ -322,6 +334,7 @@ Tested with test API keys, payments working correctly
 5. Resolve any conflicts if they appear
 
 **Git CLI:**
+
 ```bash
 # Switch to main and update
 git checkout main
@@ -352,6 +365,7 @@ git rebase main
 ### "Your branch is behind 'origin/main'"
 
 **Solution:** Pull the latest changes
+
 ```bash
 git pull origin main
 ```
@@ -361,6 +375,7 @@ git pull origin main
 **What it means:** You and someone else changed the same lines of code.
 
 **GitHub Desktop:**
+
 1. Conflicted files will be highlighted
 2. Right-click → Open in VS Code
 3. Look for conflict markers:
@@ -376,6 +391,7 @@ git pull origin main
 6. Save, commit, and push
 
 **Git CLI:**
+
 ```bash
 # See which files have conflicts
 git status
@@ -393,6 +409,7 @@ git commit
 ### "Permission denied" when pushing
 
 **Solution:** Make sure you're authenticated
+
 - GitHub Desktop: Sign in again (File → Options → Accounts)
 - Git CLI: Configure your credentials
   ```bash
@@ -403,6 +420,7 @@ git commit
 ### Accidentally committed to `main`
 
 **Solution:** Move commits to a new branch
+
 ```bash
 # Create a new branch with your commits
 git branch feature/my-work
@@ -430,10 +448,12 @@ git reset --hard HEAD~1
 ### Accidentally deleted a file
 
 **GitHub Desktop:**
+
 1. Right-click the deleted file in Changes
 2. Click **"Discard Changes"**
 
 **Git CLI:**
+
 ```bash
 git checkout -- path/to/file.ts
 ```
@@ -488,6 +508,7 @@ git diff
 ## 🤝 Need Help?
 
 If you're stuck:
+
 1. Check this guide's [Troubleshooting](#troubleshooting) section
 2. Ask in the team chat
 3. Contact the team lead
@@ -497,4 +518,4 @@ If you're stuck:
 
 **Happy coding! 🚀**
 
-*Last updated: January 25, 2026*
+_Last updated: January 25, 2026_
