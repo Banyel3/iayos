@@ -1,5 +1,9 @@
 # Detox E2E Testing Setup - iAyos Mobile App
 
+> **🚀 QUICK START**: For GitHub Actions testing with pre-built APK, see: `../E2E_TESTING_QUICKSTART.md`
+>
+> **⚙️ SETUP GUIDE**: For Expo development build setup, see: `../DETOX_SETUP.md`
+
 ## 📋 Overview
 
 Comprehensive end-to-end testing setup using Detox for React Native mobile app.
