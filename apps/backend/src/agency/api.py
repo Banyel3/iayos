@@ -144,10 +144,15 @@ def get_agency_kyc_autofill(request):
     
     Response:
     - success: bool
-    - has_extracted_data: bool
+    - has_extracted_data: bool - Whether extraction data exists
     - extraction_status: PENDING | EXTRACTED | CONFIRMED | FAILED
+    - needs_confirmation: bool - Whether user needs to review/confirm data
+    - extracted_at: ISO timestamp - When extraction completed
+    - confirmed_at: ISO timestamp - When user confirmed data
     - fields: dict with extracted field values and confidence scores
-        - Each field: {value: str, confidence: float, source: str}
+        - Each field: {value: str, confidence: float, source: "ocr" | "confirmed"}
+        - business_name, business_type, business_address, permit_number, etc.
+    - user_edited_fields: list[str] - Fields that user manually edited
     """
     try:
         from .models import AgencyKYC, AgencyKYCExtractedData

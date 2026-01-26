@@ -331,7 +331,8 @@ class AgencyKYCExtractionParser:
         for pattern, date_format in self.date_patterns:
             for match in pattern.finditer(text):
                 try:
-                    if "Jan|Feb" in pattern.pattern:
+                    # Check if this is a month name pattern (contains text like Jan, Feb)
+                    if "%B" in date_format or "%b" in date_format:
                         # Month name format
                         month_str, day_str, year_str = match.groups()
                         date_obj = datetime.strptime(f"{month_str} {day_str} {year_str}", "%B %d %Y")
