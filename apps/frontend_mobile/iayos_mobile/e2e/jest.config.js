@@ -1,7 +1,7 @@
 module.exports = {
   rootDir: "..",
   testMatch: ["<rootDir>/e2e/**/*.e2e.ts"],
-  testTimeout: 120000,
+  testTimeout: 300000, // 5 minutes to match APP_LAUNCH_TIMEOUT in tests
   maxWorkers: 1,
   preset: "ts-jest",
   testEnvironment: "detox/runners/jest/testEnvironment",
