@@ -22,7 +22,7 @@ jobs:
   test-android:
     if: github.event.inputs.platform == 'android' || github.event.inputs.platform == 'both'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 45  # Detox tests with backend connectivity checks
 
     steps:
       - name: 📥 Checkout code
