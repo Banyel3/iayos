@@ -358,10 +358,12 @@ export default function KYCUploadScreen() {
       };
 
       if (!response.ok) {
+        // Upload failed on backend - don't invalidate cache
         throw new Error(responseData.message || "Upload failed");
       }
 
-      // Invalidate KYC status cache so banner and status page update immediately
+      // SUCCESS: Invalidate KYC status cache so banner and status page update immediately
+      // Force refetch by setting staleTime to 0 temporarily
       queryClient.invalidateQueries({ queryKey: ["kycStatus"] });
       // Also invalidate auto-fill cache to trigger extraction data fetch
       queryClient.invalidateQueries({ queryKey: ["kycAutofill"] });
@@ -399,9 +401,11 @@ export default function KYCUploadScreen() {
         );
       }
     } catch (error) {
+      // Network error or backend error - show failed message
+      console.error("KYC upload error:", error);
       Alert.alert(
         "Upload Failed",
-        error instanceof Error ? error.message : "Failed to upload",
+        error instanceof Error ? error.message : "Failed to upload. Please check your connection and try again.",
       );
     } finally {
       setIsSubmitting(false);

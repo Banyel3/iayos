@@ -266,6 +266,15 @@ def upload_agency_kyc(payload, business_permit, rep_front, rep_back, address_pro
 			}
 		
 		print(f"✅ Agency KYC uploaded successfully with AI verification passed")
+		
+		# Trigger Agency KYC extraction to populate auto-fill data
+		try:
+			from .kyc_extraction_service import trigger_agency_kyc_extraction_after_upload
+			trigger_agency_kyc_extraction_after_upload(kyc_record)
+		except Exception as ext_error:
+			print(f"⚠️  Agency KYC extraction failed (non-blocking): {str(ext_error)}")
+			# Don't fail KYC upload if extraction fails - admin can still verify manually
+		
 		return {
 			"message": "Agency KYC uploaded successfully",
 			"agency_kyc_id": kyc_record.agencyKycID,
