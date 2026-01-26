@@ -145,11 +145,15 @@ const AgencyKYCPage = () => {
   const validateDocumentWithAI = async (
     file: File,
     documentType: string,
-  ): Promise<{ valid: boolean; error?: string; details?: any }> => {
+  ): Promise<{ valid: boolean; error?: string; warning?: string; details?: any }> => {
     try {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("document_type", documentType);
+      // Pass ID type for type-specific OCR validation (unified naming)
+      if (documentType === "REP_ID_FRONT" || documentType === "REP_ID_BACK") {
+        formData.append("rep_id_type", repIdType);
+      }
 
       const response = await fetch(
         `${API_BASE}/api/agency/kyc/validate-document`,
@@ -229,11 +233,21 @@ const AgencyKYCPage = () => {
     }
 
     setRepIDFront(f);
-    showToast({
-      type: "success",
-      title: "ID Validated",
-      message: "Face detected successfully",
-    });
+    
+    // Check if face detection was skipped (CompreFace unavailable) - show warning
+    if (result.details?.face_detection_skipped) {
+      showToast({
+        type: "warning",
+        title: "Manual Review Required",
+        message: result.warning || "Face verification unavailable. Your document will be reviewed manually.",
+      });
+    } else {
+      showToast({
+        type: "success",
+        title: "ID Validated",
+        message: "Face detected successfully",
+      });
+    }
   };
 
   const handleRepBackChange = async (
@@ -274,11 +288,21 @@ const AgencyKYCPage = () => {
     }
 
     setRepIDBack(f);
-    showToast({
-      type: "success",
-      title: "ID Back Validated",
-      message: "Document accepted",
-    });
+    
+    // Check if face detection was skipped (CompreFace unavailable) - show warning
+    if (result.details?.face_detection_skipped) {
+      showToast({
+        type: "warning",
+        title: "Manual Review Required",
+        message: result.warning || "Face verification unavailable. Your document will be reviewed manually.",
+      });
+    } else {
+      showToast({
+        type: "success",
+        title: "ID Back Validated",
+        message: "Document accepted",
+      });
+    }
   };
 
   const handleAddressChange = (e: React.ChangeEvent<HTMLInputElement>) => {

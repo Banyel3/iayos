@@ -130,15 +130,22 @@ def upload_agency_kyc(payload, business_permit, rep_front, rep_back, address_pro
 			if not is_pdf:
 				print(f"🤖 Running AI verification for {key}...")
 				
+				# Get rep_id_type for type-specific OCR (unified naming from mobile app)
+				# This enables using PHILSYS_ID, DRIVERS_LICENSE, etc. for proper keyword validation
+				rep_id_type = getattr(payload, 'rep_id_type', 'FRONTID') or 'FRONTID'
+				
 				# Map agency document types to verification service document types
+				# Use actual ID type for REP_ID_FRONT to enable type-specific OCR keywords
 				doc_type_mapping = {
 					'BUSINESS_PERMIT': 'BUSINESS_PERMIT',
-					'REP_ID_FRONT': 'FRONTID',  # Map to FRONTID for face detection
-					'REP_ID_BACK': 'BACKID',    # Map to BACKID (optional face on back)
+					'REP_ID_FRONT': rep_id_type.upper(),  # Use actual ID type for OCR keywords
+					'REP_ID_BACK': 'BACKID',    # Map to BACKID (no type-specific keywords needed)
 					'ADDRESS_PROOF': 'ADDRESS_PROOF',
 					'AUTH_LETTER': 'AUTH_LETTER',
 				}
 				verification_doc_type = doc_type_mapping.get(key, key)
+				
+				print(f"   🔍 Using verification doc type: {verification_doc_type} (rep_id_type={rep_id_type})")
 				
 				# Run full verification
 				verification_result = verification_service.verify_document(

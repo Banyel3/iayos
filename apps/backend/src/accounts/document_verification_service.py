@@ -148,12 +148,68 @@ DOCUMENT_KEYWORDS = {
     "FRONTID": [
         ["PILIPINAS", "PHILIPPINES", "REPUBLIKA", "PHILIPPINE"],  # Must be Philippine document
     ],
+    
+    # ============ MOBILE APP ID TYPE ALIASES ============
+    # These match the ID type names used in the mobile app for unified naming
+    # PHILSYS_ID maps to NATIONALID keywords
+    "PHILSYS_ID": [
+        ["PHILSYS", "PHILIPPINE IDENTIFICATION", "NATIONAL ID", "PSN", "EPHILID"],
+        ["PILIPINAS", "PHILIPPINES", "REPUBLIKA"],
+    ],
+    # DRIVERS_LICENSE maps to DRIVERSLICENSE keywords  
+    "DRIVERS_LICENSE": [
+        ["DRIVER", "LICENSE", "LTO", "LAND TRANSPORTATION"],
+        ["PILIPINAS", "PHILIPPINES", "REPUBLIKA", "NON-PROFESSIONAL", "PROFESSIONAL"],
+    ],
+    # SSS ID
+    "SSS_ID": [
+        ["SSS", "SOCIAL SECURITY"],
+        ["PILIPINAS", "PHILIPPINES", "MEMBER", "ID"],
+    ],
+    # PRC ID (Professional Regulation Commission)
+    "PRC_ID": [
+        ["PRC", "PROFESSIONAL REGULATION", "PROFESSIONAL REGULATORY"],
+        ["PILIPINAS", "PHILIPPINES", "LICENSE", "REGISTRATION"],
+    ],
+    # Postal ID
+    "POSTAL_ID": [
+        ["POSTAL", "PHILPOST", "POST OFFICE"],
+        ["PILIPINAS", "PHILIPPINES", "ID", "IDENTIFICATION"],
+    ],
+    # Voter's ID
+    "VOTERS_ID": [
+        ["VOTER", "COMELEC", "ELECTION"],
+        ["PILIPINAS", "PHILIPPINES", "REGISTRATION", "ID"],
+    ],
+    # TIN ID
+    "TIN_ID": [
+        ["TIN", "TAX IDENTIFICATION", "BIR"],
+        ["PILIPINAS", "PHILIPPINES", "NUMBER"],
+    ],
+    # Senior Citizen ID
+    "SENIOR_CITIZEN_ID": [
+        ["SENIOR", "CITIZEN", "OSCA"],
+        ["PILIPINAS", "PHILIPPINES", "ID"],
+    ],
+    # OFW ID
+    "OFW_ID": [
+        ["OFW", "OVERSEAS FILIPINO", "OWWA"],
+        ["PILIPINAS", "PHILIPPINES", "ID", "WORKER"],
+    ],
+    # OTHER - Generic Philippine Government ID fallback
+    "OTHER": [
+        ["PILIPINAS", "PHILIPPINES", "REPUBLIKA", "PHILIPPINE"],
+    ],
 }
 
 # Government IDs that require face detection
 FACE_REQUIRED_DOCUMENTS = [
     "PASSPORT", "NATIONALID", "UMID", "PHILHEALTH", 
-    "DRIVERSLICENSE", "FRONTID", "REPRESENTATIVE_ID_FRONT"
+    "DRIVERSLICENSE", "FRONTID", "REPRESENTATIVE_ID_FRONT",
+    # Mobile app unified ID type names
+    "PHILSYS_ID", "DRIVERS_LICENSE", "SSS_ID", "PRC_ID",
+    "POSTAL_ID", "VOTERS_ID", "TIN_ID", "SENIOR_CITIZEN_ID",
+    "OFW_ID", "OTHER"
 ]
 
 # Minimum requirements
@@ -252,18 +308,23 @@ class DocumentVerificationService:
                 }
             
             # Step 2: Face detection (if required)
+            face_detection_skipped = False
+            face_detection_warning = None
+            
             if require_face:
                 face_result = self._detect_face(file_data)
                 
                 if not face_result.get("detected", False):
                     if face_result.get("skipped"):
-                        # CompreFace not available - let it pass, manual review will catch it
-                        logger.warning("   ⚠️ Face detection skipped (CompreFace unavailable)")
+                        # CompreFace not available - mark for manual review with warning
+                        face_detection_skipped = True
+                        face_detection_warning = "Face detection service temporarily unavailable. Your document will be reviewed manually."
+                        logger.warning("   ⚠️ Face detection skipped (CompreFace unavailable) - marked for manual review")
                     else:
                         error_msg = "No face detected in the image. Please ensure your face is clearly visible."
                         if document_type.upper() == "SELFIE":
                             error_msg = "No face detected in your selfie. Please take a clear photo of your face looking at the camera."
-                        elif document_type.upper() in ["FRONTID", "BACKID"]:
+                        elif document_type.upper() in ["FRONTID", "BACKID", "PHILSYS_ID", "DRIVERS_LICENSE"]:
                             error_msg = "No face detected on your ID. Please ensure the photo on your ID is clearly visible."
                         
                         logger.warning(f"   ❌ No face detected")
@@ -272,20 +333,29 @@ class DocumentVerificationService:
                             "error": error_msg,
                             "details": {"face_detection": face_result, "resolution": f"{width}x{height}"}
                         }
-                
-                # Face size check removed - was causing issues with valid IDs
-                
-                logger.info(f"   ✅ Face detected with confidence {face_result.get('confidence', 0):.2f}")
+                else:
+                    logger.info(f"   ✅ Face detected with confidence {face_result.get('confidence', 0):.2f}")
             
-            # All checks passed
-            logger.info(f"   ✅ Quick validation passed for {document_type}")
+            # All checks passed (or face detection was skipped for manual review)
+            if face_detection_skipped:
+                logger.info(f"   ⚠️ Quick validation passed for {document_type} (face detection skipped - needs manual review)")
+            else:
+                logger.info(f"   ✅ Quick validation passed for {document_type}")
+            
+            # Build warnings list
+            warnings = quality_result.get("warnings", [])
+            if face_detection_warning:
+                warnings.append(face_detection_warning)
+            
             return {
                 "valid": True,
                 "error": None,
                 "details": {
                     "resolution": f"{width}x{height}",
                     "quality_score": quality_result.get("score", 0),
-                    "warnings": quality_result.get("warnings", [])
+                    "warnings": warnings,
+                    "face_detection_skipped": face_detection_skipped,
+                    "needs_manual_review": face_detection_skipped
                 }
             }
             

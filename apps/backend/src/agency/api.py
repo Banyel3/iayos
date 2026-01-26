@@ -14,14 +14,16 @@ def upload_agency_kyc(request):
         account_id = request.auth.accountID
         businessName = request.POST.get("businessName")
         businessDesc = request.POST.get("businessDesc")
+        rep_id_type = request.POST.get("rep_id_type", "PHILSYS_ID")  # Default to PhilSys ID
         
         class Payload:
-            def __init__(self, accountID, businessName=None, businessDesc=None):
+            def __init__(self, accountID, businessName=None, businessDesc=None, rep_id_type=None):
                 self.accountID = accountID
                 self.businessName = businessName
                 self.businessDesc = businessDesc
+                self.rep_id_type = rep_id_type
 
-        payload = Payload(accountID=account_id, businessName=businessName, businessDesc=businessDesc)
+        payload = Payload(accountID=account_id, businessName=businessName, businessDesc=businessDesc, rep_id_type=rep_id_type)
 
         # Read uploaded files from request.FILES (Django's UploadedFile objects)
         business_permit = request.FILES.get("business_permit")
@@ -105,19 +107,26 @@ def validate_agency_document(request):
         # Read file data
         file_data = file.read()
         
+        # Get optional rep_id_type for type-specific OCR (unified naming from mobile app)
+        rep_id_type = request.POST.get("rep_id_type", "").upper()
+        
         # Determine if face detection is required
         # Face required for representative ID (front and back)
         require_face = document_type in ['REP_ID_FRONT', 'REP_ID_BACK']
         
         # Map to verification service document type
+        # If rep_id_type is provided for REP_ID_FRONT/BACK, use it for type-specific OCR validation
+        # This enables using the unified ID type naming (PHILSYS_ID, DRIVERS_LICENSE, etc.)
         doc_type_mapping = {
             'BUSINESS_PERMIT': 'BUSINESS_PERMIT',
-            'REP_ID_FRONT': 'FRONTID',
-            'REP_ID_BACK': 'BACKID',
+            'REP_ID_FRONT': rep_id_type if rep_id_type else 'FRONTID',  # Use actual ID type if provided
+            'REP_ID_BACK': 'BACKID',  # Back typically doesn't have type-specific keywords
             'ADDRESS_PROOF': 'ADDRESS_PROOF',
             'AUTH_LETTER': 'AUTH_LETTER',
         }
         verification_doc_type = doc_type_mapping.get(document_type, document_type)
+        
+        print(f"🔍 [AGENCY] Validating {document_type} as {verification_doc_type}, require_face={require_face}")
         
         # Run quick validation (resolution + blur + face)
         service = DocumentVerificationService()

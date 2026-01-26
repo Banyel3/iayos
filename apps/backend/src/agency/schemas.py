@@ -7,6 +7,7 @@ class AgencyKYCUploadSchema(Schema):
 	accountID: int
 	businessName: Optional[str] = None
 	businessDesc: Optional[str] = None
+	rep_id_type: Optional[str] = "PHILSYS_ID"  # Unified ID type naming from mobile app
 
 
 class AgencyKYCUploadResponse(Schema):
