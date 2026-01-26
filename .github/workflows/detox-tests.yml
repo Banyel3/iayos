@@ -282,7 +282,7 @@ jobs:
             -- --json --outputFile=e2e/reports/jest-test-results.json
         timeout-minutes: 15
 
-      - name: � Debug: Check test results file
+      - name: 🔍 Debug - Check test results file
         if: always()
         working-directory: apps/frontend_mobile/iayos_mobile
         run: |
