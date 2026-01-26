@@ -40,6 +40,10 @@
     "plugins": [
       "expo-router",
       [
+        "@config-plugins/detox",
+        {}
+      ],
+      [
         "expo-splash-screen",
         {
           "image": "./assets/images/splash-icon.png",
