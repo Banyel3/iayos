@@ -7,10 +7,13 @@ import {
 } from "../../helpers/auth";
 import { waitForScreen } from "../../helpers/navigation";
 
+// Timeout for app launch - Android emulator can take 2+ minutes to launch and connect
+const APP_LAUNCH_TIMEOUT = 300000; // 5 minutes
+
 describe("Authentication: Login Flow", () => {
   beforeAll(async () => {
     await device.launchApp({ newInstance: true });
-  });
+  }, APP_LAUNCH_TIMEOUT);
 
   beforeEach(async () => {
     await device.reloadReactNative();
