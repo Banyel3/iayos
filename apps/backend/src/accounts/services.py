@@ -889,21 +889,21 @@ def upload_kyc_document(payload, frontID, backID, clearance, selfie):
                 face_match_result = verify_face_match(
                     id_image_data=file_data_cache['FRONTID'],
                     selfie_image_data=file_data_cache['SELFIE'],
-                    similarity_threshold=0.80  # 80% similarity threshold
+                    similarity_threshold=0.70  # 70% similarity threshold
                 )
                 
                 if face_match_result.get('skipped'):
                     print(f"⚠️  Face matching skipped: {face_match_result.get('reason')}")
                 elif face_match_result.get('match'):
                     similarity = face_match_result.get('similarity', 0)
-                    print(f"✅ Face matching PASSED: similarity={similarity:.2f} (threshold=0.80)")
+                    print(f"✅ Face matching PASSED: similarity={similarity:.2f} (threshold=0.70)")
                 else:
                     similarity = face_match_result.get('similarity', 0)
                     error = face_match_result.get('error', 'Face does not match')
                     
                     if similarity > 0:
                         # Faces detected but don't match
-                        print(f"❌ Face matching FAILED: similarity={similarity:.2f} < 0.80 threshold")
+                        print(f"❌ Face matching FAILED: similarity={similarity:.2f} < 0.70 threshold")
                         any_failed = True
                         failure_messages.append(f"FACE_MATCH: Selfie does not match ID photo (similarity: {similarity:.0%})")
                     else:
@@ -951,7 +951,7 @@ def upload_kyc_document(payload, frontID, backID, clearance, selfie):
         # Trigger KYC extraction to populate auto-fill data
         try:
             from .kyc_extraction_service import trigger_kyc_extraction_after_upload
-            trigger_kyc_extraction_after_upload(kyc_record)
+            trigger_kyc_extraction_after_upload(kyc_record, face_match_result=face_match_result)
         except Exception as ext_error:
             print(f"⚠️  KYC extraction failed (non-blocking): {str(ext_error)}")
             # Don't fail KYC upload if extraction fails - admin can still verify manually

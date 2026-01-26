@@ -68,11 +68,11 @@ services:
     command: >
       sh -c "
         echo '🕐 Starting cron daemon for scheduled tasks...' &&
-        crond -b -l 8 &&
+        service cron start &&
         echo '✅ Cron is running. Payment release scheduled every hour.' &&
         cd /app/apps/backend/src &&
-        su-exec appuser python3 manage.py migrate &&
-        su-exec appuser daphne -b 0.0.0.0 -p 8000 iayos_project.asgi:application
+        python3 manage.py migrate &&
+        daphne -b 0.0.0.0 -p 8000 iayos_project.asgi:application
       "
 
   frontend:

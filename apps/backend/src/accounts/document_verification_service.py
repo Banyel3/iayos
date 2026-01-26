@@ -2,19 +2,19 @@
 Document Verification Service for KYC Uploads
 
 This service provides automated verification of KYC documents using:
-1. MediaPipe/OpenCV - Face detection for government IDs (via face_detection_service)
-2. Azure Face API - Face comparison for ID ↔ selfie matching (via face_detection_service)
-3. Tesseract OCR - Text extraction for clearances and permits
-4. Image quality checks - Blur detection, resolution, orientation
+1. DeepFace - Face detection and verification (via face_detection_service)
+2. Tesseract OCR - Text extraction for clearances and permits
+3. Image quality checks - Blur detection, resolution, orientation
 
 Integration points:
 - Called during upload_kyc_document() after Supabase upload
 - Returns verification results that can auto-reject or flag for manual review
 
-Migration from CompreFace (Jan 2026):
-- Replaced CompreFace Docker container with MediaPipe (local, ~100MB)
-- Added Azure Face API for face comparison (30K free/month)
-- Service now runs on Render free tier (512MB)
+Migration from CompreFace/Azure (Jan 2026):
+- Replaced CompreFace Docker container with DeepFace (local, uses TensorFlow)
+- DeepFace provides BOTH face detection AND verification locally
+- No cloud API required - runs entirely on backend server
+- Model: Facenet512 (98.4% accuracy on LFW benchmark)
 """
 
 import io
@@ -246,10 +246,10 @@ class DocumentVerificationService:
         # Log service status
         status = check_face_services_available()
         logger.info(f"DocumentVerificationService initialized:")
-        logger.info(f"  - MediaPipe: {'✅' if status['mediapipe_available'] else '❌'}")
-        logger.info(f"  - OpenCV: {'✅' if status['opencv_available'] else '❌'}")
-        logger.info(f"  - Azure Face: {'✅' if status['azure_available'] else '❌'}")
-        logger.info(f"  - Face Detection: {'✅' if status['face_detection_available'] else '❌'}")
+        logger.info(f"  - DeepFace: {'✅' if status.get('deepface_available') else '❌'}")
+        logger.info(f"  - Face Detection: {'✅' if status.get('face_detection_available') else '❌'}")
+        logger.info(f"  - Face Comparison: {'✅' if status.get('face_comparison_available') else '❌'}")
+        logger.info(f"  - Model: {status.get('model', 'N/A')}")
 
     def _check_face_detection_available(self) -> bool:
         """Check if face detection is available (MediaPipe or OpenCV)"""
@@ -423,7 +423,12 @@ class DocumentVerificationService:
                 face_result = self._detect_face(file_data)
                 details["face_detection"] = face_result
                 
-                if not face_result["detected"]:
+                # If face detection was skipped (no MediaPipe/OpenCV installed), continue with warning
+                if face_result.get("skipped"):
+                    logger.warning(f"   ⚠️ Face detection skipped: {face_result.get('reason', 'service unavailable')}")
+                    warnings.append("Face detection skipped - manual verification required")
+                elif not face_result["detected"]:
+                    # Only fail if face detection ran but no face found
                     logger.warning(f"   ❌ No face detected in ID document")
                     return VerificationResult(
                         status=VerificationStatus.FAILED,
@@ -434,13 +439,11 @@ class DocumentVerificationService:
                         details=details,
                         warnings=warnings
                     )
-                
-                if face_result["count"] > 1:
-                    warnings.append(f"Multiple faces detected ({face_result['count']})")
-                
-                # Face size check removed - was causing issues with valid IDs
-                
-                print(f"   ✅ Face detected: confidence={face_result['confidence']:.2f}")
+                else:
+                    # Face detection succeeded
+                    if face_result["count"] > 1:
+                        warnings.append(f"Multiple faces detected ({face_result['count']})")
+                    print(f"   ✅ Face detected: confidence={face_result['confidence']:.2f}")
             
             # Step 3: OCR text extraction (for clearances and Government IDs)
             ocr_required = document_type.upper() in DOCUMENT_KEYWORDS
@@ -612,7 +615,7 @@ class DocumentVerificationService:
 
     def _detect_face(self, image_data: bytes) -> Dict[str, Any]:
         """
-        Detect faces in image using MediaPipe/OpenCV
+        Detect faces in image using DeepFace
         
         Returns dict with:
             - detected: bool
@@ -623,7 +626,7 @@ class DocumentVerificationService:
             - error: str if error occurred
         """
         if not self._check_face_detection_available():
-            logger.warning("Face detection not available (no MediaPipe/OpenCV)")
+            logger.warning("Face detection not available (DeepFace not loaded)")
             return {
                 "detected": False,
                 "count": 0,
@@ -648,11 +651,11 @@ class DocumentVerificationService:
         self, 
         id_image_data: bytes, 
         selfie_image_data: bytes,
-        similarity_threshold: float = 0.80
+        similarity_threshold: float = 0.70
     ) -> Dict[str, Any]:
         """
-        Compare faces between ID document and selfie using Azure Face API.
-        Falls back to local detection + manual review if Azure unavailable.
+        Compare faces between ID document and selfie using DeepFace.
+        Runs entirely locally - no cloud API required.
         
         Args:
             id_image_data: Raw bytes of ID document image
@@ -661,7 +664,7 @@ class DocumentVerificationService:
             
         Returns dict with:
             - match: bool - whether faces match (or need manual review)
-            - similarity: float - similarity score (0 if Azure unavailable)
+            - similarity: float - similarity score (0 if DeepFace unavailable)
             - id_has_face: bool - whether ID has a detectable face
             - selfie_has_face: bool - whether selfie has a detectable face
             - needs_manual_review: bool - whether admin should verify
@@ -873,7 +876,7 @@ def should_auto_reject(result: VerificationResult) -> Tuple[bool, str]:
     return False, ""
 
 
-def verify_face_match(id_image_data: bytes, selfie_image_data: bytes, similarity_threshold: float = 0.85) -> Dict[str, Any]:
+def verify_face_match(id_image_data: bytes, selfie_image_data: bytes, similarity_threshold: float = 0.70) -> Dict[str, Any]:
     """
     Compare faces between ID document and selfie
     

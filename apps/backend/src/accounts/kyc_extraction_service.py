@@ -208,17 +208,58 @@ def get_kyc_autofill_data_for_user(user) -> Dict[str, Any]:
         }
 
 
-def trigger_kyc_extraction_after_upload(kyc_record: kyc) -> None:
+def trigger_kyc_extraction_after_upload(kyc_record: kyc, face_match_result: Optional[Dict[str, Any]] = None) -> None:
     """
     Trigger extraction processing after KYC upload completes.
     Called from upload_kyc_document() after files are saved.
     
     Args:
         kyc_record: The KYC record that was just uploaded
+        face_match_result: Optional face match result from Azure Face API (contains similarity score)
     """
     try:
         logger.info(f"🚀 [KYC EXTRACTION] Triggering extraction for KYC {kyc_record.kycID}")
-        process_kyc_extraction(kyc_record)
+        extracted = process_kyc_extraction(kyc_record)
+        
+        # Store face match score if available
+        if extracted and face_match_result:
+            _store_face_match_score(extracted, face_match_result)
+            
     except Exception as e:
         logger.error(f"❌ [KYC EXTRACTION] Failed to trigger extraction: {str(e)}")
         # Don't raise - extraction failure shouldn't block KYC upload
+
+
+def _store_face_match_score(extracted: KYCExtractedData, face_match_result: Dict[str, Any]) -> None:
+    """
+    Store face match score from face verification in KYCExtractedData record.
+    
+    Args:
+        extracted: The KYCExtractedData record to update
+        face_match_result: Result dict from verify_face_match() containing:
+            - match: bool - whether faces matched
+            - similarity: float - similarity score 0-1
+            - skipped: bool - whether face matching was skipped
+            - method: str - "deepface", "azure", or "local_only"
+    """
+    try:
+        if face_match_result.get('skipped'):
+            # Face matching was skipped - don't update
+            logger.info(f"   ⏭️ Face matching was skipped, not storing score")
+            return
+        
+        similarity = face_match_result.get('similarity', 0)
+        method = face_match_result.get('method', 'unknown')
+        
+        # Mark as completed if a proper verification method was used
+        # DeepFace and Azure both provide verified face matching
+        is_verified = method in ('deepface', 'azure')
+        
+        extracted.face_match_score = similarity
+        extracted.face_match_completed = is_verified
+        extracted.save(update_fields=['face_match_score', 'face_match_completed'])
+        
+        logger.info(f"   ✅ Stored face match score: {similarity:.2f} (method={method}, verified={is_verified})")
+        
+    except Exception as e:
+        logger.error(f"   ❌ Failed to store face match score: {str(e)}")

@@ -188,7 +188,9 @@ def upload_agency_kyc(payload, business_permit, rep_front, rep_back, address_pro
 						ai_status = 'FAILED'
 						ai_rejection_reason = 'MISSING_REQUIRED_TEXT'
 						missing_groups = keyword_check.get('missing_groups', [])
-						ai_rejection_message = f"Business permit does not contain required text. Missing: {', '.join(missing_groups)}. Please upload a valid business permit."
+						# missing_groups is a list of lists, so format each group properly
+						formatted_missing = ', '.join([' or '.join(group) if isinstance(group, list) else str(group) for group in missing_groups])
+						ai_rejection_message = f"Business permit does not contain required text. Missing: {formatted_missing}. Please upload a valid business permit."
 						any_failed = True
 						failure_messages.append(ai_rejection_message)
 						print(f"   ❌ OCR keyword check FAILED for {key}: missing {missing_groups}")
@@ -202,7 +204,8 @@ def upload_agency_kyc(payload, business_permit, rep_front, rep_back, address_pro
 							any_failed = True
 							failure_messages.append(ai_rejection_message)
 				
-				print(f"   🤖 AI Result for {key}: status={ai_status}, confidence={ai_confidence_score:.2f if ai_confidence_score else 0}")
+				confidence_display = f"{ai_confidence_score:.2f}" if ai_confidence_score else "0"
+				print(f"   🤖 AI Result for {key}: status={ai_status}, confidence={confidence_display}")
 			else:
 				# PDF files skip AI verification
 				ai_status = 'SKIPPED'

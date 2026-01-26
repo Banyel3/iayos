@@ -748,10 +748,11 @@ def _check_kyc_auto_approval(kyc_record, extracted, edited_fields):
     
     Auto-approval criteria:
     1. autoApproveKYC must be enabled in platform settings
-    2. Overall confidence >= kycAutoApproveMinConfidence
-    3. Face match similarity >= kycFaceMatchMinSimilarity (if face matching was done)
-    4. User confirmation required based on kycRequireUserConfirmation
-    5. User has confirmed their data (extraction_status == CONFIRMED)
+    2. User has confirmed their data (extraction_status == CONFIRMED)
+    3. ID type is a valid Philippine ID (not foreign documents)
+    4. Overall confidence >= kycAutoApproveMinConfidence
+    5. Face match was completed via verified method (DeepFace or Azure)
+    6. Face match similarity >= kycFaceMatchMinSimilarity
     
     Returns:
         Tuple of (was_approved: bool, reason: str or None)
@@ -759,6 +760,14 @@ def _check_kyc_auto_approval(kyc_record, extracted, edited_fields):
     from adminpanel.models import PlatformSettings
     from django.utils import timezone
     from decimal import Decimal
+    
+    # Valid Philippine ID types for auto-approval
+    VALID_PH_ID_TYPES = [
+        'UMID', 'SSS', 'PHILHEALTH', 'TIN', 'PASSPORT', 'DRIVERSLICENSE',
+        'NATIONALID', 'VOTERID', 'POSTALID', 'PRC', 'OWWA', 'OFW',
+        'PHILIPPINE NATIONAL ID', 'DRIVERS LICENSE', 'VOTER ID',
+        'POSTAL ID', 'PHILHEALTH ID', 'SSS ID', 'TIN ID', 'UMID ID'
+    ]
     
     # Get platform settings
     try:
@@ -783,6 +792,18 @@ def _check_kyc_auto_approval(kyc_record, extracted, edited_fields):
         print(f"      ❌ User confirmation required but status is: {extracted.extraction_status}")
         return False, None
     
+    # Check ID type is a valid Philippine ID
+    id_type = (extracted.extracted_id_type or "").upper().strip()
+    is_valid_ph_id = any(
+        ph_id.upper() in id_type or id_type in ph_id.upper()
+        for ph_id in VALID_PH_ID_TYPES
+    )
+    print(f"      - Extracted ID type: {id_type}")
+    if not is_valid_ph_id:
+        print(f"      ❌ ID type '{id_type}' is not a recognized Philippine ID")
+        return False, None
+    print(f"      ✓ Valid Philippine ID type")
+    
     # Check overall confidence threshold
     overall_confidence = Decimal(str(extracted.overall_confidence or 0))
     min_confidence = settings.kycAutoApproveMinConfidence
@@ -793,26 +814,35 @@ def _check_kyc_auto_approval(kyc_record, extracted, edited_fields):
         print(f"      ❌ Confidence {overall_confidence} < min {min_confidence}")
         return False, None
     
-    # Check face match threshold (if available)
+    # REQUIRE face match completion via verified method (DeepFace or Azure)
+    if not extracted.face_match_completed:
+        print(f"      ❌ Face matching not completed via verified method (required for auto-approval)")
+        return False, None
+    print(f"      ✓ Face matching completed via verified method")
+    
+    # Check face match threshold
     face_match_score = extracted.face_match_score
-    if face_match_score is not None:
-        face_match_decimal = Decimal(str(face_match_score))
-        min_face_match = settings.kycFaceMatchMinSimilarity
-        
-        print(f"      - Face match score: {face_match_decimal}")
-        
-        if face_match_decimal < min_face_match:
-            print(f"      ❌ Face match {face_match_decimal} < min {min_face_match}")
-            return False, None
+    if face_match_score is None:
+        print(f"      ❌ Face match score is None (face comparison required)")
+        return False, None
+    
+    face_match_decimal = Decimal(str(face_match_score))
+    min_face_match = settings.kycFaceMatchMinSimilarity
+    
+    print(f"      - Face match score: {face_match_decimal}")
+    
+    if face_match_decimal < min_face_match:
+        print(f"      ❌ Face match {face_match_decimal} < min {min_face_match}")
+        return False, None
     
     # All checks passed - auto-approve the KYC
     print(f"      ✅ All thresholds met, auto-approving...")
     
     # Update KYC record status
-    kyc_record.status = "APPROVED"
+    kyc_record.kyc_status = "APPROVED"
     kyc_record.reviewedBy = "AI_AUTO_APPROVAL"
     kyc_record.reviewedAt = timezone.now()
-    kyc_record.notes = f"Auto-approved: Confidence={overall_confidence}, FaceMatch={face_match_score or 'N/A'}"
+    kyc_record.notes = f"Auto-approved: Confidence={overall_confidence:.2f}, FaceMatch={face_match_score:.2f}, ID={id_type}"
     kyc_record.save()
     
     # Create notification for user
@@ -827,11 +857,9 @@ def _check_kyc_auto_approval(kyc_record, extracted, edited_fields):
     except Exception as e:
         print(f"      ⚠️ Failed to create notification: {e}")
     
-    reason = f"Met thresholds: confidence={overall_confidence:.2f} >= {min_confidence}, "
-    if face_match_score:
-        reason += f"face_match={face_match_score:.2f} >= {settings.kycFaceMatchMinSimilarity}"
-    else:
-        reason += "face_match=N/A"
+    reason = f"Met all thresholds: confidence={overall_confidence:.2f} >= {min_confidence}, "
+    reason += f"face_match={face_match_score:.2f} >= {settings.kycFaceMatchMinSimilarity}, "
+    reason += f"id_type={id_type} (valid PH ID)"
     
     return True, reason
 

@@ -1,14 +1,21 @@
 """
-Face Detection Service - Replaces CompreFace with MediaPipe + Azure Face API
+Face Detection & Verification Service - Using DeepFace
 
-This service provides face detection and comparison using:
-1. MediaPipe - Local face detection (fast, free, ~100MB)
-2. Azure Face API - Cloud-based face comparison (30K free/month)
+DeepFace is a lightweight open-source face recognition library that provides:
+1. Face Detection - Multiple backends (opencv, mtcnn, retinaface, etc.)
+2. Face Verification - Compare two faces and determine if they match
+3. Facial Attributes - Age, gender, emotion, race prediction (optional)
 
-Migration from CompreFace:
-- MediaPipe replaces CompreFace for face detection
-- Azure Face API replaces CompreFace for face comparison (ID ↔ selfie)
-- Both services are more reliable and work on Render free tier
+Key Benefits over Azure Face API:
+- 100% LOCAL processing - No data sent to cloud (privacy!)
+- FREE - No API costs or rate limits
+- VERIFICATION WORKS - Unlike Azure which requires special approval
+- HIGH ACCURACY - FaceNet, ArcFace achieve 98%+ accuracy
+
+Migration from CompreFace/Azure:
+- DeepFace handles both detection AND comparison locally
+- No external API dependencies
+- Works perfectly on Render free tier
 
 Usage:
     from accounts.face_detection_service import get_face_service
@@ -21,51 +28,38 @@ Usage:
 import io
 import os
 import logging
-import base64
-from typing import Optional, Dict, Any, List, Tuple
+import tempfile
+from typing import Optional, Dict, Any, List
 from dataclasses import dataclass
-from PIL import Image
-import numpy as np
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 # ============================================================================
-# MediaPipe Face Detection (Local - Always Available)
+# DeepFace Configuration
 # ============================================================================
 
+# Try to import DeepFace
 try:
-    import mediapipe as mp
-    from mediapipe.tasks import python
-    from mediapipe.tasks.python import vision
-    MEDIAPIPE_AVAILABLE = True
-    logger.info("✅ MediaPipe loaded successfully")
-except ImportError:
-    MEDIAPIPE_AVAILABLE = False
-    logger.warning("⚠️ MediaPipe not installed - face detection limited")
+    from deepface import DeepFace
+    DEEPFACE_AVAILABLE = True
+    logger.info("✅ DeepFace loaded successfully")
+except ImportError as e:
+    DEEPFACE_AVAILABLE = False
+    logger.warning(f"⚠️ DeepFace not installed: {e}")
+    DeepFace = None
 
-# Fallback to OpenCV Haar Cascades if MediaPipe unavailable
-try:
-    import cv2
-    OPENCV_AVAILABLE = True
-    logger.info("✅ OpenCV loaded successfully")
-except ImportError:
-    OPENCV_AVAILABLE = False
-    logger.warning("⚠️ OpenCV not installed - no fallback face detection")
+# DeepFace model configuration
+# FaceNet512 offers best balance of accuracy (98.4%) and speed
+FACE_RECOGNITION_MODEL = os.getenv("DEEPFACE_MODEL", "Facenet512")
 
-# ============================================================================
-# Azure Face API Configuration
-# ============================================================================
+# Face detector backend (retinaface is most accurate, opencv is fastest)
+# Options: 'opencv', 'ssd', 'dlib', 'mtcnn', 'fastmtcnn', 'retinaface', 'mediapipe', 'yolov8', 'yunet', 'centerface'
+FACE_DETECTOR_BACKEND = os.getenv("DEEPFACE_DETECTOR", "opencv")
 
-# Azure Face API (free tier: 30,000 calls/month)
-# Get keys from: https://portal.azure.com → Create "Face" resource
-AZURE_FACE_ENDPOINT = os.getenv("AZURE_FACE_ENDPOINT", "")
-AZURE_FACE_KEY = os.getenv("AZURE_FACE_KEY", "")
-
-try:
-    import httpx
-    HTTPX_AVAILABLE = True
-except ImportError:
-    HTTPX_AVAILABLE = False
+# Similarity threshold for face matching (0-1, higher = stricter)
+# FaceNet512 recommended threshold: 0.30 (cosine distance)
+FACE_SIMILARITY_THRESHOLD = float(os.getenv("DEEPFACE_THRESHOLD", "0.40"))
 
 # ============================================================================
 # Face Detection Result Types
@@ -103,22 +97,30 @@ class FaceComparisonResult:
     """Result from face comparison"""
     match: bool = False
     similarity: float = 0.0
+    distance: float = 0.0
+    threshold: float = 0.0
     id_has_face: bool = False
     selfie_has_face: bool = False
     skipped: bool = False
     needs_manual_review: bool = False
     error: str = None
+    method: str = None  # 'deepface', 'local_only', etc.
+    model: str = None  # Which face recognition model was used
     
     def to_dict(self) -> Dict[str, Any]:
         return {
             "match": self.match,
             "similarity": self.similarity,
+            "distance": self.distance,
+            "threshold": self.threshold,
             "faces_detected": self.id_has_face and self.selfie_has_face,
             "id_has_face": self.id_has_face,
             "selfie_has_face": self.selfie_has_face,
             "skipped": self.skipped,
             "needs_manual_review": self.needs_manual_review,
-            "error": self.error
+            "error": self.error,
+            "method": self.method,
+            "model": self.model
         }
 
 
@@ -128,98 +130,83 @@ class FaceComparisonResult:
 
 class FaceDetectionService:
     """
-    Face detection and comparison service using MediaPipe + Azure Face API
+    Face detection and verification service using DeepFace
     
-    Detection Strategy:
-    1. Try MediaPipe (local, fast, free)
-    2. Fallback to OpenCV Haar Cascades (local, very fast, less accurate)
+    DeepFace wraps multiple face recognition models:
+    - VGG-Face, FaceNet (128d & 512d), OpenFace, DeepFace, DeepID
+    - ArcFace, Dlib, SFace, GhostFaceNet, Buffalo_L
     
-    Comparison Strategy:
-    1. Try Azure Face API (accurate, 30K free/month)
-    2. If Azure unavailable, detect faces in both images and flag for manual review
+    And multiple face detection backends:
+    - opencv, ssd, dlib, mtcnn, fastmtcnn, retinaface
+    - mediapipe, yolov8, yunet, centerface
     """
     
     def __init__(self):
         """Initialize face detection service"""
-        self._mediapipe_detector = None
-        self._opencv_cascade = None
-        self._azure_available = None
+        self._initialized = False
+        self._temp_dir = None
         
-        # Initialize MediaPipe if available
-        if MEDIAPIPE_AVAILABLE:
+        if DEEPFACE_AVAILABLE:
             try:
-                self._init_mediapipe()
-                logger.info("✅ MediaPipe face detector initialized")
+                # Create temp directory for image processing
+                self._temp_dir = tempfile.mkdtemp(prefix="deepface_")
+                
+                # Pre-warm DeepFace models (optional, speeds up first inference)
+                # This downloads models on first run (~100-500MB depending on model)
+                logger.info(f"🚀 Initializing DeepFace with model={FACE_RECOGNITION_MODEL}, detector={FACE_DETECTOR_BACKEND}")
+                
+                # Don't pre-load models in __init__ - let them load on first use
+                # This avoids blocking startup
+                self._initialized = True
+                logger.info("✅ DeepFace service ready")
+                
             except Exception as e:
-                logger.warning(f"⚠️ MediaPipe initialization failed: {e}")
-        
-        # Initialize OpenCV cascade as fallback
-        if OPENCV_AVAILABLE:
-            try:
-                self._opencv_cascade = cv2.CascadeClassifier(
-                    cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
-                )
-                logger.info("✅ OpenCV Haar Cascade loaded")
-            except Exception as e:
-                logger.warning(f"⚠️ OpenCV cascade loading failed: {e}")
+                logger.error(f"❌ DeepFace initialization failed: {e}")
+                self._initialized = False
+        else:
+            logger.warning("⚠️ DeepFace not available - face services disabled")
     
-    def _init_mediapipe(self):
-        """Initialize MediaPipe face detection"""
-        if not MEDIAPIPE_AVAILABLE:
-            return
+    def _save_image_temp(self, image_data: bytes, prefix: str = "face") -> str:
+        """Save image bytes to a temporary file for DeepFace processing"""
+        if not self._temp_dir:
+            self._temp_dir = tempfile.mkdtemp(prefix="deepface_")
         
-        # Use BlazeFace detector (fast and accurate)
-        self.mp_face_detection = mp.solutions.face_detection
-        self.mp_face_mesh = mp.solutions.face_mesh
-        self._mediapipe_detector = self.mp_face_detection.FaceDetection(
-            model_selection=1,  # 0 = short-range (2m), 1 = full-range (5m)
-            min_detection_confidence=0.5
-        )
-    
-    def check_azure_available(self) -> bool:
-        """Check if Azure Face API is configured and available"""
-        if self._azure_available is not None:
-            return self._azure_available
+        import uuid
+        filename = f"{prefix}_{uuid.uuid4().hex[:8]}.jpg"
+        filepath = os.path.join(self._temp_dir, filename)
         
-        if not AZURE_FACE_ENDPOINT or not AZURE_FACE_KEY:
-            logger.info("Azure Face API not configured (no endpoint/key)")
-            self._azure_available = False
-            return False
-        
-        if not HTTPX_AVAILABLE:
-            logger.warning("httpx not available for Azure Face API calls")
-            self._azure_available = False
-            return False
-        
+        # Ensure image is valid JPEG
         try:
-            # Quick health check
-            response = httpx.get(
-                f"{AZURE_FACE_ENDPOINT}face/v1.0/detect",
-                headers={"Ocp-Apim-Subscription-Key": AZURE_FACE_KEY},
-                timeout=5.0
-            )
-            # 400 = bad request (no image) but service is up
-            # 401 = unauthorized (bad key)
-            # 200 = shouldn't happen without image
-            self._azure_available = response.status_code in [200, 400]
-            logger.info(f"Azure Face API check: status={response.status_code}, available={self._azure_available}")
+            from PIL import Image
+            img = Image.open(io.BytesIO(image_data))
+            if img.mode != 'RGB':
+                img = img.convert('RGB')
+            img.save(filepath, 'JPEG', quality=95)
         except Exception as e:
-            logger.warning(f"Azure Face API not available: {e}")
-            self._azure_available = False
+            logger.error(f"Failed to save temp image: {e}")
+            # Fallback: write raw bytes
+            with open(filepath, 'wb') as f:
+                f.write(image_data)
         
-        return self._azure_available
+        return filepath
+    
+    def _cleanup_temp_file(self, filepath: str):
+        """Remove temporary file after processing"""
+        try:
+            if os.path.exists(filepath):
+                os.remove(filepath)
+        except Exception as e:
+            logger.warning(f"Failed to cleanup temp file {filepath}: {e}")
     
     def get_service_status(self) -> Dict[str, Any]:
         """Get current service availability status"""
         return {
-            "mediapipe_available": MEDIAPIPE_AVAILABLE and self._mediapipe_detector is not None,
-            "opencv_available": OPENCV_AVAILABLE and self._opencv_cascade is not None,
-            "azure_available": self.check_azure_available(),
-            "face_detection_available": (
-                (MEDIAPIPE_AVAILABLE and self._mediapipe_detector is not None) or
-                (OPENCV_AVAILABLE and self._opencv_cascade is not None)
-            ),
-            "face_comparison_available": self.check_azure_available()
+            "deepface_available": DEEPFACE_AVAILABLE and self._initialized,
+            "face_detection_available": DEEPFACE_AVAILABLE and self._initialized,
+            "face_comparison_available": DEEPFACE_AVAILABLE and self._initialized,
+            "model": FACE_RECOGNITION_MODEL,
+            "detector": FACE_DETECTOR_BACKEND,
+            "threshold": FACE_SIMILARITY_THRESHOLD,
         }
     
     # ========================================================================
@@ -228,7 +215,7 @@ class FaceDetectionService:
     
     def detect_face(self, image_data: bytes) -> FaceDetectionResult:
         """
-        Detect faces in an image
+        Detect faces in an image using DeepFace
         
         Args:
             image_data: Raw image bytes (JPEG/PNG)
@@ -236,52 +223,31 @@ class FaceDetectionService:
         Returns:
             FaceDetectionResult with detection details
         """
-        logger.info("🔍 Starting face detection...")
+        logger.info("🔍 Starting face detection with DeepFace...")
         
-        # Try MediaPipe first
-        if MEDIAPIPE_AVAILABLE and self._mediapipe_detector:
-            try:
-                result = self._detect_with_mediapipe(image_data)
-                if not result.skipped:
-                    return result
-            except Exception as e:
-                logger.warning(f"MediaPipe detection failed: {e}")
+        if not DEEPFACE_AVAILABLE or not self._initialized:
+            logger.error("❌ DeepFace not available")
+            return FaceDetectionResult(
+                detected=False,
+                skipped=True,
+                error="Face detection service not available"
+            )
         
-        # Fallback to OpenCV
-        if OPENCV_AVAILABLE and self._opencv_cascade is not None:
-            try:
-                result = self._detect_with_opencv(image_data)
-                if not result.skipped:
-                    return result
-            except Exception as e:
-                logger.warning(f"OpenCV detection failed: {e}")
-        
-        # No detection method available
-        logger.error("❌ No face detection method available")
-        return FaceDetectionResult(
-            detected=False,
-            skipped=True,
-            error="No face detection service available"
-        )
-    
-    def _detect_with_mediapipe(self, image_data: bytes) -> FaceDetectionResult:
-        """Detect faces using MediaPipe"""
+        temp_path = None
         try:
-            # Load image
-            image = Image.open(io.BytesIO(image_data))
-            if image.mode != 'RGB':
-                image = image.convert('RGB')
+            # Save image to temp file (DeepFace works with file paths)
+            temp_path = self._save_image_temp(image_data, "detect")
             
-            # Convert to numpy array
-            image_np = np.array(image)
-            img_height, img_width = image_np.shape[:2]
-            img_area = img_height * img_width
+            # Use extract_faces to detect faces
+            faces = DeepFace.extract_faces(
+                img_path=temp_path,
+                detector_backend=FACE_DETECTOR_BACKEND,
+                enforce_detection=False,  # Don't raise exception if no face
+                align=True
+            )
             
-            # Detect faces
-            results = self._mediapipe_detector.process(image_np)
-            
-            if not results.detections:
-                logger.info("   MediaPipe: No faces detected")
+            if not faces:
+                logger.info("   DeepFace: No faces detected")
                 return FaceDetectionResult(detected=False, count=0, confidence=0)
             
             # Process detections
@@ -289,276 +255,249 @@ class FaceDetectionService:
             max_confidence = 0
             face_too_small = True
             
-            for detection in results.detections:
-                confidence = detection.score[0]
+            for face_obj in faces:
+                confidence = face_obj.get('confidence', 0.0) or 0.0
                 if confidence > max_confidence:
                     max_confidence = confidence
                 
-                # Get bounding box
-                bbox = detection.location_data.relative_bounding_box
-                x_min = int(bbox.xmin * img_width)
-                y_min = int(bbox.ymin * img_height)
-                width = int(bbox.width * img_width)
-                height = int(bbox.height * img_height)
+                # Get bounding box (facial_area)
+                area = face_obj.get('facial_area', {})
+                x = area.get('x', 0)
+                y = area.get('y', 0)
+                w = area.get('w', 0)
+                h = area.get('h', 0)
                 
-                face_area = width * height
-                if face_area / img_area >= 0.05:  # 5% of image
+                # Check if face is large enough (at least 5% of image)
+                from PIL import Image
+                img = Image.open(io.BytesIO(image_data))
+                img_area = img.width * img.height
+                face_area = w * h
+                if face_area / img_area >= 0.05:
                     face_too_small = False
                 
                 bounding_boxes.append({
-                    "x_min": x_min,
-                    "y_min": y_min,
-                    "x_max": x_min + width,
-                    "y_max": y_min + height,
+                    "x_min": x,
+                    "y_min": y,
+                    "x_max": x + w,
+                    "y_max": y + h,
                     "probability": float(confidence)
                 })
             
-            logger.info(f"   MediaPipe: Detected {len(results.detections)} face(s), confidence={max_confidence:.2f}")
+            logger.info(f"   DeepFace: Detected {len(faces)} face(s), confidence={max_confidence:.2f}")
             
             return FaceDetectionResult(
                 detected=True,
-                count=len(results.detections),
+                count=len(faces),
                 confidence=float(max_confidence),
                 bounding_boxes=bounding_boxes,
                 face_too_small=face_too_small
             )
             
         except Exception as e:
-            logger.error(f"MediaPipe detection error: {e}")
-            return FaceDetectionResult(skipped=True, error=str(e))
-    
-    def _detect_with_opencv(self, image_data: bytes) -> FaceDetectionResult:
-        """Detect faces using OpenCV Haar Cascades (fallback)"""
-        try:
-            # Load image
-            nparr = np.frombuffer(image_data, np.uint8)
-            image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-            
-            img_height, img_width = image.shape[:2]
-            img_area = img_height * img_width
-            
-            # Detect faces
-            faces = self._opencv_cascade.detectMultiScale(
-                gray,
-                scaleFactor=1.1,
-                minNeighbors=5,
-                minSize=(30, 30)
-            )
-            
-            if len(faces) == 0:
-                logger.info("   OpenCV: No faces detected")
-                return FaceDetectionResult(detected=False, count=0, confidence=0)
-            
-            # Process detections (OpenCV doesn't give confidence, estimate 0.85)
-            bounding_boxes = []
-            face_too_small = True
-            
-            for (x, y, w, h) in faces:
-                face_area = w * h
-                if face_area / img_area >= 0.05:
-                    face_too_small = False
-                
-                bounding_boxes.append({
-                    "x_min": int(x),
-                    "y_min": int(y),
-                    "x_max": int(x + w),
-                    "y_max": int(y + h),
-                    "probability": 0.85  # OpenCV doesn't provide confidence
-                })
-            
-            logger.info(f"   OpenCV: Detected {len(faces)} face(s)")
-            
+            logger.error(f"DeepFace detection error: {e}")
             return FaceDetectionResult(
-                detected=True,
-                count=len(faces),
-                confidence=0.85,
-                bounding_boxes=bounding_boxes,
-                face_too_small=face_too_small
+                detected=False,
+                skipped=True,
+                error=f"Face detection failed: {str(e)}"
             )
-            
-        except Exception as e:
-            logger.error(f"OpenCV detection error: {e}")
-            return FaceDetectionResult(skipped=True, error=str(e))
+        finally:
+            if temp_path:
+                self._cleanup_temp_file(temp_path)
     
     # ========================================================================
-    # Face Comparison (Azure Face API)
+    # Face Comparison / Verification
     # ========================================================================
     
     def compare_faces(
         self, 
         id_image_data: bytes, 
         selfie_image_data: bytes,
-        similarity_threshold: float = 0.80
+        similarity_threshold: float = None
     ) -> FaceComparisonResult:
         """
-        Compare faces between ID document and selfie
+        Compare faces between ID document and selfie using DeepFace
+        
+        DeepFace.verify() compares two faces and returns:
+        - verified: True if faces match (within threshold)
+        - distance: Numerical distance between face embeddings
+        - threshold: Model-specific threshold for matching
         
         Args:
             id_image_data: Raw bytes of ID document image
             selfie_image_data: Raw bytes of selfie image
-            similarity_threshold: Minimum similarity for match (0-1)
+            similarity_threshold: Optional custom threshold (uses model default if not specified)
             
         Returns:
             FaceComparisonResult with comparison details
         """
-        logger.info("🔍 Starting face comparison...")
+        logger.info("🔍 Starting face comparison with DeepFace...")
         
-        # First, detect faces in both images locally
-        id_result = self.detect_face(id_image_data)
-        selfie_result = self.detect_face(selfie_image_data)
-        
-        id_has_face = id_result.detected and id_result.count > 0
-        selfie_has_face = selfie_result.detected and selfie_result.count > 0
-        
-        # Check if faces detected in both
-        if not id_has_face:
-            logger.warning("No face detected in ID document")
+        if not DEEPFACE_AVAILABLE or not self._initialized:
+            logger.error("❌ DeepFace not available")
             return FaceComparisonResult(
                 match=False,
-                id_has_face=False,
-                selfie_has_face=selfie_has_face,
-                error="No face detected in ID document. Please upload a clear photo of your ID showing your face."
+                skipped=True,
+                needs_manual_review=True,
+                error="Face comparison service not available"
             )
         
-        if not selfie_has_face:
-            logger.warning("No face detected in selfie")
-            return FaceComparisonResult(
-                match=False,
-                id_has_face=True,
-                selfie_has_face=False,
-                error="No face detected in selfie. Please take a clear photo of your face."
-            )
+        id_temp_path = None
+        selfie_temp_path = None
         
-        # Try Azure Face API for comparison
-        if self.check_azure_available():
-            try:
-                result = self._compare_with_azure(id_image_data, selfie_image_data, similarity_threshold)
-                if not result.skipped:
-                    return result
-            except Exception as e:
-                logger.warning(f"Azure Face API comparison failed: {e}")
-        
-        # Azure not available - return success with manual review flag
-        logger.info("   ✅ Faces detected in both images - flagged for manual review")
-        return FaceComparisonResult(
-            match=True,  # Allow to proceed
-            similarity=0.0,  # Unknown
-            id_has_face=True,
-            selfie_has_face=True,
-            needs_manual_review=True,
-            error=None
-        )
-    
-    def _compare_with_azure(
-        self, 
-        id_image_data: bytes, 
-        selfie_image_data: bytes,
-        similarity_threshold: float
-    ) -> FaceComparisonResult:
-        """Compare faces using Azure Face API"""
         try:
-            # Step 1: Detect face in ID and get faceId
-            id_face_id = self._detect_face_azure(id_image_data)
-            if not id_face_id:
+            # Save both images to temp files
+            id_temp_path = self._save_image_temp(id_image_data, "id")
+            selfie_temp_path = self._save_image_temp(selfie_image_data, "selfie")
+            
+            # First check if faces exist in both images
+            id_detection = self.detect_face(id_image_data)
+            selfie_detection = self.detect_face(selfie_image_data)
+            
+            id_has_face = id_detection.detected and id_detection.count > 0
+            selfie_has_face = selfie_detection.detected and selfie_detection.count > 0
+            
+            if not id_has_face:
+                logger.warning("No face detected in ID document")
                 return FaceComparisonResult(
                     match=False,
                     id_has_face=False,
-                    error="Azure could not detect face in ID"
+                    selfie_has_face=selfie_has_face,
+                    error="No face detected in ID document. Please upload a clear photo of your ID showing your face."
                 )
             
-            # Step 2: Detect face in selfie and get faceId
-            selfie_face_id = self._detect_face_azure(selfie_image_data)
-            if not selfie_face_id:
+            if not selfie_has_face:
+                logger.warning("No face detected in selfie")
                 return FaceComparisonResult(
                     match=False,
                     id_has_face=True,
                     selfie_has_face=False,
-                    error="Azure could not detect face in selfie"
+                    error="No face detected in selfie. Please take a clear photo of your face."
                 )
             
-            # Step 3: Verify faces match
-            match_result = self._verify_faces_azure(id_face_id, selfie_face_id)
+            # Perform face verification with DeepFace
+            logger.info(f"   Comparing faces with model={FACE_RECOGNITION_MODEL}, detector={FACE_DETECTOR_BACKEND}")
             
-            is_match = match_result.get("isIdentical", False)
-            confidence = match_result.get("confidence", 0.0)
-            
-            logger.info(f"   Azure comparison: match={is_match}, confidence={confidence:.2f}")
-            
-            return FaceComparisonResult(
-                match=is_match or confidence >= similarity_threshold,
-                similarity=confidence,
-                id_has_face=True,
-                selfie_has_face=True
+            result = DeepFace.verify(
+                img1_path=id_temp_path,
+                img2_path=selfie_temp_path,
+                model_name=FACE_RECOGNITION_MODEL,
+                detector_backend=FACE_DETECTOR_BACKEND,
+                distance_metric="cosine",  # cosine similarity
+                enforce_detection=False,  # Don't raise exception if face not found
             )
             
-        except Exception as e:
-            logger.error(f"Azure Face API error: {e}")
+            # Parse results
+            is_verified = result.get("verified", False)
+            distance = result.get("distance", 1.0)
+            threshold = result.get("threshold", FACE_SIMILARITY_THRESHOLD)
+            model_used = result.get("model", FACE_RECOGNITION_MODEL)
+            
+            # Calculate similarity (1 - distance for cosine)
+            # Cosine distance: 0 = identical, 1 = completely different
+            similarity = max(0.0, 1.0 - distance)
+            
+            # Use custom threshold if provided
+            if similarity_threshold is not None:
+                is_match = distance <= (1.0 - similarity_threshold)
+            else:
+                is_match = is_verified
+            
+            logger.info(f"   DeepFace result: verified={is_verified}, distance={distance:.4f}, threshold={threshold:.4f}, similarity={similarity:.2%}")
+            
             return FaceComparisonResult(
-                skipped=True,
+                match=is_match,
+                similarity=similarity,
+                distance=distance,
+                threshold=threshold,
                 id_has_face=True,
                 selfie_has_face=True,
+                needs_manual_review=not is_match,  # Flag non-matches for review
+                method='deepface',
+                model=model_used
+            )
+            
+        except Exception as e:
+            logger.error(f"DeepFace comparison error: {e}")
+            
+            # If comparison fails, still return face detection status
+            id_has_face = False
+            selfie_has_face = False
+            try:
+                id_detection = self.detect_face(id_image_data)
+                selfie_detection = self.detect_face(selfie_image_data)
+                id_has_face = id_detection.detected
+                selfie_has_face = selfie_detection.detected
+            except:
+                pass
+            
+            return FaceComparisonResult(
+                match=False,
+                id_has_face=id_has_face,
+                selfie_has_face=selfie_has_face,
+                skipped=True,
                 needs_manual_review=True,
-                error=str(e)
+                error=f"Face comparison failed: {str(e)}",
+                method='deepface'
             )
+        finally:
+            if id_temp_path:
+                self._cleanup_temp_file(id_temp_path)
+            if selfie_temp_path:
+                self._cleanup_temp_file(selfie_temp_path)
     
-    def _detect_face_azure(self, image_data: bytes) -> Optional[str]:
-        """Detect face and get faceId from Azure Face API"""
+    # ========================================================================
+    # Facial Attribute Analysis (Optional)
+    # ========================================================================
+    
+    def analyze_face(
+        self, 
+        image_data: bytes, 
+        actions: List[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Analyze facial attributes (age, gender, emotion, race)
+        
+        Args:
+            image_data: Raw image bytes
+            actions: List of analyses to perform ['age', 'gender', 'emotion', 'race']
+                     Defaults to ['age', 'gender']
+            
+        Returns:
+            Dictionary with analysis results
+        """
+        if actions is None:
+            actions = ['age', 'gender']
+        
+        logger.info(f"🔍 Analyzing face attributes: {actions}")
+        
+        if not DEEPFACE_AVAILABLE or not self._initialized:
+            logger.warning("DeepFace not available for analysis")
+            return {"error": "Face analysis service not available"}
+        
+        temp_path = None
         try:
-            response = httpx.post(
-                f"{AZURE_FACE_ENDPOINT}face/v1.0/detect",
-                headers={
-                    "Ocp-Apim-Subscription-Key": AZURE_FACE_KEY,
-                    "Content-Type": "application/octet-stream"
-                },
-                params={
-                    "returnFaceId": "true",
-                    "detectionModel": "detection_03",
-                    "recognitionModel": "recognition_04"
-                },
-                content=image_data,
-                timeout=30.0
+            temp_path = self._save_image_temp(image_data, "analyze")
+            
+            results = DeepFace.analyze(
+                img_path=temp_path,
+                actions=actions,
+                detector_backend=FACE_DETECTOR_BACKEND,
+                enforce_detection=False
             )
             
-            if response.status_code != 200:
-                logger.warning(f"Azure detect returned {response.status_code}: {response.text}")
-                return None
+            if isinstance(results, list) and len(results) > 0:
+                result = results[0]  # Take first face
+                logger.info(f"   Analysis result: {result}")
+                return result
             
-            faces = response.json()
-            if not faces:
-                return None
-            
-            return faces[0].get("faceId")
+            return {"error": "No face found for analysis"}
             
         except Exception as e:
-            logger.error(f"Azure detect error: {e}")
-            return None
-    
-    def _verify_faces_azure(self, face_id1: str, face_id2: str) -> Dict[str, Any]:
-        """Verify if two faces match using Azure Face API"""
-        try:
-            response = httpx.post(
-                f"{AZURE_FACE_ENDPOINT}face/v1.0/verify",
-                headers={
-                    "Ocp-Apim-Subscription-Key": AZURE_FACE_KEY,
-                    "Content-Type": "application/json"
-                },
-                json={
-                    "faceId1": face_id1,
-                    "faceId2": face_id2
-                },
-                timeout=30.0
-            )
-            
-            if response.status_code != 200:
-                logger.warning(f"Azure verify returned {response.status_code}: {response.text}")
-                return {"isIdentical": False, "confidence": 0.0}
-            
-            return response.json()
-            
-        except Exception as e:
-            logger.error(f"Azure verify error: {e}")
-            return {"isIdentical": False, "confidence": 0.0}
+            logger.error(f"Face analysis error: {e}")
+            return {"error": str(e)}
+        finally:
+            if temp_path:
+                self._cleanup_temp_file(temp_path)
 
 
 # ============================================================================

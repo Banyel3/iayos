@@ -238,44 +238,50 @@ EXPOSE 3000
 CMD ["sh", "-c", "cd /app/apps/frontend_web && npx next dev"]
 
 # ============================================
-# Stage 13: Backend Development (Secure)
+# Stage 13: Backend Development (Debian-based for DeepFace/TensorFlow)
 # ============================================
-FROM backend-base AS backend-development
+# Note: Using Debian-slim instead of Alpine because DeepFace requires TensorFlow
+# which needs glibc (not available on Alpine's musl libc)
+FROM python:3.12-slim AS backend-development
 
-# Install development dependencies with cleanup
-# Added: tesseract-ocr for OCR verification of KYC documents
-RUN apk add --no-cache --virtual .build-deps \
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# Create non-root user
+RUN groupadd -g 1001 appgroup \
+    && useradd -r -u 1001 -g appgroup -d /app -s /sbin/nologin appuser
+
+# Install development dependencies
+# - tesseract-ocr for KYC document verification
+# - libgl1 for OpenCV (required by DeepFace)
+RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
-    musl-dev \
-    postgresql-dev \
-    python3-dev \
-    libffi-dev \
-    openssl-dev \
-    cargo \
-    rust \
-    && apk add --no-cache \
+    libpq-dev \
     postgresql-client \
-    libpq \
-    dcron \
-    su-exec \
-    # Tesseract OCR for KYC document verification
+    cron \
     tesseract-ocr \
-    tesseract-ocr-data-eng \
-    # Additional image processing dependencies
-    jpeg-dev \
-    zlib-dev \
+    tesseract-ocr-eng \
+    libjpeg-dev \
+    zlib1g-dev \
     libpng-dev \
-    # curl for CompreFace health checks
-    curl
+    curl \
+    # OpenCV/DeepFace dependencies
+    libgl1 \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app/apps/backend
 
-# Install Python dependencies with security
+# Install Python dependencies
 COPY apps/backend/requirements.txt ./
-RUN --mount=type=cache,target=/root/.cache/pip \
-    python -m pip install --upgrade pip setuptools wheel \
-    && pip install --no-cache-dir -r requirements.txt \
-    && apk del .build-deps
+RUN python -m pip install --upgrade pip setuptools wheel \
+    && pip install --no-cache-dir -r requirements.txt
 
 # CRITICAL FIX: Patch Django Ninja UUID converter conflict with Django 5.x
 COPY apps/backend/patch_ninja.sh ./
@@ -288,13 +294,11 @@ COPY --chown=appuser:appgroup apps/backend .
 RUN chown -R appuser:appgroup /app
 
 # Setup cron job for payment buffer release (runs every hour)
-# Note: cron runs as root, but executes Django command which accesses app files
-RUN echo "0 * * * * cd /app/apps/backend/src && /usr/local/bin/python manage.py release_pending_payments >> /var/log/cron.log 2>&1" > /etc/crontabs/root \
+RUN echo "0 * * * * cd /app/apps/backend/src && /usr/local/bin/python manage.py release_pending_payments >> /var/log/cron.log 2>&1" > /etc/cron.d/payment-release \
+    && chmod 0644 /etc/cron.d/payment-release \
+    && crontab /etc/cron.d/payment-release \
     && touch /var/log/cron.log \
     && chmod 0644 /var/log/cron.log
-
-# Note: We don't switch to non-root user here because cron needs root
-# The docker-compose command uses su-exec to run Django as appuser
 
 EXPOSE 8000
 

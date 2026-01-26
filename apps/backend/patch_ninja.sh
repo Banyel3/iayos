@@ -4,12 +4,19 @@
 
 echo "[PATCH] Applying Django Ninja UUID converter fix..."
 
-# Find the actual ninja installation path
-NINJA_FILE=$(python3 -c "import ninja.signature.utils as m; print(m.__file__)" 2>/dev/null)
+# Find the actual ninja installation path using pip show
+NINJA_LOCATION=$(pip show django-ninja 2>/dev/null | grep "Location:" | cut -d' ' -f2)
 
-if [ -z "$NINJA_FILE" ]; then
-    echo "[PATCH] ERROR: Could not locate Django Ninja installation"
-    exit 1
+if [ -z "$NINJA_LOCATION" ]; then
+    echo "[PATCH] WARNING: django-ninja not installed, skipping patch"
+    exit 0
+fi
+
+NINJA_FILE="${NINJA_LOCATION}/ninja/signature/utils.py"
+
+if [ ! -f "$NINJA_FILE" ]; then
+    echo "[PATCH] WARNING: Django Ninja utils.py not found at $NINJA_FILE, skipping patch"
+    exit 0
 fi
 
 if [ ! -f "$NINJA_FILE" ]; then

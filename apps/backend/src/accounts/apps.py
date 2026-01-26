@@ -26,35 +26,23 @@ class AccountsConfig(AppConfig):
             print("🔍 AI SERVICES HEALTH CHECK")
             print("="*60)
             
-            # Check Face Detection Services (MediaPipe/OpenCV/Azure)
+            # Check Face Detection Services (DeepFace)
             try:
                 status = check_face_services_available()
                 
-                # MediaPipe
-                if status.get('mediapipe_available'):
-                    print("✅ MediaPipe Face Detection: AVAILABLE")
+                # DeepFace
+                if status.get('deepface_available'):
+                    print("✅ DeepFace Face Recognition: AVAILABLE")
+                    print(f"   Model: {status.get('model', 'Unknown')}")
+                    print(f"   Detector: {status.get('detector', 'Unknown')}")
+                    print(f"   Similarity Threshold: {status.get('threshold', 'Unknown')}")
                 else:
-                    print("⚠️  MediaPipe: NOT AVAILABLE")
-                
-                # OpenCV (fallback)
-                if status.get('opencv_available'):
-                    print("✅ OpenCV Haar Cascade: AVAILABLE (fallback)")
-                else:
-                    print("⚠️  OpenCV: NOT AVAILABLE")
-                
-                # Azure Face API (optional, for face comparison)
-                if status.get('azure_available'):
-                    print("✅ Azure Face API: AVAILABLE (face comparison enabled)")
-                else:
-                    azure_endpoint = os.getenv('AZURE_FACE_ENDPOINT', '')
-                    if azure_endpoint:
-                        print("⚠️  Azure Face API: CONFIGURED BUT UNAVAILABLE")
-                    else:
-                        print("ℹ️  Azure Face API: NOT CONFIGURED (face comparison uses manual review)")
+                    print("❌ DeepFace: NOT AVAILABLE")
                 
                 # Overall face detection status
-                if status.get('face_detection_available'):
-                    print("✅ Face Detection: ENABLED")
+                if status.get('deepface_available'):
+                    print("✅ Face Detection & Verification: ENABLED")
+                    print("   (Local processing - no cloud API required)")
                 else:
                     print("❌ Face Detection: DISABLED - all documents will require manual review!")
                     
