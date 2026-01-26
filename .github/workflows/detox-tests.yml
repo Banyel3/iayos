@@ -505,18 +505,32 @@ jobs:
         working-directory: apps/frontend_mobile/iayos_mobile/android
         run: |
           echo "Building androidTest APK for Detox instrumentation..."
-          export GRADLE_OPTS="-Xmx4g -Xms512m -XX:MaxMetaspaceSize=1g"
+          echo "Note: Native code compilation (CMake) can take 15-20 minutes"
+          
+          # Optimize Gradle for CI
+          export GRADLE_OPTS="-Xmx6g -Xms1g -XX:MaxMetaspaceSize=1g -XX:+UseParallelGC"
+          
+          # Create gradle.properties for CI optimization
+          cat >> gradle.properties << EOF
+          org.gradle.parallel=true
+          org.gradle.caching=true
+          org.gradle.configureondemand=true
+          org.gradle.jvmargs=-Xmx6g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError
+          EOF
 
           ./gradlew :app:assembleDebugAndroidTest \
             -DtestBuildType=debug \
             -PreactNativeArchitectures=x86_64 \
             --no-daemon \
-            --max-workers=2 \
-            -x lint
+            --max-workers=4 \
+            --parallel \
+            --build-cache \
+            -x lint \
+            -x lintVitalAnalyzeDebug
 
           echo "✅ Test APK built"
           ls -lh app/build/outputs/apk/androidTest/debug/
-        timeout-minutes: 15
+        timeout-minutes: 25
 
       - name: 🏗️ Build Android app for testing
         if: github.event.inputs.use_release_apk != 'true'
@@ -564,7 +578,7 @@ jobs:
 
           cd android
 
-          export GRADLE_OPTS="-Xmx4g -Xms512m -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8"
+          export GRADLE_OPTS="-Xmx6g -Xms1g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8 -XX:+UseParallelGC"
 
           # Full clean build
           echo "Cleaning previous build artifacts..."
@@ -572,17 +586,19 @@ jobs:
 
           echo "Building for x86_64 ONLY (emulator architecture)..."
           echo "This reduces native build time by ~75% (1 arch instead of 4)"
+          echo "Note: Native code compilation (CMake) can take 15-20 minutes"
 
           ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest \
             -DtestBuildType=debug \
             -PreactNativeArchitectures=x86_64 \
             --no-daemon \
-            --max-workers=2 \
+            --max-workers=4 \
             --parallel \
+            --build-cache \
             -x lint \
             -x lintVitalAnalyzeRelease \
             -x lintVitalReportRelease \
-            -Dorg.gradle.jvmargs="-Xmx4g -XX:MaxMetaspaceSize=1g" \
+            -Dorg.gradle.jvmargs="-Xmx6g -XX:MaxMetaspaceSize=1g" \
             || {
               echo "❌ Build failed, retrying with --stacktrace..."
               ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest \
@@ -590,10 +606,10 @@ jobs:
                 -PreactNativeArchitectures=x86_64 \
                 --no-daemon \
                 --stacktrace \
-                --max-workers=1 \
+                --max-workers=2 \
                 -x lint
             }
-        timeout-minutes: 20
+        timeout-minutes: 30
 
       - name: ✅ Verify E2E mode in APK bundle
         working-directory: apps/frontend_mobile/iayos_mobile
@@ -894,39 +910,39 @@ jobs:
         run: |
           echo "🗑️ Cleaning up test data from live backend..."
           echo "⚠️  WARNING: This deletes test user accounts and associated data!"
-          
+
           # Call backend cleanup API endpoint (you'll need to create this)
           # For now, we'll document what needs to be cleaned up
-          
+
           cat << 'EOF'
           ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
           ⚠️  CLEANUP REQUIRED
           ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-          
+
           The following test data needs to be cleaned from your live backend:
-          
+
           Test Users:
             - client@test.com (CLIENT profile)
             - worker@test.com (WORKER profile)
-          
+
           Associated Data:
             - Jobs posted by client@test.com
             - Profiles, applications, messages, notifications
             - Any data created during E2E tests
-          
+
           RECOMMENDED SOLUTION:
           Create a Django management command to clean up test data:
-          
+
             python manage.py cleanup_e2e_test_data
-          
+
           Or create a backend API endpoint:
-          
+
             POST /api/admin/cleanup-e2e-tests
             Authorization: Bearer <admin-token>
-          
+
           For now, you may need to manually delete these test accounts
           from your production database to prevent bloat.
-          
+
           ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
           EOF
 
