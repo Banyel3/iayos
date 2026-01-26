@@ -107,9 +107,9 @@ const AgencyKYCPage = () => {
           setAgencyKycStatus(status);
           if (data?.files) setAgencyKycFiles(data.files || []);
           if (data?.notes) setAgencyKycNotes(data.notes || null);
-          // If KYC already exists (pending/approved/rejected), show review wall
+          // If KYC already exists (pending/approved/rejected), show status page
           if (status !== "NOT_STARTED") {
-            setCurrentStep(4);
+            setCurrentStep(6); // Go to status page, not OCR confirmation
           }
         }
       } catch (err) {
@@ -405,7 +405,8 @@ const AgencyKYCPage = () => {
 
       // Issue #3: Check for auto-rejection in response body, not just HTTP status
       if (!upload.ok) {
-        let msg = responseData?.message || responseData?.error || "Upload failed";
+        let msg =
+          responseData?.message || responseData?.error || "Upload failed";
         if (upload.status === 413) msg = "One or more files are too large";
         showToast({ type: "error", title: "Upload failed", message: msg });
         setIsSubmitting(false);
@@ -418,7 +419,9 @@ const AgencyKYCPage = () => {
         showToast({
           type: "error",
           title: "Documents Rejected",
-          message: rejectionReasons[0] || "Your documents failed AI verification. Please upload clearer images.",
+          message:
+            rejectionReasons[0] ||
+            "Your documents failed AI verification. Please upload clearer images.",
         });
         // Update local state to show rejection
         setAgencyKycStatus("REJECTED");
@@ -468,7 +471,8 @@ const AgencyKYCPage = () => {
       });
       // Also include form fields that user entered
       if (businessName) initialFields["business_name"] = businessName;
-      if (registrationNumber) initialFields["permit_number"] = registrationNumber;
+      if (registrationNumber)
+        initialFields["permit_number"] = registrationNumber;
       setOcrFields(initialFields);
     }
   }, [hasAutofillData, autofillData]);
@@ -532,10 +536,45 @@ const AgencyKYCPage = () => {
   };
 
   const handleResubmit = () => {
-    // Clear rejection state and go back to step 1 for resubmission
+    // Clear ALL state for a fresh resubmission - not just status
+
+    // Clear KYC status
     setAgencyKycStatus(null);
     setAgencyKycNotes(null);
+    setAgencyKycFiles([]);
+
+    // Clear form fields
+    setBusinessName("");
+    setBusinessDesc("");
+    setRegistrationNumber("");
+    setRepIdType("PHILSYS_ID");
+
+    // Clear all file uploads
+    setBusinessPermit(null);
+    setRepIDFront(null);
+    setRepIDBack(null);
+    setAddressProof(null);
+    setAuthLetterFile(null);
+
+    // Clear all previews
+    setPermitPreview("");
+    setRepFrontPreview("");
+    setRepBackPreview("");
+    setAddressPreview("");
+    setAuthLetterPreview("");
+
+    // Clear OCR/confirmation state
+    setOcrFields({});
+    setEditedFields(new Set());
+    setIsConfirmingOcr(false);
+
+    // Clear validation states
+    setRepFrontValidationError(null);
+    setRepBackValidationError(null);
+
+    // Go back to step 1
     setCurrentStep(1);
+
     showToast({
       type: "info",
       title: "Resubmission Started",
@@ -1067,7 +1106,7 @@ const AgencyKYCPage = () => {
               </h2>
               <div className="space-y-4">
                 {AGENCY_KYC_FIELD_CONFIG.filter(
-                  (f) => f.section === "business"
+                  (f) => f.section === "business",
                 ).map((field) => (
                   <div key={field.key}>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1093,9 +1132,9 @@ const AgencyKYCPage = () => {
                       {hasAutofillData && (
                         <div className="absolute right-2 top-2">
                           <span
-                            className={`text-xs px-2 py-0.5 rounded-full ${
-                              getConfidenceColor(getFieldConfidence(field.key))
-                            }`}
+                            className={`text-xs px-2 py-0.5 rounded-full ${getConfidenceColor(
+                              getFieldConfidence(field.key),
+                            )}`}
                           >
                             {getConfidenceLabel(getFieldConfidence(field.key))}
                           </span>
@@ -1119,7 +1158,7 @@ const AgencyKYCPage = () => {
               </h2>
               <div className="space-y-4">
                 {AGENCY_KYC_FIELD_CONFIG.filter(
-                  (f) => f.section === "representative"
+                  (f) => f.section === "representative",
                 ).map((field) => (
                   <div key={field.key}>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1166,9 +1205,9 @@ const AgencyKYCPage = () => {
                       {hasAutofillData && field.type !== "select" && (
                         <div className="absolute right-2 top-2">
                           <span
-                            className={`text-xs px-2 py-0.5 rounded-full ${
-                              getConfidenceColor(getFieldConfidence(field.key))
-                            }`}
+                            className={`text-xs px-2 py-0.5 rounded-full ${getConfidenceColor(
+                              getFieldConfidence(field.key),
+                            )}`}
                           >
                             {getConfidenceLabel(getFieldConfidence(field.key))}
                           </span>
@@ -1524,6 +1563,8 @@ const AgencyKYCPage = () => {
                 {currentStep === 4 && renderStep5()}
                 {currentStep === 5 && renderStep5()}
                 {currentStep === 6 && renderStep6()}
+                {/* Fallback for any unmapped step */}
+                {currentStep > 6 && renderStep6()}
               </div>
             </div>
           </div>
