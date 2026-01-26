@@ -29,7 +29,8 @@ const getDevIP = () => {
 };
 
 const DEV_IP = getDevIP();
-const API_URL = __DEV__ ? `http://${DEV_IP}:8000` : "https://api.iayos.online";
+// Allow environment variable override for CI/CD (e.g., staging backend in Detox tests)
+const API_URL = process.env.EXPO_PUBLIC_API_URL || (__DEV__ ? `http://${DEV_IP}:8000` : "https://api.iayos.online");
 
 const deriveDevWebUrl = () => {
   try {
