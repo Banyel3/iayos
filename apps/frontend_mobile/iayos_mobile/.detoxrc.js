@@ -6,7 +6,7 @@ module.exports = {
       config: "e2e/jest.config.js",
     },
     jest: {
-      setupTimeout: 120000,
+      setupTimeout: 300000, // 5 minutes - match APP_LAUNCH_TIMEOUT for Android emulator
       teardownTimeout: 120000,
       retries: 2, // Retry flaky tests
     },
