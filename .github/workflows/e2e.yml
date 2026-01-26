@@ -110,6 +110,7 @@ jobs:
           python manage.py shell <<EOF
           from accounts.models import Accounts, Profile
           from django.contrib.auth.hashers import make_password
+          from datetime import date
 
           # Create test client
           client_account = Accounts.objects.create(
@@ -121,7 +122,9 @@ jobs:
               accountFK=client_account,
               profileType='CLIENT',
               firstName='Test',
-              lastName='Client'
+              lastName='Client',
+              contactNum='09123456789',
+              birthDate=date(1990, 1, 1)
           )
 
           # Create test worker
@@ -134,7 +137,9 @@ jobs:
               accountFK=worker_account,
               profileType='WORKER',
               firstName='Test',
-              lastName='Worker'
+              lastName='Worker',
+              contactNum='09987654321',
+              birthDate=date(1995, 6, 15)
           )
 
           print('Test users created successfully')
