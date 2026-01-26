@@ -1,8 +1,8 @@
 name: Mobile App Release
 
 permissions:
-  contents: write  # Required for creating releases and pushing version commits
-  packages: write  # Required for package operations
+  contents: write # Required for creating releases and pushing version commits
+  packages: write # Required for package operations
 
 on:
   # Automatic trigger on mobile code changes
@@ -99,7 +99,7 @@ jobs:
           if [ -z "$LAST_TAG" ]; then
             COMMITS=$(git log --oneline --format="%s" -20)
           else
-            COMMITS=$(git log ${LAST_TAG}..HEAD --online --format="%s" -- ${{ env.MOBILE_DIR }})
+            COMMITS=$(git log ${LAST_TAG}..HEAD --oneline --format="%s" -- ${{ env.MOBILE_DIR }})
           fi
 
           echo "Analyzing commits:"
