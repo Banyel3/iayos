@@ -214,7 +214,7 @@ jobs:
             curl -X POST "$SLACK_WEBHOOK_URL" \
               -H 'Content-Type: application/json' \
               -d "{\"text\":\"${MESSAGE}\"}"
-          else
+
             echo "📨 Slack notification sent"
           else
             echo "⚠️ SLACK_WEBHOOK_URL not configured - skipping notification"
