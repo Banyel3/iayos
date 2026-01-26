@@ -10,7 +10,7 @@ import { waitForScreen } from "../../helpers/navigation";
 describe("Authentication: Login Flow", () => {
   beforeAll(async () => {
     await device.launchApp({ newInstance: true });
-  });
+  }, 300000); // 5 minutes timeout for app launch
 
   beforeEach(async () => {
     await device.reloadReactNative();
