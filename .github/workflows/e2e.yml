@@ -275,7 +275,7 @@ jobs:
                 if (file.endsWith('results.json')) {
                   const filePath = path.join(resultsDir, file);
                   const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-                  
+
                   // Extract failed tests
                   if (data.suites) {
                     for (const suite of data.suites) {
@@ -340,7 +340,7 @@ jobs:
             ---
             *This issue was automatically created by the E2E test workflow.*
             `;
-              
+
               // Check if issue already exists
               const existingIssues = await github.rest.issues.listForRepo({
                 owner: context.repo.owner,
@@ -349,11 +349,11 @@ jobs:
                 labels: 'e2e-failure',
                 per_page: 100
               });
-              
-              const isDuplicate = existingIssues.data.some(issue => 
+
+              const isDuplicate = existingIssues.data.some(issue =>
                 issue.title === issueTitle
               );
-              
+
               if (!isDuplicate) {
                 // Create new issue
                 await github.rest.issues.create({
@@ -364,16 +364,16 @@ jobs:
                   labels: ['e2e-failure', 'bug', 'automated', failure.browser],
                   assignees: ['Banyel3']
                 });
-                
+
                 console.log(`Created issue: ${issueTitle}`);
               } else {
                 console.log(`Issue already exists: ${issueTitle}`);
-                
+
                 // Add comment to existing issue
-                const existingIssue = existingIssues.data.find(issue => 
+                const existingIssue = existingIssues.data.find(issue =>
                   issue.title === issueTitle
                 );
-                
+
                 await github.rest.issues.createComment({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
