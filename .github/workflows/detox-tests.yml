@@ -405,12 +405,18 @@ jobs:
           # Verify AuthContext has E2E mode code
           echo ""
           echo "Verifying AuthContext.tsx has E2E mode code..."
-          if grep -q "EXPO_PUBLIC_E2E_MODE" context/AuthContext.tsx; then
+          echo "Current directory: $(pwd)"
+          echo "Looking for context/AuthContext.tsx..."
+          ls -la context/ 2>/dev/null || echo "context/ directory not found"
+          
+          if [ -f "context/AuthContext.tsx" ] && grep -q "EXPO_PUBLIC_E2E_MODE" context/AuthContext.tsx; then
             echo "✅ E2E mode code is present in AuthContext.tsx"
             grep -n "E2E" context/AuthContext.tsx | head -5
           else
             echo "❌ WARNING: E2E mode code NOT found in AuthContext.tsx!"
             echo "App may hang waiting for auth check."
+            echo "File exists check:"
+            ls -la context/AuthContext.tsx 2>/dev/null || echo "File not found"
           fi
           echo ""
 
