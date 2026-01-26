@@ -9,6 +9,12 @@ import { User } from "@/types";
 import { useToast } from "@/components/ui/toast";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/form_button";
+import {
+  useAgencyKYCAutofill,
+  AGENCY_KYC_FIELD_CONFIG,
+  ID_TYPES,
+  AgencyKYCConfirmPayload,
+} from "@/lib/hooks/useAgencyKYCAutofill";
 
 interface KYCUser extends User {
   profile_data?: {
@@ -29,6 +35,9 @@ const AgencyKYCPage = () => {
   const [businessDesc, setBusinessDesc] = useState("");
   const [registrationNumber, setRegistrationNumber] = useState("");
 
+  // NEW: ID Type selector for representative
+  const [repIdType, setRepIdType] = useState("PHILSYS_ID");
+
   // Files
   const [businessPermit, setBusinessPermit] = useState<File | null>(null);
   const [repIDFront, setRepIDFront] = useState<File | null>(null);
@@ -47,6 +56,26 @@ const AgencyKYCPage = () => {
   const [agencyKycStatus, setAgencyKycStatus] = useState<string | null>(null);
   const [agencyKycFiles, setAgencyKycFiles] = useState<any[]>([]);
   const [agencyKycNotes, setAgencyKycNotes] = useState<string | null>(null);
+
+  // NEW: OCR Confirmation State (Step 5)
+  const [ocrFields, setOcrFields] = useState<Record<string, string>>({});
+  const [editedFields, setEditedFields] = useState<Set<string>>(new Set());
+  const [isConfirmingOcr, setIsConfirmingOcr] = useState(false);
+
+  // Hook for OCR autofill data
+  const {
+    autofillData,
+    hasAutofillData,
+    needsConfirmation,
+    isLoading: ocrLoading,
+    getFieldValue,
+    getFieldConfidence,
+    getConfidenceColor,
+    getConfidenceLabel,
+    confirmData,
+    isConfirming,
+    refetch: refetchAutofill,
+  } = useAgencyKYCAutofill();
 
   // AI Validation States
   const [isValidatingRepFront, setIsValidatingRepFront] = useState(false);
@@ -359,6 +388,7 @@ const AgencyKYCPage = () => {
       formData.append("businessName", businessName);
       formData.append("businessDesc", businessDesc);
       formData.append("registrationNumber", registrationNumber);
+      formData.append("rep_id_type", repIdType); // Issue #2: Include ID type
       formData.append("rep_front", repIDFront as Blob);
       formData.append("rep_back", repIDBack as Blob);
       formData.append("business_permit", businessPermit as Blob);
@@ -371,11 +401,30 @@ const AgencyKYCPage = () => {
         body: formData,
       });
 
+      const responseData = await upload.json().catch(() => ({}));
+
+      // Issue #3: Check for auto-rejection in response body, not just HTTP status
       if (!upload.ok) {
-        const data = await upload.json().catch(() => ({}));
-        let msg = data?.message || "Upload failed";
+        let msg = responseData?.message || responseData?.error || "Upload failed";
         if (upload.status === 413) msg = "One or more files are too large";
         showToast({ type: "error", title: "Upload failed", message: msg });
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Check if upload succeeded but documents were auto-rejected by AI
+      if (responseData?.status === "REJECTED") {
+        const rejectionReasons = responseData?.rejection_reasons || [];
+        showToast({
+          type: "error",
+          title: "Documents Rejected",
+          message: rejectionReasons[0] || "Your documents failed AI verification. Please upload clearer images.",
+        });
+        // Update local state to show rejection
+        setAgencyKycStatus("REJECTED");
+        setAgencyKycNotes(rejectionReasons.join("\n"));
+        if (responseData?.files) setAgencyKycFiles(responseData.files || []);
+        setCurrentStep(6); // Go to status step
         setIsSubmitting(false);
         return;
       }
@@ -386,31 +435,12 @@ const AgencyKYCPage = () => {
           agencyKycStatus?.toUpperCase() === "REJECTED"
             ? "Resubmitted"
             : "Submitted",
-        message:
-          agencyKycStatus?.toUpperCase() === "REJECTED"
-            ? "Your documents have been resubmitted for review"
-            : "KYC submitted successfully",
+        message: "Documents uploaded. Please review the extracted data.",
       });
-      // Refresh status after upload to trigger verification wall
-      try {
-        const res = await fetch(`${API_BASE}/api/agency/status`, {
-          method: "GET",
-          credentials: "include",
-        });
-        if (res.ok) {
-          const data = await res.json().catch(() => ({}));
-          const status = data?.status || data?.kycStatus || null;
-          setAgencyKycStatus(status);
-          if (data?.files) setAgencyKycFiles(data.files || []);
-          if (status && status !== "NOT_STARTED") {
-            setCurrentStep(4);
-          }
-        } else {
-          setCurrentStep(4); // fallback
-        }
-      } catch {
-        setCurrentStep(4); // fallback
-      }
+
+      // After successful upload, fetch autofill data and go to OCR confirmation step
+      await refetchAutofill();
+      setCurrentStep(5); // Issue #1: Go to OCR confirmation step
     } catch (err) {
       console.error(err);
       showToast({
@@ -421,6 +451,84 @@ const AgencyKYCPage = () => {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Issue #1: Handle OCR field changes
+  const handleOcrFieldChange = (key: string, value: string) => {
+    setOcrFields((prev) => ({ ...prev, [key]: value }));
+    setEditedFields((prev) => new Set(prev).add(key));
+  };
+
+  // Issue #1: Initialize OCR fields when autofill data loads
+  useEffect(() => {
+    if (hasAutofillData && autofillData?.fields) {
+      const initialFields: Record<string, string> = {};
+      AGENCY_KYC_FIELD_CONFIG.forEach((config) => {
+        initialFields[config.key] = getFieldValue(config.key);
+      });
+      // Also include form fields that user entered
+      if (businessName) initialFields["business_name"] = businessName;
+      if (registrationNumber) initialFields["permit_number"] = registrationNumber;
+      setOcrFields(initialFields);
+    }
+  }, [hasAutofillData, autofillData]);
+
+  // Issue #1: Handle OCR confirmation submit
+  const handleOcrConfirmSubmit = async () => {
+    setIsConfirmingOcr(true);
+    try {
+      const payload: AgencyKYCConfirmPayload = {
+        ...ocrFields,
+        rep_id_type: repIdType,
+        edited_fields: Array.from(editedFields),
+      };
+
+      await new Promise<void>((resolve, reject) => {
+        confirmData(payload, {
+          onSuccess: () => {
+            showToast({
+              type: "success",
+              title: "Data Confirmed",
+              message: "Your business information has been saved.",
+            });
+            fetchStatusAndGoToStep6();
+            resolve();
+          },
+          onError: (error: Error) => {
+            showToast({
+              type: "error",
+              title: "Confirmation Failed",
+              message: error?.message || "Failed to confirm data",
+            });
+            reject(error);
+          },
+        });
+      });
+    } catch {
+      // Error already shown in toast
+    } finally {
+      setIsConfirmingOcr(false);
+    }
+  };
+
+  // Helper to fetch status and go to step 6
+  const fetchStatusAndGoToStep6 = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/agency/status`, {
+        method: "GET",
+        credentials: "include",
+      });
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        const status = data?.status || data?.kycStatus || null;
+        setAgencyKycStatus(status);
+        if (data?.files) setAgencyKycFiles(data.files || []);
+        if (data?.notes) setAgencyKycNotes(data.notes || null);
+      }
+    } catch {
+      // Ignore errors
+    }
+    setCurrentStep(6);
   };
 
   const handleResubmit = () => {
@@ -436,7 +544,7 @@ const AgencyKYCPage = () => {
   };
 
   const renderProgressBar = () => {
-    const steps = 4;
+    const steps = 6; // Updated: 6 steps including OCR confirmation
     return (
       <div className="flex items-center justify-center space-x-2 mb-8">
         {Array.from({ length: steps }).map((_, index) => (
@@ -615,6 +723,24 @@ const AgencyKYCPage = () => {
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
             Authorized Representative ID
           </h2>
+
+          {/* Issue #2: ID Type Selector */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              ID Type <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={repIdType}
+              onChange={(e) => setRepIdType(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+            >
+              {ID_TYPES.map((idType) => (
+                <option key={idType.value} value={idType.value}>
+                  {idType.label}
+                </option>
+              ))}
+            </select>
+          </div>
 
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -915,7 +1041,201 @@ const AgencyKYCPage = () => {
     );
   };
 
-  const renderStep4 = () => {
+  // Issue #1: Step 5 - OCR Confirmation Form
+  const renderStep5 = () => {
+    return (
+      <div className="max-w-xl mx-auto">
+        <h1 className="text-2xl font-bold text-gray-900 mb-2 text-center">
+          Review Extracted Information
+        </h1>
+        <p className="text-gray-600 mb-6 text-center text-sm">
+          We've extracted the following information from your documents. Please
+          review and correct any errors before submitting.
+        </p>
+
+        {ocrLoading ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+            <p className="text-gray-600">Loading extracted data...</p>
+          </div>
+        ) : (
+          <>
+            {/* Business Information Section */}
+            <div className="mb-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-3 pb-2 border-b">
+                Business Information
+              </h2>
+              <div className="space-y-4">
+                {AGENCY_KYC_FIELD_CONFIG.filter(
+                  (f) => f.section === "business"
+                ).map((field) => (
+                  <div key={field.key}>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      {field.label}
+                      {field.required && (
+                        <span className="text-red-500 ml-1">*</span>
+                      )}
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={ocrFields[field.key] || ""}
+                        onChange={(e) =>
+                          handleOcrFieldChange(field.key, e.target.value)
+                        }
+                        placeholder={field.placeholder}
+                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                          editedFields.has(field.key)
+                            ? "border-yellow-400 bg-yellow-50"
+                            : "border-gray-300"
+                        }`}
+                      />
+                      {hasAutofillData && (
+                        <div className="absolute right-2 top-2">
+                          <span
+                            className={`text-xs px-2 py-0.5 rounded-full ${
+                              getConfidenceColor(getFieldConfidence(field.key))
+                            }`}
+                          >
+                            {getConfidenceLabel(getFieldConfidence(field.key))}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    {editedFields.has(field.key) && (
+                      <p className="text-xs text-yellow-600 mt-1">
+                        ✏️ Edited by you
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Representative Information Section */}
+            <div className="mb-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-3 pb-2 border-b">
+                Authorized Representative
+              </h2>
+              <div className="space-y-4">
+                {AGENCY_KYC_FIELD_CONFIG.filter(
+                  (f) => f.section === "representative"
+                ).map((field) => (
+                  <div key={field.key}>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      {field.label}
+                      {field.required && (
+                        <span className="text-red-500 ml-1">*</span>
+                      )}
+                    </label>
+                    <div className="relative">
+                      {field.type === "select" ? (
+                        <select
+                          value={ocrFields[field.key] || repIdType}
+                          onChange={(e) => {
+                            handleOcrFieldChange(field.key, e.target.value);
+                            setRepIdType(e.target.value);
+                          }}
+                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white ${
+                            editedFields.has(field.key)
+                              ? "border-yellow-400 bg-yellow-50"
+                              : "border-gray-300"
+                          }`}
+                        >
+                          {field.options?.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          type={field.type === "date" ? "date" : "text"}
+                          value={ocrFields[field.key] || ""}
+                          onChange={(e) =>
+                            handleOcrFieldChange(field.key, e.target.value)
+                          }
+                          placeholder={field.placeholder}
+                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                            editedFields.has(field.key)
+                              ? "border-yellow-400 bg-yellow-50"
+                              : "border-gray-300"
+                          }`}
+                        />
+                      )}
+                      {hasAutofillData && field.type !== "select" && (
+                        <div className="absolute right-2 top-2">
+                          <span
+                            className={`text-xs px-2 py-0.5 rounded-full ${
+                              getConfidenceColor(getFieldConfidence(field.key))
+                            }`}
+                          >
+                            {getConfidenceLabel(getFieldConfidence(field.key))}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    {editedFields.has(field.key) && (
+                      <p className="text-xs text-yellow-600 mt-1">
+                        ✏️ Edited by you
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Confidence Legend */}
+            {hasAutofillData && (
+              <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                <p className="text-xs font-medium text-gray-700 mb-2">
+                  Confidence Legend:
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-800">
+                    High (&gt;80%)
+                  </span>
+                  <span className="text-xs px-2 py-1 rounded-full bg-yellow-100 text-yellow-800">
+                    Medium (50-80%)
+                  </span>
+                  <span className="text-xs px-2 py-1 rounded-full bg-red-100 text-red-800">
+                    Low (&lt;50%)
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            <div className="flex justify-between gap-3 mt-6">
+              <button
+                onClick={() => setCurrentStep(3)}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium"
+              >
+                ← Back
+              </button>
+              <button
+                onClick={handleOcrConfirmSubmit}
+                disabled={isConfirmingOcr}
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {isConfirmingOcr ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Confirming...
+                  </>
+                ) : (
+                  "Confirm & Submit"
+                )}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    );
+  };
+
+  // Step 6: Status Page (renamed from Step 4)
+  const renderStep6 = () => {
     const status = agencyKycStatus?.toUpperCase();
     const isRejected = status === "REJECTED";
     const isApproved = status === "APPROVED";
@@ -1201,7 +1521,9 @@ const AgencyKYCPage = () => {
                 {currentStep === 1 && renderStep1()}
                 {currentStep === 2 && renderStep2()}
                 {currentStep === 3 && renderStep3()}
-                {currentStep === 4 && renderStep4()}
+                {currentStep === 4 && renderStep5()}
+                {currentStep === 5 && renderStep5()}
+                {currentStep === 6 && renderStep6()}
               </div>
             </div>
           </div>
