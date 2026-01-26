@@ -108,7 +108,7 @@ jobs:
           DJANGO_SECRET_KEY: e2e-test-secret-key
         run: |
           python manage.py shell <<EOF
-          from accounts.models import Accounts, Profile
+          from accounts.models import Accounts, Profile, WorkerProfile, ClientProfile
           from django.contrib.auth.hashers import make_password
           from datetime import date
 
@@ -118,13 +118,18 @@ jobs:
               password=make_password('Test123!'),
               isVerified=True
           )
-          Profile.objects.create(
+          client_profile = Profile.objects.create(
               accountFK=client_account,
               profileType='CLIENT',
               firstName='Test',
               lastName='Client',
               contactNum='09123456789',
               birthDate=date(1990, 1, 1)
+          )
+          ClientProfile.objects.create(
+              profileID=client_profile,
+              description='Test client for E2E testing',
+              totalJobsPosted=0
           )
 
           # Create test worker
@@ -133,13 +138,16 @@ jobs:
               password=make_password('Test123!'),
               isVerified=True
           )
-          Profile.objects.create(
+          worker_profile = Profile.objects.create(
               accountFK=worker_account,
               profileType='WORKER',
               firstName='Test',
               lastName='Worker',
               contactNum='09987654321',
               birthDate=date(1995, 6, 15)
+          )
+          WorkerProfile.objects.create(
+              profileID=worker_profile
           )
 
           print('Test users created successfully')
