@@ -154,7 +154,8 @@ jobs:
               birthDate=date(1995, 6, 15)
           )
           WorkerProfile.objects.create(
-              profileID=worker_profile
+              profileID=worker_profile,
+              description='Test worker for E2E testing'
           )
 
           print('Test users created successfully')
@@ -713,7 +714,8 @@ jobs:
               birthDate=date(1995, 6, 15)
           )
           WorkerProfile.objects.create(
-              profileID=worker_profile
+              profileID=worker_profile,
+              description='Test worker for E2E testing'
           )
 
           print('Test users created successfully')
