@@ -390,7 +390,7 @@ const Login = () => {
                     className="h-8 w-auto mx-auto mb-4"
                   />
                   <h1 className="font-inter text-xl font-semibold text-gray-900 mb-1">
-                    Welcome back
+                    Welcome back {'<3'}
                   </h1>
                   <p className="font-inter text-sm text-gray-600">
                     Sign in to continue
@@ -572,7 +572,7 @@ const Login = () => {
                     height={60}
                     className="h-16 w-auto mx-auto mb-6"
                   />
-                  <h1 className="text-4xl font-bold mb-4">Welcome back</h1>
+                  <h1 className="text-4xl font-bold mb-4">Welcome back {'<3'}</h1>
                   <p className="text-xl mb-8 opacity-90">
                     Sign in to your account and continue your journey
                   </p>
@@ -637,7 +637,7 @@ const Login = () => {
                       Sign in to your account
                     </h2>
                     <p className="text-gray-600">
-                      Welcome back! Please enter your details
+                      Welcome back {'<3'}! Please enter your details
                     </p>
                   </div>
 
