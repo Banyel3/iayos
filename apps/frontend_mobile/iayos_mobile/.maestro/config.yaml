@@ -4,13 +4,9 @@
 appId: com.devante.iayos
 
 # Flow inclusion patterns - include all test suites in subdirectories
+# Using "*/*" pattern to include all yaml files from all subdirectories
 flows:
-  - "auth/**/*.yaml"
-  - "jobs_client/**/*.yaml"
-  - "jobs_worker/**/*.yaml"
-  - "kyc/**/*.yaml"
-  - "profile/**/*.yaml"
-  - "wallet/**/*.yaml"
+  - "*/*"
 
 # Environment variables for tests
 env:
