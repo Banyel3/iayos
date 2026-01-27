@@ -35,7 +35,7 @@ on:
           - minor
           - patch
       use_latest_build:
-        description: "Use latest build instead of creating new build"
+        description: "Use latest Expo build (skip new build, just create GitHub release)"
         required: false
         default: false
         type: boolean
@@ -219,8 +219,11 @@ jobs:
         run: |
           echo "Fetching latest build info..."
 
-          # Wait a bit for artifacts to be available (skip if using existing build)
-          if [ "${{ github.event.inputs.use_latest_build }}" != "true" ]; then
+          # If using latest build, skip waiting (build already exists)
+          if [ "${{ github.event.inputs.use_latest_build }}" = "true" ]; then
+            echo "♻️ Using latest existing build from Expo"
+          else
+            echo "⏳ Waiting for new build to complete..."
             sleep 10
           fi
 
@@ -277,7 +280,42 @@ jobs:
           git config --local user.name "github-actions[bot]"
           git add ${{ env.MOBILE_DIR }}/package.json ${{ env.MOBILE_DIR }}/app.json
           git commit -m "chore(mobile): bump version to ${{ steps.version.outputs.new_version }}"
-          git push
+          
+          # Pull with rebase before pushing to handle concurrent commits
+          echo "🔄 Pulling latest changes before pushing..."
+          MAX_PUSH_RETRIES=5
+          PUSH_RETRY=0
+          
+          while [ $PUSH_RETRY -lt $MAX_PUSH_RETRIES ]; do
+            echo "Attempt $((PUSH_RETRY + 1))/$MAX_PUSH_RETRIES: Pulling and pushing..."
+            
+            # Pull with rebase (preserves our commit on top)
+            if git pull --rebase origin ${{ github.ref_name }}; then
+              echo "✅ Successfully pulled latest changes"
+              
+              # Try to push
+              if git push origin HEAD:${{ github.ref_name }}; then
+                echo "✅ Successfully pushed version bump"
+                break
+              else
+                echo "⚠️ Push failed, will retry..."
+                PUSH_RETRY=$((PUSH_RETRY + 1))
+                sleep 5
+              fi
+            else
+              echo "❌ Pull rebase failed - may have conflicts"
+              # If rebase fails, abort and try again
+              git rebase --abort 2>/dev/null || true
+              PUSH_RETRY=$((PUSH_RETRY + 1))
+              sleep 5
+            fi
+          done
+          
+          if [ $PUSH_RETRY -eq $MAX_PUSH_RETRIES ]; then
+            echo "❌ Failed to push after $MAX_PUSH_RETRIES attempts"
+            echo "⚠️ Continuing with release - version commit may be missing"
+            echo "::warning::Version bump commit was not pushed. Manual intervention may be needed."
+          fi
 
       - name: Create Release
         if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true'
