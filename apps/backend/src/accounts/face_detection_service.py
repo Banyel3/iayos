@@ -150,6 +150,34 @@ class FaceComparisonResult:
 # Face Detection Service
 # ============================================================================
 
+# Minimum free memory required to run DeepFace (in MB)
+# TensorFlow + DeepFace needs ~300-400MB to load models
+MIN_FREE_MEMORY_MB = int(os.getenv("DEEPFACE_MIN_MEMORY_MB", "250"))
+
+def _get_available_memory_mb() -> int:
+    """Get available system memory in MB. Returns -1 if unable to determine."""
+    try:
+        # Try reading from /proc/meminfo (Linux)
+        with open('/proc/meminfo', 'r') as f:
+            for line in f:
+                if line.startswith('MemAvailable:'):
+                    # Format: "MemAvailable:    1234567 kB"
+                    kb = int(line.split()[1])
+                    return kb // 1024
+    except:
+        pass
+    
+    try:
+        # Fallback: use psutil if available
+        import psutil
+        return int(psutil.virtual_memory().available / 1024 / 1024)
+    except:
+        pass
+    
+    # Unknown - return -1 to indicate we couldn't check
+    return -1
+
+
 class FaceDetectionService:
     """
     Face detection and verification service using DeepFace
@@ -262,6 +290,19 @@ class FaceDetectionService:
         request_id = int(time.time() * 1000) % 1000000  # Last 6 digits of timestamp
         logger.info(f"🔍 [REQ-{request_id}] Starting face detection with DeepFace...")
         logger.info(f"   [REQ-{request_id}] Image size: {len(image_data)} bytes")
+        
+        # Check available memory before running DeepFace (prevents OOM crash)
+        available_mb = _get_available_memory_mb()
+        logger.info(f"   [REQ-{request_id}] Available memory: {available_mb}MB (min required: {MIN_FREE_MEMORY_MB}MB)")
+        
+        if available_mb != -1 and available_mb < MIN_FREE_MEMORY_MB:
+            logger.warning(f"⚠️ [REQ-{request_id}] Insufficient memory for DeepFace ({available_mb}MB < {MIN_FREE_MEMORY_MB}MB)")
+            logger.warning(f"   [REQ-{request_id}] Skipping face detection to prevent OOM crash - manual review required")
+            return FaceDetectionResult(
+                detected=False,
+                skipped=True,
+                error=f"Insufficient memory for face detection ({available_mb}MB available). Document will be reviewed manually."
+            )
         
         if not DEEPFACE_AVAILABLE or not self._initialized:
             logger.error(f"❌ [REQ-{request_id}] DeepFace not available (AVAILABLE={DEEPFACE_AVAILABLE}, INITIALIZED={self._initialized})")
@@ -398,6 +439,20 @@ class FaceDetectionService:
         logger.info(f"   [COMP-{request_id}] ID image size: {len(id_image_data)} bytes")
         logger.info(f"   [COMP-{request_id}] Selfie image size: {len(selfie_image_data)} bytes")
         logger.info(f"   [COMP-{request_id}] Custom threshold: {similarity_threshold}")
+        
+        # Check available memory before running DeepFace (prevents OOM crash)
+        available_mb = _get_available_memory_mb()
+        logger.info(f"   [COMP-{request_id}] Available memory: {available_mb}MB (min required: {MIN_FREE_MEMORY_MB}MB)")
+        
+        if available_mb != -1 and available_mb < MIN_FREE_MEMORY_MB:
+            logger.warning(f"⚠️ [COMP-{request_id}] Insufficient memory for DeepFace ({available_mb}MB < {MIN_FREE_MEMORY_MB}MB)")
+            logger.warning(f"   [COMP-{request_id}] Skipping face comparison to prevent OOM crash - manual review required")
+            return FaceComparisonResult(
+                match=False,
+                skipped=True,
+                needs_manual_review=True,
+                error=f"Insufficient memory for face comparison ({available_mb}MB available). Document will be reviewed manually."
+            )
         
         if not DEEPFACE_AVAILABLE or not self._initialized:
             logger.error(f"❌ [COMP-{request_id}] DeepFace not available (AVAILABLE={DEEPFACE_AVAILABLE}, INITIALIZED={self._initialized})")
