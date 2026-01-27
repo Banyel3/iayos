@@ -118,7 +118,7 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PATH="/app/.local/bin:$PATH"
+    PATH="/app/venv/bin:$PATH"
 
 # Create non-root user early for security
 RUN addgroup -g 1001 -S appgroup \
@@ -154,9 +154,9 @@ RUN python -m venv /app/venv \
     && /app/venv/bin/pip install --no-cache-dir -r requirements.txt \
     && /app/venv/bin/pip check \
     && echo '✅ All dependencies installed to virtualenv' \
-    && PYTHONPATH=/app/.local/lib/python3.12/site-packages python -c "import packaging; print(f'✅ packaging {packaging.__version__} imports OK in deps stage')" || echo '❌ packaging import FAILED in deps stage' \
-    && find /app/.local -name "*.pyc" -delete 2>/dev/null || true \
-    && find /app/.local -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+    && /app/venv/bin/python -c "import packaging; print(f'✅ packaging {packaging.__version__} imports OK in deps stage')" \
+    && find /app/venv -name "*.pyc" -delete 2>/dev/null || true \
+    && find /app/venv -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
 
 # ============================================
 # Stage 9: Backend Builder
