@@ -1,0 +1,25 @@
+# Maestro E2E Test Configuration for iAyos Mobile
+# Documentation: https://maestro.mobile.dev/
+
+appId: com.iayos.app
+
+# Environment variables for tests
+env:
+  API_URL: "https://api.iayos.online"
+  # Test user credentials (must exist in production database)
+  WORKER_EMAIL: "worker.test@iayos.com"
+  WORKER_PASSWORD: "Test1234!"
+  CLIENT_EMAIL: "client.test@iayos.com"
+  CLIENT_PASSWORD: "Test1234!"
+
+# Global settings
+tags:
+  - auth
+  - jobs
+  - profile
+
+# Retry failed assertions
+retryDepth: 3
+
+# Default timeout for waitFor commands (ms)
+waitTimeout: 10000

@@ -1,0 +1,253 @@
+# Maestro E2E Tests for iAyos Mobile
+# Uses release APK from GitHub releases and live backend
+# Documentation: https://maestro.mobile.dev/
+
+name: Maestro E2E Tests
+
+on:
+  # Manual trigger with options
+  workflow_dispatch:
+    inputs:
+      test_suite:
+        description: 'Test suite to run (auth, jobs, profile, all)'
+        required: false
+        default: 'auth'
+        type: choice
+        options:
+          - auth
+          - jobs
+          - profile
+          - all
+      apk_version:
+        description: 'APK version tag (leave empty for latest)'
+        required: false
+        default: ''
+        type: string
+
+  # Run on push to main (after mobile release)
+  push:
+    branches:
+      - main
+    paths:
+      - 'apps/frontend_mobile/**'
+      - '.maestro/**'
+      - '.github/workflows/maestro-tests.yml'
+
+  # Run on PRs affecting mobile
+  pull_request:
+    branches:
+      - main
+      - dev
+    paths:
+      - 'apps/frontend_mobile/**'
+      - '.maestro/**'
+
+# Cancel in-progress runs for the same branch
+concurrency:
+  group: maestro-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Live backend URL
+  API_URL: "https://api.iayos.online"
+  # App package name
+  APP_ID: "com.iayos.app"
+
+jobs:
+  maestro-tests:
+    name: Run Maestro E2E Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      # ─────────────────────────────────────────────────────────
+      # 1. CHECKOUT & SETUP
+      # ─────────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      # ─────────────────────────────────────────────────────────
+      # 2. INSTALL MAESTRO CLI
+      # ─────────────────────────────────────────────────────────
+      - name: Install Maestro CLI
+        run: |
+          curl -Ls "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> $GITHUB_PATH
+
+      - name: Verify Maestro installation
+        run: |
+          export PATH="$HOME/.maestro/bin:$PATH"
+          maestro --version
+
+      # ─────────────────────────────────────────────────────────
+      # 3. DOWNLOAD RELEASE APK
+      # ─────────────────────────────────────────────────────────
+      - name: Download latest release APK
+        id: download_apk
+        run: |
+          # Determine which version to download
+          if [ -n "${{ github.event.inputs.apk_version }}" ]; then
+            VERSION="${{ github.event.inputs.apk_version }}"
+            echo "Using specified version: $VERSION"
+          else
+            # Get latest release tag
+            VERSION=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases/latest | jq -r '.tag_name')
+            echo "Using latest version: $VERSION"
+          fi
+          
+          # Download APK from release assets
+          DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${VERSION}/iayos-${VERSION}.apk"
+          echo "Downloading from: $DOWNLOAD_URL"
+          
+          mkdir -p artifacts
+          curl -L -o artifacts/app-release.apk "$DOWNLOAD_URL" || {
+            echo "Failed to download release APK, trying alternate naming..."
+            # Try alternate naming patterns
+            curl -L -o artifacts/app-release.apk "https://github.com/${{ github.repository }}/releases/download/${VERSION}/app-release.apk" || {
+              echo "::error::Could not download APK from release ${VERSION}"
+              exit 1
+            }
+          }
+          
+          echo "apk_path=artifacts/app-release.apk" >> $GITHUB_OUTPUT
+          ls -la artifacts/
+
+      - name: Verify APK
+        run: |
+          file artifacts/app-release.apk
+          # Check if it's a valid APK (zip file with AndroidManifest)
+          unzip -l artifacts/app-release.apk | head -20
+
+      # ─────────────────────────────────────────────────────────
+      # 4. SETUP ANDROID EMULATOR
+      # ─────────────────────────────────────────────────────────
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Create and start emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 31
+          target: google_apis
+          arch: x86_64
+          profile: pixel_5
+          avd-name: maestro_avd
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          disable-animations: true
+          script: |
+            echo "Emulator started successfully"
+            adb devices
+            
+            # Wait for emulator to be fully ready
+            adb wait-for-device
+            sleep 10
+            
+            # Disable animations for faster tests
+            adb shell settings put global window_animation_scale 0
+            adb shell settings put global transition_animation_scale 0
+            adb shell settings put global animator_duration_scale 0
+            
+            # Install the APK
+            echo "Installing APK..."
+            adb install -r artifacts/app-release.apk
+            
+            # Verify installation
+            adb shell pm list packages | grep iayos || echo "Warning: Package not found"
+            
+            # Run Maestro tests
+            echo "Running Maestro tests..."
+            export PATH="$HOME/.maestro/bin:$PATH"
+            
+            # Determine test suite
+            TEST_SUITE="${{ github.event.inputs.test_suite || 'auth' }}"
+            MAESTRO_DIR="apps/frontend_mobile/iayos_mobile/.maestro"
+            
+            if [ "$TEST_SUITE" = "all" ]; then
+              echo "Running all test suites..."
+              maestro test "$MAESTRO_DIR" --format junit --output maestro-report.xml || TEST_RESULT=$?
+            else
+              echo "Running $TEST_SUITE test suite..."
+              maestro test "$MAESTRO_DIR/$TEST_SUITE" --format junit --output maestro-report.xml || TEST_RESULT=$?
+            fi
+            
+            # Capture exit code
+            echo "test_result=${TEST_RESULT:-0}" >> $GITHUB_OUTPUT
+
+      # ─────────────────────────────────────────────────────────
+      # 5. COLLECT RESULTS
+      # ─────────────────────────────────────────────────────────
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maestro-test-results
+          path: |
+            maestro-report.xml
+            ~/.maestro/tests/**/*.png
+            ~/.maestro/tests/**/*.mp4
+          retention-days: 14
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maestro-screenshots
+          path: ~/.maestro/tests/**/screenshots/
+          retention-days: 14
+          if-no-files-found: ignore
+
+      # ─────────────────────────────────────────────────────────
+      # 6. PUBLISH RESULTS
+      # ─────────────────────────────────────────────────────────
+      - name: Publish test results
+        if: always()
+        uses: mikepenz/action-junit-report@v4
+        with:
+          report_paths: 'maestro-report.xml'
+          fail_on_failure: true
+          require_tests: true
+          check_name: 'Maestro E2E Test Results'
+
+      - name: Comment on PR with results
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let status = '✅ Passed';
+            let details = 'All E2E tests passed successfully!';
+            
+            // Check if tests failed
+            if (process.env.TEST_RESULT !== '0') {
+              status = '❌ Failed';
+              details = 'Some E2E tests failed. Check the workflow logs for details.';
+            }
+            
+            const body = `## Maestro E2E Test Results ${status}
+            
+            **Test Suite:** \`${{ github.event.inputs.test_suite || 'auth' }}\`
+            **Backend:** \`${{ env.API_URL }}\`
+            
+            ${details}
+            
+            📦 [Download Artifacts](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            `;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });

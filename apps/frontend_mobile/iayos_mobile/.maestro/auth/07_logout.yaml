@@ -1,0 +1,80 @@
+# Test: Logout Flow
+# Verifies that a logged-in user can logout and return to welcome screen
+# NOTE: Test user must exist in production database
+
+appId: com.iayos.app
+tags:
+  - auth
+  - logout
+  - critical
+
+env:
+  WORKER_EMAIL: "worker.test@iayos.com"
+  WORKER_PASSWORD: "Test1234!"
+
+---
+
+# Launch app fresh
+- launchApp:
+    clearState: true
+
+# Login first
+- waitForAnimationToEnd
+- tapOn:
+    id: "welcome-login-button"
+
+- waitForAnimationToEnd
+- tapOn:
+    id: "login-email-input"
+- inputText: ${WORKER_EMAIL}
+- tapOn:
+    id: "login-password-input"
+- inputText: ${WORKER_PASSWORD}
+- hideKeyboard
+- tapOn:
+    id: "login-submit-button"
+
+# Wait for app to load
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    notVisible:
+      id: "login-screen"
+    timeout: 15000
+
+# Navigate to profile tab (if not already there)
+- tapOn:
+    id: "profile-tab"
+    optional: true
+
+# Wait for profile screen
+- waitForAnimationToEnd
+
+# Find and tap logout button
+- scrollUntilVisible:
+    element:
+      id: "profile-logout-button"
+    direction: DOWN
+    timeout: 10000
+
+- tapOn:
+    id: "profile-logout-button"
+
+# Confirm logout if dialog appears
+- tapOn:
+    text: ".*logout.*|.*yes.*|.*confirm.*"
+    regex: true
+    optional: true
+
+# Wait for navigation back to welcome
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "welcome-screen"
+    timeout: 10000
+
+# Verify back on welcome screen
+- assertVisible:
+    id: "welcome-get-started-button"
+
+# Take screenshot
+- takeScreenshot: "logout_success"

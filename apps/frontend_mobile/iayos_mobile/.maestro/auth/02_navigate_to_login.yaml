@@ -1,0 +1,46 @@
+# Test: Navigate to Login Screen
+# Verifies navigation from welcome screen to login screen
+
+appId: com.iayos.app
+tags:
+  - auth
+  - login
+  - navigation
+
+---
+
+# Launch app fresh
+- launchApp:
+    clearState: true
+
+# Wait for welcome screen
+- waitForAnimationToEnd
+- assertVisible:
+    id: "welcome-screen"
+
+# Tap login button
+- tapOn:
+    id: "welcome-login-button"
+
+# Wait for navigation
+- waitForAnimationToEnd
+
+# Verify login screen elements
+- assertVisible:
+    id: "login-screen"
+    optional: false
+
+- assertVisible:
+    id: "login-email-input"
+    optional: false
+
+- assertVisible:
+    id: "login-password-input"
+    optional: false
+
+- assertVisible:
+    id: "login-submit-button"
+    optional: false
+
+# Take screenshot
+- takeScreenshot: "login_screen"

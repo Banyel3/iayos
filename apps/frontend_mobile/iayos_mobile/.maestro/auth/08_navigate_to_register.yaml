@@ -1,0 +1,39 @@
+# Test: Navigate to Register Screen
+# Verifies navigation from login screen to register screen
+
+appId: com.iayos.app
+tags:
+  - auth
+  - register
+  - navigation
+
+---
+
+# Launch app fresh
+- launchApp:
+    clearState: true
+
+# Navigate to login screen
+- waitForAnimationToEnd
+- tapOn:
+    id: "welcome-login-button"
+
+# Wait for login screen
+- waitForAnimationToEnd
+- assertVisible:
+    id: "login-screen"
+
+# Tap register link
+- tapOn:
+    id: "login-register-link"
+
+# Wait for navigation
+- waitForAnimationToEnd
+
+# Verify on register screen
+- assertVisible:
+    id: "register-screen"
+    optional: false
+
+# Take screenshot
+- takeScreenshot: "register_screen"

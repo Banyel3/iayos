@@ -145,7 +145,12 @@ const AgencyKYCPage = () => {
   const validateDocumentWithAI = async (
     file: File,
     documentType: string,
-  ): Promise<{ valid: boolean; error?: string; warning?: string; details?: any }> => {
+  ): Promise<{
+    valid: boolean;
+    error?: string;
+    warning?: string;
+    details?: any;
+  }> => {
     try {
       const formData = new FormData();
       formData.append("file", file);
@@ -233,13 +238,15 @@ const AgencyKYCPage = () => {
     }
 
     setRepIDFront(f);
-    
+
     // Check if face detection was skipped (CompreFace unavailable) - show warning
     if (result.details?.face_detection_skipped) {
       showToast({
         type: "warning",
         title: "Manual Review Required",
-        message: result.warning || "Face verification unavailable. Your document will be reviewed manually.",
+        message:
+          result.warning ||
+          "Face verification unavailable. Your document will be reviewed manually.",
       });
     } else {
       showToast({
@@ -288,13 +295,15 @@ const AgencyKYCPage = () => {
     }
 
     setRepIDBack(f);
-    
+
     // Check if face detection was skipped (CompreFace unavailable) - show warning
     if (result.details?.face_detection_skipped) {
       showToast({
         type: "warning",
         title: "Manual Review Required",
-        message: result.warning || "Face verification unavailable. Your document will be reviewed manually.",
+        message:
+          result.warning ||
+          "Face verification unavailable. Your document will be reviewed manually.",
       });
     } else {
       showToast({

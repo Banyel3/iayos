@@ -506,10 +506,10 @@ jobs:
         run: |
           echo "Building androidTest APK for Detox instrumentation..."
           echo "Note: Native code compilation (CMake) can take 15-20 minutes"
-          
+
           # Optimize Gradle for CI
           export GRADLE_OPTS="-Xmx6g -Xms1g -XX:MaxMetaspaceSize=1g -XX:+UseParallelGC"
-          
+
           # Create gradle.properties for CI optimization
           cat >> gradle.properties << EOF
           org.gradle.parallel=true
