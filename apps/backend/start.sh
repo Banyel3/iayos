@@ -33,21 +33,40 @@ cd /app/backend/src
 echo "=========================================="
 echo "Testing database connection..."
 echo "=========================================="
+echo "About to run Django setup and database test..."
 # Test database connection before migrations
 python -c "
+import sys
+print('Python interpreter starting...')
+sys.stdout.flush()
+
 import os
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'iayos_project.settings')
+print('Importing Django...')
+sys.stdout.flush()
+
 import django
+print('Running django.setup()...')
+sys.stdout.flush()
+
 django.setup()
+print('Django setup complete!')
+sys.stdout.flush()
+
 from django.db import connection
+print('Testing database connection...')
+sys.stdout.flush()
+
 try:
     with connection.cursor() as cursor:
         cursor.execute('SELECT 1')
         print('✅ Database connection successful')
 except Exception as e:
     print(f'❌ Database connection FAILED: {e}')
-    exit(1)
+    sys.exit(1)
 " 2>&1
+
+echo "Database test passed!"
 
 echo "=========================================="
 echo "Running database migrations..."
