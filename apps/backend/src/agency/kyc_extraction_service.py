@@ -48,6 +48,11 @@ def process_agency_kyc_extraction(agency_kyc_record: AgencyKYC) -> Optional[Agen
             defaults={"extraction_status": "PENDING"}
         )
         
+        # Save user-selected business_type if provided
+        if hasattr(agency_kyc_record, '_business_type_selection'):
+            extracted.confirmed_business_type = agency_kyc_record._business_type_selection
+            logger.info(f"   💼 Saving user-selected business_type: {extracted.confirmed_business_type}")
+        
         if not created:
             logger.info(f"   ℹ️ Updating existing AgencyKYCExtractedData record")
         else:

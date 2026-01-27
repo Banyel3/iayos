@@ -219,14 +219,23 @@ def confirm_agency_kyc_data(request):
     
     Request body (JSON):
     - business_name: str
-    - registration_number: str
-    - business_description: str
+    - business_type: str (NEW: SOLE_PROPRIETORSHIP, PARTNERSHIP, CORPORATION, COOPERATIVE)
+    - business_address: str
+    - permit_number: str
+    - tin: str
+    - rep_full_name: str
+    - rep_id_number: str
+    - rep_birth_date: str (YYYY-MM-DD)
+    - rep_address: str
+    - edited_fields: list[str]
     
-    This updates the agency profile with user-confirmed data.
+    This updates AgencyKYCExtractedData with user-confirmed data.
     """
     try:
         import json
-        from accounts.models import Agency as AgencyProfile
+        from .models import AgencyKYC, AgencyKYCExtractedData
+        from django.utils import timezone
+        from datetime import datetime
         
         account_id = request.auth.accountID
         
@@ -236,37 +245,84 @@ def confirm_agency_kyc_data(request):
         except:
             body = {}
         
-        business_name = body.get("business_name") or request.POST.get("business_name")
-        registration_number = body.get("registration_number") or request.POST.get("registration_number")
-        business_description = body.get("business_description") or request.POST.get("business_description")
-        
-        # Get agency profile
+        # Get AgencyKYC record
         try:
-            agency = AgencyProfile.objects.get(accountFK_id=account_id)
-        except AgencyProfile.DoesNotExist:
-            return Response({"success": False, "error": "Agency profile not found"}, status=404)
+            kyc_record = AgencyKYC.objects.get(accountFK_id=account_id)
+        except AgencyKYC.DoesNotExist:
+            return Response({"success": False, "error": "No KYC submission found. Please upload documents first."}, status=404)
         
-        # Update agency profile with confirmed data
-        if business_name:
-            agency.businessName = business_name
-        if business_description:
-            agency.businessDesc = business_description
-        # Note: registration_number might need a new field in Agency model
-        # For now, we'll store it in businessDesc if no dedicated field exists
+        # Get or create extracted data record
+        extracted, created = AgencyKYCExtractedData.objects.get_or_create(
+            agencyKyc=kyc_record,
+            defaults={"extraction_status": "PENDING"}
+        )
         
-        agency.save()
+        # Track which fields were edited by user
+        edited_fields = body.get("edited_fields", [])
+        
+        # Update confirmed fields
+        if "business_name" in body:
+            extracted.confirmed_business_name = body["business_name"]
+        if "business_type" in body:
+            extracted.confirmed_business_type = body["business_type"]
+        if "business_address" in body:
+            extracted.confirmed_business_address = body["business_address"]
+        if "permit_number" in body:
+            extracted.confirmed_permit_number = body["permit_number"]
+        if "tin" in body:
+            extracted.confirmed_tin = body["tin"]
+        if "dti_number" in body:
+            extracted.confirmed_dti_number = body["dti_number"]
+        if "sec_number" in body:
+            extracted.confirmed_sec_number = body["sec_number"]
+        if "rep_full_name" in body:
+            extracted.confirmed_rep_full_name = body["rep_full_name"]
+        if "rep_id_number" in body:
+            extracted.confirmed_rep_id_number = body["rep_id_number"]
+        if "rep_address" in body:
+            extracted.confirmed_rep_address = body["rep_address"]
+        
+        # Handle date fields
+        if "rep_birth_date" in body and body["rep_birth_date"]:
+            try:
+                extracted.confirmed_rep_birth_date = datetime.strptime(body["rep_birth_date"], "%Y-%m-%d").date()
+            except ValueError:
+                pass
+        
+        if "permit_issue_date" in body and body["permit_issue_date"]:
+            try:
+                extracted.confirmed_permit_issue_date = datetime.strptime(body["permit_issue_date"], "%Y-%m-%d").date()
+            except ValueError:
+                pass
+        
+        if "permit_expiry_date" in body and body["permit_expiry_date"]:
+            try:
+                extracted.confirmed_permit_expiry_date = datetime.strptime(body["permit_expiry_date"], "%Y-%m-%d").date()
+            except ValueError:
+                pass
+        
+        # Update metadata
+        extracted.extraction_status = "CONFIRMED"
+        extracted.confirmed_at = timezone.now()
+        extracted.user_edited_fields = edited_fields
+        
+        extracted.save()
+        
+        print(f"✅ Agency KYC data confirmed for accountID {account_id}")
+        if "business_type" in body:
+            print(f"   💼 Business type confirmed as: {body['business_type']}")
         
         return {
             "success": True,
-            "message": "Agency data confirmed successfully",
-            "updated_fields": {
-                "business_name": business_name,
-                "business_description": business_description,
-            }
+            "message": "Agency KYC data confirmed successfully",
+            "extraction_status": extracted.extraction_status,
+            "confirmed_at": extracted.confirmed_at.isoformat() if extracted.confirmed_at else None,
         }
         
     except Exception as e:
         print(f"Error in confirm_agency_kyc_data: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return Response({"success": False, "error": "Failed to confirm data"}, status=500)
 
 
