@@ -97,26 +97,84 @@ jobs:
             echo "Using specified version: $VERSION"
           else
             # Get latest release tag
+            echo "Fetching latest release..."
             VERSION=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases/latest | jq -r '.tag_name')
+            
+            # Check if we got a valid version
+            if [ -z "$VERSION" ] || [ "$VERSION" = "null" ]; then
+              echo "::error::No releases found in repository"
+              echo "Please create a release first:"
+              echo "1. Push to main branch to trigger mobile-release workflow"
+              echo "2. Wait for EAS build to complete"
+              echo "3. Release will be created automatically with APK"
+              echo "Or create a manual release with an APK file attached"
+              exit 1
+            fi
+            
             echo "Using latest version: $VERSION"
           fi
           
-          # Download APK from release assets
-          DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${VERSION}/iayos-${VERSION}.apk"
-          echo "Downloading from: $DOWNLOAD_URL"
-          
           mkdir -p artifacts
-          curl -L -o artifacts/app-release.apk "$DOWNLOAD_URL" || {
-            echo "Failed to download release APK, trying alternate naming..."
-            # Try alternate naming patterns
-            curl -L -o artifacts/app-release.apk "https://github.com/${{ github.repository }}/releases/download/${VERSION}/app-release.apk" || {
-              echo "::error::Could not download APK from release ${VERSION}"
-              exit 1
-            }
-          }
           
+          # Try multiple download strategies
+          DOWNLOADED=false
+          
+          # Strategy 1: Try iayos-{version}.apk naming
+          DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${VERSION}/iayos-${VERSION}.apk"
+          echo "Trying: $DOWNLOAD_URL"
+          if curl -L --fail -o artifacts/app-release.apk "$DOWNLOAD_URL" 2>/dev/null; then
+            DOWNLOADED=true
+            echo "✓ Downloaded using naming pattern: iayos-${VERSION}.apk"
+          fi
+          
+          # Strategy 2: Try app-release.apk naming
+          if [ "$DOWNLOADED" = false ]; then
+            DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${VERSION}/app-release.apk"
+            echo "Trying: $DOWNLOAD_URL"
+            if curl -L --fail -o artifacts/app-release.apk "$DOWNLOAD_URL" 2>/dev/null; then
+              DOWNLOADED=true
+              echo "✓ Downloaded using naming pattern: app-release.apk"
+            fi
+          fi
+          
+          # Strategy 3: Get any .apk from release assets
+          if [ "$DOWNLOADED" = false ]; then
+            echo "Trying to find any .apk in release assets..."
+            APK_URL=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases/tags/${VERSION} | jq -r '.assets[] | select(.name | endswith(".apk")) | .browser_download_url' | head -1)
+            
+            if [ -n "$APK_URL" ] && [ "$APK_URL" != "null" ]; then
+              echo "Found APK at: $APK_URL"
+              curl -L --fail -o artifacts/app-release.apk "$APK_URL"
+              DOWNLOADED=true
+              echo "✓ Downloaded from release assets"
+            fi
+          fi
+          
+          # Check if download succeeded
+          if [ "$DOWNLOADED" = false ]; then
+            echo "::error::Could not find APK in release ${VERSION}"
+            echo "Available assets:"
+            curl -s https://api.github.com/repos/${{ github.repository }}/releases/tags/${VERSION} | jq -r '.assets[] | .name'
+            exit 1
+          fi
+          
+          # Validate downloaded file
+          if [ ! -f artifacts/app-release.apk ]; then
+            echo "::error::APK file was not created"
+            exit 1
+          fi
+          
+          FILE_SIZE=$(stat -c%s artifacts/app-release.apk 2>/dev/null || stat -f%z artifacts/app-release.apk 2>/dev/null || echo 0)
+          if [ "$FILE_SIZE" -lt 1000000 ]; then
+            echo "::error::APK file too small ($FILE_SIZE bytes) - likely an error page"
+            echo "File contents:"
+            head -100 artifacts/app-release.apk
+            exit 1
+          fi
+          
+          echo "✓ APK downloaded successfully: $FILE_SIZE bytes"
           echo "apk_path=artifacts/app-release.apk" >> $GITHUB_OUTPUT
-          ls -la artifacts/
+          ls -lh artifacts/
 
       - name: Verify APK
         run: |
