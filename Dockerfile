@@ -246,14 +246,19 @@ CMD ["sh", "-c", "cd /app/apps/frontend_web && npx next dev"]
 FROM python:3.12-slim AS backend-development
 
 # Set environment variables
+# DEEPFACE_HOME: DeepFace creates a .deepface folder for models/weights
+# Must be writable by appuser, so we set it to /tmp/.deepface
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    DEEPFACE_HOME="/tmp/.deepface"
 
 # Create non-root user
 RUN groupadd -g 1001 appgroup \
-    && useradd -r -u 1001 -g appgroup -d /app -s /sbin/nologin appuser
+    && useradd -r -u 1001 -g appgroup -d /app -s /sbin/nologin appuser \
+    && mkdir -p /tmp/.deepface \
+    && chown appuser:appgroup /tmp/.deepface
 
 # Install development dependencies
 # - tesseract-ocr for KYC document verification
@@ -315,15 +320,20 @@ CMD ["python", "src/manage.py", "runserver", "0.0.0.0:8000"]
 FROM python:3.12-slim AS backend-production
 
 # Set secure environment variables
+# DEEPFACE_HOME: DeepFace creates a .deepface folder for models/weights
+# Must be writable by appuser, so we set it to /tmp/.deepface
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PATH="/app/venv/bin:$PATH"
+    PATH="/app/venv/bin:$PATH" \
+    DEEPFACE_HOME="/tmp/.deepface"
 
 # Create non-root user (Debian syntax)
 RUN groupadd -g 1001 appgroup \
-    && useradd -r -u 1001 -g appgroup -d /app -s /sbin/nologin appuser
+    && useradd -r -u 1001 -g appgroup -d /app -s /sbin/nologin appuser \
+    && mkdir -p /tmp/.deepface \
+    && chown appuser:appgroup /tmp/.deepface
 
 # Install only runtime dependencies (Debian syntax)
 # - tesseract-ocr for KYC document verification

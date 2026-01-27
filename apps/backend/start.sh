@@ -25,8 +25,7 @@ echo "- Pytesseract: $(python -c 'import pytesseract; print(pytesseract.get_tess
 echo "- Pillow: $(python -c 'from PIL import Image; print(Image.__version__)' 2>&1 || echo 'NOT FOUND ❌')"
 echo "- Psycopg2: $(python -c 'import psycopg2; print(psycopg2.__version__)' 2>&1 || echo 'NOT FOUND ❌')"
 echo ""
-echo "Installed packages in /app/.local:"
-ls -la /app/.local/lib/python3.12/site-packages/ 2>&1 | head -n 20 || echo "Cannot list site-packages"
+echo "DEEPFACE_HOME: ${DEEPFACE_HOME:-not set}"
 echo "=========================================="
 
 cd /app/backend/src
