@@ -60,13 +60,21 @@ def upload_agency_kyc(payload, business_permit, rep_front, rep_back, address_pro
 
 		if not created:
 			# Remove previous files and reset status
-			old_files_count = AgencyKycFile.objects.filter(agencyKyc=kyc_record).count()
+			from iayos_project.utils import delete_storage_file
+			
+			# Delete old files from Supabase storage BEFORE deleting DB records
+			old_files = AgencyKycFile.objects.filter(agencyKyc=kyc_record)
+			old_files_count = old_files.count()
+			for f in old_files:
+				if f.fileURL:
+					delete_storage_file("agency", f.fileURL)
+			
 			AgencyKycFile.objects.filter(agencyKyc=kyc_record).delete()
 			kyc_record.status = 'PENDING'
 			kyc_record.notes = 'Re-submitted'
 			kyc_record.resubmissionCount = kyc_record.resubmissionCount + 1
 			kyc_record.save()
-			print(f"♻️ KYC status reset to PENDING (resubmission #{kyc_record.resubmissionCount}), deleted {old_files_count} old files")
+			print(f"♻️ KYC status reset to PENDING (resubmission #{kyc_record.resubmissionCount}), deleted {old_files_count} old files from DB and Supabase")
 
 		uploaded_files = []
 		verification_results = []
@@ -316,6 +324,9 @@ def get_agency_kyc_status(account_id):
 			}
 
 		files = AgencyKycFile.objects.filter(agencyKyc=kyc_record)
+		
+		# Generate signed URLs for private bucket files
+		from iayos_project.utils import get_signed_url
 
 		return {
 			"agency_kyc_id": kyc_record.agencyKycID,
@@ -329,7 +340,7 @@ def get_agency_kyc_status(account_id):
 					"file_name": f.fileName,
 					"file_size": f.fileSize,
 					"uploaded_at": f.uploadedAt,
-					"file_url": f.fileURL
+					"file_url": get_signed_url("agency", f.fileURL, expires_in=3600) or f.fileURL
 				} for f in files
 			]
 		}
