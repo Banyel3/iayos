@@ -8,12 +8,8 @@ import uuid
 import os
 import math
 
-# Import AI verification service
-from accounts.document_verification_service import (
-	DocumentVerificationService,
-	VerificationStatus,
-	RejectionReason
-)
+# NOTE: DocumentVerificationService imported lazily inside functions to prevent
+# InsightFace from loading during Django startup (saves ~24s per command)
 
 
 def upload_agency_kyc(payload, business_permit, rep_front, rep_back, address_proof, auth_letter):
@@ -81,7 +77,8 @@ def upload_agency_kyc(payload, business_permit, rep_front, rep_back, address_pro
 		any_failed = False
 		failure_messages = []
 		
-		# Initialize AI verification service
+		# Initialize AI verification service (lazy import to avoid InsightFace startup delay)
+		from accounts.document_verification_service import DocumentVerificationService
 		verification_service = DocumentVerificationService()
 		
 		# Define which documents require face detection

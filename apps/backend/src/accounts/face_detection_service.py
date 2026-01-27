@@ -38,29 +38,46 @@ logger = logging.getLogger(__name__)
 # InsightFace Configuration
 # ============================================================================
 
-# Try to import InsightFace
-INSIGHTFACE_AVAILABLE = False
+# InsightFace is loaded LAZILY on first use to avoid blocking Django startup
+# This saves ~24s per manage.py command
+INSIGHTFACE_AVAILABLE = None  # None = not checked yet, True/False = checked
 FaceAnalysis = None
+_insightface_load_attempted = False
 
-try:
-    import time
-    start_time = time.time()
-    logger.info("🔄 Attempting to load InsightFace...")
+def _load_insightface():
+    """Lazy-load InsightFace on first use. Returns True if available."""
+    global INSIGHTFACE_AVAILABLE, FaceAnalysis, _insightface_load_attempted
     
-    from insightface.app import FaceAnalysis as _FaceAnalysis
-    FaceAnalysis = _FaceAnalysis
+    if _insightface_load_attempted:
+        return INSIGHTFACE_AVAILABLE
     
-    load_time = time.time() - start_time
-    INSIGHTFACE_AVAILABLE = True
-    logger.info(f"✅ InsightFace loaded successfully in {load_time:.2f}s")
+    _insightface_load_attempted = True
     
-except ImportError as e:
-    logger.error(f"❌ InsightFace import FAILED: {e}")
-    logger.error(f"   Install with: pip install insightface onnxruntime")
-except Exception as e:
-    logger.error(f"❌ InsightFace unexpected error: {e}")
-    import traceback
-    logger.error(f"   Full traceback:\n{traceback.format_exc()}")
+    try:
+        import time
+        start_time = time.time()
+        logger.info("🔄 Attempting to load InsightFace...")
+        
+        from insightface.app import FaceAnalysis as _FaceAnalysis
+        FaceAnalysis = _FaceAnalysis
+        
+        load_time = time.time() - start_time
+        INSIGHTFACE_AVAILABLE = True
+        logger.info(f"✅ InsightFace loaded successfully in {load_time:.2f}s")
+        return True
+        
+    except ImportError as e:
+        logger.error(f"❌ InsightFace import FAILED: {e}")
+        logger.error(f"   Install with: pip install insightface onnxruntime")
+        INSIGHTFACE_AVAILABLE = False
+        return False
+    except Exception as e:
+        logger.error(f"❌ InsightFace unexpected error: {e}")
+        import traceback
+        logger.error(f"   Full traceback:\n{traceback.format_exc()}")
+        INSIGHTFACE_AVAILABLE = False
+        return False
+
 
 # InsightFace model configuration
 # buffalo_s is the smallest model (~160MB) with good accuracy
@@ -156,7 +173,8 @@ class FaceDetectionService:
         self._initialized = False
         self._app = None
         
-        if INSIGHTFACE_AVAILABLE:
+        # Lazy-load InsightFace on first service instantiation
+        if _load_insightface() and FaceAnalysis is not None:
             try:
                 import time
                 init_start = time.time()
