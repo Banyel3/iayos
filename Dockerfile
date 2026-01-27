@@ -351,11 +351,11 @@ EXPOSE 8000
 CMD ["python", "src/manage.py", "runserver", "0.0.0.0:8000"]
 
 # ============================================
-# Stage 14: Backend Production (Debian-based for DeepFace/TensorFlow)
+# Stage 14: Backend Production (Debian-based for InsightFace/ONNX)
 # ============================================
 # This MUST be the last stage for Render to build it by default
 # Using Debian-slim with InsightFace + ONNX Runtime (~180MB RAM)
-# Much lighter than TensorFlow-based DeepFace (~400MB RAM)
+# InsightFace uses buffalo_s model for face detection & verification
 FROM python:3.12-slim AS backend-production
 
 # Set secure environment variables

@@ -1,6 +1,6 @@
 # ============================================================================
 # CRITICAL: Install these FIRST before any other packages
-# DeepFace and other packages depend on packaging/setuptools at import time
+# InsightFace and other packages depend on packaging/setuptools at import time
 # ============================================================================
 packaging>=23.0
 setuptools>=70.0.0
