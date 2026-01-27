@@ -889,7 +889,7 @@ def upload_kyc_document(payload, frontID, backID, clearance, selfie):
                 face_match_result = verify_face_match(
                     id_image_data=file_data_cache['FRONTID'],
                     selfie_image_data=file_data_cache['SELFIE'],
-                    similarity_threshold=0.70  # 70% similarity threshold
+                    similarity_threshold=0.40  # 40% similarity threshold (DeepFace default)
                 )
                 
                 if face_match_result.get('skipped'):

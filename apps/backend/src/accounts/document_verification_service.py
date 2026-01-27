@@ -651,7 +651,7 @@ class DocumentVerificationService:
         self, 
         id_image_data: bytes, 
         selfie_image_data: bytes,
-        similarity_threshold: float = 0.70
+        similarity_threshold: float = 0.40
     ) -> Dict[str, Any]:
         """
         Compare faces between ID document and selfie using DeepFace.
@@ -876,7 +876,7 @@ def should_auto_reject(result: VerificationResult) -> Tuple[bool, str]:
     return False, ""
 
 
-def verify_face_match(id_image_data: bytes, selfie_image_data: bytes, similarity_threshold: float = 0.70) -> Dict[str, Any]:
+def verify_face_match(id_image_data: bytes, selfie_image_data: bytes, similarity_threshold: float = 0.40) -> Dict[str, Any]:
     """
     Compare faces between ID document and selfie
     

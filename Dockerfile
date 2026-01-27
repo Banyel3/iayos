@@ -127,35 +127,31 @@ RUN addgroup -g 1001 -S appgroup \
 WORKDIR /app/backend
 
 # ============================================
-# Stage 8: Backend Dependencies (Secure)
+# Stage 8: Backend Dependencies (Debian-based for TensorFlow)
 # ============================================
-FROM backend-base AS backend-deps
+FROM python:3.12-slim AS backend-deps
 
-# Install build dependencies and cleanup
-RUN apk add --no-cache --virtual .build-deps \
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
-    musl-dev \
-    postgresql-dev \
-    python3-dev \
+    g++ \
+    make \
+    libpq-dev \
     libffi-dev \
-    openssl-dev \
+    libssl-dev \
     cargo \
-    rust \
-    && apk add --no-cache \
+    rustc \
     postgresql-client \
-    libpq \
-    && rm -rf /var/cache/apk/*
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements file
 COPY apps/backend/requirements.txt .
 
 # Install Python dependencies with security checks
-# Note: --user installs to ~/.local (root's home is /root), so we use --prefix instead
 RUN --mount=type=cache,target=/root/.cache/pip \
     mkdir -p /app/.local \
     && python -m pip install --upgrade 'pip>=25.3' setuptools wheel \
     && pip install --no-cache-dir --prefix=/app/.local -r requirements.txt \
-    && apk del .build-deps \
     && find /app/.local -name "*.pyc" -delete 2>/dev/null || true \
     && find /app/.local -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
 
@@ -306,10 +302,12 @@ EXPOSE 8000
 CMD ["python", "src/manage.py", "runserver", "0.0.0.0:8000"]
 
 # ============================================
-# Stage 14: Backend Production (LAST - for Render)
+# Stage 14: Backend Production (Debian-based for DeepFace/TensorFlow)
 # ============================================
 # This MUST be the last stage for Render to build it by default
-FROM python:3.12-alpine AS backend-production
+# Using Debian-slim instead of Alpine because DeepFace requires TensorFlow
+# which needs glibc (not available on Alpine's musl libc)
+FROM python:3.12-slim AS backend-production
 
 # Set secure environment variables
 ENV PYTHONUNBUFFERED=1 \
@@ -319,17 +317,23 @@ ENV PYTHONUNBUFFERED=1 \
     PATH="/app/.local/bin:$PATH" \
     PYTHONPATH="/app/.local/lib/python3.12/site-packages:$PYTHONPATH"
 
-# Create non-root user
-RUN addgroup -g 1001 -S appgroup \
-    && adduser -S -D -H -u 1001 -h /app -s /sbin/nologin -G appgroup appuser
+# Create non-root user (Debian syntax)
+RUN groupadd -g 1001 appgroup \
+    && useradd -r -u 1001 -g appgroup -d /app -s /sbin/nologin appuser
 
-# Install only runtime dependencies
-RUN apk add --no-cache \
+# Install only runtime dependencies (Debian syntax)
+# - tesseract-ocr for KYC document verification
+# - libgl1 for OpenCV (required by DeepFace)
+RUN apt-get update && apt-get install -y --no-install-recommends \
     postgresql-client \
-    libpq \
-    libffi \
-    openssl \
-    && rm -rf /var/cache/apk/*
+    libpq5 \
+    libffi8 \
+    libssl3 \
+    tesseract-ocr \
+    tesseract-ocr-eng \
+    libgl1 \
+    libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app/backend
 

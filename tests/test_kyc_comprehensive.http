@@ -1,0 +1,248 @@
+# KYC Comprehensive Test Suite
+# Tests Face Detection, Face Comparison, and OCR for Mobile and Agency KYC
+
+@baseUrl = http://localhost:8000
+
+### ================================================================
+### STEP 1: Login to get JWT token (for mobile endpoints)
+### ================================================================
+# @name mobileLogin
+POST {{baseUrl}}/api/mobile/auth/login
+Content-Type: application/json
+
+{
+    "email": "testworker@example.com",
+    "password": "Test1234!"
+}
+
+### Store token
+@mobileToken = {{mobileLogin.response.body.access_token}}
+
+### ================================================================
+### STEP 2: Login for session cookie (for web/agency endpoints)
+### ================================================================
+# @name webLogin
+POST {{baseUrl}}/api/accounts/login
+Content-Type: application/json
+
+{
+    "email": "testworker@example.com",
+    "password": "Test1234!"
+}
+
+### ================================================================
+### TEST 1: Face Service Status Check
+### ================================================================
+# @name faceServiceStatus
+GET {{baseUrl}}/api/accounts/face-service-status
+
+### ================================================================
+### TEST 2: Mobile KYC - Validate FRONTID Document
+### Tests: Resolution check, blur detection, face detection
+### ================================================================
+# @name validateFrontID
+POST {{baseUrl}}/api/accounts/kyc/validate-document
+Authorization: Bearer {{mobileToken}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="document_type"
+
+FRONTID
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="file"; filename="id_front.jpg"
+Content-Type: image/jpeg
+
+< ./test_images/id_front.jpg
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### ================================================================
+### TEST 3: Mobile KYC - Validate SELFIE Document
+### Tests: Face detection, face quality
+### ================================================================
+# @name validateSelfie
+POST {{baseUrl}}/api/accounts/kyc/validate-document
+Authorization: Bearer {{mobileToken}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="document_type"
+
+SELFIE
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="file"; filename="selfie.jpg"
+Content-Type: image/jpeg
+
+< ./test_images/selfie.jpg
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### ================================================================
+### TEST 4: Mobile KYC - Validate CLEARANCE Document
+### Tests: OCR text extraction, keyword validation
+### ================================================================
+# @name validateClearance
+POST {{baseUrl}}/api/accounts/kyc/validate-document
+Authorization: Bearer {{mobileToken}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="document_type"
+
+CLEARANCE
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="file"; filename="nbi_clearance.jpg"
+Content-Type: image/jpeg
+
+< ./test_images/nbi_clearance.jpg
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### ================================================================
+### TEST 5: Full Mobile KYC Upload
+### Tests: Face Detection, Face Comparison (ID vs Selfie), OCR
+### ================================================================
+# @name fullMobileKYCUpload
+POST {{baseUrl}}/api/accounts/upload/kyc
+Authorization: Bearer {{mobileToken}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="IDType"
+
+PHILSYS_ID
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="clearanceType"
+
+NBI
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="frontID"; filename="id_front.jpg"
+Content-Type: image/jpeg
+
+< ./test_images/id_front.jpg
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="backID"; filename="id_back.jpg"
+Content-Type: image/jpeg
+
+< ./test_images/id_back.jpg
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="selfie"; filename="selfie.jpg"
+Content-Type: image/jpeg
+
+< ./test_images/selfie.jpg
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="clearance"; filename="nbi_clearance.jpg"
+Content-Type: image/jpeg
+
+< ./test_images/nbi_clearance.jpg
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### ================================================================
+### TEST 6: Agency KYC - Validate Business Permit
+### Tests: Document quality, OCR text extraction
+### ================================================================
+# @name validateBusinessPermit
+POST {{baseUrl}}/api/agency/kyc/validate-document
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="document_type"
+
+BUSINESS_PERMIT
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="file"; filename="business_permit.jpg"
+Content-Type: image/jpeg
+
+< ./test_images/business_permit.jpg
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### ================================================================
+### TEST 7: Agency KYC - Validate Rep ID Front
+### Tests: Face detection for representative
+### ================================================================
+# @name validateRepIDFront
+POST {{baseUrl}}/api/agency/kyc/validate-document
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="document_type"
+
+REP_ID_FRONT
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="file"; filename="rep_id_front.jpg"
+Content-Type: image/jpeg
+
+< ./test_images/id_front.jpg
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### ================================================================
+### TEST 8: Full Agency KYC Upload
+### Tests: Face Detection, OCR on business documents
+### ================================================================
+# @name fullAgencyKYCUpload
+POST {{baseUrl}}/api/agency/upload
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="businessName"
+
+Test Agency Services
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="businessDesc"
+
+Professional services provider
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="rep_id_type"
+
+PHILSYS_ID
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="business_permit"; filename="business_permit.jpg"
+Content-Type: image/jpeg
+
+< ./test_images/business_permit.jpg
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="rep_front"; filename="rep_id_front.jpg"
+Content-Type: image/jpeg
+
+< ./test_images/id_front.jpg
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="rep_back"; filename="rep_id_back.jpg"
+Content-Type: image/jpeg
+
+< ./test_images/id_back.jpg
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### ================================================================
+### EXPECTED RESPONSE FIELDS FOR EACH TEST
+### ================================================================
+### 
+### TEST 2 (validateFrontID) - Expected:
+###   valid: true/false
+###   details.face_detected: true (required for FRONTID)
+###   details.resolution: [width, height]
+###   details.quality_score: 0.0-1.0
+###
+### TEST 3 (validateSelfie) - Expected:
+###   valid: true/false
+###   details.face_detected: true (required for SELFIE)
+###   details.face_count: 1
+###   details.quality_score: 0.0-1.0
+###
+### TEST 4 (validateClearance) - Expected:
+###   valid: true/false
+###   details.ocr.text_length: > 0
+###   details.ocr.confidence: 0.0-1.0
+###   details.keyword_check.passed: true
+###   details.keyword_check.found_keywords: ["NBI", "CLEARANCE", ...]
+###
+### TEST 5 (fullMobileKYCUpload) - Expected:
+###   success: true
+###   status: "PENDING" or "APPROVED" (if auto-approval enabled)
+###   face_match.match: true/false
+###   face_match.similarity: 0.0-1.0 (>0.40 for match)
+###   face_match.method: "deepface"
+###   verification_results.frontID.status: "PASSED"
+###   verification_results.selfie.status: "PASSED"
+###   verification_results.clearance.status: "PASSED"
+###
+### TEST 6-8 (Agency) - Expected:
+###   Similar structure but for business documents
+###   No face matching (unless rep ID is verified against selfie)
