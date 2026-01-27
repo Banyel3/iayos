@@ -78,6 +78,7 @@ scipy>=1.11.0  # Image processing (blur detection via Laplacian)
 deepface>=0.0.98  # Face recognition, detection, and verification
 tf-keras>=2.18.0  # Required by DeepFace for neural network models
 opencv-python-headless>=4.8.0  # OpenCV without GUI (smaller, for servers)
+packaging>=23.0  # Required by DeepFace (missing dependency)
 
 # Security updates for Alpine packages
 # Force pip upgrade to fix CVE-2025-8869  
