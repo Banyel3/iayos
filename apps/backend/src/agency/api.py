@@ -2,8 +2,10 @@ from ninja import Router, Form
 from ninja.responses import Response
 from accounts.authentication import cookie_auth
 from . import services, schemas
+import logging
 
 router = Router()
+logger = logging.getLogger(__name__)
 
 
 @router.post("/upload", auth=cookie_auth, response=schemas.AgencyKYCUploadResponse)
@@ -308,9 +310,9 @@ def confirm_agency_kyc_data(request):
         
         extracted.save()
         
-        print(f"✅ Agency KYC data confirmed for accountID {account_id}")
+        logger.info(f"Agency KYC data confirmed for accountID {account_id}")
         if "business_type" in body:
-            print(f"   💼 Business type confirmed as: {body['business_type']}")
+            logger.info(f"Business type confirmed as: {body['business_type']}")
         
         return {
             "success": True,
@@ -320,11 +322,7 @@ def confirm_agency_kyc_data(request):
         }
         
     except Exception as e:
-        print(f"Error in confirm_agency_kyc_data: {str(e)}")
-        # Log full traceback for debugging (use logger in production)
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.exception("Agency KYC confirm failed")
+        logger.exception(f"Error in confirm_agency_kyc_data: {str(e)}")
         return Response({"success": False, "error": "Failed to confirm data"}, status=500)
 
 
