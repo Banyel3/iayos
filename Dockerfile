@@ -148,10 +148,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY apps/backend/requirements.txt .
 
 # Install Python dependencies with security checks
-RUN --mount=type=cache,target=/root/.cache/pip \
-    mkdir -p /app/.local \
-    && python -m pip install --upgrade 'pip>=25.3' setuptools wheel \
+# CACHE BUST: 2026-01-27 - Force rebuild for DeepFace/pytesseract fix
+RUN mkdir -p /app/.local \
+    && python -m pip install --upgrade 'pip>=25.3' setuptools wheel packaging \
     && pip install --no-cache-dir --prefix=/app/.local -r requirements.txt \
+    && echo '✅ Verifying critical packages...' \
+    && PYTHONPATH=/app/.local/lib/python3.12/site-packages python -c "import packaging; print('✅ packaging installed')" \
+    && PYTHONPATH=/app/.local/lib/python3.12/site-packages python -c "import pytesseract; print('✅ pytesseract installed')" \
     && find /app/.local -name "*.pyc" -delete 2>/dev/null || true \
     && find /app/.local -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
 
@@ -326,6 +329,7 @@ RUN groupadd -g 1001 appgroup \
 # Install only runtime dependencies (Debian syntax)
 # - tesseract-ocr for KYC document verification
 # - libgl1 for OpenCV (required by DeepFace)
+# - libleptonica-dev for pytesseract bindings
 RUN apt-get update && apt-get install -y --no-install-recommends \
     postgresql-client \
     libpq5 \
@@ -333,6 +337,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libssl3 \
     tesseract-ocr \
     tesseract-ocr-eng \
+    libleptonica-dev \
     libgl1 \
     libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
