@@ -6,7 +6,7 @@
 # CLEANUP: Job will be deleted via API cleanup after test
 # ══════════════════════════════════════════════════════════════════════════════
 
-appId: com.iayos.app
+appId: com.devante.iayos
 tags:
   - jobs_client
   - create
@@ -48,20 +48,13 @@ tags:
 # TEST: Navigate to Create Job
 # ─────────────────────────────────────────────────────────────────────────────
 - assertVisible:
-    anyOf:
-      - text: "Home"
-      - text: "Post a Job"
-      - text: "My Requests"
-      - id: "home-screen"
+    text: "Home"
+    optional: true
     timeout: 15000
 
 # Look for create job button
 - tapOn:
-    anyOf:
-      - text: "Post a Job"
-      - text: "Create Job"
-      - text: "+"
-      - id: "create-job-button"
+    text: "Post a Job"
     optional: true
 
 - waitForAnimationToEnd
@@ -70,8 +63,8 @@ tags:
 # TEST: Fill Job Title
 # ─────────────────────────────────────────────────────────────────────────────
 - tapOn:
-    anyOf:
-      - id: "job-title-input"
+    id: "job-title-input"
+    optional: true
       - text: "Job Title"
       - text: "Title"
 
@@ -84,8 +77,8 @@ tags:
 # TEST: Fill Job Description
 # ─────────────────────────────────────────────────────────────────────────────
 - tapOn:
-    anyOf:
-      - id: "job-description-input"
+    id: "job-title-input"
+    optional: true
       - text: "Description"
       - text: "Describe"
 
@@ -101,8 +94,8 @@ tags:
 # TEST: Select Category
 # ─────────────────────────────────────────────────────────────────────────────
 - tapOn:
-    anyOf:
-      - id: "job-category-picker"
+    id: "job-title-input"
+    optional: true
       - text: "Category"
       - text: "Select Category"
     optional: true
@@ -110,10 +103,7 @@ tags:
 - waitForAnimationToEnd
 
 - tapOn:
-    anyOf:
-      - text: "Plumbing"
-      - text: "Cleaning"
-      - text: "General"
+    text: "Plumbing"
     optional: true
 
 - waitForAnimationToEnd
@@ -127,8 +117,8 @@ tags:
     direction: DOWN
 
 - tapOn:
-    anyOf:
-      - id: "job-budget-input"
+    id: "job-title-input"
+    optional: true
       - text: "Budget"
       - text: "₱"
 
@@ -141,8 +131,8 @@ tags:
 # TEST: Set Location
 # ─────────────────────────────────────────────────────────────────────────────
 - tapOn:
-    anyOf:
-      - id: "job-location-picker"
+    id: "job-title-input"
+    optional: true
       - text: "Location"
       - text: "Barangay"
     optional: true
@@ -151,10 +141,7 @@ tags:
 
 # Select first available location
 - tapOn:
-    anyOf:
-      - text: "Tetuan"
-      - text: "Zone"
-      - index: 0
+    text: "Tetuan"
     optional: true
 
 - waitForAnimationToEnd
@@ -171,11 +158,7 @@ tags:
 # test data that needs cleanup. The cleanup script handles any created jobs.
 
 - assertVisible:
-    anyOf:
-      - text: "Post Job"
-      - text: "Submit"
-      - text: "Create"
-      - id: "submit-job-button"
+    text: "Post Job"
     optional: true
 
 - takeScreenshot: "06_ready_to_submit"

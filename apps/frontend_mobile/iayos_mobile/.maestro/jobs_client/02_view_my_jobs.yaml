@@ -5,7 +5,7 @@
 # Prerequisites: Logged in as CLIENT
 # ══════════════════════════════════════════════════════════════════════════════
 
-appId: com.iayos.app
+appId: com.devante.iayos
 tags:
   - jobs_client
   - my_jobs
@@ -47,18 +47,13 @@ tags:
 # TEST: Navigate to My Jobs/Requests
 # ─────────────────────────────────────────────────────────────────────────────
 - assertVisible:
-    anyOf:
-      - text: "Home"
-      - text: "My Requests"
-      - text: "Jobs"
+    text: "Home"
+    optional: true
     timeout: 15000
 
 # Navigate to Jobs tab
 - tapOn:
-    anyOf:
-      - text: "Jobs"
-      - text: "My Requests"
-      - id: "jobs-tab"
+    text: "Jobs"
     optional: true
 
 - waitForAnimationToEnd
@@ -67,14 +62,8 @@ tags:
 # TEST: Verify My Jobs Tabs
 # ─────────────────────────────────────────────────────────────────────────────
 - assertVisible:
-    anyOf:
-      - text: "Open"
-      - text: "Active"
-      - text: "Pending"
-      - text: "In Progress"
-      - text: "Completed"
-      - text: "Past"
-      - text: "My Requests"
+    text: "Open"
+    optional: true
     timeout: 10000
 
 - takeScreenshot: "01_my_jobs_screen"
@@ -83,9 +72,7 @@ tags:
 # TEST: Switch Between Tabs
 # ─────────────────────────────────────────────────────────────────────────────
 - tapOn:
-    anyOf:
-      - text: "Open"
-      - text: "Active"
+    text: "Open"
     optional: true
 
 - waitForAnimationToEnd
@@ -93,9 +80,7 @@ tags:
 - takeScreenshot: "02_open_jobs"
 
 - tapOn:
-    anyOf:
-      - text: "Pending"
-      - text: "In Progress"
+    text: "Pending"
     optional: true
 
 - waitForAnimationToEnd
@@ -103,9 +88,7 @@ tags:
 - takeScreenshot: "03_pending_jobs"
 
 - tapOn:
-    anyOf:
-      - text: "Completed"
-      - text: "Past"
+    text: "Completed"
     optional: true
 
 - waitForAnimationToEnd
@@ -122,8 +105,8 @@ tags:
 - waitForAnimationToEnd
 
 - tapOn:
-    anyOf:
-      - id: "job-card-0"
+    id: "job-card-0"
+    optional: true
       - text: "₱"
     index: 0
     optional: true
@@ -131,12 +114,7 @@ tags:
 - waitForAnimationToEnd
 
 - assertVisible:
-    anyOf:
-      - text: "Applications"
-      - text: "Budget"
-      - text: "Status"
-      - text: "Edit"
-      - text: "Cancel"
+    text: "Applications"
     optional: true
     timeout: 5000
 

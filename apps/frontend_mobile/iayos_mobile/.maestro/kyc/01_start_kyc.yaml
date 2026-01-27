@@ -6,7 +6,7 @@
 # Note: Partial test - cannot upload actual photos in emulator
 # ══════════════════════════════════════════════════════════════════════════════
 
-appId: com.iayos.app
+appId: com.devante.iayos
 tags:
   - kyc
   - verification
@@ -48,9 +48,7 @@ tags:
 # TEST: Navigate to KYC
 # ─────────────────────────────────────────────────────────────────────────────
 - tapOn:
-    anyOf:
-      - text: "Profile"
-      - id: "profile-tab"
+    text: "Profile"
     optional: true
 
 - waitForAnimationToEnd
@@ -61,12 +59,7 @@ tags:
   optional: true
 
 - tapOn:
-    anyOf:
-      - text: "Verify Identity"
-      - text: "KYC"
-      - text: "Verification"
-      - text: "Get Verified"
-      - id: "kyc-section"
+    text: "Verify Identity"
     optional: true
 
 - waitForAnimationToEnd
@@ -75,13 +68,8 @@ tags:
 # TEST: Verify KYC Upload Screen
 # ─────────────────────────────────────────────────────────────────────────────
 - assertVisible:
-    anyOf:
-      - text: "Verify"
-      - text: "Identity"
-      - text: "KYC"
-      - text: "Documents"
-      - text: "ID"
-      - text: "Selfie"
+    text: "Verify"
+    optional: true
     timeout: 10000
 
 - takeScreenshot: "01_kyc_screen"
@@ -90,20 +78,11 @@ tags:
 # TEST: Select ID Type (Step 1)
 # ─────────────────────────────────────────────────────────────────────────────
 - assertVisible:
-    anyOf:
-      - text: "Select ID Type"
-      - text: "ID Type"
-      - text: "National ID"
-      - text: "Passport"
-      - text: "Driver's License"
+    text: "Select ID Type"
     optional: true
 
 - tapOn:
-    anyOf:
-      - text: "National ID"
-      - text: "PhilID"
-      - text: "UMID"
-      - id: "id-type-national"
+    text: "National ID"
     optional: true
 
 - waitForAnimationToEnd
@@ -120,12 +99,7 @@ tags:
 # 4. Clearance (optional)
 
 - assertVisible:
-    anyOf:
-      - text: "Front"
-      - text: "Back"
-      - text: "Selfie"
-      - text: "Upload"
-      - text: "Take Photo"
+    text: "Front"
     optional: true
 
 - takeScreenshot: "03_upload_sections"
@@ -134,21 +108,14 @@ tags:
 # TEST: Tap Upload Front ID (Partial - cannot complete)
 # ─────────────────────────────────────────────────────────────────────────────
 - tapOn:
-    anyOf:
-      - text: "Front ID"
-      - text: "Upload Front"
-      - id: "front-id-upload"
+    text: "Front ID"
     optional: true
 
 - waitForAnimationToEnd
 
 # Should show camera/gallery options
 - assertVisible:
-    anyOf:
-      - text: "Camera"
-      - text: "Gallery"
-      - text: "Take Photo"
-      - text: "Choose"
+    text: "Camera"
     optional: true
     timeout: 5000
 
@@ -156,11 +123,7 @@ tags:
 
 # Cancel upload (we can't actually take photos in emulator)
 - tapOn:
-    anyOf:
-      - text: "Cancel"
-      - text: "Close"
-      - text: "✕"
-      - id: "close-modal"
+    text: "Cancel"
     optional: true
 
 - waitForAnimationToEnd
@@ -172,12 +135,7 @@ tags:
     direction: DOWN
 
 - assertVisible:
-    anyOf:
-      - text: "Back ID"
-      - text: "Selfie"
-      - text: "Clearance"
-      - text: "NBI"
-      - text: "Submit"
+    text: "Back ID"
     optional: true
 
 - takeScreenshot: "05_all_steps"

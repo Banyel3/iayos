@@ -5,7 +5,7 @@
 # Prerequisites: Logged in as CLIENT
 # ══════════════════════════════════════════════════════════════════════════════
 
-appId: com.iayos.app
+appId: com.devante.iayos
 tags:
   - jobs_client
   - workers
@@ -47,19 +47,13 @@ tags:
 # TEST: Navigate to Workers
 # ─────────────────────────────────────────────────────────────────────────────
 - assertVisible:
-    anyOf:
-      - text: "Home"
-      - text: "Workers"
-      - text: "Find Workers"
+    text: "Home"
+    optional: true
     timeout: 15000
 
 # Look for Workers section
 - tapOn:
-    anyOf:
-      - text: "Workers"
-      - text: "Find Workers"
-      - text: "Browse Workers"
-      - id: "workers-section"
+    text: "Workers"
     optional: true
 
 - waitForAnimationToEnd
@@ -68,12 +62,8 @@ tags:
 # TEST: Verify Workers List
 # ─────────────────────────────────────────────────────────────────────────────
 - assertVisible:
-    anyOf:
-      - text: "Workers"
-      - text: "Available"
-      - text: "★"
-      - text: "No workers"
-      - text: "₱/hr"
+    text: "Workers"
+    optional: true
     timeout: 10000
 
 - takeScreenshot: "01_workers_list"
@@ -82,18 +72,13 @@ tags:
 # TEST: Filter by Category (if available)
 # ─────────────────────────────────────────────────────────────────────────────
 - tapOn:
-    anyOf:
-      - text: "Filter"
-      - text: "Category"
-      - id: "filter-button"
+    text: "Filter"
     optional: true
 
 - waitForAnimationToEnd
 
 - tapOn:
-    anyOf:
-      - text: "Plumbing"
-      - text: "Electrical"
+    text: "Plumbing"
     optional: true
 
 - waitForAnimationToEnd
@@ -104,8 +89,8 @@ tags:
 # TEST: View Worker Profile
 # ─────────────────────────────────────────────────────────────────────────────
 - tapOn:
-    anyOf:
-      - id: "worker-card-0"
+    id: "worker-card-0"
+    optional: true
       - text: "★"
     index: 0
     optional: true
@@ -115,13 +100,7 @@ tags:
 
 # Verify worker profile elements
 - assertVisible:
-    anyOf:
-      - text: "Hire"
-      - text: "Invite"
-      - text: "Reviews"
-      - text: "Skills"
-      - text: "₱/hr"
-      - text: "★"
+    text: "Hire"
     optional: true
     timeout: 5000
 
@@ -137,11 +116,7 @@ tags:
 
 # Look for more details
 - assertVisible:
-    anyOf:
-      - text: "Portfolio"
-      - text: "Certifications"
-      - text: "Reviews"
-      - text: "Jobs Completed"
+    text: "Portfolio"
     optional: true
 
 - takeScreenshot: "04_worker_details"

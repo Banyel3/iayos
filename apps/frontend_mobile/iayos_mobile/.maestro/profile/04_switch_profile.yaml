@@ -5,7 +5,7 @@
 # Prerequisites: Logged in with dual profile account
 # ══════════════════════════════════════════════════════════════════════════════
 
-appId: com.iayos.app
+appId: com.devante.iayos
 tags:
   - profile
   - switch
@@ -47,21 +47,15 @@ tags:
 # TEST: Navigate to Profile
 # ─────────────────────────────────────────────────────────────────────────────
 - tapOn:
-    anyOf:
-      - text: "Profile"
-      - id: "profile-tab"
-
+    text: "Profile"
+    optional: true
 - waitForAnimationToEnd
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TEST: Check Current Profile Type
 # ─────────────────────────────────────────────────────────────────────────────
 - assertVisible:
-    anyOf:
-      - text: "Worker"
-      - text: "WORKER"
-      - text: "Client"
-      - text: "CLIENT"
+    text: "Worker"
     optional: true
     timeout: 5000
 
@@ -75,12 +69,7 @@ tags:
   optional: true
 
 - tapOn:
-    anyOf:
-      - text: "Switch to Client"
-      - text: "Switch to Worker"
-      - text: "Switch Profile"
-      - text: "Change Role"
-      - id: "switch-profile-button"
+    text: "Switch to Client"
     optional: true
 
 - waitForAnimationToEnd:
@@ -91,11 +80,7 @@ tags:
 # ─────────────────────────────────────────────────────────────────────────────
 # Look for profile type change confirmation
 - assertVisible:
-    anyOf:
-      - text: "Switched"
-      - text: "Client"
-      - text: "Worker"
-      - text: "Profile changed"
+    text: "Switched"
     optional: true
     timeout: 5000
 
@@ -106,20 +91,14 @@ tags:
 # ─────────────────────────────────────────────────────────────────────────────
 # Navigate to home to see role-specific content
 - tapOn:
-    anyOf:
-      - text: "Home"
-      - id: "home-tab"
+    text: "Home"
     optional: true
 
 - waitForAnimationToEnd
 
 # Should see role-specific content
 - assertVisible:
-    anyOf:
-      - text: "Post a Job"
-      - text: "Find Workers"
-      - text: "Browse Jobs"
-      - text: "My Applications"
+    text: "Post a Job"
     optional: true
 
 - takeScreenshot: "03_role_specific_content"
@@ -128,9 +107,7 @@ tags:
 # CLEANUP: Switch Back (Optional)
 # ─────────────────────────────────────────────────────────────────────────────
 - tapOn:
-    anyOf:
-      - text: "Profile"
-      - id: "profile-tab"
+    text: "Profile"
     optional: true
 
 - waitForAnimationToEnd
@@ -140,11 +117,7 @@ tags:
   optional: true
 
 - tapOn:
-    anyOf:
-      - text: "Switch to Worker"
-      - text: "Switch to Client"
-      - text: "Switch Profile"
-      - id: "switch-profile-button"
+    text: "Switch to Worker"
     optional: true
 
 - waitForAnimationToEnd

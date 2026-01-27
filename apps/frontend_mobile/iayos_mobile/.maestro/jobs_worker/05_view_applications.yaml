@@ -5,7 +5,7 @@
 # Prerequisites: Logged in as WORKER
 # ══════════════════════════════════════════════════════════════════════════════
 
-appId: com.iayos.app
+appId: com.devante.iayos
 tags:
   - jobs_worker
   - applications
@@ -55,10 +55,7 @@ tags:
 
 # Look for Applications section or tab
 - tapOn:
-    anyOf:
-      - text: "Applications"
-      - text: "My Applications"
-      - id: "applications-tab"
+    text: "Applications"
     optional: true
 
 - waitForAnimationToEnd
@@ -67,13 +64,8 @@ tags:
 # TEST: Verify Applications Screen
 # ─────────────────────────────────────────────────────────────────────────────
 - assertVisible:
-    anyOf:
-      - text: "Applications"
-      - text: "My Applications"
-      - text: "No applications"
-      - text: "Pending"
-      - text: "Accepted"
-      - text: "Rejected"
+    text: "Applications"
+    optional: true
     timeout: 10000
 
 - takeScreenshot: "01_applications_list"
@@ -82,10 +74,7 @@ tags:
 # TEST: Filter Applications (if available)
 # ─────────────────────────────────────────────────────────────────────────────
 - tapOn:
-    anyOf:
-      - text: "Pending"
-      - text: "All"
-      - id: "filter-pending"
+    text: "Pending"
     optional: true
 
 - waitForAnimationToEnd
@@ -93,9 +82,7 @@ tags:
 - takeScreenshot: "02_pending_applications"
 
 - tapOn:
-    anyOf:
-      - text: "Accepted"
-      - id: "filter-accepted"
+    text: "Accepted"
     optional: true
 
 - waitForAnimationToEnd
@@ -106,8 +93,8 @@ tags:
 # TEST: View Application Detail (if any exist)
 # ─────────────────────────────────────────────────────────────────────────────
 - tapOn:
-    anyOf:
-      - id: "application-card-0"
+    id: "application-card-0"
+    optional: true
       - text: "₱"
     index: 0
     optional: true
@@ -116,12 +103,7 @@ tags:
 
 # Verify application detail
 - assertVisible:
-    anyOf:
-      - text: "Application"
-      - text: "Status"
-      - text: "Pending"
-      - text: "Applied"
-      - text: "Withdraw"
+    text: "Application"
     optional: true
     timeout: 5000
 

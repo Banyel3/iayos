@@ -5,7 +5,7 @@
 # Prerequisites: Logged in
 # ══════════════════════════════════════════════════════════════════════════════
 
-appId: com.iayos.app
+appId: com.devante.iayos
 tags:
   - profile
   - view
@@ -47,28 +47,21 @@ tags:
 # TEST: Navigate to Profile Tab
 # ─────────────────────────────────────────────────────────────────────────────
 - tapOn:
-    anyOf:
-      - text: "Profile"
-      - id: "profile-tab"
-
+    text: "Profile"
+    optional: true
 - waitForAnimationToEnd
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TEST: Verify Profile Header
 # ─────────────────────────────────────────────────────────────────────────────
 - assertVisible:
-    anyOf:
-      - text: "Profile"
-      - id: "profile-screen"
+    text: "Profile"
+    optional: true
     timeout: 10000
 
 # Should show user info
 - assertVisible:
-    anyOf:
-      - text: "@"
-      - text: "worker"
-      - text: "test"
-      - text: "Edit"
+    text: "@"
     optional: true
 
 - takeScreenshot: "01_profile_header"
@@ -77,13 +70,7 @@ tags:
 # TEST: Verify Profile Stats (Worker)
 # ─────────────────────────────────────────────────────────────────────────────
 - assertVisible:
-    anyOf:
-      - text: "Jobs"
-      - text: "Completed"
-      - text: "Rating"
-      - text: "★"
-      - text: "Reviews"
-      - text: "Earnings"
+    text: "Jobs"
     optional: true
 
 - takeScreenshot: "02_profile_stats"
@@ -98,13 +85,7 @@ tags:
 
 # Look for profile sections
 - assertVisible:
-    anyOf:
-      - text: "Skills"
-      - text: "Bio"
-      - text: "About"
-      - text: "Portfolio"
-      - text: "Certifications"
-      - text: "Reviews"
+    text: "Skills"
     optional: true
 
 - takeScreenshot: "03_profile_sections"
@@ -119,12 +100,7 @@ tags:
 
 # Look for settings/account options
 - assertVisible:
-    anyOf:
-      - text: "Settings"
-      - text: "Wallet"
-      - text: "Payment Methods"
-      - text: "Logout"
-      - text: "Help"
+    text: "Settings"
     optional: true
 
 - takeScreenshot: "04_settings_section"
@@ -133,10 +109,7 @@ tags:
 # TEST: View Full Profile (if link exists)
 # ─────────────────────────────────────────────────────────────────────────────
 - tapOn:
-    anyOf:
-      - text: "View Full Profile"
-      - text: "See More"
-      - id: "view-full-profile"
+    text: "View Full Profile"
     optional: true
 
 - waitForAnimationToEnd

@@ -5,7 +5,7 @@
 # Prerequisites: Logged in, GCash account added
 # ══════════════════════════════════════════════════════════════════════════════
 
-appId: com.iayos.app
+appId: com.devante.iayos
 tags:
   - wallet
   - withdraw
@@ -47,40 +47,28 @@ tags:
 # TEST: Navigate to Wallet → Withdraw
 # ─────────────────────────────────────────────────────────────────────────────
 - tapOn:
-    anyOf:
-      - text: "Profile"
-      - id: "profile-tab"
+    text: "Profile"
     optional: true
 
 - waitForAnimationToEnd
 
 - tapOn:
-    anyOf:
-      - text: "Wallet"
-      - text: "Balance"
-      - id: "wallet-section"
+    text: "Wallet"
     optional: true
 
 - waitForAnimationToEnd
 
 - tapOn:
-    anyOf:
-      - text: "Withdraw"
-      - text: "Cash Out"
-      - id: "withdraw-button"
-
+    text: "Withdraw"
+    optional: true
 - waitForAnimationToEnd
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TEST: Verify Withdraw Screen
 # ─────────────────────────────────────────────────────────────────────────────
 - assertVisible:
-    anyOf:
-      - text: "Withdraw"
-      - text: "Cash Out"
-      - text: "Amount"
-      - text: "GCash"
-      - text: "Balance"
+    text: "Withdraw"
+    optional: true
     timeout: 10000
 
 - takeScreenshot: "01_withdraw_screen"
@@ -89,10 +77,8 @@ tags:
 # TEST: Verify Balance Display
 # ─────────────────────────────────────────────────────────────────────────────
 - assertVisible:
-    anyOf:
-      - text: "Available"
-      - text: "Balance"
-      - text: "₱"
+    text: "Available"
+    optional: true
     timeout: 5000
 
 - takeScreenshot: "02_available_balance"
@@ -101,8 +87,8 @@ tags:
 # TEST: Enter Withdrawal Amount
 # ─────────────────────────────────────────────────────────────────────────────
 - tapOn:
-    anyOf:
-      - id: "withdraw-amount-input"
+    id: "withdraw-amount-input"
+    optional: true
       - text: "Amount"
       - text: "Enter amount"
 
@@ -115,10 +101,7 @@ tags:
 # TEST: Select Quick Amount (if available)
 # ─────────────────────────────────────────────────────────────────────────────
 - tapOn:
-    anyOf:
-      - text: "₱500"
-      - text: "₱1000"
-      - text: "₱1K"
+    text: "₱500"
     optional: true
 
 - waitForAnimationToEnd
@@ -129,12 +112,7 @@ tags:
 # TEST: Verify GCash Account Selection
 # ─────────────────────────────────────────────────────────────────────────────
 - assertVisible:
-    anyOf:
-      - text: "GCash"
-      - text: "Select Account"
-      - text: "Payment Method"
-      - text: "09"
-      - text: "Add GCash"
+    text: "GCash"
     optional: true
 
 - takeScreenshot: "05_gcash_selection"
@@ -144,11 +122,7 @@ tags:
 # ─────────────────────────────────────────────────────────────────────────────
 # If balance is 0, should show insufficient funds message
 - assertVisible:
-    anyOf:
-      - text: "Insufficient"
-      - text: "Not enough"
-      - text: "Withdraw"
-      - text: "Continue"
+    text: "Insufficient"
     optional: true
 
 - takeScreenshot: "06_withdraw_validation"

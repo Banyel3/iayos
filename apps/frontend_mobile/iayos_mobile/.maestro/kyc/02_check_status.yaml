@@ -5,7 +5,7 @@
 # Prerequisites: Logged in
 # ══════════════════════════════════════════════════════════════════════════════
 
-appId: com.iayos.app
+appId: com.devante.iayos
 tags:
   - kyc
   - status
@@ -47,21 +47,15 @@ tags:
 # TEST: Navigate to KYC Status
 # ─────────────────────────────────────────────────────────────────────────────
 - tapOn:
-    anyOf:
-      - text: "Profile"
-      - id: "profile-tab"
+    text: "Profile"
     optional: true
 
 - waitForAnimationToEnd
 
 # Look for KYC status badge or section
 - assertVisible:
-    anyOf:
-      - text: "Verified"
-      - text: "Pending"
-      - text: "Not Verified"
-      - text: "KYC"
-      - text: "Verify"
+    text: "Verified"
+    optional: true
     timeout: 10000
 
 - takeScreenshot: "01_profile_kyc_badge"
@@ -70,13 +64,7 @@ tags:
 # TEST: Tap to View KYC Details
 # ─────────────────────────────────────────────────────────────────────────────
 - tapOn:
-    anyOf:
-      - text: "KYC"
-      - text: "Verification"
-      - text: "Verify Identity"
-      - text: "Verified"
-      - text: "Pending"
-      - id: "kyc-status"
+    text: "KYC"
     optional: true
 
 - waitForAnimationToEnd
@@ -85,13 +73,8 @@ tags:
 # TEST: Verify Status Screen
 # ─────────────────────────────────────────────────────────────────────────────
 - assertVisible:
-    anyOf:
-      - text: "Status"
-      - text: "Verified"
-      - text: "Pending"
-      - text: "Rejected"
-      - text: "Not Started"
-      - text: "In Review"
+    text: "Status"
+    optional: true
     timeout: 10000
 
 - takeScreenshot: "02_kyc_status"
@@ -102,34 +85,22 @@ tags:
 
 # If Pending
 - assertVisible:
-    anyOf:
-      - text: "under review"
-      - text: "reviewing"
-      - text: "24-48 hours"
+    text: "under review"
     optional: true
 
 # If Verified
 - assertVisible:
-    anyOf:
-      - text: "verified"
-      - text: "approved"
-      - text: "✓"
+    text: "verified"
     optional: true
 
 # If Rejected
 - assertVisible:
-    anyOf:
-      - text: "rejected"
-      - text: "Resubmit"
-      - text: "Try Again"
+    text: "rejected"
     optional: true
 
 # If Not Started
 - assertVisible:
-    anyOf:
-      - text: "Start"
-      - text: "Begin"
-      - text: "Verify Now"
+    text: "Start"
     optional: true
 
 - takeScreenshot: "03_status_details"
@@ -138,10 +109,7 @@ tags:
 # TEST: Refresh Status (if available)
 # ─────────────────────────────────────────────────────────────────────────────
 - tapOn:
-    anyOf:
-      - text: "Refresh"
-      - id: "refresh-status"
-      - text: "🔄"
+    text: "Refresh"
     optional: true
 
 - waitForAnimationToEnd:

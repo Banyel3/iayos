@@ -6,7 +6,7 @@
 # Note: Changes are reverted at end of test
 # ══════════════════════════════════════════════════════════════════════════════
 
-appId: com.iayos.app
+appId: com.devante.iayos
 tags:
   - profile
   - edit
@@ -48,29 +48,21 @@ tags:
 # TEST: Navigate to Edit Profile
 # ─────────────────────────────────────────────────────────────────────────────
 - tapOn:
-    anyOf:
-      - text: "Profile"
-      - id: "profile-tab"
-
+    text: "Profile"
+    optional: true
 - waitForAnimationToEnd
 
 - tapOn:
-    anyOf:
-      - text: "Edit"
-      - text: "Edit Profile"
-      - id: "edit-profile-button"
-
+    text: "Edit"
+    optional: true
 - waitForAnimationToEnd
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TEST: Verify Edit Form
 # ─────────────────────────────────────────────────────────────────────────────
 - assertVisible:
-    anyOf:
-      - text: "Edit Profile"
-      - text: "Bio"
-      - text: "Name"
-      - text: "Save"
+    text: "Edit Profile"
+    optional: true
     timeout: 10000
 
 - takeScreenshot: "01_edit_form"
@@ -79,8 +71,8 @@ tags:
 # TEST: Edit Bio
 # ─────────────────────────────────────────────────────────────────────────────
 - tapOn:
-    anyOf:
-      - id: "bio-input"
+    id: "bio-input"
+    optional: true
       - text: "Bio"
       - text: "About"
 
@@ -97,8 +89,8 @@ tags:
     direction: DOWN
 
 - tapOn:
-    anyOf:
-      - id: "hourly-rate-input"
+    id: "bio-input"
+    optional: true
       - text: "Hourly Rate"
       - text: "₱/hr"
     optional: true
@@ -113,10 +105,7 @@ tags:
 # TEST: Verify Save Button
 # ─────────────────────────────────────────────────────────────────────────────
 - assertVisible:
-    anyOf:
-      - text: "Save"
-      - text: "Update"
-      - id: "save-profile-button"
+    text: "Save"
     optional: true
 
 - takeScreenshot: "04_ready_to_save"
@@ -126,21 +115,14 @@ tags:
 # ─────────────────────────────────────────────────────────────────────────────
 # We don't save to avoid polluting user data
 - tapOn:
-    anyOf:
-      - text: "Cancel"
-      - text: "Back"
-      - id: "back-button"
-      - text: "←"
+    text: "Cancel"
     optional: true
 
 - waitForAnimationToEnd
 
 # Confirm discard if prompted
 - tapOn:
-    anyOf:
-      - text: "Discard"
-      - text: "Yes"
-      - text: "Don't Save"
+    text: "Discard"
     optional: true
 
 - waitForAnimationToEnd

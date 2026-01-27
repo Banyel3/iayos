@@ -1,7 +1,7 @@
 # Test: Welcome Screen Display
 # Verifies that the welcome screen loads correctly on app launch
 
-appId: com.iayos.app
+appId: com.devante.iayos
 tags:
   - auth
   - welcome

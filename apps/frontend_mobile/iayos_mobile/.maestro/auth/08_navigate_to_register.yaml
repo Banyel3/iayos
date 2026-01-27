@@ -1,7 +1,7 @@
 # Test: Navigate to Register Screen
 # Verifies navigation from login screen to register screen
 
-appId: com.iayos.app
+appId: com.devante.iayos
 tags:
   - auth
   - register

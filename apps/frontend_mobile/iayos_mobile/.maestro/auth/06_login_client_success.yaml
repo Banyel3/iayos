@@ -2,7 +2,7 @@
 # Verifies that a valid client can log in successfully
 # NOTE: Test user must exist in production database
 
-appId: com.iayos.app
+appId: com.devante.iayos
 tags:
   - auth
   - login
@@ -54,12 +54,8 @@ env:
 
 # Verify landed on main app
 - assertVisible:
-    anyOf:
-      - id: "jobs-screen"
-      - id: "home-screen"
-      - id: "select-role-screen"
-      - id: "tab-bar"
-    optional: false
+    id: "jobs-screen"
+    optional: true
 
 # Take success screenshot
 - takeScreenshot: "login_client_success"

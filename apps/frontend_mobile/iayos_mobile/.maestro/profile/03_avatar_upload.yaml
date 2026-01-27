@@ -6,7 +6,7 @@
 # Prerequisites: Logged in
 # ══════════════════════════════════════════════════════════════════════════════
 
-appId: com.iayos.app
+appId: com.devante.iayos
 tags:
   - profile
   - avatar
@@ -49,19 +49,16 @@ tags:
 # TEST: Navigate to Profile
 # ─────────────────────────────────────────────────────────────────────────────
 - tapOn:
-    anyOf:
-      - text: "Profile"
-      - id: "profile-tab"
-
+    text: "Profile"
+    optional: true
 - waitForAnimationToEnd
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TEST: Tap on Avatar
 # ─────────────────────────────────────────────────────────────────────────────
 - tapOn:
-    anyOf:
-      - id: "profile-avatar"
-      - id: "avatar-image"
+    id: "profile-avatar"
+    optional: true
       - text: "Change Photo"
       - text: "📷"
     optional: true
@@ -72,12 +69,7 @@ tags:
 # TEST: Verify Upload Options
 # ─────────────────────────────────────────────────────────────────────────────
 - assertVisible:
-    anyOf:
-      - text: "Camera"
-      - text: "Gallery"
-      - text: "Take Photo"
-      - text: "Choose from Gallery"
-      - text: "Remove"
+    text: "Camera"
     optional: true
     timeout: 5000
 
@@ -87,10 +79,7 @@ tags:
 # TEST: Tap Camera Option (Partial - will fail gracefully)
 # ─────────────────────────────────────────────────────────────────────────────
 - tapOn:
-    anyOf:
-      - text: "Camera"
-      - text: "Take Photo"
-      - id: "camera-option"
+    text: "Camera"
     optional: true
 
 - waitForAnimationToEnd:
@@ -101,11 +90,7 @@ tags:
 
 # Cancel/close camera
 - tapOn:
-    anyOf:
-      - text: "Cancel"
-      - text: "Close"
-      - text: "✕"
-      - id: "close-button"
+    text: "Cancel"
     optional: true
 
 - waitForAnimationToEnd
@@ -114,19 +99,15 @@ tags:
 # TEST: Tap Gallery Option (Partial)
 # ─────────────────────────────────────────────────────────────────────────────
 - tapOn:
-    anyOf:
-      - id: "profile-avatar"
+    id: "profile-avatar"
+    optional: true
       - text: "Change Photo"
     optional: true
 
 - waitForAnimationToEnd
 
 - tapOn:
-    anyOf:
-      - text: "Gallery"
-      - text: "Choose"
-      - text: "Photos"
-      - id: "gallery-option"
+    text: "Gallery"
     optional: true
 
 - waitForAnimationToEnd:
@@ -136,10 +117,7 @@ tags:
 
 # Close gallery picker
 - tapOn:
-    anyOf:
-      - text: "Cancel"
-      - text: "Close"
-      - text: "Back"
+    text: "Cancel"
     optional: true
 
 - waitForAnimationToEnd

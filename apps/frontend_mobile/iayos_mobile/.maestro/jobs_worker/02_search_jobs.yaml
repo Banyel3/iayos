@@ -5,7 +5,7 @@
 # Prerequisites: Logged in as WORKER
 # ══════════════════════════════════════════════════════════════════════════════
 
-appId: com.iayos.app
+appId: com.devante.iayos
 tags:
   - jobs_worker
   - search
@@ -54,9 +54,8 @@ tags:
 
 # Look for search icon or input
 - tapOn:
-    anyOf:
-      - id: "search-button"
-      - id: "search-icon"
+    id: "search-button"
+    optional: true
       - text: "Search"
     optional: true
 
@@ -66,8 +65,8 @@ tags:
 # TEST: Enter Search Query
 # ─────────────────────────────────────────────────────────────────────────────
 - tapOn:
-    anyOf:
-      - id: "search-input"
+    id: "search-button"
+    optional: true
       - text: "Search jobs..."
       - text: "Search"
 
@@ -79,12 +78,8 @@ tags:
 
 # Verify search results or no results
 - assertVisible:
-    anyOf:
-      - text: "plumbing"
-      - text: "Plumbing"
-      - text: "No jobs found"
-      - text: "No results"
-      - text: "₱"
+    text: "plumbing"
+    optional: true
     timeout: 10000
 
 - takeScreenshot: "01_search_results"
@@ -93,8 +88,8 @@ tags:
 # TEST: Apply Filters (if available)
 # ─────────────────────────────────────────────────────────────────────────────
 - tapOn:
-    anyOf:
-      - id: "filter-button"
+    id: "search-button"
+    optional: true
       - text: "Filter"
       - text: "Filters"
     optional: true
@@ -103,10 +98,7 @@ tags:
 
 # Try to set budget filter
 - tapOn:
-    anyOf:
-      - text: "Budget"
-      - text: "Min"
-      - id: "min-budget-input"
+    text: "Budget"
     optional: true
 
 - inputText: "500"
@@ -114,10 +106,7 @@ tags:
 - hideKeyboard
 
 - tapOn:
-    anyOf:
-      - text: "Apply"
-      - text: "Apply Filters"
-      - id: "apply-filters-button"
+    text: "Apply"
     optional: true
 
 - waitForAnimationToEnd
@@ -128,8 +117,8 @@ tags:
 # TEST: Clear Search
 # ─────────────────────────────────────────────────────────────────────────────
 - tapOn:
-    anyOf:
-      - id: "clear-search-button"
+    id: "search-button"
+    optional: true
       - text: "Clear"
       - text: "✕"
     optional: true

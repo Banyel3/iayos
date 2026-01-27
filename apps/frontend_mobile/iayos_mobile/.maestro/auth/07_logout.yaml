@@ -2,7 +2,7 @@
 # Verifies that a logged-in user can logout and return to welcome screen
 # NOTE: Test user must exist in production database
 
-appId: com.iayos.app
+appId: com.devante.iayos
 tags:
   - auth
   - logout

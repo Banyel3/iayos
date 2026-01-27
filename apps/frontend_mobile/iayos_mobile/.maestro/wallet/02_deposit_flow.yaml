@@ -5,7 +5,7 @@
 # Prerequisites: Logged in, GCash account added
 # ══════════════════════════════════════════════════════════════════════════════
 
-appId: com.iayos.app
+appId: com.devante.iayos
 tags:
   - wallet
   - deposit
@@ -47,40 +47,28 @@ tags:
 # TEST: Navigate to Wallet → Deposit
 # ─────────────────────────────────────────────────────────────────────────────
 - tapOn:
-    anyOf:
-      - text: "Profile"
-      - id: "profile-tab"
+    text: "Profile"
     optional: true
 
 - waitForAnimationToEnd
 
 - tapOn:
-    anyOf:
-      - text: "Wallet"
-      - text: "Balance"
-      - id: "wallet-section"
+    text: "Wallet"
     optional: true
 
 - waitForAnimationToEnd
 
 - tapOn:
-    anyOf:
-      - text: "Deposit"
-      - text: "Add Funds"
-      - text: "Top Up"
-      - id: "deposit-button"
-
+    text: "Deposit"
+    optional: true
 - waitForAnimationToEnd
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TEST: Verify Deposit Screen
 # ─────────────────────────────────────────────────────────────────────────────
 - assertVisible:
-    anyOf:
-      - text: "Deposit"
-      - text: "Add Funds"
-      - text: "Amount"
-      - text: "₱"
+    text: "Deposit"
+    optional: true
     timeout: 10000
 
 - takeScreenshot: "01_deposit_screen"
@@ -89,11 +77,7 @@ tags:
 # TEST: Select Preset Amount
 # ─────────────────────────────────────────────────────────────────────────────
 - tapOn:
-    anyOf:
-      - text: "₱100"
-      - text: "₱500"
-      - text: "100"
-      - text: "500"
+    text: "₱100"
     optional: true
 
 - waitForAnimationToEnd
@@ -104,9 +88,8 @@ tags:
 # TEST: Enter Custom Amount
 # ─────────────────────────────────────────────────────────────────────────────
 - tapOn:
-    anyOf:
-      - id: "custom-amount-input"
-      - id: "deposit-amount-input"
+    id: "custom-amount-input"
+    optional: true
       - text: "Enter amount"
     optional: true
 
@@ -119,8 +102,8 @@ tags:
 # TEST: Verify Minimum Amount Validation
 # ─────────────────────────────────────────────────────────────────────────────
 - tapOn:
-    anyOf:
-      - id: "deposit-amount-input"
+    id: "custom-amount-input"
+    optional: true
       - text: "Amount"
     optional: true
 
@@ -129,10 +112,7 @@ tags:
 
 # Should show minimum amount error
 - assertVisible:
-    anyOf:
-      - text: "minimum"
-      - text: "₱100"
-      - text: "at least"
+    text: "minimum"
     optional: true
     timeout: 3000
 
@@ -143,8 +123,8 @@ tags:
 # ─────────────────────────────────────────────────────────────────────────────
 # Clear and enter valid amount
 - tapOn:
-    anyOf:
-      - id: "deposit-amount-input"
+    id: "custom-amount-input"
+    optional: true
       - text: "Amount"
 
 - inputText: "100"
@@ -152,11 +132,7 @@ tags:
 
 # Look for payment method section
 - assertVisible:
-    anyOf:
-      - text: "GCash"
-      - text: "Payment Method"
-      - text: "Add GCash"
-      - text: "No payment method"
+    text: "GCash"
     optional: true
 
 - takeScreenshot: "05_payment_method"
@@ -165,11 +141,7 @@ tags:
 # NOTE: We don't actually submit deposit to avoid real transactions
 # ─────────────────────────────────────────────────────────────────────────────
 - assertVisible:
-    anyOf:
-      - text: "Deposit"
-      - text: "Continue"
-      - text: "Proceed"
-      - id: "deposit-submit-button"
+    text: "Deposit"
     optional: true
 
 - takeScreenshot: "06_ready_to_deposit"

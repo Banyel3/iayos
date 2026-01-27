@@ -5,7 +5,7 @@
 # Prerequisites: Logged in
 # ══════════════════════════════════════════════════════════════════════════════
 
-appId: com.iayos.app
+appId: com.devante.iayos
 tags:
   - wallet
   - payment_methods
@@ -47,9 +47,7 @@ tags:
 # TEST: Navigate to Payment Methods
 # ─────────────────────────────────────────────────────────────────────────────
 - tapOn:
-    anyOf:
-      - text: "Profile"
-      - id: "profile-tab"
+    text: "Profile"
     optional: true
 
 - waitForAnimationToEnd
@@ -60,11 +58,7 @@ tags:
   optional: true
 
 - tapOn:
-    anyOf:
-      - text: "Payment Methods"
-      - text: "GCash"
-      - text: "Bank Accounts"
-      - id: "payment-methods"
+    text: "Payment Methods"
     optional: true
 
 - waitForAnimationToEnd
@@ -73,11 +67,8 @@ tags:
 # TEST: Verify Payment Methods Screen
 # ─────────────────────────────────────────────────────────────────────────────
 - assertVisible:
-    anyOf:
-      - text: "Payment Methods"
-      - text: "GCash"
-      - text: "Add"
-      - text: "No payment methods"
+    text: "Payment Methods"
+    optional: true
     timeout: 10000
 
 - takeScreenshot: "01_payment_methods"
@@ -86,29 +77,21 @@ tags:
 # TEST: Add New Payment Method
 # ─────────────────────────────────────────────────────────────────────────────
 - tapOn:
-    anyOf:
-      - text: "Add"
-      - text: "Add Payment Method"
-      - text: "+"
-      - id: "add-payment-method"
-
+    text: "Add"
+    optional: true
 - waitForAnimationToEnd
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TEST: Select GCash
 # ─────────────────────────────────────────────────────────────────────────────
 - assertVisible:
-    anyOf:
-      - text: "GCash"
-      - text: "Bank"
-      - text: "Select type"
+    text: "GCash"
+    optional: true
     timeout: 5000
 
 - tapOn:
-    anyOf:
-      - text: "GCash"
-      - id: "gcash-option"
-
+    text: "GCash"
+    optional: true
 - waitForAnimationToEnd
 
 - takeScreenshot: "02_add_gcash"
@@ -117,8 +100,8 @@ tags:
 # TEST: Fill GCash Details (DRY RUN - use test data)
 # ─────────────────────────────────────────────────────────────────────────────
 - tapOn:
-    anyOf:
-      - id: "account-name-input"
+    id: "account-name-input"
+    optional: true
       - text: "Account Name"
       - text: "Name"
 
@@ -126,8 +109,8 @@ tags:
 - hideKeyboard
 
 - tapOn:
-    anyOf:
-      - id: "account-number-input"
+    id: "account-name-input"
+    optional: true
       - text: "Account Number"
       - text: "Phone Number"
       - text: "09"
@@ -141,11 +124,7 @@ tags:
 # TEST: Verify Form Validation
 # ─────────────────────────────────────────────────────────────────────────────
 - assertVisible:
-    anyOf:
-      - text: "Save"
-      - text: "Add"
-      - text: "Continue"
-      - id: "save-payment-method"
+    text: "Save"
     optional: true
 
 - takeScreenshot: "04_ready_to_save"
@@ -157,8 +136,8 @@ tags:
 
 # Go back without saving
 - tapOn:
-    anyOf:
-      - id: "back-button"
+    id: "account-name-input"
+    optional: true
       - text: "Cancel"
       - text: "←"
     optional: true

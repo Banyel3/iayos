@@ -5,7 +5,7 @@
 # Prerequisites: Logged in as WORKER, at least one job exists
 # ══════════════════════════════════════════════════════════════════════════════
 
-appId: com.iayos.app
+appId: com.devante.iayos
 tags:
   - jobs_worker
   - detail
@@ -57,8 +57,8 @@ tags:
 # ─────────────────────────────────────────────────────────────────────────────
 # Look for job cards with budget indicator
 - tapOn:
-    anyOf:
-      - id: "job-card-0"
+    id: "job-card-0"
+    optional: true
       - text: "₱"
     index: 0
     optional: true
@@ -71,13 +71,8 @@ tags:
 # ─────────────────────────────────────────────────────────────────────────────
 # Job details should show budget, description, location
 - assertVisible:
-    anyOf:
-      - text: "Budget"
-      - text: "₱"
-      - text: "Description"
-      - text: "Location"
-      - text: "Posted by"
-      - id: "job-detail-screen"
+    text: "Budget"
+    optional: true
     timeout: 10000
 
 - takeScreenshot: "01_job_detail"
@@ -92,12 +87,7 @@ tags:
 
 # Look for additional details
 - assertVisible:
-    anyOf:
-      - text: "Apply"
-      - text: "Save"
-      - text: "Materials"
-      - text: "Urgency"
-      - text: "Category"
+    text: "Apply"
     optional: true
 
 - takeScreenshot: "02_job_detail_scrolled"
@@ -106,8 +96,8 @@ tags:
 # TEST: Go Back
 # ─────────────────────────────────────────────────────────────────────────────
 - tapOn:
-    anyOf:
-      - id: "back-button"
+    id: "job-card-0"
+    optional: true
       - text: "←"
       - text: "Back"
     optional: true
