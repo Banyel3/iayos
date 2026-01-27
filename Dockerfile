@@ -247,18 +247,18 @@ FROM python:3.12-slim AS backend-development
 
 # Set environment variables
 # DEEPFACE_HOME: DeepFace creates a .deepface folder for models/weights
-# Must be writable by appuser, so we set it to /tmp/.deepface
+# Must be persistent (not /tmp which is ephemeral) and writable by appuser
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    DEEPFACE_HOME="/tmp/.deepface"
+    DEEPFACE_HOME="/app/.deepface"
 
 # Create non-root user
 RUN groupadd -g 1001 appgroup \
     && useradd -r -u 1001 -g appgroup -d /app -s /sbin/nologin appuser \
-    && mkdir -p /tmp/.deepface \
-    && chown appuser:appgroup /tmp/.deepface
+    && mkdir -p /app/.deepface \
+    && chown appuser:appgroup /app/.deepface
 
 # Install development dependencies
 # - tesseract-ocr for KYC document verification
@@ -295,24 +295,44 @@ RUN sed -i 's/\r$//' patch_ninja.sh && chmod +x patch_ninja.sh && ./patch_ninja.
 
 # Pre-download DeepFace models at build time to avoid RAM spikes at runtime
 # This downloads the model files (~100MB) during build instead of first request
-# Models are stored in DEEPFACE_HOME (/tmp/.deepface)
+# Models are stored in DEEPFACE_HOME (/app/.deepface) - persists in Docker layer
 RUN python << 'EOF'
 import os
-os.environ['DEEPFACE_HOME'] = '/tmp/.deepface'
+os.environ['DEEPFACE_HOME'] = '/app/.deepface'
 try:
     from deepface import DeepFace
     print('📥 Pre-downloading DeepFace models...')
-    # Trigger model download by running a dummy verification
-    # This downloads: Facenet512 (~90MB), opencv detector
     import numpy as np
-    dummy_img = np.zeros((224, 224, 3), dtype=np.uint8)
-    # Create a simple test to trigger model download
+    # Create two different dummy images for verification
+    dummy_img1 = np.zeros((224, 224, 3), dtype=np.uint8)
+    dummy_img2 = np.ones((224, 224, 3), dtype=np.uint8) * 128
+    
+    # This downloads opencv detector
     try:
-        DeepFace.extract_faces(dummy_img, detector_backend='opencv', enforce_detection=False)
-        print('✅ DeepFace detector model pre-downloaded')
+        DeepFace.extract_faces(dummy_img1, detector_backend='opencv', enforce_detection=False)
+        print('✅ DeepFace detector (opencv) pre-downloaded')
     except Exception as e:
-        print(f'⚠️ Detector pre-download warning (expected for dummy image): {e}')
+        print(f'⚠️ Detector warning (expected): {e}')
+    
+    # This downloads Facenet512 model (~90MB) - the actual face recognition model
+    try:
+        DeepFace.verify(dummy_img1, dummy_img2, model_name='Facenet512', detector_backend='opencv', enforce_detection=False)
+        print('✅ Facenet512 model pre-downloaded')
+    except Exception as e:
+        print(f'⚠️ Verify warning (expected for dummy images): {e}')
+    
     print('✅ DeepFace models ready')
+    # Verify models exist
+    deepface_dir = '/app/.deepface'
+    if os.path.exists(deepface_dir):
+        total_size = 0
+        for root, dirs, files in os.walk(deepface_dir):
+            for f in files:
+                path = os.path.join(root, f)
+                size = os.path.getsize(path)
+                total_size += size
+                print(f'   📦 {path}: {size/1024/1024:.1f}MB')
+        print(f'   📊 Total model size: {total_size/1024/1024:.1f}MB')
 except ImportError as e:
     print(f'⚠️ DeepFace not available: {e}')
 EOF
@@ -345,19 +365,19 @@ FROM python:3.12-slim AS backend-production
 
 # Set secure environment variables
 # DEEPFACE_HOME: DeepFace creates a .deepface folder for models/weights
-# Must be writable by appuser, so we set it to /tmp/.deepface
+# Must be persistent (not /tmp which is ephemeral) and writable by appuser
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PATH="/app/venv/bin:$PATH" \
-    DEEPFACE_HOME="/tmp/.deepface"
+    DEEPFACE_HOME="/app/.deepface"
 
 # Create non-root user (Debian syntax)
 RUN groupadd -g 1001 appgroup \
     && useradd -r -u 1001 -g appgroup -d /app -s /sbin/nologin appuser \
-    && mkdir -p /tmp/.deepface \
-    && chown appuser:appgroup /tmp/.deepface
+    && mkdir -p /app/.deepface \
+    && chown appuser:appgroup /app/.deepface
 
 # Install only runtime dependencies (Debian syntax)
 # - tesseract-ocr for KYC document verification
@@ -388,24 +408,50 @@ RUN chmod +x /app/backend/start.sh
 
 # Pre-download DeepFace models at build time to avoid RAM spikes at runtime
 # This downloads the model files (~100MB) during build instead of first request
-# Models are stored in DEEPFACE_HOME (/tmp/.deepface)
+# Models are stored in DEEPFACE_HOME (/app/.deepface) - persists in Docker layer
 RUN python << 'EOF'
 import os
-os.environ['DEEPFACE_HOME'] = '/tmp/.deepface'
+os.environ['DEEPFACE_HOME'] = '/app/.deepface'
 try:
     from deepface import DeepFace
     print('📥 Pre-downloading DeepFace models...')
     import numpy as np
-    dummy_img = np.zeros((224, 224, 3), dtype=np.uint8)
+    # Create two different dummy images for verification
+    dummy_img1 = np.zeros((224, 224, 3), dtype=np.uint8)
+    dummy_img2 = np.ones((224, 224, 3), dtype=np.uint8) * 128
+    
+    # This downloads opencv detector
     try:
-        DeepFace.extract_faces(dummy_img, detector_backend='opencv', enforce_detection=False)
-        print('✅ DeepFace detector model pre-downloaded')
+        DeepFace.extract_faces(dummy_img1, detector_backend='opencv', enforce_detection=False)
+        print('✅ DeepFace detector (opencv) pre-downloaded')
     except Exception as e:
-        print(f'⚠️ Detector pre-download warning (expected for dummy image): {e}')
+        print(f'⚠️ Detector warning (expected): {e}')
+    
+    # This downloads Facenet512 model (~90MB) - the actual face recognition model
+    try:
+        DeepFace.verify(dummy_img1, dummy_img2, model_name='Facenet512', detector_backend='opencv', enforce_detection=False)
+        print('✅ Facenet512 model pre-downloaded')
+    except Exception as e:
+        print(f'⚠️ Verify warning (expected for dummy images): {e}')
+    
     print('✅ DeepFace models ready')
+    # Verify models exist
+    deepface_dir = '/app/.deepface'
+    if os.path.exists(deepface_dir):
+        total_size = 0
+        for root, dirs, files in os.walk(deepface_dir):
+            for f in files:
+                path = os.path.join(root, f)
+                size = os.path.getsize(path)
+                total_size += size
+                print(f'   📦 {path}: {size/1024/1024:.1f}MB')
+        print(f'   📊 Total model size: {total_size/1024/1024:.1f}MB')
 except ImportError as e:
     print(f'⚠️ DeepFace not available: {e}')
 EOF
+
+# Ensure appuser can read the pre-downloaded models
+RUN chown -R appuser:appgroup /app/.deepface
 
 # CRITICAL: Verify all dependencies are accessible at build time
 # Virtualenv PATH ensures python finds all packages automatically
