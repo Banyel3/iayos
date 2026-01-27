@@ -127,8 +127,9 @@ class AgencyKYCExtractionParser:
         # DTI Certificate-specific patterns (Department of Trade and Industry)
         # Matches "Business Name No.7663018" or "Business Name No. 7663018"
         self.dti_business_name_pattern = re.compile(r'Business\s+Name\s+No\.?\s*(\d+)', re.IGNORECASE)
-        # Matches "BPXW658418425073" (4 letters + 12 digits) - DTI certificate ID format
-        self.dti_certificate_id_pattern = re.compile(r'\b([A-Z]{4}\d{12})\b')
+        # Matches certificate ID like "BPXW658418425073" (4 letters + 12 digits)
+        # Must be on its own line or after "Certificate ID:" to avoid matching Business Name No.
+        self.dti_certificate_id_pattern = re.compile(r'(?:^|\n)\s*([A-Z]{4}\d{12})\s*(?:$|\n)', re.MULTILINE)
         # Matches "issued to VANIEL JOHN GARCIA CORNELIO" or "This certificate issued to NAME"
         self.issued_to_pattern = re.compile(r'(?:This\s+certificate\s+)?issued\s+to\s+([A-Z\s]+?)(?:\n|is\s+valid|subject\s+to)', re.IGNORECASE)
         # Matches "valid from January 06, 2026 to January 06, 2031"
@@ -219,21 +220,33 @@ class AgencyKYCExtractionParser:
                 break
         
         # Extract permit number (look for patterns like "No.", "Permit No", etc.)
-        permit_patterns = [
-            re.compile(r'PERMIT\s*(?:NO\.?|NUMBER)[:\s]*([A-Z0-9-]+)', re.IGNORECASE),
-            re.compile(r'BUSINESS\s*(?:NO\.?|NUMBER)[:\s]*([A-Z0-9-]+)', re.IGNORECASE),
-            re.compile(r'(?:NO\.?|NUMBER)[:\s]*([A-Z0-9-]{5,})', re.IGNORECASE),
-        ]
-        for pattern in permit_patterns:
-            match = pattern.search(text)
-            if match:
-                result.permit_number = ExtractionResult(
-                    value=match.group(1).strip(),
-                    confidence=0.85,
-                    source_text=match.group(0)
-                )
-                logger.info(f"   Permit Number: {result.permit_number.value}")
-                break
+        # PRIORITY 1: Check for DTI Certificate ID first (4 letters + 12 digits on its own line)
+        cert_id_match = self.dti_certificate_id_pattern.search(text)
+        if cert_id_match:
+            result.permit_number = ExtractionResult(
+                value=cert_id_match.group(1).strip().upper(),
+                confidence=0.9,  # High confidence for DTI certificate ID
+                source_text=cert_id_match.group(0)
+            )
+            logger.info(f"   DTI Certificate ID (permit): {result.permit_number.value}")
+        
+        # PRIORITY 2: If no DTI cert ID, try standard permit patterns
+        if not result.permit_number.value:
+            permit_patterns = [
+                re.compile(r'PERMIT\s*(?:NO\.?|NUMBER)[:\s]*([A-Z0-9-]+)', re.IGNORECASE),
+                re.compile(r'BUSINESS\s*(?:NO\.?|NUMBER)[:\s]*([A-Z0-9-]+)', re.IGNORECASE),
+                re.compile(r'(?:NO\.?|NUMBER)[:\s]*([A-Z0-9-]{5,})', re.IGNORECASE),
+            ]
+            for pattern in permit_patterns:
+                match = pattern.search(text)
+                if match:
+                    result.permit_number = ExtractionResult(
+                        value=match.group(1).strip(),
+                        confidence=0.85,
+                        source_text=match.group(0)
+                    )
+                    logger.info(f"   Permit Number: {result.permit_number.value}")
+                    break
         
         # Extract dates
         dates_found = self._extract_dates(text)
@@ -271,15 +284,7 @@ class AgencyKYCExtractionParser:
                 )
                 logger.info(f"   DTI Business Name Number: {result.dti_number.value}")
         
-        # Extract DTI Certificate ID (store as permit number since it's the certificate identifier)
-        cert_id_match = self.dti_certificate_id_pattern.search(text)
-        if cert_id_match and not result.permit_number.value:
-            result.permit_number = ExtractionResult(
-                value=cert_id_match.group(1).strip().upper(),
-                confidence=0.85,
-                source_text=cert_id_match.group(0)
-            )
-            logger.info(f"   DTI Certificate ID: {result.permit_number.value}")
+        # Note: DTI Certificate ID is extracted earlier in permit number section
         
         # Extract "issued to" name for business owner verification
         issued_to_match = self.issued_to_pattern.search(text)
