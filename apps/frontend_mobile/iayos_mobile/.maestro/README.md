@@ -11,6 +11,7 @@ We use [Maestro](https://maestro.mobile.dev/) for end-to-end testing of the iAyo
 ### Prerequisites
 
 1. **Install Maestro CLI**:
+
    ```bash
    curl -Ls "https://get.maestro.mobile.dev" | bash
    ```
@@ -93,6 +94,7 @@ DELETE /api/mobile/test/cleanup-maestro-data
 ```
 
 This deletes:
+
 - Jobs with title containing `[TEST]` or `MAESTRO`
 - Payment methods with name containing `Maestro`
 - Saved jobs from test users
@@ -103,6 +105,7 @@ This deletes:
 ### Partial Tests
 
 Some tests are marked as "partial" because they can't fully complete in an emulator:
+
 - **Avatar Upload** - Camera/gallery requires physical device
 - **KYC Upload** - Document photos require camera access
 - **Payment Completion** - Redirects to external payment (Xendit)
@@ -159,10 +162,10 @@ These tests verify the UI flow up to the point requiring device hardware.
 
 For successful login tests, these users must exist in the **production database**:
 
-| Role   | Email                     | Password    |
-|--------|---------------------------|-------------|
-| WORKER | worker.test@iayos.com     | Test1234!   |
-| CLIENT | client.test@iayos.com     | Test1234!   |
+| Role   | Email                 | Password  |
+| ------ | --------------------- | --------- |
+| WORKER | worker.test@iayos.com | Test1234! |
+| CLIENT | client.test@iayos.com | Test1234! |
 
 ## 📝 Writing Tests
 
@@ -176,7 +179,6 @@ tags:
   - login
 
 ---
-
 # Launch app fresh
 - launchApp:
     clearState: true
@@ -206,29 +208,31 @@ tags:
 
 ### Common Commands
 
-| Command | Description |
-|---------|-------------|
-| `launchApp` | Launch or restart the app |
-| `tapOn` | Tap on an element by id, text, or coordinates |
-| `inputText` | Type text into focused field |
-| `assertVisible` | Assert element is visible |
-| `assertNotVisible` | Assert element is not visible |
-| `waitForAnimationToEnd` | Wait for animations to complete |
-| `extendedWaitUntil` | Wait for condition with timeout |
-| `scrollUntilVisible` | Scroll until element is found |
-| `hideKeyboard` | Hide the keyboard |
-| `takeScreenshot` | Capture screenshot |
+| Command                 | Description                                   |
+| ----------------------- | --------------------------------------------- |
+| `launchApp`             | Launch or restart the app                     |
+| `tapOn`                 | Tap on an element by id, text, or coordinates |
+| `inputText`             | Type text into focused field                  |
+| `assertVisible`         | Assert element is visible                     |
+| `assertNotVisible`      | Assert element is not visible                 |
+| `waitForAnimationToEnd` | Wait for animations to complete               |
+| `extendedWaitUntil`     | Wait for condition with timeout               |
+| `scrollUntilVisible`    | Scroll until element is found                 |
+| `hideKeyboard`          | Hide the keyboard                             |
+| `takeScreenshot`        | Capture screenshot                            |
 
 ## 🔧 Test IDs Required
 
 Make sure these testIDs are set in your React Native components:
 
 ### Welcome Screen ✅ (Already implemented)
+
 - `welcome-screen` - Container
 - `welcome-get-started-button` - Get Started button
 - `welcome-login-button` - Login button
 
 ### Login Screen ✅ (Already implemented)
+
 - `login-screen` - Container
 - `login-email-input` - Email input
 - `login-password-input` - Password input
@@ -236,16 +240,19 @@ Make sure these testIDs are set in your React Native components:
 - `login-register-link` - Register link
 
 ### Profile Screen ✅ (Already implemented)
+
 - `profile-tab` - Profile tab button
 - `profile-logout-button` - Logout button
 
 ### Main App ✅ (Already implemented)
+
 - `jobs-screen` - Jobs screen container
 - `home-screen` - Home screen container
 - `select-role-screen` - Role selection screen
 - `tab-bar` - Tab navigation bar
 
 ### Jobs Screens - Worker (Need to add)
+
 - `categories-grid` - Category grid container
 - `job-card-{index}` - Individual job cards (0, 1, 2...)
 - `search-button` - Open search
@@ -261,6 +268,7 @@ Make sure these testIDs are set in your React Native components:
 - `application-card-{index}` - Application cards
 
 ### Jobs Screens - Client (Need to add)
+
 - `create-job-button` - Start job creation
 - `job-title-input` - Job title field
 - `job-description-input` - Job description field
@@ -272,6 +280,7 @@ Make sure these testIDs are set in your React Native components:
 - `worker-card-{index}` - Worker profile cards
 
 ### Wallet Screens (Need to add)
+
 - `wallet-screen` - Wallet main screen
 - `wallet-section` - Wallet section in profile
 - `balance-amount` - Balance display
@@ -288,6 +297,7 @@ Make sure these testIDs are set in your React Native components:
 - `save-payment-method` - Save payment method
 
 ### KYC Screens (Need to add)
+
 - `kyc-section` - KYC section in profile
 - `kyc-upload-screen` - KYC upload screen
 - `id-type-national` - National ID option
@@ -300,6 +310,7 @@ Make sure these testIDs are set in your React Native components:
 - `refresh-status` - Refresh KYC status
 
 ### Profile Screens (Need to add)
+
 - `profile-screen` - Profile main screen
 - `profile-avatar` - Avatar image/button
 - `edit-profile-button` - Edit profile button
@@ -311,6 +322,7 @@ Make sure these testIDs are set in your React Native components:
 - `gallery-option` - Gallery picker option
 
 ### Navigation (Need to add)
+
 - `home-tab` - Home tab button
 - `jobs-tab` - Jobs tab button
 - `messages-tab` - Messages tab button
@@ -353,6 +365,7 @@ maestro studio
 ## 📊 CI/CD Integration
 
 Test results are:
+
 - Published as JUnit XML reports
 - Screenshots uploaded as artifacts
 - Summarized in PR comments
@@ -360,6 +373,7 @@ Test results are:
 ## 🔄 Migration from Detox
 
 The old Detox tests are archived in `e2e/` folder. Maestro was chosen because:
+
 - ✅ No native build required (uses release APK)
 - ✅ Simple YAML syntax (vs TypeScript)
 - ✅ Faster test execution

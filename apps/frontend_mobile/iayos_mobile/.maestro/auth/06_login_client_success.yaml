@@ -14,7 +14,6 @@ env:
   CLIENT_PASSWORD: "Test1234!"
 
 ---
-
 # Launch app fresh
 - launchApp:
     clearState: true

@@ -8,7 +8,6 @@ tags:
   - validation
 
 ---
-
 # Launch app fresh
 - launchApp:
     clearState: true

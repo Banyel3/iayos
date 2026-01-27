@@ -13,7 +13,6 @@ tags:
   - onboarding
 
 ---
-
 # ─────────────────────────────────────────────────────────────────────────────
 # SETUP: Login as Worker
 # ─────────────────────────────────────────────────────────────────────────────
@@ -139,7 +138,6 @@ tags:
     optional: true
 
 - takeScreenshot: "05_all_steps"
-
 # ─────────────────────────────────────────────────────────────────────────────
 # NOTE: Cannot complete KYC in E2E test (requires actual camera)
 # This test verifies the KYC UI is accessible and functional

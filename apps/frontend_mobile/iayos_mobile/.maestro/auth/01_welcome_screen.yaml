@@ -7,7 +7,6 @@ tags:
   - welcome
 
 ---
-
 # Launch app fresh
 - launchApp:
     clearState: true
