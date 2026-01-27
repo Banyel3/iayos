@@ -321,8 +321,10 @@ def confirm_agency_kyc_data(request):
         
     except Exception as e:
         print(f"Error in confirm_agency_kyc_data: {str(e)}")
-        import traceback
-        traceback.print_exc()
+        # Log full traceback for debugging (use logger in production)
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.exception("Agency KYC confirm failed")
         return Response({"success": False, "error": "Failed to confirm data"}, status=500)
 
 

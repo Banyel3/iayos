@@ -15,7 +15,7 @@ from .kyc_extraction_parser import get_agency_kyc_parser, ParsedAgencyKYCData
 logger = logging.getLogger(__name__)
 
 
-def process_agency_kyc_extraction(agency_kyc_record: AgencyKYC) -> Optional[AgencyKYCExtractedData]:
+def process_agency_kyc_extraction(agency_kyc_record: AgencyKYC, business_type: str = None) -> Optional[AgencyKYCExtractedData]:
     """
     Process OCR text from Agency KYC files and populate AgencyKYCExtractedData model.
     
@@ -27,6 +27,7 @@ def process_agency_kyc_extraction(agency_kyc_record: AgencyKYC) -> Optional[Agen
     
     Args:
         agency_kyc_record: The AgencyKYC record to process
+        business_type: Optional user-selected business type (SOLE_PROPRIETORSHIP, etc.)
         
     Returns:
         AgencyKYCExtractedData record if successful, None if no OCR data available
@@ -49,9 +50,9 @@ def process_agency_kyc_extraction(agency_kyc_record: AgencyKYC) -> Optional[Agen
         )
         
         # Save user-selected business_type if provided
-        if hasattr(agency_kyc_record, '_business_type_selection'):
-            extracted.confirmed_business_type = agency_kyc_record._business_type_selection
-            logger.info(f"   💼 Saving user-selected business_type: {extracted.confirmed_business_type}")
+        if business_type:
+            extracted.confirmed_business_type = business_type
+            logger.info(f"   💼 Saving user-selected business_type: {business_type}")
         
         if not created:
             logger.info(f"   ℹ️ Updating existing AgencyKYCExtractedData record")
@@ -215,17 +216,18 @@ def process_agency_kyc_extraction(agency_kyc_record: AgencyKYC) -> Optional[Agen
         return None
 
 
-def trigger_agency_kyc_extraction_after_upload(agency_kyc_record: AgencyKYC) -> None:
+def trigger_agency_kyc_extraction_after_upload(agency_kyc_record: AgencyKYC, business_type: str = None) -> None:
     """
     Trigger extraction processing after Agency KYC upload completes.
     Called from upload_agency_kyc() after files are saved.
     
     Args:
         agency_kyc_record: The AgencyKYC record that was just uploaded
+        business_type: Optional user-selected business type for OCR filtering
     """
     try:
         logger.info(f"🚀 [AGENCY KYC EXTRACTION] Triggering extraction for AgencyKYC {agency_kyc_record.agencyKycID}")
-        process_agency_kyc_extraction(agency_kyc_record)
+        process_agency_kyc_extraction(agency_kyc_record, business_type)
     except Exception as e:
         logger.error(f"❌ [AGENCY KYC EXTRACTION] Failed to trigger extraction: {str(e)}")
         # Don't raise - extraction failure shouldn't block KYC upload
