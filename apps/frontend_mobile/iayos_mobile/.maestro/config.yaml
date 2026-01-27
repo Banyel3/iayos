@@ -1,7 +1,7 @@
 # Maestro E2E Test Configuration for iAyos Mobile
 # Documentation: https://maestro.mobile.dev/
 
-appId: com.iayos.app
+appId: com.devante.iayos
 
 # Environment variables for tests
 env:

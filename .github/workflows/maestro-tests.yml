@@ -53,8 +53,8 @@ concurrency:
 env:
   # Live backend URL
   API_URL: "https://api.iayos.online"
-  # App package name
-  APP_ID: "com.iayos.app"
+  # App package name (must match app.json and build.gradle)
+  APP_ID: "com.devante.iayos"
 
 jobs:
   maestro-tests:
@@ -235,16 +235,17 @@ jobs:
             TEST_SUITE="${{ github.event.inputs.test_suite || 'auth' }}"
             MAESTRO_DIR="apps/frontend_mobile/iayos_mobile/.maestro"
             
+            echo "📱 Running Maestro tests for suite: $TEST_SUITE"
+            echo "📂 Maestro directory: $MAESTRO_DIR"
+            
+            # Run tests and capture result
             if [ "$TEST_SUITE" = "all" ]; then
               echo "Running all test suites..."
-              maestro test "$MAESTRO_DIR" --format junit --output maestro-report.xml || TEST_RESULT=$?
+              maestro test "$MAESTRO_DIR" --format junit --output maestro-report.xml
             else
               echo "Running $TEST_SUITE test suite..."
-              maestro test "$MAESTRO_DIR/$TEST_SUITE" --format junit --output maestro-report.xml || TEST_RESULT=$?
+              maestro test "$MAESTRO_DIR/$TEST_SUITE" --format junit --output maestro-report.xml
             fi
-            
-            # Capture exit code
-            echo "test_result=${TEST_RESULT:-0}" >> $GITHUB_OUTPUT
 
       # ─────────────────────────────────────────────────────────
       # 4.5. CLEANUP TEST DATA
