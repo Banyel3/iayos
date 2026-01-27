@@ -315,18 +315,21 @@ class DocumentVerificationService:
                 
                 if not face_result.get("detected", False):
                     if face_result.get("skipped"):
-                        # CompreFace not available - mark for manual review with warning
+                        # DeepFace service unavailable - mark for manual review with warning
+                        # This is a SERVICE FAILURE (not user error), so allow upload with manual review flag
                         face_detection_skipped = True
-                        face_detection_warning = "Face detection service temporarily unavailable. Your document will be reviewed manually."
-                        logger.warning("   ⚠️ Face detection skipped (CompreFace unavailable) - marked for manual review")
+                        face_detection_warning = "Face detection service is currently unavailable. Your document will be reviewed manually by our team."
+                        logger.warning("   ⚠️ Face detection service unavailable - flagged for manual review")
                     else:
+                        # DeepFace ran successfully but NO FACE DETECTED - STRONG REJECT
+                        # This is a USER ERROR (bad photo), so reject the upload immediately
                         error_msg = "No face detected in the image. Please ensure your face is clearly visible."
                         if document_type.upper() == "SELFIE":
-                            error_msg = "No face detected in your selfie. Please take a clear photo of your face looking at the camera."
-                        elif document_type.upper() in ["FRONTID", "BACKID", "PHILSYS_ID", "DRIVERS_LICENSE"]:
-                            error_msg = "No face detected on your ID. Please ensure the photo on your ID is clearly visible."
+                            error_msg = "No face detected in your selfie. Please take a clear photo of your face looking directly at the camera."
+                        elif document_type.upper() in ["FRONTID", "BACKID", "PHILSYS_ID", "DRIVERS_LICENSE", "REP_ID_FRONT", "REP_ID_BACK"]:
+                            error_msg = "No face detected on your ID. Please ensure the photo on your ID is clearly visible and not obscured."
                         
-                        logger.warning(f"   ❌ No face detected")
+                        logger.warning(f"   ❌ REJECTED: No face detected (DeepFace confidence: {face_result.get('confidence', 0):.2f})")
                         return {
                             "valid": False,
                             "error": error_msg,
@@ -423,13 +426,15 @@ class DocumentVerificationService:
                 face_result = self._detect_face(file_data)
                 details["face_detection"] = face_result
                 
-                # If face detection was skipped (no MediaPipe/OpenCV installed), continue with warning
+                # If face detection was skipped (DeepFace service unavailable), continue with manual review warning
+                # This is a SERVICE FAILURE, not user error - allow upload with manual review flag
                 if face_result.get("skipped"):
-                    logger.warning(f"   ⚠️ Face detection skipped: {face_result.get('reason', 'service unavailable')}")
-                    warnings.append("Face detection skipped - manual verification required")
+                    logger.warning(f"   ⚠️ Face detection service unavailable: {face_result.get('reason', 'DeepFace not initialized')}")
+                    warnings.append("Face detection service is currently unavailable - manual verification required")
                 elif not face_result["detected"]:
-                    # Only fail if face detection ran but no face found
-                    logger.warning(f"   ❌ No face detected in ID document")
+                    # DeepFace ran successfully but NO FACE FOUND - STRONG REJECT
+                    # This is a USER ERROR (bad photo quality) - reject immediately
+                    logger.warning(f"   ❌ REJECTED: No face detected in ID document (confidence: {face_result.get('confidence', 0):.2f})")
                     return VerificationResult(
                         status=VerificationStatus.FAILED,
                         rejection_reason=RejectionReason.NO_FACE_DETECTED,

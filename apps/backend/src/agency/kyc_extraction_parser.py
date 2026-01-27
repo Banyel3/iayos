@@ -124,6 +124,21 @@ class AgencyKYCExtractionParser:
         # TIN patterns (XXX-XXX-XXX-XXX or XXXXXXXXXXXX)
         self.tin_pattern = re.compile(r'\b(\d{3}[-\s]?\d{3}[-\s]?\d{3}[-\s]?\d{3})\b')
         
+        # DTI Certificate-specific patterns (Department of Trade and Industry)
+        # Matches "Business Name No.7663018" or "Business Name No. 7663018"
+        self.dti_business_name_pattern = re.compile(r'Business\s+Name\s+No\.?\s*(\d+)', re.IGNORECASE)
+        # Matches "BPXW658418425073" (4 letters + 12 digits) - DTI certificate ID format
+        self.dti_certificate_id_pattern = re.compile(r'\b([A-Z]{4}\d{12})\b')
+        # Matches "issued to VANIEL JOHN GARCIA CORNELIO" or "This certificate issued to NAME"
+        self.issued_to_pattern = re.compile(r'(?:This\s+certificate\s+)?issued\s+to\s+([A-Z\s]+?)(?:\n|is\s+valid|subject\s+to)', re.IGNORECASE)
+        # Matches "valid from January 06, 2026 to January 06, 2031"
+        self.valid_from_to_pattern = re.compile(
+            r'valid\s+from\s+([A-Za-z]+\s+\d{1,2},?\s+\d{4})\s+to\s+([A-Za-z]+\s+\d{1,2},?\s+\d{4})',
+            re.IGNORECASE
+        )
+        # Matches "DEVANTE SOFTWARE DEVELOPMENT SERVICES" after "This certifies that"
+        self.certifies_that_pattern = re.compile(r'This\s+certifies\s+that\s+([A-Z\s&-]+?)(?:\n|\()', re.IGNORECASE)
+        
         # Date patterns (various formats)
         self.date_patterns = [
             (re.compile(r'\b(\d{1,2})[/-](\d{1,2})[/-](\d{4})\b'), "%d/%m/%Y"),  # DD/MM/YYYY or DD-MM-YYYY
@@ -244,6 +259,89 @@ class AgencyKYCExtractionParser:
                 source_text=dti_match.group(0)
             )
             logger.info(f"   DTI Number: {result.dti_number.value}")
+        
+        # Extract DTI Business Name Number (DTI Certificate format fallback)
+        if not result.dti_number.value:
+            dti_bn_match = self.dti_business_name_pattern.search(text)
+            if dti_bn_match:
+                result.dti_number = ExtractionResult(
+                    value=f"BN-{dti_bn_match.group(1).strip()}",
+                    confidence=0.8,
+                    source_text=dti_bn_match.group(0)
+                )
+                logger.info(f"   DTI Business Name Number: {result.dti_number.value}")
+        
+        # Extract DTI Certificate ID (store as permit number since it's the certificate identifier)
+        cert_id_match = self.dti_certificate_id_pattern.search(text)
+        if cert_id_match and not result.permit_number.value:
+            result.permit_number = ExtractionResult(
+                value=cert_id_match.group(1).strip().upper(),
+                confidence=0.85,
+                source_text=cert_id_match.group(0)
+            )
+            logger.info(f"   DTI Certificate ID: {result.permit_number.value}")
+        
+        # Extract "issued to" name for business owner verification
+        issued_to_match = self.issued_to_pattern.search(text)
+        if issued_to_match:
+            issued_name = issued_to_match.group(1).strip()
+            logger.info(f"   Issued To (Owner): {issued_name}")
+        
+        # Extract validity dates with "valid from/to" format (DTI Certificate format)
+        if not result.permit_issue_date.value or not result.permit_expiry_date.value:
+            validity_match = self.valid_from_to_pattern.search(text)
+            if validity_match:
+                issue_date_str = validity_match.group(1).strip()
+                expiry_date_str = validity_match.group(2).strip()
+                try:
+                    # Try parsing with comma: "January 06, 2026"
+                    issue_date = datetime.strptime(issue_date_str, "%B %d, %Y")
+                    expiry_date = datetime.strptime(expiry_date_str, "%B %d, %Y")
+                    if not result.permit_issue_date.value:
+                        result.permit_issue_date = ExtractionResult(
+                            value=issue_date.strftime("%Y-%m-%d"),
+                            confidence=0.85,
+                            source_text=validity_match.group(0)
+                        )
+                    if not result.permit_expiry_date.value:
+                        result.permit_expiry_date = ExtractionResult(
+                            value=expiry_date.strftime("%Y-%m-%d"),
+                            confidence=0.85,
+                            source_text=validity_match.group(0)
+                        )
+                    logger.info(f"   Valid From: {result.permit_issue_date.value} To: {result.permit_expiry_date.value}")
+                except ValueError:
+                    # Try without comma: "January 06 2026"
+                    try:
+                        issue_date = datetime.strptime(issue_date_str.replace(',', ''), "%B %d %Y")
+                        expiry_date = datetime.strptime(expiry_date_str.replace(',', ''), "%B %d %Y")
+                        if not result.permit_issue_date.value:
+                            result.permit_issue_date = ExtractionResult(
+                                value=issue_date.strftime("%Y-%m-%d"),
+                                confidence=0.8,
+                                source_text=validity_match.group(0)
+                            )
+                        if not result.permit_expiry_date.value:
+                            result.permit_expiry_date = ExtractionResult(
+                                value=expiry_date.strftime("%Y-%m-%d"),
+                                confidence=0.8,
+                                source_text=validity_match.group(0)
+                            )
+                        logger.info(f"   Valid From: {result.permit_issue_date.value} To: {result.permit_expiry_date.value}")
+                    except ValueError as e:
+                        logger.warning(f"Failed to parse DTI validity dates: {e}")
+        
+        # Extract business name from "This certifies that" pattern (DTI Certificate format)
+        if not result.business_name.value:
+            certifies_match = self.certifies_that_pattern.search(text)
+            if certifies_match:
+                business_name = certifies_match.group(1).strip()
+                result.business_name = ExtractionResult(
+                    value=business_name.title(),
+                    confidence=0.8,
+                    source_text=certifies_match.group(0)
+                )
+                logger.info(f"   Business Name (from 'certifies that'): {result.business_name.value}")
         
         # Extract SEC number
         sec_match = self.sec_pattern.search(text)
