@@ -951,9 +951,14 @@ def upload_kyc_document(payload, frontID, backID, clearance, selfie):
         # Trigger KYC extraction to populate auto-fill data
         try:
             from .kyc_extraction_service import trigger_kyc_extraction_after_upload
+            print("🚀 [KYC UPLOAD] Triggering auto-fill extraction...")
             trigger_kyc_extraction_after_upload(kyc_record, face_match_result=face_match_result)
+            print("✅ [KYC UPLOAD] Auto-fill extraction triggered successfully")
         except Exception as ext_error:
-            print(f"⚠️  KYC extraction failed (non-blocking): {str(ext_error)}")
+            print(f"❌ [KYC UPLOAD] KYC extraction failed: {str(ext_error)}")
+            print(f"   Error type: {type(ext_error).__name__}")
+            import traceback
+            print(f"   Traceback:\n{traceback.format_exc()}")
             # Don't fail KYC upload if extraction fails - admin can still verify manually
 
         return {

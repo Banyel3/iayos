@@ -568,6 +568,18 @@ def get_kyc_autofill_data(request):
         # Get extracted data
         try:
             extracted = KYCExtractedData.objects.get(kycID=kyc_record)
+            
+            # If extraction is still PENDING, try to process it now
+            if extracted.extraction_status == "PENDING":
+                print(f"   ⏳ [KYC AUTOFILL] Extraction status is PENDING, attempting to process now...")
+                from .kyc_extraction_service import process_kyc_extraction
+                result = process_kyc_extraction(kyc_record)
+                if result:
+                    extracted = result  # Use newly processed data
+                    print(f"   ✅ [KYC AUTOFILL] Extraction completed! Status: {extracted.extraction_status}")
+                else:
+                    print(f"   ❌ [KYC AUTOFILL] Extraction processing returned None")
+            
             autofill_data = extracted.get_autofill_data()
             
             return {
@@ -582,17 +594,118 @@ def get_kyc_autofill_data(request):
             }
             
         except KYCExtractedData.DoesNotExist:
-            return {
-                "success": True,
-                "has_extracted_data": False,
-                "message": "No extracted data available yet"
-            }
+            print(f"   ⚠️  [KYC AUTOFILL] No KYCExtractedData record found, attempting extraction...")
+            from .kyc_extraction_service import process_kyc_extraction
+            result = process_kyc_extraction(kyc_record)
+            if result:
+                print(f"   ✅ [KYC AUTOFILL] Extraction created! Status: {result.extraction_status}")
+                autofill_data = result.get_autofill_data()
+                return {
+                    "success": True,
+                    "has_extracted_data": True,
+                    "extraction_status": result.extraction_status,
+                    "needs_confirmation": result.extraction_status == "EXTRACTED",
+                    "extracted_at": result.extracted_at.isoformat() if result.extracted_at else None,
+                    "confirmed_at": result.confirmed_at.isoformat() if result.confirmed_at else None,
+                    "fields": autofill_data,
+                    "user_edited_fields": result.user_edited_fields or []
+                }
+            else:
+                print(f"   ❌ [KYC AUTOFILL] No OCR data available for extraction")
+                return {
+                    "success": True,
+                    "has_extracted_data": False,
+                    "message": "No extracted data available yet - OCR text not found"
+                }
             
     except Exception as e:
         print(f"❌ [KYC AUTOFILL] Error: {str(e)}")
         import traceback
         traceback.print_exc()
         return {"success": False, "error": "Failed to fetch auto-fill data"}
+
+
+@router.get("/kyc/debug-extraction", auth=dual_auth)
+def debug_kyc_extraction(request):
+    """
+    DEBUG ENDPOINT: Check extraction status and trigger manual extraction if needed.
+    Returns detailed diagnostic information.
+    """
+    try:
+        from .models import kyc, KYCExtractedData, kycFiles
+        from .kyc_extraction_service import process_kyc_extraction
+        
+        user = request.auth
+        
+        # Get user's KYC record
+        try:
+            kyc_record = kyc.objects.get(accountFK=user)
+        except kyc.DoesNotExist:
+            return {
+                "success": False,
+                "error": "No KYC submission found"
+            }
+        
+        # Get KYC files
+        files = kycFiles.objects.filter(kycID=kyc_record)
+        files_info = []
+        for kf in files:
+            files_info.append({
+                "type": kf.idType or "UNKNOWN",
+                "has_ocr": bool(kf.ocr_text),
+                "ocr_length": len(kf.ocr_text) if kf.ocr_text else 0,
+                "ocr_preview": kf.ocr_text[:100] if kf.ocr_text else None
+            })
+        
+        # Check extracted data
+        extracted_exists = False
+        extracted_status = None
+        extracted_fields = {}
+        
+        try:
+            extracted = KYCExtractedData.objects.get(kycID=kyc_record)
+            extracted_exists = True
+            extracted_status = extracted.extraction_status
+            extracted_fields = {
+                "full_name": extracted.extracted_full_name,
+                "date_of_birth": str(extracted.extracted_birth_date) if extracted.extracted_birth_date else None,
+                "id_number": extracted.extracted_id_number,
+                "address": extracted.extracted_address,
+                "confidence": extracted.overall_confidence
+            }
+        except KYCExtractedData.DoesNotExist:
+            pass
+        
+        # Try manual extraction
+        manual_result = None
+        if not extracted_exists or extracted_status == "PENDING":
+            try:
+                result = process_kyc_extraction(kyc_record)
+                if result:
+                    manual_result = {
+                        "status": result.extraction_status,
+                        "confidence": result.overall_confidence,
+                        "full_name": result.extracted_full_name
+                    }
+            except Exception as e:
+                manual_result = {"error": str(e)}
+        
+        return {
+            "success": True,
+            "kyc_id": kyc_record.kycID,
+            "files_count": len(files_info),
+            "files": files_info,
+            "extracted_data_exists": extracted_exists,
+            "extraction_status": extracted_status,
+            "extracted_fields": extracted_fields,
+            "manual_extraction_attempt": manual_result
+        }
+        
+    except Exception as e:
+        print(f"❌ [DEBUG EXTRACTION] Error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
 
 
 @router.post("/kyc/confirm", auth=dual_auth)

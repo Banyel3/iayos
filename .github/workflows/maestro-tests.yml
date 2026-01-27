@@ -9,9 +9,9 @@ on:
   workflow_dispatch:
     inputs:
       test_suite:
-        description: 'Test suite to run'
+        description: "Test suite to run"
         required: false
-        default: 'auth'
+        default: "auth"
         type: choice
         options:
           - auth
@@ -22,9 +22,9 @@ on:
           - profile
           - all
       apk_version:
-        description: 'APK version tag (leave empty for latest)'
+        description: "APK version tag (leave empty for latest)"
         required: false
-        default: ''
+        default: ""
         type: string
 
   # Run on push to main (after mobile release)
@@ -32,9 +32,9 @@ on:
     branches:
       - main
     paths:
-      - 'apps/frontend_mobile/**'
-      - '.maestro/**'
-      - '.github/workflows/maestro-tests.yml'
+      - "apps/frontend_mobile/**"
+      - ".maestro/**"
+      - ".github/workflows/maestro-tests.yml"
 
   # Run on PRs affecting mobile
   pull_request:
@@ -42,8 +42,8 @@ on:
       - main
       - dev
     paths:
-      - 'apps/frontend_mobile/**'
-      - '.maestro/**'
+      - "apps/frontend_mobile/**"
+      - ".maestro/**"
 
 # Cancel in-progress runs for the same branch
 concurrency:
@@ -72,8 +72,8 @@ jobs:
       - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '17'
+          distribution: "temurin"
+          java-version: "17"
 
       # ─────────────────────────────────────────────────────────
       # 2. INSTALL MAESTRO CLI
@@ -116,12 +116,12 @@ jobs:
             
             echo "Using latest version: $VERSION"
           fi
-          
+
           mkdir -p artifacts
-          
+
           # Try multiple download strategies
           DOWNLOADED=false
-          
+
           # Strategy 1: Try iayos-{version}.apk naming
           DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${VERSION}/iayos-${VERSION}.apk"
           echo "Trying: $DOWNLOAD_URL"
@@ -129,7 +129,7 @@ jobs:
             DOWNLOADED=true
             echo "✓ Downloaded using naming pattern: iayos-${VERSION}.apk"
           fi
-          
+
           # Strategy 2: Try app-release.apk naming
           if [ "$DOWNLOADED" = false ]; then
             DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${VERSION}/app-release.apk"
@@ -139,7 +139,7 @@ jobs:
               echo "✓ Downloaded using naming pattern: app-release.apk"
             fi
           fi
-          
+
           # Strategy 3: Get any .apk from release assets
           if [ "$DOWNLOADED" = false ]; then
             echo "Trying to find any .apk in release assets..."
@@ -152,7 +152,7 @@ jobs:
               echo "✓ Downloaded from release assets"
             fi
           fi
-          
+
           # Check if download succeeded
           if [ "$DOWNLOADED" = false ]; then
             echo "::error::Could not find APK in release ${VERSION}"
@@ -160,13 +160,13 @@ jobs:
             curl -s https://api.github.com/repos/${{ github.repository }}/releases/tags/${VERSION} | jq -r '.assets[] | .name'
             exit 1
           fi
-          
+
           # Validate downloaded file
           if [ ! -f artifacts/app-release.apk ]; then
             echo "::error::APK file was not created"
             exit 1
           fi
-          
+
           FILE_SIZE=$(stat -c%s artifacts/app-release.apk 2>/dev/null || stat -f%z artifacts/app-release.apk 2>/dev/null || echo 0)
           if [ "$FILE_SIZE" -lt 1000000 ]; then
             echo "::error::APK file too small ($FILE_SIZE bytes) - likely an error page"
@@ -174,7 +174,7 @@ jobs:
             head -100 artifacts/app-release.apk
             exit 1
           fi
-          
+
           echo "✓ APK downloaded successfully: $FILE_SIZE bytes"
           echo "apk_path=artifacts/app-release.apk" >> $GITHUB_OUTPUT
           ls -lh artifacts/
@@ -210,23 +210,23 @@ jobs:
           script: |
             echo "Emulator started successfully"
             adb devices
-            
+
             # Wait for emulator to be fully ready
             adb wait-for-device
             sleep 10
-            
+
             # Disable animations for faster tests
             adb shell settings put global window_animation_scale 0
             adb shell settings put global transition_animation_scale 0
             adb shell settings put global animator_duration_scale 0
-            
+
             # Install the APK
             echo "Installing APK..."
             adb install -r artifacts/app-release.apk
-            
+
             # Verify installation
             adb shell pm list packages | grep iayos || echo "Warning: Package not found"
-            
+
             # Run Maestro tests (combined into single command to preserve variables)
             export PATH="$HOME/.maestro/bin:$PATH" && TEST_SUITE="${{ github.event.inputs.test_suite || 'auth' }}" && MAESTRO_DIR="apps/frontend_mobile/iayos_mobile/.maestro" && echo "📱 Running Maestro tests for suite: $TEST_SUITE" && echo "📂 Maestro directory: $MAESTRO_DIR" && if [ "$TEST_SUITE" = "all" ]; then echo "Running all test suites..." && maestro test "$MAESTRO_DIR" --format junit --output maestro-report.xml; else echo "Running $TEST_SUITE test suite..." && maestro test "$MAESTRO_DIR/$TEST_SUITE" --format junit --output maestro-report.xml; fi
 
@@ -238,15 +238,15 @@ jobs:
         continue-on-error: true
         run: |
           echo "🧹 Cleaning up Maestro test data..."
-          
+
           # Call cleanup endpoint (works only in non-production)
           CLEANUP_RESPONSE=$(curl -s -X DELETE \
             "${{ env.API_URL }}/api/mobile/test/cleanup-maestro-data" \
             -H "Content-Type: application/json" \
             2>&1) || true
-          
+
           echo "Cleanup response: $CLEANUP_RESPONSE"
-          
+
           # Check if cleanup was successful
           if echo "$CLEANUP_RESPONSE" | grep -q '"success": true'; then
             echo "✅ Test data cleanup completed successfully"
@@ -287,10 +287,10 @@ jobs:
         if: always()
         uses: mikepenz/action-junit-report@v4
         with:
-          report_paths: 'maestro-report.xml'
+          report_paths: "maestro-report.xml"
           fail_on_failure: true
           require_tests: true
-          check_name: 'Maestro E2E Test Results'
+          check_name: "Maestro E2E Test Results"
 
       - name: Comment on PR with results
         if: github.event_name == 'pull_request' && always()
@@ -300,23 +300,23 @@ jobs:
             const fs = require('fs');
             let status = '✅ Passed';
             let details = 'All E2E tests passed successfully!';
-            
+
             // Check if tests failed
             if (process.env.TEST_RESULT !== '0') {
               status = '❌ Failed';
               details = 'Some E2E tests failed. Check the workflow logs for details.';
             }
-            
+
             const body = `## Maestro E2E Test Results ${status}
-            
+
             **Test Suite:** \`${{ github.event.inputs.test_suite || 'auth' }}\`
             **Backend:** \`${{ env.API_URL }}\`
-            
+
             ${details}
-            
+
             📦 [Download Artifacts](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
             `;
-            
+
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
@@ -332,11 +332,11 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            
+
             // Read test results if available
             let testDetails = 'Test execution failed. Check workflow logs for details.';
             let failedTests = [];
-            
+
             try {
               if (fs.existsSync('maestro-report.xml')) {
                 const xml = fs.readFileSync('maestro-report.xml', 'utf8');
@@ -362,11 +362,11 @@ jobs:
             } catch (error) {
               console.log('Could not parse test results:', error.message);
             }
-            
+
             // Get APK version from environment or use "latest"
             const apkVersion = '${{ github.event.inputs.apk_version }}' || 'latest';
             const testSuite = '${{ github.event.inputs.test_suite }}' || 'auth';
-            
+
             // Check if issue already exists for this failure
             const { data: existingIssues } = await github.rest.issues.listForRepo({
               owner: context.repo.owner,
@@ -374,12 +374,12 @@ jobs:
               labels: 'e2e-test-failure,mobile',
               state: 'open'
             });
-            
+
             const similarIssue = existingIssues.find(issue => 
               issue.title.includes(`[Maestro E2E]`) && 
               issue.title.includes(testSuite)
             );
-            
+
             if (similarIssue) {
               // Add comment to existing issue instead of creating new one
               const commentBody = [

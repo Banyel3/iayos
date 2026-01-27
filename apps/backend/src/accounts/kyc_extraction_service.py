@@ -35,6 +35,12 @@ def process_kyc_extraction(kyc_record: kyc) -> Optional[KYCExtractedData]:
         
         # Get KYC files with OCR text - prioritize FRONTID
         kyc_files = kycFiles.objects.filter(kycID=kyc_record)
+        logger.info(f"   📁 Found {kyc_files.count()} KYC files")
+        
+        # Debug: Show all files
+        for kf in kyc_files:
+            ocr_length = len(kf.ocr_text) if kf.ocr_text else 0
+            logger.info(f"      File: {kf.idType or 'UNKNOWN'} - OCR text: {ocr_length} chars")
         
         # Find the best file with OCR text (prefer FRONTID for name/address extraction)
         best_file = None
@@ -57,14 +63,19 @@ def process_kyc_extraction(kyc_record: kyc) -> Optional[KYCExtractedData]:
                     document_type = kf.idType.upper() if kf.idType else "UNKNOWN"
         
         if not best_ocr_text:
-            logger.warning(f"   ⚠️ No OCR text found for KYC {kyc_record.kycID}")
+            logger.warning(f"   ❌ CRITICAL: No OCR text found for KYC {kyc_record.kycID}")
+            logger.warning(f"      This means OCR extraction during upload failed or was skipped.")
+            logger.warning(f"      Files uploaded: {[kf.idType or 'UNKNOWN' for kf in kyc_files]}")
             return None
         
         logger.info(f"   📝 Found OCR text ({len(best_ocr_text)} chars) from {document_type}")
+        logger.info(f"   📝 OCR text preview (first 200 chars): {best_ocr_text[:200].replace(chr(10), ' ')}")
         
         # Parse OCR text
         parser = get_kyc_parser()
+        logger.info(f"   🔧 Parsing OCR text with KYCExtractionParser...")
         parsed_data = parser.parse_ocr_text(best_ocr_text, document_type)
+        logger.info(f"   📊 Parser results: confidence={parsed_data.overall_confidence:.2f}, full_name={parsed_data.full_name.value}")
         
         # Get or create extraction record
         extracted, created = KYCExtractedData.objects.get_or_create(

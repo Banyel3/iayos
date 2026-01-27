@@ -1,0 +1,41 @@
+### KYC Auto-fill Debug Testing
+### Test the new fixes for OCR extraction and auto-fill
+
+@baseUrl = http://localhost:8000
+@email = test@example.com
+@password = testpassword123
+
+### 1. Login to get JWT token
+POST {{baseUrl}}/api/accounts/login
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "{{password}}"
+}
+
+### 2. DEBUG ENDPOINT - Check extraction status
+GET {{baseUrl}}/api/accounts/kyc/debug-extraction
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+
+### 3. Get autofill data (should now auto-retry if PENDING)
+GET {{baseUrl}}/api/accounts/kyc/autofill
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+
+### 4. Upload KYC document (test extraction trigger with enhanced logging)
+POST {{baseUrl}}/api/accounts/kyc/upload-document
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="document_type"
+
+FRONTID
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="file"; filename="national_id.jpg"
+Content-Type: image/jpeg
+
+< ./path/to/your/test_national_id.jpg
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+###
