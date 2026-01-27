@@ -148,13 +148,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY apps/backend/requirements.txt .
 
 # Install Python dependencies with security checks
-# CACHE BUST: 2026-01-27-v3 - Fix pytesseract packaging dependency
+# CACHE BUST: 2026-01-27-v4 - Add verbose diagnostics for packaging investigation
 RUN mkdir -p /app/.local \
     && python -m pip install --upgrade 'pip>=25.3' setuptools wheel \
     && pip install --no-cache-dir --prefix=/app/.local -r requirements.txt \
     && echo '✅ Verifying dependency resolution...' \
     && PYTHONPATH=/app/.local/lib/python3.12/site-packages pip check \
     && echo '✅ All dependencies resolved correctly' \
+    && echo '📊 DIAGNOSTIC: Checking packaging installation...' \
+    && ls -la /app/.local/lib/python3.12/site-packages/packaging* 2>/dev/null || echo '❌ packaging dir NOT FOUND in expected location' \
+    && find /app/.local -name "packaging" -type d 2>/dev/null | head -5 || echo '❌ packaging NOT FOUND anywhere' \
+    && PYTHONPATH=/app/.local/lib/python3.12/site-packages python -c "import packaging; print(f'✅ packaging {packaging.__version__} imports OK in deps stage')" || echo '❌ packaging import FAILED in deps stage' \
     && find /app/.local -name "*.pyc" -delete 2>/dev/null || true \
     && find /app/.local -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
 
@@ -320,7 +324,7 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PATH="/app/.local/bin:$PATH" \
-    PYTHONPATH="/app/.local/lib/python3.12/site-packages:$PYTHONPATH"
+    PYTHONPATH="/app/.local/lib/python3.12/site-packages"
 
 # Create non-root user (Debian syntax)
 RUN groupadd -g 1001 appgroup \
@@ -346,6 +350,11 @@ WORKDIR /app/backend
 
 # Copy Python dependencies from deps stage
 COPY --from=backend-deps --chown=appuser:appgroup /app/.local /app/.local
+
+# DIAGNOSTIC: Verify files copied correctly
+RUN echo '📊 DIAGNOSTIC: Verifying COPY from backend-deps...' \
+    && ls -la /app/.local/lib/python3.12/site-packages/packaging* 2>/dev/null || echo '❌ packaging dir NOT FOUND after COPY' \
+    && find /app/.local -name "packaging" -type d 2>/dev/null | head -5 || echo '❌ packaging NOT FOUND anywhere after COPY'
 
 # Copy application code with proper ownership (includes start.sh)
 COPY --from=backend-builder --chown=appuser:appgroup /app/backend ./
