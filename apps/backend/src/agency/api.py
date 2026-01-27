@@ -15,15 +15,17 @@ def upload_agency_kyc(request):
         businessName = request.POST.get("businessName")
         businessDesc = request.POST.get("businessDesc")
         rep_id_type = request.POST.get("rep_id_type", "PHILSYS_ID")  # Default to PhilSys ID
+        business_type = request.POST.get("business_type", "SOLE_PROPRIETORSHIP")  # Business type for OCR filtering
         
         class Payload:
-            def __init__(self, accountID, businessName=None, businessDesc=None, rep_id_type=None):
+            def __init__(self, accountID, businessName=None, businessDesc=None, rep_id_type=None, business_type=None):
                 self.accountID = accountID
                 self.businessName = businessName
                 self.businessDesc = businessDesc
                 self.rep_id_type = rep_id_type
+                self.business_type = business_type
 
-        payload = Payload(accountID=account_id, businessName=businessName, businessDesc=businessDesc, rep_id_type=rep_id_type)
+        payload = Payload(accountID=account_id, businessName=businessName, businessDesc=businessDesc, rep_id_type=rep_id_type, business_type=business_type)
 
         # Read uploaded files from request.FILES (Django's UploadedFile objects)
         business_permit = request.FILES.get("business_permit")

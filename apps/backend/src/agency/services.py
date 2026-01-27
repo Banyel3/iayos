@@ -53,6 +53,13 @@ def upload_agency_kyc(payload, business_permit, rep_front, rep_back, address_pro
 			defaults={'status': 'PENDING', 'notes': ''}
 		)
 
+		# Save business_type from user selection (for OCR filtering)
+		business_type = getattr(payload, 'business_type', None)
+		if business_type:
+			kyc_record.confirmed_business_type = business_type
+			kyc_record.save()
+			print(f"💼 Business type set to: {business_type}")
+
 		if not created:
 			# Remove previous files and reset status
 			old_files_count = AgencyKycFile.objects.filter(agencyKyc=kyc_record).count()

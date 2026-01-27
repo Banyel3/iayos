@@ -35,6 +35,9 @@ const AgencyKYCPage = () => {
   const [businessDesc, setBusinessDesc] = useState("");
   const [registrationNumber, setRegistrationNumber] = useState("");
 
+  // NEW: Business Type selector (determines registration authority)
+  const [businessType, setBusinessType] = useState("SOLE_PROPRIETORSHIP");
+
   // NEW: ID Type selector for representative
   const [repIdType, setRepIdType] = useState("PHILSYS_ID");
 
@@ -421,6 +424,7 @@ const AgencyKYCPage = () => {
       formData.append("businessName", businessName);
       formData.append("businessDesc", businessDesc);
       formData.append("registrationNumber", registrationNumber);
+      formData.append("business_type", businessType); // Business type for OCR filtering
       formData.append("rep_id_type", repIdType); // Issue #2: Include ID type
       formData.append("rep_front", repIDFront as Blob);
       formData.append("rep_back", repIDBack as Blob);
@@ -671,7 +675,7 @@ const AgencyKYCPage = () => {
                 clipRule="evenodd"
               />
             </svg>
-            Business registration (SEC / DTI / Mayor's permit)
+            Business registration certificate (DTI/SEC/CDA based on business type)
           </li>
           <li className="flex items-start text-sm text-gray-700">
             <svg
@@ -716,10 +720,10 @@ const AgencyKYCPage = () => {
   const renderStep2 = () => (
     <div className="text-center max-w-4xl mx-auto">
       <h1 className="text-2xl font-bold text-gray-900 mb-3">
-        Upload Business Documents & Rep ID
+        Upload Business Registration & Rep ID
       </h1>
       <p className="text-gray-600 mb-8">
-        Take clear photos or upload PDFs. Ensure all corners are visible.
+        Upload your official business registration certificate (DTI/SEC/CDA). Take clear photos or upload PDFs.
       </p>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -740,17 +744,48 @@ const AgencyKYCPage = () => {
 
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">
+              Business Type <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={businessType}
+              onChange={(e) => setBusinessType(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+            >
+              <option value="SOLE_PROPRIETORSHIP">Sole Proprietorship (DTI)</option>
+              <option value="PARTNERSHIP">Partnership (SEC)</option>
+              <option value="CORPORATION">Corporation (SEC)</option>
+              <option value="COOPERATIVE">Cooperative (CDA/SEC)</option>
+            </select>
+            <p className="text-xs text-gray-500 mt-1">
+              {businessType === "SOLE_PROPRIETORSHIP" && "📄 Upload DTI Certificate of Business Name Registration"}
+              {businessType === "PARTNERSHIP" && "📄 Upload SEC Certificate of Partnership Registration"}
+              {businessType === "CORPORATION" && "📄 Upload SEC Certificate of Incorporation"}
+              {businessType === "COOPERATIVE" && "📄 Upload CDA/SEC Certificate of Cooperative Registration"}
+            </p>
+          </div>
+
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
               Registration number <span className="text-red-500">*</span>
             </label>
             <Input
               value={registrationNumber}
               onChange={(e) => setRegistrationNumber(e.target.value)}
+              placeholder={
+                businessType === "SOLE_PROPRIETORSHIP" 
+                  ? "e.g., BN-7663018 or Certificate ID" 
+                  : "e.g., SEC Registration No."
+              }
             />
           </div>
 
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Business permit / SEC / DTI (PDF or image)
+              {businessType === "SOLE_PROPRIETORSHIP" && "DTI Certificate of Business Name Registration"}
+              {businessType === "PARTNERSHIP" && "SEC Certificate of Partnership"}
+              {businessType === "CORPORATION" && "SEC Certificate of Incorporation"}
+              {businessType === "COOPERATIVE" && "CDA/SEC Certificate of Registration"}
+              <span className="text-red-500"> *</span>
             </label>
             <label
               htmlFor="permitUpload"
