@@ -355,7 +355,7 @@ RUN chmod +x /app/backend/start.sh
 
 # CRITICAL: Verify all dependencies are accessible at build time
 # This will fail the build if any critical package or transitive dependency is missing
-RUN PYTHONPATH=/app/.local/lib/python3.12/site-packages python -c "
+RUN PYTHONPATH=/app/.local/lib/python3.12/site-packages python << 'EOF'
 import sys
 try:
     # Test all critical dependencies and their transitive deps
@@ -375,10 +375,11 @@ try:
     print(f'✅ pillow: {PIL.__version__}')
     
     print('🎉 ALL DEPENDENCIES VERIFIED')
+    print('✅ Build verification PASSED')
 except ImportError as e:
     print(f'❌ IMPORT FAILED: {e}')
     sys.exit(1)
-" && echo "✅ Build verification PASSED"
+EOF
 
 # Switch to non-root user
 USER appuser
