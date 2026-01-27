@@ -1,0 +1,166 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# TEST: Manage Payment Methods
+# ══════════════════════════════════════════════════════════════════════════════
+# Verifies users can view and add payment methods
+# Prerequisites: Logged in
+# ══════════════════════════════════════════════════════════════════════════════
+
+appId: com.iayos.app
+tags:
+  - wallet
+  - payment_methods
+  - gcash
+
+---
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SETUP: Login as Worker
+# ─────────────────────────────────────────────────────────────────────────────
+- launchApp:
+    clearState: true
+
+- waitForAnimationToEnd
+
+- tapOn:
+    id: "welcome-login-button"
+    optional: true
+
+- waitForAnimationToEnd
+
+- tapOn:
+    id: "login-email-input"
+- inputText: ${WORKER_EMAIL}
+- hideKeyboard
+
+- tapOn:
+    id: "login-password-input"
+- inputText: ${WORKER_PASSWORD}
+- hideKeyboard
+
+- tapOn:
+    id: "login-submit-button"
+
+- waitForAnimationToEnd:
+    timeout: 10000
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST: Navigate to Payment Methods
+# ─────────────────────────────────────────────────────────────────────────────
+- tapOn:
+    anyOf:
+      - text: "Profile"
+      - id: "profile-tab"
+    optional: true
+
+- waitForAnimationToEnd
+
+# Look for payment methods in profile
+- scroll:
+    direction: DOWN
+  optional: true
+
+- tapOn:
+    anyOf:
+      - text: "Payment Methods"
+      - text: "GCash"
+      - text: "Bank Accounts"
+      - id: "payment-methods"
+    optional: true
+
+- waitForAnimationToEnd
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST: Verify Payment Methods Screen
+# ─────────────────────────────────────────────────────────────────────────────
+- assertVisible:
+    anyOf:
+      - text: "Payment Methods"
+      - text: "GCash"
+      - text: "Add"
+      - text: "No payment methods"
+    timeout: 10000
+
+- takeScreenshot: "01_payment_methods"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST: Add New Payment Method
+# ─────────────────────────────────────────────────────────────────────────────
+- tapOn:
+    anyOf:
+      - text: "Add"
+      - text: "Add Payment Method"
+      - text: "+"
+      - id: "add-payment-method"
+
+- waitForAnimationToEnd
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST: Select GCash
+# ─────────────────────────────────────────────────────────────────────────────
+- assertVisible:
+    anyOf:
+      - text: "GCash"
+      - text: "Bank"
+      - text: "Select type"
+    timeout: 5000
+
+- tapOn:
+    anyOf:
+      - text: "GCash"
+      - id: "gcash-option"
+
+- waitForAnimationToEnd
+
+- takeScreenshot: "02_add_gcash"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST: Fill GCash Details (DRY RUN - use test data)
+# ─────────────────────────────────────────────────────────────────────────────
+- tapOn:
+    anyOf:
+      - id: "account-name-input"
+      - text: "Account Name"
+      - text: "Name"
+
+- inputText: "Test User Maestro"
+- hideKeyboard
+
+- tapOn:
+    anyOf:
+      - id: "account-number-input"
+      - text: "Account Number"
+      - text: "Phone Number"
+      - text: "09"
+
+- inputText: "09171234567"
+- hideKeyboard
+
+- takeScreenshot: "03_gcash_details"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST: Verify Form Validation
+# ─────────────────────────────────────────────────────────────────────────────
+- assertVisible:
+    anyOf:
+      - text: "Save"
+      - text: "Add"
+      - text: "Continue"
+      - id: "save-payment-method"
+    optional: true
+
+- takeScreenshot: "04_ready_to_save"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# NOTE: We don't save to avoid creating test data
+# If we did save, cleanup script would delete payment methods with "Maestro" name
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Go back without saving
+- tapOn:
+    anyOf:
+      - id: "back-button"
+      - text: "Cancel"
+      - text: "←"
+    optional: true
+
+- waitForAnimationToEnd

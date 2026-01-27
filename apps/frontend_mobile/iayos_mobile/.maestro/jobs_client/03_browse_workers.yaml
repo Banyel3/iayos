@@ -1,0 +1,147 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# TEST: Browse Workers (Client)
+# ══════════════════════════════════════════════════════════════════════════════
+# Verifies clients can browse available workers
+# Prerequisites: Logged in as CLIENT
+# ══════════════════════════════════════════════════════════════════════════════
+
+appId: com.iayos.app
+tags:
+  - jobs_client
+  - workers
+  - browse
+
+---
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SETUP: Login as Client
+# ─────────────────────────────────────────────────────────────────────────────
+- launchApp:
+    clearState: true
+
+- waitForAnimationToEnd
+
+- tapOn:
+    id: "welcome-login-button"
+    optional: true
+
+- waitForAnimationToEnd
+
+- tapOn:
+    id: "login-email-input"
+- inputText: ${CLIENT_EMAIL}
+- hideKeyboard
+
+- tapOn:
+    id: "login-password-input"
+- inputText: ${CLIENT_PASSWORD}
+- hideKeyboard
+
+- tapOn:
+    id: "login-submit-button"
+
+- waitForAnimationToEnd:
+    timeout: 10000
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST: Navigate to Workers
+# ─────────────────────────────────────────────────────────────────────────────
+- assertVisible:
+    anyOf:
+      - text: "Home"
+      - text: "Workers"
+      - text: "Find Workers"
+    timeout: 15000
+
+# Look for Workers section
+- tapOn:
+    anyOf:
+      - text: "Workers"
+      - text: "Find Workers"
+      - text: "Browse Workers"
+      - id: "workers-section"
+    optional: true
+
+- waitForAnimationToEnd
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST: Verify Workers List
+# ─────────────────────────────────────────────────────────────────────────────
+- assertVisible:
+    anyOf:
+      - text: "Workers"
+      - text: "Available"
+      - text: "★"
+      - text: "No workers"
+      - text: "₱/hr"
+    timeout: 10000
+
+- takeScreenshot: "01_workers_list"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST: Filter by Category (if available)
+# ─────────────────────────────────────────────────────────────────────────────
+- tapOn:
+    anyOf:
+      - text: "Filter"
+      - text: "Category"
+      - id: "filter-button"
+    optional: true
+
+- waitForAnimationToEnd
+
+- tapOn:
+    anyOf:
+      - text: "Plumbing"
+      - text: "Electrical"
+    optional: true
+
+- waitForAnimationToEnd
+
+- takeScreenshot: "02_filtered_workers"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST: View Worker Profile
+# ─────────────────────────────────────────────────────────────────────────────
+- tapOn:
+    anyOf:
+      - id: "worker-card-0"
+      - text: "★"
+    index: 0
+    optional: true
+
+- waitForAnimationToEnd:
+    timeout: 5000
+
+# Verify worker profile elements
+- assertVisible:
+    anyOf:
+      - text: "Hire"
+      - text: "Invite"
+      - text: "Reviews"
+      - text: "Skills"
+      - text: "₱/hr"
+      - text: "★"
+    optional: true
+    timeout: 5000
+
+- takeScreenshot: "03_worker_profile"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST: Scroll Worker Profile
+# ─────────────────────────────────────────────────────────────────────────────
+- scroll:
+    direction: DOWN
+
+- waitForAnimationToEnd
+
+# Look for more details
+- assertVisible:
+    anyOf:
+      - text: "Portfolio"
+      - text: "Certifications"
+      - text: "Reviews"
+      - text: "Jobs Completed"
+    optional: true
+
+- takeScreenshot: "04_worker_details"

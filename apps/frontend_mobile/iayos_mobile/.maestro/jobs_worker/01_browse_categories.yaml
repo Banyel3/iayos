@@ -1,0 +1,109 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# TEST: Browse Job Categories (Worker)
+# ══════════════════════════════════════════════════════════════════════════════
+# Verifies workers can browse job categories grid
+# Prerequisites: Logged in as WORKER
+# ══════════════════════════════════════════════════════════════════════════════
+
+appId: com.iayos.app
+tags:
+  - jobs_worker
+  - browse
+  - smoke
+
+---
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SETUP: Login as Worker
+# ─────────────────────────────────────────────────────────────────────────────
+- launchApp:
+    clearState: true
+
+- waitForAnimationToEnd
+
+# Wait for welcome screen
+- assertVisible:
+    id: "welcome-screen"
+    optional: true
+
+# Navigate to login
+- tapOn:
+    id: "welcome-login-button"
+
+- waitForAnimationToEnd
+
+# Enter worker credentials
+- tapOn:
+    id: "login-email-input"
+- inputText: ${WORKER_EMAIL}
+- hideKeyboard
+
+- tapOn:
+    id: "login-password-input"
+- inputText: ${WORKER_PASSWORD}
+- hideKeyboard
+
+# Submit login
+- tapOn:
+    id: "login-submit-button"
+
+- waitForAnimationToEnd:
+    timeout: 10000
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST: Navigate to Jobs Tab
+# ─────────────────────────────────────────────────────────────────────────────
+- assertVisible:
+    anyOf:
+      - id: "jobs-screen"
+      - id: "home-screen"
+      - text: "Jobs"
+      - text: "Home"
+    timeout: 15000
+
+# Tap Jobs tab if not already there
+- tapOn:
+    text: "Jobs"
+    optional: true
+
+- waitForAnimationToEnd
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST: Verify Categories Are Displayed
+# ─────────────────────────────────────────────────────────────────────────────
+# Look for common job categories
+- assertVisible:
+    anyOf:
+      - text: "Plumbing"
+      - text: "Electrical"
+      - text: "Carpentry"
+      - text: "Cleaning"
+      - text: "Categories"
+      - id: "categories-grid"
+    timeout: 10000
+
+# Take screenshot of categories
+- takeScreenshot: "01_categories_grid"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST: Tap on a Category
+# ─────────────────────────────────────────────────────────────────────────────
+- tapOn:
+    anyOf:
+      - text: "Plumbing"
+      - text: "Electrical"
+      - text: "Cleaning"
+    optional: true
+
+- waitForAnimationToEnd
+
+# Verify jobs list or empty state
+- assertVisible:
+    anyOf:
+      - text: "Available Jobs"
+      - text: "No jobs found"
+      - text: "₱"
+      - id: "jobs-list"
+    timeout: 10000
+
+- takeScreenshot: "02_jobs_by_category"

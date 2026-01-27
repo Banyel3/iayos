@@ -12,11 +12,42 @@ env:
   CLIENT_EMAIL: "client.test@iayos.com"
   CLIENT_PASSWORD: "Test1234!"
 
-# Global settings
+# Global settings - available test suite tags
 tags:
+  # Authentication
   - auth
-  - jobs
+  - login
+  - register
+  - logout
+  # Jobs - Worker
+  - jobs_worker
+  - browse
+  - search
+  - applications
+  - save
+  # Jobs - Client
+  - jobs_client
+  - create
+  - my_jobs
+  - workers
+  # Wallet & Payments
+  - wallet
+  - deposit
+  - withdraw
+  - payment_methods
+  - payment
+  # KYC
+  - kyc
+  - verification
+  # Profile
   - profile
+  - edit
+  - avatar
+  - dual_profile
+  # Test categories
+  - smoke
+  - critical
+  - partial
 
 # Retry failed assertions
 retryDepth: 3

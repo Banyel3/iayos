@@ -38,22 +38,121 @@ maestro test .maestro
 maestro test .maestro/auth --format junit --output report.xml
 ```
 
+### Running by Test Suite
+
+```bash
+# Authentication tests
+maestro test .maestro/auth
+
+# Worker job browsing
+maestro test .maestro/jobs_worker
+
+# Client job management
+maestro test .maestro/jobs_client
+
+# Wallet & payments
+maestro test .maestro/wallet
+
+# KYC verification
+maestro test .maestro/kyc
+
+# Profile management
+maestro test .maestro/profile
+```
+
+### Running by Tag
+
+```bash
+# Smoke tests (quick sanity check)
+maestro test --include-tags=smoke .maestro/
+
+# Critical path tests
+maestro test --include-tags=critical .maestro/
+
+# Partial tests (can't fully complete in emulator)
+maestro test --include-tags=partial .maestro/
+```
+
+## 🧹 Test Data Cleanup
+
+Tests are designed to be non-destructive and all test data is cleaned up automatically.
+
+### Cleanup Strategy
+
+1. **No actual transactions** - Deposit/withdraw tests don't submit payment
+2. **No permanent data** - Job creation shows dry-run (form verification only)
+3. **Reverted changes** - Profile edits are cancelled without saving
+4. **Auto-cleanup endpoint** - CI workflow calls cleanup after tests
+
+### Cleanup Endpoint
+
+The backend provides a cleanup endpoint that runs after every test run:
+
+```
+DELETE /api/mobile/test/cleanup-maestro-data
+```
+
+This deletes:
+- Jobs with title containing `[TEST]` or `MAESTRO`
+- Payment methods with name containing `Maestro`
+- Saved jobs from test users
+- Job applications from test users
+
+**Security**: Only works in non-production environments.
+
+### Partial Tests
+
+Some tests are marked as "partial" because they can't fully complete in an emulator:
+- **Avatar Upload** - Camera/gallery requires physical device
+- **KYC Upload** - Document photos require camera access
+- **Payment Completion** - Redirects to external payment (Xendit)
+
+These tests verify the UI flow up to the point requiring device hardware.
+
 ## 📁 Test Structure
 
 ```
 .maestro/
 ├── config.yaml                    # Global configuration
-├── auth/                          # Authentication tests
-│   ├── 01_welcome_screen.yaml     # Welcome screen display
-│   ├── 02_navigate_to_login.yaml  # Navigate to login
+├── README.md                      # This file
+│
+├── auth/                          # Authentication tests (8 tests)
+│   ├── 01_welcome_screen.yaml
+│   ├── 02_navigate_to_login.yaml
 │   ├── 03_login_validation_empty.yaml
 │   ├── 04_login_invalid_credentials.yaml
 │   ├── 05_login_worker_success.yaml
 │   ├── 06_login_client_success.yaml
 │   ├── 07_logout.yaml
 │   └── 08_navigate_to_register.yaml
-├── jobs/                          # Job-related tests (TODO)
-└── profile/                       # Profile tests (TODO)
+│
+├── jobs_worker/                   # Worker job browsing (5 tests)
+│   ├── 01_browse_categories.yaml
+│   ├── 02_search_jobs.yaml
+│   ├── 03_view_job_detail.yaml
+│   ├── 04_save_job.yaml
+│   └── 05_view_applications.yaml
+│
+├── jobs_client/                   # Client job management (3 tests)
+│   ├── 01_create_job.yaml
+│   ├── 02_view_my_jobs.yaml
+│   └── 03_browse_workers.yaml
+│
+├── wallet/                        # Wallet & payments (4 tests)
+│   ├── 01_view_balance.yaml
+│   ├── 02_deposit_flow.yaml
+│   ├── 03_withdraw_flow.yaml
+│   └── 04_payment_methods.yaml
+│
+├── kyc/                           # KYC verification (2 tests)
+│   ├── 01_start_kyc.yaml
+│   └── 02_check_status.yaml
+│
+└── profile/                       # Profile management (4 tests)
+    ├── 01_view_profile.yaml
+    ├── 02_edit_profile.yaml
+    ├── 03_avatar_upload.yaml
+    └── 04_switch_profile.yaml
 ```
 
 ## 🧪 Test Users
@@ -124,27 +223,99 @@ tags:
 
 Make sure these testIDs are set in your React Native components:
 
-### Welcome Screen
+### Welcome Screen ✅ (Already implemented)
 - `welcome-screen` - Container
 - `welcome-get-started-button` - Get Started button
 - `welcome-login-button` - Login button
 
-### Login Screen
+### Login Screen ✅ (Already implemented)
 - `login-screen` - Container
 - `login-email-input` - Email input
 - `login-password-input` - Password input
 - `login-submit-button` - Login button
 - `login-register-link` - Register link
 
-### Profile Screen
+### Profile Screen ✅ (Already implemented)
 - `profile-tab` - Profile tab button
 - `profile-logout-button` - Logout button
 
-### Main App
+### Main App ✅ (Already implemented)
 - `jobs-screen` - Jobs screen container
 - `home-screen` - Home screen container
 - `select-role-screen` - Role selection screen
 - `tab-bar` - Tab navigation bar
+
+### Jobs Screens - Worker (Need to add)
+- `categories-grid` - Category grid container
+- `job-card-{index}` - Individual job cards (0, 1, 2...)
+- `search-button` - Open search
+- `search-input` - Search text input
+- `filter-button` - Open filters
+- `apply-filters-button` - Apply filter selections
+- `clear-search-button` - Clear search
+- `saved-jobs-button` - View saved jobs
+- `save-job-button` - Save/unsave job toggle
+- `job-detail-screen` - Job detail container
+- `apply-button` - Apply to job
+- `applications-tab` - Applications list tab
+- `application-card-{index}` - Application cards
+
+### Jobs Screens - Client (Need to add)
+- `create-job-button` - Start job creation
+- `job-title-input` - Job title field
+- `job-description-input` - Job description field
+- `job-category-picker` - Category selector
+- `job-budget-input` - Budget amount field
+- `job-location-picker` - Location selector
+- `submit-job-button` - Submit job posting
+- `workers-section` - Browse workers section
+- `worker-card-{index}` - Worker profile cards
+
+### Wallet Screens (Need to add)
+- `wallet-screen` - Wallet main screen
+- `wallet-section` - Wallet section in profile
+- `balance-amount` - Balance display
+- `deposit-button` - Open deposit flow
+- `withdraw-button` - Open withdraw flow
+- `deposit-amount-input` - Deposit amount
+- `withdraw-amount-input` - Withdraw amount
+- `deposit-submit-button` - Submit deposit
+- `transaction-history` - Transaction list
+- `payment-methods` - Payment methods section
+- `add-payment-method` - Add new payment method
+- `account-name-input` - Payment account name
+- `account-number-input` - Payment account number
+- `save-payment-method` - Save payment method
+
+### KYC Screens (Need to add)
+- `kyc-section` - KYC section in profile
+- `kyc-upload-screen` - KYC upload screen
+- `id-type-national` - National ID option
+- `id-type-passport` - Passport option
+- `front-id-upload` - Front ID upload button
+- `back-id-upload` - Back ID upload button
+- `selfie-upload` - Selfie upload button
+- `kyc-submit-button` - Submit KYC
+- `kyc-status` - KYC status indicator
+- `refresh-status` - Refresh KYC status
+
+### Profile Screens (Need to add)
+- `profile-screen` - Profile main screen
+- `profile-avatar` - Avatar image/button
+- `edit-profile-button` - Edit profile button
+- `bio-input` - Bio text input
+- `hourly-rate-input` - Hourly rate input
+- `save-profile-button` - Save profile changes
+- `switch-profile-button` - Switch profile role
+- `camera-option` - Camera picker option
+- `gallery-option` - Gallery picker option
+
+### Navigation (Need to add)
+- `home-tab` - Home tab button
+- `jobs-tab` - Jobs tab button
+- `messages-tab` - Messages tab button
+- `back-button` - Back navigation button
+- `close-modal` - Close modal button
 
 ## 🤖 GitHub Actions
 
@@ -158,7 +329,7 @@ Tests run automatically via `.github/workflows/maestro-tests.yml`:
 
 1. Go to Actions → Maestro E2E Tests
 2. Click "Run workflow"
-3. Select test suite: `auth`, `jobs`, `profile`, or `all`
+3. Select test suite: `auth`, `jobs_worker`, `jobs_client`, `wallet`, `kyc`, `profile`, or `all`
 4. Optionally specify APK version tag
 
 ## 🐛 Debugging

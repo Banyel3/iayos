@@ -9,13 +9,16 @@ on:
   workflow_dispatch:
     inputs:
       test_suite:
-        description: 'Test suite to run (auth, jobs, profile, all)'
+        description: 'Test suite to run'
         required: false
         default: 'auth'
         type: choice
         options:
           - auth
-          - jobs
+          - jobs_worker
+          - jobs_client
+          - wallet
+          - kyc
           - profile
           - all
       apk_version:
@@ -242,6 +245,33 @@ jobs:
             
             # Capture exit code
             echo "test_result=${TEST_RESULT:-0}" >> $GITHUB_OUTPUT
+
+      # ─────────────────────────────────────────────────────────
+      # 4.5. CLEANUP TEST DATA
+      # ─────────────────────────────────────────────────────────
+      - name: Cleanup Maestro test data
+        if: always()
+        continue-on-error: true
+        run: |
+          echo "🧹 Cleaning up Maestro test data..."
+          
+          # Call cleanup endpoint (works only in non-production)
+          CLEANUP_RESPONSE=$(curl -s -X DELETE \
+            "${{ env.API_URL }}/api/mobile/test/cleanup-maestro-data" \
+            -H "Content-Type: application/json" \
+            2>&1) || true
+          
+          echo "Cleanup response: $CLEANUP_RESPONSE"
+          
+          # Check if cleanup was successful
+          if echo "$CLEANUP_RESPONSE" | grep -q '"success": true'; then
+            echo "✅ Test data cleanup completed successfully"
+            echo "$CLEANUP_RESPONSE" | jq -r '.stats // empty' 2>/dev/null || true
+          elif echo "$CLEANUP_RESPONSE" | grep -q 'not allowed'; then
+            echo "ℹ️ Cleanup skipped (production environment)"
+          else
+            echo "⚠️ Cleanup may have failed or was not needed"
+          fi
 
       # ─────────────────────────────────────────────────────────
       # 5. COLLECT RESULTS

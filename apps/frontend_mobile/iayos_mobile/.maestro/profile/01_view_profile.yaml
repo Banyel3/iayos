@@ -1,0 +1,144 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# TEST: View Profile
+# ══════════════════════════════════════════════════════════════════════════════
+# Verifies users can view their profile information
+# Prerequisites: Logged in
+# ══════════════════════════════════════════════════════════════════════════════
+
+appId: com.iayos.app
+tags:
+  - profile
+  - view
+  - smoke
+
+---
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SETUP: Login as Worker
+# ─────────────────────────────────────────────────────────────────────────────
+- launchApp:
+    clearState: true
+
+- waitForAnimationToEnd
+
+- tapOn:
+    id: "welcome-login-button"
+    optional: true
+
+- waitForAnimationToEnd
+
+- tapOn:
+    id: "login-email-input"
+- inputText: ${WORKER_EMAIL}
+- hideKeyboard
+
+- tapOn:
+    id: "login-password-input"
+- inputText: ${WORKER_PASSWORD}
+- hideKeyboard
+
+- tapOn:
+    id: "login-submit-button"
+
+- waitForAnimationToEnd:
+    timeout: 10000
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST: Navigate to Profile Tab
+# ─────────────────────────────────────────────────────────────────────────────
+- tapOn:
+    anyOf:
+      - text: "Profile"
+      - id: "profile-tab"
+
+- waitForAnimationToEnd
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST: Verify Profile Header
+# ─────────────────────────────────────────────────────────────────────────────
+- assertVisible:
+    anyOf:
+      - text: "Profile"
+      - id: "profile-screen"
+    timeout: 10000
+
+# Should show user info
+- assertVisible:
+    anyOf:
+      - text: "@"
+      - text: "worker"
+      - text: "test"
+      - text: "Edit"
+    optional: true
+
+- takeScreenshot: "01_profile_header"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST: Verify Profile Stats (Worker)
+# ─────────────────────────────────────────────────────────────────────────────
+- assertVisible:
+    anyOf:
+      - text: "Jobs"
+      - text: "Completed"
+      - text: "Rating"
+      - text: "★"
+      - text: "Reviews"
+      - text: "Earnings"
+    optional: true
+
+- takeScreenshot: "02_profile_stats"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST: Scroll to View More Sections
+# ─────────────────────────────────────────────────────────────────────────────
+- scroll:
+    direction: DOWN
+
+- waitForAnimationToEnd
+
+# Look for profile sections
+- assertVisible:
+    anyOf:
+      - text: "Skills"
+      - text: "Bio"
+      - text: "About"
+      - text: "Portfolio"
+      - text: "Certifications"
+      - text: "Reviews"
+    optional: true
+
+- takeScreenshot: "03_profile_sections"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST: Scroll to Settings Section
+# ─────────────────────────────────────────────────────────────────────────────
+- scroll:
+    direction: DOWN
+
+- waitForAnimationToEnd
+
+# Look for settings/account options
+- assertVisible:
+    anyOf:
+      - text: "Settings"
+      - text: "Wallet"
+      - text: "Payment Methods"
+      - text: "Logout"
+      - text: "Help"
+    optional: true
+
+- takeScreenshot: "04_settings_section"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST: View Full Profile (if link exists)
+# ─────────────────────────────────────────────────────────────────────────────
+- tapOn:
+    anyOf:
+      - text: "View Full Profile"
+      - text: "See More"
+      - id: "view-full-profile"
+    optional: true
+
+- waitForAnimationToEnd
+
+- takeScreenshot: "05_full_profile"

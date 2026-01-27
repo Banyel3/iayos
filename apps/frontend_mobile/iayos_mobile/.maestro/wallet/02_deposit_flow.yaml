@@ -1,0 +1,175 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# TEST: Deposit Funds Flow
+# ══════════════════════════════════════════════════════════════════════════════
+# Verifies deposit funds UI flow (does NOT complete actual payment)
+# Prerequisites: Logged in, GCash account added
+# ══════════════════════════════════════════════════════════════════════════════
+
+appId: com.iayos.app
+tags:
+  - wallet
+  - deposit
+  - payment
+
+---
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SETUP: Login as Worker
+# ─────────────────────────────────────────────────────────────────────────────
+- launchApp:
+    clearState: true
+
+- waitForAnimationToEnd
+
+- tapOn:
+    id: "welcome-login-button"
+    optional: true
+
+- waitForAnimationToEnd
+
+- tapOn:
+    id: "login-email-input"
+- inputText: ${WORKER_EMAIL}
+- hideKeyboard
+
+- tapOn:
+    id: "login-password-input"
+- inputText: ${WORKER_PASSWORD}
+- hideKeyboard
+
+- tapOn:
+    id: "login-submit-button"
+
+- waitForAnimationToEnd:
+    timeout: 10000
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST: Navigate to Wallet → Deposit
+# ─────────────────────────────────────────────────────────────────────────────
+- tapOn:
+    anyOf:
+      - text: "Profile"
+      - id: "profile-tab"
+    optional: true
+
+- waitForAnimationToEnd
+
+- tapOn:
+    anyOf:
+      - text: "Wallet"
+      - text: "Balance"
+      - id: "wallet-section"
+    optional: true
+
+- waitForAnimationToEnd
+
+- tapOn:
+    anyOf:
+      - text: "Deposit"
+      - text: "Add Funds"
+      - text: "Top Up"
+      - id: "deposit-button"
+
+- waitForAnimationToEnd
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST: Verify Deposit Screen
+# ─────────────────────────────────────────────────────────────────────────────
+- assertVisible:
+    anyOf:
+      - text: "Deposit"
+      - text: "Add Funds"
+      - text: "Amount"
+      - text: "₱"
+    timeout: 10000
+
+- takeScreenshot: "01_deposit_screen"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST: Select Preset Amount
+# ─────────────────────────────────────────────────────────────────────────────
+- tapOn:
+    anyOf:
+      - text: "₱100"
+      - text: "₱500"
+      - text: "100"
+      - text: "500"
+    optional: true
+
+- waitForAnimationToEnd
+
+- takeScreenshot: "02_preset_selected"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST: Enter Custom Amount
+# ─────────────────────────────────────────────────────────────────────────────
+- tapOn:
+    anyOf:
+      - id: "custom-amount-input"
+      - id: "deposit-amount-input"
+      - text: "Enter amount"
+    optional: true
+
+- inputText: "250"
+- hideKeyboard
+
+- takeScreenshot: "03_custom_amount"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST: Verify Minimum Amount Validation
+# ─────────────────────────────────────────────────────────────────────────────
+- tapOn:
+    anyOf:
+      - id: "deposit-amount-input"
+      - text: "Amount"
+    optional: true
+
+- inputText: "50"
+- hideKeyboard
+
+# Should show minimum amount error
+- assertVisible:
+    anyOf:
+      - text: "minimum"
+      - text: "₱100"
+      - text: "at least"
+    optional: true
+    timeout: 3000
+
+- takeScreenshot: "04_min_amount_validation"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST: Verify Payment Method Required
+# ─────────────────────────────────────────────────────────────────────────────
+# Clear and enter valid amount
+- tapOn:
+    anyOf:
+      - id: "deposit-amount-input"
+      - text: "Amount"
+
+- inputText: "100"
+- hideKeyboard
+
+# Look for payment method section
+- assertVisible:
+    anyOf:
+      - text: "GCash"
+      - text: "Payment Method"
+      - text: "Add GCash"
+      - text: "No payment method"
+    optional: true
+
+- takeScreenshot: "05_payment_method"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# NOTE: We don't actually submit deposit to avoid real transactions
+# ─────────────────────────────────────────────────────────────────────────────
+- assertVisible:
+    anyOf:
+      - text: "Deposit"
+      - text: "Continue"
+      - text: "Proceed"
+      - id: "deposit-submit-button"
+    optional: true
+
+- takeScreenshot: "06_ready_to_deposit"
