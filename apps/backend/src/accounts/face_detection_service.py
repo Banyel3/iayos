@@ -1,21 +1,17 @@
 """
-Face Detection & Verification Service - Using DeepFace
+Face Detection & Verification Service - Using InsightFace
 
-DeepFace is a lightweight open-source face recognition library that provides:
-1. Face Detection - Multiple backends (opencv, mtcnn, retinaface, etc.)
-2. Face Verification - Compare two faces and determine if they match
-3. Facial Attributes - Age, gender, emotion, race prediction (optional)
+InsightFace is a lightweight face recognition library using ONNX Runtime that provides:
+1. Face Detection - SCRFD detector (very fast, accurate)
+2. Face Verification - ArcFace recognition (state-of-the-art accuracy)
+3. Facial Attributes - Age, gender prediction (optional)
 
-Key Benefits over Azure Face API:
-- 100% LOCAL processing - No data sent to cloud (privacy!)
-- FREE - No API costs or rate limits
-- VERIFICATION WORKS - Unlike Azure which requires special approval
-- HIGH ACCURACY - FaceNet, ArcFace achieve 98%+ accuracy
-
-Migration from CompreFace/Azure:
-- DeepFace handles both detection AND comparison locally
-- No external API dependencies
-- Works perfectly on Render free tier
+Key Benefits over DeepFace:
+- ~180MB RAM vs ~400MB (50% less memory!)
+- Uses ONNX Runtime instead of TensorFlow
+- Faster inference on CPU
+- Same high accuracy (97%+ on IJB-C benchmark)
+- Works perfectly on Render free tier (512MB RAM)
 
 Usage:
     from accounts.face_detection_service import get_face_service
@@ -33,55 +29,50 @@ from typing import Optional, Dict, Any, List
 from dataclasses import dataclass
 from pathlib import Path
 
+import numpy as np
+from PIL import Image
+
 logger = logging.getLogger(__name__)
 
 # ============================================================================
-# DeepFace Configuration
+# InsightFace Configuration
 # ============================================================================
 
-# Try to import DeepFace
+# Try to import InsightFace
+INSIGHTFACE_AVAILABLE = False
+FaceAnalysis = None
+
 try:
     import time
-    import sys
     start_time = time.time()
-    logger.info("🔄 Attempting to load DeepFace...")
-    logger.info(f"   Python version: {sys.version}")
-    logger.info(f"   Python executable: {sys.executable}")
-    logger.info(f"   sys.path: {sys.path[:3]}...")  # Show first 3 paths
+    logger.info("🔄 Attempting to load InsightFace...")
     
-    from deepface import DeepFace
+    from insightface.app import FaceAnalysis as _FaceAnalysis
+    FaceAnalysis = _FaceAnalysis
+    
     load_time = time.time() - start_time
-    DEEPFACE_AVAILABLE = True
-    logger.info(f"✅ DeepFace loaded successfully in {load_time:.2f}s")
-    logger.info(f"   DeepFace module location: {DeepFace.__file__ if hasattr(DeepFace, '__file__') else 'unknown'}")
+    INSIGHTFACE_AVAILABLE = True
+    logger.info(f"✅ InsightFace loaded successfully in {load_time:.2f}s")
+    
 except ImportError as e:
-    DEEPFACE_AVAILABLE = False
-    logger.error(f"❌ DeepFace import FAILED: {e}")
-    logger.error(f"   Error type: {type(e).__name__}")
-    logger.error(f"   This is expected on Alpine Linux (use Debian-based image)")
-    logger.error(f"   Fallback: Face detection will use manual review workflow")
-    import traceback
-    logger.error(f"   Full traceback:\n{traceback.format_exc()}")
-    DeepFace = None
+    logger.error(f"❌ InsightFace import FAILED: {e}")
+    logger.error(f"   Install with: pip install insightface onnxruntime")
 except Exception as e:
-    DEEPFACE_AVAILABLE = False
-    logger.error(f"❌ DeepFace unexpected error: {e}")
-    logger.error(f"   Error type: {type(e).__name__}")
+    logger.error(f"❌ InsightFace unexpected error: {e}")
     import traceback
     logger.error(f"   Full traceback:\n{traceback.format_exc()}")
-    DeepFace = None
 
-# DeepFace model configuration
-# FaceNet512 offers best balance of accuracy (98.4%) and speed
-FACE_RECOGNITION_MODEL = os.getenv("DEEPFACE_MODEL", "Facenet512")
+# InsightFace model configuration
+# buffalo_s is the smallest model (~160MB) with good accuracy
+# Options: buffalo_l (largest), buffalo_m, buffalo_s (smallest), buffalo_sc (speed)
+FACE_MODEL_NAME = os.getenv("INSIGHTFACE_MODEL", "buffalo_s")
 
-# Face detector backend (retinaface is most accurate, opencv is fastest)
-# Options: 'opencv', 'ssd', 'dlib', 'mtcnn', 'fastmtcnn', 'retinaface', 'mediapipe', 'yolov8', 'yunet', 'centerface'
-FACE_DETECTOR_BACKEND = os.getenv("DEEPFACE_DETECTOR", "opencv")
+# Detection size (smaller = faster, larger = more accurate for small faces)
+FACE_DET_SIZE = int(os.getenv("INSIGHTFACE_DET_SIZE", "320"))
 
-# Similarity threshold for face matching (0-1, higher = stricter)
-# FaceNet512 recommended threshold: 0.30 (cosine distance)
-FACE_SIMILARITY_THRESHOLD = float(os.getenv("DEEPFACE_THRESHOLD", "0.40"))
+# Similarity threshold for face matching (cosine similarity, 0-1)
+# Higher = stricter matching
+FACE_SIMILARITY_THRESHOLD = float(os.getenv("FACE_SIMILARITY_THRESHOLD", "0.40"))
 
 # ============================================================================
 # Face Detection Result Types
@@ -126,7 +117,7 @@ class FaceComparisonResult:
     skipped: bool = False
     needs_manual_review: bool = False
     error: str = None
-    method: str = None  # 'deepface', 'local_only', etc.
+    method: str = None  # 'insightface', 'local_only', etc.
     model: str = None  # Which face recognition model was used
     
     def to_dict(self) -> Dict[str, Any]:
@@ -150,125 +141,72 @@ class FaceComparisonResult:
 # Face Detection Service
 # ============================================================================
 
-# Minimum free memory required to run DeepFace (in MB)
-# TensorFlow + DeepFace needs ~300-400MB to load models
-MIN_FREE_MEMORY_MB = int(os.getenv("DEEPFACE_MIN_MEMORY_MB", "250"))
-
-def _get_available_memory_mb() -> int:
-    """Get available system memory in MB. Returns -1 if unable to determine."""
-    try:
-        # Try reading from /proc/meminfo (Linux)
-        with open('/proc/meminfo', 'r') as f:
-            for line in f:
-                if line.startswith('MemAvailable:'):
-                    # Format: "MemAvailable:    1234567 kB"
-                    kb = int(line.split()[1])
-                    return kb // 1024
-    except:
-        pass
-    
-    try:
-        # Fallback: use psutil if available
-        import psutil
-        return int(psutil.virtual_memory().available / 1024 / 1024)
-    except:
-        pass
-    
-    # Unknown - return -1 to indicate we couldn't check
-    return -1
-
-
 class FaceDetectionService:
     """
-    Face detection and verification service using DeepFace
+    Face detection and verification service using InsightFace
     
-    DeepFace wraps multiple face recognition models:
-    - VGG-Face, FaceNet (128d & 512d), OpenFace, DeepFace, DeepID
-    - ArcFace, Dlib, SFace, GhostFaceNet, Buffalo_L
-    
-    And multiple face detection backends:
-    - opencv, ssd, dlib, mtcnn, fastmtcnn, retinaface
-    - mediapipe, yolov8, yunet, centerface
+    InsightFace uses ONNX Runtime for lightweight inference:
+    - SCRFD detector for face detection (fast, accurate)
+    - ArcFace for face recognition/verification
+    - buffalo_s model for minimal memory footprint (~180MB total)
     """
     
     def __init__(self):
         """Initialize face detection service"""
         self._initialized = False
-        self._temp_dir = None
+        self._app = None
         
-        if DEEPFACE_AVAILABLE:
+        if INSIGHTFACE_AVAILABLE:
             try:
                 import time
                 init_start = time.time()
-                logger.info(f"🚀 Initializing DeepFace service...")
-                logger.info(f"   Model: {FACE_RECOGNITION_MODEL}")
-                logger.info(f"   Detector: {FACE_DETECTOR_BACKEND}")
+                logger.info(f"🚀 Initializing InsightFace service...")
+                logger.info(f"   Model: {FACE_MODEL_NAME}")
+                logger.info(f"   Det size: {FACE_DET_SIZE}")
                 logger.info(f"   Threshold: {FACE_SIMILARITY_THRESHOLD}")
                 
-                # Create temp directory for image processing
-                self._temp_dir = tempfile.mkdtemp(prefix="deepface_")
-                logger.info(f"   Temp directory: {self._temp_dir}")
+                # Initialize FaceAnalysis with CPU provider
+                # name='buffalo_s' uses smallest model (~160MB)
+                self._app = FaceAnalysis(
+                    name=FACE_MODEL_NAME,
+                    providers=['CPUExecutionProvider']
+                )
                 
-                # Pre-warm DeepFace models (optional, speeds up first inference)
-                # This downloads models on first run (~100-500MB depending on model)
-                # Don't pre-load models in __init__ - let them load on first use
-                # This avoids blocking startup
+                # Prepare with detection size (smaller = faster)
+                self._app.prepare(ctx_id=-1, det_size=(FACE_DET_SIZE, FACE_DET_SIZE))
+                
                 self._initialized = True
                 init_time = time.time() - init_start
-                logger.info(f"✅ DeepFace service ready in {init_time:.2f}s")
-                logger.info(f"   Note: Model files will download on first face detection (~100-500MB)")
+                logger.info(f"✅ InsightFace service ready in {init_time:.2f}s")
                 
             except Exception as e:
-                logger.error(f"❌ DeepFace initialization failed: {e}")
-                logger.error(f"   Error type: {type(e).__name__}")
+                logger.error(f"❌ InsightFace initialization failed: {e}")
                 import traceback
                 logger.error(f"   Traceback:\n{traceback.format_exc()}")
                 self._initialized = False
         else:
-            logger.warning("⚠️ DeepFace not available - face services disabled")
+            logger.warning("⚠️ InsightFace not available - face services disabled")
             logger.warning("   Face detection will skip with manual review flag")
-            logger.warning("   This is normal on Alpine Linux (TensorFlow requires glibc)")
     
-    def _save_image_temp(self, image_data: bytes, prefix: str = "face") -> str:
-        """Save image bytes to a temporary file for DeepFace processing"""
-        if not self._temp_dir:
-            self._temp_dir = tempfile.mkdtemp(prefix="deepface_")
-        
-        import uuid
-        filename = f"{prefix}_{uuid.uuid4().hex[:8]}.jpg"
-        filepath = os.path.join(self._temp_dir, filename)
-        
-        # Ensure image is valid JPEG
-        try:
-            from PIL import Image
-            img = Image.open(io.BytesIO(image_data))
-            if img.mode != 'RGB':
-                img = img.convert('RGB')
-            img.save(filepath, 'JPEG', quality=95)
-        except Exception as e:
-            logger.error(f"Failed to save temp image: {e}")
-            # Fallback: write raw bytes
-            with open(filepath, 'wb') as f:
-                f.write(image_data)
-        
-        return filepath
-    
-    def _cleanup_temp_file(self, filepath: str):
-        """Remove temporary file after processing"""
-        try:
-            if os.path.exists(filepath):
-                os.remove(filepath)
-        except Exception as e:
-            logger.warning(f"Failed to cleanup temp file {filepath}: {e}")
+    def _load_image(self, image_data: bytes) -> np.ndarray:
+        """Load image bytes into numpy array (BGR format for InsightFace)"""
+        img = Image.open(io.BytesIO(image_data))
+        if img.mode != 'RGB':
+            img = img.convert('RGB')
+        # InsightFace expects BGR format
+        img_array = np.array(img)
+        # Convert RGB to BGR
+        img_bgr = img_array[:, :, ::-1]
+        return img_bgr
     
     def get_service_status(self) -> Dict[str, Any]:
         """Get current service availability status"""
         return {
-            "deepface_available": DEEPFACE_AVAILABLE and self._initialized,
-            "face_detection_available": DEEPFACE_AVAILABLE and self._initialized,
-            "face_comparison_available": DEEPFACE_AVAILABLE and self._initialized,
-            "model": FACE_RECOGNITION_MODEL,
-            "detector": FACE_DETECTOR_BACKEND,
+            "insightface_available": INSIGHTFACE_AVAILABLE and self._initialized,
+            "face_detection_available": INSIGHTFACE_AVAILABLE and self._initialized,
+            "face_comparison_available": INSIGHTFACE_AVAILABLE and self._initialized,
+            "model": FACE_MODEL_NAME,
+            "det_size": FACE_DET_SIZE,
             "threshold": FACE_SIMILARITY_THRESHOLD,
         }
     
@@ -278,7 +216,7 @@ class FaceDetectionService:
     
     def detect_face(self, image_data: bytes) -> FaceDetectionResult:
         """
-        Detect faces in an image using DeepFace
+        Detect faces in an image using InsightFace
         
         Args:
             image_data: Raw image bytes (JPEG/PNG)
@@ -287,115 +225,79 @@ class FaceDetectionService:
             FaceDetectionResult with detection details
         """
         import time
-        request_id = int(time.time() * 1000) % 1000000  # Last 6 digits of timestamp
-        logger.info(f"🔍 [REQ-{request_id}] Starting face detection with DeepFace...")
+        request_id = int(time.time() * 1000) % 1000000
+        logger.info(f"🔍 [REQ-{request_id}] Starting face detection with InsightFace...")
         logger.info(f"   [REQ-{request_id}] Image size: {len(image_data)} bytes")
         
-        # Check available memory before running DeepFace (prevents OOM crash)
-        available_mb = _get_available_memory_mb()
-        logger.info(f"   [REQ-{request_id}] Available memory: {available_mb}MB (min required: {MIN_FREE_MEMORY_MB}MB)")
-        
-        if available_mb != -1 and available_mb < MIN_FREE_MEMORY_MB:
-            logger.warning(f"⚠️ [REQ-{request_id}] Insufficient memory for DeepFace ({available_mb}MB < {MIN_FREE_MEMORY_MB}MB)")
-            logger.warning(f"   [REQ-{request_id}] Skipping face detection to prevent OOM crash - manual review required")
-            return FaceDetectionResult(
-                detected=False,
-                skipped=True,
-                error=f"Insufficient memory for face detection ({available_mb}MB available). Document will be reviewed manually."
-            )
-        
-        if not DEEPFACE_AVAILABLE or not self._initialized:
-            logger.error(f"❌ [REQ-{request_id}] DeepFace not available (AVAILABLE={DEEPFACE_AVAILABLE}, INITIALIZED={self._initialized})")
-            logger.error(f"   [REQ-{request_id}] Returning skipped=True for manual review")
+        if not INSIGHTFACE_AVAILABLE or not self._initialized:
+            logger.error(f"❌ [REQ-{request_id}] InsightFace not available")
             return FaceDetectionResult(
                 detected=False,
                 skipped=True,
                 error="Face detection service not available"
             )
         
-        temp_path = None
         try:
             detect_start = time.time()
-            # Save image to temp file (DeepFace works with file paths)
-            temp_path = self._save_image_temp(image_data, "detect")
-            logger.info(f"   [REQ-{request_id}] Temp file created: {temp_path}")
             
-            # Use extract_faces to detect faces
-            logger.info(f"   [REQ-{request_id}] Calling DeepFace.extract_faces (backend={FACE_DETECTOR_BACKEND})...")
-            try:
-                faces = DeepFace.extract_faces(
-                    img_path=temp_path,
-                    detector_backend=FACE_DETECTOR_BACKEND,
-                    enforce_detection=False,  # Don't raise exception if no face
-                    align=True
-                )
-            except ValueError as ve:
-                # DeepFace throws ValueError when no face detected (despite enforce_detection=False)
-                logger.warning(f"   [REQ-{request_id}] DeepFace ValueError (no face): {ve}")
-                return FaceDetectionResult(detected=False, count=0, confidence=0)
-            except TypeError as te:
-                # DeepFace throws TypeError for corrupted/invalid images
-                logger.warning(f"   [REQ-{request_id}] DeepFace TypeError (invalid image): {te}")
-                return FaceDetectionResult(detected=False, count=0, confidence=0, error="Invalid image format")
+            # Load image
+            img = self._load_image(image_data)
+            img_height, img_width = img.shape[:2]
+            logger.info(f"   [REQ-{request_id}] Image dimensions: {img_width}x{img_height}")
+            
+            # Detect faces
+            faces = self._app.get(img)
             
             detect_time = time.time() - detect_start
-            logger.info(f"   [REQ-{request_id}] DeepFace.extract_faces completed in {detect_time:.2f}s")
+            logger.info(f"   [REQ-{request_id}] Detection completed in {detect_time:.2f}s")
             
-            # Filter out placeholder faces (confidence=0 or near-zero)
-            # DeepFace returns placeholder faces when enforce_detection=False but no real face found
-            MIN_CONFIDENCE = 0.01
-            real_faces = [f for f in (faces or []) if f.get('confidence', 0) > MIN_CONFIDENCE]
-            
-            if not real_faces:
-                logger.info(f"   [REQ-{request_id}] DeepFace: No real faces detected (filtered {len(faces or [])} placeholder faces)")
+            if not faces:
+                logger.info(f"   [REQ-{request_id}] No faces detected")
                 return FaceDetectionResult(detected=False, count=0, confidence=0)
             
-            # Process detections (using filtered real_faces)
+            # Process detections
             bounding_boxes = []
             max_confidence = 0
             face_too_small = True
+            img_area = img_width * img_height
             
-            for face_obj in real_faces:
-                confidence = face_obj.get('confidence', 0.0) or 0.0
+            for face in faces:
+                # Get detection confidence
+                confidence = float(face.det_score) if hasattr(face, 'det_score') else 0.9
                 if confidence > max_confidence:
                     max_confidence = confidence
                 
-                # Get bounding box (facial_area)
-                area = face_obj.get('facial_area', {})
-                x = area.get('x', 0)
-                y = area.get('y', 0)
-                w = area.get('w', 0)
-                h = area.get('h', 0)
+                # Get bounding box
+                bbox = face.bbox.astype(int)
+                x_min, y_min, x_max, y_max = bbox
+                face_width = x_max - x_min
+                face_height = y_max - y_min
+                face_area = face_width * face_height
                 
                 # Check if face is large enough (at least 5% of image)
-                from PIL import Image
-                img = Image.open(io.BytesIO(image_data))
-                img_area = img.width * img.height
-                face_area = w * h
                 if face_area / img_area >= 0.05:
                     face_too_small = False
                 
                 bounding_boxes.append({
-                    "x_min": x,
-                    "y_min": y,
-                    "x_max": x + w,
-                    "y_max": y + h,
+                    "x_min": int(x_min),
+                    "y_min": int(y_min),
+                    "x_max": int(x_max),
+                    "y_max": int(y_max),
                     "probability": float(confidence)
                 })
             
-            logger.info(f"✅ [REQ-{request_id}] DeepFace: Detected {len(real_faces)} face(s), max_confidence={max_confidence:.2f}, face_too_small={face_too_small}")
+            logger.info(f"✅ [REQ-{request_id}] Detected {len(faces)} face(s), max_confidence={max_confidence:.2f}")
             
             return FaceDetectionResult(
                 detected=True,
-                count=len(real_faces),
+                count=len(faces),
                 confidence=float(max_confidence),
                 bounding_boxes=bounding_boxes,
                 face_too_small=face_too_small
             )
             
         except Exception as e:
-            logger.error(f"❌ [REQ-{request_id}] DeepFace detection error: {e}")
-            logger.error(f"   [REQ-{request_id}] Error type: {type(e).__name__}")
+            logger.error(f"❌ [REQ-{request_id}] Detection error: {e}")
             import traceback
             logger.error(f"   [REQ-{request_id}] Traceback:\n{traceback.format_exc()}")
             return FaceDetectionResult(
@@ -403,9 +305,6 @@ class FaceDetectionService:
                 skipped=True,
                 error=f"Face detection failed: {str(e)}"
             )
-        finally:
-            if temp_path:
-                self._cleanup_temp_file(temp_path)
     
     # ========================================================================
     # Face Comparison / Verification
@@ -418,45 +317,28 @@ class FaceDetectionService:
         similarity_threshold: float = None
     ) -> FaceComparisonResult:
         """
-        Compare faces between ID document and selfie using DeepFace
+        Compare faces between ID document and selfie using InsightFace
         
-        DeepFace.verify() compares two faces and returns:
-        - verified: True if faces match (within threshold)
-        - distance: Numerical distance between face embeddings
-        - threshold: Model-specific threshold for matching
+        Uses ArcFace embeddings and cosine similarity for comparison.
         
         Args:
             id_image_data: Raw bytes of ID document image
             selfie_image_data: Raw bytes of selfie image
-            similarity_threshold: Optional custom threshold (uses model default if not specified)
+            similarity_threshold: Optional custom threshold (uses default if not specified)
             
         Returns:
             FaceComparisonResult with comparison details
         """
         import time
-        request_id = int(time.time() * 1000) % 1000000  # Last 6 digits
-        logger.info(f"🔍 [COMP-{request_id}] Starting face comparison with DeepFace...")
+        request_id = int(time.time() * 1000) % 1000000
+        logger.info(f"🔍 [COMP-{request_id}] Starting face comparison with InsightFace...")
         logger.info(f"   [COMP-{request_id}] ID image size: {len(id_image_data)} bytes")
         logger.info(f"   [COMP-{request_id}] Selfie image size: {len(selfie_image_data)} bytes")
-        logger.info(f"   [COMP-{request_id}] Custom threshold: {similarity_threshold}")
         
-        # Check available memory before running DeepFace (prevents OOM crash)
-        available_mb = _get_available_memory_mb()
-        logger.info(f"   [COMP-{request_id}] Available memory: {available_mb}MB (min required: {MIN_FREE_MEMORY_MB}MB)")
+        threshold = similarity_threshold or FACE_SIMILARITY_THRESHOLD
         
-        if available_mb != -1 and available_mb < MIN_FREE_MEMORY_MB:
-            logger.warning(f"⚠️ [COMP-{request_id}] Insufficient memory for DeepFace ({available_mb}MB < {MIN_FREE_MEMORY_MB}MB)")
-            logger.warning(f"   [COMP-{request_id}] Skipping face comparison to prevent OOM crash - manual review required")
-            return FaceComparisonResult(
-                match=False,
-                skipped=True,
-                needs_manual_review=True,
-                error=f"Insufficient memory for face comparison ({available_mb}MB available). Document will be reviewed manually."
-            )
-        
-        if not DEEPFACE_AVAILABLE or not self._initialized:
-            logger.error(f"❌ [COMP-{request_id}] DeepFace not available (AVAILABLE={DEEPFACE_AVAILABLE}, INITIALIZED={self._initialized})")
-            logger.error(f"   [COMP-{request_id}] Returning skipped=True, needs_manual_review=True")
+        if not INSIGHTFACE_AVAILABLE or not self._initialized:
+            logger.error(f"❌ [COMP-{request_id}] InsightFace not available")
             return FaceComparisonResult(
                 match=False,
                 skipped=True,
@@ -464,24 +346,21 @@ class FaceDetectionService:
                 error="Face comparison service not available"
             )
         
-        id_temp_path = None
-        selfie_temp_path = None
-        
         try:
             compare_start = time.time()
-            # Save both images to temp files
-            id_temp_path = self._save_image_temp(id_image_data, "id")
-            selfie_temp_path = self._save_image_temp(selfie_image_data, "selfie")
-            logger.info(f"   [COMP-{request_id}] Temp files created: {id_temp_path}, {selfie_temp_path}")
             
-            # First check if faces exist in both images
-            logger.info(f"   [COMP-{request_id}] Pre-checking for faces in both images...")
-            id_detection = self.detect_face(id_image_data)
-            selfie_detection = self.detect_face(selfie_image_data)
+            # Load images
+            id_img = self._load_image(id_image_data)
+            selfie_img = self._load_image(selfie_image_data)
             
-            id_has_face = id_detection.detected and id_detection.count > 0
-            selfie_has_face = selfie_detection.detected and selfie_detection.count > 0
-            logger.info(f"   [COMP-{request_id}] ID has face: {id_has_face}, Selfie has face: {selfie_has_face}")
+            # Detect faces and get embeddings
+            id_faces = self._app.get(id_img)
+            selfie_faces = self._app.get(selfie_img)
+            
+            id_has_face = len(id_faces) > 0
+            selfie_has_face = len(selfie_faces) > 0
+            
+            logger.info(f"   [COMP-{request_id}] ID faces: {len(id_faces)}, Selfie faces: {len(selfie_faces)}")
             
             if not id_has_face:
                 logger.warning(f"❌ [COMP-{request_id}] No face detected in ID document")
@@ -501,58 +380,28 @@ class FaceDetectionService:
                     error="No face detected in selfie. Please take a clear photo of your face."
                 )
             
-            # Perform face verification with DeepFace
-            logger.info(f"   [COMP-{request_id}] Calling DeepFace.verify (model={FACE_RECOGNITION_MODEL}, detector={FACE_DETECTOR_BACKEND})...")
-            verify_start = time.time()
+            # Get face embeddings (use first/largest face from each)
+            id_embedding = id_faces[0].embedding
+            selfie_embedding = selfie_faces[0].embedding
             
-            try:
-                result = DeepFace.verify(
-                    img1_path=id_temp_path,
-                    img2_path=selfie_temp_path,
-                    model_name=FACE_RECOGNITION_MODEL,
-                    detector_backend=FACE_DETECTOR_BACKEND,
-                    distance_metric="cosine",  # cosine similarity
-                    enforce_detection=False,  # Don't raise exception if face not found
-                )
-            except ValueError as ve:
-                # DeepFace throws ValueError when face comparison fails
-                logger.warning(f"   [COMP-{request_id}] DeepFace ValueError during verify: {ve}")
-                return FaceComparisonResult(
-                    match=False,
-                    needs_manual_review=True,
-                    error=f"Face comparison failed: {str(ve)}"
-                )
-            except TypeError as te:
-                # DeepFace throws TypeError for corrupted/invalid images
-                logger.warning(f"   [COMP-{request_id}] DeepFace TypeError during verify: {te}")
-                return FaceComparisonResult(
-                    match=False,
-                    needs_manual_review=True,
-                    error="Invalid image format for face comparison"
-                )
+            # Calculate cosine similarity
+            # similarity = dot(a, b) / (norm(a) * norm(b))
+            dot_product = np.dot(id_embedding, selfie_embedding)
+            norm_product = np.linalg.norm(id_embedding) * np.linalg.norm(selfie_embedding)
+            similarity = float(dot_product / norm_product) if norm_product > 0 else 0.0
             
-            verify_time = time.time() - verify_start
-            logger.info(f"   [COMP-{request_id}] DeepFace.verify completed in {verify_time:.2f}s")
+            # Normalize to 0-1 range (cosine similarity can be -1 to 1)
+            similarity = (similarity + 1) / 2
             
-            # Parse results
-            is_verified = result.get("verified", False)
-            distance = result.get("distance", 1.0)
-            threshold = result.get("threshold", FACE_SIMILARITY_THRESHOLD)
-            model_used = result.get("model", FACE_RECOGNITION_MODEL)
+            # Distance is 1 - similarity
+            distance = 1.0 - similarity
             
-            # Calculate similarity (1 - distance for cosine)
-            # Cosine distance: 0 = identical, 1 = completely different
-            similarity = max(0.0, 1.0 - distance)
+            # Check if match
+            is_match = similarity >= threshold
             
-            # Use custom threshold if provided
-            if similarity_threshold is not None:
-                is_match = distance <= (1.0 - similarity_threshold)
-            else:
-                is_match = is_verified
-            
-            total_time = time.time() - compare_start
-            logger.info(f"✅ [COMP-{request_id}] DeepFace comparison complete in {total_time:.2f}s")
-            logger.info(f"   [COMP-{request_id}] Result: verified={is_verified}, match={is_match}, distance={distance:.4f}, threshold={threshold:.4f}, similarity={similarity:.2%}")
+            compare_time = time.time() - compare_start
+            logger.info(f"✅ [COMP-{request_id}] Comparison complete in {compare_time:.2f}s")
+            logger.info(f"   [COMP-{request_id}] Result: match={is_match}, similarity={similarity:.2%}, threshold={threshold:.2%}")
             
             return FaceComparisonResult(
                 match=is_match,
@@ -561,42 +410,23 @@ class FaceDetectionService:
                 threshold=threshold,
                 id_has_face=True,
                 selfie_has_face=True,
-                needs_manual_review=not is_match,  # Flag non-matches for review
-                method='deepface',
-                model=model_used
+                needs_manual_review=not is_match,
+                method='insightface',
+                model=FACE_MODEL_NAME
             )
             
         except Exception as e:
-            logger.error(f"❌ [COMP-{request_id}] DeepFace comparison error: {e}")
-            logger.error(f"   [COMP-{request_id}] Error type: {type(e).__name__}")
+            logger.error(f"❌ [COMP-{request_id}] Comparison error: {e}")
             import traceback
             logger.error(f"   [COMP-{request_id}] Traceback:\n{traceback.format_exc()}")
             
-            # If comparison fails, still return face detection status
-            id_has_face = False
-            selfie_has_face = False
-            try:
-                id_detection = self.detect_face(id_image_data)
-                selfie_detection = self.detect_face(selfie_image_data)
-                id_has_face = id_detection.detected
-                selfie_has_face = selfie_detection.detected
-            except:
-                pass
-            
             return FaceComparisonResult(
                 match=False,
-                id_has_face=id_has_face,
-                selfie_has_face=selfie_has_face,
                 skipped=True,
                 needs_manual_review=True,
                 error=f"Face comparison failed: {str(e)}",
-                method='deepface'
+                method='insightface'
             )
-        finally:
-            if id_temp_path:
-                self._cleanup_temp_file(id_temp_path)
-            if selfie_temp_path:
-                self._cleanup_temp_file(selfie_temp_path)
     
     # ========================================================================
     # Facial Attribute Analysis (Optional)
@@ -608,12 +438,12 @@ class FaceDetectionService:
         actions: List[str] = None
     ) -> Dict[str, Any]:
         """
-        Analyze facial attributes (age, gender, emotion, race)
+        Analyze facial attributes (age, gender)
         
         Args:
             image_data: Raw image bytes
-            actions: List of analyses to perform ['age', 'gender', 'emotion', 'race']
-                     Defaults to ['age', 'gender']
+            actions: List of analyses to perform ['age', 'gender']
+                     (InsightFace supports age and gender)
             
         Returns:
             Dictionary with analysis results
@@ -623,34 +453,33 @@ class FaceDetectionService:
         
         logger.info(f"🔍 Analyzing face attributes: {actions}")
         
-        if not DEEPFACE_AVAILABLE or not self._initialized:
-            logger.warning("DeepFace not available for analysis")
+        if not INSIGHTFACE_AVAILABLE or not self._initialized:
+            logger.warning("InsightFace not available for analysis")
             return {"error": "Face analysis service not available"}
         
-        temp_path = None
         try:
-            temp_path = self._save_image_temp(image_data, "analyze")
+            img = self._load_image(image_data)
+            faces = self._app.get(img)
             
-            results = DeepFace.analyze(
-                img_path=temp_path,
-                actions=actions,
-                detector_backend=FACE_DETECTOR_BACKEND,
-                enforce_detection=False
-            )
+            if not faces:
+                return {"error": "No face found for analysis"}
             
-            if isinstance(results, list) and len(results) > 0:
-                result = results[0]  # Take first face
-                logger.info(f"   Analysis result: {result}")
-                return result
+            face = faces[0]  # Take first face
+            result = {}
             
-            return {"error": "No face found for analysis"}
+            if 'age' in actions and hasattr(face, 'age'):
+                result['age'] = int(face.age)
+            
+            if 'gender' in actions and hasattr(face, 'gender'):
+                # InsightFace gender: 1 = male, 0 = female
+                result['gender'] = 'Male' if face.gender == 1 else 'Female'
+            
+            logger.info(f"   Analysis result: {result}")
+            return result
             
         except Exception as e:
             logger.error(f"Face analysis error: {e}")
             return {"error": str(e)}
-        finally:
-            if temp_path:
-                self._cleanup_temp_file(temp_path)
 
 
 # ============================================================================

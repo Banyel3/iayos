@@ -78,14 +78,13 @@ pytesseract>=0.3.10  # Python wrapper for Tesseract OCR
 Pillow>=10.0.0  # Image processing for quality checks
 scipy>=1.11.0  # Image processing (blur detection via Laplacian)
 
-# Face Detection & Verification - DeepFace (replaces CompreFace + Azure)
-# DeepFace is open-source, runs locally, provides both detection AND verification
-# Models: VGG-Face, FaceNet, ArcFace, etc. (98%+ accuracy)
-# Detectors: opencv, mtcnn, retinaface, mediapipe, yolo
-deepface>=0.0.98  # Face recognition, detection, and verification
-tf-keras>=2.18.0  # Required by DeepFace for neural network models
+# Face Detection & Verification - InsightFace (lightweight, ONNX-based)
+# InsightFace uses ONNX Runtime instead of TensorFlow (~180MB RAM vs ~400MB)
+# SCRFD detector + ArcFace recognition - state-of-the-art accuracy (97%+ IJB-C)
+# buffalo_s model is smallest option (~160MB on disk)
+insightface>=0.7.3  # Face detection and recognition
+onnxruntime>=1.16.0  # Lightweight inference engine (no TensorFlow needed)
 opencv-python-headless>=4.8.0  # OpenCV without GUI (smaller, for servers)
-# NOTE: packaging moved to top of file - must install before deepface
 
 # Security updates for Alpine packages
 # Force pip upgrade to fix CVE-2025-8869  

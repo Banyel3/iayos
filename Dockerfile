@@ -239,30 +239,29 @@ EXPOSE 3000
 CMD ["sh", "-c", "cd /app/apps/frontend_web && npx next dev"]
 
 # ============================================
-# Stage 13: Backend Development (Debian-based for DeepFace/TensorFlow)
+# Stage 13: Backend Development (Debian-based for InsightFace/ONNX)
 # ============================================
-# Note: Using Debian-slim instead of Alpine because DeepFace requires TensorFlow
-# which needs glibc (not available on Alpine's musl libc)
+# Note: Using Debian-slim for consistent Python package availability
+# InsightFace uses ONNX Runtime (~180MB RAM) instead of TensorFlow (~400MB)
 FROM python:3.12-slim AS backend-development
 
 # Set environment variables
-# DEEPFACE_HOME: DeepFace creates a .deepface folder for models/weights
-# Must be persistent (not /tmp which is ephemeral) and writable by appuser
+# INSIGHTFACE_HOME: InsightFace stores models in ~/.insightface by default
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    DEEPFACE_HOME="/app/.deepface"
+    HOME="/app"
 
 # Create non-root user
 RUN groupadd -g 1001 appgroup \
     && useradd -r -u 1001 -g appgroup -d /app -s /sbin/nologin appuser \
-    && mkdir -p /app/.deepface \
-    && chown appuser:appgroup /app/.deepface
+    && mkdir -p /app/.insightface \
+    && chown appuser:appgroup /app/.insightface
 
 # Install development dependencies
 # - tesseract-ocr for KYC document verification
-# - libgl1 for OpenCV (required by DeepFace)
+# - libgl1 for OpenCV (required by InsightFace)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     libpq-dev \
@@ -274,7 +273,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     zlib1g-dev \
     libpng-dev \
     curl \
-    # OpenCV/DeepFace dependencies
+    # OpenCV/InsightFace dependencies
     libgl1 \
     libglib2.0-0 \
     libsm6 \
@@ -293,49 +292,45 @@ RUN python -m pip install --upgrade pip setuptools wheel \
 COPY apps/backend/patch_ninja.sh ./
 RUN sed -i 's/\r$//' patch_ninja.sh && chmod +x patch_ninja.sh && ./patch_ninja.sh && rm patch_ninja.sh
 
-# Pre-download DeepFace models at build time to avoid RAM spikes at runtime
-# This downloads the model files (~100MB) during build instead of first request
-# Models are stored in DEEPFACE_HOME (/app/.deepface) - persists in Docker layer
+# Pre-download InsightFace models at build time to avoid first-request delay
+# buffalo_s model is ~160MB and provides good accuracy with minimal RAM
 RUN python << 'EOF'
 import os
-os.environ['DEEPFACE_HOME'] = '/app/.deepface'
+os.environ['HOME'] = '/app'
 try:
-    from deepface import DeepFace
-    print('📥 Pre-downloading DeepFace models...')
+    from insightface.app import FaceAnalysis
     import numpy as np
-    # Create two different dummy images for verification
-    dummy_img1 = np.zeros((224, 224, 3), dtype=np.uint8)
-    dummy_img2 = np.ones((224, 224, 3), dtype=np.uint8) * 128
     
-    # This downloads opencv detector
-    try:
-        DeepFace.extract_faces(dummy_img1, detector_backend='opencv', enforce_detection=False)
-        print('✅ DeepFace detector (opencv) pre-downloaded')
-    except Exception as e:
-        print(f'⚠️ Detector warning (expected): {e}')
+    print('📥 Pre-downloading InsightFace buffalo_s model...')
     
-    # This downloads Facenet512 model (~90MB) - the actual face recognition model
-    try:
-        DeepFace.verify(dummy_img1, dummy_img2, model_name='Facenet512', detector_backend='opencv', enforce_detection=False)
-        print('✅ Facenet512 model pre-downloaded')
-    except Exception as e:
-        print(f'⚠️ Verify warning (expected for dummy images): {e}')
+    # Initialize FaceAnalysis - this downloads the model
+    app = FaceAnalysis(name='buffalo_s', providers=['CPUExecutionProvider'])
+    app.prepare(ctx_id=-1, det_size=(320, 320))
     
-    print('✅ DeepFace models ready')
-    # Verify models exist
-    deepface_dir = '/app/.deepface'
-    if os.path.exists(deepface_dir):
+    # Verify by running a dummy detection
+    dummy_img = np.zeros((320, 320, 3), dtype=np.uint8)
+    faces = app.get(dummy_img)
+    print(f'✅ InsightFace ready (detected {len(faces)} faces in dummy image)')
+    
+    # Show model size
+    insightface_dir = '/app/.insightface'
+    if os.path.exists(insightface_dir):
         total_size = 0
-        for root, dirs, files in os.walk(deepface_dir):
+        for root, dirs, files in os.walk(insightface_dir):
             for f in files:
                 path = os.path.join(root, f)
                 size = os.path.getsize(path)
                 total_size += size
-                print(f'   📦 {path}: {size/1024/1024:.1f}MB')
+                print(f'   📦 {os.path.basename(path)}: {size/1024/1024:.1f}MB')
         print(f'   📊 Total model size: {total_size/1024/1024:.1f}MB')
 except ImportError as e:
-    print(f'⚠️ DeepFace not available: {e}')
+    print(f'⚠️ InsightFace not available: {e}')
+except Exception as e:
+    print(f'⚠️ InsightFace setup warning: {e}')
 EOF
+
+# Ensure appuser owns the downloaded models
+RUN chown -R appuser:appgroup /app/.insightface || true
 
 # Copy backend source (mounted in dev)
 COPY --chown=appuser:appgroup apps/backend .
