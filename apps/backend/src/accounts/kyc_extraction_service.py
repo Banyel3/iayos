@@ -251,7 +251,7 @@ def _store_face_match_score(extracted: KYCExtractedData, face_match_result: Dict
             - match: bool - whether faces matched
             - similarity: float - similarity score 0-1
             - skipped: bool - whether face matching was skipped
-            - method: str - "deepface", "azure", or "local_only"
+            - method: str - "insightface", "azure", or "local_only"
     """
     try:
         if face_match_result.get('skipped'):
@@ -263,8 +263,8 @@ def _store_face_match_score(extracted: KYCExtractedData, face_match_result: Dict
         method = face_match_result.get('method', 'unknown')
         
         # Mark as completed if a proper verification method was used
-        # DeepFace and Azure both provide verified face matching
-        is_verified = method in ('deepface', 'azure')
+        # InsightFace and Azure both provide verified face matching
+        is_verified = method in ('insightface', 'azure')
         
         extracted.face_match_score = similarity
         extracted.face_match_completed = is_verified

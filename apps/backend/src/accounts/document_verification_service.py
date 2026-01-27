@@ -2,7 +2,7 @@
 Document Verification Service for KYC Uploads
 
 This service provides automated verification of KYC documents using:
-1. DeepFace - Face detection and verification (via face_detection_service)
+1. InsightFace - Face detection and verification (via face_detection_service)
 2. Tesseract OCR - Text extraction for clearances and permits
 3. Image quality checks - Blur detection, resolution, orientation
 
@@ -10,11 +10,11 @@ Integration points:
 - Called during upload_kyc_document() after Supabase upload
 - Returns verification results that can auto-reject or flag for manual review
 
-Migration from CompreFace/Azure (Jan 2026):
-- Replaced CompreFace Docker container with DeepFace (local, uses TensorFlow)
-- DeepFace provides BOTH face detection AND verification locally
+Migration to InsightFace (Jan 2026):
+- Using InsightFace + ONNX Runtime (~180MB RAM vs TensorFlow ~400MB)
+- InsightFace provides BOTH face detection AND verification locally
 - No cloud API required - runs entirely on backend server
-- Model: Facenet512 (98.4% accuracy on LFW benchmark)
+- Model: buffalo_s with ArcFace (97%+ accuracy on IJB-C benchmark)
 """
 
 import io
@@ -246,13 +246,13 @@ class DocumentVerificationService:
         # Log service status
         status = check_face_services_available()
         logger.info(f"DocumentVerificationService initialized:")
-        logger.info(f"  - DeepFace: {'✅' if status.get('deepface_available') else '❌'}")
+        logger.info(f"  - InsightFace: {'✅' if status.get('insightface_available') else '❌'}")
         logger.info(f"  - Face Detection: {'✅' if status.get('face_detection_available') else '❌'}")
         logger.info(f"  - Face Comparison: {'✅' if status.get('face_comparison_available') else '❌'}")
         logger.info(f"  - Model: {status.get('model', 'N/A')}")
 
     def _check_face_detection_available(self) -> bool:
-        """Check if face detection is available (MediaPipe or OpenCV)"""
+        """Check if face detection is available (InsightFace)"""
         status = check_face_services_available()
         return status.get("face_detection_available", False)
 
@@ -315,13 +315,13 @@ class DocumentVerificationService:
                 
                 if not face_result.get("detected", False):
                     if face_result.get("skipped"):
-                        # DeepFace service unavailable - mark for manual review with warning
+                        # InsightFace service unavailable - mark for manual review with warning
                         # This is a SERVICE FAILURE (not user error), so allow upload with manual review flag
                         face_detection_skipped = True
                         face_detection_warning = "Face detection service is currently unavailable. Your document will be reviewed manually by our team."
                         logger.warning("   ⚠️ Face detection service unavailable - flagged for manual review")
                     else:
-                        # DeepFace ran successfully but NO FACE DETECTED - STRONG REJECT
+                        # InsightFace ran successfully but NO FACE DETECTED - STRONG REJECT
                         # This is a USER ERROR (bad photo), so reject the upload immediately
                         error_msg = "No face detected in the image. Please ensure your face is clearly visible."
                         if document_type.upper() == "SELFIE":
@@ -329,7 +329,7 @@ class DocumentVerificationService:
                         elif document_type.upper() in ["FRONTID", "BACKID", "PHILSYS_ID", "DRIVERS_LICENSE", "REP_ID_FRONT", "REP_ID_BACK"]:
                             error_msg = "No face detected on your ID. Please ensure the photo on your ID is clearly visible and not obscured."
                         
-                        logger.warning(f"   ❌ REJECTED: No face detected (DeepFace confidence: {face_result.get('confidence', 0):.2f})")
+                        logger.warning(f"   ❌ REJECTED: No face detected (InsightFace confidence: {face_result.get('confidence', 0):.2f})")
                         return {
                             "valid": False,
                             "error": error_msg,
@@ -426,13 +426,13 @@ class DocumentVerificationService:
                 face_result = self._detect_face(file_data)
                 details["face_detection"] = face_result
                 
-                # If face detection was skipped (DeepFace service unavailable), continue with manual review warning
+                # If face detection was skipped (InsightFace service unavailable), continue with manual review warning
                 # This is a SERVICE FAILURE, not user error - allow upload with manual review flag
                 if face_result.get("skipped"):
-                    logger.warning(f"   ⚠️ Face detection service unavailable: {face_result.get('reason', 'DeepFace not initialized')}")
+                    logger.warning(f"   ⚠️ Face detection service unavailable: {face_result.get('reason', 'InsightFace not initialized')}")
                     warnings.append("Face detection service is currently unavailable - manual verification required")
                 elif not face_result["detected"]:
-                    # DeepFace ran successfully but NO FACE FOUND - STRONG REJECT
+                    # InsightFace ran successfully but NO FACE FOUND - STRONG REJECT
                     # This is a USER ERROR (bad photo quality) - reject immediately
                     logger.warning(f"   ❌ REJECTED: No face detected in ID document (confidence: {face_result.get('confidence', 0):.2f})")
                     return VerificationResult(
@@ -620,7 +620,7 @@ class DocumentVerificationService:
 
     def _detect_face(self, image_data: bytes) -> Dict[str, Any]:
         """
-        Detect faces in image using DeepFace
+        Detect faces in image using InsightFace
         
         Returns dict with:
             - detected: bool
@@ -631,7 +631,7 @@ class DocumentVerificationService:
             - error: str if error occurred
         """
         if not self._check_face_detection_available():
-            logger.warning("Face detection not available (DeepFace not loaded)")
+            logger.warning("Face detection not available (InsightFace not loaded)")
             return {
                 "detected": False,
                 "count": 0,
@@ -659,7 +659,7 @@ class DocumentVerificationService:
         similarity_threshold: float = 0.40
     ) -> Dict[str, Any]:
         """
-        Compare faces between ID document and selfie using DeepFace.
+        Compare faces between ID document and selfie using InsightFace.
         Runs entirely locally - no cloud API required.
         
         Args:
@@ -669,7 +669,7 @@ class DocumentVerificationService:
             
         Returns dict with:
             - match: bool - whether faces match (or need manual review)
-            - similarity: float - similarity score (0 if DeepFace unavailable)
+            - similarity: float - similarity score (0 if InsightFace unavailable)
             - id_has_face: bool - whether ID has a detectable face
             - selfie_has_face: bool - whether selfie has a detectable face
             - needs_manual_review: bool - whether admin should verify

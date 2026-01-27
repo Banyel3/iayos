@@ -864,7 +864,7 @@ def _check_kyc_auto_approval(kyc_record, extracted, edited_fields):
     2. User has confirmed their data (extraction_status == CONFIRMED)
     3. ID type is a valid Philippine ID (not foreign documents)
     4. Overall confidence >= kycAutoApproveMinConfidence
-    5. Face match was completed via verified method (DeepFace or Azure)
+    5. Face match was completed via verified method (InsightFace or Azure)
     6. Face match similarity >= kycFaceMatchMinSimilarity
     
     Returns:
@@ -927,7 +927,7 @@ def _check_kyc_auto_approval(kyc_record, extracted, edited_fields):
         print(f"      ❌ Confidence {overall_confidence} < min {min_confidence}")
         return False, None
     
-    # REQUIRE face match completion via verified method (DeepFace or Azure)
+    # REQUIRE face match completion via verified method (InsightFace or Azure)
     if not extracted.face_match_completed:
         print(f"      ❌ Face matching not completed via verified method (required for auto-approval)")
         return False, None
