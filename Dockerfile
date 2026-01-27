@@ -160,7 +160,9 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # ============================================
 FROM backend-deps AS backend-builder
 
-# Copy backend source
+WORKDIR /app/backend
+
+# Copy backend source to /app/backend
 COPY apps/backend .
 
 # ============================================
