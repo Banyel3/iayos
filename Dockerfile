@@ -353,6 +353,13 @@ COPY --from=backend-builder --chown=appuser:appgroup /app/backend ./
 # Make start.sh executable (it's already copied from backend-builder)
 RUN chmod +x /app/backend/start.sh
 
+# CRITICAL FIX: Verify Django is accessible at build time
+# This will fail the build if dependencies aren't properly installed
+RUN PYTHONPATH=/app/.local/lib/python3.12/site-packages python -c "import django; print(f'✅ Django {django.__version__} accessible')" \
+    && PYTHONPATH=/app/.local/lib/python3.12/site-packages python -c "import psycopg2; print('✅ psycopg2 accessible')" \
+    && PYTHONPATH=/app/.local/lib/python3.12/site-packages python -c "import pytesseract; print('✅ pytesseract accessible')" \
+    && echo "✅ All critical packages verified at build time"
+
 # Switch to non-root user
 USER appuser
 
