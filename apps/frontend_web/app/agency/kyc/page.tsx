@@ -173,10 +173,15 @@ const AgencyKYCPage = () => {
       );
 
       const data = await response.json();
+      // Handle HTTP error responses which have valid=false in body
+      if (!response.ok && !data.error) {
+        data.error = `Server error (${response.status})`;
+      }
       return data;
     } catch (error) {
       console.error("AI validation error:", error);
-      return { valid: false, error: "Validation failed. Please try again." };
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      return { valid: false, error: `Validation failed: ${errorMessage}` };
     }
   };
 
@@ -872,13 +877,12 @@ const AgencyKYCPage = () => {
             </label>
             <label
               htmlFor="repFront"
-              className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors bg-gray-50 min-h-[150px] flex items-center justify-center ${
-                repFrontValidationError
+              className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors bg-gray-50 min-h-[150px] flex items-center justify-center ${repFrontValidationError
                   ? "border-red-400 bg-red-50"
                   : repIDFront
                     ? "border-green-400"
                     : "border-gray-300 hover:border-blue-500"
-              } ${isValidatingRepFront ? "opacity-60 pointer-events-none" : ""}`}
+                } ${isValidatingRepFront ? "opacity-60 pointer-events-none" : ""}`}
             >
               {isValidatingRepFront ? (
                 <div className="flex flex-col items-center">
@@ -945,13 +949,12 @@ const AgencyKYCPage = () => {
             </label>
             <label
               htmlFor="repBack"
-              className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors bg-gray-50 min-h-[150px] flex items-center justify-center ${
-                repBackValidationError
+              className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors bg-gray-50 min-h-[150px] flex items-center justify-center ${repBackValidationError
                   ? "border-red-400 bg-red-50"
                   : repIDBack
                     ? "border-green-400"
                     : "border-gray-300 hover:border-blue-500"
-              } ${isValidatingRepBack ? "opacity-60 pointer-events-none" : ""}`}
+                } ${isValidatingRepBack ? "opacity-60 pointer-events-none" : ""}`}
             >
               {isValidatingRepBack ? (
                 <div className="flex flex-col items-center">
@@ -1203,11 +1206,10 @@ const AgencyKYCPage = () => {
                           handleOcrFieldChange(field.key, e.target.value)
                         }
                         placeholder={field.placeholder}
-                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                          editedFields.has(field.key)
+                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${editedFields.has(field.key)
                             ? "border-yellow-400 bg-yellow-50"
                             : "border-gray-300"
-                        }`}
+                          }`}
                       />
                       {hasAutofillData && (
                         <div className="absolute right-2 top-2">
@@ -1255,11 +1257,10 @@ const AgencyKYCPage = () => {
                             handleOcrFieldChange(field.key, e.target.value);
                             setRepIdType(e.target.value);
                           }}
-                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white ${
-                            editedFields.has(field.key)
+                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white ${editedFields.has(field.key)
                               ? "border-yellow-400 bg-yellow-50"
                               : "border-gray-300"
-                          }`}
+                            }`}
                         >
                           {field.options?.map((opt) => (
                             <option key={opt.value} value={opt.value}>
@@ -1275,11 +1276,10 @@ const AgencyKYCPage = () => {
                             handleOcrFieldChange(field.key, e.target.value)
                           }
                           placeholder={field.placeholder}
-                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                            editedFields.has(field.key)
+                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${editedFields.has(field.key)
                               ? "border-yellow-400 bg-yellow-50"
                               : "border-gray-300"
-                          }`}
+                            }`}
                         />
                       )}
                       {hasAutofillData && field.type !== "select" && (
@@ -1588,11 +1588,10 @@ const AgencyKYCPage = () => {
           )}
           <button
             onClick={() => router.push("/agency/dashboard")}
-            className={`px-6 py-3 rounded-full font-semibold transition-colors ${
-              isRejected
+            className={`px-6 py-3 rounded-full font-semibold transition-colors ${isRejected
                 ? "bg-gray-100 text-gray-700 hover:bg-gray-200"
                 : "bg-blue-600 text-white hover:bg-blue-700"
-            }`}
+              }`}
           >
             {isRejected ? "Back to Dashboard" : "Go to Dashboard"}
           </button>

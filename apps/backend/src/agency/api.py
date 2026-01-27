@@ -143,8 +143,16 @@ def validate_agency_document(request):
         return result
         
     except Exception as e:
-        print(f"Error in validate_agency_document: {str(e)}")
-        return Response({"valid": False, "error": "Validation failed. Please try again."}, status=500)
+        import traceback
+        error_msg = str(e)
+        print(f"Error in validate_agency_document: {error_msg}")
+        traceback.print_exc()
+        # Return actual error for debugging
+        return Response({
+            "valid": False, 
+            "error": f"Validation failed: {error_msg}" if error_msg else "Validation failed. Please try again.",
+            "details": {"exception": error_msg}
+        }, status=500)
 
 
 @router.get("/kyc/autofill", auth=cookie_auth)
