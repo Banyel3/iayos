@@ -147,17 +147,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy requirements file
 COPY apps/backend/requirements.txt .
 
-# Install Python dependencies with security checks
-# CACHE BUST: 2026-01-27-v4 - Add verbose diagnostics for packaging investigation
-RUN mkdir -p /app/.local \
-    && python -m pip install --upgrade 'pip>=25.3' setuptools wheel \
-    && pip install --no-cache-dir --prefix=/app/.local -r requirements.txt \
-    && echo '✅ Verifying dependency resolution...' \
-    && PYTHONPATH=/app/.local/lib/python3.12/site-packages pip check \
-    && echo '✅ All dependencies resolved correctly' \
-    && echo '📊 DIAGNOSTIC: Checking packaging installation...' \
-    && ls -la /app/.local/lib/python3.12/site-packages/packaging* 2>/dev/null || echo '❌ packaging dir NOT FOUND in expected location' \
-    && find /app/.local -name "packaging" -type d 2>/dev/null | head -5 || echo '❌ packaging NOT FOUND anywhere' \
+# Install Python dependencies using virtualenv (reliable isolation)
+# FIXED: virtualenv ensures ALL packages install to /app/venv (no system escapes)
+RUN python -m venv /app/venv \
+    && /app/venv/bin/pip install --upgrade 'pip>=25.3' setuptools wheel \
+    && /app/venv/bin/pip install --no-cache-dir -r requirements.txt \
+    && /app/venv/bin/pip check \
+    && echo '✅ All dependencies installed to virtualenv' \
     && PYTHONPATH=/app/.local/lib/python3.12/site-packages python -c "import packaging; print(f'✅ packaging {packaging.__version__} imports OK in deps stage')" || echo '❌ packaging import FAILED in deps stage' \
     && find /app/.local -name "*.pyc" -delete 2>/dev/null || true \
     && find /app/.local -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
@@ -323,8 +319,7 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PATH="/app/.local/bin:$PATH" \
-    PYTHONPATH="/app/.local/lib/python3.12/site-packages"
+    PATH="/app/venv/bin:$PATH"
 
 # Create non-root user (Debian syntax)
 RUN groupadd -g 1001 appgroup \
@@ -348,13 +343,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app/backend
 
-# Copy Python dependencies from deps stage
-COPY --from=backend-deps --chown=appuser:appgroup /app/.local /app/.local
-
-# DIAGNOSTIC: Verify files copied correctly
-RUN echo '📊 DIAGNOSTIC: Verifying COPY from backend-deps...' \
-    && ls -la /app/.local/lib/python3.12/site-packages/packaging* 2>/dev/null || echo '❌ packaging dir NOT FOUND after COPY' \
-    && find /app/.local -name "packaging" -type d 2>/dev/null | head -5 || echo '❌ packaging NOT FOUND anywhere after COPY'
+# Copy virtualenv from deps stage (contains all Python dependencies)
+COPY --from=backend-deps --chown=appuser:appgroup /app/venv /app/venv
 
 # Copy application code with proper ownership (includes start.sh)
 COPY --from=backend-builder --chown=appuser:appgroup /app/backend ./
@@ -363,8 +353,8 @@ COPY --from=backend-builder --chown=appuser:appgroup /app/backend ./
 RUN chmod +x /app/backend/start.sh
 
 # CRITICAL: Verify all dependencies are accessible at build time
-# This will fail the build if any critical package or transitive dependency is missing
-RUN PYTHONPATH=/app/.local/lib/python3.12/site-packages python << 'EOF'
+# Virtualenv PATH ensures python finds all packages automatically
+RUN python << 'EOF'
 import sys
 try:
     # Test all critical dependencies and their transitive deps
