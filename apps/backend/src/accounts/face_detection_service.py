@@ -281,25 +281,40 @@ class FaceDetectionService:
             
             # Use extract_faces to detect faces
             logger.info(f"   [REQ-{request_id}] Calling DeepFace.extract_faces (backend={FACE_DETECTOR_BACKEND})...")
-            faces = DeepFace.extract_faces(
-                img_path=temp_path,
-                detector_backend=FACE_DETECTOR_BACKEND,
-                enforce_detection=False,  # Don't raise exception if no face
-                align=True
-            )
+            try:
+                faces = DeepFace.extract_faces(
+                    img_path=temp_path,
+                    detector_backend=FACE_DETECTOR_BACKEND,
+                    enforce_detection=False,  # Don't raise exception if no face
+                    align=True
+                )
+            except ValueError as ve:
+                # DeepFace throws ValueError when no face detected (despite enforce_detection=False)
+                logger.warning(f"   [REQ-{request_id}] DeepFace ValueError (no face): {ve}")
+                return FaceDetectionResult(detected=False, count=0, confidence=0)
+            except TypeError as te:
+                # DeepFace throws TypeError for corrupted/invalid images
+                logger.warning(f"   [REQ-{request_id}] DeepFace TypeError (invalid image): {te}")
+                return FaceDetectionResult(detected=False, count=0, confidence=0, error="Invalid image format")
+            
             detect_time = time.time() - detect_start
             logger.info(f"   [REQ-{request_id}] DeepFace.extract_faces completed in {detect_time:.2f}s")
             
-            if not faces:
-                logger.info(f"   [REQ-{request_id}] DeepFace: No faces detected")
+            # Filter out placeholder faces (confidence=0 or near-zero)
+            # DeepFace returns placeholder faces when enforce_detection=False but no real face found
+            MIN_CONFIDENCE = 0.01
+            real_faces = [f for f in (faces or []) if f.get('confidence', 0) > MIN_CONFIDENCE]
+            
+            if not real_faces:
+                logger.info(f"   [REQ-{request_id}] DeepFace: No real faces detected (filtered {len(faces or [])} placeholder faces)")
                 return FaceDetectionResult(detected=False, count=0, confidence=0)
             
-            # Process detections
+            # Process detections (using filtered real_faces)
             bounding_boxes = []
             max_confidence = 0
             face_too_small = True
             
-            for face_obj in faces:
+            for face_obj in real_faces:
                 confidence = face_obj.get('confidence', 0.0) or 0.0
                 if confidence > max_confidence:
                     max_confidence = confidence
@@ -327,11 +342,11 @@ class FaceDetectionService:
                     "probability": float(confidence)
                 })
             
-            logger.info(f"✅ [REQ-{request_id}] DeepFace: Detected {len(faces)} face(s), max_confidence={max_confidence:.2f}, face_too_small={face_too_small}")
+            logger.info(f"✅ [REQ-{request_id}] DeepFace: Detected {len(real_faces)} face(s), max_confidence={max_confidence:.2f}, face_too_small={face_too_small}")
             
             return FaceDetectionResult(
                 detected=True,
-                count=len(faces),
+                count=len(real_faces),
                 confidence=float(max_confidence),
                 bounding_boxes=bounding_boxes,
                 face_too_small=face_too_small
@@ -435,14 +450,32 @@ class FaceDetectionService:
             logger.info(f"   [COMP-{request_id}] Calling DeepFace.verify (model={FACE_RECOGNITION_MODEL}, detector={FACE_DETECTOR_BACKEND})...")
             verify_start = time.time()
             
-            result = DeepFace.verify(
-                img1_path=id_temp_path,
-                img2_path=selfie_temp_path,
-                model_name=FACE_RECOGNITION_MODEL,
-                detector_backend=FACE_DETECTOR_BACKEND,
-                distance_metric="cosine",  # cosine similarity
-                enforce_detection=False,  # Don't raise exception if face not found
-            )
+            try:
+                result = DeepFace.verify(
+                    img1_path=id_temp_path,
+                    img2_path=selfie_temp_path,
+                    model_name=FACE_RECOGNITION_MODEL,
+                    detector_backend=FACE_DETECTOR_BACKEND,
+                    distance_metric="cosine",  # cosine similarity
+                    enforce_detection=False,  # Don't raise exception if face not found
+                )
+            except ValueError as ve:
+                # DeepFace throws ValueError when face comparison fails
+                logger.warning(f"   [COMP-{request_id}] DeepFace ValueError during verify: {ve}")
+                return FaceComparisonResult(
+                    match=False,
+                    needs_manual_review=True,
+                    error=f"Face comparison failed: {str(ve)}"
+                )
+            except TypeError as te:
+                # DeepFace throws TypeError for corrupted/invalid images
+                logger.warning(f"   [COMP-{request_id}] DeepFace TypeError during verify: {te}")
+                return FaceComparisonResult(
+                    match=False,
+                    needs_manual_review=True,
+                    error="Invalid image format for face comparison"
+                )
+            
             verify_time = time.time() - verify_start
             logger.info(f"   [COMP-{request_id}] DeepFace.verify completed in {verify_time:.2f}s")
             

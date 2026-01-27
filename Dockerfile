@@ -293,6 +293,30 @@ RUN python -m pip install --upgrade pip setuptools wheel \
 COPY apps/backend/patch_ninja.sh ./
 RUN sed -i 's/\r$//' patch_ninja.sh && chmod +x patch_ninja.sh && ./patch_ninja.sh && rm patch_ninja.sh
 
+# Pre-download DeepFace models at build time to avoid RAM spikes at runtime
+# This downloads the model files (~100MB) during build instead of first request
+# Models are stored in DEEPFACE_HOME (/tmp/.deepface)
+RUN python << 'EOF'
+import os
+os.environ['DEEPFACE_HOME'] = '/tmp/.deepface'
+try:
+    from deepface import DeepFace
+    print('📥 Pre-downloading DeepFace models...')
+    # Trigger model download by running a dummy verification
+    # This downloads: Facenet512 (~90MB), opencv detector
+    import numpy as np
+    dummy_img = np.zeros((224, 224, 3), dtype=np.uint8)
+    # Create a simple test to trigger model download
+    try:
+        DeepFace.extract_faces(dummy_img, detector_backend='opencv', enforce_detection=False)
+        print('✅ DeepFace detector model pre-downloaded')
+    except Exception as e:
+        print(f'⚠️ Detector pre-download warning (expected for dummy image): {e}')
+    print('✅ DeepFace models ready')
+except ImportError as e:
+    print(f'⚠️ DeepFace not available: {e}')
+EOF
+
 # Copy backend source (mounted in dev)
 COPY --chown=appuser:appgroup apps/backend .
 
@@ -361,6 +385,27 @@ COPY --from=backend-builder --chown=appuser:appgroup /app/backend ./
 
 # Make start.sh executable (it's already copied from backend-builder)
 RUN chmod +x /app/backend/start.sh
+
+# Pre-download DeepFace models at build time to avoid RAM spikes at runtime
+# This downloads the model files (~100MB) during build instead of first request
+# Models are stored in DEEPFACE_HOME (/tmp/.deepface)
+RUN python << 'EOF'
+import os
+os.environ['DEEPFACE_HOME'] = '/tmp/.deepface'
+try:
+    from deepface import DeepFace
+    print('📥 Pre-downloading DeepFace models...')
+    import numpy as np
+    dummy_img = np.zeros((224, 224, 3), dtype=np.uint8)
+    try:
+        DeepFace.extract_faces(dummy_img, detector_backend='opencv', enforce_detection=False)
+        print('✅ DeepFace detector model pre-downloaded')
+    except Exception as e:
+        print(f'⚠️ Detector pre-download warning (expected for dummy image): {e}')
+    print('✅ DeepFace models ready')
+except ImportError as e:
+    print(f'⚠️ DeepFace not available: {e}')
+EOF
 
 # CRITICAL: Verify all dependencies are accessible at build time
 # Virtualenv PATH ensures python finds all packages automatically
