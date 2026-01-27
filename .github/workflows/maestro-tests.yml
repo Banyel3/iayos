@@ -227,25 +227,8 @@ jobs:
             # Verify installation
             adb shell pm list packages | grep iayos || echo "Warning: Package not found"
             
-            # Run Maestro tests
-            echo "Running Maestro tests..."
-            export PATH="$HOME/.maestro/bin:$PATH"
-            
-            # Determine test suite
-            TEST_SUITE="${{ github.event.inputs.test_suite || 'auth' }}"
-            MAESTRO_DIR="apps/frontend_mobile/iayos_mobile/.maestro"
-            
-            echo "📱 Running Maestro tests for suite: $TEST_SUITE"
-            echo "📂 Maestro directory: $MAESTRO_DIR"
-            
-            # Run tests and capture result
-            if [ "$TEST_SUITE" = "all" ]; then
-              echo "Running all test suites..."
-              maestro test "$MAESTRO_DIR" --format junit --output maestro-report.xml
-            else
-              echo "Running $TEST_SUITE test suite..."
-              maestro test "$MAESTRO_DIR/$TEST_SUITE" --format junit --output maestro-report.xml
-            fi
+            # Run Maestro tests (combined into single command to preserve variables)
+            export PATH="$HOME/.maestro/bin:$PATH" && TEST_SUITE="${{ github.event.inputs.test_suite || 'auth' }}" && MAESTRO_DIR="apps/frontend_mobile/iayos_mobile/.maestro" && echo "📱 Running Maestro tests for suite: $TEST_SUITE" && echo "📂 Maestro directory: $MAESTRO_DIR" && if [ "$TEST_SUITE" = "all" ]; then echo "Running all test suites..." && maestro test "$MAESTRO_DIR" --format junit --output maestro-report.xml; else echo "Running $TEST_SUITE test suite..." && maestro test "$MAESTRO_DIR/$TEST_SUITE" --format junit --output maestro-report.xml; fi
 
       # ─────────────────────────────────────────────────────────
       # 4.5. CLEANUP TEST DATA
