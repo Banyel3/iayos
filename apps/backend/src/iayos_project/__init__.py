@@ -1,35 +1,21 @@
 """
-Django Ninja UUID Converter Patch - Applied at Package Import
-This MUST run before any Django app imports ninja or ninja_extra.
+Fix for Django Ninja UUID converter conflict with Django 5.x/6.x
+
+This runs at package import time - BEFORE any app imports ninja or ninja_extra.
+
+Solution: Remove 'uuid' from DEFAULT_CONVERTERS so Django Ninja can register its version.
 """
 import sys
 
-# Apply patch before ANY Django imports
-if not hasattr(sys, '_iayos_converter_patched'):
+# Only apply once per Python process
+if not hasattr(sys, '_iayos_uuid_patched'):
     from django.urls import converters
     
-    _original_register = converters.register_converter
-    
-    def idempotent_register_converter(converter, type_name):
-        """Register converter only if not already present - prevents double registration errors."""
-        try:
-            existing = converters.get_converters()
-            if type_name in existing:
-                # Already registered - skip silently
-                return
-        except Exception:
-            # Fallback: try to register and catch ValueError
-            pass
+    if 'uuid' in converters.DEFAULT_CONVERTERS:
+        # Remove Django's built-in UUID converter
+        converters.DEFAULT_CONVERTERS.pop('uuid')
         
-        try:
-            _original_register(converter, type_name)
-        except ValueError as e:
-            if "already registered" in str(e):
-                # Ignore - converter exists
-                pass
-            else:
-                raise
+        # Clear cache so get_converters() reflects the change
+        converters.get_converters.cache_clear()
     
-    # Apply patch globally
-    converters.register_converter = idempotent_register_converter
-    sys._iayos_converter_patched = True
+    sys._iayos_uuid_patched = True
