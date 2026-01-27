@@ -56,9 +56,7 @@ def upload_agency_kyc(payload, business_permit, rep_front, rep_back, address_pro
 		# Save business_type from user selection (for OCR filtering)
 		business_type = getattr(payload, 'business_type', None)
 		if business_type:
-			kyc_record.confirmed_business_type = business_type
-			kyc_record.save()
-			print(f"💼 Business type set to: {business_type}")
+			print(f"💼 Business type received: {business_type} (will be saved during extraction)")
 
 		if not created:
 			# Remove previous files and reset status
@@ -287,7 +285,7 @@ def upload_agency_kyc(payload, business_permit, rep_front, rep_back, address_pro
 		# Trigger Agency KYC extraction to populate auto-fill data
 		try:
 			from .kyc_extraction_service import trigger_agency_kyc_extraction_after_upload
-			trigger_agency_kyc_extraction_after_upload(kyc_record)
+			trigger_agency_kyc_extraction_after_upload(kyc_record, business_type)
 		except Exception as ext_error:
 			print(f"⚠️  Agency KYC extraction failed (non-blocking): {str(ext_error)}")
 			# Don't fail KYC upload if extraction fails - admin can still verify manually
