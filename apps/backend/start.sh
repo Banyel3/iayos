@@ -31,9 +31,36 @@ echo "=========================================="
 cd /app/backend/src
 
 echo "=========================================="
+echo "Testing database connection..."
+echo "=========================================="
+# Test database connection before migrations
+python -c "
+import os
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'iayos_project.settings')
+import django
+django.setup()
+from django.db import connection
+try:
+    with connection.cursor() as cursor:
+        cursor.execute('SELECT 1')
+        print('✅ Database connection successful')
+except Exception as e:
+    print(f'❌ Database connection FAILED: {e}')
+    exit(1)
+" 2>&1
+
+echo "=========================================="
 echo "Running database migrations..."
 echo "=========================================="
-python manage.py migrate --noinput
+# Run migrations with full error output
+if ! python manage.py migrate --noinput 2>&1; then
+    echo "❌ MIGRATION FAILED! Checking migration status..."
+    python manage.py showmigrations 2>&1 || true
+    echo "Trying to show the actual error..."
+    python manage.py migrate --noinput --verbosity=3 2>&1 || true
+    exit 1
+fi
+echo "✅ Migrations completed successfully"
 
 echo "=========================================="
 echo "Creating admin user from environment..."
