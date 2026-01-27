@@ -148,19 +148,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY apps/backend/requirements.txt .
 
 # Install Python dependencies with security checks
-# CACHE BUST: 2026-01-27-v2 - Fix PYTHONPATH for Render build
+# CACHE BUST: 2026-01-27-v3 - Fix pytesseract packaging dependency
 RUN mkdir -p /app/.local \
-    && python -m pip install --upgrade 'pip>=25.3' setuptools wheel packaging \
+    && python -m pip install --upgrade 'pip>=25.3' setuptools wheel \
     && pip install --no-cache-dir --prefix=/app/.local -r requirements.txt \
-    && echo '✅ Verifying critical packages...' \
-    && echo "📁 Checking installation paths:" \
-    && ls -la /app/.local/ \
-    && ls -la /app/.local/lib/ || echo "lib/ not found" \
-    && find /app/.local -name "django" -type d 2>/dev/null | head -5 || echo "Django dirs not found" \
-    && PYTHONPATH=/app/.local/lib/python3.12/site-packages python -c "import sys; print('Python path:', sys.path)" \
-    && PYTHONPATH=/app/.local/lib/python3.12/site-packages python -c "import packaging; print('✅ packaging installed')" \
-    && PYTHONPATH=/app/.local/lib/python3.12/site-packages python -c "import pytesseract; print('✅ pytesseract installed')" \
-    && PYTHONPATH=/app/.local/lib/python3.12/site-packages python -c "import django; print(f'✅ Django {django.__version__} installed')" \
+    && echo '✅ Verifying dependency resolution...' \
+    && PYTHONPATH=/app/.local/lib/python3.12/site-packages pip check \
+    && echo '✅ All dependencies resolved correctly' \
     && find /app/.local -name "*.pyc" -delete 2>/dev/null || true \
     && find /app/.local -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
 
@@ -359,27 +353,32 @@ COPY --from=backend-builder --chown=appuser:appgroup /app/backend ./
 # Make start.sh executable (it's already copied from backend-builder)
 RUN chmod +x /app/backend/start.sh
 
-# CRITICAL FIX: Verify Django is accessible at build time
-# This will fail the build if dependencies aren't properly installed
-RUN echo "🔍 DEBUG: Checking Python environment..." \
-    && echo "📍 Python location: $(which python)" \
-    && echo "📍 Python version: $(python --version)" \
-    && echo "📍 Current PYTHONPATH: $PYTHONPATH" \
-    && echo "📁 Checking /app/.local structure:" \
-    && ls -la /app/.local/ \
-    && echo "📁 Checking /app/.local/lib:" \
-    && ls -la /app/.local/lib/ || echo "❌ /app/.local/lib not found" \
-    && echo "📁 Searching for Django installation:" \
-    && find /app/.local -name "django" -type d 2>/dev/null | head -10 || echo "❌ Django not found" \
-    && echo "📁 Checking site-packages:" \
-    && ls -la /app/.local/lib/python3.12/site-packages/ 2>/dev/null | head -20 || echo "❌ site-packages not found" \
-    && echo "🐍 Checking Python sys.path:" \
-    && python -c "import sys; print('\n'.join(sys.path))" \
-    && echo "✅ Now testing Django import with PYTHONPATH..." \
-    && PYTHONPATH=/app/.local/lib/python3.12/site-packages python -c "import django; print(f'✅ Django {django.__version__} accessible')" \
-    && PYTHONPATH=/app/.local/lib/python3.12/site-packages python -c "import psycopg2; print('✅ psycopg2 accessible')" \
-    && PYTHONPATH=/app/.local/lib/python3.12/site-packages python -c "import pytesseract; print('✅ pytesseract accessible')" \
-    && echo "✅ All critical packages verified at build time"
+# CRITICAL: Verify all dependencies are accessible at build time
+# This will fail the build if any critical package or transitive dependency is missing
+RUN PYTHONPATH=/app/.local/lib/python3.12/site-packages python -c "
+import sys
+try:
+    # Test all critical dependencies and their transitive deps
+    import django
+    print(f'✅ django: {django.__version__}')
+    
+    import psycopg2
+    print('✅ psycopg2: OK')
+    
+    import packaging
+    print(f'✅ packaging: {packaging.__version__}')
+    
+    import pytesseract
+    print('✅ pytesseract: OK')
+    
+    import PIL
+    print(f'✅ pillow: {PIL.__version__}')
+    
+    print('🎉 ALL DEPENDENCIES VERIFIED')
+except ImportError as e:
+    print(f'❌ IMPORT FAILED: {e}')
+    sys.exit(1)
+" && echo "✅ Build verification PASSED"
 
 # Switch to non-root user
 USER appuser
