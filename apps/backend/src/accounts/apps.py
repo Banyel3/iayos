@@ -26,23 +26,22 @@ class AccountsConfig(AppConfig):
             print("🔍 AI SERVICES HEALTH CHECK")
             print("="*60)
             
-            # Check Face Detection Services (DeepFace)
+            # Check Face Detection Services (InsightFace)
             try:
                 status = check_face_services_available()
                 
-                # DeepFace
-                if status.get('deepface_available'):
-                    print("✅ DeepFace Face Recognition: AVAILABLE")
+                # InsightFace
+                if status.get('insightface_available'):
+                    print("✅ InsightFace Face Recognition: AVAILABLE")
                     print(f"   Model: {status.get('model', 'Unknown')}")
-                    print(f"   Detector: {status.get('detector', 'Unknown')}")
                     print(f"   Similarity Threshold: {status.get('threshold', 'Unknown')}")
                 else:
-                    print("❌ DeepFace: NOT AVAILABLE")
+                    print("❌ InsightFace: NOT AVAILABLE")
                 
                 # Overall face detection status
-                if status.get('deepface_available'):
+                if status.get('insightface_available'):
                     print("✅ Face Detection & Verification: ENABLED")
-                    print("   (Local processing - no cloud API required)")
+                    print("   (Local processing using ONNX Runtime)")
                 else:
                     print("❌ Face Detection: DISABLED - all documents will require manual review!")
                     
