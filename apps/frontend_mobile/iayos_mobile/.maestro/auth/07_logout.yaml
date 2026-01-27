@@ -61,8 +61,7 @@ env:
 
 # Confirm logout if dialog appears
 - tapOn:
-    text: ".*logout.*|.*yes.*|.*confirm.*"
-    regex: true
+    text: "/.*logout.*|.*yes.*|.*confirm.*/"
     optional: true
 
 # Wait for navigation back to welcome

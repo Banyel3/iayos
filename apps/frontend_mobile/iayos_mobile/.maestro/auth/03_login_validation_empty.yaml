@@ -1,7 +1,7 @@
 # Test: Login Validation - Empty Fields
 # Verifies that submitting empty fields shows validation error
 
-appId: com.iayos.app
+appId: com.devante.iayos
 tags:
   - auth
   - login
@@ -32,8 +32,7 @@ tags:
 
 # Check for validation error (text-based assertion)
 - assertVisible:
-    text: ".*fill.*|.*required.*|.*enter.*"
-    regex: true
+    text: "/.*fill.*|.*required.*|.*enter.*/"
     optional: true
 
 # Alternative: Check for any error indicator
