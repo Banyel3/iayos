@@ -34,6 +34,10 @@ const API_URL =
   process.env.EXPO_PUBLIC_API_URL ||
   (__DEV__ ? `http://${DEV_IP}:8000` : "https://api.iayos.online");
 
+// Log the API URL being used (helps debug network issues)
+console.log(`[API Config] API_URL = ${API_URL}`);
+console.log(`[API Config] __DEV__ = ${__DEV__}, Platform = ${Platform.OS}`);
+
 const deriveDevWebUrl = () => {
   try {
     const parsed = new URL(API_URL);
