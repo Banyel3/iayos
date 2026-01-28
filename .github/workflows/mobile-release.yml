@@ -211,7 +211,7 @@ jobs:
             echo "📦 Production build - ready for app store distribution"
           fi
 
-          eas build --platform android --profile $BUILD_PROFILE --non-interactive --wait
+          eas build --platform android --profile $BUILD_PROFILE --non-interactive --clear-cache --wait
 
       - name: Download APK artifact
         if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true'
