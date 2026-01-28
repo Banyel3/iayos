@@ -63,7 +63,8 @@ jobs:
     name: Analyze Changes & Build
     runs-on: ubuntu-latest
     outputs:
-      version: ${{ steps.version.outputs.new_version }}
+      version: ${{ steps.commit_version.outputs.final_version || steps.version.outputs.new_version }}
+      tag_name: ${{ steps.commit_version.outputs.tag_name || steps.version.outputs.tag_name }}
       version_type: ${{ steps.analyze.outputs.version_type }}
       should_release: ${{ steps.analyze.outputs.should_release }}
 
@@ -176,8 +177,39 @@ jobs:
           esac
 
           NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          
+          # Check if this tag already exists and keep incrementing until we find an unused one
+          cd ${{ github.workspace }}
+          git fetch --tags
+          
+          TAG_SUFFIX="${{ github.event.inputs.is_qa == 'true' && '-qa' || '' }}${{ github.event.inputs.build_type == 'development' && '-dev' || '' }}"
+          TAG_NAME="mobile-v${NEW_VERSION}${TAG_SUFFIX}"
+          
+          MAX_INCREMENT=10
+          INCREMENT=0
+          while git rev-parse "$TAG_NAME" >/dev/null 2>&1; do
+            echo "⚠️ Tag $TAG_NAME already exists, incrementing patch..."
+            PATCH=$((PATCH + 1))
+            NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+            TAG_NAME="mobile-v${NEW_VERSION}${TAG_SUFFIX}"
+            INCREMENT=$((INCREMENT + 1))
+            
+            if [ $INCREMENT -ge $MAX_INCREMENT ]; then
+              echo "❌ Too many existing versions, something is wrong"
+              exit 1
+            fi
+          done
+          
+          if [ $INCREMENT -gt 0 ]; then
+            echo "✅ Found unused version: $NEW_VERSION (incremented $INCREMENT times)"
+          fi
+          
+          cd ${{ env.MOBILE_DIR }}
+          
           echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
           echo "New version: $NEW_VERSION"
+          echo "Tag name: $TAG_NAME"
 
           # Update package.json
           npm version $NEW_VERSION --no-git-tag-version
@@ -291,24 +323,29 @@ jobs:
 
       - name: Commit version bump
         if: steps.analyze.outputs.should_release == 'true'
+        id: commit_version
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           
-          # Clean up any unstaged changes that might interfere with git operations
-          # This happens when npm ci or build process modifies files
-          git stash --include-untracked || true
+          # Use the version that was already verified to not have an existing tag
+          NEW_VERSION="${{ steps.version.outputs.new_version }}"
+          TAG_NAME="${{ steps.version.outputs.tag_name }}"
           
-          # Pull latest changes BEFORE making our commit
+          echo "📦 Version: $NEW_VERSION"
+          echo "🏷️ Tag: $TAG_NAME"
+          
+          echo "final_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+          
+          # Sync with remote first
           echo "🔄 Syncing with remote before committing..."
           git fetch origin ${{ github.ref_name }}
           git reset --hard origin/${{ github.ref_name }}
           
-          # Re-apply our version changes (they were stashed or we need to redo them)
+          # Apply version changes
           cd ${{ env.MOBILE_DIR }}
           
-          # Re-bump version to ensure consistency
-          NEW_VERSION="${{ steps.version.outputs.new_version }}"
           npm version $NEW_VERSION --no-git-tag-version --allow-same-version
           
           # Update app.json version
@@ -328,7 +365,7 @@ jobs:
           if git diff --cached --quiet; then
             echo "ℹ️ No version changes to commit (already at $NEW_VERSION)"
           else
-            git commit -m "chore(mobile): bump version to ${{ steps.version.outputs.new_version }}"
+            git commit -m "chore(mobile): bump version to $NEW_VERSION"
             
             # Push with retry logic
             MAX_PUSH_RETRIES=5
@@ -360,10 +397,10 @@ jobs:
         if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: mobile-v${{ steps.version.outputs.new_version }}${{ github.event.inputs.is_qa == 'true' && '-qa' || '' }}${{ github.event.inputs.build_type == 'development' && '-dev' || '' }}
-          name: iAyos Mobile v${{ steps.version.outputs.new_version }}${{ github.event.inputs.is_qa == 'true' && ' (QA)' || '' }}${{ github.event.inputs.is_prerelease == 'true' && ' (Pre-release)' || '' }}${{ github.event.inputs.build_type == 'development' && ' [Development Build]' || '' }}
+          tag_name: ${{ steps.commit_version.outputs.tag_name }}
+          name: iAyos Mobile v${{ steps.commit_version.outputs.final_version }}${{ github.event.inputs.is_qa == 'true' && ' (QA)' || '' }}${{ github.event.inputs.is_prerelease == 'true' && ' (Pre-release)' || '' }}${{ github.event.inputs.build_type == 'development' && ' [Development Build]' || '' }}
           body: |
-            ## iAyos Mobile App Release v${{ steps.version.outputs.new_version }}
+            ## iAyos Mobile App Release v${{ steps.commit_version.outputs.final_version }}
 
             **Version Type:** ${{ steps.analyze.outputs.version_type }}
             **Branch:** ${{ github.ref_name }}
@@ -394,17 +431,17 @@ jobs:
           echo "## Mobile Release Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           if [ "${{ steps.analyze.outputs.should_release }}" == "true" ]; then
-            echo "✅ **Version:** ${{ steps.version.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **Version:** ${{ steps.commit_version.outputs.final_version || steps.version.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
             echo "📦 **Type:** ${{ steps.analyze.outputs.version_type }}" >> $GITHUB_STEP_SUMMARY
             echo "🏗️ **Profile:** ${{ github.event.inputs.build_type || 'production' }}" >> $GITHUB_STEP_SUMMARY
             if [ "${{ github.event.inputs.skip_build }}" == "true" ]; then
               echo "⚠️ **Build:** Skipped (testing mode)" >> $GITHUB_STEP_SUMMARY
             elif [ "${{ github.event.inputs.use_latest_build }}" == "true" ]; then
               echo "♻️ **Build:** Using latest existing build" >> $GITHUB_STEP_SUMMARY
-              echo "🔗 **Release:** mobile-v${{ steps.version.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
+              echo "🔗 **Release:** ${{ steps.commit_version.outputs.tag_name || steps.version.outputs.tag_name }}" >> $GITHUB_STEP_SUMMARY
             else
               echo "🏗️ **Build:** Newly built" >> $GITHUB_STEP_SUMMARY
-              echo "🔗 **Release:** mobile-v${{ steps.version.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
+              echo "🔗 **Release:** ${{ steps.commit_version.outputs.tag_name || steps.version.outputs.tag_name }}" >> $GITHUB_STEP_SUMMARY
               if [ "${{ github.event.inputs.build_type }}" == "development" ]; then
                 echo "" >> $GITHUB_STEP_SUMMARY
                 echo "### 🔧 Development Build Features" >> $GITHUB_STEP_SUMMARY
