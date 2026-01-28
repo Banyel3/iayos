@@ -86,12 +86,27 @@ const AgencyKYCPage = () => {
   // AI Validation States
   const [isValidatingRepFront, setIsValidatingRepFront] = useState(false);
   const [isValidatingRepBack, setIsValidatingRepBack] = useState(false);
+  const [isValidatingPermit, setIsValidatingPermit] = useState(false);
   const [repFrontValidationError, setRepFrontValidationError] = useState<
     string | null
   >(null);
   const [repBackValidationError, setRepBackValidationError] = useState<
     string | null
   >(null);
+  const [permitValidationError, setPermitValidationError] = useState<
+    string | null
+  >(null);
+  
+  // File hashes from validation (for cached upload)
+  const [fileHashes, setFileHashes] = useState<Record<string, string>>({});
+  
+  // OCR extraction state
+  const [isExtractingOCR, setIsExtractingOCR] = useState(false);
+  const [ocrExtracted, setOcrExtracted] = useState(false);
+  
+  // OCR extraction state
+  const [isExtractingOCR, setIsExtractingOCR] = useState(false);
+  const [ocrExtractedData, setOcrExtractedData] = useState<any>(null);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -202,14 +217,44 @@ const AgencyKYCPage = () => {
     reader.readAsDataURL(file);
   };
 
-  const handlePermitChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePermitChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f) return;
     const err = validateFile(f);
     if (err)
       return showToast({ type: "error", title: "Invalid file", message: err });
-    setBusinessPermit(f);
+    
+    // Show preview immediately
     handleFilePreview(f, setPermitPreview);
+    setPermitValidationError(null);
+    
+    // Run AI validation
+    setIsValidatingPermit(true);
+    const result = await validateDocumentWithAI(f, "BUSINESS_PERMIT");
+    setIsValidatingPermit(false);
+    
+    if (!result.valid) {
+      setPermitValidationError(result.error || "Document validation failed");
+      showToast({
+        type: "error",
+        title: "Document Validation Failed",
+        message: result.error || "Please upload a clear photo of your business permit",
+      });
+      setPermitPreview("");
+      return;
+    }
+    
+    setBusinessPermit(f);
+    // Store file hash for later upload
+    if (result.file_hash) {
+      setFileHashes(prev => ({ ...prev, BUSINESS_PERMIT: result.file_hash }));
+    }
+    
+    showToast({
+      type: "success",
+      title: "Document Validated",
+      message: "Business permit validated successfully",
+    });
   };
 
   const handleRepFrontChange = async (
@@ -253,6 +298,10 @@ const AgencyKYCPage = () => {
     }
 
     setRepIDFront(f);
+    // Store file hash for later upload
+    if (result.file_hash) {
+      setFileHashes(prev => ({ ...prev, REP_ID_FRONT: result.file_hash }));
+    }
 
     // Check if face detection was skipped (CompreFace unavailable) - show warning
     if (result.details?.face_detection_skipped) {
@@ -355,12 +404,84 @@ const AgencyKYCPage = () => {
 
   const handleNextStep = () => {
     if (currentStep === 1) setCurrentStep(2);
-    // Step 2 calls handleSubmit directly
+    // Step 2 calls handleExtractOCR when Next is clicked
   };
 
   const handleBack = () => {
     if (currentStep > 1) setCurrentStep(currentStep - 1);
     else router.push("/agency/dashboard");
+  };
+
+  // Extract OCR data for autofill (triggered by "Next" button in Step 2)
+  const handleExtractOCR = async () => {
+    if (!businessPermit || !repIDFront) {
+      showToast({
+        type: "warning",
+        title: "Missing Documents",
+        message: "Please upload Business Permit and Representative ID Front for OCR extraction",
+      });
+      return;
+    }
+
+    setIsExtractingOCR(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("business_permit", businessPermit);
+      formData.append("rep_id_front", repIDFront);
+      formData.append("business_type", businessType);
+
+      console.log("📝 Extracting OCR data for autofill...");
+
+      const response = await fetch(`${API_BASE}/api/agency/kyc/extract-ocr`, {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error("OCR extraction failed");
+      }
+
+      const result = await response.json();
+      console.log("✅ OCR extraction result:", result);
+
+      if (result.success && result.extracted_data) {
+        const data = result.extracted_data;
+
+        // Autofill form fields from OCR
+        if (data.business_name) setBusinessName(data.business_name);
+        if (data.business_address) setBusinessDesc(data.business_address);
+        if (data.permit_number) setRegistrationNumber(data.permit_number);
+
+        showToast({
+          type: "success",
+          title: "OCR Extracted",
+          message: "Business data autofilled successfully! Please review and edit if needed.",
+        });
+        setOcrExtracted(true);
+        setCurrentStep(3); // Move to form step
+      } else {
+        showToast({
+          type: "warning",
+          title: "Low Confidence",
+          message: "OCR extraction completed with low confidence. Please fill the form manually.",
+        });
+        setOcrExtracted(true);
+        setCurrentStep(3); // Still move to form
+      }
+    } catch (error) {
+      console.error("OCR extraction error:", error);
+      showToast({
+        type: "error",
+        title: "OCR Failed",
+        message: "OCR extraction failed. Please fill the form manually.",
+      });
+      setOcrExtracted(true);
+      setCurrentStep(3); // Still allow proceeding to form
+    } finally {
+      setIsExtractingOCR(false);
+    }
   };
 
   const handleSubmit = async () => {
@@ -392,6 +513,12 @@ const AgencyKYCPage = () => {
       formData.append("rep_front", repIDFront as Blob);
       formData.append("rep_back", repIDBack as Blob);
       formData.append("business_permit", businessPermit as Blob);
+      
+      // Add file hashes for optimized upload (skips AI re-validation)
+      if (Object.keys(fileHashes).length > 0) {
+        formData.append("file_hashes_json", JSON.stringify(fileHashes));
+        console.log("📎 Sending file hashes for fast upload:", fileHashes);
+      }
 
       const upload = await fetch(`${API_BASE}/api/agency/upload`, {
         method: "POST",
@@ -436,12 +563,14 @@ const AgencyKYCPage = () => {
           agencyKycStatus?.toUpperCase() === "REJECTED"
             ? "Resubmitted"
             : "Submitted",
-        message: "Documents uploaded. Please review the extracted data.",
+        message: "Documents uploaded successfully. Verification in progress.",
       });
 
-      // After successful upload, fetch autofill data and go to OCR confirmation step
-      await refetchAutofill();
-      setCurrentStep(3); // Go to OCR confirmation step
+      // Update status and navigate to Step 4 (status page)
+      setAgencyKycStatus(responseData?.status || "PENDING");
+      if (responseData?.files) setAgencyKycFiles(responseData.files || []);
+      if (responseData?.notes) setAgencyKycNotes(responseData.notes || null);
+      setCurrentStep(4); // Go to status step
     } catch (err) {
       console.error(err);
       showToast({
@@ -953,11 +1082,21 @@ const AgencyKYCPage = () => {
 
       <div className="flex justify-end gap-2 mt-8">
         <Button
-          onClick={handleSubmit}
-          disabled={isSubmitting || !businessPermit || !repIDFront || !repIDBack}
+          onClick={handleExtractOCR}
+          disabled={isExtractingOCR || !businessPermit || !repIDFront || !repIDBack}
           className="bg-blue-500 text-white"
         >
-          {isSubmitting ? "Submitting..." : "Submit & Verify"}
+          {isExtractingOCR ? (
+            <>
+              <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Extracting Data...
+            </>
+          ) : (
+            "Next: Review & Submit"
+          )}
         </Button>
       </div>
     </div>
@@ -1028,6 +1167,34 @@ const AgencyKYCPage = () => {
           We've extracted the following information from your documents. Please
           review and correct any errors before submitting.
         </p>
+
+        {/* OCR Extraction Success Notice */}
+        {ocrExtracted && (
+          <div className="mb-6 p-4 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl shadow-sm">
+            <div className="flex items-start gap-3">
+              <svg
+                className="w-6 h-6 text-green-600 flex-shrink-0 mt-0.5"
+                fill="currentColor"
+                viewBox="0 0 20 20"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                  clipRule="evenodd"
+                />
+              </svg>
+              <div className="flex-1">
+                <h3 className="font-semibold text-green-900 text-sm mb-1">
+                  ✨ OCR Extraction Complete
+                </h3>
+                <p className="text-xs text-green-800">
+                  Business data has been automatically extracted from your documents and autofilled below. 
+                  Please review for accuracy and edit any fields if needed. Confidence scores are shown for each field.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {ocrLoading ? (
           <div className="flex flex-col items-center justify-center py-12">
@@ -1188,17 +1355,22 @@ const AgencyKYCPage = () => {
                 ← Back
               </button>
               <button
-                onClick={handleOcrConfirmSubmit}
-                disabled={isConfirmingOcr}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                onClick={handleSubmit}
+                disabled={isSubmitting}
+                className="px-6 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-md"
               >
-                {isConfirmingOcr ? (
+                {isSubmitting ? (
                   <>
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Confirming...
+                    Uploading Documents...
                   </>
                 ) : (
-                  "Confirm & Submit"
+                  <>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                    Submit & Upload Documents
+                  </>
                 )}
               </button>
             </div>
