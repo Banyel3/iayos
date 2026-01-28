@@ -230,6 +230,17 @@ MAX_BLUR_THRESHOLD = 50  # Lowered from 100 for leniency on REP IDs  # Laplacian
 MIN_CONFIDENCE_FACE = 0.40  # Minimum confidence for face detection (lowered for ID photos with small/faded faces)
 
 
+TEXT_ONLY_DOCUMENTS = [
+    # Clearance / permits and supporting docs that do not need face detection
+    "NBI",
+    "POLICE",
+    "CLEARANCE",
+    "BUSINESS_PERMIT",
+    "ADDRESS_PROOF",
+    "AUTH_LETTER",
+]
+
+
 class DocumentVerificationService:
     """
     Service for automated document verification using AI/ML
@@ -239,20 +250,28 @@ class DocumentVerificationService:
     - Tesseract OCR for text extraction
     """
 
-    def __init__(self, face_api_url: str = None):
+    def __init__(self, face_api_url: str = None, skip_face_service: bool = False):
         """
         Initialize the verification service
         
         Args:
             face_api_url: URL of Face API service (default from FACE_API_URL env)
+            skip_face_service: When True, never call Face API (used for text-only docs)
         """
         self.face_api_url = face_api_url or FACE_API_URL
+        self.skip_face_service = skip_face_service
         self._face_api_available = None  # Lazy check
         
-        logger.info(f"DocumentVerificationService initialized - Face API URL: {self.face_api_url}")
+        logger.info(
+            f"DocumentVerificationService initialized - Face API URL: {self.face_api_url}, skip_face_service={self.skip_face_service}"
+        )
 
     def _check_face_api_available(self) -> bool:
         """Check if Face API service is available"""
+        if self.skip_face_service:
+            self._face_api_available = False
+            return False
+
         if self._face_api_available is not None:
             return self._face_api_available
             
@@ -378,6 +397,89 @@ class DocumentVerificationService:
                 "valid": False,
                 "error": "Failed to process image. Please try a different photo.",
                 "details": {"error": str(e)}
+            }
+
+    def validate_text_only_document(
+        self,
+        file_data: bytes,
+        document_type: str,
+        skip_keyword_check: bool = False,
+    ) -> Dict[str, Any]:
+        """
+        Lightweight validation path for documents that only need OCR/quality checks.
+
+        Used for agency/business permits and supporting docs to avoid hitting the
+        face detection service (cold starts on Render cause timeouts).
+        """
+        logger.info(
+            f"📄 Text-only validation for {document_type}, skip_keyword_check={skip_keyword_check}"
+        )
+
+        try:
+            image = Image.open(io.BytesIO(file_data))
+            if image.mode != "RGB":
+                image = image.convert("RGB")
+
+            width, height = image.size
+
+            # 1) Quality check
+            quality_result = self._check_image_quality(image)
+            if quality_result["status"] == "FAILED":
+                reason = quality_result.get("reason", "Image quality too low")
+                logger.warning(f"   ❌ Text-only quality failed: {reason}")
+                return {
+                    "valid": False,
+                    "error": reason,
+                    "details": {"quality": quality_result, "resolution": f"{width}x{height}"},
+                }
+
+            # 2) OCR
+            ocr_result = self._extract_text(image)
+            extracted_text = ocr_result.get("text", "")
+            details = {
+                "quality_score": quality_result.get("score", 0),
+                "resolution": f"{width}x{height}",
+                "ocr_confidence": ocr_result.get("confidence", 0),
+                "ocr_length": len(extracted_text),
+                "warnings": quality_result.get("warnings", []),
+            }
+
+            if ocr_result.get("skipped") or ocr_result.get("error"):
+                reason = ocr_result.get("reason") or ocr_result.get("error") or "OCR unavailable"
+                logger.warning(f"   ❌ OCR failed for text-only doc: {reason}")
+                return {"valid": False, "error": reason, "details": details}
+
+            if not extracted_text.strip():
+                logger.warning("   ❌ No readable text found in document")
+                return {
+                    "valid": False,
+                    "error": "No readable text detected. Please upload a clearer document.",
+                    "details": details,
+                }
+
+            # 3) Optional keyword check
+            if not skip_keyword_check and document_type.upper() in DOCUMENT_KEYWORDS:
+                keyword_check = self._check_required_keywords(
+                    extracted_text, document_type.upper()
+                )
+                details["keyword_check"] = keyword_check
+                if not keyword_check["passed"]:
+                    missing = keyword_check.get("missing_groups") or []
+                    logger.warning(f"   ❌ Missing required keywords for {document_type}: {missing}")
+                    return {
+                        "valid": False,
+                        "error": "Required document text not found. Please upload a clearer copy.",
+                        "details": details,
+                    }
+
+            return {"valid": True, "error": None, "details": details}
+
+        except Exception as e:
+            logger.error(f"Text-only validation error: {e}", exc_info=True)
+            return {
+                "valid": False,
+                "error": "Failed to process document. Please try again.",
+                "details": {"error": str(e)},
             }
 
     def verify_document(
