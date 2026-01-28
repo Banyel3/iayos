@@ -1,13 +1,12 @@
 """
-InsightFace Microservice
+MediaPipe Face Detection Microservice
 
-A lightweight FastAPI service for face detection and verification.
-Deployed separately from the main backend to avoid OOM issues.
+A lightweight FastAPI service for face detection.
+Uses Google's MediaPipe - optimized for low memory usage (~150MB).
 
 Endpoints:
 - GET /health - Health check
 - POST /detect - Detect faces in an image
-- POST /verify - Compare two faces for similarity
 """
 
 import io
@@ -16,8 +15,7 @@ import logging
 from typing import Optional
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, File, UploadFile, HTTPException, Form
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, File, UploadFile, HTTPException
 from pydantic import BaseModel
 import numpy as np
 from PIL import Image
@@ -26,55 +24,56 @@ from PIL import Image
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# InsightFace configuration
-MODEL_NAME = os.getenv("INSIGHTFACE_MODEL", "buffalo_s")
-DET_SIZE = int(os.getenv("INSIGHTFACE_DET_SIZE", "320"))
-SIMILARITY_THRESHOLD = float(os.getenv("SIMILARITY_THRESHOLD", "0.4"))
+# MediaPipe configuration
+MIN_DETECTION_CONFIDENCE = float(os.getenv("MIN_DETECTION_CONFIDENCE", "0.5"))
 
-# Global face analysis instance
-face_app = None
+# Global face detector
+face_detector = None
 
 
-def load_insightface():
-    """Load InsightFace model on startup"""
-    global face_app
+def load_mediapipe():
+    """Load MediaPipe face detection model on startup"""
+    global face_detector
     
     try:
         import time
         start = time.time()
-        logger.info(f"🔄 Loading InsightFace model: {MODEL_NAME}")
+        logger.info("🔄 Loading MediaPipe Face Detection...")
         
-        from insightface.app import FaceAnalysis
+        import mediapipe as mp
         
-        # Initialize with specific model
-        face_app = FaceAnalysis(
-            name=MODEL_NAME,
-            providers=['CPUExecutionProvider']
+        # Use the face detection module
+        mp_face_detection = mp.solutions.face_detection
+        
+        # Initialize with model selection 0 (short-range, faster) or 1 (full-range)
+        # Short-range is optimized for faces within 2 meters, perfect for ID photos
+        face_detector = mp_face_detection.FaceDetection(
+            model_selection=0,  # 0 = short-range (fast), 1 = full-range
+            min_detection_confidence=MIN_DETECTION_CONFIDENCE
         )
         
-        # Prepare with detection size
-        face_app.prepare(ctx_id=-1, det_size=(DET_SIZE, DET_SIZE))
-        
         elapsed = time.time() - start
-        logger.info(f"✅ InsightFace loaded in {elapsed:.1f}s")
+        logger.info(f"✅ MediaPipe loaded in {elapsed:.1f}s")
         return True
         
     except Exception as e:
-        logger.error(f"❌ Failed to load InsightFace: {e}")
+        logger.error(f"❌ Failed to load MediaPipe: {e}")
         return False
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Load model on startup"""
-    load_insightface()
+    load_mediapipe()
     yield
-    # Cleanup (nothing to do)
+    # Cleanup
+    if face_detector:
+        face_detector.close()
 
 
 app = FastAPI(
-    title="InsightFace API",
-    description="Face detection and verification microservice",
+    title="Face Detection API",
+    description="Lightweight face detection using MediaPipe",
     version="1.0.0",
     lifespan=lifespan
 )
@@ -89,22 +88,13 @@ class DetectionResult(BaseModel):
     error: Optional[str] = None
 
 
-class VerificationResult(BaseModel):
-    match: bool
-    similarity: float
-    threshold: float
-    face1_detected: bool
-    face2_detected: bool
-    error: Optional[str] = None
-
-
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
     return {
-        "status": "healthy" if face_app is not None else "degraded",
-        "model": MODEL_NAME,
-        "model_loaded": face_app is not None
+        "status": "healthy" if face_detector is not None else "degraded",
+        "model": "mediapipe",
+        "model_loaded": face_detector is not None
     }
 
 
@@ -117,9 +107,9 @@ async def detect_faces(file: UploadFile = File(...)):
     - detected: bool - whether any faces were found
     - count: int - number of faces detected
     - confidence: float - highest face confidence score
-    - faces: list - face bounding boxes and landmarks
+    - faces: list - face bounding boxes
     """
-    if face_app is None:
+    if face_detector is None:
         raise HTTPException(status_code=503, detail="Face detection model not loaded")
     
     try:
@@ -127,15 +117,17 @@ async def detect_faces(file: UploadFile = File(...)):
         contents = await file.read()
         image = Image.open(io.BytesIO(contents))
         
+        # Convert to RGB if needed
         if image.mode != 'RGB':
             image = image.convert('RGB')
         
+        # Convert to numpy array for MediaPipe
         img_array = np.array(image)
         
         # Detect faces
-        faces = face_app.get(img_array)
+        results = face_detector.process(img_array)
         
-        if not faces:
+        if not results.detections:
             return DetectionResult(
                 detected=False,
                 count=0,
@@ -146,29 +138,39 @@ async def detect_faces(file: UploadFile = File(...)):
         # Extract face info
         face_data = []
         max_confidence = 0.0
+        img_height, img_width = img_array.shape[:2]
         
-        for face in faces:
-            bbox = face.bbox.tolist()
-            det_score = float(face.det_score)
+        for detection in results.detections:
+            # Get confidence score
+            score = detection.score[0] if detection.score else 0.0
             
-            if det_score > max_confidence:
-                max_confidence = det_score
+            if score > max_confidence:
+                max_confidence = score
+            
+            # Get bounding box (relative coordinates)
+            bbox = detection.location_data.relative_bounding_box
+            
+            # Convert to absolute coordinates
+            x_min = int(bbox.xmin * img_width)
+            y_min = int(bbox.ymin * img_height)
+            x_max = int((bbox.xmin + bbox.width) * img_width)
+            y_max = int((bbox.ymin + bbox.height) * img_height)
             
             face_data.append({
                 "bbox": {
-                    "x_min": int(bbox[0]),
-                    "y_min": int(bbox[1]),
-                    "x_max": int(bbox[2]),
-                    "y_max": int(bbox[3])
+                    "x_min": max(0, x_min),
+                    "y_min": max(0, y_min),
+                    "x_max": min(img_width, x_max),
+                    "y_max": min(img_height, y_max)
                 },
-                "confidence": det_score,
-                "has_embedding": face.embedding is not None
+                "confidence": float(score),
+                "has_embedding": False  # MediaPipe doesn't provide embeddings
             })
         
         return DetectionResult(
             detected=True,
-            count=len(faces),
-            confidence=max_confidence,
+            count=len(results.detections),
+            confidence=float(max_confidence),
             faces=face_data
         )
         
@@ -177,20 +179,24 @@ async def detect_faces(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/verify", response_model=VerificationResult)
+@app.post("/verify")
 async def verify_faces(
-    file1: UploadFile = File(..., description="First image (e.g., ID photo)"),
-    file2: UploadFile = File(..., description="Second image (e.g., selfie)")
+    file1: UploadFile = File(..., description="First image"),
+    file2: UploadFile = File(..., description="Second image")
 ):
     """
-    Compare faces in two images for similarity.
+    Check if faces exist in both images.
+    
+    Note: MediaPipe doesn't support face matching/recognition.
+    This endpoint only verifies that faces are detected in both images.
+    For actual face matching, manual review is required.
     
     Returns:
-    - match: bool - whether faces match (similarity > threshold)
-    - similarity: float - cosine similarity score (0-1)
-    - threshold: float - threshold used for matching
+    - face1_detected: bool
+    - face2_detected: bool
+    - note: Explanation that matching requires manual review
     """
-    if face_app is None:
+    if face_detector is None:
         raise HTTPException(status_code=503, detail="Face detection model not loaded")
     
     try:
@@ -199,70 +205,24 @@ async def verify_faces(
         image1 = Image.open(io.BytesIO(contents1))
         if image1.mode != 'RGB':
             image1 = image1.convert('RGB')
-        img1_array = np.array(image1)
+        results1 = face_detector.process(np.array(image1))
+        face1_detected = bool(results1.detections)
         
         # Process second image
         contents2 = await file2.read()
         image2 = Image.open(io.BytesIO(contents2))
         if image2.mode != 'RGB':
             image2 = image2.convert('RGB')
-        img2_array = np.array(image2)
+        results2 = face_detector.process(np.array(image2))
+        face2_detected = bool(results2.detections)
         
-        # Detect faces
-        faces1 = face_app.get(img1_array)
-        faces2 = face_app.get(img2_array)
-        
-        if not faces1:
-            return VerificationResult(
-                match=False,
-                similarity=0.0,
-                threshold=SIMILARITY_THRESHOLD,
-                face1_detected=False,
-                face2_detected=bool(faces2),
-                error="No face detected in first image"
-            )
-        
-        if not faces2:
-            return VerificationResult(
-                match=False,
-                similarity=0.0,
-                threshold=SIMILARITY_THRESHOLD,
-                face1_detected=True,
-                face2_detected=False,
-                error="No face detected in second image"
-            )
-        
-        # Get embeddings (use largest/most prominent face from each)
-        face1 = max(faces1, key=lambda f: (f.bbox[2]-f.bbox[0]) * (f.bbox[3]-f.bbox[1]))
-        face2 = max(faces2, key=lambda f: (f.bbox[2]-f.bbox[0]) * (f.bbox[3]-f.bbox[1]))
-        
-        if face1.embedding is None or face2.embedding is None:
-            return VerificationResult(
-                match=False,
-                similarity=0.0,
-                threshold=SIMILARITY_THRESHOLD,
-                face1_detected=True,
-                face2_detected=True,
-                error="Could not extract face embeddings"
-            )
-        
-        # Calculate cosine similarity
-        embedding1 = face1.embedding
-        embedding2 = face2.embedding
-        
-        similarity = float(np.dot(embedding1, embedding2) / 
-                          (np.linalg.norm(embedding1) * np.linalg.norm(embedding2)))
-        
-        # Normalize to 0-1 range (cosine similarity can be -1 to 1)
-        similarity = (similarity + 1) / 2
-        
-        return VerificationResult(
-            match=similarity >= SIMILARITY_THRESHOLD,
-            similarity=round(similarity, 4),
-            threshold=SIMILARITY_THRESHOLD,
-            face1_detected=True,
-            face2_detected=True
-        )
+        return {
+            "face1_detected": face1_detected,
+            "face2_detected": face2_detected,
+            "match": None,  # Cannot determine match with MediaPipe
+            "similarity": None,
+            "note": "Face matching not available with MediaPipe. Manual review required for identity verification."
+        }
         
     except Exception as e:
         logger.error(f"Verification error: {e}")

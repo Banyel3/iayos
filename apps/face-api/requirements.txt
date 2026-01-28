@@ -1,5 +1,5 @@
-# InsightFace Microservice Dependencies
-# Lightweight face detection and verification API
+# MediaPipe Face Detection Microservice
+# Lightweight - fits in Render free tier (~150MB)
 
 # Web framework
 fastapi>=0.104.0
@@ -10,9 +10,5 @@ python-multipart>=0.0.6
 Pillow>=10.0.0
 numpy>=1.24.0
 
-# Face detection (InsightFace with ONNX)
-insightface>=0.7.3
-onnxruntime>=1.16.0
-
-# Note: For GPU support, replace onnxruntime with:
-# onnxruntime-gpu>=1.16.0
+# Face detection (MediaPipe - very lightweight)
+mediapipe>=0.10.0
