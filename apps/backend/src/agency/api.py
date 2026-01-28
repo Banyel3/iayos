@@ -67,8 +67,8 @@ def upload_agency_kyc(request):
         address_proof = request.FILES.get("address_proof")
         auth_letter = request.FILES.get("auth_letter")
 
-		# Call optimized upload service (skips AI validation)
-		result = upload_agency_kyc_fast(payload, business_permit, rep_front, rep_back, address_proof, auth_letter)
+        # Call optimized upload service (skips AI validation)
+        result = upload_agency_kyc_fast(payload, business_permit, rep_front, rep_back, address_proof, auth_letter)
 
         return result
     except ValueError as e:
