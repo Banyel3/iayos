@@ -125,20 +125,12 @@ def extract_ocr_from_documents(request):
             return Response({"error": "Business permit is required for OCR extraction"}, status=400)
         
         # Run OCR extraction service (imported directly from fast_upload_service)
-<<<<<<< HEAD
         result = extract_ocr_for_autofill(
             business_permit=business_permit,
             rep_id_front=rep_id_front,
             business_type=business_type,
             rep_id_type=rep_id_type
         )
-=======
-        result = extract_ocr_for_autofill(
-            business_permit=business_permit,
-            rep_id_front=rep_id_front,
-            business_type=business_type
-        )
->>>>>>> origin/main
         
         return result
         
