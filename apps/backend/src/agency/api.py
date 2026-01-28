@@ -69,8 +69,8 @@ def validate_agency_document(request):
     Per-step validation for agency KYC uploads.
     Validates document quality (resolution, blur) and face detection (for rep ID).
     
-    InsightFace is pre-warmed on server startup, so first request is fast.
-    Face detection runs on every upload for immediate feedback.
+    Face detection uses CompreFace API (external service) - lightweight HTTP calls.
+    If CompreFace is unavailable, documents are marked for manual review.
     
     Request: multipart/form-data with:
     - file: The document to validate

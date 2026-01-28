@@ -11,24 +11,25 @@ class AccountsConfig(AppConfig):
     def ready(self):
         """
         Called when Django starts up. 
-        Starts InsightFace pre-warm in background thread.
+        Performs simple health checks (no heavy ML model loading).
         """
         import os
+        import sys
         
-        # Skip in migration/test contexts
-        # RUN_MAIN is only set by Django's runserver reloader (dev mode)
-        # In production with Daphne, it's not set - so we check for other signals
-        run_main = os.environ.get('RUN_MAIN')
-        if run_main == 'false':
-            # Explicitly disabled
+        # Skip during migrations/test contexts
+        is_management_command = len(sys.argv) > 1 and sys.argv[1] in [
+            'migrate', 'makemigrations', 'shell', 'test', 'collectstatic',
+            'showmigrations', 'check', 'create_admin', 'create_test_users'
+        ]
+        
+        if is_management_command:
             return
-
         
         print("\n" + "="*60)
-        print("🚀 AI SERVICES INITIALIZATION")
+        print("🚀 AI SERVICES STATUS")
         print("="*60)
         
-        # Check Tesseract (fast, synchronous check - OK)
+        # Check Tesseract (fast, lightweight)
         try:
             import pytesseract
             pytesseract.get_tesseract_version()
@@ -36,15 +37,11 @@ class AccountsConfig(AppConfig):
         except Exception as e:
             print(f"⚠️ Tesseract OCR: UNAVAILABLE - {e}")
         
-        # Start InsightFace pre-warm in background thread (async - doesn't block)
-        # This loads InsightFace AFTER Django startup, so server can accept requests immediately
-        try:
-            from accounts.face_detection_service import prewarm_insightface
-            prewarm_insightface()
-            print("🔄 InsightFace: Pre-warming in background (first KYC request may be slow)")
-        except Exception as e:
-            logger.warning(f"⚠️ Could not start InsightFace pre-warm: {e}")
+        # Check CompreFace URL (just env var check, no network call)
+        compreface_url = os.getenv("COMPREFACE_URL", "")
+        if compreface_url:
+            print(f"✅ CompreFace URL: {compreface_url}")
+        else:
+            print("⚠️ CompreFace: COMPREFACE_URL not set - face detection disabled")
         
         print("="*60 + "\n")
-
-

@@ -2,19 +2,13 @@
 Document Verification Service for KYC Uploads
 
 This service provides automated verification of KYC documents using:
-1. InsightFace - Face detection and verification (via face_detection_service)
+1. Face API (InsightFace microservice) - Face detection for government IDs
 2. Tesseract OCR - Text extraction for clearances and permits
 3. Image quality checks - Blur detection, resolution, orientation
 
 Integration points:
 - Called during upload_kyc_document() after Supabase upload
 - Returns verification results that can auto-reject or flag for manual review
-
-Migration to InsightFace (Jan 2026):
-- Using InsightFace + ONNX Runtime (~180MB RAM vs TensorFlow ~400MB)
-- InsightFace provides BOTH face detection AND verification locally
-- No cloud API required - runs entirely on backend server
-- Model: buffalo_s with ArcFace (97%+ accuracy on IJB-C benchmark)
 """
 
 import io
@@ -29,13 +23,10 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-# Import new face detection service (replaces CompreFace)
-from accounts.face_detection_service import (
-    get_face_service,
-    check_face_services_available,
-    FaceDetectionResult,
-    FaceComparisonResult
-)
+# Face API configuration (InsightFace microservice)
+# Set FACE_API_URL environment variable to point to your Face API service
+import os
+FACE_API_URL = os.getenv("FACE_API_URL", "http://localhost:8000")
 
 # Tesseract is imported conditionally to handle environments where it's not installed
 try:
@@ -231,30 +222,40 @@ class DocumentVerificationService:
     Service for automated document verification using AI/ML
     
     Uses:
-    - MediaPipe for local face detection
-    - Azure Face API for face comparison (optional)
+    - Face API (InsightFace microservice) for face detection
     - Tesseract OCR for text extraction
     """
 
-    def __init__(self):
+    def __init__(self, face_api_url: str = None):
         """
         Initialize the verification service
-        """
-        import os
-        self._face_service = get_face_service()
         
-        # Log service status
-        status = check_face_services_available()
-        logger.info(f"DocumentVerificationService initialized:")
-        logger.info(f"  - InsightFace: {'✅' if status.get('insightface_available') else '❌'}")
-        logger.info(f"  - Face Detection: {'✅' if status.get('face_detection_available') else '❌'}")
-        logger.info(f"  - Face Comparison: {'✅' if status.get('face_comparison_available') else '❌'}")
-        logger.info(f"  - Model: {status.get('model', 'N/A')}")
+        Args:
+            face_api_url: URL of Face API service (default from FACE_API_URL env)
+        """
+        self.face_api_url = face_api_url or FACE_API_URL
+        self._face_api_available = None  # Lazy check
+        
+        logger.info(f"DocumentVerificationService initialized - Face API URL: {self.face_api_url}")
 
-    def _check_face_detection_available(self) -> bool:
-        """Check if face detection is available (InsightFace)"""
-        status = check_face_services_available()
-        return status.get("face_detection_available", False)
+    def _check_face_api_available(self) -> bool:
+        """Check if Face API service is available"""
+        if self._face_api_available is not None:
+            return self._face_api_available
+            
+        try:
+            response = httpx.get(f"{self.face_api_url}/health", timeout=5.0)
+            if response.status_code == 200:
+                data = response.json()
+                self._face_api_available = data.get("model_loaded", False)
+            else:
+                self._face_api_available = False
+            logger.info(f"Face API availability check: available={self._face_api_available}")
+        except Exception as e:
+            logger.warning(f"Face API not available: {e}")
+            self._face_api_available = False
+            
+        return self._face_api_available
 
     def validate_document_quick(
         self, 
@@ -315,21 +316,18 @@ class DocumentVerificationService:
                 
                 if not face_result.get("detected", False):
                     if face_result.get("skipped"):
-                        # InsightFace service unavailable - mark for manual review with warning
-                        # This is a SERVICE FAILURE (not user error), so allow upload with manual review flag
+                        # CompreFace not available - mark for manual review with warning
                         face_detection_skipped = True
-                        face_detection_warning = "Face detection service is currently unavailable. Your document will be reviewed manually by our team."
-                        logger.warning("   ⚠️ Face detection service unavailable - flagged for manual review")
+                        face_detection_warning = "Face detection service temporarily unavailable. Your document will be reviewed manually."
+                        logger.warning("   ⚠️ Face detection skipped (CompreFace unavailable) - marked for manual review")
                     else:
-                        # InsightFace ran successfully but NO FACE DETECTED - STRONG REJECT
-                        # This is a USER ERROR (bad photo), so reject the upload immediately
                         error_msg = "No face detected in the image. Please ensure your face is clearly visible."
                         if document_type.upper() == "SELFIE":
-                            error_msg = "No face detected in your selfie. Please take a clear photo of your face looking directly at the camera."
-                        elif document_type.upper() in ["FRONTID", "BACKID", "PHILSYS_ID", "DRIVERS_LICENSE", "REP_ID_FRONT", "REP_ID_BACK"]:
-                            error_msg = "No face detected on your ID. Please ensure the photo on your ID is clearly visible and not obscured."
+                            error_msg = "No face detected in your selfie. Please take a clear photo of your face looking at the camera."
+                        elif document_type.upper() in ["FRONTID", "BACKID", "PHILSYS_ID", "DRIVERS_LICENSE"]:
+                            error_msg = "No face detected on your ID. Please ensure the photo on your ID is clearly visible."
                         
-                        logger.warning(f"   ❌ REJECTED: No face detected (InsightFace confidence: {face_result.get('confidence', 0):.2f})")
+                        logger.warning(f"   ❌ No face detected")
                         return {
                             "valid": False,
                             "error": error_msg,
@@ -426,15 +424,8 @@ class DocumentVerificationService:
                 face_result = self._detect_face(file_data)
                 details["face_detection"] = face_result
                 
-                # If face detection was skipped (InsightFace service unavailable), continue with manual review warning
-                # This is a SERVICE FAILURE, not user error - allow upload with manual review flag
-                if face_result.get("skipped"):
-                    logger.warning(f"   ⚠️ Face detection service unavailable: {face_result.get('reason', 'InsightFace not initialized')}")
-                    warnings.append("Face detection service is currently unavailable - manual verification required")
-                elif not face_result["detected"]:
-                    # InsightFace ran successfully but NO FACE FOUND - STRONG REJECT
-                    # This is a USER ERROR (bad photo quality) - reject immediately
-                    logger.warning(f"   ❌ REJECTED: No face detected in ID document (confidence: {face_result.get('confidence', 0):.2f})")
+                if not face_result["detected"]:
+                    logger.warning(f"   ❌ No face detected in ID document")
                     return VerificationResult(
                         status=VerificationStatus.FAILED,
                         rejection_reason=RejectionReason.NO_FACE_DETECTED,
@@ -444,11 +435,13 @@ class DocumentVerificationService:
                         details=details,
                         warnings=warnings
                     )
-                else:
-                    # Face detection succeeded
-                    if face_result["count"] > 1:
-                        warnings.append(f"Multiple faces detected ({face_result['count']})")
-                    print(f"   ✅ Face detected: confidence={face_result['confidence']:.2f}")
+                
+                if face_result["count"] > 1:
+                    warnings.append(f"Multiple faces detected ({face_result['count']})")
+                
+                # Face size check removed - was causing issues with valid IDs
+                
+                print(f"   ✅ Face detected: confidence={face_result['confidence']:.2f}")
             
             # Step 3: OCR text extraction (for clearances and Government IDs)
             ocr_required = document_type.upper() in DOCUMENT_KEYWORDS
@@ -620,29 +613,76 @@ class DocumentVerificationService:
 
     def _detect_face(self, image_data: bytes) -> Dict[str, Any]:
         """
-        Detect faces in image using InsightFace
+        Detect faces in image using Face API (InsightFace microservice)
         
         Returns dict with:
             - detected: bool
             - count: number of faces
             - confidence: highest face confidence
-            - face_too_small: bool if face is too small
             - skipped: bool if detection was skipped
-            - error: str if error occurred
         """
-        if not self._check_face_detection_available():
-            logger.warning("Face detection not available (InsightFace not loaded)")
+        if not self._check_face_api_available():
+            logger.warning("Face API not available, skipping face detection")
             return {
                 "detected": False,
                 "count": 0,
                 "confidence": 0,
                 "skipped": True,
-                "reason": "Face detection service not available"
+                "reason": "Face API service not available"
             }
         
         try:
-            result = self._face_service.detect_face(image_data)
-            return result.to_dict()
+            # Resize image if too large
+            image = Image.open(io.BytesIO(image_data))
+            original_size = (image.width, image.height)
+            max_dimension = 1920
+            
+            if max(image.width, image.height) > max_dimension:
+                ratio = max_dimension / max(image.width, image.height)
+                new_size = (int(image.width * ratio), int(image.height * ratio))
+                image = image.resize(new_size, Image.Resampling.LANCZOS)
+                logger.info(f"   📐 Resized image from {original_size} to {new_size}")
+                
+                # Convert back to bytes
+                buffer = io.BytesIO()
+                image.save(buffer, format="JPEG", quality=90)
+                image_data = buffer.getvalue()
+            
+            # Call Face API detection endpoint
+            files = {"file": ("image.jpg", image_data, "image/jpeg")}
+            
+            response = httpx.post(
+                f"{self.face_api_url}/detect",
+                files=files,
+                timeout=30.0
+            )
+            
+            if response.status_code != 200:
+                logger.warning(f"Face API returned {response.status_code}: {response.text}")
+                return {
+                    "detected": False,
+                    "count": 0,
+                    "confidence": 0,
+                    "error": f"API error: {response.status_code}"
+                }
+            
+            result = response.json()
+            
+            return {
+                "detected": result.get("detected", False),
+                "count": result.get("count", 0),
+                "confidence": result.get("confidence", 0),
+                "faces": result.get("faces", [])
+            }
+            
+        except httpx.TimeoutException:
+            logger.error("Face API request timed out")
+            return {
+                "detected": False,
+                "count": 0,
+                "confidence": 0,
+                "error": "Face detection timed out"
+            }
         except Exception as e:
             logger.error(f"Face detection error: {e}", exc_info=True)
             return {
@@ -652,45 +692,171 @@ class DocumentVerificationService:
                 "error": str(e)
             }
 
+    def _extract_face_embedding(self, image_data: bytes) -> Dict[str, Any]:
+        """
+        Extract face embedding from image using CompreFace recognition API
+        
+        Returns dict with:
+            - success: bool
+            - embedding: list of floats (face vector)
+            - box: face bounding box
+            - confidence: detection confidence
+        """
+        if not self._check_compreface_available():
+            logger.warning("CompreFace not available, skipping embedding extraction")
+            return {
+                "success": False,
+                "embedding": None,
+                "error": "CompreFace service not available"
+            }
+        
+        try:
+            headers = {"x-api-key": self.compreface_api_key}
+            files = {"file": ("image.jpg", image_data, "image/jpeg")}
+            
+            # Use detection endpoint (Detection service API)
+            # Detection API: /api/v1/detection/detect
+            response = httpx.post(
+                f"{self.compreface_url}/api/v1/detection/detect",
+                headers=headers,
+                files=files,
+                params={"limit": 1, "det_prob_threshold": 0.5},
+                timeout=30.0
+            )
+            
+            if response.status_code != 200:
+                logger.warning(f"CompreFace embedding API returned {response.status_code}: {response.text}")
+                return {
+                    "success": False,
+                    "embedding": None,
+                    "error": f"API error: {response.status_code}"
+                }
+            
+            result = response.json()
+            faces = result.get("result", [])
+            
+            if not faces:
+                return {
+                    "success": False,
+                    "embedding": None,
+                    "error": "No face found for embedding"
+                }
+            
+            # Get the first (largest/most prominent) face
+            face = faces[0]
+            embedding = face.get("embedding", [])
+            box = face.get("box", {})
+            
+            return {
+                "success": True,
+                "embedding": embedding,
+                "box": box,
+                "confidence": box.get("probability", 0)
+            }
+            
+        except Exception as e:
+            logger.error(f"Face embedding extraction error: {e}", exc_info=True)
+            return {
+                "success": False,
+                "embedding": None,
+                "error": str(e)
+            }
+
     def compare_faces(
         self, 
         id_image_data: bytes, 
         selfie_image_data: bytes,
-        similarity_threshold: float = 0.40
+        similarity_threshold: float = 0.85
     ) -> Dict[str, Any]:
         """
-        Compare faces between ID document and selfie using InsightFace.
-        Runs entirely locally - no cloud API required.
+        Verify faces exist in both ID document and selfie images.
+        Face comparison will be done manually by admin.
         
         Args:
             id_image_data: Raw bytes of ID document image
             selfie_image_data: Raw bytes of selfie image
-            similarity_threshold: Minimum similarity for match (0-1)
+            similarity_threshold: Not used (kept for backward compatibility)
             
         Returns dict with:
-            - match: bool - whether faces match (or need manual review)
-            - similarity: float - similarity score (0 if InsightFace unavailable)
+            - faces_detected: bool - whether faces were found in both images
             - id_has_face: bool - whether ID has a detectable face
             - selfie_has_face: bool - whether selfie has a detectable face
-            - needs_manual_review: bool - whether admin should verify
             - error: str - error message if failed
         """
-        logger.info("🔍 Comparing faces in ID and selfie images...")
+        logger.info("🔍 Checking for faces in ID and selfie images...")
+        
+        if not self._check_compreface_available():
+            logger.warning("CompreFace not available, skipping face detection")
+            return {
+                "faces_detected": None,
+                "skipped": True,
+                "reason": "CompreFace service not available - manual verification required"
+            }
         
         try:
-            result = self._face_service.compare_faces(
-                id_image_data, 
-                selfie_image_data, 
-                similarity_threshold
-            )
-            return result.to_dict()
-        except Exception as e:
-            logger.error(f"Face comparison error: {e}", exc_info=True)
+            # Detect face in ID document
+            id_result = self._detect_face(id_image_data)
+            id_has_face = id_result.get("detected", False) and id_result.get("count", 0) > 0
+            
+            if not id_has_face and not id_result.get("skipped"):
+                logger.warning("No face detected in ID document")
+                return {
+                    "faces_detected": False,
+                    "id_has_face": False,
+                    "selfie_has_face": None,
+                    "error": "No face detected in ID document. Please upload a clear photo of your ID showing your face."
+                }
+            
+            # Detect face in selfie
+            selfie_result = self._detect_face(selfie_image_data)
+            selfie_has_face = selfie_result.get("detected", False) and selfie_result.get("count", 0) > 0
+            
+            if not selfie_has_face and not selfie_result.get("skipped"):
+                logger.warning("No face detected in selfie")
+                return {
+                    "faces_detected": False,
+                    "id_has_face": id_has_face,
+                    "selfie_has_face": False,
+                    "error": "No face detected in selfie. Please upload a clear photo of your face."
+                }
+            
+            # Both have faces - success! Manual comparison will be done by admin
+            logger.info(f"   ✅ Face detection result: ID has face={id_has_face}, Selfie has face={selfie_has_face}")
+            
             return {
-                "match": False,
-                "similarity": 0,
+                "faces_detected": True,
+                "id_has_face": id_has_face,
+                "selfie_has_face": selfie_has_face,
+                "id_confidence": id_result.get("confidence", 0),
+                "selfie_confidence": selfie_result.get("confidence", 0),
+                "note": "Face comparison will be done manually by admin"
+            }
+            
+        except Exception as e:
+            logger.error(f"Face detection error: {e}", exc_info=True)
+            return {
+                "faces_detected": False,
                 "error": str(e)
             }
+
+    def _cosine_similarity(self, vec1: List[float], vec2: List[float]) -> float:
+        """Calculate cosine similarity between two vectors"""
+        if len(vec1) != len(vec2):
+            logger.warning(f"Embedding dimension mismatch: {len(vec1)} vs {len(vec2)}")
+            return 0.0
+        
+        # Convert to numpy for efficient computation
+        arr1 = np.array(vec1)
+        arr2 = np.array(vec2)
+        
+        dot_product = np.dot(arr1, arr2)
+        norm1 = np.linalg.norm(arr1)
+        norm2 = np.linalg.norm(arr2)
+        
+        if norm1 == 0 or norm2 == 0:
+            return 0.0
+        
+        return float(dot_product / (norm1 * norm2))
 
     def _extract_text(self, image: Image.Image) -> Dict[str, Any]:
         """
@@ -881,7 +1047,7 @@ def should_auto_reject(result: VerificationResult) -> Tuple[bool, str]:
     return False, ""
 
 
-def verify_face_match(id_image_data: bytes, selfie_image_data: bytes, similarity_threshold: float = 0.40) -> Dict[str, Any]:
+def verify_face_match(id_image_data: bytes, selfie_image_data: bytes, similarity_threshold: float = 0.85) -> Dict[str, Any]:
     """
     Compare faces between ID document and selfie
     
