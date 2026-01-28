@@ -728,7 +728,7 @@ const AgencyKYCPage = () => {
   };
 
   const renderProgressBar = () => {
-    const steps = 4; // 1: Start, 2: Uploads, 3: OCR Confirm, 4: Status
+    const steps = 5; // 1: Start, 2: Uploads, 3: Business Info, 4: Rep ID Info, 5: Status
     return (
       <div className="flex items-center justify-center space-x-2 mb-8">
         {Array.from({ length: steps }).map((_, index) => (
@@ -1196,6 +1196,341 @@ const AgencyKYCPage = () => {
   };
 
   // Issue #1: Step 5 - OCR Confirmation Form
+  // Step 3: Business Information (from permit OCR)
+  const renderStep3_BusinessInfo = () => {
+    return (
+      <div className="max-w-xl mx-auto">
+        <h1 className="text-2xl font-bold text-gray-900 mb-2 text-center">
+          Review Business Information
+        </h1>
+        <p className="text-gray-600 mb-6 text-center text-sm">
+          We&apos;ve extracted business information from your registration certificate.
+          Please review and correct any errors.
+        </p>
+
+        {/* OCR Extraction Success Notice */}
+        {ocrExtracted && (
+          <div className="mb-6 p-4 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl shadow-sm">
+            <div className="flex items-start gap-3">
+              <svg
+                className="w-6 h-6 text-green-600 flex-shrink-0 mt-0.5"
+                fill="currentColor"
+                viewBox="0 0 20 20"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                  clipRule="evenodd"
+                />
+              </svg>
+              <div className="flex-1">
+                <h3 className="font-semibold text-green-900 text-sm mb-1">
+                  ✨ Business Data Extracted
+                </h3>
+                <p className="text-xs text-green-800">
+                  Data from your {businessType === "SOLE_PROPRIETORSHIP" ? "DTI Certificate" : "SEC Registration"} has been autofilled.
+                  Please verify accuracy and edit if needed.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {ocrLoading ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+            <p className="text-gray-600">Loading extracted data...</p>
+          </div>
+        ) : (
+          <>
+            {/* Business Information Section */}
+            <div className="mb-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-3 pb-2 border-b flex items-center gap-2">
+                <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+                Business Information
+              </h2>
+              <div className="space-y-4">
+                {AGENCY_KYC_FIELD_CONFIG.filter(
+                  (f) =>
+                    f.section === "business" &&
+                    (!f.applicableBusinessTypes ||
+                      f.applicableBusinessTypes.includes(businessType)),
+                ).map((field) => (
+                  <div key={field.key}>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      {field.label}
+                      {field.required && (
+                        <span className="text-red-500 ml-1">*</span>
+                      )}
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={field.type === "date" ? "date" : "text"}
+                        value={ocrFields[field.key] || ""}
+                        onChange={(e) =>
+                          handleOcrFieldChange(field.key, e.target.value)
+                        }
+                        placeholder={field.placeholder}
+                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                          editedFields.has(field.key)
+                            ? "border-yellow-400 bg-yellow-50"
+                            : "border-gray-300"
+                        }`}
+                      />
+                      {hasAutofillData && (
+                        <div className="absolute right-2 top-2">
+                          <span
+                            className={`text-xs px-2 py-0.5 rounded-full ${getConfidenceColor(
+                              getFieldConfidence(field.key),
+                            )}`}
+                          >
+                            {getConfidenceLabel(getFieldConfidence(field.key))}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    {editedFields.has(field.key) && (
+                      <p className="text-xs text-yellow-600 mt-1">
+                        ✏️ Edited by you
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Confidence Legend */}
+            {hasAutofillData && (
+              <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                <p className="text-xs font-medium text-gray-700 mb-2">
+                  Confidence Legend:
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-800">
+                    High (&gt;80%)
+                  </span>
+                  <span className="text-xs px-2 py-1 rounded-full bg-yellow-100 text-yellow-800">
+                    Medium (50-80%)
+                  </span>
+                  <span className="text-xs px-2 py-1 rounded-full bg-red-100 text-red-800">
+                    Low (&lt;50%)
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            <div className="flex justify-between gap-3 mt-6">
+              <button
+                onClick={() => setCurrentStep(2)}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium"
+              >
+                ← Back
+              </button>
+              <button
+                onClick={() => setCurrentStep(4)}
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors flex items-center gap-2"
+              >
+                Next: Representative ID
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    );
+  };
+
+  // Step 4: Representative ID Information (from ID OCR)
+  const renderStep4_RepresentativeInfo = () => {
+    return (
+      <div className="max-w-xl mx-auto">
+        <h1 className="text-2xl font-bold text-gray-900 mb-2 text-center">
+          Review Representative ID
+        </h1>
+        <p className="text-gray-600 mb-6 text-center text-sm">
+          We&apos;ve extracted information from your representative&apos;s ID document.
+          Please review and correct any errors before submitting.
+        </p>
+
+        {/* OCR Extraction Success Notice */}
+        <div className="mb-6 p-4 bg-gradient-to-r from-purple-50 to-indigo-50 border-2 border-purple-200 rounded-xl shadow-sm">
+          <div className="flex items-start gap-3">
+            <svg
+              className="w-6 h-6 text-purple-600 flex-shrink-0 mt-0.5"
+              fill="currentColor"
+              viewBox="0 0 20 20"
+            >
+              <path
+                fillRule="evenodd"
+                d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"
+                clipRule="evenodd"
+              />
+            </svg>
+            <div className="flex-1">
+              <h3 className="font-semibold text-purple-900 text-sm mb-1">
+                🪪 ID Data Extracted
+              </h3>
+              <p className="text-xs text-purple-800">
+                Information from the representative&apos;s {ID_TYPES.find(t => t.value === repIdType)?.label || "ID"} has been autofilled.
+                Please verify accuracy and edit if needed.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {ocrLoading ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <div className="w-10 h-10 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+            <p className="text-gray-600">Loading extracted data...</p>
+          </div>
+        ) : (
+          <>
+            {/* Representative Information Section */}
+            <div className="mb-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-3 pb-2 border-b flex items-center gap-2">
+                <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
+                </svg>
+                Authorized Representative
+              </h2>
+              <div className="space-y-4">
+                {AGENCY_KYC_FIELD_CONFIG.filter(
+                  (f) => f.section === "representative",
+                ).map((field) => (
+                  <div key={field.key}>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      {field.label}
+                      {field.required && (
+                        <span className="text-red-500 ml-1">*</span>
+                      )}
+                    </label>
+                    <div className="relative">
+                      {field.type === "select" ? (
+                        <select
+                          value={ocrFields[field.key] || repIdType}
+                          onChange={(e) => {
+                            handleOcrFieldChange(field.key, e.target.value);
+                            setRepIdType(e.target.value);
+                          }}
+                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white ${
+                            editedFields.has(field.key)
+                              ? "border-yellow-400 bg-yellow-50"
+                              : "border-gray-300"
+                          }`}
+                        >
+                          {field.options?.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          type={field.type === "date" ? "date" : "text"}
+                          value={ocrFields[field.key] || ""}
+                          onChange={(e) =>
+                            handleOcrFieldChange(field.key, e.target.value)
+                          }
+                          placeholder={field.placeholder}
+                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 ${
+                            editedFields.has(field.key)
+                              ? "border-yellow-400 bg-yellow-50"
+                              : "border-gray-300"
+                          }`}
+                        />
+                      )}
+                      {hasAutofillData && field.type !== "select" && (
+                        <div className="absolute right-2 top-2">
+                          <span
+                            className={`text-xs px-2 py-0.5 rounded-full ${getConfidenceColor(
+                              getFieldConfidence(field.key),
+                            )}`}
+                          >
+                            {getConfidenceLabel(getFieldConfidence(field.key))}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    {editedFields.has(field.key) && (
+                      <p className="text-xs text-yellow-600 mt-1">
+                        ✏️ Edited by you
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Confidence Legend */}
+            {hasAutofillData && (
+              <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                <p className="text-xs font-medium text-gray-700 mb-2">
+                  Confidence Legend:
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-800">
+                    High (&gt;80%)
+                  </span>
+                  <span className="text-xs px-2 py-1 rounded-full bg-yellow-100 text-yellow-800">
+                    Medium (50-80%)
+                  </span>
+                  <span className="text-xs px-2 py-1 rounded-full bg-red-100 text-red-800">
+                    Low (&lt;50%)
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            <div className="flex justify-between gap-3 mt-6">
+              <button
+                onClick={() => setCurrentStep(3)}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium"
+              >
+                ← Back
+              </button>
+              <button
+                onClick={handleSubmit}
+                disabled={isSubmitting}
+                className="px-6 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg font-semibold hover:from-purple-700 hover:to-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-md"
+              >
+                {isSubmitting ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Uploading Documents...
+                  </>
+                ) : (
+                  <>
+                    <svg
+                      className="w-5 h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                      />
+                    </svg>
+                    Submit & Upload Documents
+                  </>
+                )}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    );
+  };
+
+  // LEGACY: Combined step (kept for reference, but not used)
   const renderStep5 = () => {
     return (
       <div className="max-w-xl mx-auto">
@@ -1203,7 +1538,7 @@ const AgencyKYCPage = () => {
           Review Extracted Information
         </h1>
         <p className="text-gray-600 mb-6 text-center text-sm">
-          We've extracted the following information from your documents. Please
+          We&apos;ve extracted the following information from your documents. Please
           review and correct any errors before submitting.
         </p>
 
@@ -1744,10 +2079,11 @@ const AgencyKYCPage = () => {
               >
                 {currentStep === 1 && renderStep1()}
                 {currentStep === 2 && renderStep2()}
-                {currentStep === 3 && renderStep5()}
-                {currentStep === 4 && renderStep6()}
+                {currentStep === 3 && renderStep3_BusinessInfo()}
+                {currentStep === 4 && renderStep4_RepresentativeInfo()}
+                {currentStep === 5 && renderStep6()}
                 {/* Fallback for any unmapped step */}
-                {currentStep > 4 && renderStep6()}
+                {currentStep > 5 && renderStep6()}
               </div>
             </div>
           </div>
