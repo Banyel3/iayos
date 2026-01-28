@@ -235,6 +235,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     cron \
     tesseract-ocr \
     tesseract-ocr-eng \
+    poppler-utils \
     libjpeg-dev \
     zlib1g-dev \
     libpng-dev \
@@ -295,6 +296,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libssl3 \
     tesseract-ocr \
     tesseract-ocr-eng \
+    poppler-utils \
     libleptonica-dev \
     && rm -rf /var/lib/apt/lists/*
 
