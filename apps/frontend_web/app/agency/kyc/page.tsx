@@ -132,18 +132,8 @@ const AgencyKYCPage = () => {
     setIsMounted(true);
   }, []);
 
-  if (!isMounted) return null;
+  // Early returns moved to bottom to prevent Hook execution mismatch
 
-  if (isLoading || !isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-blue-50 flex items-center justify-center">
-        <div className="flex flex-col items-center space-y-4">
-          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
-  }
 
   const validateFile = (file: File) => {
     if (!file.type.startsWith("image/") && file.type !== "application/pdf") {
@@ -1623,6 +1613,20 @@ const AgencyKYCPage = () => {
       </div>
     );
   };
+
+  // Hydration fix: only render content after mount
+  if (!isMounted) return null;
+
+  if (isLoading || !isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-blue-50 flex items-center justify-center">
+        <div className="flex flex-col items-center space-y-4">
+          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-blue-50 flex flex-col">
