@@ -2,7 +2,7 @@
   "expo": {
     "name": "iayos_mobile",
     "slug": "iayos_mobile",
-    "version": "1.3.7",
+    "version": "1.4.0",
     "projectId": "9aefe802-18a0-41ab-9d65-c112999529f8",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -33,7 +33,10 @@
     "web": {
       "bundler": "metro"
     },
-    "platforms": ["ios", "android"],
+    "platforms": [
+      "ios",
+      "android"
+    ],
     "plugins": [
       "expo-router",
       [
