@@ -116,7 +116,8 @@ def validate_agency_document(request):
         
         # Determine if face detection is required
         # Face required for representative ID (front and back)
-        require_face = document_type in ['REP_ID_FRONT', 'REP_ID_BACK']
+        # Face required for representative ID (front only)
+        require_face = document_type in ['REP_ID_FRONT']
         
         # Map to verification service document type
         doc_type_mapping = {

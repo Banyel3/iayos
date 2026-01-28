@@ -165,7 +165,20 @@ def upload_agency_kyc(payload, business_permit, rep_front, rep_back, address_pro
 				
 				# Get rep_id_type for type-specific OCR (unified naming from mobile app)
 				# This enables using PHILSYS_ID, DRIVERS_LICENSE, etc. for proper keyword validation
-				rep_id_type = getattr(payload, 'rep_id_type', 'FRONTID') or 'FRONTID'
+				# Get rep_id_type for type-specific OCR (unified naming from mobile app)
+				# This enables using PHILSYS_ID, DRIVERS_LICENSE, etc. for proper keyword validation
+				raw_id_type = getattr(payload, 'rep_id_type', 'FRONTID') or 'FRONTID'
+				
+				# Validate ID type - if unknown, fallback to generic FRONTID to ensure OCR runs
+				# This prevents invalid types (e.g. "2x2") from bypassing OCR checks
+				valid_id_types = [
+					'PHILSYS_ID', 'DRIVERS_LICENSE', 'SSS_ID', 'PRC_ID', 
+					'POSTAL_ID', 'VOTERS_ID', 'TIN_ID', 'SENIOR_CITIZEN_ID', 'OFW_ID',
+					'PASSPORT', 'NATIONALID', 'UMID', 'PHILHEALTH', 'FRONTID'
+				]
+				rep_id_type = raw_id_type if raw_id_type in valid_id_types else 'FRONTID'
+				if rep_id_type != raw_id_type:
+					print(f"   ⚠️ Unknown ID type '{raw_id_type}', defaulting to FRONTID")
 				
 				# Map agency document types to verification service document types
 				# Use actual ID type for REP_ID_FRONT to enable type-specific OCR keywords

@@ -51,15 +51,11 @@ const AgencyKYCPage = () => {
   const [businessPermit, setBusinessPermit] = useState<File | null>(null);
   const [repIDFront, setRepIDFront] = useState<File | null>(null);
   const [repIDBack, setRepIDBack] = useState<File | null>(null);
-  const [addressProof, setAddressProof] = useState<File | null>(null);
-  const [authLetterFile, setAuthLetterFile] = useState<File | null>(null);
 
   // Previews
   const [permitPreview, setPermitPreview] = useState("");
   const [repFrontPreview, setRepFrontPreview] = useState("");
   const [repBackPreview, setRepBackPreview] = useState("");
-  const [addressPreview, setAddressPreview] = useState("");
-  const [authLetterPreview, setAuthLetterPreview] = useState("");
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false); // Loading state for navigation
@@ -333,25 +329,7 @@ const AgencyKYCPage = () => {
     }
   };
 
-  const handleAddressChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    const err = validateFile(f);
-    if (err)
-      return showToast({ type: "error", title: "Invalid file", message: err });
-    setAddressProof(f);
-    handleFilePreview(f, setAddressPreview);
-  };
 
-  const handleAuthLetterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    const err = validateFile(f);
-    if (err)
-      return showToast({ type: "error", title: "Invalid file", message: err });
-    setAuthLetterFile(f);
-    handleFilePreview(f, setAuthLetterPreview);
-  };
 
   const handleFileChange = (
     e: React.ChangeEvent<HTMLInputElement>,
@@ -372,41 +350,12 @@ const AgencyKYCPage = () => {
     } else if (type === "back") {
       setRepIDBack(file);
       handleFilePreview(file, setRepBackPreview);
-    } else if (type === "address") {
-      setAddressProof(file);
-      handleFilePreview(file, setAddressPreview);
-    } else if (type === "authLetter") {
-      setAuthLetterFile(file);
-      handleFilePreview(file, setAuthLetterPreview);
     }
   };
 
   const handleNextStep = () => {
     if (currentStep === 1) setCurrentStep(2);
-    else if (currentStep === 2) {
-      if (!repIDFront || !repIDBack)
-        return showToast({
-          type: "warning",
-          title: "Missing ID",
-          message: "Please upload both front and back of authorized rep ID",
-        });
-      if (!businessPermit)
-        return showToast({
-          type: "warning",
-          title: "Missing Document",
-          message: "Please upload business permit",
-        });
-      setCurrentStep(3);
-    } else if (currentStep === 3) {
-      if (!authLetterFile)
-        return showToast({
-          type: "warning",
-          title: "Missing Authorization Letter",
-          message:
-            "Please upload an authorization letter on company letterhead",
-        });
-      setCurrentStep(4);
-    }
+    // Step 2 calls handleSubmit directly
   };
 
   const handleBack = () => {
@@ -420,9 +369,7 @@ const AgencyKYCPage = () => {
       !registrationNumber ||
       !businessPermit ||
       !repIDFront ||
-      !repIDBack ||
-      !addressProof ||
-      !authLetterFile
+      !repIDBack
     ) {
       showToast({
         type: "warning",
@@ -445,8 +392,6 @@ const AgencyKYCPage = () => {
       formData.append("rep_front", repIDFront as Blob);
       formData.append("rep_back", repIDBack as Blob);
       formData.append("business_permit", businessPermit as Blob);
-      formData.append("address_proof", addressProof as Blob);
-      formData.append("auth_letter", authLetterFile as Blob);
 
       const upload = await fetch(`${API_BASE}/api/agency/upload`, {
         method: "POST",
@@ -480,7 +425,7 @@ const AgencyKYCPage = () => {
         setAgencyKycStatus("REJECTED");
         setAgencyKycNotes(rejectionReasons.join("\n"));
         if (responseData?.files) setAgencyKycFiles(responseData.files || []);
-        setCurrentStep(6); // Go to status step
+        setCurrentStep(4); // Go to status step
         setIsSubmitting(false);
         return;
       }
@@ -496,7 +441,7 @@ const AgencyKYCPage = () => {
 
       // After successful upload, fetch autofill data and go to OCR confirmation step
       await refetchAutofill();
-      setCurrentStep(5); // Issue #1: Go to OCR confirmation step
+      setCurrentStep(3); // Go to OCR confirmation step
     } catch (err) {
       console.error(err);
       showToast({
@@ -606,15 +551,11 @@ const AgencyKYCPage = () => {
     setBusinessPermit(null);
     setRepIDFront(null);
     setRepIDBack(null);
-    setAddressProof(null);
-    setAuthLetterFile(null);
 
     // Clear all previews
     setPermitPreview("");
     setRepFrontPreview("");
     setRepBackPreview("");
-    setAddressPreview("");
-    setAuthLetterPreview("");
 
     // Clear OCR/confirmation state
     setOcrFields({});
@@ -636,7 +577,7 @@ const AgencyKYCPage = () => {
   };
 
   const renderProgressBar = () => {
-    const steps = 6; // Updated: 6 steps including OCR confirmation
+    const steps = 4; // 1: Start, 2: Uploads, 3: OCR Confirm, 4: Status
     return (
       <div className="flex items-center justify-center space-x-2 mb-8">
         {Array.from({ length: steps }).map((_, index) => (
@@ -691,8 +632,7 @@ const AgencyKYCPage = () => {
                 clipRule="evenodd"
               />
             </svg>
-            Business registration certificate (DTI/SEC/CDA based on business
-            type)
+            Business registration certificate (DTI/SEC/CDA)
           </li>
           <li className="flex items-start text-sm text-gray-700">
             <svg
@@ -707,20 +647,6 @@ const AgencyKYCPage = () => {
               />
             </svg>
             Authorized representative ID (front & back)
-          </li>
-          <li className="flex items-start text-sm text-gray-700">
-            <svg
-              className="w-5 h-5 text-blue-500 mr-2 flex-shrink-0 mt-0.5"
-              fill="currentColor"
-              viewBox="0 0 20 20"
-            >
-              <path
-                fillRule="evenodd"
-                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                clipRule="evenodd"
-              />
-            </svg>
-            Proof of business address
           </li>
         </ul>
       </div>
@@ -1026,101 +952,18 @@ const AgencyKYCPage = () => {
       </div>
 
       <div className="flex justify-end gap-2 mt-8">
-        <Button onClick={handleNextStep}>Continue</Button>
-      </div>
-    </div>
-  );
-
-  const renderStep3 = () => (
-    <div className="text-center max-w-md mx-auto">
-      <h1 className="text-2xl font-bold text-gray-900 mb-3">
-        Proof of Address & Authorization Letter
-      </h1>
-      <p className="text-gray-600 mb-6">
-        Upload proof of business address and a signed authorization letter on
-        company letterhead.
-      </p>
-
-      <div className="mb-6">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Proof of business address (image or PDF)
-        </label>
-        <label
-          htmlFor="addressUpload"
-          className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-blue-500 transition-colors bg-gray-50 min-h-[150px] flex items-center justify-center"
+        <Button
+          onClick={handleSubmit}
+          disabled={isSubmitting || !businessPermit || !repIDFront || !repIDBack}
+          className="bg-blue-500 text-white"
         >
-          {addressPreview ? (
-            <Image
-              src={addressPreview}
-              alt="Address"
-              width={300}
-              height={160}
-              className="mx-auto rounded-lg object-cover"
-            />
-          ) : (
-            <div>
-              <p className="text-sm font-medium text-gray-700">
-                Upload proof of address
-              </p>
-              <p className="text-xs text-gray-500 mt-1">
-                PNG, JPG, PDF (Max 15MB)
-              </p>
-            </div>
-          )}
-        </label>
-        <input
-          id="addressUpload"
-          type="file"
-          accept="image/*,.pdf"
-          onChange={handleAddressChange}
-          className="hidden"
-        />
-      </div>
-
-      <div className="mb-6">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Authorization letter (signed on company letterhead)
-        </label>
-        <label
-          htmlFor="authLetterUpload"
-          className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-blue-500 transition-colors bg-gray-50 min-h-[150px] flex items-center justify-center"
-        >
-          {authLetterPreview ? (
-            <Image
-              src={authLetterPreview}
-              alt="Authorization letter"
-              width={300}
-              height={200}
-              className="mx-auto rounded-lg object-cover"
-            />
-          ) : (
-            <div>
-              <p className="text-sm font-medium text-gray-700">
-                Upload signed authorization letter (PDF or image){" "}
-                <span className="text-red-500">*</span>
-              </p>
-              <p className="text-xs text-gray-500 mt-1">
-                PDF, PNG, JPG (Max 15MB)
-              </p>
-            </div>
-          )}
-        </label>
-        <input
-          id="authLetterUpload"
-          type="file"
-          accept="image/*,.pdf"
-          onChange={handleAuthLetterChange}
-          className="hidden"
-        />
-      </div>
-
-      <div className="flex justify-end gap-2 mt-6">
-        <Button onClick={handleSubmit} className="bg-blue-500 text-white">
-          Submit
+          {isSubmitting ? "Submitting..." : "Submit & Verify"}
         </Button>
       </div>
     </div>
   );
+
+
 
   const getStatusBadge = () => {
     const status = agencyKycStatus?.toUpperCase();
@@ -1339,7 +1182,7 @@ const AgencyKYCPage = () => {
             {/* Action Buttons */}
             <div className="flex justify-between gap-3 mt-6">
               <button
-                onClick={() => setCurrentStep(3)}
+                onClick={() => setCurrentStep(2)}
                 className="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium"
               >
                 ← Back
@@ -1668,12 +1511,10 @@ const AgencyKYCPage = () => {
               >
                 {currentStep === 1 && renderStep1()}
                 {currentStep === 2 && renderStep2()}
-                {currentStep === 3 && renderStep3()}
-                {currentStep === 4 && renderStep5()}
-                {currentStep === 5 && renderStep5()}
-                {currentStep === 6 && renderStep6()}
+                {currentStep === 3 && renderStep5()}
+                {currentStep === 4 && renderStep6()}
                 {/* Fallback for any unmapped step */}
-                {currentStep > 6 && renderStep6()}
+                {currentStep > 4 && renderStep6()}
               </div>
             </div>
           </div>
