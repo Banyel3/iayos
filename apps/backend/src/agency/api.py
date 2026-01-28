@@ -242,6 +242,10 @@ def validate_agency_document(request):
                 file_name=f"{document_type}.jpg"
             )
             
+            # Get proper rejection message using should_auto_reject
+            from accounts.document_verification_service import should_auto_reject
+            _, rejection_message = should_auto_reject(result)
+            
             # Prepare result for caching
             validation_data = {
                 'ai_status': result.status.value,
@@ -253,7 +257,7 @@ def validate_agency_document(request):
                 'ai_warnings': result.warnings or [],
                 'ai_details': result.details or {},
                 'ai_rejection_reason': result.rejection_reason.value if result.rejection_reason else None,
-                'ai_rejection_message': result.details.get('message') if result.details else None,
+                'ai_rejection_message': rejection_message if rejection_message else None,
             }
             
             # Cache the result
