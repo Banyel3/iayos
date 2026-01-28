@@ -55,58 +55,28 @@ WORKDIR /app/apps/frontend_web
 RUN npm run build
 
 # ============================================
-# Stage 4: Flutter Base Image
+# Stage 4-6: Flutter Disabled
 # ============================================
-FROM debian:bookworm-slim AS flutter-base
+# Flutter mobile build is disabled to speed up Render deploys.
+# Mobile APKs are built separately via GitHub Actions CI/CD.
+# To enable Flutter build, uncomment the stages below.
+#
+# FROM debian:bookworm-slim AS flutter-base
+# RUN apt-get update && apt-get install -y curl git unzip xz-utils zip libglu1-mesa && rm -rf /var/lib/apt/lists/*
+# ENV FLUTTER_VERSION=3.24.5
+# ENV FLUTTER_HOME=/opt/flutter
+# ENV PATH="$FLUTTER_HOME/bin:$PATH"
+# RUN git clone https://github.com/flutter/flutter.git -b stable --depth 1 $FLUTTER_HOME \
+#     && flutter precache --android && flutter config --no-analytics && flutter doctor -v
+#
+# FROM flutter-base AS mobile-builder
+# COPY apps/frontend_mobile/iayos_mobile ./apps/frontend_mobile/iayos_mobile
+# WORKDIR /app/apps/frontend_mobile/iayos_mobile
+# RUN flutter pub get && flutter build apk --release --split-per-abi
+#
+# FROM scratch AS mobile-production
+# COPY --from=mobile-builder /app/apps/frontend_mobile/iayos_mobile/build/app/outputs/flutter-apk/*.apk /
 
-# Install Flutter dependencies
-RUN apt-get update && apt-get install -y \
-    curl \
-    git \
-    unzip \
-    xz-utils \
-    zip \
-    libglu1-mesa \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install Flutter SDK
-ENV FLUTTER_VERSION=3.24.5
-ENV FLUTTER_HOME=/opt/flutter
-ENV PATH="$FLUTTER_HOME/bin:$PATH"
-
-RUN git clone https://github.com/flutter/flutter.git -b stable --depth 1 $FLUTTER_HOME \
-    && flutter precache --android \
-    && flutter config --no-analytics \
-    && flutter doctor -v
-
-WORKDIR /app
-
-# ============================================
-# Stage 5: Flutter Mobile Build (Android APK)
-# ============================================
-FROM flutter-base AS mobile-builder
-
-# Copy Flutter mobile app source
-COPY apps/frontend_mobile/iayos_mobile ./apps/frontend_mobile/iayos_mobile
-
-WORKDIR /app/apps/frontend_mobile/iayos_mobile
-
-# Get Flutter dependencies
-RUN flutter pub get
-
-# Build Android APK (release mode)
-RUN flutter build apk --release --split-per-abi
-
-# ============================================
-# Stage 6: Flutter Mobile Production
-# ============================================
-FROM scratch AS mobile-production
-
-# Copy built APKs to a scratch image for extraction
-COPY --from=mobile-builder /app/apps/frontend_mobile/iayos_mobile/build/app/outputs/flutter-apk/*.apk /
-
-# Note: This stage outputs APK files that can be extracted with:
-# docker build --target mobile-production --output type=local,dest=./output .
 
 # ============================================
 # Stage 7: Python Backend Base (Secure Alpine)

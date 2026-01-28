@@ -68,7 +68,9 @@ def validate_agency_document(request):
     """
     Per-step validation for agency KYC uploads.
     Validates document quality (resolution, blur) and face detection (for rep ID).
-    Call this before allowing user to proceed to next step.
+    
+    InsightFace is pre-warmed on server startup, so first request is fast.
+    Face detection runs on every upload for immediate feedback.
     
     Request: multipart/form-data with:
     - file: The document to validate
@@ -117,12 +119,10 @@ def validate_agency_document(request):
         require_face = document_type in ['REP_ID_FRONT', 'REP_ID_BACK']
         
         # Map to verification service document type
-        # If rep_id_type is provided for REP_ID_FRONT/BACK, use it for type-specific OCR validation
-        # This enables using the unified ID type naming (PHILSYS_ID, DRIVERS_LICENSE, etc.)
         doc_type_mapping = {
             'BUSINESS_PERMIT': 'BUSINESS_PERMIT',
-            'REP_ID_FRONT': rep_id_type if rep_id_type else 'FRONTID',  # Use actual ID type if provided
-            'REP_ID_BACK': 'BACKID',  # Back typically doesn't have type-specific keywords
+            'REP_ID_FRONT': rep_id_type if rep_id_type else 'FRONTID',
+            'REP_ID_BACK': 'BACKID',
             'ADDRESS_PROOF': 'ADDRESS_PROOF',
             'AUTH_LETTER': 'AUTH_LETTER',
         }
@@ -130,13 +130,22 @@ def validate_agency_document(request):
         
         print(f"🔍 [AGENCY] Validating {document_type} as {verification_doc_type}, require_face={require_face}")
         
-        # Lazy import to avoid blocking Django startup
+        # Import and run validation - InsightFace is pre-warmed so this is fast
         try:
             from accounts.document_verification_service import DocumentVerificationService
             service = DocumentVerificationService()
+            
+            # Run quick validation (resolution + blur + face)
+            result = service.validate_document_quick(
+                file_data=file_data,
+                document_type=verification_doc_type,
+                require_face=require_face
+            )
+            return result
+            
         except Exception as init_error:
-            print(f"⚠️ DocumentVerificationService init failed: {init_error}")
-            # Return valid with manual review flag if AI service unavailable
+            print(f"⚠️ DocumentVerificationService error: {init_error}")
+            # Return valid with manual review flag if AI service fails
             return {
                 "valid": True,
                 "error": None,
@@ -147,21 +156,11 @@ def validate_agency_document(request):
                 }
             }
         
-        # Run quick validation (resolution + blur + face)
-        result = service.validate_document_quick(
-            file_data=file_data,
-            document_type=verification_doc_type,
-            require_face=require_face
-        )
-        
-        return result
-        
     except Exception as e:
         import traceback
         error_msg = str(e)
         print(f"Error in validate_agency_document: {error_msg}")
         traceback.print_exc()
-        # Return actual error for debugging
         return Response({
             "valid": False, 
             "error": f"Validation failed: {error_msg}" if error_msg else "Validation failed. Please try again.",

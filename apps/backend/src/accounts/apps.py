@@ -59,5 +59,14 @@ class AccountsConfig(AppConfig):
             
             print("="*60 + "\n")
             
+            # Start InsightFace pre-warm in background thread
+            # This loads InsightFace before first request arrives, so first upload is fast
+            try:
+                from accounts.face_detection_service import prewarm_insightface
+                prewarm_insightface()
+            except Exception as e:
+                logger.warning(f"Could not start InsightFace pre-warm: {e}")
+            
         except Exception as e:
             logger.warning(f"Could not run AI services health check: {e}")
+

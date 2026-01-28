@@ -43,6 +43,7 @@ logger = logging.getLogger(__name__)
 INSIGHTFACE_AVAILABLE = None  # None = not checked yet, True/False = checked
 FaceAnalysis = None
 _insightface_load_attempted = False
+_prewarm_started = False
 
 def _load_insightface():
     """Lazy-load InsightFace on first use. Returns True if available."""
@@ -77,6 +78,47 @@ def _load_insightface():
         logger.error(f"   Full traceback:\n{traceback.format_exc()}")
         INSIGHTFACE_AVAILABLE = False
         return False
+
+
+def prewarm_insightface():
+    """
+    Pre-warm InsightFace in a background thread during Django startup.
+    This ensures the first user request doesn't wait 24s for InsightFace to load.
+    
+    Call this from accounts/apps.py AppConfig.ready() to start pre-warming.
+    """
+    global _prewarm_started
+    
+    if _prewarm_started:
+        return
+    
+    _prewarm_started = True
+    
+    def _prewarm_thread():
+        import time
+        start = time.time()
+        logger.info("🚀 [PREWARM] Starting InsightFace pre-warm in background...")
+        
+        # Load InsightFace module
+        if _load_insightface():
+            # Also initialize the face detection service to warm up the model
+            try:
+                service = FaceDetectionService()
+                if service._initialized:
+                    elapsed = time.time() - start
+                    logger.info(f"✅ [PREWARM] InsightFace ready in {elapsed:.1f}s - first request will be fast!")
+                else:
+                    logger.warning("⚠️ [PREWARM] InsightFace loaded but service not initialized")
+            except Exception as e:
+                logger.error(f"❌ [PREWARM] Failed to initialize FaceDetectionService: {e}")
+        else:
+            logger.warning("⚠️ [PREWARM] InsightFace not available - face detection will be disabled")
+    
+    import threading
+    thread = threading.Thread(target=_prewarm_thread, name="insightface-prewarm", daemon=True)
+    thread.start()
+    logger.info("🔄 [PREWARM] Background thread started")
+
 
 
 # InsightFace model configuration
