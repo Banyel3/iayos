@@ -144,6 +144,11 @@ export const ENDPOINTS = {
   REGISTER: `${API_URL}/api/mobile/auth/register`,
   ME: `${API_URL}/api/mobile/auth/profile`,
   ASSIGN_ROLE: `${API_URL}/api/mobile/auth/assign-role`,
+  
+  // OTP Verification
+  VERIFY_OTP_ENDPOINT: `${API_URL}/api/accounts/verify-otp`,
+  RESEND_OTP_ENDPOINT: `${API_URL}/api/accounts/resend-otp`,
+  OTP_EMAIL_ENDPOINT: `${API_URL}/api/mobile/auth/send-otp-email`,
 
   // Jobs - Use mobile endpoints with Bearer token auth
   AVAILABLE_JOBS: `${API_URL}/api/mobile/jobs/available`,
