@@ -461,9 +461,8 @@ class DocumentVerificationService:
             extracted_text = ""
             
             print(f"   📝 OCR check: document_type={document_type.upper()}, ocr_required={ocr_required}")
-            print(f"   📝 Available DOCUMENT_KEYWORDS: {list(DOCUMENT_KEYWORDS.keys())}")
             print(f"   📝 TESSERACT_AVAILABLE = {TESSERACT_AVAILABLE}")
-            
+
             if ocr_required or document_type.upper() in ["NBI", "POLICE", "CLEARANCE"]:
                 print(f"   📝 Running Tesseract OCR for {document_type}...")
                 ocr_result = self._extract_text(image)
@@ -477,11 +476,11 @@ class DocumentVerificationService:
                 }
                 
                 # Log extracted text for debugging (first 500 chars)
+                # Log extracted text for debugging (first 500 chars)
                 text_preview = extracted_text[:500].replace('\n', ' ') if extracted_text else "(empty)"
                 print(f"   📝 OCR extracted ({len(extracted_text)} chars): {text_preview}")
-                print(f"   📝 OCR result: skipped={ocr_result.get('skipped')}, error={ocr_result.get('error')}, reason={ocr_result.get('reason')}")
                 
-                # CRITICAL: Fail if OCR was skipped or errored - don't allow documents without text verification
+                 # CRITICAL: Fail if OCR was skipped or errored - don't allow documents without text verification
                 if ocr_result.get("skipped") or ocr_result.get("error"):
                     error_reason = ocr_result.get("reason") or ocr_result.get("error") or "OCR unavailable"
                     print(f"   ❌ OCR FAILED: {error_reason}")
