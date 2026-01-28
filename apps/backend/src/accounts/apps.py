@@ -37,11 +37,11 @@ class AccountsConfig(AppConfig):
         except Exception as e:
             print(f"⚠️ Tesseract OCR: UNAVAILABLE - {e}")
         
-        # Check CompreFace URL (just env var check, no network call)
-        compreface_url = os.getenv("COMPREFACE_URL", "")
-        if compreface_url:
-            print(f"✅ CompreFace URL: {compreface_url}")
+        # Check Face API URL (just env var check, no network call)
+        face_api_url = os.getenv("FACE_API_URL", "")
+        if face_api_url:
+            print(f"✅ Face API URL: {face_api_url}")
         else:
-            print("⚠️ CompreFace: COMPREFACE_URL not set - face detection disabled")
+            print("⚠️ Face API: FACE_API_URL not set - face detection disabled")
         
         print("="*60 + "\n")
