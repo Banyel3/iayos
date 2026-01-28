@@ -11,6 +11,8 @@ Endpoints:
 
 import io
 import os
+import gc
+import asyncio
 import logging
 from typing import Optional
 from contextlib import asynccontextmanager
@@ -26,9 +28,12 @@ logger = logging.getLogger(__name__)
 
 # MediaPipe configuration
 MIN_DETECTION_CONFIDENCE = float(os.getenv("MIN_DETECTION_CONFIDENCE", "0.7"))
+KEEP_ALIVE_INTERVAL = int(os.getenv("KEEP_ALIVE_INTERVAL", "300"))  # 5 minutes
 
 # Global face detector
 face_detector = None
+keep_alive_task = None
+request_count = 0
 
 
 def load_mediapipe():
@@ -61,14 +66,55 @@ def load_mediapipe():
         return False
 
 
+async def keep_alive():
+    """
+    Background task to prevent Render free tier spin-down.
+    Logs activity every KEEP_ALIVE_INTERVAL seconds.
+    """
+    global request_count
+    
+    await asyncio.sleep(30)  # Wait for startup
+    logger.info(f"🔄 Keep-alive started (interval: {KEEP_ALIVE_INTERVAL}s)")
+    
+    while True:
+        try:
+            # Log status to show activity
+            status = "healthy" if face_detector is not None else "degraded"
+            logger.info(f"🏓 Keep-alive: status={status}, requests_served={request_count}")
+            
+            # Force garbage collection to prevent memory buildup
+            gc.collect()
+            
+        except Exception as e:
+            logger.error(f"Keep-alive error: {e}")
+        
+        await asyncio.sleep(KEEP_ALIVE_INTERVAL)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Load model on startup"""
+    """Load model on startup, start keep-alive task"""
+    global keep_alive_task
+    
     load_mediapipe()
+    
+    # Start keep-alive background task
+    keep_alive_task = asyncio.create_task(keep_alive())
+    
     yield
+    
     # Cleanup
+    if keep_alive_task:
+        keep_alive_task.cancel()
+        try:
+            await keep_alive_task
+        except asyncio.CancelledError:
+            pass
+    
     if face_detector:
         face_detector.close()
+    
+    logger.info("👋 Shutdown complete")
 
 
 app = FastAPI(
@@ -90,11 +136,19 @@ class DetectionResult(BaseModel):
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
+    """Health check endpoint with memory info"""
+    import psutil
+    
+    # Get memory usage
+    process = psutil.Process()
+    memory_mb = process.memory_info().rss / 1024 / 1024
+    
     return {
         "status": "healthy" if face_detector is not None else "degraded",
         "model": "mediapipe",
-        "model_loaded": face_detector is not None
+        "model_loaded": face_detector is not None,
+        "requests_served": request_count,
+        "memory_mb": round(memory_mb, 1)
     }
 
 
@@ -109,8 +163,17 @@ async def detect_faces(file: UploadFile = File(...)):
     - confidence: float - highest face confidence score
     - faces: list - face bounding boxes
     """
+    global request_count
+    
     if face_detector is None:
         raise HTTPException(status_code=503, detail="Face detection model not loaded")
+    
+    # Track requests
+    request_count += 1
+    
+    image = None
+    img_array = None
+    results = None
     
     try:
         # Read and process image
@@ -123,6 +186,9 @@ async def detect_faces(file: UploadFile = File(...)):
         
         # Convert to numpy array for MediaPipe
         img_array = np.array(image)
+        
+        # Get dimensions before processing
+        img_height, img_width = img_array.shape[:2]
         
         # Detect faces
         results = face_detector.process(img_array)
@@ -138,7 +204,6 @@ async def detect_faces(file: UploadFile = File(...)):
         # Extract face info
         face_data = []
         max_confidence = 0.0
-        img_height, img_width = img_array.shape[:2]
         
         for detection in results.detections:
             # Get confidence score
@@ -177,6 +242,18 @@ async def detect_faces(file: UploadFile = File(...)):
     except Exception as e:
         logger.error(f"Detection error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+    
+    finally:
+        # Explicit memory cleanup to prevent accumulation
+        if image is not None:
+            image.close()
+            del image
+        if img_array is not None:
+            del img_array
+        if results is not None:
+            del results
+        del contents
+        gc.collect()
 
 
 @app.post("/verify")
@@ -196,8 +273,17 @@ async def verify_faces(
     - face2_detected: bool
     - note: Explanation that matching requires manual review
     """
+    global request_count
+    
     if face_detector is None:
         raise HTTPException(status_code=503, detail="Face detection model not loaded")
+    
+    request_count += 1
+    
+    image1 = None
+    image2 = None
+    array1 = None
+    array2 = None
     
     try:
         # Process first image
@@ -205,7 +291,8 @@ async def verify_faces(
         image1 = Image.open(io.BytesIO(contents1))
         if image1.mode != 'RGB':
             image1 = image1.convert('RGB')
-        results1 = face_detector.process(np.array(image1))
+        array1 = np.array(image1)
+        results1 = face_detector.process(array1)
         face1_detected = bool(results1.detections)
         
         # Process second image
@@ -213,7 +300,8 @@ async def verify_faces(
         image2 = Image.open(io.BytesIO(contents2))
         if image2.mode != 'RGB':
             image2 = image2.convert('RGB')
-        results2 = face_detector.process(np.array(image2))
+        array2 = np.array(image2)
+        results2 = face_detector.process(array2)
         face2_detected = bool(results2.detections)
         
         return {
@@ -227,6 +315,14 @@ async def verify_faces(
     except Exception as e:
         logger.error(f"Verification error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+    
+    finally:
+        # Explicit memory cleanup
+        for img in [image1, image2]:
+            if img is not None:
+                img.close()
+        del image1, image2, array1, array2, contents1, contents2
+        gc.collect()
 
 
 if __name__ == "__main__":
