@@ -307,7 +307,8 @@ COPY --from=backend-deps --chown=appuser:appgroup /app/venv /app/venv
 COPY --from=backend-builder --chown=appuser:appgroup /app/backend ./
 
 # Make start.sh executable (it's already copied from backend-builder)
-RUN chmod +x /app/backend/start.sh
+# CRITICAL: Fix Windows line endings (CRLF) if present
+RUN sed -i 's/\r$//' /app/backend/start.sh && chmod +x /app/backend/start.sh
 
 # CRITICAL: Verify all dependencies are accessible at build time
 # Virtualenv PATH ensures python finds all packages automatically
