@@ -17,6 +17,8 @@ import {
   OTP_EMAIL_ENDPOINT,
   VERIFY_OTP_ENDPOINT,
   RESEND_OTP_ENDPOINT,
+  checkNetworkConnectivity,
+  getApiUrl,
 } from "../lib/api/config";
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -288,6 +290,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     payload: RegisterPayload,
   ): Promise<RegistrationResponse> => {
     try {
+      // Pre-flight network connectivity check
+      console.log("📡 [Register] Checking network connectivity...");
+      const networkState = await checkNetworkConnectivity();
+      console.log(`📡 [Register] Network: connected=${networkState.isConnected}, type=${networkState.type}`);
+      
+      if (!networkState.isConnected) {
+        throw new Error("No internet connection. Please check your network settings and try again.");
+      }
+      
+      console.log(`📡 [Register] API URL: ${getApiUrl()}`);
+      console.log(`📡 [Register] Endpoint: ${ENDPOINTS.REGISTER}`);
+      
       const { confirmPassword, ...rest } = payload;
       const requestPayload = {
         ...rest,
@@ -295,12 +309,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         country: rest.country || "Philippines",
       };
 
+      console.log("📡 [Register] Sending registration request...");
       const response = await apiRequest(ENDPOINTS.REGISTER, {
         method: "POST",
         body: JSON.stringify(requestPayload),
       });
 
       const responseBody = await response.json().catch(() => null);
+      console.log(`📡 [Register] Response status: ${response.status}`);
 
       if (!response.ok) {
         let message = "Registration failed";

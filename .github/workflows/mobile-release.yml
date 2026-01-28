@@ -44,6 +44,11 @@ on:
         required: false
         default: false
         type: boolean
+      local_build:
+        description: "Local build mode - bumps version and creates tag, but you build APK locally with Android Studio"
+        required: false
+        default: false
+        type: boolean
       is_qa:
         description: "Mark as QA release (adds -qa suffix to tag)"
         required: false
@@ -232,30 +237,30 @@ jobs:
       # ============================================
       
       - name: Setup Java JDK 17
-        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true'
+        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true' && github.event.inputs.local_build != 'true'
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
       - name: Setup Android SDK
-        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true'
+        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true' && github.event.inputs.local_build != 'true'
         uses: android-actions/setup-android@v3
         with:
           cmdline-tools-version: 11076708  # Latest stable
           
       - name: Accept Android Licenses
-        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true'
+        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true' && github.event.inputs.local_build != 'true'
         run: yes | sdkmanager --licenses || true
 
       - name: Install Android Build Tools
-        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true'
+        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true' && github.event.inputs.local_build != 'true'
         run: |
           sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;26.1.10909125"
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/26.1.10909125" >> $GITHUB_ENV
 
       - name: Build Android APK (Local - No EAS Credits!)
-        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true'
+        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build != 'true' && github.event.inputs.local_build != 'true'
         working-directory: ${{ env.MOBILE_DIR }}
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
@@ -320,6 +325,45 @@ jobs:
           
           echo "✅ APK downloaded successfully"
           ls -la iayos-${{ steps.version.outputs.new_version }}.apk
+
+      # ============================================================================
+      # LOCAL BUILD MODE - Skip cloud build and provide instructions
+      # ============================================================================
+      - name: Local Build Instructions
+        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.local_build == 'true'
+        run: |
+          echo ""
+          echo "╔══════════════════════════════════════════════════════════════════════════════╗"
+          echo "║                    🏗️  LOCAL BUILD MODE ACTIVATED                           ║"
+          echo "╚══════════════════════════════════════════════════════════════════════════════╝"
+          echo ""
+          echo "✅ Version bumped to: ${{ steps.version.outputs.new_version }}"
+          echo "✅ Tag will be created: ${{ steps.version.outputs.tag_name }}"
+          echo ""
+          echo "📋 To build the APK locally (5-10 minutes vs 30+ minutes in cloud):"
+          echo ""
+          echo "   Option A: Using Expo CLI (Recommended)"
+          echo "   ────────────────────────────────────────"
+          echo "   1. git pull origin main"
+          echo "   2. cd apps/frontend_mobile/iayos_mobile"
+          echo "   3. npm install"
+          echo "   4. npx expo prebuild --clean"
+          echo "   5. npx expo run:android --variant release"
+          echo ""
+          echo "   Option B: Using Android Studio"
+          echo "   ────────────────────────────────────────"
+          echo "   1. git pull origin main"
+          echo "   2. cd apps/frontend_mobile/iayos_mobile"
+          echo "   3. npm install"
+          echo "   4. npx expo prebuild --clean"
+          echo "   5. Open 'android' folder in Android Studio"
+          echo "   6. Build > Generate Signed Bundle/APK > APK"
+          echo "   7. Choose 'release' build variant"
+          echo ""
+          echo "   APK Location: android/app/build/outputs/apk/release/app-release.apk"
+          echo ""
+          echo "🚀 After building, you can manually upload to the GitHub Release page!"
+          echo ""
 
       - name: Commit version bump
         if: steps.analyze.outputs.should_release == 'true'
@@ -394,7 +438,7 @@ jobs:
           fi
 
       - name: Create Release
-        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true'
+        if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.local_build != 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.commit_version.outputs.tag_name }}
@@ -436,6 +480,17 @@ jobs:
             echo "🏗️ **Profile:** ${{ github.event.inputs.build_type || 'production' }}" >> $GITHUB_STEP_SUMMARY
             if [ "${{ github.event.inputs.skip_build }}" == "true" ]; then
               echo "⚠️ **Build:** Skipped (testing mode)" >> $GITHUB_STEP_SUMMARY
+            elif [ "${{ github.event.inputs.local_build }}" == "true" ]; then
+              echo "🏠 **Build:** Local build mode - Build APK locally with Android Studio" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "### 🏗️ Local Build Instructions" >> $GITHUB_STEP_SUMMARY
+              echo "1. \`git pull origin main\`" >> $GITHUB_STEP_SUMMARY
+              echo "2. \`cd apps/frontend_mobile/iayos_mobile\`" >> $GITHUB_STEP_SUMMARY
+              echo "3. \`npm install\`" >> $GITHUB_STEP_SUMMARY
+              echo "4. \`npx expo prebuild --clean\`" >> $GITHUB_STEP_SUMMARY
+              echo "5. \`npx expo run:android --variant release\`" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "📍 APK: \`android/app/build/outputs/apk/release/app-release.apk\`" >> $GITHUB_STEP_SUMMARY
             elif [ "${{ github.event.inputs.use_latest_build }}" == "true" ]; then
               echo "♻️ **Build:** Using latest existing build" >> $GITHUB_STEP_SUMMARY
               echo "🔗 **Release:** ${{ steps.commit_version.outputs.tag_name || steps.version.outputs.tag_name }}" >> $GITHUB_STEP_SUMMARY
