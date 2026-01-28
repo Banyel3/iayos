@@ -254,16 +254,34 @@ jobs:
         if: steps.analyze.outputs.should_release == 'true' && github.event.inputs.skip_build != 'true' && github.event.inputs.use_latest_build == 'true'
         working-directory: ${{ env.MOBILE_DIR }}
         run: |
-          echo "♻️ Using latest existing build from Expo"
+          echo "♻️ Attempting to use latest existing build from Expo..."
+          echo ""
+          echo "⚠️  NOTE: This option only works for CLOUD (EAS) builds!"
+          echo "   Local builds are not uploaded to Expo and cannot be reused."
+          echo "   If you've been using local builds, you need to build fresh."
+          echo ""
           
           # Get build info
           BUILD_INFO=$(eas build:list --platform android --limit 1 --json --non-interactive 2>/dev/null || echo "[]")
           BUILD_URL=$(echo "$BUILD_INFO" | jq -r '.[0].artifacts.buildUrl // empty')
+          BUILD_STATUS=$(echo "$BUILD_INFO" | jq -r '.[0].status // empty')
+          BUILD_DATE=$(echo "$BUILD_INFO" | jq -r '.[0].createdAt // empty')
           
           if [ -z "$BUILD_URL" ] || [ "$BUILD_URL" = "null" ]; then
-            echo "❌ No existing build found"
+            echo "❌ No existing EAS cloud build found!"
+            echo ""
+            echo "📋 Options:"
+            echo "   1. Run workflow again WITHOUT 'use latest build' to build locally"
+            echo "   2. Run 'eas build --platform android' locally to create a cloud build"
+            echo ""
             exit 1
           fi
+          
+          echo "📦 Found EAS build:"
+          echo "   Status: $BUILD_STATUS"
+          echo "   Date: $BUILD_DATE"
+          echo "   URL: $BUILD_URL"
+          echo ""
           
           echo "Downloading APK from: $BUILD_URL"
           curl -L --fail --retry 3 -o iayos-${{ steps.version.outputs.new_version }}.apk "$BUILD_URL"
@@ -276,43 +294,66 @@ jobs:
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
+          
+          # Clean up any unstaged changes that might interfere with git operations
+          # This happens when npm ci or build process modifies files
+          git stash --include-untracked || true
+          
+          # Pull latest changes BEFORE making our commit
+          echo "🔄 Syncing with remote before committing..."
+          git fetch origin ${{ github.ref_name }}
+          git reset --hard origin/${{ github.ref_name }}
+          
+          # Re-apply our version changes (they were stashed or we need to redo them)
+          cd ${{ env.MOBILE_DIR }}
+          
+          # Re-bump version to ensure consistency
+          NEW_VERSION="${{ steps.version.outputs.new_version }}"
+          npm version $NEW_VERSION --no-git-tag-version --allow-same-version
+          
+          # Update app.json version
+          node -e "
+            const fs = require('fs');
+            const appJson = JSON.parse(fs.readFileSync('app.json', 'utf8'));
+            appJson.expo.version = '$NEW_VERSION';
+            fs.writeFileSync('app.json', JSON.stringify(appJson, null, 2) + '\n');
+          "
+          
+          cd -
+          
+          # Now commit and push
           git add ${{ env.MOBILE_DIR }}/package.json ${{ env.MOBILE_DIR }}/app.json
-          git commit -m "chore(mobile): bump version to ${{ steps.version.outputs.new_version }}"
           
-          # Pull with rebase before pushing to handle concurrent commits
-          echo "🔄 Pulling latest changes before pushing..."
-          MAX_PUSH_RETRIES=5
-          PUSH_RETRY=0
-          
-          while [ $PUSH_RETRY -lt $MAX_PUSH_RETRIES ]; do
-            echo "Attempt $((PUSH_RETRY + 1))/$MAX_PUSH_RETRIES: Pulling and pushing..."
+          # Check if there are changes to commit
+          if git diff --cached --quiet; then
+            echo "ℹ️ No version changes to commit (already at $NEW_VERSION)"
+          else
+            git commit -m "chore(mobile): bump version to ${{ steps.version.outputs.new_version }}"
             
-            # Pull with rebase (preserves our commit on top)
-            if git pull --rebase origin ${{ github.ref_name }}; then
-              echo "✅ Successfully pulled latest changes"
+            # Push with retry logic
+            MAX_PUSH_RETRIES=5
+            PUSH_RETRY=0
+            
+            while [ $PUSH_RETRY -lt $MAX_PUSH_RETRIES ]; do
+              echo "Attempt $((PUSH_RETRY + 1))/$MAX_PUSH_RETRIES: Pushing..."
               
-              # Try to push
               if git push origin HEAD:${{ github.ref_name }}; then
                 echo "✅ Successfully pushed version bump"
                 break
               else
-                echo "⚠️ Push failed, will retry..."
+                echo "⚠️ Push failed, fetching and rebasing..."
+                git fetch origin ${{ github.ref_name }}
+                git rebase origin/${{ github.ref_name }}
                 PUSH_RETRY=$((PUSH_RETRY + 1))
-                sleep 5
+                sleep 2
               fi
-            else
-              echo "❌ Pull rebase failed - may have conflicts"
-              # If rebase fails, abort and try again
-              git rebase --abort 2>/dev/null || true
-              PUSH_RETRY=$((PUSH_RETRY + 1))
-              sleep 5
+            done
+            
+            if [ $PUSH_RETRY -eq $MAX_PUSH_RETRIES ]; then
+              echo "❌ Failed to push after $MAX_PUSH_RETRIES attempts"
+              echo "⚠️ Continuing with release - version commit may be missing"
+              echo "::warning::Version bump commit was not pushed. Manual intervention may be needed."
             fi
-          done
-          
-          if [ $PUSH_RETRY -eq $MAX_PUSH_RETRIES ]; then
-            echo "❌ Failed to push after $MAX_PUSH_RETRIES attempts"
-            echo "⚠️ Continuing with release - version commit may be missing"
-            echo "::warning::Version bump commit was not pushed. Manual intervention may be needed."
           fi
 
       - name: Create Release
