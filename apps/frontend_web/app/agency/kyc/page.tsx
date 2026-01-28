@@ -30,6 +30,9 @@ const AgencyKYCPage = () => {
   const router = useRouter();
   const { showToast } = useToast();
 
+  // Hydration fix
+  const [isMounted, setIsMounted] = useState(false);
+
   const [currentStep, setCurrentStep] = useState(1);
   const [businessName, setBusinessName] = useState("");
   const [businessDesc, setBusinessDesc] = useState("");
@@ -120,8 +123,16 @@ const AgencyKYCPage = () => {
       }
     };
 
+
     if (!isLoading && isAuthenticated) fetchStatus();
   }, [isAuthenticated, isLoading, router]);
+
+  // Hydration fix: only render content after mount
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  if (!isMounted) return null;
 
   if (isLoading || !isAuthenticated) {
     return (
@@ -878,10 +889,10 @@ const AgencyKYCPage = () => {
             <label
               htmlFor="repFront"
               className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors bg-gray-50 min-h-[150px] flex items-center justify-center ${repFrontValidationError
-                  ? "border-red-400 bg-red-50"
-                  : repIDFront
-                    ? "border-green-400"
-                    : "border-gray-300 hover:border-blue-500"
+                ? "border-red-400 bg-red-50"
+                : repIDFront
+                  ? "border-green-400"
+                  : "border-gray-300 hover:border-blue-500"
                 } ${isValidatingRepFront ? "opacity-60 pointer-events-none" : ""}`}
             >
               {isValidatingRepFront ? (
@@ -950,10 +961,10 @@ const AgencyKYCPage = () => {
             <label
               htmlFor="repBack"
               className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors bg-gray-50 min-h-[150px] flex items-center justify-center ${repBackValidationError
-                  ? "border-red-400 bg-red-50"
-                  : repIDBack
-                    ? "border-green-400"
-                    : "border-gray-300 hover:border-blue-500"
+                ? "border-red-400 bg-red-50"
+                : repIDBack
+                  ? "border-green-400"
+                  : "border-gray-300 hover:border-blue-500"
                 } ${isValidatingRepBack ? "opacity-60 pointer-events-none" : ""}`}
             >
               {isValidatingRepBack ? (
@@ -1207,8 +1218,8 @@ const AgencyKYCPage = () => {
                         }
                         placeholder={field.placeholder}
                         className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${editedFields.has(field.key)
-                            ? "border-yellow-400 bg-yellow-50"
-                            : "border-gray-300"
+                          ? "border-yellow-400 bg-yellow-50"
+                          : "border-gray-300"
                           }`}
                       />
                       {hasAutofillData && (
@@ -1258,8 +1269,8 @@ const AgencyKYCPage = () => {
                             setRepIdType(e.target.value);
                           }}
                           className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white ${editedFields.has(field.key)
-                              ? "border-yellow-400 bg-yellow-50"
-                              : "border-gray-300"
+                            ? "border-yellow-400 bg-yellow-50"
+                            : "border-gray-300"
                             }`}
                         >
                           {field.options?.map((opt) => (
@@ -1277,8 +1288,8 @@ const AgencyKYCPage = () => {
                           }
                           placeholder={field.placeholder}
                           className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${editedFields.has(field.key)
-                              ? "border-yellow-400 bg-yellow-50"
-                              : "border-gray-300"
+                            ? "border-yellow-400 bg-yellow-50"
+                            : "border-gray-300"
                             }`}
                         />
                       )}
@@ -1589,8 +1600,8 @@ const AgencyKYCPage = () => {
           <button
             onClick={() => router.push("/agency/dashboard")}
             className={`px-6 py-3 rounded-full font-semibold transition-colors ${isRejected
-                ? "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                : "bg-blue-600 text-white hover:bg-blue-700"
+              ? "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              : "bg-blue-600 text-white hover:bg-blue-700"
               }`}
           >
             {isRejected ? "Back to Dashboard" : "Go to Dashboard"}

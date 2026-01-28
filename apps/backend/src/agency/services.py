@@ -312,9 +312,15 @@ def upload_agency_kyc(payload, business_permit, rep_front, rep_back, address_pro
 def get_agency_kyc_status(account_id):
 	try:
 		user = Accounts.objects.get(accountID=account_id)
-		try:
-			kyc_record = AgencyKYC.objects.get(accountFK=user)
-		except AgencyKYC.DoesNotExist:
+		# Get or create AgencyKYC if it doesn't exist yet (for status check)
+		# This prevents 500 errors for new accounts visiting /agency/kyc
+		kyc_record, created = AgencyKYC.objects.get_or_create(
+			accountFK=user,
+			defaults={'status': 'NOT_STARTED', 'notes': ''}
+		)
+		
+		# If just created or explicitly NOT_STARTED
+		if kyc_record.status == 'NOT_STARTED':
 			return {
 				"status": "NOT_STARTED",
 				"message": "No KYC submission found"
