@@ -574,7 +574,7 @@ const AgencyKYCPage = () => {
         setAgencyKycStatus("REJECTED");
         setAgencyKycNotes(rejectionReasons.join("\n"));
         if (responseData?.files) setAgencyKycFiles(responseData.files || []);
-        setCurrentStep(4); // Go to status step
+        setCurrentStep(5); // Go to status step (Step 5 renders the status page)
         setIsSubmitting(false);
         return;
       }
@@ -588,11 +588,11 @@ const AgencyKYCPage = () => {
         message: "Documents uploaded successfully. Verification in progress.",
       });
 
-      // Update status and navigate to Step 4 (status page)
+      // Update status and navigate to Step 5 (status page)
       setAgencyKycStatus(responseData?.status || "PENDING");
       if (responseData?.files) setAgencyKycFiles(responseData.files || []);
       if (responseData?.notes) setAgencyKycNotes(responseData.notes || null);
-      setCurrentStep(4); // Go to status step
+      setCurrentStep(5); // Go to status step (Step 5 renders the status page)
     } catch (err) {
       console.error(err);
       showToast({
