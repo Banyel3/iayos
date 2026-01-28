@@ -43,61 +43,8 @@ except ImportError:
     PDF_SUPPORT_AVAILABLE = False
     logger.warning("pdf2image not installed - PDF verification disabled")
 
-# ... (inside DocumentVerificationService methods)
 
-    def _load_image_from_bytes(self, file_data: bytes) -> Optional[Image.Image]:
-        """
-        Load image from bytes, converting PDF to image if necessary
-        Returns None if loading fails
-        """
-        try:
-            # Try loading as standard image first
-            image = Image.open(io.BytesIO(file_data))
-            if image.mode != 'RGB':
-                image = image.convert('RGB')
-            return image
-        except Exception:
-            # Failed as image, try as PDF
-            if PDF_SUPPORT_AVAILABLE:
-                try:
-                    # Convert first page of PDF to image
-                    images = convert_from_bytes(file_data, first_page=1, last_page=1)
-                    if images:
-                        return images[0].convert('RGB')
-                except Exception as pdf_error:
-                    logger.warning(f"Failed to load as PDF: {pdf_error}")
-            
-            return None
 
-    def verify_document(
-        self, 
-        file_data: bytes, 
-        document_type: str,
-        file_name: str = ""
-    ) -> VerificationResult:
-        """
-        Verify a single document
-        """
-        logger.info(f"🔍 Starting verification for document: {document_type} ({file_name})")
-        
-        warnings = []
-        details = {}
-        
-        try:
-            # Load image (supports PDF)
-            image = self._load_image_from_bytes(file_data)
-            
-            if not image:
-                return VerificationResult(
-                    status=VerificationStatus.FAILED,
-                    rejection_reason=RejectionReason.UNREADABLE_DOCUMENT,
-                    details={"error": "Could not load file. Please ensure it is a valid Image or PDF."},
-                    warnings=["File format not supported or file is corrupted"]
-                )
-            
-            width, height = image.size
-            details["resolution"] = f"{width}x{height}"
-            logger.info(f"   Image loaded: {width}x{height}, mode={image.mode}")
 
 
 
@@ -732,10 +679,25 @@ class DocumentVerificationService:
             
             result = response.json()
             
+            # Apply confidence threshold to prevent false positives
+            confidence = result.get("confidence", 0)
+            detected = result.get("detected", False)
+            
+            # If detected but confidence is too low, treat as not detected
+            if detected and confidence < MIN_CONFIDENCE_FACE:
+                logger.warning(f"   ⚠️ Face detected but confidence too low ({confidence:.2f} < {MIN_CONFIDENCE_FACE}) - rejecting as false positive")
+                return {
+                    "detected": False,
+                    "count": 0,
+                    "confidence": confidence,
+                    "faces": result.get("faces", []),
+                    "reason": f"Face detection confidence too low ({confidence:.2f})"
+                }
+            
             return {
-                "detected": result.get("detected", False),
+                "detected": detected,
                 "count": result.get("count", 0),
-                "confidence": result.get("confidence", 0),
+                "confidence": confidence,
                 "faces": result.get("faces", [])
             }
             
