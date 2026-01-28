@@ -1,0 +1,127 @@
+# ================================================================
+# MOBILE JOB LISTING & BROWSING TEST SUITE
+# Tests: Available Jobs, Categories, Search, Filters, Saved Jobs
+# ================================================================
+
+@baseUrl = https://api.iayos.online
+
+### ================================================================
+### SETUP: Login to get token
+### ================================================================
+# @name workerLogin
+POST {{baseUrl}}/api/mobile/auth/login
+Content-Type: application/json
+
+{
+    "email": "testworker@example.com",
+    "password": "Test1234!"
+}
+
+### Store token
+@workerToken = {{workerLogin.response.body.access_token}}
+
+### ================================================================
+### TEST 1: Get Available Jobs (Default)
+### ================================================================
+# @name getAvailableJobs
+GET {{baseUrl}}/api/mobile/jobs/available
+Authorization: Bearer {{workerToken}}
+
+### ================================================================
+### TEST 2: Get Job Categories
+### ================================================================
+# @name getCategories
+GET {{baseUrl}}/api/mobile/jobs/categories
+Authorization: Bearer {{workerToken}}
+
+### ================================================================
+### TEST 3: Get Jobs List (No Filters)
+### ================================================================
+# @name getJobsList
+GET {{baseUrl}}/api/mobile/jobs/list?page=1&limit=20
+Authorization: Bearer {{workerToken}}
+
+### ================================================================
+### TEST 4: Get Jobs with Category Filter
+### ================================================================
+# @name getJobsByCategory
+GET {{baseUrl}}/api/mobile/jobs/list?category=1&page=1&limit=20
+Authorization: Bearer {{workerToken}}
+
+### ================================================================
+### TEST 5: Get Jobs with Budget Filter
+### ================================================================
+# @name getJobsByBudget
+GET {{baseUrl}}/api/mobile/jobs/list?min_budget=500&max_budget=5000&page=1&limit=20
+Authorization: Bearer {{workerToken}}
+
+### ================================================================
+### TEST 6: Get Jobs with Location Filter
+### ================================================================
+# @name getJobsByLocation
+GET {{baseUrl}}/api/mobile/jobs/list?location=Zamboanga&page=1&limit=20
+Authorization: Bearer {{workerToken}}
+
+### ================================================================
+### TEST 7: Get Jobs with Combined Filters
+### ================================================================
+# @name getJobsCombinedFilters
+GET {{baseUrl}}/api/mobile/jobs/list?category=1&min_budget=1000&max_budget=10000&location=Zamboanga&page=1&limit=10
+Authorization: Bearer {{workerToken}}
+
+### ================================================================
+### TEST 8: Search Jobs by Keyword
+### ================================================================
+# @name searchJobs
+GET {{baseUrl}}/api/mobile/jobs/search?query=plumbing&page=1&limit=20
+Authorization: Bearer {{workerToken}}
+
+### ================================================================
+### TEST 9: Get Saved Jobs (Empty or with items)
+### ================================================================
+# @name getSavedJobs
+GET {{baseUrl}}/api/mobile/jobs/saved
+Authorization: Bearer {{workerToken}}
+
+### ================================================================
+### TEST 10: Save a Job (Need valid job ID)
+### ================================================================
+# @name saveJob
+POST {{baseUrl}}/api/mobile/jobs/1/save
+Authorization: Bearer {{workerToken}}
+
+### ================================================================
+### TEST 11: Unsave a Job
+### ================================================================
+# @name unsaveJob
+DELETE {{baseUrl}}/api/mobile/jobs/1/save
+Authorization: Bearer {{workerToken}}
+
+### ================================================================
+### TEST 12: Get Job Details
+### ================================================================
+# @name getJobDetails
+GET {{baseUrl}}/api/mobile/jobs/1
+Authorization: Bearer {{workerToken}}
+
+### ================================================================
+### TEST 13: Get Non-existent Job (Should 404)
+### Expected: 404 Not Found
+### ================================================================
+# @name getNonExistentJob
+GET {{baseUrl}}/api/mobile/jobs/999999
+Authorization: Bearer {{workerToken}}
+
+### ================================================================
+### TEST 14: Pagination - Page 2
+### ================================================================
+# @name getJobsPage2
+GET {{baseUrl}}/api/mobile/jobs/list?page=2&limit=20
+Authorization: Bearer {{workerToken}}
+
+### ================================================================
+### TEST 15: Sort by Budget (High to Low)
+### ================================================================
+# @name getJobsSortedByBudget
+GET {{baseUrl}}/api/mobile/jobs/list?sort_by=budget_desc&page=1&limit=20
+Authorization: Bearer {{workerToken}}
