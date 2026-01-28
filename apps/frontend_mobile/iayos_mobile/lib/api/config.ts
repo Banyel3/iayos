@@ -4,15 +4,18 @@
 // For Android Emulator, use 10.0.2.2
 // For physical device, use your machine's network IP
 
+import { Platform } from "react-native";
+
 // AUTOMATIC IP DETECTION: Expo auto-detects your network IP automatically
 // When you switch networks, Expo will automatically use the new IP
-const getDevIP = () => {
+const getDevIP = (): string => {
   // Priority 1: Try to use Expo's detected IP from Constants
   // This works when running via Expo Go and detects your machine's IP automatically
   try {
     const Constants = require("expo-constants").default;
     const expoIP = Constants.expoConfig?.hostUri?.split(":")[0];
     if (expoIP && expoIP !== "localhost" && expoIP !== "127.0.0.1") {
+      console.log("[API Config] Using Expo detected IP:", expoIP);
       return expoIP;
     }
   } catch (e) {
@@ -21,10 +24,12 @@ const getDevIP = () => {
 
   // Priority 2: Environment variable (manual override if needed)
   if (process.env.EXPO_PUBLIC_DEV_IP) {
+    console.log("[API Config] Using EXPO_PUBLIC_DEV_IP:", process.env.EXPO_PUBLIC_DEV_IP);
     return process.env.EXPO_PUBLIC_DEV_IP;
   }
 
   // Priority 3: Fallback to localhost (will fail on physical devices)
+  console.warn("[API Config] Falling back to localhost - may fail on device!");
   return "localhost";
 };
 
