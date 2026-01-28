@@ -574,25 +574,31 @@ const AgencyKYCPage = () => {
         setAgencyKycStatus("REJECTED");
         setAgencyKycNotes(rejectionReasons.join("\n"));
         if (responseData?.files) setAgencyKycFiles(responseData.files || []);
-        setCurrentStep(4); // Go to status step
+        setCurrentStep(5); // Go to status step (Step 5 renders the status page)
+        router.refresh(); // Invalidate Next.js server cache so layout refetches status
         setIsSubmitting(false);
         return;
       }
 
+      // Check if auto-approved
+      const wasAutoApproved = responseData?.auto_approved === true;
+      
       showToast({
-        type: "success",
-        title:
-          agencyKycStatus?.toUpperCase() === "REJECTED"
-            ? "Resubmitted"
-            : "Submitted",
-        message: "Documents uploaded successfully. Verification in progress.",
+        type: wasAutoApproved ? "success" : "success",
+        title: wasAutoApproved 
+          ? "Agency Verified! ✅" 
+          : (agencyKycStatus?.toUpperCase() === "REJECTED" ? "Resubmitted" : "Submitted"),
+        message: wasAutoApproved
+          ? "Your agency has been automatically verified!"
+          : "Documents uploaded successfully. Verification in progress.",
       });
 
-      // Update status and navigate to Step 4 (status page)
+      // Update status and navigate to Step 5 (status page)
       setAgencyKycStatus(responseData?.status || "PENDING");
       if (responseData?.files) setAgencyKycFiles(responseData.files || []);
       if (responseData?.notes) setAgencyKycNotes(responseData.notes || null);
-      setCurrentStep(4); // Go to status step
+      setCurrentStep(5); // Go to status step (Step 5 renders the status page)
+      router.refresh(); // Invalidate Next.js server cache so layout refetches status
     } catch (err) {
       console.error(err);
       showToast({

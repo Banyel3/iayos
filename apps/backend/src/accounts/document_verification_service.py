@@ -27,6 +27,18 @@ logger = logging.getLogger(__name__)
 import os
 FACE_API_URL = os.getenv("FACE_API_URL", "https://iayos-face-api.onrender.com")
 
+# Import shared HTTP client and timeouts from face_detection_service
+# This ensures consistent connection pooling and timeouts across all face API calls
+try:
+    from .face_detection_service import get_http_client, FACE_API_TIMEOUT, FACE_API_HEALTH_TIMEOUT
+    _use_shared_client = True
+    logger.info("Using shared HTTP client from face_detection_service")
+except ImportError:
+    _use_shared_client = False
+    FACE_API_TIMEOUT = 45.0
+    FACE_API_HEALTH_TIMEOUT = 10.0
+    logger.info("Shared HTTP client not available, using standalone httpx")
+
 # Tesseract is imported conditionally
 try:
     import pytesseract
@@ -267,7 +279,11 @@ class DocumentVerificationService:
         )
 
     def _check_face_api_available(self) -> bool:
-        """Check if Face API service is available"""
+        """Check if Face API service is available.
+        
+        Uses shared HTTP client with connection pooling for better performance.
+        Health check timeout is 10s to allow for Render cold start.
+        """
         if self.skip_face_service:
             self._face_api_available = False
             return False
@@ -276,7 +292,13 @@ class DocumentVerificationService:
             return self._face_api_available
             
         try:
-            response = httpx.get(f"{self.face_api_url}/health", timeout=5.0)
+            # Use shared client if available (connection pooling)
+            if _use_shared_client:
+                client = get_http_client()
+                response = client.get(f"{self.face_api_url}/health", timeout=FACE_API_HEALTH_TIMEOUT)
+            else:
+                response = httpx.get(f"{self.face_api_url}/health", timeout=FACE_API_HEALTH_TIMEOUT)
+            
             if response.status_code == 200:
                 data = response.json()
                 self._face_api_available = data.get("model_loaded", False)
@@ -762,14 +784,23 @@ class DocumentVerificationService:
                 image.save(buffer, format="JPEG", quality=90)
                 image_data = buffer.getvalue()
             
-            # Call Face API detection endpoint
+            # Call Face API detection endpoint using shared HTTP client for connection pooling
             files = {"file": ("image.jpg", image_data, "image/jpeg")}
             
-            response = httpx.post(
-                f"{self.face_api_url}/detect",
-                files=files,
-                timeout=30.0
-            )
+            # Use shared client if available (connection pooling + 45s timeout for cold start)
+            if _use_shared_client:
+                client = get_http_client()
+                response = client.post(
+                    f"{self.face_api_url}/detect",
+                    files=files,
+                    timeout=FACE_API_TIMEOUT
+                )
+            else:
+                response = httpx.post(
+                    f"{self.face_api_url}/detect",
+                    files=files,
+                    timeout=FACE_API_TIMEOUT
+                )
             
             if response.status_code != 200:
                 logger.warning(f"Face API returned {response.status_code}: {response.text}")
