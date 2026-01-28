@@ -171,9 +171,26 @@ class AgencyKYCExtractionParser:
         # Parse based on document type
         if document_type == "BUSINESS_PERMIT":
             self._parse_business_permit(ocr_text, result)
-        elif document_type in ["REP_ID_FRONT", "FRONTID"]:
+        elif document_type in [
+            "REP_ID_FRONT",
+            "FRONTID",
+            "PHILSYS_ID",
+            "DRIVERS_LICENSE",
+            "DRIVERSLICENSE",
+            "SSS_ID",
+            "PRC_ID",
+            "POSTAL_ID",
+            "VOTERS_ID",
+            "TIN_ID",
+            "SENIOR_CITIZEN_ID",
+            "OFW_ID",
+            "PASSPORT",
+            "NATIONALID",
+            "UMID",
+            "PHILHEALTH",
+        ]:
             # Parse representative ID using personal KYC parser
-            self._parse_representative_id(ocr_text, result)
+            self._parse_representative_id(ocr_text, result, document_type)
         elif document_type in ["REP_ID_BACK", "BACKID"]:
             # Parse back of representative ID (address usually)
             self._parse_representative_id_back(ocr_text, result)
@@ -189,19 +206,41 @@ class AgencyKYCExtractionParser:
         lines = text.split('\n')
         text_upper = text.upper()
         
-        # Extract business name (usually one of the first capitalized lines)
-        for i, line in enumerate(lines[:10]):  # Check first 10 lines
-            line = line.strip()
-            # Business name is usually in ALL CAPS and not a header
-            if (line.isupper() and len(line) > 5 and 
-                not any(kw in line.upper() for kw in ["PERMIT", "MAYOR", "CITY", "MUNICIPALITY", "REPUBLIC"])):
-                result.business_name = ExtractionResult(
-                    value=line.title(),  # Convert to Title Case
-                    confidence=0.7,
-                    source_text=line
-                )
-                logger.info(f"   Business Name: {result.business_name.value}")
-                break
+        # Extract business name - prefer DTI certificate format "This certifies that"
+        certifies_match = self.certifies_that_pattern.search(text)
+        if certifies_match:
+            business_name = certifies_match.group(1).strip()
+            result.business_name = ExtractionResult(
+                value=business_name.title(),
+                confidence=0.85,
+                source_text=certifies_match.group(0)
+            )
+            logger.info(f"   Business Name (from 'certifies that'): {result.business_name.value}")
+
+        # Fallback: first all-caps line near the top (avoid boilerplate lines)
+        if not result.business_name.value:
+            excluded_phrases = [
+                "CERTIFICATE",
+                "BUSINESS NAME REGISTRATION",
+                "DEPARTMENT OF TRADE",
+                "REPUBLIC",
+                "PHILIPPINES",
+                "IS A BUSINESS NAME REGISTERED",
+            ]
+            for line in lines[:12]:
+                line = line.strip()
+                if (
+                    line.isupper()
+                    and len(line) > 5
+                    and not any(kw in line.upper() for kw in excluded_phrases)
+                ):
+                    result.business_name = ExtractionResult(
+                        value=line.title(),
+                        confidence=0.7,
+                        source_text=line,
+                    )
+                    logger.info(f"   Business Name: {result.business_name.value}")
+                    break
         
         # Extract business type (look for keywords like "sole proprietor", "corporation")
         business_type_keywords = {
@@ -336,18 +375,6 @@ class AgencyKYCExtractionParser:
                     except ValueError as e:
                         logger.warning(f"Failed to parse DTI validity dates: {e}")
         
-        # Extract business name from "This certifies that" pattern (DTI Certificate format)
-        if not result.business_name.value:
-            certifies_match = self.certifies_that_pattern.search(text)
-            if certifies_match:
-                business_name = certifies_match.group(1).strip()
-                result.business_name = ExtractionResult(
-                    value=business_name.title(),
-                    confidence=0.8,
-                    source_text=certifies_match.group(0)
-                )
-                logger.info(f"   Business Name (from 'certifies that'): {result.business_name.value}")
-        
         # Extract SEC number
         sec_match = self.sec_pattern.search(text)
         if sec_match:
@@ -378,13 +405,32 @@ class AgencyKYCExtractionParser:
             )
             logger.info(f"   Business Address: {result.business_address.value}")
     
-    def _parse_representative_id(self, text: str, result: ParsedAgencyKYCData):
+    def _parse_representative_id(self, text: str, result: ParsedAgencyKYCData, id_type_hint: str = ""):
         """Parse representative's ID front (reuse personal KYC parser logic)"""
         # Import and use the personal KYC parser for name, ID number, birth date
         from accounts.kyc_extraction_parser import get_kyc_parser
         
+        text_upper = text.upper()
+        normalized_hint = (id_type_hint or "").upper()
+
+        if not normalized_hint or normalized_hint in ["REP_ID_FRONT", "FRONTID"]:
+            if "DRIVER" in text_upper or "LICENSE" in text_upper or "LTO" in text_upper:
+                normalized_hint = "DRIVERSLICENSE"
+            elif "PHILSYS" in text_upper or "NATIONAL" in text_upper or "PSN" in text_upper:
+                normalized_hint = "NATIONALID"
+            elif "PASSPORT" in text_upper or "PASAPORTE" in text_upper:
+                normalized_hint = "PASSPORT"
+            elif "UMID" in text_upper:
+                normalized_hint = "UMID"
+            elif "PHILHEALTH" in text_upper or "PHIC" in text_upper:
+                normalized_hint = "PHILHEALTH"
+            elif "SSS" in text_upper:
+                normalized_hint = "SSS_ID"
+            else:
+                normalized_hint = "NATIONALID"
+
         kyc_parser = get_kyc_parser()
-        parsed_personal = kyc_parser.parse_ocr_text(text, "NATIONALID")
+        parsed_personal = kyc_parser.parse_ocr_text(text, normalized_hint)
         
         # Map personal KYC fields to representative fields
         result.rep_full_name = ExtractionResult(
@@ -398,9 +444,9 @@ class AgencyKYCExtractionParser:
             source_text=parsed_personal.id_number.source_text
         )
         result.rep_id_type = ExtractionResult(
-            value=parsed_personal.id_type.value or "NATIONALID",
+            value=parsed_personal.id_type.value or normalized_hint,
             confidence=0.9,
-            source_text=""
+            source_text="",
         )
         result.rep_birth_date = ExtractionResult(
             value=parsed_personal.birth_date.value,
@@ -410,6 +456,7 @@ class AgencyKYCExtractionParser:
         
         logger.info(f"   Rep Name: {result.rep_full_name.value}")
         logger.info(f"   Rep ID: {result.rep_id_number.value}")
+        logger.info(f"   Rep ID Type: {result.rep_id_type.value}")
     
     def _parse_representative_id_back(self, text: str, result: ParsedAgencyKYCData):
         """Parse representative's ID back (usually has address)"""
@@ -453,22 +500,28 @@ class AgencyKYCExtractionParser:
     def _extract_business_address(self, text: str) -> str:
         """Extract business address from text"""
         # Look for lines containing address keywords
-        address_keywords = ["barangay", "brgy", "street", "st.", "avenue", "ave", "city", "municipality"]
-        lines = text.split('\n')
-        
+        address_keywords = ["barangay", "brgy", "street", "st.", "avenue", "ave", "city", "municipality", "region", "province"]
+        lines = [line.strip() for line in text.split('\n') if line.strip()]
+
         address_lines = []
-        for line in lines:
+        for idx, line in enumerate(lines):
             line_lower = line.lower()
             if any(kw in line_lower for kw in address_keywords):
-                # Clean up the line
+                # Handle cases like "(BARANGAY)" followed by city/region line
+                if line_lower in ["(barangay)", "barangay"] and idx + 1 < len(lines):
+                    next_line = lines[idx + 1].strip()
+                    if next_line and len(next_line) > 3:
+                        address_lines.append(next_line)
+                    continue
+
                 clean_line = line.strip()
-                if len(clean_line) > 10:  # Ignore very short lines
+                if len(clean_line) > 10:
                     address_lines.append(clean_line)
-        
+
         # Combine address lines
         if address_lines:
             return " ".join(address_lines[:3])  # Max 3 lines
-        
+
         return ""
 
 

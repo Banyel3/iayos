@@ -68,7 +68,7 @@ def upload_agency_kyc(request):
         auth_letter = request.FILES.get("auth_letter")
 
         # Call optimized upload service (skips AI validation)
-        result = services.upload_agency_kyc_fast(payload, business_permit, rep_front, rep_back, address_proof, auth_letter)
+		result = upload_agency_kyc_fast(payload, business_permit, rep_front, rep_back, address_proof, auth_letter)
 
         return result
     except ValueError as e:
@@ -114,7 +114,8 @@ def extract_ocr_from_documents(request):
     """
     try:
         account_id = request.auth.accountID
-        business_type = request.POST.get("business_type", "SOLE_PROPRIETORSHIP")
+		business_type = request.POST.get("business_type", "SOLE_PROPRIETORSHIP")
+		rep_id_type = request.POST.get("rep_id_type", "")
         
         # Get uploaded documents
         business_permit = request.FILES.get("business_permit")
@@ -124,11 +125,12 @@ def extract_ocr_from_documents(request):
             return Response({"error": "Business permit is required for OCR extraction"}, status=400)
         
         # Run OCR extraction service (imported directly from fast_upload_service)
-        result = extract_ocr_for_autofill(
-            business_permit=business_permit,
-            rep_id_front=rep_id_front,
-            business_type=business_type
-        )
+		result = extract_ocr_for_autofill(
+			business_permit=business_permit,
+			rep_id_front=rep_id_front,
+			business_type=business_type,
+			rep_id_type=rep_id_type
+		)
         
         return result
         

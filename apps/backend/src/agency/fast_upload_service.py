@@ -301,7 +301,7 @@ def upload_agency_kyc_fast(payload, business_permit, rep_front, rep_back, addres
         raise
 
 
-def extract_ocr_for_autofill(business_permit, rep_id_front, business_type):
+def extract_ocr_for_autofill(business_permit, rep_id_front, business_type, rep_id_type: str = ""):
     """
     Extract OCR text from business permit and representative ID for form autofill.
     
@@ -314,8 +314,8 @@ def extract_ocr_for_autofill(business_permit, rep_id_front, business_type):
     try:
         print(f"📝 [OCR] Extracting text for autofill (business_type: {business_type})")
         
-        from accounts.kyc_extraction_service import KYCExtractionService
-        extraction_service = KYCExtractionService()
+        from .kyc_extraction_parser import get_agency_kyc_parser
+        parser = get_agency_kyc_parser()
         
         # Extract from business permit
         permit_data = {}
@@ -339,7 +339,18 @@ def extract_ocr_for_autofill(business_permit, rep_id_front, business_type):
             print(f"   📄 Business permit OCR: {len(ocr_text)} chars, confidence={ocr_result.get('confidence', 0):.2f}")
             
             # Parse business data from OCR text
-            permit_data = extraction_service.extract_business_data(ocr_text, business_type)
+            parsed_business = parser.parse_ocr_text(ocr_text, "BUSINESS_PERMIT")
+            permit_data = {
+                "business_name": parsed_business.business_name.value or "",
+                "business_address": parsed_business.business_address.value or "",
+                "permit_number": parsed_business.permit_number.value or "",
+                "dti_number": parsed_business.dti_number.value or "",
+                "sec_number": parsed_business.sec_number.value or "",
+                "tin": parsed_business.tin.value or "",
+                "permit_issue_date": parsed_business.permit_issue_date.value or "",
+                "permit_expiry_date": parsed_business.permit_expiry_date.value or "",
+                "confidence": parsed_business.overall_confidence,
+            }
         
         # Extract from representative ID (if provided)
         rep_data = {}
@@ -359,14 +370,27 @@ def extract_ocr_for_autofill(business_permit, rep_id_front, business_type):
             
             print(f"   🪪 Rep ID OCR: {len(ocr_text)} chars, confidence={ocr_result.get('confidence', 0):.2f}")
             
-            # Parse representative data
-            rep_data = extraction_service.extract_representative_data(ocr_text)
+            # Parse representative data (use provided ID type if available)
+            rep_doc_type = (rep_id_type or "REP_ID_FRONT").upper()
+            parsed_rep = parser.parse_ocr_text(ocr_text, rep_doc_type)
+            rep_data = {
+                "rep_full_name": parsed_rep.rep_full_name.value or "",
+                "rep_id_number": parsed_rep.rep_id_number.value or "",
+                "rep_id_type": parsed_rep.rep_id_type.value or rep_doc_type,
+                "rep_birth_date": parsed_rep.rep_birth_date.value or "",
+                "rep_address": parsed_rep.rep_address.value or "",
+                "confidence": parsed_rep.overall_confidence,
+            }
         
         # Merge results
+        # Prefer user-selected business_type (dropdown) if provided
+        selected_business_type = business_type or permit_data.get("business_type") or ""
+
         extracted_data = {
             **permit_data,
             **rep_data,
-            'extracted_at': timezone.now().isoformat(),
+            "business_type": selected_business_type,
+            "extracted_at": timezone.now().isoformat(),
         }
         
         print(f"✅ [OCR] Extraction complete: {len(extracted_data)} fields")
@@ -374,7 +398,7 @@ def extract_ocr_for_autofill(business_permit, rep_id_front, business_type):
         return {
             "success": True,
             "extracted_data": extracted_data,
-            "confidence": permit_data.get('confidence', 0),
+            "confidence": max(permit_data.get("confidence", 0), rep_data.get("confidence", 0)),
             "message": "OCR extraction successful. Please review and edit the autofilled data."
         }
         
